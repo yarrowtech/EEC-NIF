@@ -1,4 +1,5 @@
 import React, { useRef, useState } from "react";
+import { Info } from "lucide-react"
 
 export default function ClozeDragDrop() {
   const [questionSet, setQuestionSet] = useState([
@@ -6,6 +7,7 @@ export default function ClozeDragDrop() {
       question:
         "There are several different types of drums. The ${{blank}} drum is a long bodied drum typically held between the knees and played with the fingers. A drum with small metal disc around the edge played by being shaken is a ${{blank}}. Many years ago, a ${{blank}} drum was used to announce an army's arrival onto a battlefield. Finally, the biggest drum in a marching band is called a ${{blank}} drum.",
       options: ["snare", "bass", "tom-tom", "cymbal"],
+      hint: ["hint1", "hint2", "hint3", "hint4"],
     },
   ]);
   const [optionPos, setOptionPos] = useState("down");
@@ -34,7 +36,7 @@ function QuestionCard({ question, optionPos }) {
   const dropBoxRef = useRef([]);
   const [showDrop, setShowDrop] = useState(
     options.map(() => {
-      return { show: false, value: "" };
+      return { show: false, value: "", showHint: false };
     })
   );
   const upArrow = "-top-4 left-1/2 -translate-x-1/2 border-l-[15px] border-l-transparent border-r-[15px] border-r-transparent border-b-[30px] border-b-yellow-100 border-t-0"
@@ -55,12 +57,13 @@ function QuestionCard({ question, optionPos }) {
                   onDrop={(e) => {
                     const data = e.dataTransfer.getData("text");
                     const temp = [...showDrop];
+                    if (temp[i].show) return
                     temp[i].show = true;
                     temp[i].value = data;
                     setShowDrop([...temp]);
                     setOptions(options.filter((option) => option !== data));
                   }}
-                  className={`inline-block px-4 py-2 min-w-15 min-h-7 border-dashed border-3 border-black ${
+                  className={`inline-block px-4 py-1 min-w-15 min-h-7 border-dashed border-3 border-black ${
                     showDrop[i].show ? "border-purple-400" : ""
                   }`}
                 >
@@ -80,7 +83,17 @@ function QuestionCard({ question, optionPos }) {
                       </button>
                     </div>
                   ) : (
-                    ""
+                    <div className="relative">
+                      <Info className="w-4 m-auto cursor-pointer" onClick={() => {
+                        const temp = [...showDrop];
+                        temp[i].showHint = !temp[i].showHint;
+                        setShowDrop([...temp]);
+                      }} />
+                      {showDrop[i].showHint && <div className="bg-yellow-100 p-2 absolute left-1/2 -translate-x-1/2 top-full z-10 border-1 border-black min-w-50 rounded-lg">
+                        <div className="w-0 h-0 border-b-[15px] border-l-[7px] border-r-[7px] border-b-yellow-100 border-l-transparent border-r-transparent absolute left-1/2 -translate-x-1/2 bottom-full"></div>
+                        <p className="text-xs">{question.hint[i]}</p>
+                      </div>}
+                    </div>
                   )}
                 </span>
               ) : (
