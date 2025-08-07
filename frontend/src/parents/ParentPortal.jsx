@@ -16,7 +16,8 @@ import {
   ChevronDown,
   ChevronLeft,
   ChevronRight,
-  Home
+  Home,
+  Eye
 } from 'lucide-react';
 import AttendanceReport from './AttendanceReport';
 import AcademicReport from './AcademicReport';
@@ -28,6 +29,7 @@ import AchievementsView from './AchievementsView';
 import CoursesView from './CoursesView';
 import PTMPortal from './PTMPortal';
 import ParentDashboard from './ParentDashboard';
+import Observation from './Observation';
 
 const ParentPortal = () => {
   const [sidebarOpen, setSidebarOpen] = useState(true);
@@ -47,6 +49,7 @@ const ParentPortal = () => {
     { icon: Activity, label: 'Health Report', path: '/parents/health' },
     { icon: MessageSquare, label: 'Complaints', path: '/parents/complaints' },
     { icon: Video, label: 'Parent-Teacher Meetings', path: '/parents/ptm' },
+    { icon: Eye, label: 'Observation', path: '/parents/observation' },
     { icon: GraduationCap, label: 'Results', path: '/parents/results', readOnly: true },
     { icon: Award, label: 'Achievements', path: '/parents/achievements', readOnly: true },
     { icon: FileText, label: 'Courses', path: '/parents/courses', readOnly: true }
@@ -124,7 +127,7 @@ const ParentPortal = () => {
             onClick={scrollDown}
             className="mt-2 w-full py-2 flex items-center justify-center text-gray-500 hover:text-yellow-600 transition-colors"
           >
-            <ChevronDown className="h-5 w-5" />
+            <ChevronDown className="h-5 h-5" />
           </button>
         </div>
       </div>
@@ -139,6 +142,7 @@ const ParentPortal = () => {
           <Route path="health" element={<HealthReport />} />
           <Route path="complaints" element={<ComplaintManagementSystem />} />
           <Route path="ptm" element={<PTMPortal />} />
+          <Route path="observation" element={<Observation />} />
           <Route path="results" element={<ResultsView />} />
           <Route path="achievements" element={<AchievementsView />} />
           <Route path="courses" element={<CoursesView />} />

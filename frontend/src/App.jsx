@@ -6,6 +6,7 @@ import SignupForm from './components/SignupForm'
 import Dashboard from './components/Dashboard' 
 import ComplaintManagementSystem from './parents/ComplaintManagementSystem'
 import AdminApp from './admin/AdminApp' 
+import PrincipalDashboard from './principal/PrincipalDashboard'
 import ProfileUpdate from './components/ProfileUpdate'
 import ParentPortal from './parents/ParentPortal'
 import TeacherPortal from './teachers/TeacherPortal'
@@ -22,6 +23,7 @@ function App() {
         <Route path="/signup" element={<SignupForm/>}/>
         <Route path="/complaint" element={<ComplaintManagementSystem/>}/>
         <Route path="/admin/*" element={<AdminApp />} />
+        <Route path="/principal" element={<PrincipalDashboard />} />
         <Route path="/profile" element={<ProfileUpdate />} />
         <Route path="/parents/*" element={<ParentPortal />} />
         <Route path="/teachers/*" element={<TeacherPortal />} />

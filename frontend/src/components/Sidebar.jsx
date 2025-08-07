@@ -12,7 +12,10 @@ import {
   ChevronRight,
   User,
   File,
-  Atom
+  Atom,
+  Trophy,
+  Bell,
+  MessageCircle
 } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 
@@ -25,8 +28,10 @@ const Sidebar = ({ activeView, setActiveView, isOpen, setIsOpen }) => {
     { id: 'routine', name: 'Routine', icon: Calendar },
     { id: 'assignments', name: 'Assignments', icon: FileText },
     { id: 'courses', name: 'Courses', icon: BookOpen },
+    { id: 'results', name: 'Results', icon: Trophy },
+    { id: 'noticeboard', name: 'Notice Board', icon: Bell },
+    { id: 'teacherfeedback', name: 'Teacher Feedback', icon: MessageCircle },
     { id: 'achievements', name: 'Achievements', icon: Award },
-    { id: 'feedback', name: 'Feedback', icon: Atom, link: '/feedback' },
     { id: 'profile', name: 'Profile', icon: User },
   ];
 
