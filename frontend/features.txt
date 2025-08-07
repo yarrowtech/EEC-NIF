@@ -1,0 +1,73 @@
+# EEC Frontend Features List
+
+## Student Portal
+- Student Dashboard (quick stats, welcome, notifications)
+- Attendance tracking and view
+- Routine/timetable view
+- Assignment view and submission
+- Courses view and progress
+- Results view
+- Achievements view
+- Profile update
+- Notice board
+- Theme customizer
+- Feedback form for teachers
+- Login and signup
+
+## Parent Portal
+- Parent Dashboard (important updates carousel, observation score, quick links)
+- Attendance report
+- Academic report
+- Fees payment
+- Health report
+- Complaint management system
+- Parent-Teacher Meeting (PTM) portal
+- Results view
+- Achievements view
+- Courses view
+- Observation page (emoji-based child behavior assessment)
+- Sidebar navigation with icons
+
+## Teacher Portal
+- Teacher Dashboard (overview, quick stats)
+- Attendance management
+- Assignment management
+- Assignment evaluation
+- Health updates for students
+- Parent meetings management
+- Lesson plan dashboard (split view, add/view lesson plans)
+- Sidebar navigation with icons
+
+## Admin Portal
+- Admin Dashboard (analytics, stats)
+- Teacher management (add, edit, view teachers)
+- Student management (add, edit, view students)
+- Course management
+- Subject management
+- Assignment management
+- Attendance management
+- Behaviour management
+- Exam management
+- Feedback management
+- Profile management
+- Sidebar navigation with icons
+
+## Principal Portal
+- Principal Dashboard (school-wide overview)
+- Academic analytics
+- Student analytics
+- Staff management
+- Financial dashboard
+- Notification center
+- Quick actions (emergency alert, etc.)
+- School overview
+- Sidebar navigation with icons
+
+## Shared/General Features
+- Responsive design (works on all screen sizes)
+- Modern UI with Tailwind CSS
+- Role-based routing and navigation
+- Welcome and info pages (Meet the Developer, etc.)
+- Feedback and thank you pages
+- Modular component structure
+- Customizable theme 

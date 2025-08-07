@@ -6,10 +6,12 @@ import AttendanceView from './AttendanceView';
 import RoutineView from './RoutineView';
 import AssignmentView from './AssignmentView';
 import CoursesView from './CoursesView';
+import ResultsView from './ResultsView';
 import AchievementsView from './AchievementsView';
 import ThemeCustomizer from './ThemeCustomizer';
 import ProfileUpdate from './ProfileUpdate';
 import NoticeBoard from './NoticeBoard';
+import TeacherFeedback from './TeacherFeedback';
 
 const Dashboard = () => {
   const [activeView, setActiveView] = useState('dashboard');
@@ -17,23 +19,26 @@ const Dashboard = () => {
 
   // Define view components in an object for cleaner code
   const viewComponents = {
-    dashboard: <DashboardHome />,
-    attendance: <AttendanceView />,
-    routine: <RoutineView />,
-    assignments: <AssignmentView />,
-    courses: <CoursesView />,
-    achievements: <AchievementsView />,
-    profile: <ProfileUpdate />,
-    themecustomizer: <ThemeCustomizer />,
-    noticeboard: <NoticeBoard />,
+    dashboard: DashboardHome,
+    attendance: AttendanceView,
+    routine: RoutineView,
+    assignments: AssignmentView,
+    courses: CoursesView,
+    results: ResultsView,
+    noticeboard: NoticeBoard,
+    teacherfeedback: TeacherFeedback,
+    achievements: AchievementsView,
+    profile: ProfileUpdate,
+    themecustomizer: ThemeCustomizer,
   };
 
   const renderContent = () => {
-    return viewComponents[activeView] || <DashboardHome />;
+    const Component = viewComponents[activeView] || DashboardHome;
+    return <Component />;
   };
 
   return (
-    <div className={`min-h-screen w-full bg-gray-50 grid ${sidebarOpen ? "grid-cols-[300px_1fr]" : "grid-cols-[100px_1fr]"} transition-all duration-300`}>
+    <div className={`min-h-screen w-full bg-gray-50 grid ${sidebarOpen ? "grid-cols-[250px_1fr]" : "grid-cols-[100px_1fr]"} transition-all duration-300`}>
       <Sidebar 
         activeView={activeView} 
         setActiveView={setActiveView}
