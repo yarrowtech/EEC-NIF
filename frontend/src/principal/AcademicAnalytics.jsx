@@ -21,7 +21,7 @@ const AcademicAnalytics = () => {
   const [selectedGrade, setSelectedGrade] = useState('all');
 
   const academicOverview = {
-    averageGPA: 3.72,
+    averageGPA: '95%',
     passRate: 94.8,
     honorsStudents: 234,
     improvementRate: 12.5,
@@ -159,7 +159,7 @@ const AcademicAnalytics = () => {
             </div>
             <div className="text-right">
               <div className="text-2xl font-bold text-amber-900">{academicOverview.averageGPA}</div>
-              <div className="text-sm text-amber-600">Average GPA</div>
+              <div className="text-sm text-amber-600">Average Percentage</div>
             </div>
           </div>
           <div className="w-full bg-yellow-200 rounded-full h-2">

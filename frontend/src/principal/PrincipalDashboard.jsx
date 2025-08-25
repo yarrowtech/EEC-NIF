@@ -338,11 +338,11 @@ const PrincipalDashboard = () => {
                 <div className="flex items-center justify-between mb-6">
                   <h2 className="text-xl font-bold text-gray-900">School Overview</h2>
                   <div className="flex items-center gap-2">
-                    <button className="flex items-center gap-2 px-3 py-1.5 bg-gray-100 hover:bg-gray-200 rounded-lg text-sm transition-colors">
+                    <button className="flex items-center gap-2 px-3 py-1.5 bg-black hover:bg-gray-200 rounded-lg text-sm transition-colors">
                       <Filter className="w-4 h-4" />
                       Filters
                     </button>
-                    <button className="flex items-center gap-2 px-3 py-1.5 bg-gray-100 hover:bg-gray-200 rounded-lg text-sm transition-colors">
+                    <button className="flex items-center gap-2 px-3 py-1.5 bg-black hover:bg-gray-200 rounded-lg text-sm transition-colors">
                       <RefreshCw className="w-4 h-4" />
                       Refresh
                     </button>

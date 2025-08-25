@@ -21,7 +21,7 @@ const AcademicReport = () => {
   const academicData = {
     studentName: "Sarah Smith",
     class: "10-A",
-    currentGPA: 3.8,
+    currentGPA: '97%',
     rank: 5,
     totalStudents: 120,
     subjects: [
@@ -83,7 +83,7 @@ const AcademicReport = () => {
           <h3 className="text-2xl font-bold text-yellow-600">
             {academicData.currentGPA}
           </h3>
-          <p className="text-gray-600">Current GPA</p>
+          <p className="text-gray-600">Current Percetange</p>
         </div>
 
         <div className="bg-white rounded-xl p-6 shadow-sm text-center">
