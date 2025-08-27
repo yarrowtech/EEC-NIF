@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import {
   Calendar,
   Clock,
@@ -19,6 +19,9 @@ import MatchList from '../tryout/match_list';
 import MCQTryout from '../tryout/mcq';
 import TextEditor from '../tryout/plain_txt';
 import SortList from '../tryout/sort_list';
+import * as THREE from 'three';
+import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+
 
 const AssignmentView = () => {
   const [filter, setFilter] = useState("all"); // all, pending, completed, overdue
@@ -130,6 +133,158 @@ const AssignmentView = () => {
   const [questionData, setQuestionData] = useState(questionPaper);
   const [insight, setInsight] = useState({studentClass: selectedClass, subject: eecSubject, startTime: new Date(), questionType: questionType, endTime: null, correct: 0, incorrect: 0});
 
+  // Lab controls state
+  const [labControls, setLabControls] = useState({
+    rotation: 0,
+    zoom: 1,
+    animationSpeed: 1,
+    isAnimating: false
+  });
+  // Lab Three.js viewer refs
+  const labContainerRef = useRef(null);
+  const labSceneRef = useRef(null);
+  const labRendererRef = useRef(null);
+  const labCameraRef = useRef(null);
+  const labModelRef = useRef(null);
+  const labAnimRef = useRef(null);
+  const labInitialCamPosRef = useRef(null);
+  const labControlsRef = useRef(labControls);
+
+  useEffect(() => { labControlsRef.current = labControls; }, [labControls]);
+
+  useEffect(() => {
+    if (assignmentType !== 'lab') {
+      if (labAnimRef.current) cancelAnimationFrame(labAnimRef.current);
+      if (labRendererRef.current) {
+        labRendererRef.current.dispose();
+        labRendererRef.current = null;
+      }
+      labSceneRef.current = null;
+      labCameraRef.current = null;
+      labModelRef.current = null;
+      labInitialCamPosRef.current = null;
+      return;
+    }
+
+    if (!labContainerRef.current) return;
+
+    const container = labContainerRef.current;
+    const width = container.clientWidth || 400;
+    const height = container.clientHeight || 400;
+
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(60, width / height, 0.1, 1000);
+    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+    renderer.setSize(width, height);
+    renderer.setPixelRatio(window.devicePixelRatio);
+    renderer.setClearColor(0xf8f9fa, 1);
+
+    scene.add(new THREE.AmbientLight(0xffffff, 0.9));
+    const dir = new THREE.DirectionalLight(0xffffff, 0.8);
+    dir.position.set(5, 5, 5);
+    scene.add(dir);
+
+    container.innerHTML = '';
+    container.appendChild(renderer.domElement);
+
+    const loader = new GLTFLoader();
+    loader.load(
+      '/complex-h2o.glb',
+      (gltf) => {
+        const model = gltf.scene || gltf.scenes?.[0];
+        if (!model) return;
+
+        // Ensure the canvas fills the container
+        if (renderer.domElement) {
+          renderer.domElement.style.width = '100%';
+          renderer.domElement.style.height = '100%';
+          renderer.domElement.style.display = 'block';
+        }
+
+        // Center model at origin and compute fit
+        const box = new THREE.Box3().setFromObject(model);
+        const center = box.getCenter(new THREE.Vector3());
+        const size = box.getSize(new THREE.Vector3());
+
+        // Wrap model to re-center
+        const wrapper = new THREE.Group();
+        wrapper.add(model);
+        scene.add(wrapper);
+        labModelRef.current = wrapper;
+        model.position.sub(center); // center at origin
+
+        // Frame the model so it fits inside the viewer
+        const maxDim = Math.max(size.x, size.y, size.z) || 1;
+        const fov = (camera.fov * Math.PI) / 180;
+        const cameraZ = (maxDim / 2) / Math.tan(fov / 2) * 1.5; // 1.5 margin
+        camera.position.set(0, 0, cameraZ);
+        camera.near = cameraZ / 100;
+        camera.far = cameraZ * 100;
+        camera.updateProjectionMatrix();
+        camera.lookAt(0, 0, 0);
+        labInitialCamPosRef.current = camera.position.clone();
+
+        let baseRotation = 0;
+        const animate = () => {
+          labAnimRef.current = requestAnimationFrame(animate);
+          const c = labControlsRef.current;
+          if (labInitialCamPosRef.current) {
+            const base = labInitialCamPosRef.current.clone();
+            const zoom = Math.max(0.5, Math.min(3, c.zoom || 1));
+            camera.position.copy(base.multiplyScalar(1 / zoom));
+          }
+          if (c.isAnimating && (c.animationSpeed || 0) > 0) {
+            baseRotation += 0.01 * c.animationSpeed;
+            wrapper.rotation.y = baseRotation;
+          } else {
+            wrapper.rotation.y = ((c.rotation || 0) * Math.PI) / 180;
+            baseRotation = wrapper.rotation.y;
+          }
+          renderer.render(scene, camera);
+        };
+        animate();
+      },
+      undefined,
+      (err) => {
+        console.error('Failed to load GLB:', err);
+      }
+    );
+
+    labSceneRef.current = scene;
+    labRendererRef.current = renderer;
+    labCameraRef.current = camera;
+
+    const onResize = () => {
+      if (!labRendererRef.current || !labCameraRef.current || !labContainerRef.current) return;
+      const w = labContainerRef.current.clientWidth || 400;
+      const h = labContainerRef.current.clientHeight || 400;
+      labRendererRef.current.setSize(w, h);
+      labCameraRef.current.aspect = w / h;
+      labCameraRef.current.updateProjectionMatrix();
+    };
+    window.addEventListener('resize', onResize);
+
+    return () => {
+      window.removeEventListener('resize', onResize);
+      if (labAnimRef.current) cancelAnimationFrame(labAnimRef.current);
+      if (labSceneRef.current) {
+        labSceneRef.current.traverse((obj) => {
+          if (obj.geometry) obj.geometry.dispose?.();
+          if (obj.material) {
+            if (Array.isArray(obj.material)) obj.material.forEach((m) => m.dispose?.());
+            else obj.material.dispose?.();
+          }
+        });
+      }
+      if (labRendererRef.current) labRendererRef.current.dispose();
+      labSceneRef.current = null;
+      labRendererRef.current = null;
+      labCameraRef.current = null;
+      labModelRef.current = null;
+      labInitialCamPosRef.current = null;
+    };
+  }, [assignmentType]);
+
   useEffect(() => {
     if(!selectedClass || !questionData[selectedClass]) return;
     setEecSubject(Object.keys(questionData[selectedClass])[0])
@@ -158,6 +313,7 @@ const AssignmentView = () => {
             <option value="school">School Assignment</option>
             <option value="eec">Practice Paper</option>
             <option value="tryout">Tryout</option>
+            <option value="lab">Lab</option>
           </select>
         </div>
       </div>
@@ -400,7 +556,6 @@ const AssignmentView = () => {
             {tryoutType === 'mcq' && <MCQTryout />}
             {tryoutType === 'plain_txt' && <TextEditor />}
             {tryoutType === 'sort_list' && <SortList />}
-            {tryoutType === 'lesson_plan' && <LessonPlanDashboard />}
             {tryoutType === 'names' && (
               <div className="text-gray-500 text-center py-8">Select The Tryout From The Drop Down Menu.</div>
             )}
@@ -408,10 +563,144 @@ const AssignmentView = () => {
               <div className="text-gray-500 text-center py-8">Rich Text tryout is not available. Please check the file name or implementation.</div>
             )}
             {![
-              'choice_matrix','cloze_drag_drop','cloze_drop_down','cloze_text','file_upload','image_highlighter','match_list','mcq','plain_txt','rich_text','sort_list','lesson_plan','names'
+              'choice_matrix','cloze_drag_drop','cloze_drop_down','cloze_text','file_upload','image_highlighter','match_list','mcq','plain_txt','rich_text','sort_list','names'
             ].includes(tryoutType) && (
               <div className="text-gray-500 text-center py-8">Select a tryout type to begin.</div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* Lab Section */}
+      {assignmentType === 'lab' && (
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+          <div className="mb-6">
+            <h2 className="text-2xl font-bold text-gray-900 mb-4">Virtual Lab</h2>
+            <p className="text-gray-600 mb-6">Explore interactive 3D models and simulations for enhanced learning</p>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* 3D Model Viewer */}
+            <div className="bg-gray-50 rounded-lg p-6 border border-gray-200">
+              <h3 className="text-lg font-semibold text-gray-900 mb-4">3D Model Viewer</h3>
+              <div ref={labContainerRef} className="w-full h-96 bg-gray-50 rounded-lg border border-gray-200 overflow-hidden" />
+            </div>
+
+            {/* Lab Controls */}
+            <div className="space-y-6">
+              <div className="bg-gray-50 rounded-lg p-6 border border-gray-200">
+                <h3 className="text-lg font-semibold text-gray-900 mb-4">Lab Controls</h3>
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Model Rotation ({Math.round(labControls.rotation)}°)
+                    </label>
+                    <input
+                      type="range"
+                      min="0"
+                      max="360"
+                      value={labControls.rotation}
+                      onChange={(e) => setLabControls(prev => ({...prev, rotation: parseFloat(e.target.value)}))}
+                      className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Zoom Level ({labControls.zoom.toFixed(1)}x)
+                    </label>
+                    <input
+                      type="range"
+                      min="0.5"
+                      max="3"
+                      step="0.1"
+                      value={labControls.zoom}
+                      onChange={(e) => setLabControls(prev => ({...prev, zoom: parseFloat(e.target.value)}))}
+                      className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Animation Speed ({labControls.animationSpeed.toFixed(1)}x)
+                    </label>
+                    <input
+                      type="range"
+                      min="0"
+                      max="2"
+                      step="0.1"
+                      value={labControls.animationSpeed}
+                      onChange={(e) => setLabControls(prev => ({...prev, animationSpeed: parseFloat(e.target.value)}))}
+                      className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-gray-50 rounded-lg p-6 border border-gray-200">
+                <h3 className="text-lg font-semibold text-gray-900 mb-4">Model Information</h3>
+                <div className="space-y-3">
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">Model Name:</span>
+                    <span className="font-medium">H2O Molecule</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">File Size:</span>
+                    <span className="font-medium">2.4 MB</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">Format:</span>
+                    <span className="font-medium">GLB</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">Atoms:</span>
+                    <span className="font-medium">3 (2 Hydrogen, 1 Oxygen)</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex space-x-3">
+                <button 
+                  onClick={() => setLabControls(prev => ({...prev, isAnimating: !prev.isAnimating}))}
+                  className={`flex-1 px-4 py-2 text-white rounded-lg transition-colors ${
+                    labControls.isAnimating 
+                      ? 'bg-red-600 hover:bg-red-700' 
+                      : 'bg-green-600 hover:bg-green-700'
+                  }`}
+                >
+                  {labControls.isAnimating ? 'Stop Simulation' : 'Start Simulation'}
+                </button>
+                <button 
+                  onClick={() => {
+                    setLabControls({ rotation: 0, zoom: 1, animationSpeed: 1, isAnimating: false });
+                    if (labCameraRef.current && labInitialCamPosRef.current) {
+                      labCameraRef.current.position.copy(labInitialCamPosRef.current);
+                      labCameraRef.current.lookAt(0, 0, 0);
+                    }
+                    if (labModelRef.current) labModelRef.current.rotation.set(0, 0, 0);
+                  }}
+                  className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+                >
+                  Reset View
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div className="mt-8 bg-blue-50 rounded-lg p-6 border border-blue-200">
+            <h3 className="text-lg font-semibold text-blue-900 mb-3">Learning Objectives</h3>
+            <ul className="space-y-2 text-blue-800">
+              <li className="flex items-start">
+                <span className="w-2 h-2 bg-blue-600 rounded-full mt-2 mr-3 flex-shrink-0"></span>
+                Understand the molecular structure of water (H2O)
+              </li>
+              <li className="flex items-start">
+                <span className="w-2 h-2 bg-blue-600 rounded-full mt-2 mr-3 flex-shrink-0"></span>
+                Visualize bond angles and molecular geometry
+              </li>
+              <li className="flex items-start">
+                <span className="w-2 h-2 bg-blue-600 rounded-full mt-2 mr-3 flex-shrink-0"></span>
+                Explore atomic interactions and properties
+              </li>
+            </ul>
           </div>
         </div>
       )}
