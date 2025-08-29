@@ -30,6 +30,7 @@ import CoursesView from './CoursesView';
 import PTMPortal from './PTMPortal';
 import ParentDashboard from './ParentDashboard';
 import Observation from './Observation';
+import ParentChat from './ParentChat';
 
 const ParentPortal = () => {
   const [sidebarOpen, setSidebarOpen] = useState(true);
@@ -47,6 +48,7 @@ const ParentPortal = () => {
     { icon: BookOpen, label: 'Academic Report', path: '/parents/academic' },
     { icon: CreditCard, label: 'Fees Payment', path: '/parents/fees' },
     { icon: Activity, label: 'Health Report', path: '/parents/health' },
+    { icon: MessageSquare, label: 'Chat', path: '/parents/chat' },
     { icon: MessageSquare, label: 'Complaints', path: '/parents/complaints' },
     { icon: Video, label: 'Parent-Teacher Meetings', path: '/parents/ptm' },
     { icon: Eye, label: 'Observation', path: '/parents/observation' },
@@ -141,6 +143,7 @@ const ParentPortal = () => {
           <Route path="fees" element={<FeesPayment />} />
           <Route path="health" element={<HealthReport />} />
           <Route path="complaints" element={<ComplaintManagementSystem />} />
+          <Route path="chat" element={<ParentChat />} />
           <Route path="ptm" element={<PTMPortal />} />
           <Route path="observation" element={<Observation />} />
           <Route path="results" element={<ResultsView />} />

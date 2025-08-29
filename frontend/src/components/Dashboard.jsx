@@ -12,6 +12,7 @@ import ThemeCustomizer from './ThemeCustomizer';
 import ProfileUpdate from './ProfileUpdate';
 import NoticeBoard from './NoticeBoard';
 import TeacherFeedback from './TeacherFeedback';
+import StudentChat from './StudentChat';
 
 const Dashboard = () => {
   const [activeView, setActiveView] = useState('dashboard');
@@ -27,6 +28,7 @@ const Dashboard = () => {
     results: ResultsView,
     noticeboard: NoticeBoard,
     teacherfeedback: TeacherFeedback,
+    chat: StudentChat,
     achievements: AchievementsView,
     profile: ProfileUpdate,
     themecustomizer: ThemeCustomizer,

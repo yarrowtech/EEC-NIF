@@ -15,7 +15,8 @@ import {
   Atom,
   Trophy,
   Bell,
-  MessageCircle
+  MessageCircle,
+  MessageSquare
 } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 
@@ -31,6 +32,7 @@ const Sidebar = ({ activeView, setActiveView, isOpen, setIsOpen }) => {
     { id: 'results', name: 'Results', icon: Trophy },
     { id: 'noticeboard', name: 'Notice Board', icon: Bell },
     { id: 'teacherfeedback', name: 'Teacher Feedback', icon: MessageCircle },
+    { id: 'chat', name: 'Chat', icon: MessageSquare },
     { id: 'achievements', name: 'Achievements', icon: Award },
     { id: 'profile', name: 'Profile', icon: User },
   ];

@@ -143,11 +143,7 @@ const TeacherChat = () => {
     }));
   }, [activeId]);
 
-  useEffect(() => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-    }
-  }, [activeMessages.length]);
+  // Removed auto-scroll to bottom to keep view at previous position
 
   const filteredConversations = useMemo(() => {
     const q = query.trim().toLowerCase();

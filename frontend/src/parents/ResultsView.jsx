@@ -5,7 +5,7 @@ const ResultsView = () => {
   const resultsData = {
     studentName: "Sarah Smith",
     class: "10-A",
-    currentGPA: 3.8,
+    currentGPA: "89%",
     rank: 5,
     totalStudents: 120,
     examResults: [
@@ -53,7 +53,7 @@ const ResultsView = () => {
         <div className="bg-white rounded-xl p-6 shadow-sm">
           <div className="text-center">
             <h3 className="text-2xl font-bold text-yellow-600">{resultsData.currentGPA}</h3>
-            <p className="text-gray-600">Current GPA</p>
+            <p className="text-gray-600">Current Marks</p>
           </div>
         </div>
 
