@@ -6,7 +6,8 @@ import {
   UserCheck, 
   BookOpen, 
   Calendar,
-  ClipboardList
+  ClipboardList,
+  FileText
 } from 'lucide-react';
 
 export const ADMIN_MENU_ITEMS = [
@@ -71,6 +72,11 @@ export const ADMIN_MENU_ITEMS = [
     label: 'Lesson Plan', 
     path: '/admin/lesson-plans',
     hasSubmenu: true
+  },
+  { 
+    icon: FileText, 
+    label: 'Result', 
+    path: '/admin/result' 
   }
 ];
 

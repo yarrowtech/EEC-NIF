@@ -12,6 +12,7 @@ import ParentsManagement from './pages/ParentsManagement';
 import CourseManagement from './pages/CourseManagement';
 import SubjectManagement from './pages/SubjectManagement';
 import AttendanceManagement from './pages/AttendanceManagement';
+import Result from './pages/Result';
 import { useState } from 'react';
 
 const AdminApp = () => {
@@ -52,6 +53,7 @@ const AdminApp = () => {
         <Route path="examination" element={<ExaminationManagement setShowAdminHeader={setShowAdminHeader} />} />
         <Route path="timetable" element={<TeacherTimetable setShowAdminHeader={setShowAdminHeader} />} />
         <Route path="lesson-plans" element={<LessonPlanPage setShowAdminHeader={setShowAdminHeader} />} />
+        <Route path="result" element={<Result setShowAdminHeader={setShowAdminHeader} />} />
       </Routes>
     </AdminLayout>
   );

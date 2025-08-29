@@ -10,7 +10,8 @@ import {
   X,
   UserCheck,
   Home,
-  BookOpen
+  BookOpen,
+  MessageSquare
 } from 'lucide-react';
 
 import HealthUpdates from './HealthUpdates';
@@ -20,6 +21,7 @@ import AssignmentEvaluation from './AssignmentEvaluation';
 import AttendanceManagement from './AttendanceManagement';
 import TeacherDashboard from './TeacherDashboard';
 import LessonPlanDashboard from './LessonPlanDashboard';
+import TeacherChat from './TeacherChat';
 
 const TeacherPortal = () => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -31,6 +33,7 @@ const TeacherPortal = () => {
     { icon: Calendar, label: 'Parent Meetings', path: '/teachers/parent-meetings' },
     { icon: FileText, label: 'Assignment Management', path: '/teachers/assignments' },
     { icon: ClipboardCheck, label: 'Assignment Evaluation', path: '/teachers/evaluation' },
+    { icon: MessageSquare, label: 'Chat', path: '/teachers/chat' },
     { icon: BookOpen, label: 'Lesson Plans', path: '/teachers/lesson-plans' },
   ];
 
@@ -86,6 +89,7 @@ const TeacherPortal = () => {
             <Route path="/parent-meetings" element={<ParentMeetings />} />
             <Route path="/assignments" element={<AssignmentManagement />} />
             <Route path="/evaluation" element={<AssignmentEvaluation />} />
+            <Route path="/chat" element={<TeacherChat />} />
             <Route path="/lesson-plans" element={<LessonPlanDashboard />} />
           </Routes>
         </div>

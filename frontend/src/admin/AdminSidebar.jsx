@@ -19,10 +19,13 @@ const AdminSidebar = ({
         <div className="p-6 border-b border-gray-200">
           <div className="flex items-center justify-between">
             {!collapsed && <div className="flex items-center space-x-3">
-              <div className="w-10 h-10 bg-yellow-500 rounded-lg flex items-center justify-center">
-                <span className="text-white text-xl font-bold">E</span>
+              <div className="w-12 h-12 bg-gradient-to-br from-blue-900 to-yellow-500 rounded-lg flex items-center justify-center shadow-md">
+                <span className="text-white text-xl font-bold">EEC</span>
               </div>
-              <span className="text-2xl font-bold text-gray-800">EEC Admin</span>
+              <div className="flex flex-col">
+                <span className="text-xl font-bold text-gray-800">Electronic Educare</span>
+                <span className="text-xs text-gray-500">Admin Portal</span>
+              </div>
             </div>}
             <button 
               onClick={onToggleSidebar}
