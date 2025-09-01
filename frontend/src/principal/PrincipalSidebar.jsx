@@ -21,10 +21,8 @@ import {
   Phone,
   Mail
 } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
 
 const PrincipalSidebar = ({ activeView, setActiveView, isOpen, setIsOpen }) => {
-  const navigate = useNavigate();
 
   const menuItems = [
     { 
@@ -64,12 +62,6 @@ const PrincipalSidebar = ({ activeView, setActiveView, isOpen, setIsOpen }) => {
       description: 'Infrastructure and maintenance'
     },
     { 
-      id: 'communications', 
-      name: 'Communications', 
-      icon: MessageSquare,
-      description: 'Announcements and messaging'
-    },
-    { 
       id: 'reports', 
       name: 'Reports & Analytics', 
       icon: BarChart3,
@@ -96,11 +88,6 @@ const PrincipalSidebar = ({ activeView, setActiveView, isOpen, setIsOpen }) => {
     { id: 'report', name: 'Generate Report', icon: FileText, color: 'purple' }
   ];
 
-  const handleLogout = () => {
-    localStorage.removeItem('token');
-    localStorage.removeItem('userType');
-    navigate('/');
-  };
 
   return (
     <div className={`h-screen bg-gradient-to-b from-yellow-50 to-amber-50 border-r border-yellow-200 shadow-2xl transition-all duration-300 flex flex-col fixed left-0 top-0 z-50 ${
@@ -116,7 +103,7 @@ const PrincipalSidebar = ({ activeView, setActiveView, isOpen, setIsOpen }) => {
             {isOpen && (
               <div>
                 <h1 className="font-bold text-lg text-amber-800">Principal Portal</h1>
-                <p className="text-xs text-yellow-600">Educational Excellence Center</p>
+                <p className="text-xs text-yellow-600">Electronic Educare Center</p>
               </div>
             )}
           </div>
@@ -194,25 +181,6 @@ const PrincipalSidebar = ({ activeView, setActiveView, isOpen, setIsOpen }) => {
 
       {/* Footer */}
       <div className="p-4 border-t border-yellow-200">
-        <div className="space-y-2">
-          <button className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 text-amber-700 hover:bg-yellow-100 hover:text-amber-800 ${
-            !isOpen ? 'justify-center' : ''
-          }`}>
-            <Settings size={20} className="flex-shrink-0" />
-            {isOpen && <span className="font-medium">Settings</span>}
-          </button>
-          
-          <button
-            onClick={handleLogout}
-            className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 text-red-600 hover:bg-red-50 hover:text-red-700 ${
-              !isOpen ? 'justify-center' : ''
-            }`}
-          >
-            <LogOut size={20} className="flex-shrink-0" />
-            {isOpen && <span className="font-medium">Logout</span>}
-          </button>
-        </div>
-
         {/* Principal Info */}
         {isOpen && (
           <div className="mt-4 pt-4 border-t border-yellow-200">

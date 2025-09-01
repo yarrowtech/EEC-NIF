@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Routes, Route, Link } from 'react-router-dom';
 import { 
   Users, 
@@ -26,6 +26,19 @@ import TeacherChat from './TeacherChat';
 const TeacherPortal = () => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
+  // Prevent body scroll when sidebar is open on mobile
+  useEffect(() => {
+    if (sidebarOpen) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = 'unset';
+    }
+    
+    return () => {
+      document.body.style.overflow = 'unset';
+    };
+  }, [sidebarOpen]);
+
   const menuItems = [
     { icon: Home, label: 'Dashboard', path: '/teachers' },
     { icon: UserCheck, label: 'Attendance', path: '/teachers/attendance' },
@@ -37,21 +50,36 @@ const TeacherPortal = () => {
     { icon: BookOpen, label: 'Lesson Plans', path: '/teachers/lesson-plans' },
   ];
 
+  // Close sidebar when a link is clicked (mobile view)
+  const handleLinkClick = () => {
+    if (window.innerWidth < 1024) {
+      setSidebarOpen(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gray-100 flex">
       {/* Mobile Sidebar Toggle */}
       <button
-        className="lg:hidden fixed top-4 left-4 z-50 p-2 bg-yellow-500 text-white rounded-lg"
+        className="lg:hidden fixed top-4 left-4 z-50 p-2 bg-yellow-500 text-white rounded-lg shadow-md"
         onClick={() => setSidebarOpen(!sidebarOpen)}
       >
         {sidebarOpen ? <X size={24} /> : <Menu size={24} />}
       </button>
 
+      {/* Semi-transparent overlay for mobile */}
+      {sidebarOpen && (
+        <div 
+          className="fixed inset-0 bg-black bg-opacity-50 z-30 lg:hidden"
+          onClick={() => setSidebarOpen(false)}
+        />
+      )}
+
       {/* Sidebar */}
       <div className={`
         fixed top-0 left-0 h-screen w-64 bg-white shadow-lg z-40 overflow-y-auto
+        transform transition-transform duration-300 ease-in-out
         ${sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
-        transition-transform duration-300 ease-in-out
       `}>
         <div className="p-6">
           <div className="flex items-center space-x-3 mb-8">
@@ -69,6 +97,7 @@ const TeacherPortal = () => {
               <Link
                 key={item.path}
                 to={item.path}
+                onClick={handleLinkClick}
                 className="flex items-center space-x-3 px-4 py-3 rounded-lg hover:bg-yellow-50 text-gray-700 hover:text-yellow-600 transition-colors"
               >
                 <item.icon className="h-5 w-5" />
@@ -80,8 +109,8 @@ const TeacherPortal = () => {
       </div>
 
       {/* Main Content */}
-      <div className="flex-1 lg:ml-64 min-h-screen overflow-y-scroll">
-        <div className="h-screen">
+      <div className="flex-1 lg:ml-64 min-h-screen overflow-y-auto">
+        <div className="h-full">
           <Routes>
             <Route path="/" element={<TeacherDashboard />} />
             <Route path="/attendance" element={<AttendanceManagement />} />
@@ -98,4 +127,4 @@ const TeacherPortal = () => {
   );
 };
 
-export default TeacherPortal; 
+export default TeacherPortal;

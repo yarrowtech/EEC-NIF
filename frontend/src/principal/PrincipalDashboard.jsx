@@ -7,6 +7,19 @@ import {
   ArrowDown, Filter, Download, RefreshCw, MessageSquare,
   Phone, Maximize2, ChevronDown, Search, MoreHorizontal
 } from 'lucide-react';
+import { Bar } from 'react-chartjs-2';
+import { Pie } from 'react-chartjs-2';
+import {
+  Chart as ChartJS,
+  CategoryScale,
+  LinearScale,
+  BarElement,
+  Title,
+  Tooltip,
+  Legend
+} from 'chart.js';
+
+ChartJS.register(CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend);
 import PrincipalSidebar from './PrincipalSidebar';
 import PrincipalHeader from './PrincipalHeader';
 import SchoolOverview from './SchoolOverview';
@@ -184,6 +197,51 @@ const PrincipalDashboard = () => {
     { month: 'Jun', value: 94.7 }
   ];
 
+  // ChartJS data for Attendance Trend
+  const attendanceChartData = {
+    labels: attendanceTrend.map((d) => d.month),
+    datasets: [
+      {
+        label: 'Attendance Rate (%)',
+        data: attendanceTrend.map((d) => d.value),
+        backgroundColor: 'rgba(59, 130, 246, 0.7)', // blue-500
+        borderRadius: 8,
+      },
+      {
+        label: 'Target (%)',
+        data: Array(attendanceTrend.length).fill(95),
+        backgroundColor: 'rgba(34, 197, 94, 0.5)', // green-500
+        borderRadius: 8,
+      }
+    ]
+  };
+
+  const attendanceChartOptions = {
+    responsive: true,
+    plugins: {
+      legend: {
+        position: 'top',
+      },
+      title: {
+        display: true,
+        text: 'Attendance Trend (Last 6 Months)',
+      },
+    },
+    scales: {
+      y: {
+        min: 85,
+        max: 100,
+        ticks: {
+          stepSize: 1,
+        },
+        title: {
+          display: true,
+          text: 'Attendance (%)',
+        },
+      },
+    },
+  };
+
   const studentPerformance = [
     { grade: 'A', students: 420 },
     { grade: 'B', students: 380 },
@@ -191,6 +249,45 @@ const PrincipalDashboard = () => {
     { grade: 'D', students: 120 },
     { grade: 'F', students: 47 }
   ];
+
+  // ChartJS data for Student Performance Distribution
+  const performanceChartData = {
+    labels: studentPerformance.map((d) => d.grade),
+    datasets: [
+      {
+        label: 'Students',
+        data: studentPerformance.map((d) => d.students),
+        backgroundColor: [
+          'rgba(251, 191, 36, 0.7)', // yellow-400
+          'rgba(59, 130, 246, 0.7)', // blue-500
+          'rgba(34, 197, 94, 0.7)', // green-500
+          'rgba(239, 68, 68, 0.7)', // red-500
+          'rgba(107, 114, 128, 0.7)' // gray-500
+        ],
+        borderColor: [
+          'rgba(251, 191, 36, 1)',
+          'rgba(59, 130, 246, 1)',
+          'rgba(34, 197, 94, 1)',
+          'rgba(239, 68, 68, 1)',
+          'rgba(107, 114, 128, 1)'
+        ],
+        borderWidth: 2,
+      }
+    ]
+  };
+
+  const performanceChartOptions = {
+    responsive: true,
+    plugins: {
+      legend: {
+        position: 'top',
+      },
+      title: {
+        display: true,
+        text: 'Student Performance Distribution',
+      },
+    },
+  };
 
   const renderQuickStatsCard = (stat, index) => {
     const Icon = stat.icon;
@@ -305,13 +402,13 @@ const PrincipalDashboard = () => {
           {activeView === 'overview' ? (
             <div className="space-y-6">
               {/* Welcome Section */}
-              <div className="bg-gradient-to-r from-blue-700 to-indigo-800 rounded-xl p-6 text-white relative overflow-hidden shadow-xl">
+              <div className="bg-gradient-to-r from-yellow-300 to-yellow-500 rounded-xl p-6 text-black relative overflow-hidden shadow-xl">
                 <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/dark-geometric.png')] opacity-10"></div>
                 <div className="relative z-10">
                   <div className="flex flex-col md:flex-row items-start md:items-center justify-between">
                     <div>
                       <h1 className="text-3xl font-bold mb-1">Principal Dashboard</h1>
-                      <p className="text-blue-100 opacity-90">Comprehensive analytics for Educational Excellence Center</p>
+                      <p className="text-black opacity-90">Comprehensive analytics for Educational Excellence Center</p>
                     </div>
                     
                     <div className="mt-4 md:mt-0 flex items-center gap-3">
@@ -386,25 +483,8 @@ const PrincipalDashboard = () => {
                         </div>
                       </div>
                     </div>
-                    
-                    {/* Chart Placeholder */}
-                    <div className="h-64 bg-gradient-to-br from-blue-50 to-indigo-50 rounded-lg flex items-center justify-center">
-                      <div className="text-center">
-                        <BarChart3 className="w-10 h-10 mx-auto text-blue-400 mb-2" />
-                        <p className="text-gray-500">Attendance trend visualization</p>
-                      </div>
-                    </div>
-                    
-                    {/* Legend */}
-                    <div className="flex items-center justify-center gap-4 mt-4">
-                      <div className="flex items-center gap-1">
-                        <div className="w-3 h-3 bg-blue-500 rounded-full"></div>
-                        <span className="text-xs text-gray-600">Attendance Rate</span>
-                      </div>
-                      <div className="flex items-center gap-1">
-                        <div className="w-3 h-3 bg-green-500 rounded-full"></div>
-                        <span className="text-xs text-gray-600">Target</span>
-                      </div>
+                    <div className="h-64">
+                      <Bar data={attendanceChartData} options={attendanceChartOptions} />
                     </div>
                   </div>
                   
@@ -421,13 +501,8 @@ const PrincipalDashboard = () => {
                         </button>
                       </div>
                     </div>
-                    
-                    {/* Chart Placeholder */}
-                    <div className="h-64 bg-gradient-to-br from-purple-50 to-indigo-50 rounded-lg flex items-center justify-center">
-                      <div className="text-center">
-                        <PieChart className="w-10 h-10 mx-auto text-purple-400 mb-2" />
-                        <p className="text-gray-500">Grade distribution visualization</p>
-                      </div>
+                    <div className="h-64 flex items-center justify-center">
+                      <Pie data={performanceChartData} options={performanceChartOptions} />
                     </div>
                   </div>
                 </div>
