@@ -7,7 +7,8 @@ import {
   BookOpen, 
   Calendar,
   ClipboardList,
-  FileText
+  FileText,
+  IndianRupee
 } from 'lucide-react';
 
 export const ADMIN_MENU_ITEMS = [
@@ -77,6 +78,11 @@ export const ADMIN_MENU_ITEMS = [
     icon: FileText, 
     label: 'Result', 
     path: '/admin/result' 
+  },
+  { 
+    icon: IndianRupee, 
+    label: 'Fees Collection', 
+    path: '/admin/fees' 
   }
 ];
 

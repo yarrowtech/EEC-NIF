@@ -11,11 +11,11 @@ const TeacherTimetable = () => {
 
   // Sample data
   const teachers = [
-    { id: 1, name: 'Dr. Sarah Johnson', subject: 'Mathematics' },
-    { id: 2, name: 'Prof. Michael Chen', subject: 'Physics' },
-    { id: 3, name: 'Ms. Emily Davis', subject: 'English Literature' },
-    { id: 4, name: 'Mr. David Wilson', subject: 'Chemistry' },
-    { id: 5, name: 'Dr. Lisa Brown', subject: 'Biology' }
+  { id: 1, name: 'Dr. Rakesh Sharma', subject: 'Mathematics' },
+  { id: 2, name: 'Prof. Priya Verma', subject: 'Physics' },
+  { id: 3, name: 'Ms. Anjali Mehra', subject: 'English Literature' },
+  { id: 4, name: 'Mr. Arjun Singh', subject: 'Chemistry' },
+  { id: 5, name: 'Dr. Kavita Rao', subject: 'Biology' }
   ];
 
   const timeSlots = [
@@ -32,44 +32,44 @@ const TeacherTimetable = () => {
 
   const timetableData = {
     'Monday': {
-      '08:00 - 09:00': { teacher: 'Dr. Sarah Johnson', subject: 'Advanced Mathematics', class: 'Grade 12A', room: 'Room 101' },
-      '09:00 - 10:00': { teacher: 'Prof. Michael Chen', subject: 'Physics Lab', class: 'Grade 11B', room: 'Lab 201' },
-      '10:30 - 11:30': { teacher: 'Ms. Emily Davis', subject: 'English Literature', class: 'Grade 10A', room: 'Room 205' },
-      '11:30 - 12:30': { teacher: 'Dr. Sarah Johnson', subject: 'Calculus', class: 'Grade 12B', room: 'Room 101' },
-      '13:30 - 14:30': { teacher: 'Mr. David Wilson', subject: 'Organic Chemistry', class: 'Grade 11A', room: 'Lab 301' },
-      '14:30 - 15:30': { teacher: 'Dr. Lisa Brown', subject: 'Biology', class: 'Grade 10B', room: 'Room 105' }
+  '08:00 - 09:00': { teacher: 'Dr. Rakesh Sharma', subject: 'Advanced Mathematics', class: 'Grade 12A', room: 'Room 101' },
+  '09:00 - 10:00': { teacher: 'Prof. Priya Verma', subject: 'Physics Lab', class: 'Grade 11B', room: 'Lab 201' },
+  '10:30 - 11:30': { teacher: 'Ms. Anjali Mehra', subject: 'English Literature', class: 'Grade 10A', room: 'Room 205' },
+  '11:30 - 12:30': { teacher: 'Dr. Rakesh Sharma', subject: 'Calculus', class: 'Grade 12B', room: 'Room 101' },
+  '13:30 - 14:30': { teacher: 'Mr. Arjun Singh', subject: 'Organic Chemistry', class: 'Grade 11A', room: 'Lab 301' },
+  '14:30 - 15:30': { teacher: 'Dr. Kavita Rao', subject: 'Biology', class: 'Grade 10B', room: 'Room 105' }
     },
     'Tuesday': {
-      '08:00 - 09:00': { teacher: 'Prof. Michael Chen', subject: 'Quantum Physics', class: 'Grade 12A', room: 'Room 202' },
-      '09:00 - 10:00': { teacher: 'Ms. Emily Davis', subject: 'Creative Writing', class: 'Grade 11A', room: 'Room 205' },
-      '10:30 - 11:30': { teacher: 'Dr. Lisa Brown', subject: 'Molecular Biology', class: 'Grade 12B', room: 'Lab 105' },
-      '11:30 - 12:30': { teacher: 'Mr. David Wilson', subject: 'Chemical Analysis', class: 'Grade 11B', room: 'Lab 301' },
-      '13:30 - 14:30': { teacher: 'Dr. Sarah Johnson', subject: 'Statistics', class: 'Grade 10A', room: 'Room 101' },
-      '15:30 - 16:30': { teacher: 'Prof. Michael Chen', subject: 'Physics Tutorial', class: 'Grade 10B', room: 'Room 202' }
+  '08:00 - 09:00': { teacher: 'Prof. Priya Verma', subject: 'Quantum Physics', class: 'Grade 12A', room: 'Room 202' },
+  '09:00 - 10:00': { teacher: 'Ms. Anjali Mehra', subject: 'Creative Writing', class: 'Grade 11A', room: 'Room 205' },
+  '10:30 - 11:30': { teacher: 'Dr. Kavita Rao', subject: 'Molecular Biology', class: 'Grade 12B', room: 'Lab 105' },
+  '11:30 - 12:30': { teacher: 'Mr. Arjun Singh', subject: 'Chemical Analysis', class: 'Grade 11B', room: 'Lab 301' },
+  '13:30 - 14:30': { teacher: 'Dr. Rakesh Sharma', subject: 'Statistics', class: 'Grade 10A', room: 'Room 101' },
+  '15:30 - 16:30': { teacher: 'Prof. Priya Verma', subject: 'Physics Tutorial', class: 'Grade 10B', room: 'Room 202' }
     },
     'Wednesday': {
-      '08:00 - 09:00': { teacher: 'Ms. Emily Davis', subject: 'Shakespeare Studies', class: 'Grade 12A', room: 'Room 205' },
-      '09:00 - 10:00': { teacher: 'Dr. Lisa Brown', subject: 'Genetics Lab', class: 'Grade 11A', room: 'Lab 105' },
-      '10:30 - 11:30': { teacher: 'Mr. David Wilson', subject: 'Inorganic Chemistry', class: 'Grade 12B', room: 'Room 301' },
-      '11:30 - 12:30': { teacher: 'Dr. Sarah Johnson', subject: 'Trigonometry', class: 'Grade 11B', room: 'Room 101' },
-      '13:30 - 14:30': { teacher: 'Prof. Michael Chen', subject: 'Mechanics', class: 'Grade 10A', room: 'Room 202' },
-      '14:30 - 15:30': { teacher: 'Ms. Emily Davis', subject: 'Poetry Analysis', class: 'Grade 10B', room: 'Room 205' }
+  '08:00 - 09:00': { teacher: 'Ms. Anjali Mehra', subject: 'Shakespeare Studies', class: 'Grade 12A', room: 'Room 205' },
+  '09:00 - 10:00': { teacher: 'Dr. Kavita Rao', subject: 'Genetics Lab', class: 'Grade 11A', room: 'Lab 105' },
+  '10:30 - 11:30': { teacher: 'Mr. Arjun Singh', subject: 'Inorganic Chemistry', class: 'Grade 12B', room: 'Room 301' },
+  '11:30 - 12:30': { teacher: 'Dr. Rakesh Sharma', subject: 'Trigonometry', class: 'Grade 11B', room: 'Room 101' },
+  '13:30 - 14:30': { teacher: 'Prof. Priya Verma', subject: 'Mechanics', class: 'Grade 10A', room: 'Room 202' },
+  '14:30 - 15:30': { teacher: 'Ms. Anjali Mehra', subject: 'Poetry Analysis', class: 'Grade 10B', room: 'Room 205' }
     },
     'Thursday': {
-      '08:00 - 09:00': { teacher: 'Dr. Lisa Brown', subject: 'Ecology', class: 'Grade 12A', room: 'Room 105' },
-      '09:00 - 10:00': { teacher: 'Mr. David Wilson', subject: 'Analytical Chemistry', class: 'Grade 12B', room: 'Lab 301' },
-      '10:30 - 11:30': { teacher: 'Dr. Sarah Johnson', subject: 'Geometry', class: 'Grade 10A', room: 'Room 101' },
-      '11:30 - 12:30': { teacher: 'Prof. Michael Chen', subject: 'Thermodynamics', class: 'Grade 11A', room: 'Room 202' },
-      '13:30 - 14:30': { teacher: 'Ms. Emily Davis', subject: 'Grammar & Composition', class: 'Grade 11B', room: 'Room 205' },
-      '15:30 - 16:30': { teacher: 'Dr. Lisa Brown', subject: 'Biology Lab', class: 'Grade 10B', room: 'Lab 105' }
+  '08:00 - 09:00': { teacher: 'Dr. Kavita Rao', subject: 'Ecology', class: 'Grade 12A', room: 'Room 105' },
+  '09:00 - 10:00': { teacher: 'Mr. Arjun Singh', subject: 'Analytical Chemistry', class: 'Grade 12B', room: 'Lab 301' },
+  '10:30 - 11:30': { teacher: 'Dr. Rakesh Sharma', subject: 'Geometry', class: 'Grade 10A', room: 'Room 101' },
+  '11:30 - 12:30': { teacher: 'Prof. Priya Verma', subject: 'Thermodynamics', class: 'Grade 11A', room: 'Room 202' },
+  '13:30 - 14:30': { teacher: 'Ms. Anjali Mehra', subject: 'Grammar & Composition', class: 'Grade 11B', room: 'Room 205' },
+  '15:30 - 16:30': { teacher: 'Dr. Kavita Rao', subject: 'Biology Lab', class: 'Grade 10B', room: 'Lab 105' }
     },
     'Friday': {
-      '08:00 - 09:00': { teacher: 'Mr. David Wilson', subject: 'Physical Chemistry', class: 'Grade 12A', room: 'Lab 301' },
-      '09:00 - 10:00': { teacher: 'Dr. Sarah Johnson', subject: 'Algebra Review', class: 'Grade 11A', room: 'Room 101' },
-      '10:30 - 11:30': { teacher: 'Prof. Michael Chen', subject: 'Wave Physics', class: 'Grade 12B', room: 'Room 202' },
-      '11:30 - 12:30': { teacher: 'Ms. Emily Davis', subject: 'Literature Discussion', class: 'Grade 11B', room: 'Room 205' },
-      '13:30 - 14:30': { teacher: 'Dr. Lisa Brown', subject: 'Human Anatomy', class: 'Grade 10A', room: 'Room 105' },
-      '14:30 - 15:30': { teacher: 'Mr. David Wilson', subject: 'Chemistry Review', class: 'Grade 10B', room: 'Room 301' }
+  '08:00 - 09:00': { teacher: 'Mr. Arjun Singh', subject: 'Physical Chemistry', class: 'Grade 12A', room: 'Lab 301' },
+  '09:00 - 10:00': { teacher: 'Dr. Rakesh Sharma', subject: 'Algebra Review', class: 'Grade 11A', room: 'Room 101' },
+  '10:30 - 11:30': { teacher: 'Prof. Priya Verma', subject: 'Wave Physics', class: 'Grade 12B', room: 'Room 202' },
+  '11:30 - 12:30': { teacher: 'Ms. Anjali Mehra', subject: 'Literature Discussion', class: 'Grade 11B', room: 'Room 205' },
+  '13:30 - 14:30': { teacher: 'Dr. Kavita Rao', subject: 'Human Anatomy', class: 'Grade 10A', room: 'Room 105' },
+  '14:30 - 15:30': { teacher: 'Mr. Arjun Singh', subject: 'Chemistry Review', class: 'Grade 10B', room: 'Room 301' }
     }
   };
 
@@ -368,7 +368,7 @@ const TeacherTimetable = () => {
       {/* Modal */}
       {modalOpen && modalTeacher && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl max-w-4xl w-full max-h-[90vh] overflow-hidden">
+          <div className="bg-white rounded-xl max-w-4xl w-full max-h-[90vh] flex flex-col overflow-hidden">
             {/* Modal Header */}
             <div className="flex items-center justify-between p-6 border-b bg-gradient-to-r from-blue-500 to-blue-600 text-white">
               <div>
@@ -385,6 +385,7 @@ const TeacherTimetable = () => {
 
             {/* Modal Content */}
             <div className="p-6 overflow-y-auto max-h-[calc(90vh-140px)]">
+            {/* ...existing code... */}
               <div className="space-y-6">
                 {weekDays.map(day => {
                   const daySchedule = getTeacherSchedule(modalTeacher.name)[day];
@@ -449,19 +450,21 @@ const TeacherTimetable = () => {
 
             {/* Modal Footer */}
             <div className="p-6 border-t bg-gray-50 flex justify-between items-center">
-              <div className="text-sm text-gray-600">
-                Total weekly classes: {Object.values(getTeacherSchedule(modalTeacher.name)).flat().length}
-              </div>
-              <div className="flex space-x-3">
-                <button className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-100 transition-colors">
-                  Export Schedule
-                </button>
-                <button
-                  onClick={closeModal}
-                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-                >
-                  Close
-                </button>
+              <div className="flex flex-col md:flex-row w-full md:justify-between md:items-center gap-4 sticky bottom-0 left-0 bg-gray-50 z-10">
+                <div className="text-sm text-gray-600">
+                  Total weekly classes: {Object.values(getTeacherSchedule(modalTeacher.name)).flat().length}
+                </div>
+                <div className="flex flex-row gap-3 md:justify-end md:items-center">
+                  <button className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-100 transition-colors">
+                    Export Schedule
+                  </button>
+                  <button
+                    onClick={closeModal}
+                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                  >
+                    Close
+                  </button>
+                </div>
               </div>
             </div>
           </div>

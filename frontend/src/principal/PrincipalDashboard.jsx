@@ -408,7 +408,7 @@ const PrincipalDashboard = () => {
                   <div className="flex flex-col md:flex-row items-start md:items-center justify-between">
                     <div>
                       <h1 className="text-3xl font-bold mb-1">Principal Dashboard</h1>
-                      <p className="text-black opacity-90">Comprehensive analytics for Educational Excellence Center</p>
+                      <p className="text-black opacity-90">Comprehensive analytics for Electronic Educare Center</p>
                     </div>
                     
                     <div className="mt-4 md:mt-0 flex items-center gap-3">

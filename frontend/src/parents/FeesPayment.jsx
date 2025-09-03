@@ -1,7 +1,27 @@
 import React, { useState } from 'react';
-import { CreditCard, DollarSign, Calendar, Download, ChevronDown, CheckCircle, AlertCircle, X } from 'lucide-react';
+import { CreditCard, Calendar, Download, ChevronDown, CheckCircle, AlertCircle, X } from 'lucide-react';
+import jsPDF from 'jspdf';
 
 const FeesPayment = () => {
+  const handleDownloadReceipt = () => {
+    const doc = new jsPDF();
+    doc.setFontSize(18);
+    doc.text('Fee Payment Receipt', 20, 20);
+    doc.setFontSize(12);
+    doc.text(`Student Name: ${feesData.studentName}`, 20, 35);
+    doc.text(`Class: ${feesData.class}`, 20, 45);
+    doc.text(`Total Fees: ₹${feesData.totalFees}`, 20, 55);
+    doc.text(`Paid Fees: ₹${feesData.paidFees}`, 20, 65);
+    doc.text(`Pending Fees: ₹${feesData.pendingFees}`, 20, 75);
+    doc.text(`Next Due Date: ${new Date(feesData.nextDueDate).toLocaleDateString()}`, 20, 85);
+    doc.text('Payments:', 20, 95);
+    let y = 105;
+    feesData.payments.forEach((p, i) => {
+      doc.text(`${i + 1}. ${p.type} - ₹${p.amount} - ${p.status}${p.paidOn ? ' (Paid on ' + new Date(p.paidOn).toLocaleDateString() + ')' : ''}`, 25, y);
+      y += 10;
+    });
+    doc.save('Fee_Receipt.pdf');
+  };
   const [selectedPayment, setSelectedPayment] = useState(null);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [showUPIModal, setShowUPIModal] = useState(false);
@@ -9,7 +29,7 @@ const FeesPayment = () => {
   const [showBankModal, setShowBankModal] = useState(false);
 
   const feesData = {
-    studentName: "Sarah Smith",
+    studentName: "Koushik Bala",
     class: "10-A",
     totalFees: 50000,
     paidFees: 35000,
@@ -92,7 +112,10 @@ const FeesPayment = () => {
             </div>
           </div>
 
-          <button className="flex items-center space-x-2 bg-yellow-500 text-black px-4 py-2 rounded-lg hover:bg-yellow-600 transition-colors">
+          <button
+            className="flex items-center space-x-2 bg-yellow-500 text-black px-4 py-2 rounded-lg hover:bg-yellow-600 transition-colors"
+            onClick={handleDownloadReceipt}
+          >
             <Download className="w-4 h-4" />
             <span>Download Receipt</span>
           </button>
@@ -120,8 +143,8 @@ const FeesPayment = () => {
                   </td>
                   <td className="px-2 sm:px-6 py-2 sm:py-4">
                     <div className="flex items-center text-gray-900">
-                      <DollarSign className="w-4 h-4 mr-1 text-gray-500" />
-                      ₹{payment.amount}
+                      {/* <DollarSign className="w-4 h-4 mr-1 text-gray-500" /> */}
+                      {payment.amount}
                     </div>
                   </td>
                   <td className="px-2 sm:px-6 py-2 sm:py-4">
@@ -187,7 +210,7 @@ const FeesPayment = () => {
                 className="w-full flex items-center gap-2 sm:gap-3 border border-yellow-300 py-2 sm:py-3 rounded-xl hover:bg-yellow-50 transition-all duration-200 group justify-center"
                 onClick={() => setShowUPIModal(true)}
               >
-                <DollarSign className="w-5 sm:w-6 h-5 sm:h-6 text-yellow-500" />
+                {/* <DollarSign className="w-5 sm:w-6 h-5 sm:h-6 text-yellow-500" /> */}
                 <span className="text-sm sm:text-base font-medium text-gray-700 group-hover:text-gray-900">UPI</span>
               </button>
               <button
@@ -201,7 +224,7 @@ const FeesPayment = () => {
                 className="w-full flex items-center gap-2 sm:gap-3 border border-yellow-300 py-2 sm:py-3 rounded-xl hover:bg-yellow-50 transition-all duration-200 group justify-center"
                 onClick={() => setShowBankModal(true)}
               >
-                <DollarSign className="w-5 sm:w-6 h-5 sm:h-6 text-yellow-500" />
+                {/* <DollarSign className="w-5 sm:w-6 h-5 sm:h-6 text-yellow-500" /> */}
                 <span className="text-sm sm:text-base font-medium text-gray-700 group-hover:text-gray-900">Net Banking</span>
               </button>
             </div>
@@ -286,7 +309,7 @@ const FeesPayment = () => {
           <div className="bg-white p-3 sm:p-4 rounded-xl shadow-sm hover:border-2 hover:border-yellow-500">
             <div className="flex items-center justify-between">
               <div className="flex items-center space-x-2 sm:space-x-3">
-                <DollarSign className="w-5 sm:w-6 h-5 sm:h-6 text-gray-500" />
+                {/* <DollarSign className="w-5 sm:w-6 h-5 sm:h-6 text-gray-500" /> */}
                 <div>
                   <p className="font-medium text-gray-800 text-xs sm:text-base">Net Banking</p>
                   <p className="text-xs sm:text-sm text-gray-500">Pay through your bank</p>
@@ -299,7 +322,7 @@ const FeesPayment = () => {
           <div className="bg-white p-3 sm:p-4 rounded-xl shadow-sm hover:border-2 hover:border-yellow-500">
             <div className="flex items-center justify-between">
               <div className="flex items-center space-x-2 sm:space-x-3">
-                <DollarSign className="w-5 sm:w-6 h-5 sm:h-6 text-gray-500" />
+                {/* <DollarSign className="w-5 sm:w-6 h-5 sm:h-6 text-gray-500" /> */}
                 <div>
                   <p className="font-medium text-gray-800 text-xs sm:text-base">UPI</p>
                   <p className="text-xs sm:text-sm text-gray-500">Pay using UPI</p>

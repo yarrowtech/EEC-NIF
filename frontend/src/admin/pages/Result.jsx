@@ -34,403 +34,360 @@ const Result = ({ setShowAdminHeader }) => {
     }
   };
 
-  const generateReportCard = (student) => {
+  const generateReportCard = async (student) => {
     const doc = new jsPDF();
     const pageWidth = doc.internal.pageSize.width;
     const pageHeight = doc.internal.pageSize.height;
+    const margin = 10;
+    const contentWidth = pageWidth - 2 * margin;
     
-    // Background Watermark Design
-    doc.saveGraphicsState();
-    doc.setGState(new doc.GState({ opacity: 0.05 }));
+    // Load images
+    const loadImage = (src) => {
+      return new Promise((resolve, reject) => {
+        const img = new Image();
+        img.onload = () => resolve(img);
+        img.onerror = reject;
+        img.src = src;
+      });
+    };
+
+    let schoolLogo, studentPhoto;
     
-    // Create CBSE logo watermark
-    doc.setFillColor(0, 51, 102);
-    doc.circle(pageWidth/2, pageHeight/2, 45, 'F');
-    doc.setFillColor(255, 255, 255);
-    doc.circle(pageWidth/2, pageHeight/2, 40, 'F');
-    doc.setFillColor(0, 51, 102);
-    doc.circle(pageWidth/2, pageHeight/2, 35, 'F');
+    try {
+      schoolLogo = await loadImage('./NIF LOGO crop.png');
+      studentPhoto = await loadImage('./80.jpg');
+    } catch (error) {
+      console.warn('Could not load images:', error);
+      // Try alternative paths
+      try {
+        schoolLogo = await loadImage('/NIF LOGO crop.png');
+        studentPhoto = await loadImage('/80.jpg');
+      } catch (altError) {
+        console.warn('Alternative image paths also failed:', altError);
+      }
+    }
     
-    // CBSE text
-    doc.setTextColor(0, 51, 102);
-    doc.setFontSize(20);
-    doc.setFont('helvetica', 'bold');
-    doc.text('CBSE', pageWidth/2 - 18, pageHeight/2 + 3);
-    
-    // Surrounding text
-    doc.setFontSize(10);
-    doc.text('CENTRAL BOARD OF', pageWidth/2, pageHeight/2 - 25, { align: 'center' });
-    doc.text('SECONDARY EDUCATION', pageWidth/2, pageHeight/2 + 20, { align: 'center' });
-    
-    // Corner decorative elements
-    doc.setFillColor(0, 51, 102);
-    doc.circle(30, 30, 8, 'F');
-    doc.circle(pageWidth - 30, 30, 8, 'F');
-    doc.circle(30, pageHeight - 30, 8, 'F');
-    doc.circle(pageWidth - 30, pageHeight - 30, 8, 'F');
-    
-    doc.restoreGraphicsState();
-    
-    // Header Section with CBSE colors
-    doc.setDrawColor(0, 51, 102);
-    doc.setLineWidth(3);
-    doc.rect(10, 10, pageWidth - 20, 55);
-    
-    // Inner border for header
-    doc.setDrawColor(255, 215, 0);
+    // Decorative border
+    doc.setDrawColor(200, 150, 150);
     doc.setLineWidth(1);
-    doc.rect(12, 12, pageWidth - 24, 51);
+    doc.rect(5, 5, pageWidth - 10, pageHeight - 10);
     
-    // School Logo Area (enhanced design)
-    doc.setFillColor(0, 51, 102);
-    doc.circle(35, 37, 15, 'F');
-    doc.setFillColor(255, 215, 0);
-    doc.circle(35, 37, 12, 'F');
+    // Header Section
+    let currentY = 12;
+    doc.setDrawColor(0);
+    doc.setLineWidth(0.5);
+    doc.rect(margin, currentY, contentWidth, 35);
+    
+    // School Logo (left)
+    if (schoolLogo) {
+      doc.addImage(schoolLogo, 'PNG', 15, currentY + 5, 20, 20);
+    } else {
+      // Fallback placeholder
+      doc.setDrawColor(0);
+      doc.setLineWidth(0.5);
+      doc.rect(15, currentY + 5, 20, 20);
+      doc.setFontSize(6);
+      doc.setFont('helvetica', 'bold');
+      doc.text('EEC', 25, currentY + 13, { align: 'center' });
+      doc.text('LOGO', 25, currentY + 18, { align: 'center' });
+    }
+    
+    // School Name and Details (center)
     doc.setFontSize(14);
     doc.setFont('helvetica', 'bold');
-    doc.setTextColor(0, 51, 102);
-    doc.text('EEC', 28, 41);
+    doc.setTextColor(220, 20, 60);
+    doc.text('ELECTRONIC EDUCARE', pageWidth/2, currentY + 12, { align: 'center' });
     
-    // School Name and Details
-    doc.setFontSize(20);
-    doc.setFont('helvetica', 'bold');
-    doc.setTextColor(0, 51, 102);
-    doc.text('ELECTRONIC EDUCARE', pageWidth/2, 25, { align: 'center' });
-    
-    doc.setFontSize(12);
-    doc.setFont('helvetica', 'bold');
-    doc.setTextColor(255, 215, 0);
-    doc.text('CENTER FOR EXCELLENCE', pageWidth/2, 33, { align: 'center' });
-    
-    doc.setFontSize(9);
+    doc.setFontSize(7);
     doc.setFont('helvetica', 'normal');
-    doc.setTextColor(0, 51, 102);
-    doc.text('Affiliated to CBSE, New Delhi | School Code: EEC001', pageWidth/2, 41, { align: 'center' });
-    doc.text('Address: Tech Park, Electronic City Phase 1, Bangalore - 560100 | Ph: +91-80-12345678', pageWidth/2, 47, { align: 'center' });
-    doc.text('Email: info@electroniceducare.edu.in | Website: www.electroniceducare.edu.in', pageWidth/2, 53, { align: 'center' });
+    doc.setTextColor(0);
+    doc.text('Tech Park, Electronic City Phase 1, Bangalore - 560100', pageWidth/2, currentY + 18, { align: 'center' });
+    doc.text('Phone: +91-80-12345678 | Email: info@electroniceducare.edu.in', pageWidth/2, currentY + 22, { align: 'center' });
     
-    // CBSE Affiliation Number
-    doc.setFillColor(0, 51, 102);
-    doc.rect(pageWidth - 100, 58, 90, 8, 'F');
     doc.setFontSize(8);
     doc.setFont('helvetica', 'bold');
-    doc.setTextColor(255, 255, 255);
-    doc.text('CBSE AFFILIATION NO: 1234567', pageWidth - 55, 63, { align: 'center' });
+    doc.text('Annual Term (Session 2024-2025)', pageWidth/2, currentY + 30, { align: 'center' });
     
-    // Report Card Title
-    doc.setFillColor(0, 51, 102);
-    doc.rect(10, 70, pageWidth - 20, 15, 'F');
-    doc.setFontSize(14);
-    doc.setFont('helvetica', 'bold');
-    doc.setTextColor(255, 255, 255);
-    doc.text('STUDENT PROGRESS REPORT', pageWidth/2, 80, { align: 'center' });
-    
-    // Academic Session and Term
-    doc.setDrawColor(0, 51, 102);
-    doc.setLineWidth(0.5);
-    doc.rect(pageWidth - 80, 88, 70, 20);
-    doc.setFontSize(9);
-    doc.setFont('helvetica', 'bold');
-    doc.setTextColor(0, 51, 102);
-    doc.text('Academic Year: 2024-25', pageWidth - 75, 95);
-    doc.text('Term: Annual Exam', pageWidth - 75, 102);
-    doc.text('Report No: RPT/2024/001', pageWidth - 75, 109);
-    
-    // Left side decorative border
-    doc.setDrawColor(255, 215, 0);
-    doc.setLineWidth(4);
-    doc.line(8, 75, 8, pageHeight - 25);
-    
-    // Student Information Box
+    // CBSE Logo placeholder (right)
     doc.setDrawColor(0);
-    doc.setLineWidth(0.5);
-    doc.rect(10, 100, pageWidth - 20, 35);
-    
-    // Student Details
-    doc.setFontSize(11);
+    doc.circle(pageWidth - 25, currentY + 15, 10);
+    doc.setFontSize(5);
     doc.setFont('helvetica', 'bold');
-    doc.text('Student Name:', 15, 110);
-    doc.setFont('helvetica', 'normal');
-    doc.text(student.name, 55, 110);
+    doc.text('CBSE', pageWidth - 25, currentY + 16, { align: 'center' });
     
-    doc.setFont('helvetica', 'bold');
-    doc.text('Roll Number:', 15, 118);
-    doc.setFont('helvetica', 'normal');
-    doc.text(student.rollNo, 55, 118);
+    currentY += 40;
     
-    doc.setFont('helvetica', 'bold');
-    doc.text('Class:', 15, 126);
-    doc.setFont('helvetica', 'normal');
-    doc.text(`${selectedClass} - Section ${selectedSection}`, 35, 126);
-    
-    doc.setFont('helvetica', 'bold');
-    doc.text('Examination:', pageWidth/2 + 10, 110);
-    doc.setFont('helvetica', 'normal');
-    doc.text('Annual Examination', pageWidth/2 + 40, 110);
-    
-    doc.setFont('helvetica', 'bold');
-    doc.text('Date of Birth:', pageWidth/2 + 10, 118);
-    doc.setFont('helvetica', 'normal');
-    doc.text('01/01/2010', pageWidth/2 + 40, 118);
-    
-    doc.setFont('helvetica', 'bold');
-    doc.text('Admission No:', pageWidth/2 + 10, 126);
-    doc.setFont('helvetica', 'normal');
-    doc.text(`ADM${student.id.toString().padStart(4, '0')}`, pageWidth/2 + 40, 126);
-    
-    // Marks Table Header
-    let tableY = 150;
+    // Class designation
     doc.setFillColor(240, 240, 240);
-    doc.rect(10, tableY, pageWidth - 20, 12, 'F');
+    doc.rect(margin, currentY, 20, 12, 'F');
     doc.setDrawColor(0);
-    doc.setLineWidth(0.5);
-    doc.rect(10, tableY, pageWidth - 20, 12);
-    
-    // Table Headers
-    doc.setFontSize(10);
+    doc.rect(margin, currentY, 20, 12);
+    doc.setFontSize(8);
     doc.setFont('helvetica', 'bold');
-    doc.text('S.No', 15, tableY + 8);
-    doc.text('Subject', 35, tableY + 8);
-    doc.text('Max Marks', 90, tableY + 8);
-    doc.text('Marks Obtained', 125, tableY + 8);
-    doc.text('Grade', 170, tableY + 8);
+    doc.text('class', 15, currentY + 6);
+    doc.text(selectedClass.split(' ')[1] || 'I', 18, currentY + 10);
     
-    // Vertical lines for table
-    doc.line(30, tableY, 30, tableY + 12);
-    doc.line(85, tableY, 85, tableY + 12);
-    doc.line(120, tableY, 120, tableY + 12);
-    doc.line(165, tableY, 165, tableY + 12);
+    currentY += 15;
+    
+    // Student Information Section
+    doc.setFontSize(7);
+    doc.setFont('helvetica', 'normal');
+    
+    // Left column student details
+    doc.text("Student's Name:", 15, currentY);
+    doc.text(student.name, 50, currentY);
+    
+    doc.text("Father's Name:", 15, currentY + 5);
+    doc.text('Mr. ' + (student.name.split(' ')[1] || 'Father Name'), 50, currentY + 5);
+    
+    doc.text("Mother's Name:", 15, currentY + 10);
+    doc.text('Mrs. ' + (student.name.split(' ')[1] || 'Mother Name'), 50, currentY + 10);
+    
+    doc.text("Date of Birth:", 15, currentY + 15);
+    doc.text('01/01/2010', 50, currentY + 15);
+    
+    doc.text("Height:", 15, currentY + 20);
+    doc.text('152 CM', 50, currentY + 20);
+    
+    // Right column details
+    doc.text("Class:", 110, currentY);
+    doc.text(selectedClass, 125, currentY);
+    
+    doc.text("Section:", 110, currentY + 5);
+    doc.text(selectedSection, 125, currentY + 5);
+    
+    doc.text("Roll No.:", 110, currentY + 10);
+    doc.text(student.rollNo, 125, currentY + 10);
+    
+    doc.text("House:", 110, currentY + 15);
+    doc.text('Blue House', 125, currentY + 15);
+    
+    doc.text("Weight:", 110, currentY + 20);
+    doc.text('40 KG', 125, currentY + 20);
+    
+    // Student photo
+    if (studentPhoto) {
+      doc.addImage(studentPhoto, 'JPEG', pageWidth - 30, currentY, 20, 25);
+    } else {
+      // Fallback placeholder
+      doc.setDrawColor(0);
+      doc.rect(pageWidth - 30, currentY, 20, 25);
+      doc.setFontSize(5);
+      doc.text('STUDENT', pageWidth - 20, currentY + 10, { align: 'center' });
+      doc.text('PHOTO', pageWidth - 20, currentY + 15, { align: 'center' });
+    }
+    
+    currentY += 30;
+    
+    // Enhanced subjects data
+    const enhancedSubjects = {
+      'English': { periodicTest: 8, notebook: 4, subEnrichment: 4, halfYearly: 78, total: 94, grade: 'A2' },
+      'Hindi': { periodicTest: 8, notebook: 4, subEnrichment: 4, halfYearly: 75, total: 91, grade: 'A1' },
+      'Maths': { periodicTest: student.subjects.Math ? Math.floor(student.subjects.Math/10) : 9, notebook: 5, subEnrichment: 5, halfYearly: student.subjects.Math || 85, total: (student.subjects.Math || 85) + 19, grade: 'A1' },
+      'Science': { periodicTest: student.subjects.Science ? Math.floor(student.subjects.Science/10) : 7, notebook: 4, subEnrichment: 4, halfYearly: student.subjects.Science || 72, total: (student.subjects.Science || 72) + 15, grade: 'B1' },
+      'Social Science': { periodicTest: student.subjects.History ? Math.floor(student.subjects.History/10) : 8, notebook: 4, subEnrichment: 4, halfYearly: student.subjects.History || 80, total: (student.subjects.History || 80) + 16, grade: 'A2' }
+    };
+    
+    // Main table header
+    doc.setFillColor(220, 220, 220);
+    doc.rect(margin, currentY, contentWidth, 15, 'F');
+    doc.setDrawColor(0);
+    doc.rect(margin, currentY, contentWidth, 15);
+    
+    // Column widths
+    const col1 = 35; // Subjects
+    const col2 = 15; // Periodic Test
+    const col3 = 15; // Notebook
+    const col4 = 20; // Sub Enhancement
+    const col5 = 20; // Half Yearly
+    const col6 = 20; // Total
+    const col7 = 25; // Grade
+    const col8 = 25; // Overall Grade
+    
+    // Multi-line header
+    doc.setFontSize(6);
+    doc.setFont('helvetica', 'bold');
+    doc.text('Subjects', margin + 15, currentY + 5);
+    doc.text('Scholastic Areas', margin + col1 + 30, currentY + 3);
+    doc.text('Total', margin + col1 + col2 + col3 + col4 + col5 + 5, currentY + 5);
+    doc.text('Grade', margin + col1 + col2 + col3 + col4 + col5 + col6 + 5, currentY + 5);
+    
+    doc.text('Periodic', margin + col1 + 5, currentY + 8);
+    doc.text('Note', margin + col1 + col2 + 3, currentY + 8);
+    doc.text('Sub', margin + col1 + col2 + col3 + 5, currentY + 8);
+    doc.text('Half', margin + col1 + col2 + col3 + col4 + 3, currentY + 8);
+    doc.text('(100)', margin + col1 + col2 + col3 + col4 + col5 + 3, currentY + 8);
+    
+    doc.text('Test(10)', margin + col1 + 3, currentY + 12);
+    doc.text('Book(5)', margin + col1 + col2 + 1, currentY + 12);
+    doc.text('Enrich(5)', margin + col1 + col2 + col3 + 1, currentY + 12);
+    doc.text('Yearly(80)', margin + col1 + col2 + col3 + col4 - 2, currentY + 12);
+    
+    // Vertical lines for header
+    let lineX = margin + col1;
+    doc.line(lineX, currentY, lineX, currentY + 15);
+    lineX += col2;
+    doc.line(lineX, currentY, lineX, currentY + 15);
+    lineX += col3;
+    doc.line(lineX, currentY, lineX, currentY + 15);
+    lineX += col4;
+    doc.line(lineX, currentY, lineX, currentY + 15);
+    lineX += col5;
+    doc.line(lineX, currentY, lineX, currentY + 15);
+    lineX += col6;
+    doc.line(lineX, currentY, lineX, currentY + 15);
+    
+    currentY += 15;
     
     // Subject rows
-    let rowY = tableY + 12;
-    let totalMarks = 0;
-    let maxTotalMarks = 0;
-    let serialNo = 1;
-    
-    Object.entries(student.subjects).forEach(([subject, marks]) => {
-      const maxMarks = 100;
-      maxTotalMarks += maxMarks;
-      totalMarks += marks;
-      
-      // Calculate grade
-      const percentage = (marks / maxMarks) * 100;
-      let grade;
-      if (percentage >= 91) grade = 'A1';
-      else if (percentage >= 81) grade = 'A2';
-      else if (percentage >= 71) grade = 'B1';
-      else if (percentage >= 61) grade = 'B2';
-      else if (percentage >= 51) grade = 'C1';
-      else if (percentage >= 41) grade = 'C2';
-      else if (percentage >= 33) grade = 'D';
-      else grade = 'E';
+    Object.entries(enhancedSubjects).forEach(([subject, marks], index) => {
+      const rowHeight = 10;
       
       // Row background (alternating)
-      if (serialNo % 2 === 0) {
+      if (index % 2 === 0) {
         doc.setFillColor(248, 248, 248);
-        doc.rect(10, rowY, pageWidth - 20, 10, 'F');
+        doc.rect(margin, currentY, contentWidth, rowHeight, 'F');
       }
       
-      // Row border
       doc.setDrawColor(0);
-      doc.rect(10, rowY, pageWidth - 20, 10);
+      doc.rect(margin, currentY, contentWidth, rowHeight);
       
-      // Row data
-      doc.setFontSize(9);
+      doc.setFontSize(6);
       doc.setFont('helvetica', 'normal');
-      doc.text(serialNo.toString(), 17, rowY + 6);
-      doc.text(subject, 35, rowY + 6);
-      doc.text(maxMarks.toString(), 95, rowY + 6);
-      doc.text(marks.toString(), 135, rowY + 6);
-      
-      // Grade with color
-      if (grade.includes('A')) doc.setTextColor(0, 128, 0);
-      else if (grade.includes('B')) doc.setTextColor(0, 0, 255);
-      else if (grade.includes('C')) doc.setTextColor(255, 165, 0);
-      else doc.setTextColor(255, 0, 0);
-      doc.setFont('helvetica', 'bold');
-      doc.text(grade, 175, rowY + 6);
-      doc.setTextColor(0);
+      doc.text(subject, margin + 2, currentY + 6);
+      doc.text(marks.periodicTest.toString(), margin + col1 + 5, currentY + 6);
+      doc.text(marks.notebook.toString(), margin + col1 + col2 + 5, currentY + 6);
+      doc.text(marks.subEnrichment.toString(), margin + col1 + col2 + col3 + 7, currentY + 6);
+      doc.text(marks.halfYearly.toString(), margin + col1 + col2 + col3 + col4 + 5, currentY + 6);
+      doc.text(marks.total.toString(), margin + col1 + col2 + col3 + col4 + col5 + 5, currentY + 6);
+      doc.text(marks.grade, margin + col1 + col2 + col3 + col4 + col5 + col6 + 8, currentY + 6);
       
       // Vertical lines
-      doc.setDrawColor(0);
-      doc.line(30, rowY, 30, rowY + 10);
-      doc.line(85, rowY, 85, rowY + 10);
-      doc.line(120, rowY, 120, rowY + 10);
-      doc.line(165, rowY, 165, rowY + 10);
+      lineX = margin + col1;
+      doc.line(lineX, currentY, lineX, currentY + rowHeight);
+      lineX += col2;
+      doc.line(lineX, currentY, lineX, currentY + rowHeight);
+      lineX += col3;
+      doc.line(lineX, currentY, lineX, currentY + rowHeight);
+      lineX += col4;
+      doc.line(lineX, currentY, lineX, currentY + rowHeight);
+      lineX += col5;
+      doc.line(lineX, currentY, lineX, currentY + rowHeight);
+      lineX += col6;
+      doc.line(lineX, currentY, lineX, currentY + rowHeight);
       
-      rowY += 10;
-      serialNo++;
+      currentY += rowHeight;
     });
     
-    // Total row
+    // Attendance row
     doc.setFillColor(220, 220, 220);
-    doc.rect(10, rowY, pageWidth - 20, 12, 'F');
+    doc.rect(margin, currentY, contentWidth, 10, 'F');
     doc.setDrawColor(0);
-    doc.setLineWidth(0.8);
-    doc.rect(10, rowY, pageWidth - 20, 12);
+    doc.rect(margin, currentY, contentWidth, 10);
     
-    doc.setFontSize(10);
+    doc.setFontSize(6);
     doc.setFont('helvetica', 'bold');
-    doc.text('TOTAL', 35, rowY + 8);
-    doc.text(maxTotalMarks.toString(), 95, rowY + 8);
-    doc.text(totalMarks.toString(), 135, rowY + 8);
+    doc.text('Attendance', margin + 2, currentY + 6);
+    doc.text('95/105', margin + col1 + 5, currentY + 6);
     
-    const overallPercentage = ((totalMarks / maxTotalMarks) * 100).toFixed(2);
-    let overallGrade;
-    if (overallPercentage >= 91) overallGrade = 'A1';
-    else if (overallPercentage >= 81) overallGrade = 'A2';
-    else if (overallPercentage >= 71) overallGrade = 'B1';
-    else if (overallPercentage >= 61) overallGrade = 'B2';
-    else if (overallPercentage >= 51) overallGrade = 'C1';
-    else if (overallPercentage >= 41) overallGrade = 'C2';
-    else if (overallPercentage >= 33) overallGrade = 'D';
-    else overallGrade = 'E';
+    // Calculate total marks
+    const totalMarks = Object.values(enhancedSubjects).reduce((sum, subject) => sum + subject.total, 0);
+    const maxMarks = Object.keys(enhancedSubjects).length * 100;
+    const percentage = ((totalMarks / maxMarks) * 100).toFixed(1);
     
-    doc.text(overallGrade, 175, rowY + 8);
+    doc.text('Total Marks:', margin + col1 + col2 + 5, currentY + 6);
+    doc.text(`${totalMarks}/${maxMarks}`, margin + col1 + col2 + col3 + col4 + 5, currentY + 6);
+    doc.text('Percentage:', margin + col1 + col2 + col3 + col4 + col5 + 2, currentY + 6);
+    doc.text(`${percentage}%`, margin + col1 + col2 + col3 + col4 + col5 + col6 + 5, currentY + 6);
     
-    // Vertical lines for total row
-    doc.line(30, rowY, 30, rowY + 12);
-    doc.line(85, rowY, 85, rowY + 12);
-    doc.line(120, rowY, 120, rowY + 12);
-    doc.line(165, rowY, 165, rowY + 12);
+    currentY += 15;
     
-    // Performance Summary
-    rowY += 25;
-    doc.setFillColor(245, 245, 245);
-    doc.rect(10, rowY, pageWidth - 20, 25, 'F');
+    // Co-scholastic Activities section (simplified to fit)
+    doc.setFillColor(240, 240, 240);
+    doc.rect(margin, currentY, contentWidth, 6, 'F');
     doc.setDrawColor(0);
-    doc.rect(10, rowY, pageWidth - 20, 25);
+    doc.rect(margin, currentY, contentWidth, 6);
     
-    doc.setFontSize(11);
+    doc.setFontSize(6);
     doc.setFont('helvetica', 'bold');
-    doc.setTextColor(0);
-    doc.text('PERFORMANCE SUMMARY', 15, rowY + 8);
+    doc.text('Co-scholastic Activities Area (3-point scale)', margin + 5, currentY + 4);
     
-    doc.setFontSize(10);
-    doc.setFont('helvetica', 'normal');
-    doc.text(`Total Marks Obtained: ${totalMarks}/${maxTotalMarks}`, 15, rowY + 16);
-    doc.text(`Percentage: ${overallPercentage}%`, 15, rowY + 22);
-    doc.text(`Overall Grade: ${overallGrade}`, pageWidth/2, rowY + 16);
+    currentY += 8;
     
-    // Result status
-    const result = overallPercentage >= 33 ? 'PASS' : 'FAIL';
-    const resultColor = result === 'PASS' ? [0, 128, 0] : [255, 0, 0];
-    doc.setFont('helvetica', 'bold');
-    doc.setTextColor(...resultColor);
-    doc.text(`Result: ${result}`, pageWidth/2, rowY + 22);
-    
-    // Grading Scale
-    rowY += 35;
-    doc.setFontSize(9);
-    doc.setFont('helvetica', 'bold');
-    doc.setTextColor(0);
-    doc.text('GRADING SCALE:', 15, rowY);
-    
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(8);
-    const gradingScale = [
-      'A1: 91-100 (Outstanding)', 'A2: 81-90 (Excellent)', 'B1: 71-80 (Very Good)',
-      'B2: 61-70 (Good)', 'C1: 51-60 (Fair)', 'C2: 41-50 (Satisfactory)', 'D: 33-40 (Needs Improvement)', 'E: Below 33 (Unsatisfactory)'
+    // Simplified co-scholastic table
+    const coScholasticRows = [
+      { activity: 'Work Education', grade: 'A' },
+      { activity: 'Art Education', grade: 'B' },
+      { activity: 'Physical Education', grade: 'A' }
     ];
     
-    let gradeY = rowY + 8;
-    gradingScale.forEach((scale, index) => {
-      if (index % 2 === 0) {
-        doc.text(scale, 15, gradeY);
-      } else {
-        doc.text(scale, pageWidth/2, gradeY);
-        gradeY += 6;
-      }
+    coScholasticRows.forEach((item, index) => {
+      doc.setDrawColor(0);
+      doc.rect(margin, currentY, contentWidth, 6);
+      
+      doc.setFontSize(6);
+      doc.setFont('helvetica', 'normal');
+      doc.text(item.activity, margin + 5, currentY + 4);
+      doc.text(item.grade, margin + 80, currentY + 4);
+      
+      currentY += 6;
     });
     
-    // Remarks Section
-    rowY = gradeY + 10;
-    doc.setDrawColor(0);
-    doc.rect(10, rowY, pageWidth - 20, 20);
-    doc.setFontSize(10);
-    doc.setFont('helvetica', 'bold');
-    doc.text('CLASS TEACHER REMARKS:', 15, rowY + 8);
+    currentY += 8;
     
+    // Compact Grade Scale
+    doc.setFontSize(6);
+    doc.setFont('helvetica', 'bold');
+    doc.text('Grade Scale: A1(91-100) A2(81-90) B1(71-80) B2(61-70) C1(51-60) C2(41-50) D(33-40) E(<33)', margin, currentY);
+    
+    currentY += 10;
+    
+    // Remarks section (more compact)
+    doc.setFontSize(6);
+    doc.setFont('helvetica', 'bold');
+    doc.text('Remarks:', margin, currentY);
     doc.setFont('helvetica', 'normal');
+    
     let remarks;
+    const overallPercentage = parseFloat(percentage);
     if (overallPercentage >= 90) remarks = 'Excellent performance! Keep up the outstanding work.';
     else if (overallPercentage >= 75) remarks = 'Very good performance. Continue your efforts.';
     else if (overallPercentage >= 60) remarks = 'Good work. Focus on weaker areas for improvement.';
-    else if (overallPercentage >= 33) remarks = 'Needs improvement. Please work harder and seek help when needed.';
-    else remarks = 'Requires immediate attention and extra support.';
+    else if (overallPercentage >= 33) remarks = 'Needs improvement. Please work harder.';
+    else remarks = 'Requires immediate attention and support.';
     
-    doc.text(remarks, 15, rowY + 14);
+    doc.text(remarks, margin, currentY + 6);
     
-    // Signature Section with boxes
-    rowY += 30;
+    currentY += 15;
     
-    // Authority signatures box
+    // Promotion section
+    doc.setFontSize(6);
+    doc.setFont('helvetica', 'bold');
+    doc.text('On promotion/ You are promoted to class:', margin, currentY);
+    doc.setFont('helvetica', 'normal');
+    const nextGrade = parseInt(selectedClass.split(' ')[1] || '1') + 1;
+    doc.text(`Grade ${nextGrade}`, margin + 80, currentY);
+    
+    // Ensure signature section stays within bounds
+    const signatureY = Math.min(currentY + 20, pageHeight - 30);
+    
+    // Signature section
     doc.setDrawColor(0);
     doc.setLineWidth(0.5);
-    doc.rect(10, rowY, pageWidth - 20, 35);
-    
-    // Section header
-    doc.setFillColor(240, 240, 240);
-    doc.rect(10, rowY, pageWidth - 20, 8, 'F');
-    doc.setFontSize(9);
-    doc.setFont('helvetica', 'bold');
-    doc.setTextColor(0);
-    doc.text('VERIFICATION & AUTHORIZATION', 15, rowY + 6);
-    
-    rowY += 12;
-    
-    // Class Teacher Signature
-    doc.setFontSize(9);
-    doc.setFont('helvetica', 'normal');
-    doc.text('Class Teacher:', 15, rowY + 5);
-    doc.text('_____________________', 15, rowY + 12);
-    doc.text('Mrs. Priya Sharma', 20, rowY + 18);
-    doc.text(`Date: ${new Date().toLocaleDateString('en-IN')}`, 15, rowY + 22);
-    
-    // School Seal placeholder
-    doc.setDrawColor(0, 51, 102);
-    doc.circle(pageWidth/2, rowY + 12, 15);
-    doc.setFontSize(7);
-    doc.setFont('helvetica', 'bold');
-    doc.text('SCHOOL', pageWidth/2, rowY + 10, { align: 'center' });
-    doc.text('SEAL', pageWidth/2, rowY + 15, { align: 'center' });
-    
-    // Principal Signature  
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(9);
-    doc.text('Principal:', pageWidth - 80, rowY + 5);
-    doc.text('_____________________', pageWidth - 80, rowY + 12);
-    doc.text('Dr. Rajesh Kumar', pageWidth - 75, rowY + 18);
-    doc.text(`Date: ${new Date().toLocaleDateString('en-IN')}`, pageWidth - 80, rowY + 22);
-    
-    // Parent acknowledgment section
-    rowY += 35;
-    doc.setDrawColor(0);
-    doc.rect(10, rowY, pageWidth - 20, 20);
-    doc.setFillColor(248, 250, 252);
-    doc.rect(10, rowY, pageWidth - 20, 8, 'F');
-    doc.setFontSize(9);
-    doc.setFont('helvetica', 'bold');
-    doc.text('PARENT/GUARDIAN ACKNOWLEDGMENT', 15, rowY + 6);
-    
-    doc.setFont('helvetica', 'normal');
-    doc.text("Parent's Signature: ___________________", 15, rowY + 15);
-    doc.text('Date: ___________', pageWidth - 80, rowY + 15);
-    
-    // Professional Footer
-    rowY += 25;
-    doc.setFillColor(0, 51, 102);
-    doc.rect(10, pageHeight - 25, pageWidth - 20, 15, 'F');
-    
-    doc.setFontSize(7);
-    doc.setFont('helvetica', 'normal');
-    doc.setTextColor(255, 255, 255);
-    doc.text('This is a computer generated report card from Electronic Educare Management System', pageWidth/2, pageHeight - 18, { align: 'center' });
-    doc.text(`Generated on: ${new Date().toLocaleDateString('en-IN')} at ${new Date().toLocaleTimeString('en-IN')} | Document ID: RPT${Date.now()}`, pageWidth/2, pageHeight - 13, { align: 'center' });
-    
-    // Add security features text
     doc.setFontSize(6);
-    doc.text('*This document contains security features to prevent forgery', pageWidth/2, pageHeight - 8, { align: 'center' });
+    doc.setFont('helvetica', 'normal');
+    
+    // Parent signature
+    doc.line(15, signatureY, 65, signatureY);
+    doc.text("Parent's Signature", 30, signatureY + 8);
+    
+    // Class teacher signature  
+    doc.line(pageWidth/2 - 25, signatureY, pageWidth/2 + 25, signatureY);
+    doc.text("Class Teacher Signature", pageWidth/2 - 15, signatureY + 8);
+    
+    // Principal signature
+    doc.line(pageWidth - 65, signatureY, pageWidth - 15, signatureY);
+    doc.text("Principal Signature", pageWidth - 45, signatureY + 8);
     
     doc.save(`${student.name}_Report_Card_${selectedClass}_Section_${selectedSection}_2024-25.pdf`);
   };

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Edit, Trash2, Calendar, Clock, Users, Search, Filter } from 'lucide-react';
+import { Plus, Edit, Trash2, Calendar, Clock, Users, Search, Filter, X } from 'lucide-react';
 
 const ExaminationManagement = ({setShowAdminHeader}) => {
 
@@ -114,28 +114,29 @@ const ExaminationManagement = ({setShowAdminHeader}) => {
     
   };
 
-  // const handleEdit = (exam) => {
-  //   setEditingExam(exam);
-  //   setFormData({
-  //     title: exam.title,
-  //     subject: exam.subject,
-  //     date: exam.date,
-  //     time: exam.time,
-  //     duration: exam.duration.toString(),
-  //     totalMarks: exam.totalMarks.toString(),
-  //     venue: exam.venue,
-  //     instructor: exam.instructor,
-  //     students: exam.students.toString(),
-  //     status: exam.status
-  //   });
-  //   setShowModal(true);
-  // };
+  const handleEdit = (exam) => {
+    setEditingExam(exam);
+    setFormData({
+      title: exam.title || '',
+      subject: exam.subject || '',
+      date: exam.date || '',
+      time: exam.time || '',
+      duration: String(exam.duration ?? ''),
+      marks: String(exam.marks ?? ''),
+      venue: exam.venue || '',
+      instructor: exam.instructor || '',
+      noOfStudents: String(exam.noOfStudents ?? ''),
+      status: exam.status || 'scheduled'
+    });
+    setShowModal(true);
+  };
 
-  // const handleDelete = (id) => {
-  //   if (window.confirm('Are you sure you want to delete this examination?')) {
-  //     setExaminations(prev => prev.filter(exam => exam.id !== id));
-  //   }
-  // };
+  const handleDelete = (id) => {
+    if (window.confirm('Are you sure you want to delete this examination?')) {
+      // Optimistic local removal; hook to backend delete if available
+      setExaminations(prev => prev.filter(exam => exam.id !== id));
+    }
+  };
 
   const getStatusColor = (status) => {
     switch (status) {
@@ -326,37 +327,77 @@ const ExaminationManagement = ({setShowAdminHeader}) => {
 
         {/* Modal */}
         {showModal && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 transition-colors duration-200">
-            <div className="bg-white rounded-2xl shadow-2xl p-10 w-full max-w-xl relative border border-yellow-300 animate-fadeIn">
-              <button className="absolute top-4 right-4 text-gray-400 hover:text-yellow-600 text-3xl font-bold focus:outline-none" onClick={() => { setShowModal(false); setEditingExam(null); resetForm(); }}>&times;</button>
-              <h2 className="text-3xl font-extrabold mb-6 text-yellow-700 text-center tracking-tight">{editingExam ? 'Edit Examination' : 'Add Examination'}</h2>
-              <form onSubmit={handleSubmit} className="space-y-5">
-                <div className="flex gap-4">
-                  <input name="title" value={formData.title} onChange={e => setFormData({...formData, title: e.target.value})} required placeholder="Exam Title" className="flex-1 border border-yellow-300 rounded-lg px-4 py-3 focus:ring-2 focus:ring-yellow-400 focus:outline-none bg-yellow-50 placeholder-gray-400 text-gray-800 text-base shadow-sm" />
-                  <input name="subject" value={formData.subject} onChange={e => setFormData({...formData, subject: e.target.value})} required placeholder="Subject" className="flex-1 border border-yellow-300 rounded-lg px-4 py-3 focus:ring-2 focus:ring-yellow-400 focus:outline-none bg-yellow-50 placeholder-gray-400 text-gray-800 text-base shadow-sm" />
+          <div className="fixed inset-0 z-50 flex items-center justify-center">
+            <div className="absolute inset-0 bg-black/40" onClick={() => { setShowModal(false); setEditingExam(null); resetForm(); }} />
+            <div className="relative bg-white w-full max-w-3xl rounded-2xl shadow-2xl border border-gray-200 p-6 sm:p-7">
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <h2 className="text-xl font-semibold text-gray-900">{editingExam ? 'Edit Examination' : 'Add Examination'}</h2>
+                  <p className="text-sm text-gray-500">Enter exam details and schedule</p>
                 </div>
-                <div className="flex gap-4">
-                  <input name="instructor" value={formData.instructor} onChange={e => setFormData({...formData, instructor: e.target.value})} required placeholder="Instructor" className="flex-1 border border-yellow-300 rounded-lg px-4 py-3 focus:ring-2 focus:ring-yellow-400 focus:outline-none bg-yellow-50 placeholder-gray-400 text-gray-800 text-base shadow-sm" />
-                  <input name="venue" value={formData.venue} onChange={e => setFormData({...formData, venue: e.target.value})} required placeholder="Venue" className="flex-1 border border-yellow-300 rounded-lg px-4 py-3 focus:ring-2 focus:ring-yellow-400 focus:outline-none bg-yellow-50 placeholder-gray-400 text-gray-800 text-base shadow-sm" />
+                <button className="text-gray-500 hover:text-gray-700" onClick={() => { setShowModal(false); setEditingExam(null); resetForm(); }}>
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <form onSubmit={handleSubmit} className="space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-sm text-gray-700 mb-1">Exam Title</label>
+                    <input name="title" value={formData.title} onChange={e => setFormData({...formData, title: e.target.value})} required placeholder="Mid Term Examination" className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-500 focus:border-transparent" />
+                  </div>
+                  <div>
+                    <label className="block text-sm text-gray-700 mb-1">Subject</label>
+                    <input name="subject" value={formData.subject} onChange={e => setFormData({...formData, subject: e.target.value})} required placeholder="Physics" className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-500 focus:border-transparent" />
+                  </div>
                 </div>
-                <div className="flex gap-4">
-                  <input name="date" value={formData.date} onChange={e => setFormData({...formData, date: e.target.value})} required placeholder="Date" className="flex-1 border border-yellow-300 rounded-lg px-4 py-3 focus:ring-2 focus:ring-yellow-400 focus:outline-none bg-yellow-50 placeholder-gray-400 text-gray-800 text-base shadow-sm" type="date" />
-                  <input name="time" value={formData.time} onChange={e => setFormData({...formData, time: e.target.value})} required placeholder="Time" className="flex-1 border border-yellow-300 rounded-lg px-4 py-3 focus:ring-2 focus:ring-yellow-400 focus:outline-none bg-yellow-50 placeholder-gray-400 text-gray-800 text-base shadow-sm" type="time" />
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-sm text-gray-700 mb-1">Instructor</label>
+                    <input name="instructor" value={formData.instructor} onChange={e => setFormData({...formData, instructor: e.target.value})} required placeholder="Prof. Priya Verma" className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-500 focus:border-transparent" />
+                  </div>
+                  <div>
+                    <label className="block text-sm text-gray-700 mb-1">Venue</label>
+                    <input name="venue" value={formData.venue} onChange={e => setFormData({...formData, venue: e.target.value})} required placeholder="Hall A" className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-500 focus:border-transparent" />
+                  </div>
                 </div>
-                <div className="flex gap-4">
-                  <input name="duration" value={formData.duration} onChange={e => setFormData({...formData, duration: e.target.value})} required placeholder="Duration (min)" className="flex-1 border border-yellow-300 rounded-lg px-4 py-3 focus:ring-2 focus:ring-yellow-400 focus:outline-none bg-yellow-50 placeholder-gray-400 text-gray-800 text-base shadow-sm" type="number" min="0" />
-                  <input name="marks" value={formData.marks} onChange={e => setFormData({...formData, marks: e.target.value})} required placeholder="Total Marks" className="flex-1 border border-yellow-300 rounded-lg px-4 py-3 focus:ring-2 focus:ring-yellow-400 focus:outline-none bg-yellow-50 placeholder-gray-400 text-gray-800 text-base shadow-sm" type="number" min="0" />
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                  <div>
+                    <label className="block text-sm text-gray-700 mb-1">Date</label>
+                    <input name="date" value={formData.date} onChange={e => setFormData({...formData, date: e.target.value})} required className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-500 focus:border-transparent" type="date" />
+                  </div>
+                  <div>
+                    <label className="block text-sm text-gray-700 mb-1">Time</label>
+                    <input name="time" value={formData.time} onChange={e => setFormData({...formData, time: e.target.value})} required className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-500 focus:border-transparent" type="time" />
+                  </div>
+                  <div>
+                    <label className="block text-sm text-gray-700 mb-1">Duration (minutes)</label>
+                    <input name="duration" value={formData.duration} onChange={e => setFormData({...formData, duration: e.target.value})} required className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-500 focus:border-transparent" type="number" min="0" />
+                  </div>
                 </div>
-                <div className="flex gap-4">
-                  <input name="noOfStudents" value={formData.noOfStudents} onChange={e => setFormData({...formData, noOfStudents: e.target.value})} required placeholder="No. of Students" className="flex-1 border border-yellow-300 rounded-lg px-4 py-3 focus:ring-2 focus:ring-yellow-400 focus:outline-none bg-yellow-50 placeholder-gray-400 text-gray-800 text-base shadow-sm" type="number" min="0" />
-                  <select name="status" value={formData.status} onChange={e => setFormData({...formData, status: e.target.value})} className="flex-1 border border-yellow-300 rounded-lg px-4 py-3 focus:ring-2 focus:ring-yellow-400 focus:outline-none bg-yellow-50 text-gray-800 text-base shadow-sm">
-                    <option value="scheduled">Scheduled</option>
-                    <option value="ongoing">Ongoing</option>
-                    <option value="completed">Completed</option>
-                    <option value="cancelled">Cancelled</option>
-                  </select>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                  <div>
+                    <label className="block text-sm text-gray-700 mb-1">Total Marks</label>
+                    <input name="marks" value={formData.marks} onChange={e => setFormData({...formData, marks: e.target.value})} required className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-500 focus:border-transparent" type="number" min="0" />
+                  </div>
+                  <div>
+                    <label className="block text-sm text-gray-700 mb-1">Students</label>
+                    <input name="noOfStudents" value={formData.noOfStudents} onChange={e => setFormData({...formData, noOfStudents: e.target.value})} required className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-500 focus:border-transparent" type="number" min="0" />
+                  </div>
+                  <div>
+                    <label className="block text-sm text-gray-700 mb-1">Status</label>
+                    <select name="status" value={formData.status} onChange={e => setFormData({...formData, status: e.target.value})} className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-500 focus:border-transparent">
+                      <option value="scheduled">Scheduled</option>
+                      <option value="ongoing">Ongoing</option>
+                      <option value="completed">Completed</option>
+                      <option value="cancelled">Cancelled</option>
+                    </select>
+                  </div>
                 </div>
-                <button type="submit" className="w-full bg-gradient-to-r from-yellow-500 to-amber-500 hover:from-yellow-600 hover:to-amber-600 text-white py-3 rounded-xl font-bold shadow-lg transition-all text-lg tracking-wide">{editingExam ? 'Update' : 'Add'} Examination</button>
+                <div className="flex items-center justify-end gap-2 pt-2">
+                  <button type="button" onClick={() => { setShowModal(false); setEditingExam(null); resetForm(); }} className="px-4 py-2 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50">Cancel</button>
+                  <button type="submit" className="px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white">{editingExam ? 'Update' : 'Add'} Examination</button>
+                </div>
               </form>
             </div>
           </div>

@@ -13,6 +13,7 @@ import CourseManagement from './pages/CourseManagement';
 import SubjectManagement from './pages/SubjectManagement';
 import AttendanceManagement from './pages/AttendanceManagement';
 import Result from './pages/Result';
+import FeesCollection from './pages/FeesCollection';
 import { useState } from 'react';
 
 const AdminApp = () => {
@@ -54,6 +55,7 @@ const AdminApp = () => {
         <Route path="timetable" element={<TeacherTimetable setShowAdminHeader={setShowAdminHeader} />} />
         <Route path="lesson-plans" element={<LessonPlanPage setShowAdminHeader={setShowAdminHeader} />} />
         <Route path="result" element={<Result setShowAdminHeader={setShowAdminHeader} />} />
+        <Route path="fees" element={<FeesCollection setShowAdminHeader={setShowAdminHeader} />} />
       </Routes>
     </AdminLayout>
   );
