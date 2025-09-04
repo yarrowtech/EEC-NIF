@@ -27,12 +27,12 @@ ChartJS.register(
 );
 
 const Analytics = ({ setShowAdminHeader }) => {
-  const [timeFilter, setTimeFilter] = useState('last6months');
   const [activeTab, setActiveTab] = useState('overview');
+  // Fees chart filters
+  const [selectedClass, setSelectedClass] = useState('Class 10');
+  const [selectedSection, setSelectedSection] = useState('A');
 
-  const handleTimeFilterChange = (e) => {
-    setTimeFilter(e.target.value);
-  };
+  // (Time period filter removed)
 
   // making the admin header invisible
   useEffect(() => {
@@ -68,6 +68,59 @@ const Analytics = ({ setShowAdminHeader }) => {
         tension: 0.4,
       },
     ],
+  };
+
+  // Fees Collection (Bar Chart) with Class/Section dropdowns
+  const classOptions = ['Class 6', 'Class 7', 'Class 8', 'Class 9', 'Class 10', 'Class 11', 'Class 12'];
+  const sectionOptions = ['A', 'B', 'C', 'D'];
+
+  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'];
+
+  const getSeed = (cls, sec) => {
+    const s = (cls + '-' + sec).split('').reduce((acc, ch) => acc + ch.charCodeAt(0), 0);
+    return s % 97 + 3; // simple deterministic seed
+  };
+
+  const feesChartData = (() => {
+    const seed = getSeed(selectedClass, selectedSection);
+    const paid = months.map((_, i) => Math.round(50 + ((seed * (i + 1)) % 40))); // 50–90k
+    const pending = months.map((_, i) => Math.round(20 + ((seed * (i + 3)) % 30))); // 20–50k
+    return {
+      labels: months,
+      datasets: [
+        {
+          label: 'Paid (₹k)',
+          data: paid,
+          backgroundColor: '#10b981',
+          borderRadius: 4,
+        },
+        {
+          label: 'Pending (₹k)',
+          data: pending,
+          backgroundColor: '#ef4444',
+          borderRadius: 4,
+        },
+      ],
+    };
+  })();
+
+  const feesChartOptions = {
+    responsive: true,
+    plugins: {
+      legend: { position: 'top' },
+      tooltip: {
+        callbacks: {
+          label: (ctx) => `${ctx.dataset.label}: ₹${ctx.parsed.y}k`,
+        },
+      },
+    },
+    scales: {
+      y: {
+        beginAtZero: true,
+        title: { display: true, text: 'Amount (₹ thousands)' },
+      },
+      x: { title: { display: true, text: 'Month' } },
+    },
   };
 
   const performanceOptions = {
@@ -117,6 +170,14 @@ const Analytics = ({ setShowAdminHeader }) => {
       },
     },
   };
+
+  // Derived summary stats
+  const totalStudentsCount = 1245;
+  const totalTeachersCount = 82;
+  const presentPercentage = attendanceData.datasets[0].data[0];
+  const presentStudentsCount = Math.round(totalStudentsCount * (presentPercentage / 100));
+  const presentTeachersPercent = 92; // demo percent
+  const presentTeachersCount = Math.round(totalTeachersCount * (presentTeachersPercent / 100));
 
   // Data for Course Progress (Bar Chart)
   const courseProgressData = {
@@ -212,23 +273,6 @@ const Analytics = ({ setShowAdminHeader }) => {
       <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center mb-6">
         <h2 className="text-2xl font-bold text-gray-800 mb-4 lg:mb-0">Analytics Dashboard</h2>
         <div className="flex flex-col sm:flex-row gap-3">
-          <div className="flex items-center gap-3">
-            <label htmlFor="time-filter" className="text-gray-700 font-medium whitespace-nowrap">
-              Time Period:
-            </label>
-            <select
-              id="time-filter"
-              value={timeFilter}
-              onChange={handleTimeFilterChange}
-              className="border border-gray-300 rounded-lg px-3 py-2 text-gray-700 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
-            >
-              <option value="last7days">Last 7 Days</option>
-              <option value="last30days">Last 30 Days</option>
-              <option value="last6months">Last 6 Months</option>
-              <option value="lastyear">Last Year</option>
-            </select>
-          </div>
-          
           <div className="bg-white rounded-lg border border-gray-200 p-1 flex">
             <button 
               className={`px-3 py-1 rounded-md text-sm font-medium ${activeTab === 'overview' ? 'bg-purple-100 text-purple-700' : 'text-gray-600 hover:text-gray-800'}`}
@@ -248,14 +292,13 @@ const Analytics = ({ setShowAdminHeader }) => {
 
       {/* Summary Stats */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 mb-8">
+        {/* Total Students */}
         <div className="bg-white p-5 rounded-xl shadow-sm border border-gray-100">
           <div className="flex items-center justify-between">
             <div>
               <h3 className="text-sm font-medium text-gray-600">Total Students</h3>
-              <p className="text-2xl font-bold text-gray-800 mt-1">1,245</p>
-              <p className="text-xs text-green-600 mt-1 flex items-center">
-                <span className="inline-block mr-1">+5.2%</span> from last month
-              </p>
+              <p className="text-2xl font-bold text-gray-800 mt-1">{totalStudentsCount.toLocaleString()}</p>
+              <p className="text-xs text-green-600 mt-1 flex items-center">Updated today</p>
             </div>
             <div className="h-12 w-12 rounded-lg bg-purple-100 flex items-center justify-center">
               <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-purple-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -264,53 +307,50 @@ const Analytics = ({ setShowAdminHeader }) => {
             </div>
           </div>
         </div>
-        
+
+        {/* Present Students */}
         <div className="bg-white p-5 rounded-xl shadow-sm border border-gray-100">
           <div className="flex items-center justify-between">
             <div>
-              <h3 className="text-sm font-medium text-gray-600">Total Teachers</h3>
-              <p className="text-2xl font-bold text-gray-800 mt-1">82</p>
-              <p className="text-xs text-green-600 mt-1 flex items-center">
-                <span className="inline-block mr-1">+2.4%</span> from last month
-              </p>
-            </div>
-            <div className="h-12 w-12 rounded-lg bg-blue-100 flex items-center justify-center">
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
-              </svg>
-            </div>
-          </div>
-        </div>
-        
-        <div className="bg-white p-5 rounded-xl shadow-sm border border-gray-100">
-          <div className="flex items-center justify-between">
-            <div>
-              <h3 className="text-sm font-medium text-gray-600">Average Attendance</h3>
-              <p className="text-2xl font-bold text-gray-800 mt-1">92%</p>
-              <p className="text-xs text-green-600 mt-1 flex items-center">
-                <span className="inline-block mr-1">+1.8%</span> from last month
-              </p>
+              <h3 className="text-sm font-medium text-gray-600">Present Students</h3>
+              <p className="text-2xl font-bold text-gray-800 mt-1">{presentStudentsCount.toLocaleString()}</p>
+              <p className="text-xs text-green-600 mt-1 flex items-center">{presentPercentage}% present</p>
             </div>
             <div className="h-12 w-12 rounded-lg bg-green-100 flex items-center justify-center">
               <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
               </svg>
             </div>
           </div>
         </div>
-        
+
+        {/* Present Teachers */}
         <div className="bg-white p-5 rounded-xl shadow-sm border border-gray-100">
           <div className="flex items-center justify-between">
             <div>
-              <h3 className="text-sm font-medium text-gray-600">Course Completion</h3>
-              <p className="text-2xl font-bold text-gray-800 mt-1">78%</p>
-              <p className="text-xs text-green-600 mt-1 flex items-center">
-                <span className="inline-block mr-1">+3.7%</span> from last month
-              </p>
+              <h3 className="text-sm font-medium text-gray-600">Present Teachers</h3>
+              <p className="text-2xl font-bold text-gray-800 mt-1">{presentTeachersCount}</p>
+              <p className="text-xs text-green-600 mt-1 flex items-center">{presentTeachersPercent}% present</p>
+            </div>
+            <div className="h-12 w-12 rounded-lg bg-blue-100 flex items-center justify-center">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 3v4M19 3v4M4 7h16M6 11h12M6 15h8M6 19h6" />
+              </svg>
+            </div>
+          </div>
+        </div>
+
+        {/* Attendance Today */}
+        <div className="bg-white p-5 rounded-xl shadow-sm border border-gray-100">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="text-sm font-medium text-gray-600">Attendance Today</h3>
+              <p className="text-2xl font-bold text-gray-800 mt-1">{presentPercentage}%</p>
+              <p className="text-xs text-green-600 mt-1 flex items-center">Based on attendance breakdown</p>
             </div>
             <div className="h-12 w-12 rounded-lg bg-yellow-100 flex items-center justify-center">
               <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-yellow-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
               </svg>
             </div>
           </div>
@@ -334,6 +374,39 @@ const Analytics = ({ setShowAdminHeader }) => {
           <div className="w-full h-80">
             <Bar data={courseProgressData} options={courseProgressOptions} />
           </div>
+        </div>
+      </div>
+
+      {/* Fees Collection */}
+      <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 mb-8">
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-2">
+          <div>
+            <h3 className="text-lg font-semibold text-gray-800">Fees Collection</h3>
+            <p className="text-gray-600 text-sm">Paid vs Pending by month</p>
+          </div>
+          <div className="flex gap-3">
+            <select
+              value={selectedClass}
+              onChange={(e) => setSelectedClass(e.target.value)}
+              className="border border-gray-300 rounded-lg px-3 py-2 text-gray-700 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+            >
+              {classOptions.map(c => (
+                <option key={c} value={c}>{c}</option>
+              ))}
+            </select>
+            <select
+              value={selectedSection}
+              onChange={(e) => setSelectedSection(e.target.value)}
+              className="border border-gray-300 rounded-lg px-3 py-2 text-gray-700 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+            >
+              {sectionOptions.map(s => (
+                <option key={s} value={s}>Section {s}</option>
+              ))}
+            </select>
+          </div>
+        </div>
+        <div className="w-full h-80">
+          <Bar data={feesChartData} options={feesChartOptions} />
         </div>
       </div>
 

@@ -8,11 +8,11 @@ const Result = ({ setShowAdminHeader }) => {
   const [selectedClass, setSelectedClass] = useState('');
   const [selectedSection, setSelectedSection] = useState('');
 
-  const classes = Array.from({ length: 12 }, (_, i) => `Grade ${i + 1}`);
+  const classes = Array.from({ length: 12 }, (_, i) => `Class ${i + 1}`);
   const sections = ['A', 'B', 'C', 'D'];
 
   const mockStudentResults = {
-    'Grade 1': {
+    'Class 1': {
       'A': [
         { id: 1, name: 'John Doe', rollNo: '001', subjects: { English: 85, Math: 92, Science: 78, History: 88 } },
         { id: 2, name: 'Jane Smith', rollNo: '002', subjects: { English: 90, Math: 87, Science: 82, History: 91 } },
@@ -23,7 +23,7 @@ const Result = ({ setShowAdminHeader }) => {
         { id: 5, name: 'Tom Brown', rollNo: '005', subjects: { English: 82, Math: 89, Science: 77, History: 83 } }
       ]
     },
-    'Grade 2': {
+    'Class 2': {
       'A': [
         { id: 6, name: 'Emma Davis', rollNo: '006', subjects: { English: 93, Math: 88, Science: 85, History: 90 } },
         { id: 7, name: 'Alex Miller', rollNo: '007', subjects: { English: 79, Math: 91, Science: 83, History: 87 } }
@@ -54,17 +54,10 @@ const Result = ({ setShowAdminHeader }) => {
     let schoolLogo, studentPhoto;
     
     try {
-      schoolLogo = await loadImage('./NIF LOGO crop.png');
-      studentPhoto = await loadImage('./80.jpg');
+      schoolLogo = await loadImage('/NIF LOGO crop.png');
+      studentPhoto = await loadImage('/80.jpg');
     } catch (error) {
       console.warn('Could not load images:', error);
-      // Try alternative paths
-      try {
-        schoolLogo = await loadImage('/NIF LOGO crop.png');
-        studentPhoto = await loadImage('/80.jpg');
-      } catch (altError) {
-        console.warn('Alternative image paths also failed:', altError);
-      }
     }
     
     // Decorative border
@@ -365,8 +358,8 @@ const Result = ({ setShowAdminHeader }) => {
     doc.setFont('helvetica', 'bold');
     doc.text('On promotion/ You are promoted to class:', margin, currentY);
     doc.setFont('helvetica', 'normal');
-    const nextGrade = parseInt(selectedClass.split(' ')[1] || '1') + 1;
-    doc.text(`Grade ${nextGrade}`, margin + 80, currentY);
+    const nextClass = parseInt(selectedClass.split(' ')[1] || '1') + 1;
+    doc.text(`Class ${nextClass}`, margin + 80, currentY);
     
     // Ensure signature section stays within bounds
     const signatureY = Math.min(currentY + 20, pageHeight - 30);

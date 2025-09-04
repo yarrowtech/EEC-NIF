@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { 
   Menu, 
   Bell, 
@@ -22,6 +22,12 @@ const AdminHeader = ({ adminUser }) => {
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
   const navigate = useNavigate();
+  const [now, setNow] = useState(new Date());
+
+  useEffect(() => {
+    const t = setInterval(() => setNow(new Date()), 1000);
+    return () => clearInterval(t);
+  }, []);
 
   const navigationLinks = [
     { 
@@ -87,6 +93,19 @@ const AdminHeader = ({ adminUser }) => {
 
           {/* Right Section */}
           <div className="flex items-center space-x-4">
+            {/* Current Date & Time */}
+            <div className="hidden md:flex items-center gap-2 px-3 py-2 rounded-lg">
+              <Clock size={18} className="text-gray-500" />
+              <span className="text-sm font-medium text-gray-700">
+                {now.toLocaleDateString(undefined, { weekday: 'long' })}
+              </span>
+              <span className="text-sm text-gray-500">
+                {now.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
+              </span>
+              <span className="text-sm text-gray-500">
+                {now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+              </span>
+            </div>
             {/* Language Selector */}
             <div className="hidden md:flex items-center gap-2 px-3 py-2 hover:bg-gray-50 rounded-lg cursor-pointer">
               <Globe size={20} className="text-gray-500" />

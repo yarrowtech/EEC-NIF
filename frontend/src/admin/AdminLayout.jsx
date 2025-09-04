@@ -1,5 +1,5 @@
 import React from 'react';
-import { ChevronRight, Grid3X3 } from 'lucide-react';
+import { ChevronRight, Grid3X3, Menu } from 'lucide-react';
 import AdminHeader from './AdminHeader';
 import AdminSidebar from './AdminSidebar';
 
@@ -39,6 +39,14 @@ const AdminLayout = ({
         <div className="px-4 lg:px-8 py-4 bg-white border-b">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-2 text-gray-600 overflow-x-auto">
+              {sidebarCollapsed && (
+                <button 
+                  onClick={onToggleSidebar}
+                  className="p-2 bg-gray-100 text-gray-600 rounded-lg hover:bg-gray-200 transition-colors mr-3"
+                >
+                  <Menu size={20} />
+                </button>
+              )}
               <span className="text-xl lg:text-2xl font-bold text-gray-800 whitespace-nowrap">
                 {activeMenuItem}
               </span>

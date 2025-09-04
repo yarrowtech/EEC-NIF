@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { ChevronDown, IndianRupee, Users, AlertCircle, CheckCircle2, Filter, Download, Eye, X } from 'lucide-react';
+import { jsPDF } from 'jspdf';
+import { ChevronDown, IndianRupee, Users, AlertCircle, CheckCircle2, Filter, Download, Eye, X, FileText } from 'lucide-react';
 
 const FeesCollection = ({ setShowAdminHeader }) => {
+  // Restore original behavior
   setShowAdminHeader(false);
   
   const [selectedClass, setSelectedClass] = useState('');
@@ -12,6 +14,93 @@ const FeesCollection = ({ setShowAdminHeader }) => {
   const [selectedStudent, setSelectedStudent] = useState(null);
   const [collectionAmount, setCollectionAmount] = useState('');
   const [paymentMethod, setPaymentMethod] = useState('cash');
+
+  // New: Payments & Salaries tabs
+  const [payTab, setPayTab] = useState('salaries'); // 'salaries' | 'vendors' | 'attendance'
+  const [salaryRole, setSalaryRole] = useState('teachers'); // 'teachers' | 'staff'
+  const [salaryMonth, setSalaryMonth] = useState(() => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`; // yyyy-MM
+  });
+
+  // Mock employees and vendors
+  const teachers = [
+    { id: 't1', name: 'Prof. Priya Verma', designation: 'Physics', baseSalary: 55000 },
+    { id: 't2', name: 'Dr. Arjun Sen', designation: 'Mathematics', baseSalary: 60000 },
+    { id: 't3', name: 'Ms. Kavita Rao', designation: 'Chemistry', baseSalary: 52000 },
+  ];
+  const staff = [
+    { id: 's1', name: 'Amit Kumar', role: 'Clerk', baseSalary: 28000 },
+    { id: 's2', name: 'Neha Sharma', role: 'Librarian', baseSalary: 32000 },
+  ];
+  const vendors = [
+    { id: 'v1', name: 'ABC Transport Co.', service: 'Bus Service', due: 75000 },
+    { id: 'v2', name: 'Tech Supplies Ltd', service: 'IT Maintenance', due: 42000 },
+  ];
+
+  // Mock attendance: present days per month (yyyy-mm)
+  const teacherAttendance = {
+    't1': { [salaryMonth]: 24 },
+    't2': { [salaryMonth]: 26 },
+    't3': { [salaryMonth]: 25 },
+  };
+  const staffAttendance = {
+    's1': { [salaryMonth]: 25 },
+    's2': { [salaryMonth]: 24 },
+  };
+
+  const WORKING_DAYS = 26; // assumed working days in month
+
+  const getAttendance = (empId, role, month) => {
+    if (role === 'teachers') return teacherAttendance[empId]?.[month] ?? WORKING_DAYS;
+    return staffAttendance[empId]?.[month] ?? WORKING_DAYS;
+  };
+
+  const computeNetPay = (baseSalary, presentDays) => {
+    const perDay = baseSalary / WORKING_DAYS;
+    const earnings = perDay * presentDays;
+    const deductions = perDay * (WORKING_DAYS - presentDays);
+    const allowances = Math.round(baseSalary * 0.10); // flat 10% allowance (demo)
+    const net = Math.max(0, Math.round(earnings + allowances - 0));
+    return { perDay: Math.round(perDay), earnings: Math.round(earnings), allowances, deductions: Math.round(deductions), net };
+  };
+
+  const generatePayslipPDF = (emp, role, month) => {
+    const presentDays = getAttendance(emp.id, role, month);
+    const { perDay, earnings, allowances, deductions, net } = computeNetPay(emp.baseSalary, presentDays);
+    const doc = new jsPDF('p', 'pt', 'a4');
+    const margin = 48;
+    let y = margin;
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(18);
+    doc.text('EEC Payslip', margin, y);
+    y += 12;
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'normal');
+    doc.text(`Month: ${month}`, margin, y); y += 18;
+
+    doc.setFont('helvetica', 'bold'); doc.text('Employee Details', margin, y); y += 14; doc.setFont('helvetica','normal');
+    doc.text(`Name: ${emp.name}`, margin, y); y += 14;
+    doc.text(`Role: ${emp.designation || emp.role || (role==='teachers'?'Teacher':'Staff')}`, margin, y); y += 14;
+    doc.text(`Employee ID: ${emp.id}`, margin, y); y += 20;
+
+    doc.setFont('helvetica', 'bold'); doc.text('Salary Summary', margin, y); y += 14; doc.setFont('helvetica','normal');
+    const lines = [
+      [`Base Salary`, `₹${emp.baseSalary.toLocaleString()}`],
+      [`Working Days`, `${WORKING_DAYS}`],
+      [`Present Days`, `${presentDays}`],
+      [`Per Day`, `₹${perDay.toLocaleString()}`],
+      [`Earnings (present x per-day)`, `₹${earnings.toLocaleString()}`],
+      [`Allowances (10%)`, `₹${allowances.toLocaleString()}`],
+      [`Deductions`, `₹${deductions.toLocaleString()}`],
+      [`Net Pay`, `₹${net.toLocaleString()}`],
+    ];
+    lines.forEach(([k,v]) => { doc.text(k, margin, y); doc.text(v, 400, y, { align: 'right' }); y += 14; });
+    y += 10;
+    doc.setFont('helvetica','italic');
+    doc.text('This is a system generated payslip.', margin, y);
+    doc.save(`Payslip_${emp.name.replace(/\s+/g,'_')}_${month}.pdf`);
+  };
 
   const classes = Array.from({ length: 12 }, (_, i) => `Grade ${i + 1}`);
   const sections = ['A', 'B', 'C', 'D'];
@@ -32,6 +121,7 @@ const FeesCollection = ({ setShowAdminHeader }) => {
           paidAmount: 15000,
           dueAmount: 3700,
           lastPayment: '2024-01-15',
+          dueDate: '2024-01-20',
           status: 'partial'
         },
         { 
@@ -46,6 +136,7 @@ const FeesCollection = ({ setShowAdminHeader }) => {
           paidAmount: 15700,
           dueAmount: 0,
           lastPayment: '2024-01-10',
+          dueDate: '2024-01-15',
           status: 'paid'
         },
         { 
@@ -60,6 +151,7 @@ const FeesCollection = ({ setShowAdminHeader }) => {
           paidAmount: 0,
           dueAmount: 18700,
           lastPayment: null,
+          dueDate: '2024-01-10',
           status: 'due'
         }
       ],
@@ -76,6 +168,7 @@ const FeesCollection = ({ setShowAdminHeader }) => {
           paidAmount: 18700,
           dueAmount: 0,
           lastPayment: '2024-01-12',
+          dueDate: '2024-01-25',
           status: 'paid'
         },
         { 
@@ -90,6 +183,7 @@ const FeesCollection = ({ setShowAdminHeader }) => {
           paidAmount: 10000,
           dueAmount: 8700,
           lastPayment: '2024-01-08',
+          dueDate: '2024-01-18',
           status: 'partial'
         }
       ]
@@ -108,6 +202,7 @@ const FeesCollection = ({ setShowAdminHeader }) => {
           paidAmount: 15700,
           dueAmount: 0,
           lastPayment: '2024-01-14',
+          dueDate: '2024-01-22',
           status: 'paid'
         }
       ],
@@ -124,6 +219,7 @@ const FeesCollection = ({ setShowAdminHeader }) => {
           paidAmount: 5000,
           dueAmount: 13700,
           lastPayment: '2024-01-05',
+          dueDate: '2024-01-16',
           status: 'partial'
         }
       ]
@@ -135,12 +231,30 @@ const FeesCollection = ({ setShowAdminHeader }) => {
     return mockFeesData[selectedClass]?.[selectedSection] || [];
   };
 
+  const isOverdue = (student) => {
+    if (!student?.dueDate || !student?.dueAmount || student.dueAmount <= 0) return false;
+    try {
+      const due = new Date(student.dueDate);
+      const today = new Date();
+      // normalize to midnight for comparison
+      due.setHours(0,0,0,0);
+      today.setHours(0,0,0,0);
+      return today > due;
+    } catch {
+      return false;
+    }
+  };
+
+  const effectiveDue = (student) => {
+    return (student?.dueAmount || 0) + (isOverdue(student) ? 300 : 0);
+  };
+
   const getClassSectionSummary = () => {
     const students = getFilteredStudents();
     const totalStudents = students.length;
     const totalDue = students.reduce((sum, student) => sum + student.totalDue, 0);
     const totalCollected = students.reduce((sum, student) => sum + student.paidAmount, 0);
-    const totalPending = students.reduce((sum, student) => sum + student.dueAmount, 0);
+    const totalPending = students.reduce((sum, student) => sum + effectiveDue(student), 0);
     const paidStudents = students.filter(s => s.status === 'paid').length;
     const partialStudents = students.filter(s => s.status === 'partial').length;
     const dueStudents = students.filter(s => s.status === 'due').length;
@@ -187,7 +301,7 @@ const FeesCollection = ({ setShowAdminHeader }) => {
 
   const handleCollectFees = (student) => {
     setSelectedStudent(student);
-    setCollectionAmount(student.dueAmount.toString());
+    setCollectionAmount(String(effectiveDue(student)));
     setShowCollectionModal(true);
   };
 
@@ -195,7 +309,8 @@ const FeesCollection = ({ setShowAdminHeader }) => {
     if (!selectedStudent || !collectionAmount || collectionAmount <= 0) return;
     
     const amount = parseInt(collectionAmount);
-    if (amount > selectedStudent.dueAmount) {
+    const selectedEffectiveDue = effectiveDue(selectedStudent);
+    if (amount > selectedEffectiveDue) {
       alert('Amount cannot exceed due amount');
       return;
     }
@@ -205,8 +320,9 @@ const FeesCollection = ({ setShowAdminHeader }) => {
     const studentIndex = updatedData[selectedClass][selectedSection].findIndex(s => s.id === selectedStudent.id);
     
     if (studentIndex !== -1) {
+      const amountToReduce = Math.min(amount, updatedData[selectedClass][selectedSection][studentIndex].dueAmount);
       updatedData[selectedClass][selectedSection][studentIndex].paidAmount += amount;
-      updatedData[selectedClass][selectedSection][studentIndex].dueAmount -= amount;
+      updatedData[selectedClass][selectedSection][studentIndex].dueAmount -= amountToReduce;
       updatedData[selectedClass][selectedSection][studentIndex].lastPayment = new Date().toISOString().split('T')[0];
       
       if (updatedData[selectedClass][selectedSection][studentIndex].dueAmount === 0) {
@@ -353,6 +469,8 @@ const FeesCollection = ({ setShowAdminHeader }) => {
         </div>
       )}
 
+      {/* Payment Category Modal removed */}
+
       {/* Collection Status */}
       {selectedClass && selectedSection && (
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
@@ -417,6 +535,7 @@ const FeesCollection = ({ setShowAdminHeader }) => {
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Student Details
                   </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Due Date</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Fee Structure
                   </th>
@@ -449,6 +568,15 @@ const FeesCollection = ({ setShowAdminHeader }) => {
                         )}
                       </div>
                     </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm">
+                      {student.dueDate ? (
+                        <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${isOverdue(student) ? 'bg-red-100 text-red-800' : 'bg-gray-100 text-gray-800'}`}>
+                          {new Date(student.dueDate).toLocaleDateString()}
+                        </span>
+                      ) : (
+                        <span className="text-gray-400">—</span>
+                      )}
+                    </td>
                     <td className="px-6 py-4 text-sm text-gray-900">
                       <div className="space-y-1">
                         <div className="flex justify-between">
@@ -478,7 +606,10 @@ const FeesCollection = ({ setShowAdminHeader }) => {
                       ₹{student.paidAmount.toLocaleString()}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-red-600">
-                      ₹{student.dueAmount.toLocaleString()}
+                      ₹{effectiveDue(student).toLocaleString()}
+                      {isOverdue(student) && (
+                        <div className="text-xs text-red-600">Incl. ₹300 fine</div>
+                      )}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex items-center space-x-2">
@@ -526,6 +657,8 @@ const FeesCollection = ({ setShowAdminHeader }) => {
         </div>
       )}
 
+      {/* Payment Category Modal - removed in revert */}
+
       {/* Collection Modal */}
       {showCollectionModal && selectedStudent && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
@@ -557,9 +690,17 @@ const FeesCollection = ({ setShowAdminHeader }) => {
                   <span className="font-semibold text-green-600">₹{selectedStudent.paidAmount.toLocaleString()}</span>
                 </div>
                 <div className="flex justify-between items-center">
-                  <span className="text-sm text-gray-600">Balance Due:</span>
-                  <span className="font-semibold text-red-600">₹{selectedStudent.dueAmount.toLocaleString()}</span>
+                  <span className="text-sm text-gray-600">Balance Due{isOverdue(selectedStudent) ? ' (incl. fine)' : ''}:</span>
+                  <span className="font-semibold text-red-600">₹{effectiveDue(selectedStudent).toLocaleString()}</span>
                 </div>
+                {selectedStudent.dueDate && (
+                  <div className="flex justify-between items-center mt-2">
+                    <span className="text-sm text-gray-600">Due Date:</span>
+                    <span className={`text-sm ${isOverdue(selectedStudent) ? 'text-red-600' : 'text-gray-700'}`}>
+                      {new Date(selectedStudent.dueDate).toLocaleDateString()}
+                    </span>
+                  </div>
+                )}
               </div>
 
               <div className="mb-4">
@@ -572,7 +713,7 @@ const FeesCollection = ({ setShowAdminHeader }) => {
                     type="number"
                     value={collectionAmount}
                     onChange={(e) => setCollectionAmount(e.target.value)}
-                    max={selectedStudent.dueAmount}
+                    max={effectiveDue(selectedStudent)}
                     className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-transparent"
                     placeholder="Enter amount"
                   />
@@ -615,6 +756,141 @@ const FeesCollection = ({ setShowAdminHeader }) => {
           </div>
         </div>
       )}
+
+      {/* Payments & Salaries */}
+      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-xl font-semibold text-gray-800">Payments & Salaries</h2>
+          <div className="bg-white rounded-lg border border-gray-200 p-1 flex">
+            <button className={`px-3 py-1 rounded-md text-sm font-medium ${payTab==='salaries'?'bg-yellow-100 text-yellow-700':'text-gray-600 hover:text-gray-800'}`} onClick={()=>setPayTab('salaries')}>Salaries</button>
+            <button className={`px-3 py-1 rounded-md text-sm font-medium ${payTab==='vendors'?'bg-yellow-100 text-yellow-700':'text-gray-600 hover:text-gray-800'}`} onClick={()=>setPayTab('vendors')}>Vendors</button>
+            <button className={`px-3 py-1 rounded-md text-sm font-medium ${payTab==='attendance'?'bg-yellow-100 text-yellow-700':'text-gray-600 hover:text-gray-800'}`} onClick={()=>setPayTab('attendance')}>Attendance</button>
+          </div>
+        </div>
+
+        {payTab === 'salaries' && (
+          <div>
+            <div className="flex flex-col md:flex-row gap-3 mb-4">
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-gray-700">Role:</span>
+                <select value={salaryRole} onChange={(e)=>setSalaryRole(e.target.value)} className="border border-gray-300 rounded-lg px-3 py-2">
+                  <option value="teachers">Teachers</option>
+                  <option value="staff">Staff</option>
+                </select>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-gray-700">Month:</span>
+                <input type="month" value={salaryMonth} onChange={(e)=>setSalaryMonth(e.target.value)} className="border border-gray-300 rounded-lg px-3 py-2"/>
+              </div>
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-gray-200">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Employee</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Base Salary</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Present/Working</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Allowances</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Net Pay</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                  {(salaryRole==='teachers'?teachers:staff).map(emp => {
+                    const present = getAttendance(emp.id, salaryRole, salaryMonth);
+                    const { allowances, net } = computeNetPay(emp.baseSalary, present);
+                    return (
+                      <tr key={emp.id} className="hover:bg-gray-50">
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="text-sm font-medium text-gray-900">{emp.name}</div>
+                          <div className="text-sm text-gray-500">{emp.designation || emp.role}</div>
+                        </td>
+                        <td className="px-6 py-4 text-sm">₹{emp.baseSalary.toLocaleString()}</td>
+                        <td className="px-6 py-4 text-sm">{present}/{WORKING_DAYS}</td>
+                        <td className="px-6 py-4 text-sm">₹{allowances.toLocaleString()}</td>
+                        <td className="px-6 py-4 text-sm font-semibold text-gray-900">₹{net.toLocaleString()}</td>
+                        <td className="px-6 py-4 text-sm">
+                          <div className="flex gap-2">
+                            <button onClick={()=>generatePayslipPDF(emp, salaryRole, salaryMonth)} className="inline-flex items-center px-3 py-1 border border-gray-300 rounded text-gray-700 hover:bg-gray-50">
+                              <FileText size={14} className="mr-1"/> Payslip
+                            </button>
+                            <button onClick={()=>alert('Payment recorded (demo).')} className="inline-flex items-center px-3 py-1 rounded text-white bg-green-600 hover:bg-green-700">
+                              Pay
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {payTab === 'vendors' && (
+          <div>
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-gray-200">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Vendor</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Service</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Due</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                  {vendors.map(v => (
+                    <tr key={v.id} className="hover:bg-gray-50">
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{v.name}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">{v.service}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">₹{v.due.toLocaleString()}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm">
+                        <button onClick={()=>alert('Vendor payment recorded (demo).')} className="inline-flex items-center px-3 py-1 rounded text-white bg-green-600 hover:bg-green-700">Pay</button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {payTab === 'attendance' && (
+          <div>
+            <div className="flex flex-col md:flex-row gap-3 mb-4">
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-gray-700">Role:</span>
+                <select value={salaryRole} onChange={(e)=>setSalaryRole(e.target.value)} className="border border-gray-300 rounded-lg px-3 py-2">
+                  <option value="teachers">Teachers</option>
+                  <option value="staff">Staff</option>
+                </select>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-gray-700">Month:</span>
+                <input type="month" value={salaryMonth} onChange={(e)=>setSalaryMonth(e.target.value)} className="border border-gray-300 rounded-lg px-3 py-2"/>
+              </div>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+              {(salaryRole==='teachers'?teachers:staff).map(emp => {
+                const present = getAttendance(emp.id, salaryRole, salaryMonth);
+                const absent = WORKING_DAYS - present;
+                return (
+                  <div key={emp.id} className="p-4 rounded-lg border border-gray-200 bg-gray-50">
+                    <div className="font-semibold text-gray-900">{emp.name}</div>
+                    <div className="text-sm text-gray-600 mb-1">{emp.designation || emp.role}</div>
+                    <div className="text-sm text-gray-700">Present: {present} days</div>
+                    <div className="text-sm text-gray-700">Absent: {absent} days</div>
+                  </div>
+                );
+              })}
+            </div>
+            <p className="text-xs text-gray-500">Attendance figures are demo data. Connect your attendance API to drive payroll automatically.</p>
+          </div>
+        )}
+      </div>
     </div>
   );
 };

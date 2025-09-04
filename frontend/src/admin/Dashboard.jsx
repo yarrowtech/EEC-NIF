@@ -16,9 +16,18 @@ const quickActions = [
   { title: 'Generate Report', action: 'report', icon: '📊' },
 ];
 
+// Derived attendance figures (aligned with Analytics)
+const totalStudentsCount = 1245;
+const presentPercentage = 85; // same as Analytics attendanceData present slice
+const presentStudentsCount = Math.round(totalStudentsCount * (presentPercentage / 100));
+
+const totalTeachersCount = 82;
+const presentTeachersPercent = 92; // demo percent, matches Analytics
+const presentTeachersCount = Math.round(totalTeachersCount * (presentTeachersPercent / 100));
+
 const attendanceStats = [
-  { label: 'Teachers Present', value: 11, icon: <UserCheck className="w-7 h-7 text-yellow-700" /> },
-  { label: 'Students Present', value: 112, icon: <Users className="w-7 h-7 text-yellow-700" /> },
+  { label: 'Teachers Present', value: presentTeachersCount, icon: <UserCheck className="w-7 h-7 text-yellow-700" /> },
+  { label: 'Students Present', value: presentStudentsCount, icon: <Users className="w-7 h-7 text-yellow-700" /> },
   { label: 'Staff Present', value: 8, icon: <User className="w-7 h-7 text-yellow-700" /> },
   { label: 'Buses Available', value: 6, icon: <Bus className="w-7 h-7 text-yellow-700" /> },
 ];

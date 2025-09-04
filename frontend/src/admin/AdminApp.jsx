@@ -9,11 +9,11 @@ import LessonPlanPage from './pages/LessonPlan';
 import TeacherTimetable from './pages/TeacherTimetable';
 import ExaminationManagement from './pages/ExaminationManagement';
 import ParentsManagement from './pages/ParentsManagement';
-import CourseManagement from './pages/CourseManagement';
 import SubjectManagement from './pages/SubjectManagement';
 import AttendanceManagement from './pages/AttendanceManagement';
 import Result from './pages/Result';
 import FeesCollection from './pages/FeesCollection';
+import NewAdd from './pages/NewAdd';
 import { useState } from 'react';
 
 const AdminApp = () => {
@@ -48,7 +48,6 @@ const AdminApp = () => {
         <Route path="students" element={<Students setShowAdminHeader={setShowAdminHeader} />} />
         <Route path="routines" element={<Routines setShowAdminHeader={setShowAdminHeader} />} />
         <Route path="parents" element={<ParentsManagement setShowAdminHeader={setShowAdminHeader} />} />
-        <Route path="courses" element={<CourseManagement setShowAdminHeader={setShowAdminHeader} />} />
         <Route path="subjects" element={<SubjectManagement setShowAdminHeader={setShowAdminHeader} />} />
         <Route path="attendance" element={<AttendanceManagement setShowAdminHeader={setShowAdminHeader} />} />
         <Route path="examination" element={<ExaminationManagement setShowAdminHeader={setShowAdminHeader} />} />
@@ -56,6 +55,7 @@ const AdminApp = () => {
         <Route path="lesson-plans" element={<LessonPlanPage setShowAdminHeader={setShowAdminHeader} />} />
         <Route path="result" element={<Result setShowAdminHeader={setShowAdminHeader} />} />
         <Route path="fees" element={<FeesCollection setShowAdminHeader={setShowAdminHeader} />} />
+        <Route path="new-add" element={<NewAdd setShowAdminHeader={setShowAdminHeader} />} />
       </Routes>
     </AdminLayout>
   );

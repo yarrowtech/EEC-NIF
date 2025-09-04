@@ -4,11 +4,11 @@ import {
   Users, 
   GraduationCap, 
   UserCheck, 
-  BookOpen, 
   Calendar,
   ClipboardList,
   FileText,
-  IndianRupee
+  IndianRupee,
+  Plus
 } from 'lucide-react';
 
 export const ADMIN_MENU_ITEMS = [
@@ -39,11 +39,6 @@ export const ADMIN_MENU_ITEMS = [
     path: '/admin/parents' 
   },
   { 
-    icon: BookOpen, 
-    label: 'Courses', 
-    path: '/admin/courses' 
-  },
-  { 
     icon: Calendar, 
     label: 'Subjects', 
     path: '/admin/subjects' 
@@ -55,7 +50,7 @@ export const ADMIN_MENU_ITEMS = [
   },
   { 
     icon: Calendar, 
-    label: 'Examination', 
+    label: 'Examination Management', 
     path: '/admin/examination'
   },
   { 
@@ -83,6 +78,11 @@ export const ADMIN_MENU_ITEMS = [
     icon: IndianRupee, 
     label: 'Fees Collection', 
     path: '/admin/fees' 
+  },
+  { 
+    icon: Plus, 
+    label: 'New Add', 
+    path: '/admin/new-add' 
   }
 ];
 
@@ -113,6 +113,5 @@ export const ADMIN_STATS = {
   totalSales: '$48.9k',
   salesIncrease: '57.6%',
   totalStudents: 1250,
-  totalTeachers: 85,
-  totalCourses: 42
+  totalTeachers: 85
 };

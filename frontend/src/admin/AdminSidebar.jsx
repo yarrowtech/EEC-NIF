@@ -11,25 +11,27 @@ const AdminSidebar = ({
   return (
     <>
       <div className={`
-        ${collapsed ? "w-20": "w-70"}
+        ${collapsed ? "w-20" : "w-70"}
         bg-white border-r border-gray-200
         flex flex-col h-full shadow-lg
       `}>
         {/* Logo */}
-        <div className="p-6 border-b border-gray-200">
-          <div className="flex items-center justify-between">
-            {!collapsed && <div className="flex items-center space-x-3">
-              <div className="w-12 h-12 bg-gradient-to-br from-blue-900 to-yellow-500 rounded-lg flex items-center justify-center shadow-md">
+        <div className={`${collapsed ? 'p-3' : 'p-6'} border-b border-gray-200 relative`}>
+          <div className="flex items-center">
+            <div className="flex items-center space-x-3">
+              <div className={`${collapsed ? 'w-8 h-8' : 'w-12 h-12'} bg-gradient-to-br from-blue-900 to-yellow-500 rounded-lg flex items-center justify-center shadow-md`}>
                 <span className="text-white text-xl font-bold">EEC</span>
               </div>
-              <div className="flex flex-col">
+              {!collapsed && <div className="flex flex-col">
                 <span className="text-xl font-bold text-gray-800">Electronic Educare</span>
                 <span className="text-xs text-gray-500">Admin Portal</span>
-              </div>
-            </div>}
+              </div>}
+            </div>
             <button 
               onClick={onToggleSidebar}
-              className="p-2 bg-transparent rounded-lg text-gray-500"
+              className={`absolute ${collapsed ? 'top-2 right-2' : 'top-4 right-4'} p-2 bg-transparent rounded-lg text-gray-500 hover:text-gray-700`}
+              aria-label={collapsed ? 'Open sidebar' : 'Collapse sidebar'}
+              title={collapsed ? 'Open sidebar' : 'Collapse sidebar'}
             >
               {collapsed && <ChevronRight size={16} />}
               {!collapsed && <ChevronLeft size={16} />}
