@@ -16,12 +16,12 @@ const FeesCollection = ({ setShowAdminHeader }) => {
   const [paymentMethod, setPaymentMethod] = useState('cash');
 
 
-  const classes = Array.from({ length: 12 }, (_, i) => `Grade ${i + 1}`);
+  const classes = Array.from({ length: 12 }, (_, i) => `Class ${i + 1}`);
   const sections = ['A', 'B', 'C', 'D'];
   const terms = ['Term 1', 'Term 2', 'Annual'];
 
   const mockFeesData = {
-    'Grade 1': {
+    'Class 1': {
       'A': [
         { 
           id: 1, 
@@ -102,7 +102,7 @@ const FeesCollection = ({ setShowAdminHeader }) => {
         }
       ]
     },
-    'Grade 2': {
+    'Class 2': {
       'A': [
         { 
           id: 6, 

@@ -14,22 +14,22 @@ const Result = ({ setShowAdminHeader }) => {
   const mockStudentResults = {
     'Class 1': {
       'A': [
-        { id: 1, name: 'John Doe', rollNo: '001', subjects: { English: 85, Math: 92, Science: 78, History: 88 } },
-        { id: 2, name: 'Jane Smith', rollNo: '002', subjects: { English: 90, Math: 87, Science: 82, History: 91 } },
-        { id: 3, name: 'Mike Johnson', rollNo: '003', subjects: { English: 75, Math: 83, Science: 79, History: 84 } }
+        { id: 1, name: 'Aarav Sharma', rollNo: '001', subjects: { English: 85, Math: 92, Science: 78, History: 88 } },
+        { id: 2, name: 'Priya Verma', rollNo: '002', subjects: { English: 90, Math: 87, Science: 82, History: 91 } },
+        { id: 3, name: 'Rohan Patel', rollNo: '003', subjects: { English: 75, Math: 83, Science: 79, History: 84 } }
       ],
       'B': [
-        { id: 4, name: 'Sarah Wilson', rollNo: '004', subjects: { English: 88, Math: 85, Science: 91, History: 86 } },
-        { id: 5, name: 'Tom Brown', rollNo: '005', subjects: { English: 82, Math: 89, Science: 77, History: 83 } }
+        { id: 4, name: 'Sneha Singh', rollNo: '004', subjects: { English: 88, Math: 85, Science: 91, History: 86 } },
+        { id: 5, name: 'Vikram Rao', rollNo: '005', subjects: { English: 82, Math: 89, Science: 77, History: 83 } }
       ]
     },
     'Class 2': {
       'A': [
-        { id: 6, name: 'Emma Davis', rollNo: '006', subjects: { English: 93, Math: 88, Science: 85, History: 90 } },
-        { id: 7, name: 'Alex Miller', rollNo: '007', subjects: { English: 79, Math: 91, Science: 83, History: 87 } }
+        { id: 6, name: 'Kavya Nair', rollNo: '006', subjects: { English: 93, Math: 88, Science: 85, History: 90 } },
+        { id: 7, name: 'Aditya Joshi', rollNo: '007', subjects: { English: 79, Math: 91, Science: 83, History: 87 } }
       ],
       'B': [
-        { id: 8, name: 'Lisa Garcia', rollNo: '008', subjects: { English: 87, Math: 84, Science: 89, History: 85 } }
+        { id: 8, name: 'Isha Mehra', rollNo: '008', subjects: { English: 87, Math: 84, Science: 89, History: 85 } }
       ]
     }
   };
@@ -94,8 +94,8 @@ const Result = ({ setShowAdminHeader }) => {
     doc.setFontSize(7);
     doc.setFont('helvetica', 'normal');
     doc.setTextColor(0);
-    doc.text('Tech Park, Electronic City Phase 1, Bangalore - 560100', pageWidth/2, currentY + 18, { align: 'center' });
-    doc.text('Phone: +91-80-12345678 | Email: info@electroniceducare.edu.in', pageWidth/2, currentY + 22, { align: 'center' });
+    doc.text('Citimart, New Market, Esplanade, Kolkata', pageWidth/2, currentY + 18, { align: 'center' });
+    doc.text('Phone: +91 9830590929 | Email: info@electroniceducare.com', pageWidth/2, currentY + 22, { align: 'center' });
     
     doc.setFontSize(8);
     doc.setFont('helvetica', 'bold');

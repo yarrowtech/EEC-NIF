@@ -278,7 +278,6 @@ const HR = ({ setShowAdminHeader }) => {
           <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-xl font-semibold text-gray-800 flex items-center gap-2"><Users size={18}/> Employees</h2>
-              <button onClick={()=>setShowAddEmp(true)} className="inline-flex items-center px-3 py-2 rounded-md bg-yellow-600 text-white hover:bg-yellow-700"><Plus size={16} className="mr-1"/> Add Employee</button>
             </div>
             <div className="overflow-x-auto">
               <table className="min-w-full divide-y divide-gray-200">
