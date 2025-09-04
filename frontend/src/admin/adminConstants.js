@@ -8,7 +8,7 @@ import {
   ClipboardList,
   FileText,
   IndianRupee,
-  Plus
+  Briefcase
 } from 'lucide-react';
 
 export const ADMIN_MENU_ITEMS = [
@@ -80,9 +80,9 @@ export const ADMIN_MENU_ITEMS = [
     path: '/admin/fees' 
   },
   { 
-    icon: Plus, 
-    label: 'New Add', 
-    path: '/admin/new-add' 
+    icon: Briefcase, 
+    label: 'HR', 
+    path: '/admin/hr' 
   }
 ];
 

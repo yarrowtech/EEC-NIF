@@ -13,7 +13,7 @@ import SubjectManagement from './pages/SubjectManagement';
 import AttendanceManagement from './pages/AttendanceManagement';
 import Result from './pages/Result';
 import FeesCollection from './pages/FeesCollection';
-import NewAdd from './pages/NewAdd';
+import HR from './pages/HR';
 import { useState } from 'react';
 
 const AdminApp = () => {
@@ -55,7 +55,7 @@ const AdminApp = () => {
         <Route path="lesson-plans" element={<LessonPlanPage setShowAdminHeader={setShowAdminHeader} />} />
         <Route path="result" element={<Result setShowAdminHeader={setShowAdminHeader} />} />
         <Route path="fees" element={<FeesCollection setShowAdminHeader={setShowAdminHeader} />} />
-        <Route path="new-add" element={<NewAdd setShowAdminHeader={setShowAdminHeader} />} />
+        <Route path="hr" element={<HR setShowAdminHeader={setShowAdminHeader} />} />
       </Routes>
     </AdminLayout>
   );
