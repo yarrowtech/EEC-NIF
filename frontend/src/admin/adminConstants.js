@@ -8,7 +8,8 @@ import {
   ClipboardList,
   FileText,
   IndianRupee,
-  Briefcase
+  Briefcase,
+  UserPlus
 } from 'lucide-react';
 
 export const ADMIN_MENU_ITEMS = [
@@ -27,6 +28,11 @@ export const ADMIN_MENU_ITEMS = [
     icon: Users, 
     label: 'Teachers', 
     path: '/admin/teachers' 
+  },
+  { 
+    icon: UserPlus, 
+    label: 'Staff', 
+    path: '/admin/staff' 
   },
   { 
     icon: GraduationCap, 

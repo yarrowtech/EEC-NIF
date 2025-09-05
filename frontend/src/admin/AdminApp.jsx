@@ -3,6 +3,7 @@ import AdminLayout from './AdminLayout';
 import Dashboard from './Dashboard';
 import Analytics from './Analytics';
 import Teachers from './Teachers';
+import Staff from './Staff';
 import Students from './Students';
 import Routines from './Routines';
 import LessonPlanPage from './pages/LessonPlan';
@@ -45,6 +46,7 @@ const AdminApp = () => {
         <Route index element={<Dashboard setShowAdminHeader={setShowAdminHeader} />} />
         <Route path="analytics" element={<Analytics setShowAdminHeader={setShowAdminHeader} />} />
         <Route path="teachers" element={<Teachers setShowAdminHeader={setShowAdminHeader} />} />
+        <Route path="staff" element={<Staff setShowAdminHeader={setShowAdminHeader} />} />
         <Route path="students" element={<Students setShowAdminHeader={setShowAdminHeader} />} />
         <Route path="routines" element={<Routines setShowAdminHeader={setShowAdminHeader} />} />
         <Route path="parents" element={<ParentsManagement setShowAdminHeader={setShowAdminHeader} />} />

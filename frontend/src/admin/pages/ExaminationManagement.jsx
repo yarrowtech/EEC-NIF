@@ -486,17 +486,6 @@ const ExaminationManagement = ({setShowAdminHeader}) => {
                 </select>
               </div>
             </div>
-            <button
-              onClick={() => {
-                resetForm();
-                setEditingExam(null);
-                setShowModal(true);
-              }}
-              className="bg-blue-600 hover:bg-blue-700 text-black px-4 py-2 rounded-lg flex items-center gap-2 transition-colors"
-            >
-              <Plus className="w-4 h-4" />
-              Add Examination
-            </button>
           </div>
         </div>
 

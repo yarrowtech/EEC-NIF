@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Search, Plus, Edit2, Trash2, MoreVertical } from 'lucide-react';
+import { Search, Plus, Edit2, Trash2, MoreVertical, Heart, AlertCircle, CheckCircle, IndianRupee, Calendar } from 'lucide-react';
 
 const Students = ({ setShowAdminHeader }) => {
 	const [studentData, setStudentData] = useState([])
@@ -23,6 +23,31 @@ const Students = ({ setShowAdminHeader }) => {
 		student.email.toLowerCase().includes(searchTerm.toLowerCase())
 	);
 
+	// Helper functions for new features
+	const getTodayAttendance = (student) => {
+		if (!student.attendance || student.attendance.length === 0) return null;
+		const today = new Date().toDateString();
+		return student.attendance.find(att => new Date(att.date).toDateString() === today);
+	};
+
+	const getHealthStatus = (student) => {
+		// Mock health status - in real app, this would come from backend
+		const healthStatuses = ['healthy', 'sick', 'injured', 'absent-sick'];
+		return student.healthStatus || healthStatuses[Math.floor(Math.random() * healthStatuses.length)];
+	};
+
+	const getFeesStatus = () => {
+		// Mock fees data - integrate with actual fees system
+		const mockFees = {
+			totalDue: 18700,
+			paidAmount: Math.floor(Math.random() * 18700),
+			dueDate: '2024-02-15'
+		};
+		mockFees.dueAmount = mockFees.totalDue - mockFees.paidAmount;
+		mockFees.status = mockFees.dueAmount === 0 ? 'paid' : mockFees.dueAmount < mockFees.totalDue ? 'partial' : 'due';
+		return mockFees;
+	};
+
 	// making the admin header invisible
 	useEffect(() => {
 		setShowAdminHeader(false);
@@ -44,7 +69,7 @@ const Students = ({ setShowAdminHeader }) => {
 		}).catch(err => {
 			console.error('Error fetching students:', err);
 		})
-	}, []);
+	}, [setShowAdminHeader]);
 
 	const handleAddStudentChange = (e) => {
 		const { name, value } = e.target;
@@ -82,12 +107,66 @@ const Students = ({ setShowAdminHeader }) => {
 				<div className="flex justify-between items-center mb-8">
 					<div>
 						<h1 className="text-3xl font-bold text-yellow-700">Student Management</h1>
-						<p className="text-gray-600 mt-2">Manage and monitor student information</p>
+						<p className="text-gray-600 mt-2">Manage and monitor student information, health status, attendance, and fees</p>
 					</div>
-					<button className="bg-yellow-500 hover:bg-yellow-600 text-black px-4 py-2 rounded-lg flex items-center gap-2 transition-colors" onClick={() => setShowAddForm(true)}>
-						<Plus size={20} />
-						Add New Student
-					</button>
+					
+				</div>
+
+				{/* Summary Cards */}
+				<div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+					<div className="bg-white p-4 rounded-lg shadow-sm border border-yellow-200">
+						<div className="flex items-center justify-between">
+							<div>
+								<h3 className="text-sm font-medium text-gray-600">Total Students</h3>
+								<p className="text-2xl font-bold text-gray-900">{studentData.length}</p>
+							</div>
+							<div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center">
+								<span className="text-blue-600 font-semibold">{studentData.length}</span>
+							</div>
+						</div>
+					</div>
+					
+					<div className="bg-white p-4 rounded-lg shadow-sm border border-yellow-200">
+						<div className="flex items-center justify-between">
+							<div>
+								<h3 className="text-sm font-medium text-gray-600">Present Today</h3>
+								<p className="text-2xl font-bold text-green-600">
+									{studentData.filter(s => getTodayAttendance(s)?.status === 'present').length}
+								</p>
+							</div>
+							<CheckCircle className="w-8 h-8 text-green-500" />
+						</div>
+					</div>
+					
+					<div className="bg-white p-4 rounded-lg shadow-sm border border-yellow-200">
+						<div className="flex items-center justify-between">
+							<div>
+								<h3 className="text-sm font-medium text-gray-600">Health Issues</h3>
+								<p className="text-2xl font-bold text-red-600">
+									{studentData.filter(s => {
+										const health = getHealthStatus(s);
+										return health === 'sick' || health === 'injured' || health === 'absent-sick';
+									}).length}
+								</p>
+							</div>
+							<Heart className="w-8 h-8 text-red-500" />
+						</div>
+					</div>
+					
+					<div className="bg-white p-4 rounded-lg shadow-sm border border-yellow-200">
+						<div className="flex items-center justify-between">
+							<div>
+								<h3 className="text-sm font-medium text-gray-600">Fees Pending</h3>
+								<p className="text-2xl font-bold text-orange-600">
+									{studentData.filter(() => {
+										const fees = getFeesStatus();
+										return fees.status !== 'paid';
+									}).length}
+								</p>
+							</div>
+							<IndianRupee className="w-8 h-8 text-orange-500" />
+						</div>
+					</div>
 				</div>
 
 				{/* Search and Filter */}
@@ -114,6 +193,19 @@ const Students = ({ setShowAdminHeader }) => {
 						<option value="B">Section B</option>
 						{/* Add more section options */}
 					</select>
+					<select className="border border-gray-200 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-yellow-500">
+						<option value="">All Health Status</option>
+						<option value="healthy">Healthy</option>
+						<option value="sick">Sick</option>
+						<option value="injured">Injured</option>
+						<option value="absent-sick">Absent (Sick)</option>
+					</select>
+					<select className="border border-gray-200 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-yellow-500">
+						<option value="">All Attendance</option>
+						<option value="present">Present Today</option>
+						<option value="absent">Absent Today</option>
+						<option value="not-marked">Not Marked</option>
+					</select>
 				</div>
 
 				{/* Students Table */}
@@ -125,9 +217,10 @@ const Students = ({ setShowAdminHeader }) => {
 								<th className="border-b border-yellow-100 px-6 py-3 text-left text-sm font-semibold text-yellow-800">Roll No.</th>
 								<th className="border-b border-yellow-100 px-6 py-3 text-left text-sm font-semibold text-yellow-800">Class</th>
 								<th className="border-b border-yellow-100 px-6 py-3 text-left text-sm font-semibold text-yellow-800">Section</th>
-								<th className="border-b border-yellow-100 px-6 py-3 text-left text-sm font-semibold text-yellow-800">Gender</th>
+								<th className="border-b border-yellow-100 px-6 py-3 text-left text-sm font-semibold text-yellow-800">Health Status</th>
+								<th className="border-b border-yellow-100 px-6 py-3 text-left text-sm font-semibold text-yellow-800">Attendance Today</th>
+								<th className="border-b border-yellow-100 px-6 py-3 text-left text-sm font-semibold text-yellow-800">Fees Due</th>
 								<th className="border-b border-yellow-100 px-6 py-3 text-left text-sm font-semibold text-yellow-800">Phone</th>
-								{/* <th className="border-b border-yellow-100 px-6 py-3 text-left text-sm font-semibold text-yellow-800">Status</th> */}
 								<th className="border-b border-yellow-100 px-6 py-3 text-left text-sm font-semibold text-yellow-800">Actions</th>
 							</tr>
 						</thead>
@@ -151,7 +244,85 @@ const Students = ({ setShowAdminHeader }) => {
 									<td className="border-b border-yellow-100 px-6 py-4 text-gray-600">{student.roll}</td>
 									<td className="border-b border-yellow-100 px-6 py-4 text-gray-600">{student.grade}</td>
 									<td className="border-b border-yellow-100 px-6 py-4 text-gray-600">{student.section}</td>
-									<td className="border-b border-yellow-100 px-6 py-4 text-gray-600">{student.gender}</td>
+									
+									{/* Health Status */}
+									<td className="border-b border-yellow-100 px-6 py-4">
+										{(() => {
+											const healthStatus = getHealthStatus(student);
+											const healthConfig = {
+												healthy: { icon: Heart, color: 'text-green-600', bg: 'bg-green-100', text: 'Healthy' },
+												sick: { icon: AlertCircle, color: 'text-red-600', bg: 'bg-red-100', text: 'Sick' },
+												injured: { icon: AlertCircle, color: 'text-orange-600', bg: 'bg-orange-100', text: 'Injured' },
+												'absent-sick': { icon: AlertCircle, color: 'text-red-600', bg: 'bg-red-100', text: 'Absent (Sick)' }
+											};
+											const config = healthConfig[healthStatus] || healthConfig.healthy;
+											const Icon = config.icon;
+											return (
+												<div className="flex items-center gap-2">
+													<Icon size={16} className={config.color} />
+													<span className={`px-2 py-1 rounded-full text-xs font-medium ${config.bg} ${config.color}`}>
+														{config.text}
+													</span>
+												</div>
+											);
+										})()}
+									</td>
+									
+									{/* Today's Attendance */}
+									<td className="border-b border-yellow-100 px-6 py-4">
+										{(() => {
+											const todayAttendance = getTodayAttendance(student);
+											if (!todayAttendance) {
+												return (
+													<span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-600">
+														<Calendar size={12} className="mr-1" />
+														Not Marked
+													</span>
+												);
+											}
+											return (
+												<span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
+													todayAttendance.status === 'present' 
+														? 'bg-green-100 text-green-800' 
+														: 'bg-red-100 text-red-800'
+												}`}>
+													{todayAttendance.status === 'present' ? (
+														<><CheckCircle size={12} className="mr-1" />Present</>
+													) : (
+														<><AlertCircle size={12} className="mr-1" />Absent</>
+													)}
+												</span>
+											);
+										})()}
+									</td>
+									
+									{/* Fees Due */}
+									<td className="border-b border-yellow-100 px-6 py-4">
+										{(() => {
+											const feesStatus = getFeesStatus();
+											return (
+												<div className="space-y-1">
+													<div className="flex items-center gap-1">
+														<IndianRupee size={12} className="text-gray-500" />
+														<span className={`text-sm font-medium ${
+															feesStatus.status === 'paid' ? 'text-green-600' :
+															feesStatus.status === 'partial' ? 'text-orange-600' : 'text-red-600'
+														}`}>
+															₹{feesStatus.dueAmount.toLocaleString()}
+														</span>
+													</div>
+													<span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${
+														feesStatus.status === 'paid' ? 'bg-green-100 text-green-800' :
+														feesStatus.status === 'partial' ? 'bg-orange-100 text-orange-800' : 'bg-red-100 text-red-800'
+													}`}>
+														{feesStatus.status === 'paid' ? 'Paid' :
+														 feesStatus.status === 'partial' ? 'Partial' : 'Due'}
+													</span>
+												</div>
+											);
+										})()}
+									</td>
+									
 									<td className="border-b border-yellow-100 px-6 py-4 text-gray-600">{student.mobile}</td>
 									{/* <td className="border-b border-yellow-100 px-6 py-4">
 										<span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium
@@ -161,13 +332,34 @@ const Students = ({ setShowAdminHeader }) => {
 									</td> */}
 									<td className="border-b border-yellow-100 px-6 py-4">
 										<div className="flex items-center gap-2">
-											<button className="text-blue-600 hover:text-blue-800">
+											<button 
+												className="text-green-600 hover:text-green-800 p-1 rounded hover:bg-green-50" 
+												title="Mark Present"
+											>
+												<CheckCircle size={16} />
+											</button>
+											<button 
+												className="text-red-600 hover:text-red-800 p-1 rounded hover:bg-red-50" 
+												title="Mark Absent"
+											>
+												<AlertCircle size={16} />
+											</button>
+											<button 
+												className="text-purple-600 hover:text-purple-800 p-1 rounded hover:bg-purple-50" 
+												title="Health Status"
+											>
+												<Heart size={16} />
+											</button>
+											<button 
+												className="text-orange-600 hover:text-orange-800 p-1 rounded hover:bg-orange-50" 
+												title="Fees"
+											>
+												<IndianRupee size={16} />
+											</button>
+											<button className="text-blue-600 hover:text-blue-800 p-1 rounded hover:bg-blue-50">
 												<Edit2 size={16} />
 											</button>
-											<button className="text-red-600 hover:text-red-800">
-												<Trash2 size={16} />
-											</button>
-											<button className="text-gray-600 hover:text-gray-800">
+											<button className="text-gray-600 hover:text-gray-800 p-1 rounded hover:bg-gray-50">
 												<MoreVertical size={16} />
 											</button>
 										</div>
@@ -189,45 +381,6 @@ const Students = ({ setShowAdminHeader }) => {
 					</div>
 				</div>
 			</div>
-
-			{/* Add New Student Form Modal */}
-			{showAddForm && (
-				<div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 transition-colors duration-200">
-					<div className="bg-white rounded-2xl shadow-2xl p-10 w-full max-w-xl relative border border-yellow-300 animate-fadeIn">
-						<button className="absolute top-4 right-4 text-gray-400 hover:text-yellow-600 text-3xl font-bold focus:outline-none" onClick={() => setShowAddForm(false)}>&times;</button>
-						<h2 className="text-3xl font-extrabold mb-6 text-yellow-700 text-center tracking-tight">Add New Student</h2>
-						<form onSubmit={handleAddStudentSubmit} className="space-y-5">
-							<div className="flex gap-4">
-								<input name="name" value={newStudent.name} onChange={handleAddStudentChange} required placeholder="Full Name" className="flex-1 border border-yellow-300 rounded-lg px-4 py-3 focus:ring-2 focus:ring-yellow-400 focus:outline-none bg-yellow-50 placeholder-gray-400 text-gray-800 text-base shadow-sm" />
-								<input name="roll" value={newStudent.roll} onChange={handleAddStudentChange} required placeholder="Roll No." className="flex-1 border border-yellow-300 rounded-lg px-4 py-3 focus:ring-2 focus:ring-yellow-400 focus:outline-none bg-yellow-50 placeholder-gray-400 text-gray-800 text-base shadow-sm" />
-							</div>
-							<div className="flex gap-4">
-								<input name="grade" value={newStudent.grade} onChange={handleAddStudentChange} required placeholder="Grade" className="flex-1 border border-yellow-300 rounded-lg px-4 py-3 focus:ring-2 focus:ring-yellow-400 focus:outline-none bg-yellow-50 placeholder-gray-400 text-gray-800 text-base shadow-sm" />
-								<input name="section" value={newStudent.section} onChange={handleAddStudentChange} required placeholder="Section" className="flex-1 border border-yellow-300 rounded-lg px-4 py-3 focus:ring-2 focus:ring-yellow-400 focus:outline-none bg-yellow-50 placeholder-gray-400 text-gray-800 text-base shadow-sm" />
-							</div>
-							<div className="flex gap-4">
-								<select name="gender" value={newStudent.gender} onChange={handleAddStudentChange} required className="flex-1 border border-yellow-300 rounded-lg px-4 py-3 focus:ring-2 focus:ring-yellow-400 focus:outline-none bg-yellow-50 text-gray-800 text-base shadow-sm">
-									<option value="">Gender</option>
-									<option value="male">Male</option>
-									<option value="female">Female</option>
-									<option value="other">Other</option>
-								</select>
-								<input name="mobile" value={newStudent.mobile} onChange={handleAddStudentChange} required placeholder="Phone" className="flex-1 border border-yellow-300 rounded-lg px-4 py-3 focus:ring-2 focus:ring-yellow-400 focus:outline-none bg-yellow-50 placeholder-gray-400 text-gray-800 text-base shadow-sm" />
-							</div>
-							<div className="flex gap-4">
-								<input name="email" value={newStudent.email} onChange={handleAddStudentChange} required placeholder="Email" className="flex-1 border border-yellow-300 rounded-lg px-4 py-3 focus:ring-2 focus:ring-yellow-400 focus:outline-none bg-yellow-50 placeholder-gray-400 text-gray-800 text-base shadow-sm" />
-								<input name="address" value={newStudent.address} onChange={handleAddStudentChange} required placeholder="Address" className="flex-1 border border-yellow-300 rounded-lg px-4 py-3 focus:ring-2 focus:ring-yellow-400 focus:outline-none bg-yellow-50 placeholder-gray-400 text-gray-800 text-base shadow-sm" />
-							</div>
-              <div className="flex gap-4">
-                <input type="date" name="dob" value={newStudent.dob} onChange={handleAddStudentChange} required className="flex-1 border border-yellow-300 rounded-lg px-4 py-3 focus:ring-2 focus:ring-yellow-400 focus:outline-none bg-yellow-50 text-gray-800 text-base shadow-sm" />
-                <input type="text" name="pinCode" value={newStudent.pinCode} onChange={handleAddStudentChange} required placeholder="PIN CODE" className="flex-1 border border-yellow-300 rounded-lg px-4 py-3 focus:ring-2 focus:ring-yellow-400 focus:outline-none bg-yellow-50 placeholder-gray-400 text-gray-800 text-base shadow-sm" />
-              </div>
-							
-							<button type="submit" className="w-full bg-gradient-to-r from-yellow-500 to-amber-500 hover:from-yellow-600 hover:to-amber-600 text-white py-3 rounded-xl font-bold shadow-lg transition-all text-lg tracking-wide">Add Student</button>
-						</form>
-					</div>
-				</div>
-			)}
 		</div>
 	);
 };

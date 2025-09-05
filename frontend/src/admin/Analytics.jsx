@@ -366,18 +366,7 @@ const Analytics = ({ setShowAdminHeader }) => {
             <Line data={performanceData} options={performanceOptions} />
           </div>
         </div>
-
-        {/* Course Progress */}
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
-          <h3 className="text-lg font-semibold text-gray-800 mb-2">Course Progress</h3>
-          <p className="text-gray-600 text-sm mb-4">Completion rates for active courses</p>
-          <div className="w-full h-80">
-            <Bar data={courseProgressData} options={courseProgressOptions} />
-          </div>
-        </div>
-      </div>
-
-      {/* Fees Collection */}
+        {/* Fees Collection */}
       <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 mb-8">
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-2">
           <div>
@@ -409,7 +398,18 @@ const Analytics = ({ setShowAdminHeader }) => {
           <Bar data={feesChartData} options={feesChartOptions} />
         </div>
       </div>
+        {/* Course Progress */}
+        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+          <h3 className="text-lg font-semibold text-gray-800 mb-2">Course Progress</h3>
+          <p className="text-gray-600 text-sm mb-4">Completion rates for active courses</p>
+          <div className="w-full h-80">
+            <Bar data={courseProgressData} options={courseProgressOptions} />
+          </div>
+        </div>
+      </div>
 
+      {/* Fees Collection */}
+      
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
         {/* Attendance Breakdown */}
         <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
