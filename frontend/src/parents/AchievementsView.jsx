@@ -3,7 +3,7 @@ import { Award, Medal, Trophy, Download, Calendar, Star } from 'lucide-react';
 
 const AchievementsView = () => {
   const achievementsData = {
-    studentName: "Sarah Smith",
+    studentName: "Koushik Bala",
     class: "10-A",
     totalAwards: 12,
     recentAchievements: 3,

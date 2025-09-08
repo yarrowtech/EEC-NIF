@@ -11,7 +11,12 @@ import {
   UserCheck,
   Home,
   BookOpen,
-  MessageSquare
+  MessageSquare,
+  BarChart3,
+  AlertTriangle,
+  Brain,
+  Briefcase,
+  Clock
 } from 'lucide-react';
 
 import HealthUpdates from './HealthUpdates';
@@ -22,6 +27,13 @@ import AttendanceManagement from './AttendanceManagement';
 import TeacherDashboard from './TeacherDashboard';
 import LessonPlanDashboard from './LessonPlanDashboard';
 import TeacherChat from './TeacherChat';
+import StudentProgress from './StudentProgress';
+import WeakStudentIdentification from './WeakStudentIdentification';
+import AILearningPath from './AILearningPath';
+import TestTeacherPortal from './TestTeacherPortal';
+import AIPoweredTeaching from './AIPoweredTeaching';
+import MyWorkPortal from './MyWorkPortal';
+import ClassRoutine from './ClassRoutine';
 
 const TeacherPortal = () => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -41,7 +53,12 @@ const TeacherPortal = () => {
 
   const menuItems = [
     { icon: Home, label: 'Dashboard', path: '/teachers' },
+    { icon: Briefcase, label: 'My Work Portal', path: '/teachers/my-work-portal' },
+    { icon: Clock, label: 'Class Routine', path: '/teachers/class-routine' },
     { icon: UserCheck, label: 'Attendance', path: '/teachers/attendance' },
+    { icon: BarChart3, label: 'Student Progress', path: '/teachers/progress' },
+    { icon: AlertTriangle, label: 'Weak Students', path: '/teachers/weak-students' },
+    { icon: Brain, label: 'AI Powered Teaching', path: '/teachers/ai-powered-teaching' },
     { icon: Activity, label: 'Student Health Updates', path: '/teachers/health-updates' },
     { icon: Calendar, label: 'Parent Meetings', path: '/teachers/parent-meetings' },
     { icon: FileText, label: 'Assignment Management', path: '/teachers/assignments' },
@@ -113,7 +130,14 @@ const TeacherPortal = () => {
         <div className="h-full">
           <Routes>
             <Route path="/" element={<TeacherDashboard />} />
+            <Route path="/test" element={<TestTeacherPortal />} />
+            <Route path="/my-work-portal" element={<MyWorkPortal />} />
+            <Route path="/class-routine" element={<ClassRoutine />} />
             <Route path="/attendance" element={<AttendanceManagement />} />
+            <Route path="/progress" element={<StudentProgress />} />
+            <Route path="/weak-students" element={<WeakStudentIdentification />} />
+            <Route path="/ai-powered-teaching" element={<AIPoweredTeaching />} />
+            <Route path="/ai-learning/:studentId/:subject" element={<AILearningPath />} />
             <Route path="/health-updates" element={<HealthUpdates />} />
             <Route path="/parent-meetings" element={<ParentMeetings />} />
             <Route path="/assignments" element={<AssignmentManagement />} />

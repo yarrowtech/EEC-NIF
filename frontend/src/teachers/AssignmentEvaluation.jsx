@@ -11,6 +11,80 @@ const AssignmentEvaluation = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedAssignment, setSelectedAssignment] = useState('all');
   const [activeTab, setActiveTab] = useState('evaluation');
+  const [evaluationData, setEvaluationData] = useState({
+    marks: '',
+    feedback: '',
+    status: 'evaluated'
+  });
+  const [saving, setSaving] = useState(false);
+
+  // Handle evaluation form changes
+  const handleEvaluationChange = (field, value) => {
+    setEvaluationData(prev => ({ ...prev, [field]: value }));
+  };
+
+  // Handle saving evaluation and updating progress
+  const handleSaveEvaluation = async () => {
+    if (!selectedSubmission || !evaluationData.marks) {
+      alert('Please provide marks for the submission');
+      return;
+    }
+
+    setSaving(true);
+    try {
+      // Update assignment submission with marks and feedback
+      const submissionUpdate = {
+        score: parseFloat(evaluationData.marks),
+        feedback: evaluationData.feedback,
+        status: evaluationData.status
+      };
+
+      // API call to update submission (replace with actual API endpoint)
+      const response = await fetch(`/api/progress/submission/${selectedSubmission.studentId}/${selectedSubmission.assignmentId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(submissionUpdate)
+      });
+
+      if (response.ok) {
+        // Update local state
+        setSelectedSubmission(prev => ({
+          ...prev,
+          marks: submissionUpdate.score,
+          feedback: submissionUpdate.feedback,
+          status: submissionUpdate.status
+        }));
+
+        // Reset evaluation form
+        setEvaluationData({
+          marks: '',
+          feedback: '',
+          status: 'evaluated'
+        });
+
+        alert('Evaluation saved successfully and student progress updated!');
+      } else {
+        throw new Error('Failed to save evaluation');
+      }
+    } catch (error) {
+      console.error('Error saving evaluation:', error);
+      alert('Failed to save evaluation. Please try again.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // Reset evaluation data when selecting new submission
+  const handleSelectSubmission = (submission) => {
+    setSelectedSubmission(submission);
+    setEvaluationData({
+      marks: submission.marks || '',
+      feedback: submission.feedback || '',
+      status: submission.status || 'submitted'
+    });
+  };
 
   // Expanded static data
   const assignments = [
@@ -23,7 +97,7 @@ const AssignmentEvaluation = () => {
   const submissions = [
     {
       id: 1,
-      studentName: "Sarah Smith",
+      studentName: "Koushik Bala",
       studentId: "STU001",
       assignmentId: 1,
       assignmentTitle: "Mathematics Assignment 1",
@@ -125,12 +199,6 @@ const AssignmentEvaluation = () => {
     },
   ];
 
-  const [evaluation, setEvaluation] = useState({
-    marks: "",
-    feedback: "",
-    status: "evaluated",
-    comments: []
-  });
 
   const getStatusBadge = (status) => {
     switch (status) {
@@ -300,7 +368,7 @@ const AssignmentEvaluation = () => {
                 return (
                   <div
                     key={submission.id}
-                    onClick={() => setSelectedSubmission(submission)}
+                    onClick={() => handleSelectSubmission(submission)}
                     className={`p-4 cursor-pointer transition-colors ${selectedSubmission?.id === submission.id ? 'bg-blue-50 border-l-4 border-blue-500' : 'hover:bg-gray-50'}`}
                   >
                     <div className="flex items-center justify-between mb-2">
@@ -459,8 +527,8 @@ const AssignmentEvaluation = () => {
                           </label>
                           <input
                             type="number"
-                            value={evaluation.marks}
-                            onChange={(e) => setEvaluation({...evaluation, marks: e.target.value})}
+                            value={evaluationData.marks}
+                            onChange={(e) => handleEvaluationChange('marks', e.target.value)}
                             className="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                             placeholder="Enter marks"
                             min="0"
@@ -471,8 +539,8 @@ const AssignmentEvaluation = () => {
                         <div>
                           <label className="block text-sm font-medium text-gray-700 mb-2">Status</label>
                           <select
-                            value={evaluation.status}
-                            onChange={(e) => setEvaluation({...evaluation, status: e.target.value})}
+                            value={evaluationData.status}
+                            onChange={(e) => handleEvaluationChange('status', e.target.value)}
                             className="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                           >
                             <option value="evaluated">Evaluated</option>
@@ -487,8 +555,8 @@ const AssignmentEvaluation = () => {
                           <span className="text-gray-400 ml-1">(visible to student)</span>
                         </label>
                         <textarea
-                          value={evaluation.feedback}
-                          onChange={(e) => setEvaluation({...evaluation, feedback: e.target.value})}
+                          value={evaluationData.feedback}
+                          onChange={(e) => handleEvaluationChange('feedback', e.target.value)}
                           rows={5}
                           className="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                           placeholder="Provide constructive feedback for the student..."
@@ -504,11 +572,13 @@ const AssignmentEvaluation = () => {
                           Cancel
                         </button>
                         <button
-                          type="submit"
-                          className="px-4 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium flex items-center space-x-2"
+                          type="button"
+                          onClick={handleSaveEvaluation}
+                          disabled={saving}
+                          className="px-4 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-blue-400 transition-colors font-medium flex items-center space-x-2"
                         >
                           <Send className="w-4 h-4" />
-                          <span>Submit Evaluation</span>
+                          <span>{saving ? 'Saving...' : 'Submit Evaluation'}</span>
                         </button>
                       </div>
                     </form>

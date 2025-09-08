@@ -2,6 +2,9 @@ import React, { useState } from 'react';
 import { Heart, Plus, X } from 'lucide-react';
 
 const FloatingPetButton = ({ onAddPet, activePets }) => {
+  // Disabled: hide floating pet button entirely
+  return null;
+
   const [isOpen, setIsOpen] = useState(false);
 
   const petOptions = [
@@ -31,7 +34,7 @@ const FloatingPetButton = ({ onAddPet, activePets }) => {
   };
 
   return (
-    <div className="fixed bottom-6 right-6 z-50">
+    <div className="fixed bottom-24 right-6 z-40">
       {/* Main Floating Button */}
       <div className="relative">
         {/* Pet Options Menu */}

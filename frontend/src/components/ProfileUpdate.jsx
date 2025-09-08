@@ -1,8 +1,9 @@
-import React, { useState, useRef } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { 
   User, Mail, AtSign, Lock, Camera, Check, AlertCircle, 
-  Phone, MapPin, Calendar, BookOpen, Shield, CreditCard 
+  Phone, MapPin, Calendar, BookOpen, Shield, CreditCard, Coins
 } from 'lucide-react';
+import { getPoints } from '../utils/points';
 
 const initialProfile = {
   name: 'Koushik Bala',
@@ -26,6 +27,14 @@ const ProfileUpdate = () => {
   const [errors, setErrors] = useState({});
   const [activeTab, setActiveTab] = useState('personal');
   const fileInputRef = useRef(null);
+  const [points, setPoints] = useState(0);
+
+  useEffect(() => {
+    setPoints(getPoints());
+    const onUpdate = (e) => setPoints(e?.detail?.total ?? getPoints());
+    window.addEventListener('points:update', onUpdate);
+    return () => window.removeEventListener('points:update', onUpdate);
+  }, []);
 
   const validateField = (name, value) => {
     const newErrors = { ...errors };
@@ -166,7 +175,10 @@ const ProfileUpdate = () => {
               <h2 className="text-3xl font-bold text-white">Profile Settings</h2>
               <p className="text-yellow-100">Manage your personal and account information</p>
             </div>
-            
+            <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-amber-200/80 text-amber-900 font-semibold shadow-sm">
+              <Coins className="w-5 h-5 text-amber-700" />
+              <span>{points} Points</span>
+            </div>
           </div>
 
           <div className="flex flex-col md:flex-row w-full overflow-x-hidden">

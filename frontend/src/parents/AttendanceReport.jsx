@@ -3,7 +3,7 @@ import { Calendar, Clock, ChevronDown, Download, Filter } from 'lucide-react';
 
 const AttendanceReport = () => {
   const attendanceData = {
-    studentName: "Sarah Smith",
+    studentName: "Koushik Bala",
     class: "10-A",
     totalPresent: 85,
     totalAbsent: 5,

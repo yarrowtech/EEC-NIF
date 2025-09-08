@@ -1,10 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import { Search, Plus, Edit2, Trash2, MoreVertical, Heart, AlertCircle, CheckCircle, IndianRupee, Calendar } from 'lucide-react';
+import { Search, Plus, Edit2, Trash2, MoreVertical, Heart, AlertCircle, CheckCircle, IndianRupee, Calendar, Smile, Frown, Meh, TrendingUp, TrendingDown, Brain, Users, Eye, MessageCircle, Star, X } from 'lucide-react';
 
 const Students = ({ setShowAdminHeader }) => {
 	const [studentData, setStudentData] = useState([])
 	const [searchTerm, setSearchTerm] = useState('');
 	const [showAddForm, setShowAddForm] = useState(false);
+	const [showWellbeingModal, setShowWellbeingModal] = useState(false);
+	const [selectedStudent, setSelectedStudent] = useState(null);
+	const [wellbeingData, setWellbeingData] = useState({});
 	const [newStudent, setNewStudent] = useState({
 		name: '',
 		roll: '',
@@ -46,6 +49,63 @@ const Students = ({ setShowAdminHeader }) => {
 		mockFees.dueAmount = mockFees.totalDue - mockFees.paidAmount;
 		mockFees.status = mockFees.dueAmount === 0 ? 'paid' : mockFees.dueAmount < mockFees.totalDue ? 'partial' : 'due';
 		return mockFees;
+	};
+
+	// Emotional Wellbeing Functions
+	const getWellbeingStatus = (studentId) => {
+		if (!wellbeingData[studentId]) {
+			// Initialize with random data for demo
+			const moods = ['excellent', 'good', 'neutral', 'concerning', 'critical'];
+			const mood = moods[Math.floor(Math.random() * moods.length)];
+			const socialEngagement = Math.floor(Math.random() * 10) + 1;
+			const academicStress = Math.floor(Math.random() * 10) + 1;
+			const behaviorChanges = Math.random() > 0.7;
+			
+			setWellbeingData(prev => ({
+				...prev,
+				[studentId]: {
+					mood,
+					socialEngagement,
+					academicStress,
+					behaviorChanges,
+					lastAssessment: new Date().toISOString().split('T')[0],
+					notes: '',
+					interventions: [],
+					counselingSessions: Math.floor(Math.random() * 5),
+					parentNotifications: Math.floor(Math.random() * 3)
+				}
+			}));
+			return { mood, socialEngagement, academicStress, behaviorChanges };
+		}
+		return wellbeingData[studentId];
+	};
+
+	const getMoodIcon = (mood) => {
+		const moodIcons = {
+			excellent: { icon: Smile, color: 'text-green-600', bg: 'bg-green-100' },
+			good: { icon: Smile, color: 'text-blue-600', bg: 'bg-blue-100' },
+			neutral: { icon: Meh, color: 'text-yellow-600', bg: 'bg-yellow-100' },
+			concerning: { icon: Frown, color: 'text-orange-600', bg: 'bg-orange-100' },
+			critical: { icon: AlertCircle, color: 'text-red-600', bg: 'bg-red-100' }
+		};
+		return moodIcons[mood] || moodIcons.neutral;
+	};
+
+	const updateWellbeingData = (studentId, updates) => {
+		setWellbeingData(prev => ({
+			...prev,
+			[studentId]: {
+				...prev[studentId],
+				...updates,
+				lastAssessment: new Date().toISOString().split('T')[0]
+			}
+		}));
+	};
+
+	const openWellbeingModal = (student) => {
+		console.log('Opening wellbeing modal for student:', student);
+		setSelectedStudent(student);
+		setShowWellbeingModal(true);
 	};
 
 	// making the admin header invisible
@@ -109,11 +169,29 @@ const Students = ({ setShowAdminHeader }) => {
 						<h1 className="text-3xl font-bold text-yellow-700">Student Management</h1>
 						<p className="text-gray-600 mt-2">Manage and monitor student information, health status, attendance, and fees</p>
 					</div>
-					
+					<div className="flex gap-3">
+						<button
+							onClick={() => {
+								console.log('Test modal clicked');
+								setSelectedStudent({ 
+									id: 'test', 
+									name: 'Test Student', 
+									roll: '001', 
+									grade: '10', 
+									section: 'A' 
+								});
+								setShowWellbeingModal(true);
+							}}
+							className="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 flex items-center gap-2"
+						>
+							<Brain size={16} />
+							Test Wellbeing Modal
+						</button>
+					</div>
 				</div>
 
 				{/* Summary Cards */}
-				<div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+				<div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-6">
 					<div className="bg-white p-4 rounded-lg shadow-sm border border-yellow-200">
 						<div className="flex items-center justify-between">
 							<div>
@@ -167,6 +245,21 @@ const Students = ({ setShowAdminHeader }) => {
 							<IndianRupee className="w-8 h-8 text-orange-500" />
 						</div>
 					</div>
+
+					<div className="bg-white p-4 rounded-lg shadow-sm border border-yellow-200">
+						<div className="flex items-center justify-between">
+							<div>
+								<h3 className="text-sm font-medium text-gray-600">Wellbeing Alert</h3>
+								<p className="text-2xl font-bold text-purple-600">
+									{studentData.filter(student => {
+										const wellbeing = getWellbeingStatus(student.id);
+										return wellbeing.mood === 'concerning' || wellbeing.mood === 'critical';
+									}).length}
+								</p>
+							</div>
+							<Brain className="w-8 h-8 text-purple-500" />
+						</div>
+					</div>
 				</div>
 
 				{/* Search and Filter */}
@@ -206,6 +299,14 @@ const Students = ({ setShowAdminHeader }) => {
 						<option value="absent">Absent Today</option>
 						<option value="not-marked">Not Marked</option>
 					</select>
+					<select className="border border-gray-200 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-yellow-500">
+						<option value="">All Wellbeing</option>
+						<option value="excellent">Excellent</option>
+						<option value="good">Good</option>
+						<option value="neutral">Neutral</option>
+						<option value="concerning">Concerning</option>
+						<option value="critical">Critical</option>
+					</select>
 				</div>
 
 				{/* Students Table */}
@@ -219,6 +320,7 @@ const Students = ({ setShowAdminHeader }) => {
 								<th className="border-b border-yellow-100 px-6 py-3 text-left text-sm font-semibold text-yellow-800">Section</th>
 								<th className="border-b border-yellow-100 px-6 py-3 text-left text-sm font-semibold text-yellow-800">Health Status</th>
 								<th className="border-b border-yellow-100 px-6 py-3 text-left text-sm font-semibold text-yellow-800">Attendance Today</th>
+								<th className="border-b border-yellow-100 px-6 py-3 text-left text-sm font-semibold text-yellow-800">Wellbeing</th>
 								<th className="border-b border-yellow-100 px-6 py-3 text-left text-sm font-semibold text-yellow-800">Fees Due</th>
 								<th className="border-b border-yellow-100 px-6 py-3 text-left text-sm font-semibold text-yellow-800">Phone</th>
 								<th className="border-b border-yellow-100 px-6 py-3 text-left text-sm font-semibold text-yellow-800">Actions</th>
@@ -296,6 +398,42 @@ const Students = ({ setShowAdminHeader }) => {
 										})()}
 									</td>
 									
+									{/* Emotional Wellbeing */}
+									<td className="border-b border-yellow-100 px-6 py-4">
+										{(() => {
+											const wellbeing = getWellbeingStatus(student.id);
+											const moodConfig = getMoodIcon(wellbeing.mood);
+											const Icon = moodConfig.icon;
+											return (
+												<div className="space-y-1">
+													<div className="flex items-center gap-2">
+														<Icon size={16} className={moodConfig.color} />
+														<span className={`px-2 py-1 rounded-full text-xs font-medium ${moodConfig.bg} ${moodConfig.color}`}>
+															{wellbeing.mood.charAt(0).toUpperCase() + wellbeing.mood.slice(1)}
+														</span>
+													</div>
+													<div className="flex items-center gap-2 text-xs text-gray-500">
+														<span>Stress: {wellbeing.academicStress}/10</span>
+														{wellbeing.behaviorChanges && (
+															<AlertCircle size={12} className="text-orange-500" title="Behavior changes noted" />
+														)}
+													</div>
+													<button
+														onClick={(e) => {
+															e.preventDefault();
+															e.stopPropagation();
+															console.log('View Details clicked for:', student.name);
+															openWellbeingModal(student);
+														}}
+														className="text-xs text-purple-600 hover:text-purple-800 font-medium cursor-pointer"
+													>
+														View Details
+													</button>
+												</div>
+											);
+										})()}
+									</td>
+									
 									{/* Fees Due */}
 									<td className="border-b border-yellow-100 px-6 py-4">
 										{(() => {
@@ -356,6 +494,18 @@ const Students = ({ setShowAdminHeader }) => {
 											>
 												<IndianRupee size={16} />
 											</button>
+											<button 
+												className="text-purple-600 hover:text-purple-800 p-1 rounded hover:bg-purple-50" 
+												title="Wellbeing Assessment"
+												onClick={(e) => {
+													e.preventDefault();
+													e.stopPropagation();
+													console.log('Brain icon clicked for:', student.name);
+													openWellbeingModal(student);
+												}}
+											>
+												<Brain size={16} />
+											</button>
 											<button className="text-blue-600 hover:text-blue-800 p-1 rounded hover:bg-blue-50">
 												<Edit2 size={16} />
 											</button>
@@ -380,6 +530,197 @@ const Students = ({ setShowAdminHeader }) => {
 						<button className="px-4 py-2 border border-gray-200 rounded-lg hover:bg-yellow-50">Next</button>
 					</div>
 				</div>
+
+				{/* Emotional Wellbeing Modal */}
+				{showWellbeingModal && selectedStudent && (
+					<div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+						<div className="bg-white rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+							<div className="p-6 border-b border-gray-200">
+								<div className="flex justify-between items-center">
+									<div>
+										<h2 className="text-2xl font-bold text-gray-900">Emotional Wellbeing Assessment</h2>
+										<p className="text-gray-600 mt-1">
+											{selectedStudent.name} • Roll: {selectedStudent.roll} • Class: {selectedStudent.grade}-{selectedStudent.section}
+										</p>
+									</div>
+									<button
+										onClick={() => setShowWellbeingModal(false)}
+										className="text-gray-400 hover:text-gray-600 p-2"
+									>
+										<X size={24} />
+									</button>
+								</div>
+							</div>
+
+							<div className="p-6 space-y-6">
+								{/* Current Status Overview */}
+								<div className="bg-gradient-to-r from-purple-50 to-pink-50 rounded-xl p-6">
+									<h3 className="text-lg font-semibold text-gray-900 mb-4">Current Status</h3>
+									<div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+										{(() => {
+											const wellbeing = getWellbeingStatus(selectedStudent.id);
+											const moodConfig = getMoodIcon(wellbeing.mood);
+											const MoodIcon = moodConfig.icon;
+											return (
+												<>
+													<div className="text-center">
+														<div className={`inline-flex items-center justify-center w-16 h-16 rounded-full ${moodConfig.bg} mb-2`}>
+															<MoodIcon className={`w-8 h-8 ${moodConfig.color}`} />
+														</div>
+														<h4 className="font-medium text-gray-900">Overall Mood</h4>
+														<p className={`text-sm font-medium ${moodConfig.color}`}>
+															{wellbeing.mood.charAt(0).toUpperCase() + wellbeing.mood.slice(1)}
+														</p>
+													</div>
+													<div className="text-center">
+														<div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-blue-100 mb-2">
+															<Users className="w-8 h-8 text-blue-600" />
+														</div>
+														<h4 className="font-medium text-gray-900">Social Engagement</h4>
+														<p className="text-sm font-medium text-blue-600">{wellbeing.socialEngagement}/10</p>
+													</div>
+													<div className="text-center">
+														<div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-orange-100 mb-2">
+															<TrendingUp className="w-8 h-8 text-orange-600" />
+														</div>
+														<h4 className="font-medium text-gray-900">Academic Stress</h4>
+														<p className="text-sm font-medium text-orange-600">{wellbeing.academicStress}/10</p>
+													</div>
+												</>
+											);
+										})()}
+									</div>
+								</div>
+
+								{/* Assessment Form */}
+								<div className="bg-white border border-gray-200 rounded-xl p-6">
+									<h3 className="text-lg font-semibold text-gray-900 mb-4">Update Assessment</h3>
+									<div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+										<div>
+											<label className="block text-sm font-medium text-gray-700 mb-2">Mood Rating</label>
+											<select 
+												className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-purple-500"
+												value={wellbeingData[selectedStudent.id]?.mood || 'neutral'}
+												onChange={(e) => updateWellbeingData(selectedStudent.id, { mood: e.target.value })}
+											>
+												<option value="excellent">Excellent</option>
+												<option value="good">Good</option>
+												<option value="neutral">Neutral</option>
+												<option value="concerning">Concerning</option>
+												<option value="critical">Critical</option>
+											</select>
+										</div>
+										<div>
+											<label className="block text-sm font-medium text-gray-700 mb-2">Social Engagement (1-10)</label>
+											<input
+												type="range"
+												min="1"
+												max="10"
+												className="w-full"
+												value={wellbeingData[selectedStudent.id]?.socialEngagement || 5}
+												onChange={(e) => updateWellbeingData(selectedStudent.id, { socialEngagement: parseInt(e.target.value) })}
+											/>
+											<div className="text-center text-sm text-gray-600 mt-1">
+												{wellbeingData[selectedStudent.id]?.socialEngagement || 5}/10
+											</div>
+										</div>
+										<div>
+											<label className="block text-sm font-medium text-gray-700 mb-2">Academic Stress (1-10)</label>
+											<input
+												type="range"
+												min="1"
+												max="10"
+												className="w-full"
+												value={wellbeingData[selectedStudent.id]?.academicStress || 5}
+												onChange={(e) => updateWellbeingData(selectedStudent.id, { academicStress: parseInt(e.target.value) })}
+											/>
+											<div className="text-center text-sm text-gray-600 mt-1">
+												{wellbeingData[selectedStudent.id]?.academicStress || 5}/10
+											</div>
+										</div>
+										<div className="flex items-center">
+											<input
+												type="checkbox"
+												id="behaviorChanges"
+												className="h-4 w-4 text-purple-600 border-gray-300 rounded"
+												checked={wellbeingData[selectedStudent.id]?.behaviorChanges || false}
+												onChange={(e) => updateWellbeingData(selectedStudent.id, { behaviorChanges: e.target.checked })}
+											/>
+											<label htmlFor="behaviorChanges" className="ml-2 text-sm text-gray-700">
+												Behavior changes observed
+											</label>
+										</div>
+									</div>
+									<div className="mt-4">
+										<label className="block text-sm font-medium text-gray-700 mb-2">Notes</label>
+										<textarea
+											className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-purple-500"
+											rows="3"
+											placeholder="Add any observations, concerns, or notes..."
+											value={wellbeingData[selectedStudent.id]?.notes || ''}
+											onChange={(e) => updateWellbeingData(selectedStudent.id, { notes: e.target.value })}
+										/>
+									</div>
+								</div>
+
+								{/* Support Actions */}
+								<div className="bg-white border border-gray-200 rounded-xl p-6">
+									<h3 className="text-lg font-semibold text-gray-900 mb-4">Support & Interventions</h3>
+									<div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+										<div className="text-center p-4 bg-blue-50 rounded-lg">
+											<MessageCircle className="w-8 h-8 text-blue-600 mx-auto mb-2" />
+											<h4 className="font-medium text-gray-900">Counseling Sessions</h4>
+											<p className="text-2xl font-bold text-blue-600">
+												{wellbeingData[selectedStudent.id]?.counselingSessions || 0}
+											</p>
+										</div>
+										<div className="text-center p-4 bg-yellow-50 rounded-lg">
+											<Users className="w-8 h-8 text-yellow-600 mx-auto mb-2" />
+											<h4 className="font-medium text-gray-900">Parent Meetings</h4>
+											<p className="text-2xl font-bold text-yellow-600">
+												{wellbeingData[selectedStudent.id]?.parentNotifications || 0}
+											</p>
+										</div>
+										<div className="text-center p-4 bg-green-50 rounded-lg">
+											<Star className="w-8 h-8 text-green-600 mx-auto mb-2" />
+											<h4 className="font-medium text-gray-900">Interventions</h4>
+											<p className="text-2xl font-bold text-green-600">
+												{wellbeingData[selectedStudent.id]?.interventions?.length || 0}
+											</p>
+										</div>
+									</div>
+									<div className="flex gap-3">
+										<button className="flex-1 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 flex items-center justify-center gap-2">
+											<MessageCircle size={16} />
+											Schedule Counseling
+										</button>
+										<button className="flex-1 bg-yellow-600 text-white px-4 py-2 rounded-lg hover:bg-yellow-700 flex items-center justify-center gap-2">
+											<Users size={16} />
+											Notify Parents
+										</button>
+										<button className="flex-1 bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 flex items-center justify-center gap-2">
+											<Star size={16} />
+											Add Intervention
+										</button>
+									</div>
+								</div>
+
+								{/* Action Buttons */}
+								<div className="flex justify-end gap-3">
+									<button
+										onClick={() => setShowWellbeingModal(false)}
+										className="px-6 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50"
+									>
+										Cancel
+									</button>
+									<button className="px-6 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700">
+										Save Assessment
+									</button>
+								</div>
+							</div>
+						</div>
+					</div>
+				)}
 			</div>
 		</div>
 	);

@@ -3,7 +3,7 @@ import { FileText, Award, TrendingUp, Download } from 'lucide-react';
 
 const ResultsView = () => {
   const resultsData = {
-    studentName: "Sarah Smith",
+    studentName: "Koushik Bala",
     class: "10-A",
     currentGPA: "89%",
     rank: 5,

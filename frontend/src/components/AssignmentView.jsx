@@ -8,6 +8,7 @@ import {
   FileText,
   Download,
   Search as SearchIcon,
+  Coins
 } from "lucide-react";
 import { questionPaper } from "./questionPaper";
 import ChoiceMatrix from '../tryout/choice_matrix';
@@ -22,6 +23,8 @@ import TextEditor from '../tryout/plain_txt';
 import SortList from '../tryout/sort_list';
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+import PointsBadge from './PointsBadge';
+import { addPoints, hasAward, markAwarded, getPoints } from '../utils/points';
 
 
 const AssignmentView = () => {
@@ -380,7 +383,8 @@ const AssignmentView = () => {
           <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Assignments</h1>
           <p className="text-gray-600 text-sm sm:text-base">Manage your assignments and submissions</p>
         </div>
-        <div className="flex items-center space-x-2">
+        <div className="flex items-center space-x-3">
+          <PointsBadge />
           <label htmlFor="assignmentType" className="font-medium text-gray-700">Type:</label>
           <select
             id="assignmentType"
@@ -859,7 +863,7 @@ const AssignmentView = () => {
 
       {/* EEC Tryout Section */}
       {assignmentType === 'eec' && (
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden relative">
           {/* Header */}
           <div className="p-6 sm:p-7 bg-gradient-to-r from-blue-50 to-indigo-50 border-b border-gray-200">
             <div className="flex items-start justify-between gap-3">
@@ -926,14 +930,14 @@ const AssignmentView = () => {
               questionType === "mcq"
                 ? <MCQ array={questionData[selectedClass][eecSubject]?.mcq} insight={insight} setInsight={setInsight} />
                 : <Blank array={questionData[selectedClass][eecSubject]?.blank} insight={insight} setInsight={setInsight} />
-            }
+          }
           </div>
         </div>
       )}
 
       {/* Tryout Section */}
       {assignmentType === 'tryout' && (
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 relative">
           <div className="mb-6 flex flex-wrap items-center gap-3 justify-left">
             <label htmlFor="tryoutType" className="font-medium text-gray-700">Tryout Type:</label>
             <select
@@ -976,6 +980,26 @@ const AssignmentView = () => {
             ].includes(tryoutType) && (
               <div className="text-gray-500 text-center py-8">Select a tryout type to begin.</div>
             )}
+          </div>
+          <div className="mt-6">
+            <button
+              onClick={() => {
+                const awardKey = `tryout_${tryoutType}`;
+                if (!hasAward(awardKey)) {
+                  addPoints(5);
+                  markAwarded(awardKey);
+                  const el = document.createElement('div');
+                  el.className = 'fixed top-20 right-6 bg-emerald-600 text-white px-3 py-2 rounded-lg shadow-lg flex items-center gap-2 animate-bounce z-50';
+                  el.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="21" r="1"></circle><circle cx="19" cy="21" r="1"></circle><path d="M2.05 10.05a7 7 0 0 1 9.9 0l10 10"></path><path d="M13 13h8"></path></svg><span>+5 Points</span>';
+                  document.body.appendChild(el);
+                  setTimeout(() => document.body.removeChild(el), 1800);
+                }
+              }}
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-amber-500 hover:bg-amber-600 text-white shadow"
+            >
+              <Coins className="w-4 h-4" />
+              Mark Tryout Completed & Collect +5
+            </button>
           </div>
         </div>
       )}
@@ -1122,6 +1146,7 @@ function MCQ({array, insight, setInsight}) {
   const [showAnswers, setShowAnswers] = useState(false);
   const [eecAnswers, setEecAnswers] = useState({}); // { [idx]: userInput }
   const [checked, setChecked] = useState(false)
+  const [showPointPopup, setShowPointPopup] = useState(false);
 
 
   useEffect(() => {
@@ -1172,6 +1197,17 @@ function MCQ({array, insight, setInsight}) {
     setInsight((prev) => {
       return {...prev, endTime: new Date(), correct: correction.filter(c => c).length, incorrect: correction.filter(c => !c).length}
     })
+    // Award points if all correct and not previously awarded for this paper
+    try {
+      const allCorrect = correction.length > 0 && correction.every(Boolean);
+      const awardKey = `${insight?.studentClass || 'cls'}_${insight?.subject || 'sub'}_${insight?.questionType || 'type'}`;
+      if (allCorrect && !hasAward(awardKey)) {
+        addPoints(10);
+        markAwarded(awardKey);
+        setShowPointPopup(true);
+        setTimeout(() => setShowPointPopup(false), 2000);
+      }
+    } catch (_) {}
     setChecked(true)
   };
 
@@ -1230,6 +1266,12 @@ function MCQ({array, insight, setInsight}) {
           {showAnswers ? 'Hide Explanations' : 'Show Explanations'}
         </button>
       </div>
+      {showPointPopup && (
+        <div className="fixed top-20 right-6 bg-emerald-600 text-white px-3 py-2 rounded-lg shadow-lg flex items-center gap-2 animate-bounce z-50">
+          <Coins className="w-4 h-4 text-yellow-300" />
+          <span>+10 Points</span>
+        </div>
+      )}
     </>
   );
 }
@@ -1240,6 +1282,7 @@ function Blank({array, insight, setInsight}) {
   const [showAnswers, setShowAnswers] = useState(false);
   const [eecAnswers, setEecAnswers] = useState({}); // { [idx]: userInput }
   const [checked, setChecked] = useState(false)
+  const [showPointPopup, setShowPointPopup] = useState(false);
 
   useEffect(() => {
     setShowAnswers(false);
@@ -1289,6 +1332,17 @@ function Blank({array, insight, setInsight}) {
     setInsight((prev) => {
       return {...prev, endTime: new Date(), correct: correction.filter(c => c).length, incorrect: correction.filter(c => !c).length}
     })
+    // Award points if all correct and not previously awarded for this paper
+    try {
+      const allCorrect = correction.length > 0 && correction.every(Boolean);
+      const awardKey = `${insight?.studentClass || 'cls'}_${insight?.subject || 'sub'}_${insight?.questionType || 'type'}`;
+      if (allCorrect && !hasAward(awardKey)) {
+        addPoints(10);
+        markAwarded(awardKey);
+        setShowPointPopup(true);
+        setTimeout(() => setShowPointPopup(false), 2000);
+      }
+    } catch (_) {}
     setChecked(true)
   };
 
@@ -1339,6 +1393,12 @@ function Blank({array, insight, setInsight}) {
           {showAnswers ? 'Hide Explanations' : 'Show Explanations'}
         </button>
       </div>
+      {showPointPopup && (
+        <div className="fixed top-20 right-6 bg-emerald-600 text-white px-3 py-2 rounded-lg shadow-lg flex items-center gap-2 animate-bounce z-50">
+          <Coins className="w-4 h-4 text-yellow-300" />
+          <span>+10 Points</span>
+        </div>
+      )}
     </>
   );
 }

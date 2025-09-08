@@ -3,7 +3,7 @@ import { Activity, Calendar, Download, Heart, Thermometer, Weight, Ruler, AlertC
 
 const HealthReport = () => {
   const healthData = {
-    studentName: "Sarah Smith",
+    studentName: "Koushik Bala",
     class: "10-A",
     age: 15,
     bloodGroup: "B+",

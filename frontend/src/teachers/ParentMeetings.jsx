@@ -17,7 +17,7 @@ const ParentMeetings = () => {
     },
     {
       id: 2,
-      studentName: "Sarah Smith",
+      studentName: "Koushik Bala",
       parentName: "Mrs. Smith",
       date: "2024-03-22",
       time: "2:30 PM",

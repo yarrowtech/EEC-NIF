@@ -16,7 +16,8 @@ import {
   Trophy,
   Bell,
   MessageCircle,
-  MessageSquare
+  MessageSquare,
+  Brain
 } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 
@@ -25,6 +26,7 @@ const Sidebar = ({ activeView, setActiveView, isOpen, setIsOpen }) => {
 
   const menuItems = [
     { id: 'dashboard', name: 'Dashboard', icon: Home },
+    { id: 'ai-learning', name: 'AI Learning', icon: Brain },
     { id: 'attendance', name: 'Attendance', icon: Users },
     { id: 'routine', name: 'Routine', icon: Calendar },
     { id: 'assignments', name: 'Assignments', icon: FileText },

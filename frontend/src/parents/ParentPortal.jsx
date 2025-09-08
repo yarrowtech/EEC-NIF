@@ -52,9 +52,9 @@ const ParentPortal = () => {
     { icon: MessageSquare, label: 'Complaints', path: '/parents/complaints' },
     { icon: Video, label: 'Parent-Teacher Meetings', path: '/parents/ptm' },
     { icon: Eye, label: 'Observation', path: '/parents/observation' },
-    { icon: GraduationCap, label: 'Results', path: '/parents/results', readOnly: true },
-    { icon: Award, label: 'Achievements', path: '/parents/achievements', readOnly: true },
-    { icon: FileText, label: 'Courses', path: '/parents/courses', readOnly: true }
+    { icon: GraduationCap, label: 'Results', path: '/parents/results' },
+    { icon: Award, label: 'Achievements', path: '/parents/achievements' },
+    { icon: FileText, label: 'Courses', path: '/parents/courses' }
   ];
 
   return (
@@ -108,18 +108,10 @@ const ParentPortal = () => {
               <Link
                 key={item.path}
                 to={item.path}
-                onClick={() => setSidebarOpen(false)}
-                className={`flex items-center space-x-3 px-4 py-3 rounded-lg hover:bg-yellow-50!sidebarOpen) text-gray-700 hover:text-yellow-600 transition-colors ${
-                  item.readOnly ? 'cursor-default opacity-75' : ''
-                }`}
+                className="flex items-center space-x-3 px-4 py-3 rounded-lg hover:bg-yellow-50 text-gray-700 hover:text-yellow-600 transition-colors"
               >
                 <item.icon className="h-5 w-5" />
                 {sidebarOpen && <span>{item.label}</span>}
-                {item.readOnly && (
-                  <span className="ml-auto text-xs bg-gray-100 text-gray-600 px-2 py-1 rounded">
-                    View Only
-                  </span>
-                )}
               </Link>
             ))}
           </nav>

@@ -3,7 +3,7 @@ import { BookOpen, Clock, Users, Calendar, FileText, Download } from 'lucide-rea
 
 const CoursesView = () => {
   const coursesData = {
-    studentName: "Sarah Smith",
+    studentName: "Koushik Bala",
     class: "10-A",
     totalCourses: 6,
     completedModules: 24,

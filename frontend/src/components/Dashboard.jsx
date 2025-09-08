@@ -13,6 +13,7 @@ import ProfileUpdate from './ProfileUpdate';
 import NoticeBoard from './NoticeBoard';
 import TeacherFeedback from './TeacherFeedback';
 import StudentChat from './StudentChat';
+import AILearningDashboard from './AILearningDashboard';
 
 const Dashboard = () => {
   const [activeView, setActiveView] = useState('dashboard');
@@ -21,6 +22,7 @@ const Dashboard = () => {
   // Define view components in an object for cleaner code
   const viewComponents = {
     dashboard: DashboardHome,
+    'ai-learning': AILearningDashboard,
     attendance: AttendanceView,
     routine: RoutineView,
     assignments: AssignmentView,

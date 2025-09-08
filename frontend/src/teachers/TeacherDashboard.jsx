@@ -1,4 +1,5 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import { 
   Users, 
   Activity,
@@ -17,10 +18,42 @@ import {
   Plus,
   ChevronRight,
   Search,
-  Filter
+  Filter,
+  AlertTriangle
 } from 'lucide-react';
 
 const TeacherDashboard = () => {
+  const [currentDateTime, setCurrentDateTime] = useState(new Date());
+  const [unreadNotifications] = useState(5);
+
+  // Update time every second
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setCurrentDateTime(new Date());
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, []);
+
+  // Format date and time
+  const formatDateTime = (date) => {
+    const options = { 
+      weekday: 'long', 
+      year: 'numeric', 
+      month: 'long', 
+      day: 'numeric' 
+    };
+    const dateStr = date.toLocaleDateString('en-US', options);
+    const timeStr = date.toLocaleTimeString('en-US', { 
+      hour: '2-digit', 
+      minute: '2-digit', 
+      second: '2-digit' 
+    });
+    return { dateStr, timeStr };
+  };
+
+  const { dateStr, timeStr } = formatDateTime(currentDateTime);
+
   // Quick Stats Data
   const quickStats = [
     { 
@@ -174,6 +207,20 @@ const TeacherDashboard = () => {
       description: 'Class updates or news',
       icon: Bell,
       color: 'yellow'
+    },
+    {
+      id: 5,
+      label: 'View Progress',
+      description: 'Student performance tracking',
+      icon: BarChart3,
+      color: 'purple'
+    },
+    {
+      id: 6,
+      label: 'Identify Weak Students',
+      description: 'AI-powered intervention',
+      icon: AlertTriangle,
+      color: 'red'
     }
   ];
 
@@ -192,12 +239,27 @@ const TeacherDashboard = () => {
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
             <h1 className="text-3xl font-bold mb-2">Good Morning, Dr. Roomit Beed</h1>
-            <p className="text-blue-100">Here's your teaching overview for today, August 1th, 2025</p>
+            <p className="text-blue-100">Here's your teaching overview for {dateStr}</p>
           </div>
           <div className="flex items-center space-x-3">
-            <div className="bg-blue-500 px-4 py-2 rounded-lg flex items-center space-x-2">
-              <Clock className="w-4 h-4" />
-              <span>08:45 AM</span>
+            {/* Notification Icon */}
+            <div className="relative">
+              <button className="bg-blue-500 hover:bg-blue-400 p-3 rounded-lg transition-colors">
+                <Bell className="w-5 h-5" />
+                {unreadNotifications > 0 && (
+                  <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center font-medium">
+                    {unreadNotifications}
+                  </span>
+                )}
+              </button>
+            </div>
+            {/* Real-time Date and Time */}
+            <div className="bg-blue-500 px-4 py-2 rounded-lg flex flex-col items-center space-y-1">
+              <div className="flex items-center space-x-2">
+                <Clock className="w-4 h-4" />
+                <span className="font-semibold">{timeStr}</span>
+              </div>
+              <span className="text-xs text-blue-100">{currentDateTime.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}</span>
             </div>
           </div>
         </div>
@@ -308,16 +370,46 @@ const TeacherDashboard = () => {
             <div className="grid grid-cols-2 gap-4">
               {quickActions.map((action) => {
                 const IconComponent = action.icon;
-                return (
-                  <button
-                    key={action.id}
-                    className="flex flex-col items-center justify-center p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors group"
-                  >
+                const ButtonContent = () => (
+                  <>
                     <div className={`p-3 rounded-xl bg-${action.color}-100 mb-3 group-hover:scale-110 transition-transform`}>
                       <IconComponent className={`w-6 h-6 text-${action.color}-600`} />
                     </div>
                     <span className="text-sm font-medium text-gray-800 text-center">{action.label}</span>
                     <span className="text-xs text-gray-500 mt-1">{action.description}</span>
+                  </>
+                );
+
+                if (action.id === 5) {
+                  return (
+                    <Link
+                      key={action.id}
+                      to="/teachers/progress"
+                      className="flex flex-col items-center justify-center p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors group"
+                    >
+                      <ButtonContent />
+                    </Link>
+                  );
+                }
+
+                if (action.id === 6) {
+                  return (
+                    <Link
+                      key={action.id}
+                      to="/teachers/weak-students"
+                      className="flex flex-col items-center justify-center p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors group"
+                    >
+                      <ButtonContent />
+                    </Link>
+                  );
+                }
+
+                return (
+                  <button
+                    key={action.id}
+                    className="flex flex-col items-center justify-center p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors group"
+                  >
+                    <ButtonContent />
                   </button>
                 );
               })}

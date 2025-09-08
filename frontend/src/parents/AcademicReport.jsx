@@ -36,7 +36,7 @@ const AcademicReport = () => {
   const [selectedSubject, setSelectedSubject] = useState('all');
 
   const academicData = {
-    studentName: "Sarah Smith",
+    studentName: "Koushik Bala",
     class: "10-A",
     studentId: "STU-2024-1085",
     currentPercentage: 97,

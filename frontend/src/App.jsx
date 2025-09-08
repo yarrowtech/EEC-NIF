@@ -13,6 +13,7 @@ import TeacherPortal from './teachers/TeacherPortal'
 import FeedbackPage from './pages/FeedbackPage'
 import FeedbackThankYou from './pages/FeedbackThankYou'
 import MeetTheDeveloper from './pages/MeetTheDeveloper'
+import FloatingAIAssistant from './components/FloatingAIAssistant'
 
 function App() {
   return (
@@ -31,6 +32,9 @@ function App() {
         <Route path="/feedback/thank-you" element={<FeedbackThankYou />} />
         <Route path="/meet-the-developer" element={<MeetTheDeveloper />} />
       </Routes>
+      
+      {/* AI Assistant - Available on all pages except login/signup */}
+      <FloatingAIAssistant />
     </BrowserRouter>
   )
 }

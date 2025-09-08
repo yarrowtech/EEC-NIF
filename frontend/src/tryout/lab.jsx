@@ -1,4 +1,11 @@
 import React from "react";
+import * as THREE from 'three';
+import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+import { DRACOLoader } from 'three/examples/jsm/loaders/DRACOLoader.js';
+
+// Create a scene
+const scene = new THREE.Scene();
+
 // Instantiate a loader
 const loader = new GLTFLoader();
 
@@ -32,7 +39,7 @@ loader.load(
 	// called when loading has errors
 	function ( error ) {
 
-		console.log( 'An error happened' );
+		console.log( 'An error happened:', error );
 
 	}
 );

@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 
 const TestPetButton = ({ onAddPet, activePets = [] }) => {
+  // Disabled: hide test pet button entirely
+  return null;
   const [isOpen, setIsOpen] = useState(false);
 
   const handleToggle = () => {

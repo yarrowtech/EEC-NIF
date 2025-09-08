@@ -10,7 +10,7 @@ const AttendanceManagement = () => {
   const students = [
     {
       id: 1,
-      name: "Sarah Smith",
+      name: "Koushik Bala",
       rollNumber: "101",
       class: "10-A",
       avatar: "👩‍🎓",

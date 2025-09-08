@@ -17,6 +17,9 @@ const examRouter = require("./routes/examRoute");
 const feedbackRouter = require("./routes/feedbackRoute");
 const assignmentRouter = require("./routes/assignmentRoute");
 const behaviourRouter = require("./routes/behaviourRoute");
+const progressRouter = require("./routes/progressRoute");
+const aiLearningRouter = require("./routes/aiLearningRoute");
+const studentAILearningRouter = require("./routes/studentAILearningRoute");
 
 const app = express();
 
@@ -49,6 +52,9 @@ app.use('/api/exam', examRouter);
 app.use('/api/assignment', assignmentRouter);
 app.use('/api/feedback', feedbackRouter);
 app.use('/api/behaviour', behaviourRouter);
+app.use('/api/progress', progressRouter);
+app.use('/api/ai-learning', aiLearningRouter);
+app.use('/api/student-ai-learning', studentAILearningRouter);
 
 
 const PORT = process.env.PORT || 5000;
