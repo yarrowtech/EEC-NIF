@@ -414,10 +414,10 @@ const Teachers = ({setShowAdminHeader}) => {
                       <div className="space-y-1">
                         <div className="flex items-center gap-2">
                           <Award size={14} className="text-orange-600" />
-                          <span className="font-semibold text-gray-900">{teacher.experience} years</span>
+                          <span className="font-semibold text-gray-900">5 years</span>
                         </div>
                         <div className="text-xs text-gray-600">
-                          Since {new Date().getFullYear() - teacher.experience}
+                          Since {new Date().getFullYear() - 5}
                         </div>
                       </div>
                     </td>

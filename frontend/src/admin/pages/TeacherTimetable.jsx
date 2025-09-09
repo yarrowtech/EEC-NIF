@@ -179,7 +179,7 @@ const TeacherTimetable = ({ setShowAdminHeader }) => {
               <Plus className="w-4 h-4" />
               <span>Add Schedule</span>
             </button>
-            <button className="flex items-center space-x-2 border border-purple-400 px-4 py-2 rounded-lg hover:bg-gray-50 transition-colors">
+            <button className="flex items-center space-x-2 border border-purple-400 text-black  px-4 py-2 rounded-lg hover:bg-gray-50 transition-colors">
               <Download className="w-4 h-4" />
               <span>Export</span>
             </button>
@@ -672,7 +672,7 @@ const TeacherTimetable = ({ setShowAdminHeader }) => {
                   Total weekly classes: {Object.values(getTeacherSchedule(modalTeacher.name)).flat().length}
                 </div>
                 <div className="flex space-x-3">
-                  <button className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-100 transition-colors">
+                  <button className="px-4 py-2 border border-gray-300 rounded-lg text-black hover:bg-gray-100 transition-colors">
                     Export Schedule
                   </button>
                   <button
