@@ -1,5 +1,5 @@
 import React from 'react';
-import { ChevronRight, X, ChevronLeft } from 'lucide-react';
+import { ChevronRight, ChevronLeft } from 'lucide-react';
 import { ADMIN_MENU_ITEMS } from './adminConstants';
 import { NavLink } from 'react-router-dom';
 
@@ -11,7 +11,7 @@ const AdminSidebar = ({
   return (
     <>
       <div className={`
-        ${collapsed ? "w-20" : "w-70"}
+        ${collapsed ? "w-20" : "w-72"}
         bg-white border-r border-gray-200
         flex flex-col h-full shadow-lg
       `}>
@@ -70,14 +70,16 @@ const AdminSidebar = ({
 
         {/* Admin Info Footer */}
         <div className="p-4 border-t border-gray-200 bg-gray-50">
-          <div className="flex items-center space-x-3">
+          <div className={`flex items-center ${collapsed ? 'justify-center space-x-0' : 'space-x-3'}`}>
             <div className="w-10 h-10 rounded-full bg-yellow-100 flex items-center justify-center">
               <span className="text-yellow-600 font-semibold">A</span>
             </div>
-            <div>
-              <p className="text-sm font-medium text-gray-900">Admin User</p>
-              <p className="text-xs text-gray-500">administrator@eec.edu</p>
-            </div>
+            {!collapsed && (
+              <div>
+                <p className="text-sm font-medium text-gray-900">Admin User</p>
+                <p className="text-xs text-gray-500">administrator@eec.edu</p>
+              </div>
+            )}
           </div>
         </div>
         {/* Removed Logout Button */}

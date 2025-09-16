@@ -108,16 +108,16 @@ const Students = ({ setShowAdminHeader }) => {
 		setShowWellbeingModal(true);
 	};
 
-	// making the admin header invisible
-	useEffect(() => {
-		setShowAdminHeader(false);
-		fetch(`${import.meta.env.VITE_API_URL}/api/admin/users/get-students`, {
-			method: 'GET',
-			headers: {
-				'Content-Type': 'application/json',
-				'authorization': `Bearer ${localStorage.getItem('token')}`
-			}
-		})
+    // ensure admin header/context is visible on this page
+    useEffect(() => {
+        setShowAdminHeader(true);
+        fetch(`${import.meta.env.VITE_API_URL}/api/admin/users/get-students`, {
+            method: 'GET',
+            headers: {
+                'Content-Type': 'application/json',
+                'authorization': `Bearer ${localStorage.getItem('token')}`
+            }
+        })
 		.then(res => {
 			if(!res.ok) {
 				throw new Error('Failed to fetch students');
@@ -263,8 +263,8 @@ const Students = ({ setShowAdminHeader }) => {
 				</div>
 
 				{/* Search and Filter */}
-				<div className="mb-6 flex gap-4">
-					<div className="flex-1 relative">
+				<div className="mb-6 flex flex-wrap items-center gap-4">
+					<div className="flex-1 min-w-[240px] relative">
 						<Search size={20} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
 						<input
 							type="text"
@@ -274,32 +274,32 @@ const Students = ({ setShowAdminHeader }) => {
 							onChange={(e) => setSearchTerm(e.target.value)}
 						/>
 					</div>
-					<select className="border border-gray-200 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-yellow-500">
+					<select className="border border-gray-200 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-yellow-500 min-w-[160px] flex-shrink-0">
 						<option value="">All Classes</option>
 						<option value="X">Class X</option>
 						<option value="IX">Class IX</option>
 						{/* Add more class options */}
 					</select>
-					<select className="border border-gray-200 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-yellow-500">
+					<select className="border border-gray-200 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-yellow-500 min-w-[160px] flex-shrink-0">
 						<option value="">All Sections</option>
 						<option value="A">Section A</option>
 						<option value="B">Section B</option>
 						{/* Add more section options */}
 					</select>
-					<select className="border border-gray-200 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-yellow-500">
+					<select className="border border-gray-200 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-yellow-500 min-w-[180px] flex-shrink-0">
 						<option value="">All Health Status</option>
 						<option value="healthy">Healthy</option>
 						<option value="sick">Sick</option>
 						<option value="injured">Injured</option>
 						<option value="absent-sick">Absent (Sick)</option>
 					</select>
-					<select className="border border-gray-200 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-yellow-500">
+					<select className="border border-gray-200 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-yellow-500 min-w-[180px] flex-shrink-0">
 						<option value="">All Attendance</option>
 						<option value="present">Present Today</option>
 						<option value="absent">Absent Today</option>
 						<option value="not-marked">Not Marked</option>
 					</select>
-					<select className="border border-gray-200 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-yellow-500">
+					<select className="border border-gray-200 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-yellow-500 min-w-[160px] flex-shrink-0">
 						<option value="">All Wellbeing</option>
 						<option value="excellent">Excellent</option>
 						<option value="good">Good</option>

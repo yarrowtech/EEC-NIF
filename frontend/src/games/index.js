@@ -1,0 +1,13 @@
+export { default as GamesMenu } from './GamesMenu';
+export { default as MemoryMatch } from './MemoryMatch';
+export { default as QuickMath } from './QuickMath';
+export { default as WordScramble } from './WordScramble';
+export { default as SmileyCircles } from './SmileyCircles';
+export { default as MindTrainingGames } from './MindTrainingGames';
+export { default as ReshapedGame } from './ReshapedGame';
+export { default as MapIdentifier } from './MapIdentifier';
+export { default as FacialRecall } from './FacialRecall';
+export { default as CalculatorGames } from './CalculatorGames';
+export { default as GroceryGame } from './GroceryGame';
+export { default as CalculatorMemoryGame } from './CalculatorMemoryGame';
+export { default as DigitalChallenge } from './DigitalChallenge';
