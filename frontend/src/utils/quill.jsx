@@ -1,19 +1,30 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { BetweenHorizonalEnd } from "lucide-react";
 import Quill from "quill";
+import "quill/dist/quill.snow.css";
 
 
-export default function QuillEditor({type}) {
+export default function QuillEditor({
+  type,
+  idPrefix = "editor",
+  value = "",
+  onChange = () => {},
+  placeholder = "Type your text here...",
+}) {
   const [wordCount, setWordCount] = useState(0);
   const [charCount, setCharCount] = useState(0);
+  const quillRef = useRef(null);
 
   useEffect(() => {
-    const quill = new Quill("#editor", {
+    const toolbarId = `#${idPrefix}-toolbar`;
+    const editorId = `#${idPrefix}-editor`;
+
+    const quill = new Quill(editorId, {
       theme: "snow",
-      placeholder: "Type your answer here...",
+      placeholder,
       modules: {
         toolbar: {
-          container: "#toolbar",
+          container: toolbarId,
           handlers: {
             insert: function () {
               const range = quill.getSelection();
@@ -26,16 +37,39 @@ export default function QuillEditor({type}) {
       },
     });
 
+    quillRef.current = quill;
+
+    // Initialize content
+    if (value) {
+      quill.root.innerHTML = value;
+      setWordCount(quill.getText().trim().length ? quill.getText().trim().split(/\s+/).length : 0);
+      setCharCount(Math.max(0, quill.getText().length - 1));
+    }
 
     quill.on("text-change", () => {
-      setWordCount(quill.getText().trim().split(/\s+/).length);
-      setCharCount(quill.getText().length - 1);
+      const text = quill.getText();
+      const html = quill.root.innerHTML;
+      setWordCount(text.trim().length ? text.trim().split(/\s+/).length : 0);
+      setCharCount(Math.max(0, text.length - 1));
+      onChange(html);
     });
   }, []);
 
+  // Sync external value updates
+  useEffect(() => {
+    const quill = quillRef.current;
+    if (!quill) return;
+    // Avoid resetting if content didn’t actually change
+    if (quill.root.innerHTML !== value) {
+      const sel = quill.getSelection();
+      quill.root.innerHTML = value || "";
+      if (sel) quill.setSelection(sel);
+    }
+  }, [value]);
+
   return (
     <div className="flex flex-col">
-      <div id="toolbar">
+      <div id={`${idPrefix}-toolbar`}>
         <span className="ql-formats">
           <button className="ql-bold"></button>
           <button className="ql-italic"></button>
@@ -112,7 +146,7 @@ export default function QuillEditor({type}) {
           </button>
         </span>}
       </div>
-      <div id="editor"></div>
+      <div id={`${idPrefix}-editor`}></div>
       <div className="text-xs self-end flex gap-3">
             <p className="">{charCount} chars</p>
             <p className="">{wordCount} words</p>

@@ -20,6 +20,7 @@ const behaviourRouter = require("./routes/behaviourRoute");
 const progressRouter = require("./routes/progressRoute");
 const aiLearningRouter = require("./routes/aiLearningRoute");
 const studentAILearningRouter = require("./routes/studentAILearningRoute");
+const alcoveRouter = require("./routes/alcoveRoute");
 
 const app = express();
 
@@ -55,6 +56,7 @@ app.use('/api/behaviour', behaviourRouter);
 app.use('/api/progress', progressRouter);
 app.use('/api/ai-learning', aiLearningRouter);
 app.use('/api/student-ai-learning', studentAILearningRouter);
+app.use('/api/alcove', alcoveRouter);
 
 
 const PORT = process.env.PORT || 5000;

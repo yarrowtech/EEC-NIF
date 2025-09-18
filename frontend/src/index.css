@@ -20,6 +20,43 @@ body {
   margin: 0;
   padding: 0;
 }
+
+/* Modern white scrollbar for scrollable areas like sidebar */
+.custom-scrollbar {
+  scrollbar-width: thin;               /* Firefox */
+  scrollbar-color: rgba(255,255,255,0.9) transparent;
+}
+.custom-scrollbar::-webkit-scrollbar {
+  width: 8px;                          /* Chrome/Safari/Edge */
+}
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.9);
+  border-radius: 9999px;
+  border: 2px solid rgba(255, 255, 255, 0.5); /* subtle ring for contrast */
+}
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: #ffffff;
+}
+
+/* Submenu expand/collapse animation */
+.submenu {
+  max-height: 0;
+  opacity: 0;
+  transform: translateY(-4px);
+  overflow: hidden;
+  transition: max-height 250ms ease, opacity 200ms ease, transform 200ms ease;
+}
+.submenu-open {
+  max-height: 800px; /* sufficient for typical lists */
+  opacity: 1;
+  transform: translateY(0);
+}
+.submenu-closed {
+  pointer-events: none;
+}
 a {
   font-weight: 500;
   color: #646cff;

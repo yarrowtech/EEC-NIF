@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { Bell, Search, Menu, CalendarDays } from 'lucide-react';
 
-const Header = ({ sidebarOpen, setSidebarOpen }) => {
+const Header = ({ sidebarOpen, setSidebarOpen, onOpenProfile }) => {
   const [notifications] = useState(3);
   const [showNotifications, setShowNotifications] = useState(false);
   const notificationList = [
@@ -137,7 +137,15 @@ const Header = ({ sidebarOpen, setSidebarOpen }) => {
                     <div className="text-xs text-gray-500">Student</div>
                   </div>
                   <div className="py-1">
-                    <button className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">Profile</button>
+                    <button
+                      className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+                      onClick={() => {
+                        if (onOpenProfile) onOpenProfile();
+                        setProfileOpen(false);
+                      }}
+                    >
+                      Profile
+                    </button>
                     <button className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">Settings</button>
                   </div>
                   <button className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-gray-50 border-t">Logout</button>

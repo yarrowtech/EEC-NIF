@@ -326,6 +326,7 @@ const AILearningDashboard = () => {
 // Subject Learning View Component
 const SubjectLearningView = ({ subject, onBack }) => {
   const [activeFeature, setActiveFeature] = useState('dashboard');
+  const [activeTopic, setActiveTopic] = useState(null);
 
   const features = [
     { id: 'dashboard', name: 'Dashboard', icon: BarChart3, color: 'blue' },
@@ -338,15 +339,15 @@ const SubjectLearningView = ({ subject, onBack }) => {
   const renderFeatureContent = () => {
     switch (activeFeature) {
       case 'summary':
-        return <AISummaryGenerator subject={subject} />;
+        return <AISummaryGenerator subject={subject} topic={activeTopic} />;
       case 'mindmap':
-        return <MindMapGenerator subject={subject} />;
+        return <MindMapGenerator subject={subject} topic={activeTopic} />;
       case 'flashcards':
-        return <FlashcardGenerator subject={subject} />;
+        return <FlashcardGenerator subject={subject} topic={activeTopic} />;
       case 'quiz':
-        return <AIQuizGenerator subject={subject} />;
+        return <AIQuizGenerator subject={subject} topic={activeTopic} />;
       default:
-        return <SubjectDashboard subject={subject} />;
+        return <SubjectDashboard subject={subject} onSelectTopic={(t)=>{ setActiveTopic(t); setActiveFeature('summary'); }} />;
     }
   };
 
@@ -402,16 +403,23 @@ const SubjectLearningView = ({ subject, onBack }) => {
 };
 
 // Helper component for subject dashboard
-const SubjectDashboard = ({ subject }) => (
+const SubjectDashboard = ({ subject, onSelectTopic }) => (
   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
     <div className="bg-white rounded-xl shadow-sm p-6">
       <h3 className="text-lg font-semibold text-gray-800 mb-4">Available Topics</h3>
       <div className="space-y-2">
         {subject.topics.map((topic, index) => (
-          <div key={index} className="flex items-center justify-between p-2 hover:bg-gray-50 rounded-lg">
-            <span className="text-gray-700">{topic}</span>
-            <CheckCircle className="w-4 h-4 text-green-500" />
-          </div>
+          <button
+            key={index}
+            onClick={() => onSelectTopic && onSelectTopic(topic)}
+            className="w-full flex items-center justify-between p-2 hover:bg-blue-50 rounded-lg border border-transparent hover:border-blue-200 transition"
+          >
+            <span className="text-gray-700 text-left">{topic}</span>
+            <span className="inline-flex items-center gap-1 text-blue-600 text-sm">
+              <Play className="w-3.5 h-3.5" />
+              Start
+            </span>
+          </button>
         ))}
       </div>
     </div>

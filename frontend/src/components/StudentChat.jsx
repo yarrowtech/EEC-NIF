@@ -116,7 +116,19 @@ const ChatMessage = ({ message, isMine, showSender }) => {
           <span className="text-xs text-gray-500 mb-1 ml-1">{message.senderName}</span>
         )}
         <div className={`rounded-2xl px-4 py-2 text-sm ${isMine ? 'bg-amber-600 text-white rounded-br-md' : 'bg-white text-gray-800 rounded-bl-md shadow-sm'}`}>
-          <div className="whitespace-pre-wrap">{message.text}</div>
+          {message.type === 'file' ? (
+            <div className="flex items-center gap-2">
+              <Paperclip className={`h-4 w-4 ${isMine ? 'text-amber-100' : 'text-gray-600'}`} />
+              <span className="underline break-all">{message.fileName || 'Attachment'}</span>
+            </div>
+          ) : message.type === 'voice' ? (
+            <div className="flex items-center gap-2">
+              <Mic className={`h-4 w-4 ${isMine ? 'text-amber-100' : 'text-gray-600'}`} />
+              <span>Voice message</span>
+            </div>
+          ) : (
+            <div className="whitespace-pre-wrap">{message.text}</div>
+          )}
           <div className={`text-xs mt-1 ${isMine ? 'text-amber-100' : 'text-gray-500'} text-right`}>
             {formatTime(message.ts)}
           </div>
@@ -182,6 +194,9 @@ const StudentChat = () => {
   const [activeId, setActiveId] = useState(conversations[0]?.id || null);
   const [query, setQuery] = useState('');
   const [draft, setDraft] = useState('');
+  const [messageType, setMessageType] = useState('text'); // 'text' | 'voice' | 'file'
+  const [selectedFile, setSelectedFile] = useState(null);
+  const [recording, setRecording] = useState(false);
   const [isMobileView, setIsMobileView] = useState(false);
   const messagesEndRef = useRef(null);
   const messagesContainerRef = useRef(null);
@@ -213,21 +228,25 @@ const StudentChat = () => {
   }, [conversations, query]);
 
   const sendMessage = () => {
-    const text = draft.trim();
-    if (!text || !activeId) return;
-    const newMsg = { 
-      id: crypto.randomUUID(), 
-      sender: 'student', 
-      senderName: 'You', 
-      text, 
-      ts: Date.now() 
-    };
-    
+    if (!activeId) return;
+    let newMsg;
+    if (messageType === 'text') {
+      const text = draft.trim();
+      if (!text) return;
+      newMsg = { id: crypto.randomUUID(), sender: 'student', senderName: 'You', text, ts: Date.now(), type: 'text' };
+    } else if (messageType === 'file') {
+      if (!selectedFile) return;
+      newMsg = { id: crypto.randomUUID(), sender: 'student', senderName: 'You', ts: Date.now(), type: 'file', fileName: selectedFile.name };
+    } else if (messageType === 'voice') {
+      newMsg = { id: crypto.randomUUID(), sender: 'student', senderName: 'You', ts: Date.now(), type: 'voice' };
+    }
+    const lastPreview = newMsg.type === 'text' ? (newMsg.text || '') : (newMsg.type === 'file' ? `[File] ${newMsg.fileName}` : '[Voice message]');
+
     setStore(prev => ({
       conversations: prev.conversations.map(c => 
         c.id === activeId ? { 
           ...c, 
-          lastMessage: text, 
+          lastMessage: lastPreview,
           lastTime: Date.now() 
         } : c
       ),
@@ -236,8 +255,9 @@ const StudentChat = () => {
         [activeId]: [...(prev.messages[activeId] || []), newMsg] 
       }
     }));
-    
     setDraft('');
+    setSelectedFile(null);
+    setRecording(false);
   };
 
   // Check if we should show mobile view
@@ -249,9 +269,9 @@ const StudentChat = () => {
   }, []);
 
   return (
-    <div className="h-full min-h-screen bg-gray-50 flex">
+    <div className="h-full min-h-0 bg-gray-50 flex w-full">
       {/* Sidebar - Hidden on mobile when conversation is active */}
-      <div className={`w-full md:w-80 bg-white border-r flex flex-col h-screen ${isMobileView && activeId ? 'hidden' : 'flex'}`}>
+      <div className={`w-full md:w-80 bg-white border-r flex flex-col h-full min-h-0 ${isMobileView && activeId ? 'hidden' : 'flex'}`}>
         <div className="p-4 border-b">
           <div className="flex items-center gap-3">
             <div className="h-10 w-10 rounded-full bg-amber-100 flex items-center justify-center">
@@ -274,7 +294,7 @@ const StudentChat = () => {
           </div>
         </div>
         
-        <div className="flex-1 overflow-y-auto">
+        <div className="flex-1 overflow-y-auto custom-scrollbar">
           <div className="px-3 py-2">
             <div className="text-xs font-medium text-gray-500 uppercase tracking-wider px-2 mb-1">Conversations</div>
             {filteredConversations.map(c => (
@@ -312,7 +332,7 @@ const StudentChat = () => {
       </div>
       
       {/* Main Chat Area - Hidden on mobile when no conversation is selected */}
-      <div className={`flex-1 flex flex-col h-screen ${isMobileView && !activeId ? 'hidden' : 'flex'}`}>
+      <div className={`flex-1 flex flex-col h-full min-h-0 ${isMobileView && !activeId ? 'hidden' : 'flex'}`}>
         {activeId ? (
           <>
             <div className="px-6 py-4 border-b bg-white flex items-center justify-between">
@@ -365,7 +385,7 @@ const StudentChat = () => {
             
             <div 
               ref={messagesContainerRef}
-              className="flex-1 overflow-y-auto p-6 bg-gray-50 flex flex-col-reverse"
+              className="flex-1 overflow-y-auto p-6 bg-gray-50 flex flex-col-reverse custom-scrollbar"
               style={{ display: 'flex', flexDirection: 'column-reverse' }}
             >
               {activeMessages.length ? (
@@ -401,34 +421,70 @@ const StudentChat = () => {
             
             <div className="border-t bg-white p-4">
               <div className="flex items-end gap-2">
-                <div className="flex-1 bg-gray-100 rounded-2xl flex items-end">
-                  <div className="flex items-center px-3 py-2">
-                    <button className="p-1.5 rounded-lg hover:bg-gray-200">
-                      <Paperclip className="h-4 w-4 text-gray-600" />
-                    </button>
+                <div className="flex-1 bg-gray-100 rounded-2xl">
+                  <div className="flex items-center justify-between px-3 pt-2">
+                    <div className="flex items-center gap-2 text-xs">
+                      <span className="text-gray-500">Type:</span>
+                      <div className="inline-flex rounded-md overflow-hidden border border-gray-300">
+                        {['text','voice','file'].map(t => (
+                          <button
+                            key={t}
+                            onClick={() => setMessageType(t)}
+                            className={`px-2 py-1 ${messageType===t ? 'bg-white text-gray-800' : 'text-gray-600 hover:bg-white/60'}`}
+                          >
+                            {t.charAt(0).toUpperCase()+t.slice(1)}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-1 text-xs text-gray-500">
+                      {messageType === 'voice' && (
+                        <button
+                          onClick={() => setRecording(r=>!r)}
+                          className={`px-2 py-1 rounded-md ${recording ? 'bg-red-500 text-white' : 'bg-white text-gray-700'}`}
+                        >
+                          {recording ? 'Stop Recording' : 'Record'}
+                        </button>
+                      )}
+                      {messageType === 'file' && (
+                        <label className="px-2 py-1 rounded-md bg-white text-gray-700 cursor-pointer">
+                          <input type="file" className="hidden" onChange={(e)=>setSelectedFile(e.target.files?.[0]||null)} />
+                          Choose File
+                        </label>
+                      )}
+                    </div>
                   </div>
-                  <textarea
-                    rows={1}
-                    value={draft}
-                    onChange={(e) => setDraft(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' && !e.shiftKey) {
-                        e.preventDefault();
-                        sendMessage();
-                      }
-                    }}
-                    placeholder="Type your message..."
-                    className="flex-1 resize-none bg-transparent px-0 py-3 text-sm focus:outline-none min-h-[44px] max-h-32"
-                  />
-                  <div className="flex items-center px-3 py-2">
-                    <button className="p-1.5 rounded-lg hover:bg-gray-200">
-                      <Smile className="h-4 w-4 text-gray-600" />
-                    </button>
+                  <div className="flex items-end">
+                    {messageType === 'text' && (
+                      <textarea
+                        rows={1}
+                        value={draft}
+                        onChange={(e) => setDraft(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' && !e.shiftKey) {
+                            e.preventDefault();
+                            sendMessage();
+                          }
+                        }}
+                        placeholder="Type your message..."
+                        className="flex-1 resize-none bg-transparent px-3 py-3 text-sm focus:outline-none min-h-[44px] max-h-32"
+                      />
+                    )}
+                    {messageType === 'file' && (
+                      <div className="flex-1 px-3 py-3 text-sm text-gray-700">
+                        {selectedFile ? `Selected: ${selectedFile.name}` : 'No file selected'}
+                      </div>
+                    )}
+                    {messageType === 'voice' && (
+                      <div className="flex-1 px-3 py-3 text-sm text-gray-700">
+                        {recording ? 'Recording...' : 'Press Record to capture voice message'}
+                      </div>
+                    )}
                   </div>
                 </div>
                 <button
                   onClick={sendMessage}
-                  disabled={!draft.trim()}
+                  disabled={(messageType==='text' && !draft.trim()) || (messageType==='file' && !selectedFile)}
                   className="h-12 w-12 rounded-full bg-amber-600 text-white flex items-center justify-center hover:bg-amber-700 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <Send className="h-5 w-5" />

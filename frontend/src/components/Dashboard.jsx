@@ -14,6 +14,7 @@ import NoticeBoard from './NoticeBoard';
 import TeacherFeedback from './TeacherFeedback';
 import StudentChat from './StudentChat';
 import AILearningDashboard from './AILearningDashboard';
+import AcademicAlcove from './AcademicAlcove';
 
 const Dashboard = () => {
   const [activeView, setActiveView] = useState('dashboard');
@@ -21,11 +22,14 @@ const Dashboard = () => {
 
   // Define view components in an object for cleaner code
   const viewComponents = {
-    dashboard: DashboardHome,
+    dashboard: (props) => <DashboardHome {...props} setActiveView={setActiveView} />,
     'ai-learning': AILearningDashboard,
+    'ai-learning-courses': CoursesView,
     attendance: AttendanceView,
     routine: RoutineView,
-    assignments: AssignmentView,
+    assignments: (props) => <AssignmentView {...props} defaultType="school" />,
+    'assignments-journal': (props) => <AssignmentView {...props} defaultType="journal" />,
+    'assignments-academic-alcove': (props) => <AcademicAlcove {...props} />,
     courses: CoursesView,
     results: ResultsView,
     noticeboard: NoticeBoard,
@@ -38,7 +42,7 @@ const Dashboard = () => {
 
   const renderContent = () => {
     const Component = viewComponents[activeView] || DashboardHome;
-    return <Component />;
+    return typeof Component === 'function' ? <Component /> : <DashboardHome setActiveView={setActiveView} />;
   };
 
   return (
@@ -50,13 +54,14 @@ const Dashboard = () => {
         setIsOpen={setSidebarOpen}
       />
       <div 
-        className={`h-screen overflow-y-scroll flex-1 flex flex-col w-full transition-all duration-300`}
+        className={`h-screen min-h-0 ${activeView === 'chat' ? 'overflow-hidden' : 'overflow-y-auto custom-scrollbar'} flex-1 flex flex-col w-full transition-all duration-300`}
       >
         <Header 
           sidebarOpen={sidebarOpen}
           setSidebarOpen={setSidebarOpen}
+          onOpenProfile={() => setActiveView('profile')}
         />
-        <main className="flex-1 p-2 sm:p-4 md:p-6 w-full">
+        <main className={`flex-1 min-h-0 ${activeView === 'chat' ? 'p-0' : 'p-2 sm:p-4 md:p-6'} w-full flex flex-col`}>
           {renderContent()}
         </main>
       </div>
