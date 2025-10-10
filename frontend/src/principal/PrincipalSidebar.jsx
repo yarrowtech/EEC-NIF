@@ -68,6 +68,12 @@ const PrincipalSidebar = ({ activeView, setActiveView, isOpen, setIsOpen }) => {
       description: 'Detailed reports and insights'
     },
     { 
+      id: 'communications', 
+      name: 'Communications', 
+      icon: MessageSquare,
+      description: 'Send SMS/Email to groups'
+    },
+    { 
       id: 'notifications', 
       name: 'Notification Center', 
       icon: Bell,

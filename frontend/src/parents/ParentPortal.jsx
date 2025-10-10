@@ -30,6 +30,7 @@ import CoursesView from './CoursesView';
 import PTMPortal from './PTMPortal';
 import ParentDashboard from './ParentDashboard';
 import Observation from './Observation';
+import ParentObservation from './ParentObservation';
 import ParentChat from './ParentChat';
 
 const ParentPortal = () => {
@@ -52,6 +53,7 @@ const ParentPortal = () => {
     { icon: MessageSquare, label: 'Complaints', path: '/parents/complaints' },
     { icon: Video, label: 'Parent-Teacher Meetings', path: '/parents/ptm' },
     { icon: Eye, label: 'Observation', path: '/parents/observation' },
+    { icon: Eye, label: 'Parent Observation', path: '/parents/parent-observation' },
     { icon: GraduationCap, label: 'Results', path: '/parents/results' },
     { icon: Award, label: 'Achievements', path: '/parents/achievements' },
     { icon: FileText, label: 'Courses', path: '/parents/courses' }
@@ -138,6 +140,7 @@ const ParentPortal = () => {
           <Route path="chat" element={<ParentChat />} />
           <Route path="ptm" element={<PTMPortal />} />
           <Route path="observation" element={<Observation />} />
+          <Route path="parent-observation" element={<ParentObservation />} />
           <Route path="results" element={<ResultsView />} />
           <Route path="achievements" element={<AchievementsView />} />
           <Route path="courses" element={<CoursesView />} />

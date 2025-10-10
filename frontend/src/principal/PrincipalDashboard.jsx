@@ -29,6 +29,7 @@ import StaffManagement from './StaffManagement';
 import FinancialDashboard from './FinancialDashboard';
 import NotificationCenter from './NotificationCenter';
 import QuickActions from './QuickActions';
+import Communications from './Communications';
 
 const PrincipalDashboard = () => {
   const [activeView, setActiveView] = useState('overview');
@@ -713,126 +714,7 @@ const PrincipalDashboard = () => {
               </div>
             </div>
           ) : activeView === 'communications' ? (
-            <div className="space-y-6">
-              {/* Header */}
-              <div className="bg-gradient-to-r from-yellow-400 via-amber-500 to-purple-600 rounded-2xl p-8 text-white">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h1 className="text-3xl font-bold mb-2">Communications</h1>
-                    <p className="text-yellow-100">Announcements and messaging center</p>
-                  </div>
-                  <div className="text-right">
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="bg-white/20 rounded-lg p-3">
-                        <div className="text-2xl font-bold">247</div>
-                        <div className="text-xs text-yellow-100">Messages</div>
-                      </div>
-                      <div className="bg-white/20 rounded-lg p-3">
-                        <div className="text-2xl font-bold">12</div>
-                        <div className="text-xs text-yellow-100">Announcements</div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-              
-              {/* Quick Actions */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <div className="bg-white rounded-xl p-6 shadow-sm border border-yellow-100 cursor-pointer hover:shadow-md transition-shadow">
-                  <div className="flex items-center gap-4">
-                    <div className="p-3 bg-purple-100 rounded-lg">
-                      <MessageSquare className="w-6 h-6 text-purple-600" />
-                    </div>
-                    <div>
-                      <h3 className="font-semibold text-amber-900">Send Announcement</h3>
-                      <p className="text-sm text-amber-600">Broadcast to all staff & students</p>
-                    </div>
-                  </div>
-                </div>
-                
-                <div className="bg-white rounded-xl p-6 shadow-sm border border-yellow-100 cursor-pointer hover:shadow-md transition-shadow">
-                  <div className="flex items-center gap-4">
-                    <div className="p-3 bg-amber-100 rounded-lg">
-                      <Mail className="w-6 h-6 text-amber-600" />
-                    </div>
-                    <div>
-                      <h3 className="font-semibold text-amber-900">Email Parents</h3>
-                      <p className="text-sm text-amber-600">Send updates to parent groups</p>
-                    </div>
-                  </div>
-                </div>
-                
-                <div className="bg-white rounded-xl p-6 shadow-sm border border-yellow-100 cursor-pointer hover:shadow-md transition-shadow">
-                  <div className="flex items-center gap-4">
-                    <div className="p-3 bg-yellow-100 rounded-lg">
-                      <Phone className="w-6 h-6 text-yellow-600" />
-                    </div>
-                    <div>
-                      <h3 className="font-semibold text-amber-900">Emergency Alert</h3>
-                      <p className="text-sm text-amber-600">Send urgent notifications</p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-              
-              {/* Recent Communications */}
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <div className="bg-white rounded-xl shadow-sm border border-yellow-100">
-                  <div className="p-6 border-b border-yellow-100">
-                    <h3 className="text-lg font-semibold text-amber-900">Recent Announcements</h3>
-                  </div>
-                  <div className="divide-y divide-yellow-100">
-                    {[
-                      { title: 'Parent-Teacher Conference Schedule', time: '2 hours ago', type: 'general' },
-                      { title: 'New Lunch Menu Updates', time: '5 hours ago', type: 'cafeteria' },
-                      { title: 'Sports Day Event Details', time: '1 day ago', type: 'events' },
-                      { title: 'Library Hours Extension', time: '2 days ago', type: 'academic' }
-                    ].map((item, index) => (
-                      <div key={index} className="p-4 hover:bg-yellow-50 transition-colors">
-                        <div className="flex items-start justify-between">
-                          <div>
-                            <p className="font-medium text-amber-900">{item.title}</p>
-                            <p className="text-sm text-amber-600 mt-1">{item.time}</p>
-                          </div>
-                          <span className={`text-xs px-2 py-1 rounded-full ${
-                            item.type === 'general' ? 'bg-purple-100 text-purple-700' :
-                            item.type === 'cafeteria' ? 'bg-orange-100 text-orange-700' :
-                            item.type === 'events' ? 'bg-green-100 text-green-700' :
-                            'bg-blue-100 text-blue-700'
-                          }`}>
-                            {item.type}
-                          </span>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-                
-                <div className="bg-white rounded-xl shadow-sm border border-yellow-100">
-                  <div className="p-6 border-b border-yellow-100">
-                    <h3 className="text-lg font-semibold text-amber-900">Message Stats</h3>
-                  </div>
-                  <div className="p-6 space-y-4">
-                    <div className="flex items-center justify-between p-3 bg-yellow-50 rounded-lg">
-                      <span className="text-amber-900">Email Delivery Rate</span>
-                      <span className="font-bold text-amber-900">98.5%</span>
-                    </div>
-                    <div className="flex items-center justify-between p-3 bg-yellow-50 rounded-lg">
-                      <span className="text-amber-900">SMS Delivery Rate</span>
-                      <span className="font-bold text-amber-900">99.2%</span>
-                    </div>
-                    <div className="flex items-center justify-between p-3 bg-yellow-50 rounded-lg">
-                      <span className="text-amber-900">Average Response Time</span>
-                      <span className="font-bold text-amber-900">2.5 hrs</span>
-                    </div>
-                    <div className="flex items-center justify-between p-3 bg-yellow-50 rounded-lg">
-                      <span className="text-amber-900">Parent Engagement</span>
-                      <span className="font-bold text-amber-900">87%</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
+            <Communications />
           ) : activeView === 'reports' ? (
             <div className="space-y-6">
               {/* Header */}

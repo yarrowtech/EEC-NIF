@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { BetweenHorizonalEnd } from "lucide-react";
-import Quill from "quill";
-import "quill/dist/quill.snow.css";
+// NOTE: Quill and its CSS are dynamically imported on the client only to avoid
+// SSR/runtime errors on platforms like Vercel or Render which build server-side.
 
 
 export default function QuillEditor({
@@ -16,44 +16,81 @@ export default function QuillEditor({
   const quillRef = useRef(null);
 
   useEffect(() => {
-    const toolbarId = `#${idPrefix}-toolbar`;
-    const editorId = `#${idPrefix}-editor`;
+    // Don't run on server
+    if (typeof window === 'undefined') return;
 
-    const quill = new Quill(editorId, {
-      theme: "snow",
-      placeholder,
-      modules: {
-        toolbar: {
-          container: toolbarId,
-          handlers: {
-            insert: function () {
-              const range = quill.getSelection();
-              if (range) {
-                quill.insertText(range.index, "${{________}}")
+    let mounted = true;
+    let quillInstance = null;
+
+    const loadQuill = async () => {
+      try {
+        const QuillModule = await import('quill');
+        // Some bundlers export Quill as default, some as named
+        const QuillLib = QuillModule.default || QuillModule;
+        // Import CSS dynamically so SSR doesn't try to process it
+        await import('quill/dist/quill.snow.css');
+
+        if (!mounted) return;
+
+        const toolbarId = `#${idPrefix}-toolbar`;
+        const editorId = `#${idPrefix}-editor`;
+
+        // Avoid re-initializing
+        if (quillRef.current) {
+          quillInstance = quillRef.current;
+          return;
+        }
+
+        quillInstance = new QuillLib(editorId, {
+          theme: 'snow',
+          placeholder,
+          modules: {
+            toolbar: {
+              container: toolbarId,
+              handlers: {
+                insert: function () {
+                  const range = quillInstance.getSelection();
+                  if (range) {
+                    quillInstance.insertText(range.index, '${{________}}');
+                  }
+                }
               }
-            },
-          },
-        },
-      },
-    });
+            }
+          }
+        });
 
-    quillRef.current = quill;
+        quillRef.current = quillInstance;
 
-    // Initialize content
-    if (value) {
-      quill.root.innerHTML = value;
-      setWordCount(quill.getText().trim().length ? quill.getText().trim().split(/\s+/).length : 0);
-      setCharCount(Math.max(0, quill.getText().length - 1));
-    }
+        // Initialize content
+        if (value) {
+          quillInstance.root.innerHTML = value;
+          setWordCount(quillInstance.getText().trim().length ? quillInstance.getText().trim().split(/\s+/).length : 0);
+          setCharCount(Math.max(0, quillInstance.getText().length - 1));
+        }
 
-    quill.on("text-change", () => {
-      const text = quill.getText();
-      const html = quill.root.innerHTML;
-      setWordCount(text.trim().length ? text.trim().split(/\s+/).length : 0);
-      setCharCount(Math.max(0, text.length - 1));
-      onChange(html);
-    });
-  }, []);
+        quillInstance.on('text-change', () => {
+          const text = quillInstance.getText();
+          const html = quillInstance.root.innerHTML;
+          setWordCount(text.trim().length ? text.trim().split(/\s+/).length : 0);
+          setCharCount(Math.max(0, text.length - 1));
+          onChange(html);
+        });
+      } catch {
+        // If Quill fails to load, degrade gracefully (editor will remain a simple div)
+        // No runtime exception thrown to avoid build failure on SSR platforms.
+      }
+    };
+
+    loadQuill();
+
+    return () => {
+      mounted = false;
+      if (quillRef.current && quillRef.current.off) {
+        try { quillRef.current.off('text-change'); } catch { /* ignore */ }
+      }
+      quillRef.current = null;
+    };
+  }, [idPrefix, placeholder, onChange, value]);
 
   // Sync external value updates
   useEffect(() => {

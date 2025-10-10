@@ -16,7 +16,8 @@ import {
   AlertTriangle,
   Brain,
   Briefcase,
-  Clock
+  Clock,
+  Eye
 } from 'lucide-react';
 
 import HealthUpdates from './HealthUpdates';
@@ -34,6 +35,7 @@ import TestTeacherPortal from './TestTeacherPortal';
 import AIPoweredTeaching from './AIPoweredTeaching';
 import MyWorkPortal from './MyWorkPortal';
 import ClassRoutine from './ClassRoutine';
+import StudentObservation from './StudentObservation';
 
 const TeacherPortal = () => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -60,6 +62,7 @@ const TeacherPortal = () => {
     { icon: AlertTriangle, label: 'Weak Students', path: '/teachers/weak-students' },
     { icon: Brain, label: 'AI Powered Teaching', path: '/teachers/ai-powered-teaching' },
     { icon: Activity, label: 'Student Health Updates', path: '/teachers/health-updates' },
+    { icon: Eye, label: 'Student Observations', path: '/teachers/student-observations' },
     { icon: Calendar, label: 'Parent Meetings', path: '/teachers/parent-meetings' },
     { icon: FileText, label: 'Assignment Management', path: '/teachers/assignments' },
     { icon: ClipboardCheck, label: 'Assignment Evaluation', path: '/teachers/evaluation' },
@@ -139,6 +142,7 @@ const TeacherPortal = () => {
             <Route path="/ai-powered-teaching" element={<AIPoweredTeaching />} />
             <Route path="/ai-learning/:studentId/:subject" element={<AILearningPath />} />
             <Route path="/health-updates" element={<HealthUpdates />} />
+            <Route path="/student-observations" element={<StudentObservation />} />
             <Route path="/parent-meetings" element={<ParentMeetings />} />
             <Route path="/assignments" element={<AssignmentManagement />} />
             <Route path="/evaluation" element={<AssignmentEvaluation />} />
