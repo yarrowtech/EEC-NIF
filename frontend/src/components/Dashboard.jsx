@@ -13,6 +13,7 @@ import ProfileUpdate from './ProfileUpdate';
 import NoticeBoard from './NoticeBoard';
 import TeacherFeedback from './TeacherFeedback';
 import StudentChat from './StudentChat';
+import ExcuseLetter from './ExcuseLetter';
 import AILearningDashboard from './AILearningDashboard';
 import AcademicAlcove from './AcademicAlcove';
 
@@ -35,6 +36,7 @@ const Dashboard = () => {
     noticeboard: NoticeBoard,
     teacherfeedback: TeacherFeedback,
     chat: StudentChat,
+    'excuse-letter': ExcuseLetter,
     achievements: AchievementsView,
     profile: ProfileUpdate,
     themecustomizer: ThemeCustomizer,
@@ -54,14 +56,14 @@ const Dashboard = () => {
         setIsOpen={setSidebarOpen}
       />
       <div 
-        className={`h-screen min-h-0 ${activeView === 'chat' ? 'overflow-hidden' : 'overflow-y-auto custom-scrollbar'} flex-1 flex flex-col w-full transition-all duration-300`}
+        className={`h-screen min-h-0 ${(activeView === 'chat' || activeView === 'excuse-letter') ? 'overflow-hidden' : 'overflow-y-auto custom-scrollbar'} flex-1 flex flex-col w-full transition-all duration-300`}
       >
         <Header 
           sidebarOpen={sidebarOpen}
           setSidebarOpen={setSidebarOpen}
           onOpenProfile={() => setActiveView('profile')}
         />
-        <main className={`flex-1 min-h-0 ${activeView === 'chat' ? 'p-0' : 'p-2 sm:p-4 md:p-6'} w-full flex flex-col`}>
+        <main className={`flex-1 min-h-0 ${(activeView === 'chat' || activeView === 'excuse-letter') ? 'p-0' : 'p-2 sm:p-4 md:p-6'} w-full flex flex-col`}>
           {renderContent()}
         </main>
       </div>

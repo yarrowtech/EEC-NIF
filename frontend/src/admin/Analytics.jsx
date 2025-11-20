@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Line, Pie, Bar, Doughnut } from 'react-chartjs-2';
+import jsPDF from 'jspdf';
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -268,11 +269,242 @@ const Analytics = ({ setShowAdminHeader }) => {
     { id: 4, title: 'End of Term', date: 'Jul 30, 2025', type: 'academic' },
   ];
 
+  // Export Analytics to PDF
+  const exportAnalyticsToPDF = () => {
+    const pdf = new jsPDF('p', 'mm', 'a4');
+    const pageWidth = pdf.internal.pageSize.width;
+    const pageHeight = pdf.internal.pageSize.height;
+    let yPosition = 20;
+    const lineHeight = 7;
+    const sectionSpacing = 15;
+    const currentDate = new Date().toLocaleDateString();
+
+    // Helper function to add new page if needed
+    const checkNewPage = (requiredSpace) => {
+      if (yPosition + requiredSpace > pageHeight - 20) {
+        pdf.addPage();
+        yPosition = 20;
+      }
+    };
+
+    // Title
+    pdf.setFontSize(24);
+    pdf.setFont(undefined, 'bold');
+    pdf.text('Analytics Dashboard Report', pageWidth / 2, yPosition, { align: 'center' });
+    
+    yPosition += 10;
+    pdf.setFontSize(12);
+    pdf.setFont(undefined, 'normal');
+    pdf.text(`Generated on: ${currentDate}`, pageWidth / 2, yPosition, { align: 'center' });
+    
+    yPosition += sectionSpacing;
+
+    // Summary Statistics Section
+    checkNewPage(60);
+    pdf.setFontSize(16);
+    pdf.setFont(undefined, 'bold');
+    pdf.text('Summary Statistics', 20, yPosition);
+    yPosition += 10;
+
+    pdf.setFontSize(10);
+    pdf.setFont(undefined, 'normal');
+    
+    const summaryStats = [
+      [`Total Students: ${totalStudentsCount.toLocaleString()}`, `Present Students: ${presentStudentsCount.toLocaleString()} (${presentPercentage}%)`],
+      [`Total Teachers: ${totalTeachersCount}`, `Present Teachers: ${presentTeachersCount} (${presentTeachersPercent}%)`],
+      [`Today's Attendance: ${presentPercentage}%`, `Updated: Today`]
+    ];
+
+    summaryStats.forEach(row => {
+      pdf.text(row[0], 25, yPosition);
+      pdf.text(row[1], 110, yPosition);
+      yPosition += lineHeight;
+    });
+
+    yPosition += sectionSpacing;
+
+    // Student Performance Trend Data
+    checkNewPage(80);
+    pdf.setFontSize(16);
+    pdf.setFont(undefined, 'bold');
+    pdf.text('Student Performance Trend', 20, yPosition);
+    yPosition += 10;
+
+    pdf.setFontSize(10);
+    pdf.setFont(undefined, 'normal');
+    pdf.text('Average performance scores by class over the months:', 20, yPosition);
+    yPosition += lineHeight;
+
+    performanceData.datasets.forEach((dataset) => {
+      pdf.setFont(undefined, 'bold');
+      pdf.text(`${dataset.label}:`, 25, yPosition);
+      pdf.setFont(undefined, 'normal');
+      yPosition += lineHeight;
+      
+      performanceData.labels.forEach((label, index) => {
+        pdf.text(`  ${label}: ${dataset.data[index]}%`, 30, yPosition);
+        yPosition += lineHeight;
+      });
+      yPosition += 5;
+    });
+
+    yPosition += sectionSpacing;
+
+    // Fees Collection Data
+    checkNewPage(60);
+    pdf.setFontSize(16);
+    pdf.setFont(undefined, 'bold');
+    pdf.text(`Fees Collection - ${selectedClass} Section ${selectedSection}`, 20, yPosition);
+    yPosition += 10;
+
+    pdf.setFontSize(10);
+    pdf.setFont(undefined, 'normal');
+    
+    months.forEach((month, index) => {
+      const paid = feesChartData.datasets[0].data[index];
+      const pending = feesChartData.datasets[1].data[index];
+      pdf.text(`${month}: Paid ₹${paid}k, Pending ₹${pending}k`, 25, yPosition);
+      yPosition += lineHeight;
+    });
+
+    yPosition += sectionSpacing;
+
+    // Course Progress Data
+    checkNewPage(80);
+    pdf.setFontSize(16);
+    pdf.setFont(undefined, 'bold');
+    pdf.text('Course Progress', 20, yPosition);
+    yPosition += 10;
+
+    pdf.setFontSize(10);
+    pdf.setFont(undefined, 'normal');
+    pdf.text('Completion rates for active courses:', 20, yPosition);
+    yPosition += lineHeight;
+
+    courseProgressData.labels.forEach((course, index) => {
+      const completion = courseProgressData.datasets[0].data[index];
+      pdf.text(`  ${course}: ${completion}%`, 25, yPosition);
+      yPosition += lineHeight;
+    });
+
+    yPosition += sectionSpacing;
+
+    // Attendance Breakdown
+    checkNewPage(50);
+    pdf.setFontSize(16);
+    pdf.setFont(undefined, 'bold');
+    pdf.text('Attendance Breakdown', 20, yPosition);
+    yPosition += 10;
+
+    pdf.setFontSize(10);
+    pdf.setFont(undefined, 'normal');
+    attendanceData.labels.forEach((label, index) => {
+      const value = attendanceData.datasets[0].data[index];
+      pdf.text(`  ${label}: ${value}%`, 25, yPosition);
+      yPosition += lineHeight;
+    });
+
+    yPosition += sectionSpacing;
+
+    // Assignment Status
+    checkNewPage(50);
+    pdf.setFontSize(16);
+    pdf.setFont(undefined, 'bold');
+    pdf.text('Assignment Status', 20, yPosition);
+    yPosition += 10;
+
+    pdf.setFontSize(10);
+    pdf.setFont(undefined, 'normal');
+    assignmentData.labels.forEach((label, index) => {
+      const value = assignmentData.datasets[0].data[index];
+      pdf.text(`  ${label}: ${value}%`, 25, yPosition);
+      yPosition += lineHeight;
+    });
+
+    yPosition += sectionSpacing;
+
+    // Grade Distribution
+    checkNewPage(60);
+    pdf.setFontSize(16);
+    pdf.setFont(undefined, 'bold');
+    pdf.text('Grade Distribution', 20, yPosition);
+    yPosition += 10;
+
+    pdf.setFontSize(10);
+    pdf.setFont(undefined, 'normal');
+    gradeDistributionData.labels.forEach((grade, index) => {
+      const count = gradeDistributionData.datasets[0].data[index];
+      pdf.text(`  ${grade}: ${count} students`, 25, yPosition);
+      yPosition += lineHeight;
+    });
+
+    yPosition += sectionSpacing;
+
+    // Recent Teacher Activity
+    checkNewPage(80);
+    pdf.setFontSize(16);
+    pdf.setFont(undefined, 'bold');
+    pdf.text('Recent Teacher Activity', 20, yPosition);
+    yPosition += 10;
+
+    pdf.setFontSize(10);
+    pdf.setFont(undefined, 'normal');
+    teacherActivities.forEach((activity) => {
+      checkNewPage(15);
+      pdf.setFont(undefined, 'bold');
+      pdf.text(`${activity.name} - ${activity.date}`, 25, yPosition);
+      pdf.setFont(undefined, 'normal');
+      yPosition += lineHeight;
+      pdf.text(`  Action: ${activity.action}`, 25, yPosition);
+      yPosition += lineHeight;
+      pdf.text(`  Details: ${activity.details}`, 25, yPosition);
+      yPosition += lineHeight + 2;
+    });
+
+    yPosition += sectionSpacing;
+
+    // Upcoming Events
+    checkNewPage(60);
+    pdf.setFontSize(16);
+    pdf.setFont(undefined, 'bold');
+    pdf.text('Upcoming Events', 20, yPosition);
+    yPosition += 10;
+
+    pdf.setFontSize(10);
+    pdf.setFont(undefined, 'normal');
+    upcomingEvents.forEach((event) => {
+      checkNewPage(15);
+      pdf.setFont(undefined, 'bold');
+      pdf.text(`${event.title} - ${event.date}`, 25, yPosition);
+      pdf.setFont(undefined, 'normal');
+      yPosition += lineHeight;
+      pdf.text(`  Type: ${event.type}`, 25, yPosition);
+      yPosition += lineHeight + 2;
+    });
+
+    // Footer
+    pdf.setFontSize(8);
+    pdf.setFont(undefined, 'italic');
+    pdf.text('Generated by School Management System - Analytics Dashboard', pageWidth / 2, pageHeight - 10, { align: 'center' });
+
+    // Save the PDF
+    pdf.save(`analytics-report-${currentDate.replace(/\//g, '-')}.pdf`);
+  };
+
   return (
     <div className="w-full min-h-screen bg-gray-50 p-6">
       <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center mb-6">
         <h2 className="text-2xl font-bold text-gray-800 mb-4 lg:mb-0">Analytics Dashboard</h2>
         <div className="flex flex-col sm:flex-row gap-3">
+          <button 
+            onClick={exportAnalyticsToPDF}
+            className="flex items-center space-x-2 bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 transition-colors"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+            </svg>
+            <span>Export Report</span>
+          </button>
           <div className="bg-white rounded-lg border border-gray-200 p-1 flex">
             <button 
               className={`px-3 py-1 rounded-md text-sm font-medium ${activeTab === 'overview' ? 'bg-purple-100 text-purple-700' : 'text-gray-600 hover:text-gray-800'}`}

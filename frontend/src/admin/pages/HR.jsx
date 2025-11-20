@@ -1,6 +1,7 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { jsPDF } from 'jspdf';
-import { FileText, Users, UserCheck, Building2, CalendarCheck, Plus, X } from 'lucide-react';
+import { FileText, Users, UserCheck, Building2, CalendarCheck, Plus, X, CreditCard } from 'lucide-react';
+import IDCard from '../components/IDCard';
 
 const HR = ({ setShowAdminHeader }) => {
   useEffect(() => { setShowAdminHeader(true); }, []);
@@ -66,6 +67,12 @@ const HR = ({ setShowAdminHeader }) => {
   const [employees, setEmployees] = useState([...teachers.map(t=>({id:t.id,name:t.name,role:t.designation||'Teacher',type:'Teacher'})), ...staff.map(s=>({id:s.id,name:s.name,role:s.role||'Staff',type:'Staff'}))]);
   const [showAddEmp, setShowAddEmp] = useState(false);
   const [newEmp, setNewEmp] = useState({ name:'', role:'', type:'Teacher', baseSalary: '' });
+  
+  // ID Card functionality
+  const [showIDCard, setShowIDCard] = useState(false);
+  const [idCardData, setIdCardData] = useState(null);
+  const [idCardType, setIdCardType] = useState('student');
+  const idCardRef = useRef();
   const addEmployee = (e) => {
     e.preventDefault();
     if(!newEmp.name) return;
@@ -96,6 +103,248 @@ const HR = ({ setShowAdminHeader }) => {
   const [uploadName, setUploadName] = useState('');
   const uploadPolicy = (e) => { e.preventDefault(); if(!uploadName) return; setPolicies(prev=>[{ id:`P${prev.length+1}`, name:uploadName, date:new Date().toISOString().slice(0,10) }, ...prev]); setUploadName(''); };
 
+  // ID Card generation functions
+  const generateIDCard = (personData, type) => {
+    setIdCardData(personData);
+    setIdCardType(type);
+    setShowIDCard(true);
+  };
+
+  const downloadIDCardPDF = async () => {
+    if (!idCardData) return;
+    
+    try {
+      // Use the same dimensions as the visual card for consistency
+      const pdf = new jsPDF('landscape', 'mm', [101.6, 63.5]); // Credit card size + margins
+      
+      // Helper function to load image as base64
+      const loadImageAsBase64 = (url) => {
+        return new Promise((resolve, reject) => {
+          const img = new Image();
+          img.crossOrigin = 'anonymous';
+          img.onload = () => {
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            canvas.width = img.width;
+            canvas.height = img.height;
+            ctx.drawImage(img, 0, 0);
+            resolve(canvas.toDataURL('image/jpeg', 0.8));
+          };
+          img.onerror = () => resolve(null);
+          img.src = url;
+        });
+      };
+
+      // Generate QR data and get QR image
+      const qrData = JSON.stringify({
+        id: idCardData.empId || idCardData.admissionNo || `${idCardType.toUpperCase()}${Math.floor(Math.random() * 10000).toString().padStart(4, '0')}`,
+        name: `${idCardData.firstName || ''} ${idCardData.lastName || ''}`.trim(),
+        type: idCardType,
+        school: 'Electronic Educare',
+        issued: new Date().toISOString().split('T')[0],
+        verification: Math.random().toString(36).substring(2, 15)
+      });
+      
+      const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(qrData)}`;
+      
+      // Header background gradient effect
+      const headerColors = {
+        student: [59, 130, 246],
+        teacher: [34, 197, 94],
+        staff: [147, 51, 234]
+      };
+      const [r, g, b] = headerColors[idCardType] || [100, 100, 100];
+      
+      // Header section with rounded corners effect
+      pdf.setFillColor(r, g, b);
+      pdf.roundedRect(3, 3, 95.6, 20, 3, 3, 'F');
+      
+      // Header gradient effect
+      for (let i = 0; i < 20; i++) {
+        const alpha = 1 - (i / 20) * 0.4;
+        pdf.setFillColor(r * alpha, g * alpha, b * alpha);
+        pdf.roundedRect(3, 3 + i, 95.6, 1, 3, 3, 'F');
+      }
+      
+      // Header text
+      pdf.setTextColor(255, 255, 255);
+      pdf.setFontSize(10);
+      pdf.setFont('helvetica', 'bold');
+      pdf.text('ELECTRONIC EDUCARE', 50.8, 10, { align: 'center' });
+      pdf.setFontSize(8);
+      pdf.text(`${idCardType.toUpperCase()} ID CARD`, 50.8, 16, { align: 'center' });
+      
+      // EEC logo placeholder
+      pdf.setFillColor(255, 255, 255, 0.3);
+      pdf.circle(10, 13, 3, 'F');
+      pdf.setTextColor(255, 255, 255);
+      pdf.setFontSize(6);
+      pdf.text('EEC', 10, 14, { align: 'center' });
+      
+      // Security hologram
+      pdf.setFillColor(255, 215, 0);
+      pdf.circle(90, 13, 2.5, 'F');
+      pdf.setFillColor(255, 255, 255, 0.6);
+      pdf.circle(90, 13, 1.5, 'F');
+      
+      // Main content area with background
+      pdf.setFillColor(255, 255, 255);
+      pdf.roundedRect(3, 26, 95.6, 32, 2, 2, 'F');
+      
+      pdf.setTextColor(0, 0, 0);
+      let y = 30;
+      
+      // Profile photo with modern styling
+      let photoY = y;
+      if (idCardData.photo) {
+        try {
+          const photoBase64 = await loadImageAsBase64(idCardData.photo);
+          if (photoBase64) {
+            // Add photo with rounded corner effect
+            pdf.addImage(photoBase64, 'JPEG', 10, photoY, 20, 24);
+            
+            // Add border around photo
+            pdf.setDrawColor(r, g, b);
+            pdf.setLineWidth(0.5);
+            pdf.roundedRect(10, photoY, 20, 24, 2, 2, 'D');
+          } else {
+            // Modern photo placeholder
+            pdf.setDrawColor(r, g, b);
+            pdf.setFillColor(248, 250, 252);
+            pdf.roundedRect(10, photoY, 20, 24, 2, 2, 'FD');
+            pdf.setFontSize(10);
+            pdf.text('📷', 20, photoY + 10, { align: 'center' });
+            pdf.setFontSize(7);
+            pdf.text('PHOTO', 20, photoY + 16, { align: 'center' });
+          }
+        } catch (error) {
+          // Fallback photo placeholder
+          pdf.setDrawColor(r, g, b);
+          pdf.setFillColor(248, 250, 252);
+          pdf.roundedRect(10, photoY, 20, 24, 2, 2, 'FD');
+          pdf.setFontSize(10);
+          pdf.text('📷', 20, photoY + 10, { align: 'center' });
+          pdf.setFontSize(7);
+          pdf.text('PHOTO', 20, photoY + 16, { align: 'center' });
+        }
+      } else {
+        // Modern photo placeholder
+        pdf.setDrawColor(r, g, b);
+        pdf.setFillColor(248, 250, 252);
+        pdf.roundedRect(10, photoY, 20, 24, 2, 2, 'FD');
+        pdf.setFontSize(10);
+        pdf.text('📷', 20, photoY + 10, { align: 'center' });
+        pdf.setFontSize(7);
+        pdf.text('PHOTO', 20, photoY + 16, { align: 'center' });
+      }
+      
+      // Personal details section
+      const fullName = `${idCardData.firstName || ''} ${idCardData.lastName || ''}`.trim();
+      const idNumber = idCardData.empId || idCardData.admissionNo || `${idCardType.toUpperCase()}${Math.floor(Math.random() * 10000).toString().padStart(4, '0')}`;
+      
+      // Name and ID
+      pdf.setFontSize(14);
+      pdf.setFont('helvetica', 'bold');
+      pdf.setTextColor(r, g, b);
+      pdf.text(fullName, 35, y + 5);
+      
+      pdf.setFontSize(10);
+      pdf.setFont('helvetica', 'normal');
+      pdf.setTextColor(80, 80, 80);
+      pdf.text(`ID: ${idNumber}`, 35, y + 11);
+      
+      // Role/Class specific information
+      pdf.setFontSize(9);
+      pdf.setTextColor(60, 60, 60);
+      if (idCardType === 'student') {
+        pdf.text(`Class ${idCardData.class || 'N/A'} • Section ${idCardData.section || 'A'}`, 35, y + 16);
+        if (idCardData.rollNo) pdf.text(`Roll No: ${idCardData.rollNo}`, 35, y + 21);
+      } else {
+        const role = idCardData.designation || idCardData.role || (idCardType === 'teacher' ? 'Teacher' : 'Staff');
+        pdf.text(role, 35, y + 16);
+        if (idCardData.department) pdf.text(idCardData.department, 35, y + 21);
+      }
+      
+      // Additional info
+      if (idCardData.phone) {
+        pdf.setFontSize(8);
+        pdf.setTextColor(100, 100, 100);
+        pdf.text(`📞 ${idCardData.phone}`, 35, y + 26);
+      }
+      
+      // QR Code with modern styling
+      try {
+        const qrBase64 = await loadImageAsBase64(qrUrl);
+        if (qrBase64) {
+          pdf.addImage(qrBase64, 'PNG', 78, y, 18, 18);
+          // Add border around QR
+          pdf.setDrawColor(200, 200, 200);
+          pdf.setLineWidth(0.3);
+          pdf.roundedRect(78, y, 18, 18, 1, 1, 'D');
+        } else {
+          // Modern QR placeholder
+          pdf.setDrawColor(200, 200, 200);
+          pdf.setFillColor(250, 250, 250);
+          pdf.roundedRect(78, y, 18, 18, 1, 1, 'FD');
+          pdf.setFontSize(7);
+          pdf.setTextColor(120, 120, 120);
+          pdf.text('QR CODE', 87, y + 10, { align: 'center' });
+        }
+      } catch (error) {
+        // Modern QR placeholder
+        pdf.setDrawColor(200, 200, 200);
+        pdf.setFillColor(250, 250, 250);
+        pdf.roundedRect(78, y, 18, 18, 1, 1, 'FD');
+        pdf.setFontSize(7);
+        pdf.setTextColor(120, 120, 120);
+        pdf.text('QR CODE', 87, y + 10, { align: 'center' });
+      }
+      
+      // Footer with modern styling
+      const currentYear = new Date().getFullYear();
+      pdf.setFillColor(248, 250, 252);
+      pdf.roundedRect(3, 61, 95.6, 8, 2, 2, 'F');
+      
+      pdf.setFontSize(7);
+      pdf.setTextColor(100, 100, 100);
+      pdf.text(`Valid: ${currentYear}-${currentYear + 1}`, 8, 65.5);
+      pdf.text('🛡️ Authorized Personnel Only', 50.8, 65.5, { align: 'center' });
+      pdf.text('Electronic Educare', 93, 65.5, { align: 'right' });
+      
+      // Modern border with rounded corners
+      pdf.setDrawColor(r, g, b);
+      pdf.setLineWidth(1);
+      pdf.roundedRect(3, 3, 95.6, 57.5, 3, 3, 'D');
+      
+      pdf.save(`ID_Card_${idCardData.firstName}_${idCardData.lastName}_${idCardType}.pdf`);
+    } catch (error) {
+      console.error('Error generating PDF:', error);
+      alert('Error generating PDF. Please try again.');
+    }
+  };
+
+  const printIDCard = () => {
+    if (!idCardRef.current) return;
+    
+    const printWindow = window.open('', '_blank');
+    printWindow.document.write(`
+      <html>
+        <head>
+          <title>ID Card</title>
+          <style>
+            body { margin: 0; padding: 20px; font-family: Arial, sans-serif; }
+            @media print { body { padding: 0; } }
+          </style>
+        </head>
+        <body>
+          ${idCardRef.current.outerHTML}
+        </body>
+      </html>
+    `);
+    printWindow.document.close();
+    printWindow.print();
+  };
+
   // Add New functionality merged from NewAdd component
   const [addTab, setAddTab] = useState('teacher');
   const handleSubmit = (e, kind) => {
@@ -104,6 +353,12 @@ const HR = ({ setShowAdminHeader }) => {
     const entries = {};
     for (const [k, v] of data.entries()) entries[k] = v;
     console.log(`Submitting ${kind}`, entries);
+    
+    // Generate ID card after form submission
+    if (confirm(`${kind} added successfully! Would you like to generate an ID card?`)) {
+      generateIDCard(entries, kind.toLowerCase());
+    }
+    
     alert(`${kind} form captured. Implement API to persist.`);
   };
 
@@ -138,12 +393,42 @@ const HR = ({ setShowAdminHeader }) => {
     </div>
   );
 
-  const FileInput = ({ label, multiple = false, className = '', inputClassName = '', ...props }) => (
-    <div className={`flex flex-col gap-1 ${className}`}>
-      <label className="text-sm text-gray-700">{label}</label>
-      <input type="file" multiple={multiple} className={`border border-gray-300 rounded-lg px-3 py-2 bg-white ${inputClassName}`} {...props} />
-    </div>
-  );
+  const FileInput = ({ label, multiple = false, className = '', inputClassName = '', name, ...props }) => {
+    const [preview, setPreview] = useState(null);
+    
+    const handleFileChange = (e) => {
+      const file = e.target.files[0];
+      if (file && file.type.startsWith('image/')) {
+        const reader = new FileReader();
+        reader.onload = (event) => {
+          setPreview(event.target.result);
+        };
+        reader.readAsDataURL(file);
+      }
+      
+      // Call original onChange if provided
+      if (props.onChange) props.onChange(e);
+    };
+    
+    return (
+      <div className={`flex flex-col gap-1 ${className}`}>
+        <label className="text-sm text-gray-700">{label}</label>
+        <input 
+          type="file" 
+          multiple={multiple} 
+          name={name}
+          className={`border border-gray-300 rounded-lg px-3 py-2 bg-white ${inputClassName}`} 
+          onChange={handleFileChange}
+          {...props} 
+        />
+        {preview && name === 'photo' && (
+          <div className="mt-2">
+            <img src={preview} alt="Preview" className="w-16 h-20 object-cover rounded-lg border border-gray-300" />
+          </div>
+        )}
+      </div>
+    );
+  };
 
   return (
     <div className="w-full min-h-screen bg-gray-50 p-6">
@@ -492,6 +777,38 @@ const HR = ({ setShowAdminHeader }) => {
 
                   <div className="flex justify-end gap-2">
                     <button type="reset" className="px-4 py-2 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50">Reset</button>
+                    <button 
+                      type="button" 
+                      onClick={() => {
+                        const form = document.querySelector('form');
+                        const formData = new FormData(form);
+                        const entries = {};
+                        
+                        // Handle regular form fields
+                        for (const [k, v] of formData.entries()) {
+                          if (k !== 'photo') {
+                            entries[k] = v;
+                          }
+                        }
+                        
+                        // Handle photo file
+                        const photoFile = formData.get('photo');
+                        if (photoFile && photoFile.size > 0) {
+                          const reader = new FileReader();
+                          reader.onload = (e) => {
+                            entries.photo = e.target.result;
+                            if (entries.firstName) generateIDCard(entries, 'teacher');
+                          };
+                          reader.readAsDataURL(photoFile);
+                        } else {
+                          if (entries.firstName) generateIDCard(entries, 'teacher');
+                        }
+                      }}
+                      className="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white flex items-center gap-2"
+                    >
+                      <CreditCard size={16} />
+                      Generate ID Card
+                    </button>
                     <button type="submit" className="px-4 py-2 rounded-lg bg-yellow-600 hover:bg-yellow-700 text-white">Add Teacher</button>
                   </div>
                 </form>
@@ -568,6 +885,38 @@ const HR = ({ setShowAdminHeader }) => {
 
                   <div className="flex justify-end gap-2">
                     <button type="reset" className="px-4 py-2 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50">Reset</button>
+                    <button 
+                      type="button" 
+                      onClick={() => {
+                        const form = document.querySelector('form');
+                        const formData = new FormData(form);
+                        const entries = {};
+                        
+                        // Handle regular form fields
+                        for (const [k, v] of formData.entries()) {
+                          if (k !== 'photo') {
+                            entries[k] = v;
+                          }
+                        }
+                        
+                        // Handle photo file
+                        const photoFile = formData.get('photo');
+                        if (photoFile && photoFile.size > 0) {
+                          const reader = new FileReader();
+                          reader.onload = (e) => {
+                            entries.photo = e.target.result;
+                            if (entries.firstName) generateIDCard(entries, 'student');
+                          };
+                          reader.readAsDataURL(photoFile);
+                        } else {
+                          if (entries.firstName) generateIDCard(entries, 'student');
+                        }
+                      }}
+                      className="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white flex items-center gap-2"
+                    >
+                      <CreditCard size={16} />
+                      Generate ID Card
+                    </button>
                     <button type="submit" className="px-4 py-2 rounded-lg bg-yellow-600 hover:bg-yellow-700 text-white">Add Student</button>
                   </div>
                 </form>
@@ -622,10 +971,96 @@ const HR = ({ setShowAdminHeader }) => {
 
                   <div className="flex justify-end gap-2">
                     <button type="reset" className="px-4 py-2 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50">Reset</button>
+                    <button 
+                      type="button" 
+                      onClick={() => {
+                        const form = document.querySelector('form');
+                        const formData = new FormData(form);
+                        const entries = {};
+                        
+                        // Handle regular form fields
+                        for (const [k, v] of formData.entries()) {
+                          if (k !== 'photo') {
+                            entries[k] = v;
+                          }
+                        }
+                        
+                        // Handle photo file
+                        const photoFile = formData.get('photo');
+                        if (photoFile && photoFile.size > 0) {
+                          const reader = new FileReader();
+                          reader.onload = (e) => {
+                            entries.photo = e.target.result;
+                            if (entries.firstName) generateIDCard(entries, 'staff');
+                          };
+                          reader.readAsDataURL(photoFile);
+                        } else {
+                          if (entries.firstName) generateIDCard(entries, 'staff');
+                        }
+                      }}
+                      className="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white flex items-center gap-2"
+                    >
+                      <CreditCard size={16} />
+                      Generate ID Card
+                    </button>
                     <button type="submit" className="px-4 py-2 rounded-lg bg-yellow-600 hover:bg-yellow-700 text-white">Add Staff</button>
                   </div>
                 </form>
               )}
+            </div>
+          </div>
+        )}
+
+        {/* ID Card Modal */}
+        {showIDCard && idCardData && (
+          <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+            <div className="bg-white rounded-xl shadow-2xl border border-gray-200 p-6 max-w-lg w-full">
+              <div className="flex items-center justify-between mb-6">
+                <h3 className="text-xl font-semibold text-gray-900">🎓 ID Card Generated Successfully!</h3>
+                <button 
+                  className="text-gray-400 hover:text-gray-600 p-1 rounded-full hover:bg-gray-100" 
+                  onClick={() => setShowIDCard(false)}
+                >
+                  <X size={20} />
+                </button>
+              </div>
+              
+              <div className="mb-6 flex justify-center">
+                <IDCard ref={idCardRef} person={idCardData} type={idCardType} />
+              </div>
+              
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+                <div className="flex items-start space-x-2">
+                  <div className="text-blue-600 mt-0.5">ℹ️</div>
+                  <div className="text-sm text-blue-800">
+                    <p className="font-medium mb-1">Your ID card is ready!</p>
+                    <p>This design shows the actual appearance. You can download a PDF version or print directly.</p>
+                  </div>
+                </div>
+              </div>
+              
+              <div className="flex flex-col sm:flex-row gap-3">
+                <button
+                  onClick={() => setShowIDCard(false)}
+                  className="flex-1 px-4 py-2 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50 transition-colors"
+                >
+                  Close
+                </button>
+                <button
+                  onClick={printIDCard}
+                  className="flex-1 px-4 py-2 rounded-lg bg-green-600 hover:bg-green-700 text-white flex items-center justify-center gap-2 transition-colors"
+                >
+                  <FileText size={16} />
+                  Print Card
+                </button>
+                <button
+                  onClick={downloadIDCardPDF}
+                  className="flex-1 px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white flex items-center justify-center gap-2 transition-colors"
+                >
+                  <CreditCard size={16} />
+                  Download PDF
+                </button>
+              </div>
             </div>
           </div>
         )}
@@ -635,4 +1070,3 @@ const HR = ({ setShowAdminHeader }) => {
 };
 
 export default HR;
-

@@ -37,6 +37,28 @@ const AssignmentView = ({ defaultType = "school" }) => {
   const [filter, setFilter] = useState("all"); // all, pending, completed, overdue
   const [assignmentType, setAssignmentType] = useState(defaultType); // 'school' | 'eec' | 'journal' | ...
   const [tryoutType, setTryoutType] = useState("names"); // default tryout type
+  const [tryoutDifficulty, setTryoutDifficulty] = useState('basic');
+  const tryoutDifficultyOptions = [
+    {
+      value: 'basic',
+      label: 'Basic',
+      className: 'bg-emerald-500/15 text-emerald-700 border-emerald-200 hover:bg-emerald-500/25 hover:text-emerald-800',
+      activeClass: 'ring-emerald-400 bg-emerald-500/25 text-emerald-900'
+    },
+    {
+      value: 'intermediate',
+      label: 'Intermediate',
+      className: 'bg-amber-500/15 text-amber-700 border-amber-200 hover:bg-amber-500/25 hover:text-amber-800',
+      activeClass: 'ring-amber-400 bg-amber-500/25 text-amber-900'
+    },
+    {
+      value: 'advanced',
+      label: 'Advanced',
+      className: 'bg-rose-500/15 text-rose-700 border-rose-200 hover:bg-rose-500/25 hover:text-rose-800',
+      activeClass: 'ring-rose-400 bg-rose-500/25 text-rose-900'
+    }
+  ];
+  const baseDifficultyButtonClasses = "px-6 py-3 rounded-xl text-sm font-semibold transition-all duration-150 shadow-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-1 border ring-1 ring-transparent";
   // Flashcard state
   const [flashDeck, setFlashDeck] = useState([]); // [{front, back}]
   const [flashIndex, setFlashIndex] = useState(0);
@@ -1264,6 +1286,25 @@ My head hurts, too."
               <option value="plain_txt">Plain Text</option>
               <option value="sort_list">Sort List</option>
             </select>
+          </div>
+          <div className="mb-6">
+            <span className="font-medium text-gray-700">Difficulty:</span>
+            <div className="mt-3 flex flex-wrap gap-3">
+              {tryoutDifficultyOptions.map(option => {
+                const isActive = tryoutDifficulty === option.value;
+                return (
+                  <button
+                    key={option.value}
+                    type="button"
+                    onClick={() => setTryoutDifficulty(option.value)}
+                    className={`${baseDifficultyButtonClasses} ${option.className} ${isActive ? option.activeClass + ' ring-2' : ''}`}
+                    aria-pressed={isActive}
+                  >
+                    {option.label}
+                  </button>
+                );
+              })}
+            </div>
           </div>
           <div>
             {tryoutType === 'choice_matrix' && <ChoiceMatrix />}

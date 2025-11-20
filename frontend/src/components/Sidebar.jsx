@@ -50,7 +50,15 @@ const Sidebar = ({ activeView, setActiveView, isOpen, setIsOpen }) => {
     { id: 'results', name: 'Results', icon: Trophy },
     { id: 'noticeboard', name: 'Notice Board', icon: Bell },
     { id: 'teacherfeedback', name: 'Teacher Feedback', icon: MessageCircle },
-    { id: 'chat', name: 'Chat', icon: MessageSquare },
+    { 
+      id: 'chat', 
+      name: 'Chat', 
+      icon: MessageSquare,
+      children: [
+        { id: 'chat', name: 'Messages', icon: MessageSquare },
+        { id: 'excuse-letter', name: 'Excuse Letter', icon: FileText },
+      ]
+    },
     { id: 'achievements', name: 'Achievements', icon: Award },
   ];
 

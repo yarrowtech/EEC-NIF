@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import jsPDF from 'jspdf';
 import { Calendar, Clock, Filter, Download, Plus, Edit3, Trash2, Search, MapPin, Users } from 'lucide-react';
 
 const ClassRoutine = () => {
@@ -66,6 +67,157 @@ const ClassRoutine = () => {
     return colors[subject] || 'bg-gray-100 border-gray-300 text-gray-800';
   };
 
+  const exportRoutineToPDF = () => {
+    const pdf = new jsPDF('l', 'mm', 'a4'); // Landscape orientation
+    const pageWidth = pdf.internal.pageSize.width;
+    const currentDate = new Date().toLocaleDateString();
+    let yPosition = 20;
+    
+    // Title
+    pdf.setFontSize(20);
+    pdf.setFont(undefined, 'bold');
+    pdf.text('Class Routine Schedule', pageWidth / 2, yPosition, { align: 'center' });
+    
+    yPosition += 10;
+    pdf.setFontSize(12);
+    pdf.setFont(undefined, 'normal');
+    
+    const filterInfo = [];
+    if (selectedClass !== 'all') filterInfo.push(`Class: ${selectedClass}`);
+    if (selectedSection !== 'all') filterInfo.push(`Section: ${selectedSection}`);
+    
+    if (filterInfo.length > 0) {
+      pdf.text(`Filter: ${filterInfo.join(', ')}`, pageWidth / 2, yPosition, { align: 'center' });
+    } else {
+      pdf.text('All Classes and Sections', pageWidth / 2, yPosition, { align: 'center' });
+    }
+    
+    yPosition += 8;
+    pdf.text(`Generated on: ${currentDate}`, pageWidth / 2, yPosition, { align: 'center' });
+    
+    yPosition += 15;
+
+    // Weekly Schedule Table
+    pdf.setFontSize(16);
+    pdf.setFont(undefined, 'bold');
+    pdf.text('Weekly Schedule', 20, yPosition);
+    yPosition += 12;
+
+    // Table headers
+    pdf.setFontSize(8);
+    pdf.setFont(undefined, 'bold');
+    let xPosition = 20;
+    pdf.text('Time', xPosition, yPosition);
+    xPosition += 45;
+    
+    weekDays.forEach(day => {
+      pdf.text(day, xPosition, yPosition);
+      xPosition += 45;
+    });
+    
+    pdf.line(15, yPosition + 2, pageWidth - 15, yPosition + 2);
+    yPosition += 8;
+
+    // Timetable data
+    pdf.setFont(undefined, 'normal');
+    timeSlots.forEach(slot => {
+      if (yPosition > 180) {
+        pdf.addPage();
+        yPosition = 20;
+      }
+      
+      xPosition = 20;
+      pdf.text(slot, xPosition, yPosition);
+      xPosition += 45;
+      
+      weekDays.forEach(day => {
+        const classData = routineData[day]?.[slot];
+        if (classData) {
+          // Filter based on selected class/section if needed
+          const shouldShow = (selectedClass === 'all' || classData.class.includes(selectedClass)) &&
+                           (selectedSection === 'all' || classData.class.includes(selectedSection));
+          
+          if (shouldShow) {
+            const text = `${classData.subject}\n${classData.teacher}\n${classData.room}`;
+            pdf.text(text.split('\n')[0], xPosition, yPosition - 2);
+            pdf.text(text.split('\n')[1], xPosition, yPosition + 2);
+            pdf.text(text.split('\n')[2], xPosition, yPosition + 6);
+          }
+        }
+        xPosition += 45;
+      });
+      
+      yPosition += 12;
+    });
+
+    // Subject-wise breakdown
+    yPosition += 10;
+    if (yPosition > 160) {
+      pdf.addPage();
+      yPosition = 20;
+    }
+
+    pdf.setFontSize(16);
+    pdf.setFont(undefined, 'bold');
+    pdf.text('Subject Summary', 20, yPosition);
+    yPosition += 12;
+
+    // Collect all subjects and their schedules
+    const subjectSchedule = {};
+    weekDays.forEach(day => {
+      timeSlots.forEach(slot => {
+        const classData = routineData[day]?.[slot];
+        if (classData) {
+          const shouldShow = (selectedClass === 'all' || classData.class.includes(selectedClass)) &&
+                           (selectedSection === 'all' || classData.class.includes(selectedSection));
+          
+          if (shouldShow) {
+            if (!subjectSchedule[classData.subject]) {
+              subjectSchedule[classData.subject] = [];
+            }
+            subjectSchedule[classData.subject].push({
+              day,
+              time: slot,
+              teacher: classData.teacher,
+              room: classData.room,
+              class: classData.class
+            });
+          }
+        }
+      });
+    });
+
+    // Print subject breakdown
+    pdf.setFontSize(10);
+    pdf.setFont(undefined, 'normal');
+    
+    Object.entries(subjectSchedule).forEach(([subject, sessions]) => {
+      if (yPosition > 200) {
+        pdf.addPage();
+        yPosition = 20;
+      }
+      
+      pdf.setFont(undefined, 'bold');
+      pdf.text(`${subject}:`, 20, yPosition);
+      yPosition += 6;
+      
+      pdf.setFont(undefined, 'normal');
+      sessions.forEach(session => {
+        pdf.text(`  ${session.day} ${session.time} - ${session.teacher} (${session.room})`, 25, yPosition);
+        yPosition += 5;
+      });
+      yPosition += 3;
+    });
+
+    // Footer
+    pdf.setFontSize(8);
+    pdf.setFont(undefined, 'italic');
+    pdf.text('Generated by School Management System - Class Routine Module', pageWidth / 2, pdf.internal.pageSize.height - 10, { align: 'center' });
+
+    const classSuffix = selectedClass !== 'all' ? selectedClass.replace(/ /g, '-') : 'all-classes';
+    pdf.save(`class-routine-${classSuffix}-${currentDate.replace(/\//g, '-')}.pdf`);
+  };
+
   return (
     <div className="h-screen bg-gradient-to-br from-yellow-50 via-yellow-100 to-amber-100 flex flex-col">
       <div className="flex-1 flex flex-col max-w-7xl mx-auto w-full bg-white/90 rounded-2xl shadow-2xl m-4 border border-yellow-200 overflow-hidden">
@@ -121,7 +273,10 @@ const ClassRoutine = () => {
                 <Plus className="w-4 h-4" />
                 <span>Add Schedule</span>
               </button>
-              <button className="flex items-center space-x-2 border border-gray-300 px-4 py-2 rounded-lg hover:bg-gray-50 transition-colors">
+              <button 
+                onClick={exportRoutineToPDF}
+                className="flex items-center space-x-2 border border-gray-300 px-4 py-2 rounded-lg hover:bg-gray-50 transition-colors"
+              >
                 <Download className="w-4 h-4" />
                 <span>Export</span>
               </button>

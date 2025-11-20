@@ -1,5 +1,6 @@
 import React, {useEffect} from 'react';
 import { UserCheck, Search, Filter, Calendar, Download, Users, Clock } from 'lucide-react';
+import jsPDF from 'jspdf';
 
 const AttendanceManagement = ({setShowAdminHeader}) => {
 
@@ -7,6 +8,99 @@ const AttendanceManagement = ({setShowAdminHeader}) => {
     useEffect(() => {
       setShowAdminHeader(false)
     }, [])
+
+  // Sample attendance data
+  const attendanceData = [
+    {
+      id: 1,
+      name: "John Smith",
+      class: "10-A",
+      status: "Present",
+      checkInTime: "08:30 AM",
+      totalPresent: 45,
+      totalAbsent: 2
+    },
+    {
+      id: 2,
+      name: "Emma Wilson",
+      class: "10-A",
+      status: "Absent",
+      checkInTime: "-",
+      totalPresent: 42,
+      totalAbsent: 5
+    },
+    {
+      id: 3,
+      name: "Michael Brown",
+      class: "10-B",
+      status: "Present",
+      checkInTime: "08:45 AM",
+      totalPresent: 44,
+      totalAbsent: 3
+    }
+  ];
+
+  const exportToPDF = () => {
+    const pdf = new jsPDF();
+    const pageWidth = pdf.internal.pageSize.width;
+    const currentDate = new Date().toLocaleDateString();
+    
+    // Title
+    pdf.setFontSize(20);
+    pdf.setFont(undefined, 'bold');
+    pdf.text('Student Attendance Report', pageWidth / 2, 30, { align: 'center' });
+    
+    // Date
+    pdf.setFontSize(12);
+    pdf.setFont(undefined, 'normal');
+    pdf.text(`Generated on: ${currentDate}`, pageWidth / 2, 45, { align: 'center' });
+    
+    // Table headers
+    pdf.setFontSize(10);
+    pdf.setFont(undefined, 'bold');
+    const startY = 70;
+    const rowHeight = 15;
+    
+    pdf.text('Student Name', 20, startY);
+    pdf.text('Class', 80, startY);
+    pdf.text('Status', 110, startY);
+    pdf.text('Check-in Time', 140, startY);
+    pdf.text('Present Days', 170, startY);
+    pdf.text('Absent Days', 190, startY);
+    
+    // Draw header line
+    pdf.line(15, startY + 5, pageWidth - 15, startY + 5);
+    
+    // Table data
+    pdf.setFont(undefined, 'normal');
+    attendanceData.forEach((student, index) => {
+      const yPosition = startY + rowHeight + (index * rowHeight);
+      
+      pdf.text(student.name, 20, yPosition);
+      pdf.text(student.class, 80, yPosition);
+      pdf.text(student.status, 110, yPosition);
+      pdf.text(student.checkInTime, 140, yPosition);
+      pdf.text(student.totalPresent.toString(), 170, yPosition);
+      pdf.text(student.totalAbsent.toString(), 190, yPosition);
+    });
+    
+    // Summary section
+    const summaryY = startY + rowHeight + (attendanceData.length * rowHeight) + 20;
+    pdf.setFont(undefined, 'bold');
+    pdf.text('Summary:', 20, summaryY);
+    
+    pdf.setFont(undefined, 'normal');
+    const totalStudents = attendanceData.length;
+    const presentStudents = attendanceData.filter(student => student.status === 'Present').length;
+    const absentStudents = totalStudents - presentStudents;
+    
+    pdf.text(`Total Students: ${totalStudents}`, 20, summaryY + 15);
+    pdf.text(`Present Today: ${presentStudents}`, 20, summaryY + 30);
+    pdf.text(`Absent Today: ${absentStudents}`, 20, summaryY + 45);
+    
+    // Save the PDF
+    pdf.save(`attendance-report-${currentDate.replace(/\//g, '-')}.pdf`);
+  };
 
   return (
     <div className="min-h-screen bg-gray-50 p-6">
@@ -55,7 +149,10 @@ const AttendanceManagement = ({setShowAdminHeader}) => {
             </div>
           </div>
 
-          <button className="flex items-center space-x-2 bg-yellow-500 text-black px-4 py-2 rounded-lg hover:bg-yellow-600 transition-colors">
+          <button 
+            onClick={exportToPDF}
+            className="flex items-center space-x-2 bg-yellow-500 text-black px-4 py-2 rounded-lg hover:bg-yellow-600 transition-colors"
+          >
             <Download className="w-4 h-4" />
             <span>Export Report</span>
           </button>
@@ -77,35 +174,7 @@ const AttendanceManagement = ({setShowAdminHeader}) => {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-200">
-              {[
-                {
-                  id: 1,
-                  name: "John Smith",
-                  class: "10-A",
-                  status: "Present",
-                  checkInTime: "08:30 AM",
-                  totalPresent: 45,
-                  totalAbsent: 2
-                },
-                {
-                  id: 2,
-                  name: "Emma Wilson",
-                  class: "10-A",
-                  status: "Absent",
-                  checkInTime: "-",
-                  totalPresent: 42,
-                  totalAbsent: 5
-                },
-                {
-                  id: 3,
-                  name: "Michael Brown",
-                  class: "10-B",
-                  status: "Present",
-                  checkInTime: "08:45 AM",
-                  totalPresent: 44,
-                  totalAbsent: 3
-                }
-              ].map(student => (
+              {attendanceData.map(student => (
                 <tr key={student.id} className="hover:bg-gray-50">
                   <td className="px-6 py-4">
                     <div className="flex items-center">
