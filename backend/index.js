@@ -34,7 +34,7 @@ mongoose
 
 
 app.get("/", (req, res) => {
-  res.send("Welcome to the Electronic Educare API");
+  res.send("Welcome to the Electronic Educare API ..");
 })
 
 // Mount auth routes separately
