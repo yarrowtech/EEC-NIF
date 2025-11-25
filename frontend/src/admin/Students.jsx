@@ -8,15 +8,19 @@ const Students = ({ setShowAdminHeader }) => {
 	const [showWellbeingModal, setShowWellbeingModal] = useState(false);
 	const [selectedStudent, setSelectedStudent] = useState(null);
 	const [wellbeingData, setWellbeingData] = useState({});
+	const [courses, setCourses] = useState([]);
 	const [newStudent, setNewStudent] = useState({
 		name: '',
 		roll: '',
-		class: '',
+		grade: '',
 		section: '',
 		gender: '',
-		phone: '',
+		mobile: '',
 		email: '',
 		address: '',
+		dob: '',
+		pincode: '',
+		course: '',
 		status: 'Active',
 	});
 
@@ -111,6 +115,8 @@ const Students = ({ setShowAdminHeader }) => {
     // ensure admin header/context is visible on this page
     useEffect(() => {
         setShowAdminHeader(true);
+        
+        // Fetch students
         fetch(`${import.meta.env.VITE_API_URL}/api/admin/users/get-students`, {
             method: 'GET',
             headers: {
@@ -128,7 +134,28 @@ const Students = ({ setShowAdminHeader }) => {
 			setStudentData(data);
 		}).catch(err => {
 			console.error('Error fetching students:', err);
-		})
+		});
+
+        // Fetch courses for course selection
+        fetch(`${import.meta.env.VITE_API_URL}/api/course/fetch`, {
+            method: 'GET',
+            headers: {
+                'Content-Type': 'application/json',
+                'authorization': `Bearer ${localStorage.getItem('token')}`
+            }
+        })
+        .then(res => {
+            if (!res.ok) {
+                throw new Error('Failed to fetch courses');
+            }
+            return res.json();
+        })
+        .then(data => {
+            setCourses(data);
+        })
+        .catch(err => {
+            console.error('Error fetching courses:', err);
+        });
 	}, [setShowAdminHeader]);
 
 	const handleAddStudentChange = (e) => {
@@ -155,8 +182,18 @@ const Students = ({ setShowAdminHeader }) => {
 		// Here you would send newStudent to backend or update state
 		setShowAddForm(false);
 		setNewStudent({
-			name: '', roll: '', grade: '', section: '', gender: '', mobile: '', email: '', address: '', dob: '',
-			pincode: ''
+			name: '', 
+			roll: '', 
+			grade: '', 
+			section: '', 
+			gender: '', 
+			mobile: '', 
+			email: '', 
+			address: '', 
+			dob: '',
+			pincode: '',
+			course: '',
+			status: 'Active'
 		});
 	};
 
@@ -170,6 +207,13 @@ const Students = ({ setShowAdminHeader }) => {
 						<p className="text-gray-600 mt-2">Manage and monitor student information, health status, attendance, and fees</p>
 					</div>
 					<div className="flex gap-3">
+						<button
+							onClick={() => setShowAddForm(true)}
+							className="bg-yellow-600 text-white px-4 py-2 rounded-lg hover:bg-yellow-700 flex items-center gap-2"
+						>
+							<Plus size={16} />
+							Add Student
+						</button>
 						<button
 							onClick={() => {
 								console.log('Test modal clicked');
@@ -717,6 +761,202 @@ const Students = ({ setShowAdminHeader }) => {
 										Save Assessment
 									</button>
 								</div>
+							</div>
+						</div>
+					</div>
+				)}
+
+				{/* Add Student Form Modal */}
+				{showAddForm && (
+					<div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+						<div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+							<div className="p-6 border-b border-gray-200">
+								<div className="flex justify-between items-center">
+									<div>
+										<h2 className="text-2xl font-bold text-gray-900">Add New Student</h2>
+										<p className="text-gray-600 mt-1">Fill in the student details and select a course</p>
+									</div>
+									<button
+										onClick={() => setShowAddForm(false)}
+										className="text-gray-400 hover:text-gray-600 p-2"
+									>
+										<X size={24} />
+									</button>
+								</div>
+							</div>
+
+							<div className="p-6">
+								<form onSubmit={handleAddStudentSubmit} className="space-y-6">
+									{/* Personal Details Section */}
+									<div className="bg-gray-50 rounded-lg p-4">
+										<h3 className="text-lg font-semibold text-gray-900 mb-4">Personal Details</h3>
+										<div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+											<div>
+												<label className="block text-sm font-medium text-gray-700 mb-1">Full Name *</label>
+												<input
+													type="text"
+													name="name"
+													value={newStudent.name}
+													onChange={handleAddStudentChange}
+													required
+													className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-yellow-500"
+													placeholder="Enter student's full name"
+												/>
+											</div>
+											<div>
+												<label className="block text-sm font-medium text-gray-700 mb-1">Email *</label>
+												<input
+													type="email"
+													name="email"
+													value={newStudent.email}
+													onChange={handleAddStudentChange}
+													required
+													className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-yellow-500"
+													placeholder="Enter email address"
+												/>
+											</div>
+											<div>
+												<label className="block text-sm font-medium text-gray-700 mb-1">Mobile Number *</label>
+												<input
+													type="tel"
+													name="mobile"
+													value={newStudent.mobile}
+													onChange={handleAddStudentChange}
+													required
+													className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-yellow-500"
+													placeholder="Enter mobile number"
+												/>
+											</div>
+											<div>
+												<label className="block text-sm font-medium text-gray-700 mb-1">Date of Birth *</label>
+												<input
+													type="date"
+													name="dob"
+													value={newStudent.dob}
+													onChange={handleAddStudentChange}
+													required
+													className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-yellow-500"
+												/>
+											</div>
+											<div>
+												<label className="block text-sm font-medium text-gray-700 mb-1">Gender *</label>
+												<select
+													name="gender"
+													value={newStudent.gender}
+													onChange={handleAddStudentChange}
+													required
+													className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-yellow-500"
+												>
+													<option value="">Select Gender</option>
+													<option value="Male">Male</option>
+													<option value="Female">Female</option>
+													<option value="Other">Other</option>
+												</select>
+											</div>
+											<div>
+												<label className="block text-sm font-medium text-gray-700 mb-1">Pincode</label>
+												<input
+													type="text"
+													name="pincode"
+													value={newStudent.pincode}
+													onChange={handleAddStudentChange}
+													className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-yellow-500"
+													placeholder="Enter pincode"
+												/>
+											</div>
+										</div>
+										<div className="mt-4">
+											<label className="block text-sm font-medium text-gray-700 mb-1">Address</label>
+											<textarea
+												name="address"
+												value={newStudent.address}
+												onChange={handleAddStudentChange}
+												rows={3}
+												className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-yellow-500"
+												placeholder="Enter complete address"
+											/>
+										</div>
+									</div>
+
+									{/* Academic Details Section */}
+									<div className="bg-blue-50 rounded-lg p-4">
+										<h3 className="text-lg font-semibold text-gray-900 mb-4">Academic Details</h3>
+										<div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+											<div>
+												<label className="block text-sm font-medium text-gray-700 mb-1">Roll Number *</label>
+												<input
+													type="text"
+													name="roll"
+													value={newStudent.roll}
+													onChange={handleAddStudentChange}
+													required
+													className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-yellow-500"
+													placeholder="Enter roll number"
+												/>
+											</div>
+											<div>
+												<label className="block text-sm font-medium text-gray-700 mb-1">Program *</label>
+												<select
+													name="grade"
+													value={newStudent.grade}
+													onChange={handleAddStudentChange}
+													required
+													className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-yellow-500"
+												>
+													<option value="">Select Program</option>
+													<optgroup label="Fashion Design">
+														<option value="Fashion Design - 1 year Certificate Program">1 year Certificate Program</option>
+														<option value="Fashion Design - 2 year Advanced Certificate">2 year Advanced Certificate</option>
+														<option value="Fashion Design - 3 year B Voc Program">3 year B Voc Program</option>
+														<option value="Fashion Design - 4 year B Des Program">4 year B Des Program</option>
+														<option value="Fashion Design - 2 Year M Voc program">2 Year M Voc program</option>
+													</optgroup>
+													<optgroup label="Interior Design">
+														<option value="Interior Design - 1 year Certificate Program">1 year Certificate Program</option>
+														<option value="Interior Design - 2 year Advanced Certificate">2 year Advanced Certificate</option>
+														<option value="Interior Design - 3 year B Voc Program">3 year B Voc Program</option>
+														<option value="Interior Design - 4 year B Des Program">4 year B Des Program</option>
+														<option value="Interior Design - 2 Year M Voc program">2 Year M Voc program</option>
+													</optgroup>
+												</select>
+											</div>
+											<div>
+												<label className="block text-sm font-medium text-gray-700 mb-1">Section *</label>
+												<select
+													name="section"
+													value={newStudent.section}
+													onChange={handleAddStudentChange}
+													required
+													className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-yellow-500"
+												>
+													<option value="">Select Section</option>
+													<option value="A">Section A</option>
+													<option value="B">Section B</option>
+													<option value="C">Section C</option>
+													<option value="D">Section D</option>
+												</select>
+											</div>
+										</div>
+									</div>
+
+
+									{/* Form Actions */}
+									<div className="flex justify-end gap-3">
+										<button
+											type="button"
+											onClick={() => setShowAddForm(false)}
+											className="px-6 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50"
+										>
+											Cancel
+										</button>
+										<button
+											type="submit"
+											className="px-6 py-2 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700"
+										>
+											Add Student
+										</button>
+									</div>
+								</form>
 							</div>
 						</div>
 					</div>
