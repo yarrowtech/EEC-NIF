@@ -10,7 +10,8 @@ import {
   IndianRupee,
   Briefcase,
   UserPlus,
-  Brain
+  Brain,
+  BookOpen
 } from 'lucide-react';
 
 export const ADMIN_MENU_ITEMS = [
@@ -49,6 +50,11 @@ export const ADMIN_MENU_ITEMS = [
     icon: UserCheck, 
     label: 'Parents', 
     path: '/admin/parents' 
+  },
+  { 
+    icon: BookOpen, 
+    label: 'Course Management', 
+    path: '/admin/courses' 
   },
   { 
     icon: Calendar, 

@@ -1,105 +1,136 @@
-import React, {useEffect, useState} from 'react';
-import { BookOpen, Search, Filter, Plus, Edit3, Trash2, Users, Clock, Calendar } from 'lucide-react';
+import React, { useEffect, useState } from "react";
+import {
+  BookOpen,
+  Plus,
+  Edit3,
+  Trash2,
+  Users,
+  Clock,
+  Calendar,
+  IndianRupee,
+  X,
+  ChevronDown,
+} from "lucide-react";
 
-const CourseManagement = ({setShowAdminHeader}) => {
-
-  const [allCourses, setAllCourses] = useState([])
-  const [filteredCourses, setFilteredCourses] = useState([])
+const CourseManagement = ({ setShowAdminHeader }) => {
+  const [allCourses, setAllCourses] = useState([]);
 
   // making the admin header invisible
-    useEffect(() => {
-      fetch(`${import.meta.env.VITE_API_URL}/api/course/fetch`, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-          'authorization': `Bearer ${localStorage.getItem('token')}`
-        }
-      }).then((res) => {
+  useEffect(() => {
+    fetch(`${import.meta.env.VITE_API_URL}/api/course/fetch`, {
+      method: "GET",
+      headers: {
+        "Content-Type": "application/json",
+        authorization: `Bearer ${localStorage.getItem("token")}`,
+      },
+    })
+      .then((res) => {
         if (!res.ok) {
-          throw new Error('Network response was not ok');
+          throw new Error("Network response was not ok");
         }
         return res.json();
-      }).then((data) => {
-        setAllCourses(data)
-      }).catch((error) => {
-        console.error('There was a problem with the fetch operation:', error);
+      })
+      .then((data) => {
+        setAllCourses(data);
+      })
+      .catch((error) => {
+        console.error("There was a problem with the fetch operation:", error);
       });
-      setShowAdminHeader(false)
-    }, [])
+    setShowAdminHeader(false);
+  }, []);
 
-    useEffect(() => {
-      setFilteredCourses(allCourses)
-    }, [allCourses])
+  const [showAddForm, setShowAddForm] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [newCourse, setNewCourse] = useState({
+    name: "",
+    duration: "",
+    fees: "",
+  });
 
-    const [showAddForm, setShowAddForm] = useState(false);
-    const [newCourse, setNewCourse] = useState({
-      title: '',
-      department: '',
-      instructor: '',
-      duration: '',
-      startingDate: '',
-      desc: ''
-    });
+  const handleAddCourseChange = (e) => {
+    const { name, value } = e.target;
+    setNewCourse((prev) => ({ ...prev, [name]: value }));
+  };
 
-    const handleAddCourseChange = (e) => {
-      const { name, value } = e.target;
-      setNewCourse(prev => ({ ...prev, [name]: value }));
-    };
+  const handleAddCourseSubmit = async (e) => {
+    e.preventDefault();
 
-    const handleAddCourseSubmit = async (e) => {
-      e.preventDefault();
-      // Here you would send newCourse to backend or update state
-      try {
-        const res = await fetch(`${import.meta.env.VITE_API_URL}/api/course/add`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'authorization': `Bearer ${localStorage.getItem('token')}`
-          },
-          body: JSON.stringify(newCourse)
-        })
-        if (!res.ok) {
-          throw new Error('Network response was not ok');
-        }
-        const data = await res.json();
-        console.log(data);
-        setShowAddForm(false);
-        setNewCourse({ title: '', department: '', instructor: '', students: '', duration: '', startingDate: '', desc: '' });
-      } catch(err) {
-        console.log("Error: ", err)
-      }
-    };
+    // Validate required fields
+    const requiredFields = ["name", "duration", "fees"];
+    const missingFields = requiredFields.filter(
+      (field) => !newCourse[field] || newCourse[field].trim() === ""
+    );
 
-    const handleSearchChange = (e) => {
-      const searchTerm = e.target.value.toLowerCase();
-      const filtered = allCourses.filter(course => 
-        course.title.toLowerCase().includes(searchTerm) ||
-        course.department.toLowerCase().includes(searchTerm) ||
-        course.instructor.toLowerCase().includes(searchTerm)
-      );
-      setFilteredCourses(filtered);
+    if (missingFields.length > 0) {
+      alert(`Please fill in all required fields: ${missingFields.join(", ")}`);
+      return;
     }
 
-    const handleFilterChange = (e) => {
-      const selectedDepartment = e.target.value;
-      if (selectedDepartment === '') {
-        setFilteredCourses(allCourses);
-      } else {
-        const filtered = allCourses.filter(course => course.department === selectedDepartment);
-        setFilteredCourses(filtered);
+    setIsSubmitting(true);
+
+    try {
+      console.log("Submitting course data:", newCourse);
+
+      const res = await fetch(
+        `${import.meta.env.VITE_API_URL}/api/course/add`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            authorization: `Bearer ${localStorage.getItem("token")}`,
+          },
+          body: JSON.stringify(newCourse),
+        }
+      );
+
+      if (!res.ok) {
+        const errorData = await res.json();
+        throw new Error(errorData.message || "Failed to add course");
       }
-    };
+
+      const data = await res.json();
+      console.log("Course added successfully:", data);
+      alert("Course added successfully!");
+
+      // Refresh courses list
+      const coursesRes = await fetch(
+        `${import.meta.env.VITE_API_URL}/api/course/fetch`,
+        {
+          method: "GET",
+          headers: {
+            "Content-Type": "application/json",
+            authorization: `Bearer ${localStorage.getItem("token")}`,
+          },
+        }
+      );
+
+      if (coursesRes.ok) {
+        const coursesData = await coursesRes.json();
+        setAllCourses(coursesData);
+      }
+
+      // Close form and reset
+      setShowAddForm(false);
+      setNewCourse({ name: "", duration: "", fees: "" });
+    } catch (err) {
+      console.error("Error adding course:", err);
+      alert(`Error: ${err.message}`);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
   return (
     <div className="h-screen bg-gradient-to-br from-yellow-50 via-yellow-100 to-amber-100 flex flex-col">
       <div className="flex-1 flex flex-col max-w-7xl mx-auto w-full bg-white/90 rounded-2xl shadow-2xl m-4 border border-yellow-200 overflow-hidden">
-        
         {/* Fixed Header Section */}
         <div className="flex-shrink-0 p-8 bg-white/90 border-b border-yellow-100">
           {/* Header */}
           <div className="flex justify-between items-center mb-8">
             <div>
-              <h1 className="text-3xl font-bold text-yellow-700">Course Management</h1>
+              <h1 className="text-3xl font-bold text-yellow-700">
+                Course Management
+              </h1>
               <p className="text-gray-600 mt-2">Manage and organize courses</p>
             </div>
             <div className="flex items-center space-x-4">
@@ -107,33 +138,12 @@ const CourseManagement = ({setShowAdminHeader}) => {
             </div>
           </div>
 
-          {/* Search and Filter */}
-          <div className="flex flex-wrap items-center justify-between gap-4">
-            <div className="flex items-center space-x-4">
-              <div className="relative">
-                <Search className="w-5 h-5 absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
-                <input
-                  type="text"
-                  placeholder="Search courses..."
-                  className="pl-10 pr-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-500"
-                  onChange={handleSearchChange}
-                />
-              </div>
-              
-              <select className="border border-gray-200 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-yellow-500" onChange={handleFilterChange}>
-                <option value="">All Departments</option>
-                <option value="Mathematics">Mathematics</option>
-                <option value="Physics">Physics</option>
-                <option value="Chemistry">Chemistry</option>
-                <option value="Biology">Biology</option>
-                <option value="Computer Science">Computer Science</option>
-                <option value="English">English</option>
-                <option value="History">History</option>
-                <option value="Fine Arts">Fine Arts</option>
-              </select>
-            </div>
-
-            <button className="flex items-center space-x-2 bg-yellow-500 text-black px-4 py-2 rounded-lg hover:bg-yellow-600 transition-colors" onClick={() => setShowAddForm(true)}>
+          {/* Add Course Button */}
+          <div className="flex justify-end">
+            <button
+              className="flex items-center space-x-2 bg-yellow-500 text-black px-4 py-2 rounded-lg hover:bg-yellow-600 transition-colors"
+              onClick={() => setShowAddForm(true)}
+            >
               <Plus className="w-4 h-4" />
               <span>Add Course</span>
             </button>
@@ -144,11 +154,16 @@ const CourseManagement = ({setShowAdminHeader}) => {
         <div className="flex-1 overflow-hidden p-8">
           <div className="h-full overflow-y-auto">
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {filteredCourses.map((course) => (
-                <div key={course._id} className="bg-white rounded-xl p-6 shadow-sm hover:shadow-md transition-all border border-gray-200">
+              {allCourses.map((course) => (
+                <div
+                  key={course._id}
+                  className="bg-white rounded-xl p-6 shadow-sm hover:shadow-md transition-all border border-gray-200"
+                >
                   <div className="flex items-start justify-between mb-4">
                     <div>
-                      <h3 className="font-semibold text-gray-900 mb-1">{course.title}</h3>
+                      <h3 className="font-semibold text-gray-900 mb-1">
+                        {course.title}
+                      </h3>
                       <span className="inline-block px-2 py-1 bg-yellow-100 text-yellow-800 text-xs font-medium rounded-full">
                         {course.department}
                       </span>
@@ -167,21 +182,36 @@ const CourseManagement = ({setShowAdminHeader}) => {
 
                   <div className="space-y-2">
                     <div className="flex items-center text-sm text-gray-600">
-                      <Users className="w-4 h-4 mr-2" />
-                      <span>Instructor: {course.instructor}</span>
-                    </div>
-                    <div className="flex items-center text-sm text-gray-600">
-                      <Users className="w-4 h-4 mr-2" />
-                      <span>{course.totalStudents} Students</span>
-                    </div>
-                    <div className="flex items-center text-sm text-gray-600">
                       <Clock className="w-4 h-4 mr-2" />
-                      <span>{course.duration} months</span>
+                      <span>Duration: {course.duration}</span>
                     </div>
-                    <div className="flex items-center text-sm text-gray-600">
-                      <Calendar className="w-4 h-4 mr-2" />
-                      <span>Starts: {new Date(course.startingDate).toLocaleDateString()}</span>
-                    </div>
+                    {course.fees && (
+                      <div className="flex items-center text-sm text-gray-600">
+                        <IndianRupee className="w-4 h-4 mr-2" />
+                        <span>Fees: ₹{course.fees}</span>
+                      </div>
+                    )}
+                    {course.instructor && (
+                      <div className="flex items-center text-sm text-gray-600">
+                        <Users className="w-4 h-4 mr-2" />
+                        <span>Instructor: {course.instructor}</span>
+                      </div>
+                    )}
+                    {course.totalStudents && (
+                      <div className="flex items-center text-sm text-gray-600">
+                        <Users className="w-4 h-4 mr-2" />
+                        <span>{course.totalStudents} Students</span>
+                      </div>
+                    )}
+                    {course.startingDate && (
+                      <div className="flex items-center text-sm text-gray-600">
+                        <Calendar className="w-4 h-4 mr-2" />
+                        <span>
+                          Starts:{" "}
+                          {new Date(course.startingDate).toLocaleDateString()}
+                        </span>
+                      </div>
+                    )}
                   </div>
                 </div>
               ))}
@@ -190,31 +220,114 @@ const CourseManagement = ({setShowAdminHeader}) => {
         </div>
 
         {showAddForm && (
-  <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 transition-colors duration-200">
-    <div className="bg-white rounded-2xl shadow-2xl p-10 w-full max-w-xl relative border border-yellow-300 animate-fadeIn">
-      <button className="absolute top-4 right-4 text-gray-400 hover:text-yellow-600 text-3xl font-bold focus:outline-none" onClick={() => setShowAddForm(false)}>&times;</button>
-      <h2 className="text-3xl font-extrabold mb-6 text-yellow-700 text-center tracking-tight">Add Course</h2>
-      <form onSubmit={handleAddCourseSubmit} className="space-y-5">
-        <div className="flex gap-4">
-          <input name="title" value={newCourse.title} onChange={handleAddCourseChange} required placeholder="Course Title" className="flex-1 border border-yellow-300 rounded-lg px-4 py-3 focus:ring-2 focus:ring-yellow-400 focus:outline-none bg-yellow-50 placeholder-gray-400 text-gray-800 text-base shadow-sm" />
-          <input name="department" value={newCourse.department} onChange={handleAddCourseChange} required placeholder="Department" className="flex-1 border border-yellow-300 rounded-lg px-4 py-3 focus:ring-2 focus:ring-yellow-400 focus:outline-none bg-yellow-50 placeholder-gray-400 text-gray-800 text-base shadow-sm" />
-        </div>
-        <div className="flex gap-4">
-          <input name="instructor" value={newCourse.instructor} onChange={handleAddCourseChange} required placeholder="Instructor" className="flex-1 border border-yellow-300 rounded-lg px-4 py-3 focus:ring-2 focus:ring-yellow-400 focus:outline-none bg-yellow-50 placeholder-gray-400 text-gray-800 text-base shadow-sm" />
-          {/* <input name="students" value={newCourse.students} onChange={handleAddCourseChange} required placeholder="No. of Students" className="flex-1 border border-yellow-300 rounded-lg px-4 py-3 focus:ring-2 focus:ring-yellow-400 focus:outline-none bg-yellow-50 placeholder-gray-400 text-gray-800 text-base shadow-sm" type="number" min="0" /> */}
-        </div>
-        <div className="flex gap-4">
-          <input name="duration" value={newCourse.duration} onChange={handleAddCourseChange} required placeholder="Duration (e.g. 6 months)" className="flex-1 border border-yellow-300 rounded-lg px-4 py-3 focus:ring-2 focus:ring-yellow-400 focus:outline-none bg-yellow-50 placeholder-gray-400 text-gray-800 text-base shadow-sm" />
-          <input name="startingDate" value={newCourse.startingDate} onChange={handleAddCourseChange} required placeholder="Start Date" className="flex-1 border border-yellow-300 rounded-lg px-4 py-3 focus:ring-2 focus:ring-yellow-400 focus:outline-none bg-yellow-50 placeholder-gray-400 text-gray-800 text-base shadow-sm" type="date" />
-        </div>
-        <div>
-          <textarea name="desc" value={newCourse.desc} onChange={handleAddCourseChange} required placeholder="Course Description" className="w-full border border-yellow-300 rounded-lg px-4 py-3 focus:ring-2 focus:ring-yellow-400 focus:outline-none bg-yellow-50 placeholder-gray-400 text-gray-800 text-base shadow-sm resize-none" rows={3} />
-        </div>
-        <button type="submit" className="w-full bg-gradient-to-r from-yellow-500 to-amber-500 hover:from-yellow-600 hover:to-amber-600 text-white py-3 rounded-xl font-bold shadow-lg transition-all text-lg tracking-wide">Add Course</button>
-      </form>
-    </div>
-  </div>
-)}
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 transition-colors duration-200">
+            <div className="bg-white rounded-2xl shadow-2xl p-8 w-full max-w-lg relative border border-yellow-300">
+              <div className="flex justify-between items-center mb-6">
+                <h2 className="text-2xl font-bold text-yellow-700">
+                  Add New Course
+                </h2>
+                <button
+                  onClick={() => setShowAddForm(false)}
+                  className="text-gray-400 hover:text-gray-600 p-2"
+                >
+                  <X size={24} />
+                </button>
+              </div>
+
+              <form onSubmit={handleAddCourseSubmit} className="space-y-5">
+                <div className="space-y-2">
+                  <label className="flex items-center text-sm font-medium text-gray-700">
+                    STREAM
+                    <span className="text-red-500 ml-1">*</span>
+                  </label>
+                  <div className="relative">
+                    <select
+                      name="stream"
+                      value={newCourse.stream}
+                      onChange={handleAddCourseChange}
+                      required
+                      className="w-full border border-gray-300 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 transition-all appearance-none bg-white"
+                    >
+                      <option value="">Select a stream</option>
+                      <option value="Fashion Design">Fashion Design</option>
+                      <option value="Interior Design">Interior Design</option>
+                    </select>
+                    <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-3">
+                      <ChevronDown className="h-4 w-4 text-gray-400" />
+                    </div>
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Course Name <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    name="name"
+                    value={newCourse.name}
+                    onChange={handleAddCourseChange}
+                    required
+                    placeholder="Enter course name"
+                    className="w-full border border-gray-300 rounded-lg px-4 py-3 focus:ring-2 focus:ring-yellow-400 focus:outline-none placeholder-gray-400 text-gray-800"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Duration <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    name="duration"
+                    value={newCourse.duration}
+                    onChange={handleAddCourseChange}
+                    required
+                    placeholder="e.g., 6 months, 1 year"
+                    className="w-full border border-gray-300 rounded-lg px-4 py-3 focus:ring-2 focus:ring-yellow-400 focus:outline-none placeholder-gray-400 text-gray-800"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Fees <span className="text-red-500">*</span>
+                  </label>
+                  <div className="relative">
+                    <IndianRupee
+                      className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400"
+                      size={16}
+                    />
+                    <input
+                      name="fees"
+                      value={newCourse.fees}
+                      onChange={handleAddCourseChange}
+                      required
+                      placeholder="Enter course fees"
+                      type="number"
+                      min="0"
+                      className="w-full pl-10 border border-gray-300 rounded-lg px-4 py-3 focus:ring-2 focus:ring-yellow-400 focus:outline-none placeholder-gray-400 text-gray-800"
+                    />
+                  </div>
+                </div>
+
+                <div className="flex gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setShowAddForm(false)}
+                    className="flex-1 border border-gray-300 rounded-lg px-4 py-3 text-gray-700 hover:bg-gray-50 transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={isSubmitting}
+                    className="flex-1 bg-gradient-to-r from-yellow-500 to-amber-500 hover:from-yellow-600 hover:to-amber-600 disabled:from-gray-400 disabled:to-gray-500 disabled:cursor-not-allowed text-white py-3 rounded-lg font-medium shadow-lg transition-all flex items-center justify-center gap-2"
+                  >
+                    <Plus size={18} />
+                    {isSubmitting ? "Adding..." : "Add Course"}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

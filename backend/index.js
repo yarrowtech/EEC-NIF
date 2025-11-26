@@ -59,8 +59,11 @@ app.use('/api/student-ai-learning', studentAILearningRouter);
 app.use('/api/alcove', alcoveRouter);
 
 
+const nifCourseRoute = require("./routes/nifCourseRoute");
+app.use('/api/nif/course', nifCourseRoute);
+
 const nifStudentRoute = require("./routes/nifStudentRoute");
-app.use("/api/nif/students", nifStudentRoute);
+app.use('/api/nif/students', nifStudentRoute);
 
 
 const nifRoutes = require('./routes/nifRoutes');
