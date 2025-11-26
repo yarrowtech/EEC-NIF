@@ -1,140 +1,144 @@
-// const express = require("express");
-// const router = express.Router();
-// const NifStudent = require("../models/NifStudent");
-// const adminAuth = require("../middleware/adminAuth");
-
-// // POST /api/nif/students (Add NIF student)
-// router.post("/students", adminAuth, async (req, res) => {
-//   try {
-//     const nifStudent = new NifStudent(req.body);
-//     const saved = await nifStudent.save();
-//     res.status(201).json(saved);
-//   } catch (err) {
-//     console.error("NIF student create error:", err);
-//     res.status(400).json({ message: "Failed to create NIF student", error: err.message });
-//   }
-// });
-
-// // GET /api/nif/students (List NIF students)
-// router.get("/students", adminAuth, async (req, res) => {
-//   try {
-//     const students = await NifStudent.find().sort({ createdAt: -1 });
-//     res.json(students);
-//   } catch (err) {
-//     console.error("NIF students fetch error:", err);
-//     res.status(500).json({ message: "Failed to fetch NIF students" });
-//   }
-// });
-
-// module.exports = router;
 // backend/routes/nifStudentRoute.js
 const express = require('express');
+const mongoose = require('mongoose');
 const router = express.Router();
+
 const NifStudent = require('../models/NifStudent');
-const NifFeeRecord = require('../models/NifFeeRecord');
-const adminAuth = require('../middleware/adminAuth');
+const authAnyUser = require('../middleware/authAnyUser');
 
-// helper to map grade string -> normalized program info
-function mapGradeToProgramInfo(grade) {
-  // grade examples from your Students.jsx:
-  // "Fashion Design - 1 year Certificate Program"
-  // "Fashion Design - 2 year Advanced Certificate"
-  // "Fashion Design - 3 year B Voc Program"
-  // "Fashion Design - 4 year B Des Program"
-  // "Fashion Design - 2 Year M Voc program"
-  if (!grade) return null;
-  const lower = grade.toLowerCase();
-
-  let programType = 'ADV_CERT';
-  let course = lower.includes('interior') ? 'Interior Design' : 'Fashion Design';
-  let durationYears = 1;
-  let currentYear = 1;
-
-  if (lower.includes('1 year')) durationYears = 1;
-  if (lower.includes('2 year')) durationYears = 2;
-  if (lower.includes('3 year')) durationYears = 3;
-  if (lower.includes('4 year')) durationYears = 4;
-
-  if (lower.includes('b voc')) programType = 'B_VOC';
-  else if (lower.includes('m voc')) programType = 'M_VOC';
-  else programType = 'ADV_CERT';
-
-  return {
-    programType,
-    course,
-    durationYears,
-    currentYear: 1, // always start at Year 1; can update later
-  };
-}
-
-// POST /api/nif/students  (Add NIF student from Students.jsx)
-router.post('/students', adminAuth, async (req, res) => {
+// GET /api/nif/students?q=...
+router.get('/nif/students', authAnyUser, async (req, res, next) => {
   try {
-    const {
-      name,
-      email,
-      mobile,
-      dob,
-      gender,
-      roll,
-      section,
-      grade,
-      address,
-      pincode,
-      academicYear,
-    } = req.body;
+    const q = (req.query.q || '').trim();
+    const filter = q
+      ? { $or: [{ name: { $regex: q, $options: 'i' } }, { roll: { $regex: q, $options: 'i' } }, { email: { $regex: q, $options: 'i' } }] }
+      : {};
+    const students = await NifStudent.find(filter).sort({ createdAt: -1 }).lean();
+    res.json(students);
+  } catch (err) { next(err); }
+});
 
-    const mapped = mapGradeToProgramInfo(grade);
-    if (!mapped) {
-      return res.status(400).json({ message: 'Invalid program/grade' });
+// POST /api/student/auth/register
+router.post('/student/auth/register', authAnyUser, async (req, res, next) => {
+  try {
+    const payload = { ...(req.body || {}) };
+    const required = ['name', 'roll', 'grade', 'section', 'gender', 'mobile', 'email', 'dob'];
+    for (const f of required) if (!payload[f]) return res.status(400).json({ message: `Missing field: ${f}` });
+
+    if (typeof payload.dob === 'string') {
+      const dt = new Date(payload.dob);
+      if (Number.isNaN(dt.getTime())) return res.status(400).json({ message: 'Invalid dob' });
+      payload.dob = dt;
     }
 
-    const student = await NifStudent.create({
-      name,
-      email,
-      mobile,
-      dob,
-      gender,
-      roll,
-      section,
-      program: grade,
-      programType: mapped.programType,
-      course: mapped.course,
-      durationYears: mapped.durationYears,
-      currentYear: mapped.currentYear,
-      academicYear: academicYear || '2025-26',
-      address,
-      pincode,
-    });
+    const exists = await NifStudent.findOne({ $or: [{ roll: payload.roll }, { email: payload.email }] }).lean();
+    if (exists) return res.status(409).json({ message: 'Student with same roll or email exists' });
 
-    // Auto create fee record for currentYear
-    await NifFeeRecord.createForStudent({
-      student,
-      yearNumber: mapped.currentYear,
-    });
-
-    res.status(201).json(student);
+    const created = await NifStudent.create(payload);
+    res.status(201).json({ id: created._id });
   } catch (err) {
-    console.error('Create NIF student error:', err);
-    res.status(400).json({ message: err.message });
+    if (err && err.code === 11000) return res.status(409).json({ message: 'Duplicate key', key: err.keyPattern, value: err.keyValue });
+    next(err);
   }
 });
 
-// GET /api/nif/students?programType=&course=&year=
-router.get('/students', adminAuth, async (req, res) => {
+// GET /api/nif/student/:id
+router.get('/nif/student/:id', authAnyUser, async (req, res, next) => {
   try {
-    const { programType, course, year } = req.query;
-    const query = {};
-    if (programType) query.programType = programType;
-    if (course) query.course = course;
-    if (year) query.currentYear = Number(year);
+    const { id } = req.params;
+    if (!mongoose.isValidObjectId(id)) return res.status(400).json({ message: 'Invalid id' });
+    const doc = await NifStudent.findById(id).lean();
+    if (!doc) return res.status(404).json({ message: 'Not found' });
+    res.json(doc);
+  } catch (err) { next(err); }
+});
 
-    const students = await NifStudent.find(query).lean();
-    res.json(students);
+// PATCH /api/nif/student/:id
+router.patch('/nif/student/:id', authAnyUser, async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    if (!mongoose.isValidObjectId(id)) return res.status(400).json({ message: 'Invalid id' });
+
+    const updates = { ...req.body };
+    if (typeof updates.dob === 'string') {
+      const dt = new Date(updates.dob);
+      if (Number.isNaN(dt.getTime())) return res.status(400).json({ message: 'Invalid dob' });
+      updates.dob = dt;
+    }
+
+    if (updates.roll || updates.email) {
+      const conflict = await NifStudent.findOne({
+        _id: { $ne: id },
+        $or: [{ roll: updates.roll }, { email: updates.email }],
+      }).lean();
+      if (conflict) return res.status(409).json({ message: 'Student with same roll or email exists' });
+    }
+
+    const updated = await NifStudent.findByIdAndUpdate(id, updates, { new: true, runValidators: true }).lean();
+    if (!updated) return res.status(404).json({ message: 'Not found' });
+    res.json(updated);
   } catch (err) {
-    console.error('List NIF students error:', err);
-    res.status(500).json({ message: 'Failed to fetch NIF students' });
+    if (err && err.code === 11000) return res.status(409).json({ message: 'Duplicate key', key: err.keyPattern, value: err.keyValue });
+    next(err);
   }
+});
+
+// DELETE /api/nif/student/:id
+router.delete('/nif/student/:id', authAnyUser, async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    if (!mongoose.isValidObjectId(id)) return res.status(400).json({ message: 'Invalid id' });
+    const deleted = await NifStudent.findByIdAndDelete(id).lean();
+    if (!deleted) return res.status(404).json({ message: 'Not found' });
+    res.json({ ok: true });
+  } catch (err) { next(err); }
+});
+
+// POST /api/nif/student/:id/attendance  { date?: 'YYYY-MM-DD', status: 'present'|'absent' }
+router.post('/nif/student/:id/attendance', authAnyUser, async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const { status } = req.body || {};
+    if (!mongoose.isValidObjectId(id)) return res.status(400).json({ message: 'Invalid id' });
+    if (!['present', 'absent'].includes(status)) return res.status(400).json({ message: 'Invalid status' });
+
+    const dateStr = req.body?.date || new Date().toISOString().slice(0, 10);
+    const day = new Date(dateStr);
+    if (Number.isNaN(day.getTime())) return res.status(400).json({ message: 'Invalid date' });
+    const start = new Date(day); start.setHours(0, 0, 0, 0);
+    const end = new Date(day); end.setHours(23, 59, 59, 999);
+
+    const student = await NifStudent.findById(id);
+    if (!student) return res.status(404).json({ message: 'Not found' });
+
+    student.attendance = (student.attendance || []).filter(a => !(a.date >= start && a.date <= end));
+    student.attendance.push({ date: start, status });
+    await student.save();
+
+    res.status(201).json({ ok: true, attendance: student.attendance });
+  } catch (err) { next(err); }
+});
+
+// GET /api/nif/student/:id/attendance?from=YYYY-MM-DD&to=YYYY-MM-DD
+router.get('/nif/student/:id/attendance', authAnyUser, async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    if (!mongoose.isValidObjectId(id)) return res.status(400).json({ message: 'Invalid id' });
+
+    const from = req.query.from ? new Date(req.query.from) : null;
+    const to = req.query.to ? new Date(req.query.to) : null;
+    if (from && Number.isNaN(from.getTime())) return res.status(400).json({ message: 'Invalid from' });
+    if (to && Number.isNaN(to.getTime())) return res.status(400).json({ message: 'Invalid to' });
+
+    const student = await NifStudent.findById(id).lean();
+    if (!student) return res.status(404).json({ message: 'Not found' });
+
+    let result = student.attendance || [];
+    if (from) result = result.filter((a) => new Date(a.date) >= from);
+    if (to) result = result.filter((a) => new Date(a.date) <= to);
+
+    res.json(result);
+  } catch (err) { next(err); }
 });
 
 module.exports = router;

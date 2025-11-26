@@ -1,52 +1,43 @@
 // backend/models/nifFeeStructures.js
+const mongoose = require('mongoose');
 
-// 1 & 2 Year Advance Certificate (Fashion / Interior)
-const ADV_CERT_STRUCT = {
-  1: {
-    total: 155000,
-    installments: [
-      { label: 'Time of Admission', amount: 22000 },
-      { label: 'Time of Batch Commencement', amount: 19000 },
-      { label: 'Registration fee (1st part)', amount: 5000 },
-      { label: '1st Installment', amount: 7500 },
-      { label: 'Registration fee (2nd part within 30 days)', amount: 17000 },
-      { label: '2nd Installment', amount: 7500 },
-      { label: '3rd Installment', amount: 7500 },
-      { label: '4th Installment', amount: 7500 },
-      { label: 'Registration fee (3rd part within 90 days)', amount: 17000 },
-      { label: '5th Installment', amount: 7500 },
-      { label: '6th Installment', amount: 7500 },
-      { label: '7th Installment', amount: 7500 },
-      { label: '8th Installment', amount: 7500 },
-      { label: '9th Installment', amount: 7500 },
-      { label: '10th Installment', amount: 7500 },
-    ],
+const ScheduleItemSchema = new mongoose.Schema(
+  { label: { type: String, required: true }, amount: { type: Number, required: true, min: 0 } },
+  { _id: false }
+);
+
+const YearScheduleSchema = new mongoose.Schema(
+  {
+    year: { type: Number, required: true, min: 1 },
+    items: { type: [ScheduleItemSchema], default: [] },
+    totalYear: { type: Number, required: true, min: 0 },
   },
-  2: {
-    total: 155000,
-    installments: [
-      // same or adjusted as per your PDF
-    ],
+  { _id: false }
+);
+
+const AdditionalChargeSchema = new mongoose.Schema(
+  {
+    label: { type: String, required: true },
+    amount: { type: Number, required: true, min: 0 },
+    frequency: { type: String, default: 'per annum' }, // e.g., 'one-time', 'per annum'
+    payableTo: { type: String, default: '' },
   },
-};
+  { _id: false }
+);
 
-// B.VOC (3 years)
-const BVOC_STRUCT = {
-  1: { total: 191000, installments: [] },
-  2: { total: 191000, installments: [] },
-  3: { total: 191000, installments: [] },
-};
+const NifFeeStructureSchema = new mongoose.Schema(
+  {
+    courseName: { type: String, required: true, index: true }, // matches your UI 'grade'
+    session: { type: String, required: true, index: true },    // e.g., '2025-26'
+    durationYears: { type: Number, required: true, min: 1 },
+    schedule: { type: [YearScheduleSchema], default: [] },
+    additionalCharges: { type: [AdditionalChargeSchema], default: [] },
+    active: { type: Boolean, default: true },
+  },
+  { timestamps: true }
+);
 
-// M.VOC (2 years)
-const MVOC_STRUCT = {
-  1: { total: 205000, installments: [] },
-  2: { total: 205000, installments: [] },
-};
+NifFeeStructureSchema.index({ courseName: 1, session: 1 }, { unique: true });
 
-const NIF_FEE_STRUCTURES = {
-  ADV_CERT: ADV_CERT_STRUCT,
-  B_VOC: BVOC_STRUCT,
-  M_VOC: MVOC_STRUCT,
-};
-
-module.exports = { NIF_FEE_STRUCTURES };
+module.exports =
+  mongoose.models.NifFeeStructure || mongoose.model('NifFeeStructure', NifFeeStructureSchema);

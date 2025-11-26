@@ -189,68 +189,34 @@
 // );
 
 // module.exports = mongoose.model("NifStudent", nifStudentSchema);
-
-
-
 // backend/models/NifStudent.js
 const mongoose = require('mongoose');
 
+const AttendanceSchema = new mongoose.Schema(
+  { date: { type: Date, required: true }, status: { type: String, enum: ['present', 'absent'], required: true } },
+  { _id: false }
+);
+
 const NifStudentSchema = new mongoose.Schema(
   {
-    // Basic info
     name: { type: String, required: true, trim: true },
-    email: { type: String, required: true, unique: true, lowercase: true },
+    roll: { type: String, required: true, unique: true, index: true },
+    grade: { type: String, required: true }, // program label used by UI
+    section: { type: String, required: true },
+    gender: { type: String, enum: ['Male', 'Female', 'Other'], required: true },
     mobile: { type: String, required: true },
+    email: { type: String, required: true, lowercase: true, unique: true, index: true },
+    address: { type: String, default: '' },
     dob: { type: Date, required: true },
-    gender: {
-      type: String,
-      enum: ['Male', 'Female', 'Other'],
-      required: true,
-    },
-
-    // Academic identity used in your frontend
-    roll: { type: String, required: true, unique: true }, // "roll"
-    section: { type: String, default: 'A' },
-
-    // This is your "grade" select text (program label)
-    program: { type: String, required: true }, // e.g. "Fashion Design - 1 year Certificate Program"
-
-    // Normalized for fees logic
-    programType: {
-      type: String,
-      enum: ['ADV_CERT', 'B_VOC', 'M_VOC'],
-      required: true,
-    },
-    course: {
-      type: String,
-      enum: ['Fashion Design', 'Interior Design'],
-      required: true,
-    },
-    durationYears: { type: Number, enum: [1, 2, 3, 4], required: true },
-    currentYear: { type: Number, enum: [1, 2, 3, 4], required: true },
-
-    academicYear: { type: String, default: '2025-26' },
-
-    // Address
-    address: String,
-    pincode: String,
-
-    status: {
-      type: String,
-      enum: ['Active', 'Alumni', 'Dropped'],
-      default: 'Active',
-    },
+    pincode: { type: String, default: '' },
+    course: { type: String, default: '' },
+    status: { type: String, enum: ['Active', 'Inactive'], default: 'Active' },
+    attendance: { type: [AttendanceSchema], default: [] },
   },
   { timestamps: true }
 );
 
-NifStudentSchema.set('toJSON', {
-  virtuals: true,
-  transform: (_, ret) => {
-    ret.id = ret._id;
-    delete ret.__v;
-    return ret;
-  },
-});
+// WHY: Fast admin filters/search
+NifStudentSchema.index({ name: 'text', grade: 1, section: 1 });
 
-module.exports = mongoose.model('NifStudent', NifStudentSchema);
+module.exports = mongoose.models.NifStudent || mongoose.model('NifStudent', NifStudentSchema);
