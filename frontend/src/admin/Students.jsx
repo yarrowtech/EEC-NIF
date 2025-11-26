@@ -31,6 +31,7 @@ const Students = ({ setShowAdminHeader }) => {
   const [selectedStudent, setSelectedStudent] = useState(null);
   const [wellbeingData, setWellbeingData] = useState({});
   const [courses, setCourses] = useState([]);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [newStudent, setNewStudent] = useState({
     name: "",
     roll: "",
@@ -202,39 +203,80 @@ const Students = ({ setShowAdminHeader }) => {
 
   const handleAddStudentSubmit = async (e) => {
     e.preventDefault();
-    const res = await fetch(
-      `${import.meta.env.VITE_API_URL}/api/student/auth/register`,
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          authorization: `Bearer ${localStorage.getItem("token")}`,
-        },
-        body: JSON.stringify(newStudent),
-      }
-    );
-    const data = await res.json();
-    if (!res.ok) {
-      console.error("Registration failed:", data);
-      throw new Error("Registration failed");
+    
+    // Validate required fields
+    const requiredFields = ['name', 'email', 'mobile', 'dob', 'gender', 'roll', 'grade', 'section'];
+    const missingFields = requiredFields.filter(field => !newStudent[field] || newStudent[field].trim() === '');
+    
+    if (missingFields.length > 0) {
+      alert(`Please fill in the following required fields: ${missingFields.join(', ')}`);
+      return;
     }
-    console.log("New student added:", data);
-    // Here you would send newStudent to backend or update state
-    setShowAddForm(false);
-    setNewStudent({
-      name: "",
-      roll: "",
-      grade: "",
-      section: "",
-      gender: "",
-      mobile: "",
-      email: "",
-      address: "",
-      dob: "",
-      pincode: "",
-      course: "",
-      status: "Active",
-    });
+    
+    setIsSubmitting(true);
+    
+    try {
+      console.log('Submitting student data:', newStudent);
+      
+      const res = await fetch(
+        `${import.meta.env.VITE_API_URL}/api/student/auth/register`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            authorization: `Bearer ${localStorage.getItem("token")}`,
+          },
+          body: JSON.stringify(newStudent),
+        }
+      );
+      
+      const data = await res.json();
+      
+      if (!res.ok) {
+        console.error("Registration failed:", data);
+        alert(`Registration failed: ${data.message || 'Unknown error'}`);
+        return;
+      }
+      
+      console.log("New student added:", data);
+      alert('Student enrolled successfully!');
+      
+      // Refresh student data
+      const studentsRes = await fetch(`${import.meta.env.VITE_API_URL}/api/nif/students`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'authorization': `Bearer ${localStorage.getItem('token')}`
+        }
+      });
+      
+      if (studentsRes.ok) {
+        const studentsData = await studentsRes.json();
+        setStudentData(studentsData);
+      }
+      
+      // Close form and reset
+      setShowAddForm(false);
+      setNewStudent({
+        name: "",
+        roll: "",
+        grade: "",
+        section: "",
+        gender: "",
+        mobile: "",
+        email: "",
+        address: "",
+        dob: "",
+        pincode: "",
+        course: "",
+        status: "Active",
+      });
+    } catch (error) {
+      console.error('Error submitting form:', error);
+      alert(`Error: ${error.message}`);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -1360,10 +1402,11 @@ const Students = ({ setShowAdminHeader }) => {
                       </button>
                       <button
                         type="submit"
-                        className="px-8 py-3 bg-gradient-to-r from-yellow-500 to-amber-500 text-white rounded-xl hover:from-yellow-600 hover:to-amber-600 font-medium shadow-lg hover:shadow-xl transition-all flex items-center gap-2"
+                        disabled={isSubmitting}
+                        className="px-8 py-3 bg-gradient-to-r from-yellow-500 to-amber-500 text-white rounded-xl hover:from-yellow-600 hover:to-amber-600 disabled:from-gray-400 disabled:to-gray-500 disabled:cursor-not-allowed font-medium shadow-lg hover:shadow-xl transition-all flex items-center gap-2"
                       >
                         <Plus size={18} />
-                        Enroll Student
+                        {isSubmitting ? 'Enrolling...' : 'Enroll Student'}
                       </button>
                     </div>
                   </div>
