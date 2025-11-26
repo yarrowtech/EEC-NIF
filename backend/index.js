@@ -59,5 +59,14 @@ app.use('/api/student-ai-learning', studentAILearningRouter);
 app.use('/api/alcove', alcoveRouter);
 
 
+const nifStudentRoute = require("./routes/nifStudentRoute");
+app.use("/api/nif", nifStudentRoute);
+
+
+const nifRoutes = require('./routes/nifRoutes');
+app.use('/api/nif', nifRoutes);
+
+
+
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
