@@ -190,33 +190,75 @@
 
 // module.exports = mongoose.model("NifStudent", nifStudentSchema);
 // backend/models/NifStudent.js
-const mongoose = require('mongoose');
+const mongoose = require("mongoose");
+const { Schema } = mongoose;
 
-const AttendanceSchema = new mongoose.Schema(
-  { date: { type: Date, required: true }, status: { type: String, enum: ['present', 'absent'], required: true } },
+/* ---------- Attendance Subdocument ---------- */
+const attendanceSchema = new Schema(
+  {
+    date: { type: Date, required: true },
+    status: { type: String, enum: ["present", "absent", "leave"], required: true },
+    remarks: { type: String, default: "" },
+    markedBy: { type: Schema.Types.ObjectId, ref: "TeacherUser" },
+  },
   { _id: false }
 );
 
-const NifStudentSchema = new mongoose.Schema(
+/* ---------- Fees Subdocument (future-ready) ---------- */
+const feesSchema = new Schema(
+  {
+    totalDue: { type: Number, default: 0 },
+    totalPaid: { type: Number, default: 0 },
+    nextDueDate: { type: Date },
+    status: { type: String, enum: ["paid", "partial", "due"], default: "due" },
+    lastPaymentDate: { type: Date },
+  },
+  { _id: false }
+);
+
+/* ---------- Wellbeing Subdocument (future-ready) ---------- */
+const wellbeingSchema = new Schema(
+  {
+    mood: { type: String, enum: ["excellent", "good", "neutral", "concerning", "critical"], default: "neutral" },
+    socialEngagement: { type: Number, min: 1, max: 10, default: 5 },
+    academicStress: { type: Number, min: 1, max: 10, default: 5 },
+    behaviorChanges: { type: Boolean, default: false },
+    notes: { type: String, default: "" },
+    interventions: [{ type: String }],
+    counselingSessions: { type: Number, default: 0 },
+    parentNotifications: { type: Number, default: 0 },
+    lastAssessment: { type: Date },
+  },
+  { _id: false }
+);
+
+/* ---------- Main NIF Student Schema ---------- */
+const nifStudentSchema = new Schema(
   {
     name: { type: String, required: true, trim: true },
-    roll: { type: String, required: true, unique: true, index: true },
-    grade: { type: String, required: true }, // program label used by UI
+    roll: { type: String, required: true, trim: true, unique: true, index: true },
+    grade: { type: String, required: true },          // program label (UI)
     section: { type: String, required: true },
-    gender: { type: String, enum: ['Male', 'Female', 'Other'], required: true },
-    mobile: { type: String, required: true },
-    email: { type: String, required: true, lowercase: true, unique: true, index: true },
-    address: { type: String, default: '' },
+    gender: { type: String, enum: ["Male", "Female", "Other"], required: true },
+    mobile: { type: String, required: true, trim: true },
+    email: { type: String, required: true, lowercase: true, trim: true, unique: true, index: true },
+    address: { type: String, default: "" },
     dob: { type: Date, required: true },
-    pincode: { type: String, default: '' },
-    course: { type: String, default: '' },
-    status: { type: String, enum: ['Active', 'Inactive'], default: 'Active' },
-    attendance: { type: [AttendanceSchema], default: [] },
+    pincode: { type: String, default: "" },
+    course: { type: String, default: "" },            // (optional) link later to Course
+    status: { type: String, enum: ["Active", "Inactive", "Alumni", "Dropped"], default: "Active" },
+
+    healthStatus: { type: String, enum: ["healthy", "sick", "injured", "absent-sick", "other"], default: "healthy" },
+    attendance: { type: [attendanceSchema], default: [] },
+    fees: feesSchema,
+    wellbeing: wellbeingSchema,
+
+    createdBy: { type: Schema.Types.ObjectId, ref: "Admin" },
   },
   { timestamps: true }
 );
 
-// WHY: Fast admin filters/search
-NifStudentSchema.index({ name: 'text', grade: 1, section: 1 });
+// common quick filters
+nifStudentSchema.index({ name: "text", grade: 1, section: 1 });
 
-module.exports = mongoose.models.NifStudent || mongoose.model('NifStudent', NifStudentSchema);
+module.exports = mongoose.models.NifStudent || mongoose.model("NifStudent", nifStudentSchema);
