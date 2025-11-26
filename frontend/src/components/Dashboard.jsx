@@ -16,6 +16,7 @@ import StudentChat from './StudentChat';
 import ExcuseLetter from './ExcuseLetter';
 import AILearningDashboard from './AILearningDashboard';
 import AcademicAlcove from './AcademicAlcove';
+import StudentWellbeing from './StudentWellbeing';
 
 const Dashboard = () => {
   const [activeView, setActiveView] = useState('dashboard');
@@ -37,6 +38,7 @@ const Dashboard = () => {
     teacherfeedback: TeacherFeedback,
     chat: StudentChat,
     'excuse-letter': ExcuseLetter,
+    wellbeing: StudentWellbeing,
     achievements: AchievementsView,
     profile: ProfileUpdate,
     themecustomizer: ThemeCustomizer,

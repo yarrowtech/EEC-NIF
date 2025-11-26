@@ -59,6 +59,7 @@ const Sidebar = ({ activeView, setActiveView, isOpen, setIsOpen }) => {
         { id: 'excuse-letter', name: 'Excuse Letter', icon: FileText },
       ]
     },
+    { id: 'wellbeing', name: 'Wellbeing', icon: Brain },
     { id: 'achievements', name: 'Achievements', icon: Award },
   ];
 
