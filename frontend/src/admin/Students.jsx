@@ -123,7 +123,7 @@ const Students = ({ setShowAdminHeader }) => {
         setShowAdminHeader(true);
         
         // Fetch students
-        fetch(`${import.meta.env.VITE_API_URL}/api/admin/users/get-students`, {
+        fetch(`${import.meta.env.VITE_API_URL}/api/nif/students`, {
             method: 'GET',
             headers: {
                 'Content-Type': 'application/json',
