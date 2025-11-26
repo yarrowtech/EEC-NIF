@@ -9,7 +9,8 @@ import {
   FileText,
   IndianRupee,
   Briefcase,
-  UserPlus
+  UserPlus,
+  Brain
 } from 'lucide-react';
 
 export const ADMIN_MENU_ITEMS = [
@@ -38,6 +39,11 @@ export const ADMIN_MENU_ITEMS = [
     icon: GraduationCap, 
     label: 'Students', 
     path: '/admin/students' 
+  },
+  { 
+    icon: Brain, 
+    label: 'Student Wellbeing', 
+    path: '/admin/wellbeing' 
   },
   { 
     icon: UserCheck, 
