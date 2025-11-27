@@ -17,10 +17,8 @@ const nifCourseSchema = new Schema(
     totalStudents: { type: Number, default: 0, min: 0 },
     startingDate: { type: Date },
 
-    // lifecycle
     status: { type: String, enum: ["Active", "Inactive"], default: "Active" },
 
-    // audit
     createdBy: { type: Schema.Types.ObjectId, ref: "Admin" },
     updatedBy: { type: Schema.Types.ObjectId, ref: "Admin" },
   },

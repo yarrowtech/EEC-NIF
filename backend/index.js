@@ -22,6 +22,10 @@ const aiLearningRouter = require("./routes/aiLearningRoute");
 const studentAILearningRouter = require("./routes/studentAILearningRoute");
 const alcoveRouter = require("./routes/alcoveRoute");
 
+
+const nifCourseRoute = require("./routes/nifCourseRoute");
+
+
 const app = express();
 
 app.use(cors());
@@ -59,7 +63,6 @@ app.use('/api/student-ai-learning', studentAILearningRouter);
 app.use('/api/alcove', alcoveRouter);
 
 
-const nifCourseRoute = require("./routes/nifCourseRoute");
 app.use('/api/nif/course', nifCourseRoute);
 
 const nifStudentRoute = require("./routes/nifStudentRoute");
