@@ -13,9 +13,7 @@ const Students = ({ setShowAdminHeader }) => {
   const [studentData, setStudentData] = useState([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [showAddForm, setShowAddForm] = useState(false);
-  const [showWellbeingModal, setShowWellbeingModal] = useState(false);
   const [selectedStudent, setSelectedStudent] = useState(null);
-  const [wellbeingData, setWellbeingData] = useState({});
   const [courses, setCourses] = useState([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
@@ -68,59 +66,6 @@ const Students = ({ setShowAdminHeader }) => {
     return mockFees;
   };
 
-  const getMoodIcon = (mood) => {
-    const moodIcons = {
-      excellent: { icon: Smile, color: "text-green-600", bg: "bg-green-100" },
-      good: { icon: Smile, color: "text-blue-600", bg: "bg-blue-100" },
-      neutral: { icon: Meh, color: "text-yellow-600", bg: "bg-yellow-100" },
-      concerning: { icon: Frown, color: "text-orange-600", bg: "bg-orange-100" },
-      critical: { icon: AlertCircle, color: "text-red-600", bg: "bg-red-100" },
-    };
-    return moodIcons[mood] || moodIcons.neutral;
-  };
-
-  const getWellbeingStatus = (studentId) => {
-    if (!wellbeingData[studentId]) {
-      const moods = ["excellent", "good", "neutral", "concerning", "critical"];
-      const mood = moods[Math.floor(Math.random() * moods.length)];
-      const socialEngagement = Math.floor(Math.random() * 10) + 1;
-      const academicStress = Math.floor(Math.random() * 10) + 1;
-      const behaviorChanges = Math.random() > 0.7;
-
-      setWellbeingData((prev) => ({
-        ...prev,
-        [studentId]: {
-          mood,
-          socialEngagement,
-          academicStress,
-          behaviorChanges,
-          lastAssessment: new Date().toISOString().split("T")[0],
-          notes: "",
-          interventions: [],
-          counselingSessions: Math.floor(Math.random() * 5),
-          parentNotifications: Math.floor(Math.random() * 3),
-        },
-      }));
-      return { mood, socialEngagement, academicStress, behaviorChanges };
-    }
-    return wellbeingData[studentId];
-  };
-
-  const updateWellbeingData = (studentId, updates) => {
-    setWellbeingData((prev) => ({
-      ...prev,
-      [studentId]: {
-        ...prev[studentId],
-        ...updates,
-        lastAssessment: new Date().toISOString().split("T")[0],
-      },
-    }));
-  };
-
-  const openWellbeingModal = (student) => {
-    setSelectedStudent(student);
-    setShowWellbeingModal(true);
-  };
 
   const refreshStudents = async () => {
     const res = await fetch(`${import.meta.env.VITE_API_URL}/api/nif/students`, {
@@ -461,15 +406,6 @@ const downloadTemplate = () => {
             >
               <Plus size={16} /> Add Student
             </button>
-            <button
-              onClick={() => {
-                setSelectedStudent({ id: "test", name: "Test Student", roll: "001", grade: "10", section: "A" });
-                setShowWellbeingModal(true);
-              }}
-              className="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 flex items-center gap-2"
-            >
-              <Brain size={16} /> Test Wellbeing Modal
-            </button>
           </div>
         </div>
 
@@ -526,12 +462,9 @@ const downloadTemplate = () => {
           <div className="bg-white p-4 rounded-lg shadow-sm border border-yellow-200">
             <div className="flex items-center justify-between">
               <div>
-                <h3 className="text-sm font-medium text-gray-600">Wellbeing Alert</h3>
+                <h3 className="text-sm font-medium text-gray-600">Active Students</h3>
                 <p className="text-2xl font-bold text-purple-600">
-                  {studentData.filter((student) => {
-                    const w = getWellbeingStatus(student.id);
-                    return w.mood === "concerning" || w.mood === "critical";
-                  }).length}
+                  {studentData.filter((student) => student.status === "Active").length}
                 </p>
               </div>
               <Brain className="w-8 h-8 text-purple-500" />
@@ -559,7 +492,7 @@ const downloadTemplate = () => {
           <table className="w-full border-collapse">
             <thead>
               <tr className="bg-yellow-50">
-                {["Name","Roll No.","Class","Section","Health Status","Attendance Today","Wellbeing","Fees Due","Phone","Actions"]
+                {["Name","Roll No.","Class","Section","Health Status","Attendance Today","Status","Fees Due","Phone","Actions"]
                   .map((h) => (
                     <th key={h} className="border-b border-yellow-100 px-6 py-3 text-left text-sm font-semibold text-yellow-800">{h}</th>
                   ))
@@ -624,33 +557,13 @@ const downloadTemplate = () => {
                     })()}
                   </td>
 
-                  {/* Wellbeing */}
+                  {/* Status */}
                   <td className="border-b border-yellow-100 px-6 py-4">
-                    {(() => {
-                      const wellbeing = getWellbeingStatus(student._id || student.id);
-                      const moodConfig = getMoodIcon(wellbeing.mood);
-                      const Icon = moodConfig.icon;
-                      return (
-                        <div className="space-y-1">
-                          <div className="flex items-center gap-2">
-                            <Icon size={16} className={moodConfig.color} />
-                            <span className={`px-2 py-1 rounded-full text-xs font-medium ${moodConfig.bg} ${moodConfig.color}`}>
-                              {wellbeing.mood.charAt(0).toUpperCase() + wellbeing.mood.slice(1)}
-                            </span>
-                          </div>
-                          <div className="flex items-center gap-2 text-xs text-gray-500">
-                            <span>Stress: {wellbeing.academicStress}/10</span>
-                            {wellbeing.behaviorChanges && <AlertCircle size={12} className="text-orange-500" title="Behavior changes noted" />}
-                          </div>
-                          <button
-                            onClick={(e) => { e.preventDefault(); e.stopPropagation(); openWellbeingModal(student); }}
-                            className="text-xs text-purple-600 hover:text-purple-800 font-medium"
-                          >
-                            View Details
-                          </button>
-                        </div>
-                      );
-                    })()}
+                    <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                      student.status === 'Active' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                    }`}>
+                      {student.status}
+                    </span>
                   </td>
 
                   {/* Fees Due */}
@@ -694,13 +607,6 @@ const downloadTemplate = () => {
                       <button className="text-orange-600 hover:text-orange-800 p-1 rounded hover:bg-orange-50" title="Fees">
                         <IndianRupee size={16} />
                       </button>
-                      <button
-                        className="text-purple-600 hover:text-purple-800 p-1 rounded hover:bg-purple-50"
-                        title="Wellbeing Assessment"
-                        onClick={(e) => { e.preventDefault(); e.stopPropagation(); openWellbeingModal(student); }}
-                      >
-                        <Brain size={16} />
-                      </button>
                       <button className="text-blue-600 hover:text-blue-800 p-1 rounded hover:bg-blue-50" title="Edit">
                         <Edit2 size={16} />
                       </button>
@@ -733,132 +639,6 @@ const downloadTemplate = () => {
           </div>
         </div>
 
-        {/* Wellbeing Modal */}
-        {showWellbeingModal && selectedStudent && (
-          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-            <div className="bg-white rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
-              <div className="p-6 border-b border-gray-200 flex justify-between items-center">
-                <div>
-                  <h2 className="text-2xl font-bold text-gray-900">Emotional Wellbeing Assessment</h2>
-                  <p className="text-gray-600 mt-1">
-                    {selectedStudent.name} • Roll: {selectedStudent.roll} • Class: {selectedStudent.grade}-{selectedStudent.section}
-                  </p>
-                </div>
-                <button onClick={() => setShowWellbeingModal(false)} className="text-gray-400 hover:text-gray-600 p-2"><X size={24} /></button>
-              </div>
-
-              <div className="p-6 space-y-6">
-                {/* Current Status */}
-                <div className="bg-gradient-to-r from-purple-50 to-pink-50 rounded-xl p-6">
-                  <h3 className="text-lg font-semibold text-gray-900 mb-4">Current Status</h3>
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    {(() => {
-                      const w = getWellbeingStatus(selectedStudent._id || selectedStudent.id);
-                      const moodConfig = getMoodIcon(w.mood);
-                      const MoodIcon = moodConfig.icon;
-                      return (
-                        <>
-                          <div className="text-center">
-                            <div className={`inline-flex items-center justify-center w-16 h-16 rounded-full ${moodConfig.bg} mb-2`}>
-                              <MoodIcon className={`w-8 h-8 ${moodConfig.color}`} />
-                            </div>
-                            <h4 className="font-medium text-gray-900">Overall Mood</h4>
-                            <p className={`text-sm font-medium ${moodConfig.color}`}>{w.mood[0].toUpperCase() + w.mood.slice(1)}</p>
-                          </div>
-                          <div className="text-center">
-                            <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-blue-100 mb-2">
-                              <Users className="w-8 h-8 text-blue-600" />
-                            </div>
-                            <h4 className="font-medium text-gray-900">Social Engagement</h4>
-                            <p className="text-sm font-medium text-blue-600">{w.socialEngagement}/10</p>
-                          </div>
-                          <div className="text-center">
-                            <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-orange-100 mb-2">
-                              <TrendingUp className="w-8 h-8 text-orange-600" />
-                            </div>
-                            <h4 className="font-medium text-gray-900">Academic Stress</h4>
-                            <p className="text-sm font-medium text-orange-600">{w.academicStress}/10</p>
-                          </div>
-                        </>
-                      );
-                    })()}
-                  </div>
-                </div>
-
-                {/* Update Form */}
-                <div className="bg-white border border-gray-200 rounded-xl p-6">
-                  <h3 className="text-lg font-semibold text-gray-900 mb-4">Update Assessment</h3>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">Mood Rating</label>
-                      <select
-                        className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-purple-500"
-                        value={wellbeingData[selectedStudent._id || selectedStudent.id]?.mood || "neutral"}
-                        onChange={(e) => updateWellbeingData(selectedStudent._id || selectedStudent.id, { mood: e.target.value })}
-                      >
-                        <option value="excellent">Excellent</option>
-                        <option value="good">Good</option>
-                        <option value="neutral">Neutral</option>
-                        <option value="concerning">Concerning</option>
-                        <option value="critical">Critical</option>
-                      </select>
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">Social Engagement (1-10)</label>
-                      <input
-                        type="range" min="1" max="10" className="w-full"
-                        value={wellbeingData[selectedStudent._id || selectedStudent.id]?.socialEngagement || 5}
-                        onChange={(e) => updateWellbeingData(selectedStudent._id || selectedStudent.id, { socialEngagement: parseInt(e.target.value) })}
-                      />
-                      <div className="text-center text-sm text-gray-600 mt-1">
-                        {wellbeingData[selectedStudent._id || selectedStudent.id]?.socialEngagement || 5}/10
-                      </div>
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">Academic Stress (1-10)</label>
-                      <input
-                        type="range" min="1" max="10" className="w-full"
-                        value={wellbeingData[selectedStudent._id || selectedStudent.id]?.academicStress || 5}
-                        onChange={(e) => updateWellbeingData(selectedStudent._id || selectedStudent.id, { academicStress: parseInt(e.target.value) })}
-                      />
-                      <div className="text-center text-sm text-gray-600 mt-1">
-                        {wellbeingData[selectedStudent._id || selectedStudent.id]?.academicStress || 5}/10
-                      </div>
-                    </div>
-                    <div className="flex items-center">
-                      <input
-                        type="checkbox" id="behaviorChanges" className="h-4 w-4 text-purple-600 border-gray-300 rounded"
-                        checked={wellbeingData[selectedStudent._id || selectedStudent.id]?.behaviorChanges || false}
-                        onChange={(e) => updateWellbeingData(selectedStudent._id || selectedStudent.id, { behaviorChanges: e.target.checked })}
-                      />
-                      <label htmlFor="behaviorChanges" className="ml-2 text-sm text-gray-700">Behavior changes observed</label>
-                    </div>
-                  </div>
-                  <div className="mt-4">
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Notes</label>
-                    <textarea
-                      className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-purple-500"
-                      rows="3"
-                      placeholder="Add any observations, concerns, or notes..."
-                      value={wellbeingData[selectedStudent._id || selectedStudent.id]?.notes || ""}
-                      onChange={(e) => updateWellbeingData(selectedStudent._id || selectedStudent.id, { notes: e.target.value })}
-                    />
-                  </div>
-                </div>
-
-                {/* Actions */}
-                <div className="flex justify-end gap-3">
-                  <button onClick={() => setShowWellbeingModal(false)} className="px-6 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50">
-                    Cancel
-                  </button>
-                  <button className="px-6 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700">
-                    Save Assessment
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
 
         {/* Add Student Modal */}
         {showAddForm && (

@@ -141,6 +141,15 @@ const Wellbeing = ({ setShowAdminHeader }) => {
             <p className="text-gray-600 mt-2">Monitor and assess student emotional wellbeing and mental health</p>
           </div>
           <div className="flex items-center space-x-4">
+            <button
+              onClick={() => {
+                setSelectedStudent({ id: "test", name: "Test Student", roll: "001", grade: "10", section: "A" });
+                setShowWellbeingModal(true);
+              }}
+              className="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 flex items-center gap-2"
+            >
+              <Brain size={16} /> Test Wellbeing Modal
+            </button>
             <Brain className="w-12 h-12 text-purple-500" />
           </div>
         </div>
