@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>College Fee Structure Management</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700;900&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            colors: {
+              "primary": "#135bec",
+              "background-light": "#f6f6f8",
+              "background-dark": "#101622",
+              "surface-light": "#ffffff",
+              "surface-dark": "#1b2537",
+              "text-primary-light": "#111318",
+              "text-primary-dark": "#f0f2f4",
+              "text-secondary-light": "#616f89",
+              "text-secondary-dark": "#a0aec0",
+              "border-light": "#dbdfe6",
+              "border-dark": "#3e4c66",
+            },
+            fontFamily: {
+              "display": ["Inter", "sans-serif"]
+            },
+            borderRadius: {"DEFAULT": "0.5rem", "lg": "0.75rem", "xl": "1rem", "full": "9999px"},
+          },
+        },
+      }
+    </script>
+</head>
+<body class="font-display bg-background-light dark:bg-background-dark text-text-primary-light dark:text-text-primary-dark">
+<div class="relative flex min-h-screen w-full">
+<!-- Side Navigation Bar -->
+<aside class="flex flex-col w-64 border-r border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark p-4">
+<div class="flex flex-col gap-4">
+<div class="flex items-center gap-3">
+<div class="bg-center bg-no-repeat aspect-square bg-cover rounded-full size-10" data-alt="College logo placeholder" style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuAiOQOFuDek4j9CMtEe0vwBq9hsxdYt4H8VUDRH1K2JA4jFb1wwZX8cbrEIZpTREDx28HJWAltRZmnNWcBhE9gHAB-MiI13QS3Q6SrIkA5vj6w5q2wmqV_WGbPjzWPd6CsbQcCZ-rfGzXZG_CIZVT6q4mxgzRgbY89Wu17tmwsJZcmTI0-0UheOGGlRH_JV8almAGgek9OJwFwFZW-_QP2MGX6hDVmvBFf0VNyeGLyD3BuaWHeLk2FdgI1th-NMhf2LBwKq_77dW0M");'></div>
+<div class="flex flex-col">
+<h1 class="text-base font-medium leading-normal text-text-primary-light dark:text-text-primary-dark">College Admin</h1>
+<p class="text-sm font-normal leading-normal text-text-secondary-light dark:text-text-secondary-dark">Fees Department</p>
+</div>
+</div>
+<nav class="flex flex-col gap-2 mt-4">
+<a class="flex items-center gap-3 px-3 py-2 rounded-DEFAULT text-text-primary-light dark:text-text-primary-dark hover:bg-primary/10 transition-colors" href="#">
+<span class="material-symbols-outlined">dashboard</span>
+<p class="text-sm font-medium leading-normal">Dashboard</p>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 rounded-DEFAULT bg-primary/10 text-primary" href="#">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">receipt_long</span>
+<p class="text-sm font-medium leading-normal">Fee Structure</p>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 rounded-DEFAULT text-text-primary-light dark:text-text-primary-dark hover:bg-primary/10 transition-colors" href="#">
+<span class="material-symbols-outlined">groups</span>
+<p class="text-sm font-medium leading-normal">Student Management</p>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 rounded-DEFAULT text-text-primary-light dark:text-text-primary-dark hover:bg-primary/10 transition-colors" href="#">
+<span class="material-symbols-outlined">bar_chart</span>
+<p class="text-sm font-medium leading-normal">Reports</p>
+</a>
+</nav>
+</div>
+<div class="mt-auto flex flex-col gap-1">
+<a class="flex items-center gap-3 px-3 py-2 rounded-DEFAULT text-text-primary-light dark:text-text-primary-dark hover:bg-primary/10 transition-colors" href="#">
+<span class="material-symbols-outlined">settings</span>
+<p class="text-sm font-medium leading-normal">Settings</p>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 rounded-DEFAULT text-text-primary-light dark:text-text-primary-dark hover:bg-primary/10 transition-colors" href="#">
+<span class="material-symbols-outlined">help</span>
+<p class="text-sm font-medium leading-normal">Help</p>
+</a>
+</div>
+</aside>
+<!-- Main Content -->
+<main class="flex-1 p-8 overflow-y-auto">
+<div class="max-w-4xl mx-auto">
+<!-- Page Heading -->
+<div class="flex flex-wrap justify-between gap-3 pb-6">
+<div class="flex flex-col gap-2">
+<p class="text-3xl font-bold leading-tight tracking-tight text-text-primary-light dark:text-text-primary-dark">Manage Fee Structure</p>
+<p class="text-base font-normal leading-normal text-text-secondary-light dark:text-text-secondary-dark">Define and update the fee structure for each program and stream offered by the college.</p>
+</div>
+</div>
+<!-- Filters -->
+<div class="bg-surface-light dark:bg-surface-dark border border-border-light dark:border-border-dark p-6 rounded-lg">
+<div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6 items-end">
+<label class="flex flex-col gap-2">
+<p class="text-sm font-medium leading-normal text-text-primary-light dark:text-text-primary-dark">Select Program</p>
+<select class="form-select w-full min-w-0 resize-none overflow-hidden rounded-DEFAULT text-text-primary-light dark:text-text-primary-dark focus:outline-none focus:ring-2 focus:ring-primary border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark focus:border-primary h-12 px-3 text-base font-normal leading-normal">
+<option>4 Year B DES</option>
+<option>3 Year B VOC</option>
+<option>2 Year M VOC</option>
+<option>2 Year Advanced Certificate</option>
+<option>1 Year Certificate</option>
+</select>
+</label>
+<label class="flex flex-col gap-2">
+<p class="text-sm font-medium leading-normal text-text-primary-light dark:text-text-primary-dark">Select Stream</p>
+<select class="form-select w-full min-w-0 resize-none overflow-hidden rounded-DEFAULT text-text-primary-light dark:text-text-primary-dark focus:outline-none focus:ring-2 focus:ring-primary border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark focus:border-primary h-12 px-3 text-base font-normal leading-normal">
+<option>Fashion Design</option>
+<option>Interior Design</option>
+<option>Graphic Design</option>
+</select>
+</label>
+<button class="flex h-12 w-full items-center justify-center gap-2 rounded-DEFAULT bg-primary px-4 text-sm font-medium text-white shadow-sm transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50" type="button">View Structure</button>
+</div>
+</div>
+<!-- Section Header -->
+<div class="mt-8">
+<h2 class="text-xl font-bold leading-tight tracking-tight text-text-primary-light dark:text-text-primary-dark">Fee Structure for: 4 Year B DES - Fashion Design</h2>
+</div>
+<!-- Fee Structure Table -->
+<div class="mt-4 @container">
+<div class="flex flex-col overflow-hidden rounded-lg border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark">
+<div class="overflow-x-auto">
+<table class="w-full">
+<thead>
+<tr class="bg-background-light dark:bg-background-dark">
+<th class="px-6 py-4 text-left text-xs font-medium uppercase tracking-wider text-text-secondary-light dark:text-text-secondary-dark">Fee Component Name</th>
+<th class="px-6 py-4 text-left text-xs font-medium uppercase tracking-wider text-text-secondary-light dark:text-text-secondary-dark">Amount (INR)</th>
+<th class="px-6 py-4 text-right text-xs font-medium uppercase tracking-wider text-text-secondary-light dark:text-text-secondary-dark">Actions</th>
+</tr>
+</thead>
+<tbody>
+<tr class="border-t border-border-light dark:border-border-dark">
+<td class="h-[72px] px-6 py-4 whitespace-nowrap text-sm font-medium text-text-primary-light dark:text-text-primary-dark">Time of Admission</td>
+<td class="h-[72px] px-6 py-4 whitespace-nowrap">
+<input class="form-input w-48 min-w-0 resize-none overflow-hidden rounded-DEFAULT text-text-primary-light dark:text-text-primary-dark focus:outline-none focus:ring-2 focus:ring-primary border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark focus:border-primary h-11 p-3 text-sm font-normal leading-normal" value="60,000"/>
+</td>
+<td class="h-[72px] px-6 py-4 whitespace-nowrap text-right">
+<button class="text-text-secondary-light dark:text-text-secondary-dark hover:text-primary transition-colors"><span class="material-symbols-outlined">delete</span></button>
+</td>
+</tr>
+<tr class="border-t border-border-light dark:border-border-dark">
+<td class="h-[72px] px-6 py-4 whitespace-nowrap text-sm font-medium text-text-primary-light dark:text-text-primary-dark">Registration fee</td>
+<td class="h-[72px] px-6 py-4 whitespace-nowrap">
+<input class="form-input w-48 min-w-0 resize-none overflow-hidden rounded-DEFAULT text-text-primary-light dark:text-text-primary-dark focus:outline-none focus:ring-2 focus:ring-primary border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark focus:border-primary h-11 p-3 text-sm font-normal leading-normal" value="5,000"/>
+</td>
+<td class="h-[72px] px-6 py-4 whitespace-nowrap text-right">
+<button class="text-text-secondary-light dark:text-text-secondary-dark hover:text-primary transition-colors"><span class="material-symbols-outlined">delete</span></button>
+</td>
+</tr>
+<tr class="border-t border-border-light dark:border-border-dark">
+<td class="h-[72px] px-6 py-4 whitespace-nowrap text-sm font-medium text-text-primary-light dark:text-text-primary-dark">MSU fees</td>
+<td class="h-[72px] px-6 py-4 whitespace-nowrap">
+<input class="form-input w-48 min-w-0 resize-none overflow-hidden rounded-DEFAULT text-text-primary-light dark:text-text-primary-dark focus:outline-none focus:ring-2 focus:ring-primary border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark focus:border-primary h-11 p-3 text-sm font-normal leading-normal" value="1,500"/>
+</td>
+<td class="h-[72px] px-6 py-4 whitespace-nowrap text-right">
+<button class="text-text-secondary-light dark:text-text-secondary-dark hover:text-primary transition-colors"><span class="material-symbols-outlined">delete</span></button>
+</td>
+</tr>
+<tr class="border-t border-border-light dark:border-border-dark">
+<td class="h-[72px] px-6 py-4 whitespace-nowrap text-sm font-medium text-text-primary-light dark:text-text-primary-dark">1st Installment</td>
+<td class="h-[72px] px-6 py-4 whitespace-nowrap">
+<input class="form-input w-48 min-w-0 resize-none overflow-hidden rounded-DEFAULT text-text-primary-light dark:text-text-primary-dark focus:outline-none focus:ring-2 focus:ring-primary border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark focus:border-primary h-11 p-3 text-sm font-normal leading-normal" value="45,000"/>
+</td>
+<td class="h-[72px] px-6 py-4 whitespace-nowrap text-right">
+<button class="text-text-secondary-light dark:text-text-secondary-dark hover:text-primary transition-colors"><span class="material-symbols-outlined">delete</span></button>
+</td>
+</tr>
+<tr class="border-t border-border-light dark:border-border-dark">
+<td class="h-[72px] px-6 py-4 whitespace-nowrap text-sm font-medium text-text-primary-light dark:text-text-primary-dark">2nd Installment</td>
+<td class="h-[72px] px-6 py-4 whitespace-nowrap">
+<input class="form-input w-48 min-w-0 resize-none overflow-hidden rounded-DEFAULT text-text-primary-light dark:text-text-primary-dark focus:outline-none focus:ring-2 focus:ring-primary border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark focus:border-primary h-11 p-3 text-sm font-normal leading-normal" value="45,000"/>
+</td>
+<td class="h-[72px] px-6 py-4 whitespace-nowrap text-right">
+<button class="text-text-secondary-light dark:text-text-secondary-dark hover:text-primary transition-colors"><span class="material-symbols-outlined">delete</span></button>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+<div class="flex flex-col sm:flex-row justify-between items-center p-4 border-t border-border-light dark:border-border-dark bg-background-light dark:bg-background-dark/50">
+<button class="flex items-center gap-2 px-4 py-2 text-sm font-medium text-primary hover:bg-primary/10 rounded-DEFAULT transition-colors">
+<span class="material-symbols-outlined">add_circle</span>
+                                Add Fee Component
+                            </button>
+<div class="flex items-center gap-4 mt-4 sm:mt-0">
+<p class="text-sm font-medium text-text-secondary-light dark:text-text-secondary-dark">Total Fee:</p>
+<p class="text-lg font-bold text-text-primary-light dark:text-text-primary-dark">₹2,46,500</p>
+</div>
+</div>
+</div>
+</div>
+<!-- Action Buttons -->
+<div class="mt-8 flex justify-end gap-4">
+<button class="flex h-12 items-center justify-center rounded-DEFAULT bg-surface-light dark:bg-surface-dark border border-border-light dark:border-border-dark px-6 text-sm font-medium text-text-primary-light dark:text-text-primary-dark shadow-sm transition-colors hover:bg-background-light dark:hover:bg-background-dark focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring" type="button">Cancel</button>
+<button class="flex h-12 items-center justify-center rounded-DEFAULT bg-primary px-6 text-sm font-medium text-white shadow-sm transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50" type="button">Save Changes</button>
+</div>
+</div>
+</main>
+</div>
+</body></html>

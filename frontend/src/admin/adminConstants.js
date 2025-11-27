@@ -11,7 +11,10 @@ import {
   Briefcase,
   UserPlus,
   Brain,
-  BookOpen
+  BookOpen,
+  Settings,
+  Receipt,
+  UserSearch
 } from 'lucide-react';
 
 export const ADMIN_MENU_ITEMS = [
@@ -95,7 +98,25 @@ export const ADMIN_MENU_ITEMS = [
   { 
     icon: IndianRupee, 
     label: 'Fees Collection', 
-    path: '/admin/fees' 
+    path: '/admin/fees',
+    hasSubmenu: true,
+    submenu: [
+      {
+        icon: Receipt,
+        label: 'Fee Collection',
+        path: '/admin/fees'
+      },
+      {
+        icon: Settings,
+        label: 'Fee Configuration',
+        path: '/admin/fees/configuration'
+      },
+      {
+        icon: UserSearch,
+        label: 'Student Fee Details',
+        path: '/admin/fees/student-details'
+      }
+    ]
   },
   { 
     icon: Briefcase, 

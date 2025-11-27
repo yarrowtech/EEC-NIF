@@ -1,5 +1,5 @@
-import React from 'react';
-import { ChevronRight, ChevronLeft } from 'lucide-react';
+import React, { useState } from 'react';
+import { ChevronRight, ChevronLeft, ChevronDown } from 'lucide-react';
 import { ADMIN_MENU_ITEMS } from './adminConstants';
 import { NavLink } from 'react-router-dom';
 
@@ -8,6 +8,16 @@ const AdminSidebar = ({
   collapsed = false, 
   onToggleSidebar 
 }) => {
+  const [expandedMenus, setExpandedMenus] = useState({});
+
+  const toggleSubmenu = (menuLabel) => {
+    if (collapsed) return; // Don't expand submenus when sidebar is collapsed
+    setExpandedMenus(prev => ({
+      ...prev,
+      [menuLabel]: !prev[menuLabel]
+    }));
+  };
+
   return (
     <>
       <div className={`
@@ -43,27 +53,73 @@ const AdminSidebar = ({
         <nav className="flex-1 px-4 py-4 overflow-y-auto">
           {ADMIN_MENU_ITEMS.map((item, index) => {
             const Icon = item.icon;
+            const isExpanded = expandedMenus[item.label];
+            
             return (
-              <NavLink
-                key={index}
-                to={item.path}
-                onClick={() => {
-                  onMenuItemClick(item.label);
-                }}
-                className={({ isActive }) => `
-                  flex items-center space-x-3 px-4 py-3 rounded-lg mb-1 
-                  group transition-colors duration-200
-                  ${isActive 
-                    ? 'bg-yellow-50 text-yellow-700' 
-                    : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'}
-                `}
-              >
-                <Icon size={20} className={`flex-shrink-0 transition-colors duration-200`} />
-                {!collapsed && <span className="font-medium flex-1">{item.label}</span>}
-                {item.hasSubmenu && (
-                  <ChevronRight size={16} className="text-gray-400 group-hover:text-gray-600" />
+              <div key={index} className="mb-1">
+                {/* Main Menu Item */}
+                {item.hasSubmenu ? (
+                  <button
+                    onClick={() => toggleSubmenu(item.label)}
+                    className={`
+                      w-full flex items-center space-x-3 px-4 py-3 rounded-lg
+                      group transition-colors duration-200
+                      text-gray-600 hover:bg-gray-50 hover:text-gray-900
+                    `}
+                  >
+                    <Icon size={20} className="flex-shrink-0 transition-colors duration-200" />
+                    {!collapsed && <span className="font-medium flex-1 text-left">{item.label}</span>}
+                    {!collapsed && (
+                      isExpanded ? (
+                        <ChevronDown size={16} className="text-gray-400 group-hover:text-gray-600" />
+                      ) : (
+                        <ChevronRight size={16} className="text-gray-400 group-hover:text-gray-600" />
+                      )
+                    )}
+                  </button>
+                ) : (
+                  <NavLink
+                    to={item.path}
+                    onClick={() => onMenuItemClick(item.label)}
+                    className={({ isActive }) => `
+                      flex items-center space-x-3 px-4 py-3 rounded-lg
+                      group transition-colors duration-200
+                      ${isActive 
+                        ? 'bg-yellow-50 text-yellow-700' 
+                        : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'}
+                    `}
+                  >
+                    <Icon size={20} className="flex-shrink-0 transition-colors duration-200" />
+                    {!collapsed && <span className="font-medium flex-1">{item.label}</span>}
+                  </NavLink>
                 )}
-              </NavLink>
+                
+                {/* Submenu Items */}
+                {item.hasSubmenu && isExpanded && !collapsed && (
+                  <div className="ml-6 mt-1 space-y-1">
+                    {item.submenu.map((subItem, subIndex) => {
+                      const SubIcon = subItem.icon;
+                      return (
+                        <NavLink
+                          key={subIndex}
+                          to={subItem.path}
+                          onClick={() => onMenuItemClick(subItem.label)}
+                          className={({ isActive }) => `
+                            flex items-center space-x-3 px-4 py-2 rounded-lg
+                            transition-colors duration-200
+                            ${isActive 
+                              ? 'bg-yellow-50 text-yellow-700 border-l-2 border-yellow-500' 
+                              : 'text-gray-500 hover:bg-gray-50 hover:text-gray-700'}
+                          `}
+                        >
+                          <SubIcon size={16} className="flex-shrink-0" />
+                          <span className="text-sm font-medium">{subItem.label}</span>
+                        </NavLink>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
             );
           })}
         </nav>

@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Student Fees Management</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700;900&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#135bec",
+                        "background-light": "#f6f6f8",
+                        "background-dark": "#101622",
+                    },
+                    fontFamily: {
+                        "display": ["Inter"]
+                    },
+                    borderRadius: {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                },
+            },
+        }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .material-symbols-outlined.fill {
+            font-variation-settings: 'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+    </style>
+</head>
+<body class="font-display bg-background-light dark:bg-background-dark">
+<div class="relative flex min-h-screen w-full flex-col group/design-root overflow-x-hidden">
+<div class="flex flex-row min-h-screen">
+<!-- SideNavBar -->
+<aside class="flex h-screen min-h-screen flex-col justify-between bg-white dark:bg-background-dark/50 border-r border-gray-200 dark:border-gray-700 w-64 p-4 sticky top-0">
+<div class="flex flex-col gap-8">
+<div class="flex items-center gap-3 px-3">
+<span class="material-symbols-outlined text-primary text-3xl">school</span>
+<h1 class="text-gray-900 dark:text-white text-lg font-bold">College Admin</h1>
+</div>
+<div class="flex flex-col gap-4">
+<div class="flex items-center gap-3 px-3 py-2">
+<span class="material-symbols-outlined text-gray-700 dark:text-gray-300">dashboard</span>
+<p class="text-gray-700 dark:text-gray-300 text-sm font-medium leading-normal">Dashboard</p>
+</div>
+<div class="flex items-center gap-3 px-3 py-2 rounded-lg bg-primary/10">
+<span class="material-symbols-outlined fill text-primary">payments</span>
+<p class="text-primary text-sm font-medium leading-normal">Student Fees</p>
+</div>
+<div class="flex items-center gap-3 px-3 py-2">
+<span class="material-symbols-outlined text-gray-700 dark:text-gray-300">assessment</span>
+<p class="text-gray-700 dark:text-gray-300 text-sm font-medium leading-normal">Reports</p>
+</div>
+<div class="flex items-center gap-3 px-3 py-2">
+<span class="material-symbols-outlined text-gray-700 dark:text-gray-300">settings</span>
+<p class="text-gray-700 dark:text-gray-300 text-sm font-medium leading-normal">Settings</p>
+</div>
+</div>
+</div>
+<div class="flex flex-col gap-4">
+<button class="flex min-w-[84px] max-w-[480px] cursor-pointer items-center justify-center overflow-hidden rounded-lg h-10 px-4 bg-primary text-white text-sm font-bold leading-normal tracking-[0.015em]">
+<span class="truncate">New Admission</span>
+</button>
+<div class="flex flex-col gap-1 border-t border-gray-200 dark:border-gray-700 pt-4">
+<div class="flex items-center gap-3 px-3 py-2">
+<div class="bg-center bg-no-repeat aspect-square bg-cover rounded-full size-10" data-alt="Admin user avatar" style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuBXcm-_OigDeDkWyKx2T064j91HWRCHix0x5T1EdR2v1bn9pz1fs18S1i8ET5Fvz5oGyE96vXVuvGXw74R27dRDxcbh2KazpVzU1rAz1vqkhenZt9qtTTT7gX4Ze4m8Kb6dMyBayFPZHUzlJgbDyUC-4rA6hC3zsGamlKFUtX5eBDYDD5ILBwgbOnv1ZarNswheuz0-c3TZBdcnscRsuS_3eP3N3tsbcfcfktjt8ni95YFGaCmGTKhnPh2sWMfjNa0IQKn805xreMc");'></div>
+<div class="flex flex-col">
+<h1 class="text-gray-900 dark:text-white text-base font-medium leading-normal">Admin User</h1>
+<p class="text-gray-500 dark:text-gray-400 text-sm font-normal leading-normal">Administrator</p>
+</div>
+</div>
+<div class="flex items-center gap-3 px-3 py-2">
+<span class="material-symbols-outlined text-gray-700 dark:text-gray-300">help</span>
+<p class="text-gray-700 dark:text-gray-300 text-sm font-medium leading-normal">Help</p>
+</div>
+<div class="flex items-center gap-3 px-3 py-2">
+<span class="material-symbols-outlined text-gray-700 dark:text-gray-300">logout</span>
+<p class="text-gray-700 dark:text-gray-300 text-sm font-medium leading-normal">Logout</p>
+</div>
+</div>
+</div>
+</aside>
+<!-- Main Content -->
+<main class="flex-1 p-8">
+<div class="flex flex-col max-w-7xl mx-auto gap-6">
+<!-- PageHeading -->
+<div class="flex flex-wrap justify-between items-center gap-4">
+<div class="flex flex-col gap-1">
+<p class="text-gray-900 dark:text-white text-3xl font-bold leading-tight">Student Fees Management</p>
+<p class="text-gray-500 dark:text-gray-400 text-base font-normal leading-normal">Manage and track student fee payments across all programs.</p>
+</div>
+<button class="flex min-w-[84px] max-w-[480px] cursor-pointer items-center justify-center overflow-hidden rounded-lg h-10 px-4 bg-white dark:bg-background-dark/50 text-gray-800 dark:text-gray-200 text-sm font-medium leading-normal tracking-[0.015em] border border-gray-300 dark:border-gray-700 gap-2">
+<span class="material-symbols-outlined text-base">download</span>
+<span class="truncate">Export to CSV</span>
+</button>
+</div>
+<!-- Filters & Search Section -->
+<div class="bg-white dark:bg-background-dark/50 p-4 rounded-xl border border-gray-200 dark:border-gray-800 flex flex-col gap-4">
+<!-- SearchBar and Chips -->
+<div class="flex flex-col md:flex-row gap-4 items-center">
+<div class="flex-1 w-full">
+<label class="flex flex-col min-w-40 h-12 w-full">
+<div class="flex w-full flex-1 items-stretch rounded-lg h-full">
+<div class="text-gray-500 dark:text-gray-400 flex border border-gray-300 dark:border-gray-700 bg-background-light dark:bg-background-dark items-center justify-center pl-4 rounded-l-lg border-r-0">
+<span class="material-symbols-outlined">search</span>
+</div>
+<input class="form-input flex w-full min-w-0 flex-1 resize-none overflow-hidden rounded-lg text-gray-900 dark:text-white focus:outline-0 focus:ring-2 focus:ring-primary/50 border border-gray-300 dark:border-gray-700 bg-background-light dark:bg-background-dark focus:border-primary/50 h-full placeholder:text-gray-500 dark:placeholder:text-gray-400 px-4 rounded-l-none border-l-0 pl-2 text-base font-normal leading-normal" placeholder="Search by Student Name or ID" value=""/>
+</div>
+</label>
+</div>
+<div class="flex gap-3 overflow-x-auto w-full md:w-auto">
+<button class="flex h-12 shrink-0 items-center justify-center gap-x-2 rounded-lg bg-background-light dark:bg-background-dark border border-gray-300 dark:border-gray-700 px-4">
+<p class="text-gray-800 dark:text-gray-200 text-sm font-medium leading-normal">Stream</p>
+<span class="material-symbols-outlined text-gray-800 dark:text-gray-200 text-xl">expand_more</span>
+</button>
+<button class="flex h-12 shrink-0 items-center justify-center gap-x-2 rounded-lg bg-background-light dark:bg-background-dark border border-gray-300 dark:border-gray-700 px-4">
+<p class="text-gray-800 dark:text-gray-200 text-sm font-medium leading-normal">Program</p>
+<span class="material-symbols-outlined text-gray-800 dark:text-gray-200 text-xl">expand_more</span>
+</button>
+<button class="flex h-12 shrink-0 items-center justify-center gap-x-2 rounded-lg bg-background-light dark:bg-background-dark border border-gray-300 dark:border-gray-700 px-4">
+<p class="text-gray-800 dark:text-gray-200 text-sm font-medium leading-normal">Fee Status</p>
+<span class="material-symbols-outlined text-gray-800 dark:text-gray-200 text-xl">expand_more</span>
+</button>
+</div>
+</div>
+</div>
+<!-- Data Table -->
+<div class="overflow-hidden rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-background-dark/50">
+<div class="overflow-x-auto">
+<table class="w-full text-left">
+<thead>
+<tr class="bg-gray-50 dark:bg-gray-900/50">
+<th class="p-4 w-12 text-center"><input class="h-5 w-5 rounded border-gray-300 dark:border-gray-600 bg-transparent text-primary checked:bg-primary checked:border-primary focus:ring-2 focus:ring-primary/50 focus:ring-offset-0 focus:outline-none" type="checkbox"/></th>
+<th class="px-4 py-3 text-left text-gray-600 dark:text-gray-300 text-xs font-medium uppercase tracking-wider">Student Name</th>
+<th class="px-4 py-3 text-left text-gray-600 dark:text-gray-300 text-xs font-medium uppercase tracking-wider">Student ID</th>
+<th class="px-4 py-3 text-left text-gray-600 dark:text-gray-300 text-xs font-medium uppercase tracking-wider">Program</th>
+<th class="px-4 py-3 text-left text-gray-600 dark:text-gray-300 text-xs font-medium uppercase tracking-wider">Stream</th>
+<th class="px-4 py-3 text-left text-gray-600 dark:text-gray-300 text-xs font-medium uppercase tracking-wider">Fee Status</th>
+<th class="px-4 py-3 text-right text-gray-600 dark:text-gray-300 text-xs font-medium uppercase tracking-wider">Total Fees</th>
+<th class="px-4 py-3 text-right text-gray-600 dark:text-gray-300 text-xs font-medium uppercase tracking-wider">Amount Paid</th>
+<th class="px-4 py-3 text-right text-gray-600 dark:text-gray-300 text-xs font-medium uppercase tracking-wider">Balance</th>
+<th class="px-4 py-3 text-center text-gray-600 dark:text-gray-300 text-xs font-medium uppercase tracking-wider">Actions</th>
+</tr>
+</thead>
+<tbody class="divide-y divide-gray-200 dark:divide-gray-800">
+<tr class="hover:bg-gray-50 dark:hover:bg-gray-900/20">
+<td class="p-4 w-12 text-center"><input class="h-5 w-5 rounded border-gray-300 dark:border-gray-600 bg-transparent text-primary checked:bg-primary checked:border-primary focus:ring-2 focus:ring-primary/50 focus:ring-offset-0 focus:outline-none" type="checkbox"/></td>
+<td class="px-4 py-3 text-gray-900 dark:text-white text-sm font-medium">Aarav Sharma</td>
+<td class="px-4 py-3 text-gray-500 dark:text-gray-400 text-sm">FAD101</td>
+<td class="px-4 py-3 text-gray-500 dark:text-gray-400 text-sm">3 Year B VOC</td>
+<td class="px-4 py-3 text-gray-500 dark:text-gray-400 text-sm">Fashion Design</td>
+<td class="px-4 py-3 text-sm"><span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900/50 dark:text-green-300">Paid</span></td>
+<td class="px-4 py-3 text-gray-500 dark:text-gray-400 text-sm text-right">$15,000</td>
+<td class="px-4 py-3 text-gray-500 dark:text-gray-400 text-sm text-right">$15,000</td>
+<td class="px-4 py-3 text-gray-900 dark:text-white text-sm text-right font-medium">$0</td>
+<td class="px-4 py-3 text-center"><button class="text-gray-500 dark:text-gray-400 hover:text-primary dark:hover:text-primary"><span class="material-symbols-outlined">more_horiz</span></button></td>
+</tr>
+<tr class="hover:bg-gray-50 dark:hover:bg-gray-900/20">
+<td class="p-4 w-12 text-center"><input class="h-5 w-5 rounded border-gray-300 dark:border-gray-600 bg-transparent text-primary checked:bg-primary checked:border-primary focus:ring-2 focus:ring-primary/50 focus:ring-offset-0 focus:outline-none" type="checkbox"/></td>
+<td class="px-4 py-3 text-gray-900 dark:text-white text-sm font-medium">Priya Patel</td>
+<td class="px-4 py-3 text-gray-500 dark:text-gray-400 text-sm">INT202</td>
+<td class="px-4 py-3 text-gray-500 dark:text-gray-400 text-sm">4 Year B DES</td>
+<td class="px-4 py-3 text-gray-500 dark:text-gray-400 text-sm">Interior Design</td>
+<td class="px-4 py-3 text-sm"><span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-orange-100 text-orange-800 dark:bg-orange-900/50 dark:text-orange-300">Due</span></td>
+<td class="px-4 py-3 text-gray-500 dark:text-gray-400 text-sm text-right">$20,000</td>
+<td class="px-4 py-3 text-gray-500 dark:text-gray-400 text-sm text-right">$10,000</td>
+<td class="px-4 py-3 text-gray-900 dark:text-white text-sm text-right font-medium">$10,000</td>
+<td class="px-4 py-3 text-center"><button class="text-gray-500 dark:text-gray-400 hover:text-primary dark:hover:text-primary"><span class="material-symbols-outlined">more_horiz</span></button></td>
+</tr>
+<tr class="hover:bg-gray-50 dark:hover:bg-gray-900/20">
+<td class="p-4 w-12 text-center"><input class="h-5 w-5 rounded border-gray-300 dark:border-gray-600 bg-transparent text-primary checked:bg-primary checked:border-primary focus:ring-2 focus:ring-primary/50 focus:ring-offset-0 focus:outline-none" type="checkbox"/></td>
+<td class="px-4 py-3 text-gray-900 dark:text-white text-sm font-medium">Rohan Mehta</td>
+<td class="px-4 py-3 text-gray-500 dark:text-gray-400 text-sm">FAD303</td>
+<td class="px-4 py-3 text-gray-500 dark:text-gray-400 text-sm">2 Year M VOC</td>
+<td class="px-4 py-3 text-gray-500 dark:text-gray-400 text-sm">Fashion Design</td>
+<td class="px-4 py-3 text-sm"><span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800 dark:bg-red-900/50 dark:text-red-300">Overdue</span></td>
+<td class="px-4 py-3 text-gray-500 dark:text-gray-400 text-sm text-right">$18,000</td>
+<td class="px-4 py-3 text-gray-500 dark:text-gray-400 text-sm text-right">$5,000</td>
+<td class="px-4 py-3 text-red-600 dark:text-red-400 text-sm text-right font-medium">$13,000</td>
+<td class="px-4 py-3 text-center"><button class="text-gray-500 dark:text-gray-400 hover:text-primary dark:hover:text-primary"><span class="material-symbols-outlined">more_horiz</span></button></td>
+</tr>
+<tr class="hover:bg-gray-50 dark:hover:bg-gray-900/20">
+<td class="p-4 w-12 text-center"><input class="h-5 w-5 rounded border-gray-300 dark:border-gray-600 bg-transparent text-primary checked:bg-primary checked:border-primary focus:ring-2 focus:ring-primary/50 focus:ring-offset-0 focus:outline-none" type="checkbox"/></td>
+<td class="px-4 py-3 text-gray-900 dark:text-white text-sm font-medium">Saanvi Gupta</td>
+<td class="px-4 py-3 text-gray-500 dark:text-gray-400 text-sm">INT404</td>
+<td class="px-4 py-3 text-gray-500 dark:text-gray-400 text-sm">1 Year Certificate</td>
+<td class="px-4 py-3 text-gray-500 dark:text-gray-400 text-sm">Interior Design</td>
+<td class="px-4 py-3 text-sm"><span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900/50 dark:text-green-300">Paid</span></td>
+<td class="px-4 py-3 text-gray-500 dark:text-gray-400 text-sm text-right">$8,000</td>
+<td class="px-4 py-3 text-gray-500 dark:text-gray-400 text-sm text-right">$8,000</td>
+<td class="px-4 py-3 text-gray-900 dark:text-white text-sm text-right font-medium">$0</td>
+<td class="px-4 py-3 text-center"><button class="text-gray-500 dark:text-gray-400 hover:text-primary dark:hover:text-primary"><span class="material-symbols-outlined">more_horiz</span></button></td>
+</tr>
+<tr class="hover:bg-gray-50 dark:hover:bg-gray-900/20">
+<td class="p-4 w-12 text-center"><input class="h-5 w-5 rounded border-gray-300 dark:border-gray-600 bg-transparent text-primary checked:bg-primary checked:border-primary focus:ring-2 focus:ring-primary/50 focus:ring-offset-0 focus:outline-none" type="checkbox"/></td>
+<td class="px-4 py-3 text-gray-900 dark:text-white text-sm font-medium">Vikram Singh</td>
+<td class="px-4 py-3 text-gray-500 dark:text-gray-400 text-sm">FAD505</td>
+<td class="px-4 py-3 text-gray-500 dark:text-gray-400 text-sm">2 Year Advanced Cert.</td>
+<td class="px-4 py-3 text-gray-500 dark:text-gray-400 text-sm">Fashion Design</td>
+<td class="px-4 py-3 text-sm"><span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900/50 dark:text-green-300">Paid</span></td>
+<td class="px-4 py-3 text-gray-500 dark:text-gray-400 text-sm text-right">$12,000</td>
+<td class="px-4 py-3 text-gray-500 dark:text-gray-400 text-sm text-right">$12,000</td>
+<td class="px-4 py-3 text-gray-900 dark:text-white text-sm text-right font-medium">$0</td>
+<td class="px-4 py-3 text-center"><button class="text-gray-500 dark:text-gray-400 hover:text-primary dark:hover:text-primary"><span class="material-symbols-outlined">more_horiz</span></button></td>
+</tr>
+</tbody>
+</table>
+</div>
+<!-- Pagination Controls -->
+<div class="flex items-center justify-between p-4 border-t border-gray-200 dark:border-gray-800">
+<span class="text-sm text-gray-600 dark:text-gray-400">Showing 1 to 5 of 20 results</span>
+<div class="flex items-center gap-2">
+<button class="flex items-center justify-center h-8 w-8 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-background-dark/50 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-900/30">
+<span class="material-symbols-outlined text-xl">chevron_left</span>
+</button>
+<button class="flex items-center justify-center h-8 w-8 rounded-lg border border-primary bg-primary/10 text-primary">1</button>
+<button class="flex items-center justify-center h-8 w-8 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-background-dark/50 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-900/30">2</button>
+<button class="flex items-center justify-center h-8 w-8 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-background-dark/50 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-900/30">3</button>
+<button class="flex items-center justify-center h-8 w-8 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-background-dark/50 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-900/30">4</button>
+<button class="flex items-center justify-center h-8 w-8 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-background-dark/50 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-900/30">
+<span class="material-symbols-outlined text-xl">chevron_right</span>
+</button>
+</div>
+</div>
+</div>
+</div>
+</main>
+</div>
+</div>
+</body></html>

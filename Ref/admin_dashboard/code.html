@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>College Fees Dashboard</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/icon?family=Material+Icons+Outlined" rel="stylesheet"/>
+<script>
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            colors: {
+              "primary": "#135bec",
+              "background-light": "#f6f6f8",
+              "background-dark": "#101622",
+            },
+            fontFamily: {
+              "display": ["Inter", "sans-serif"]
+            },
+            borderRadius: {"DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px"},
+          },
+        },
+      }
+    </script>
+<style>
+        .material-icons-outlined {
+            font-size: inherit;
+        }
+    </style>
+</head>
+<body class="font-display bg-background-light dark:bg-background-dark text-gray-800 dark:text-gray-200">
+<div class="flex h-screen">
+<!-- Sidebar Navigation -->
+<aside class="w-64 flex-shrink-0 bg-white dark:bg-gray-900/40 border-r border-gray-200 dark:border-gray-800 flex flex-col">
+<div class="h-16 flex items-center px-6 border-b border-gray-200 dark:border-gray-800">
+<span class="material-icons-outlined text-primary text-3xl">school</span>
+<h1 class="text-lg font-bold ml-3 text-gray-900 dark:text-white">College Admin</h1>
+</div>
+<nav class="flex-1 px-4 py-6 space-y-2">
+<a class="flex items-center px-4 py-2.5 text-sm font-semibold bg-primary/10 text-primary rounded-lg" href="#">
+<span class="material-icons-outlined text-lg mr-3">dashboard</span>
+                    Dashboard
+                </a>
+<a class="flex items-center px-4 py-2.5 text-sm font-medium text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg" href="#">
+<span class="material-icons-outlined text-lg mr-3">people</span>
+                    Student Records
+                </a>
+<a class="flex items-center px-4 py-2.5 text-sm font-medium text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg" href="#">
+<span class="material-icons-outlined text-lg mr-3">summarize</span>
+                    Reports
+                </a>
+<a class="flex items-center px-4 py-2.5 text-sm font-medium text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg" href="#">
+<span class="material-icons-outlined text-lg mr-3">send</span>
+                    Reminders
+                </a>
+<a class="flex items-center px-4 py-2.5 text-sm font-medium text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg" href="#">
+<span class="material-icons-outlined text-lg mr-3">settings</span>
+                    Settings
+                </a>
+</nav>
+<div class="px-4 py-6 border-t border-gray-200 dark:border-gray-800">
+<div class="p-4 bg-primary/10 dark:bg-primary/20 rounded-lg text-center">
+<h4 class="text-sm font-semibold text-gray-800 dark:text-gray-100">Need help?</h4>
+<p class="text-xs text-gray-600 dark:text-gray-400 mt-1 mb-3">Check our documentation or contact support.</p>
+<button class="w-full text-xs font-semibold py-2 px-4 bg-primary text-white rounded-md hover:bg-primary/90">Contact Us</button>
+</div>
+</div>
+</aside>
+<!-- Main Content -->
+<main class="flex-1 overflow-y-auto">
+<!-- Header Bar -->
+<header class="sticky top-0 z-10 bg-background-light/80 dark:bg-background-dark/80 backdrop-blur-sm border-b border-gray-200 dark:border-gray-800">
+<div class="px-8 h-16 flex items-center justify-between">
+<h2 class="text-xl font-bold text-gray-900 dark:text-white">Dashboard</h2>
+<div class="flex items-center space-x-6">
+<div class="flex items-center space-x-2">
+<div class="relative">
+<button class="flex items-center space-x-2 text-sm font-medium text-gray-600 dark:text-gray-300 bg-white dark:bg-gray-900/60 border border-gray-300 dark:border-gray-700 rounded-lg px-3 py-1.5 hover:bg-gray-50 dark:hover:bg-gray-800">
+<span class="material-icons-outlined text-base">calendar_today</span>
+<span>Last 30 Days</span>
+<span class="material-icons-outlined text-base">expand_more</span>
+</button>
+</div>
+<button class="text-sm font-semibold py-2 px-4 bg-primary text-white rounded-lg hover:bg-primary/90 flex items-center">
+<span class="material-icons-outlined text-base mr-1.5">download</span>
+                                Generate Report
+                            </button>
+</div>
+<div class="w-px h-6 bg-gray-300 dark:bg-gray-700"></div>
+<div class="flex items-center space-x-4">
+<button class="text-gray-500 dark:text-gray-400 hover:text-primary dark:hover:text-primary">
+<span class="material-icons-outlined">notifications</span>
+</button>
+<div class="flex items-center space-x-3">
+<img class="w-9 h-9 rounded-full object-cover" data-alt="User profile avatar" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCGqmi5tM4Vmf1s-l5KNvZEj6tWmYsQYIhwcFfKFr1M3_TtU7NOoEWWoDdf9dKTGWSB4iD7Us8HzaMEU9_DI_8XVfiL4aNeOT6_3oFJH62L9cGdse-0eylRNhdkkiVZUMV-wwdkUyJSYANTKvMvTEI_k-ekVpFGBMDgRNAUQ9w3y371bw56Uwk9W5l3zpULyF-Zdo-abqWKtw_CLZ04UoRraNiY8bgxxVy3dConzrjeLvp8ilqSpX4J1iHTJWcnlw1zBx9omvgkDrE"/>
+<div>
+<h3 class="text-sm font-semibold text-gray-800 dark:text-gray-100">Admin User</h3>
+<p class="text-xs text-gray-500 dark:text-gray-400">admin@college.edu</p>
+</div>
+</div>
+</div>
+</div>
+</div>
+</header>
+<!-- Page Content -->
+<div class="p-8">
+<!-- KPI Summary Cards -->
+<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+<div class="bg-white dark:bg-gray-900/60 p-5 rounded-xl border border-gray-200 dark:border-gray-800">
+<div class="flex items-center justify-between">
+<p class="text-sm font-medium text-gray-500 dark:text-gray-400">Total Outstanding</p>
+<div class="w-10 h-10 flex items-center justify-center bg-amber-100 dark:bg-amber-500/20 rounded-full">
+<span class="material-icons-outlined text-xl text-amber-500">pending_actions</span>
+</div>
+</div>
+<p class="text-3xl font-bold text-gray-900 dark:text-white mt-2">$450,230.50</p>
+<p class="text-xs text-gray-500 dark:text-gray-400 mt-1">+5.2% from last month</p>
+</div>
+<div class="bg-white dark:bg-gray-900/60 p-5 rounded-xl border border-gray-200 dark:border-gray-800">
+<div class="flex items-center justify-between">
+<p class="text-sm font-medium text-gray-500 dark:text-gray-400">Fees Collected (Month)</p>
+<div class="w-10 h-10 flex items-center justify-center bg-green-100 dark:bg-green-500/20 rounded-full">
+<span class="material-icons-outlined text-xl text-green-500">paid</span>
+</div>
+</div>
+<p class="text-3xl font-bold text-gray-900 dark:text-white mt-2">$1,280,600.00</p>
+<p class="text-xs text-green-600 dark:text-green-400 mt-1 flex items-center"><span class="material-icons-outlined text-sm mr-0.5">arrow_upward</span> 12.8% vs last month</p>
+</div>
+<div class="bg-white dark:bg-gray-900/60 p-5 rounded-xl border border-gray-200 dark:border-gray-800">
+<div class="flex items-center justify-between">
+<p class="text-sm font-medium text-gray-500 dark:text-gray-400">Overdue Payments</p>
+<div class="w-10 h-10 flex items-center justify-center bg-red-100 dark:bg-red-500/20 rounded-full">
+<span class="material-icons-outlined text-xl text-red-500">error_outline</span>
+</div>
+</div>
+<p class="text-3xl font-bold text-gray-900 dark:text-white mt-2">124 Students</p>
+<p class="text-xs text-red-600 dark:text-red-400 mt-1 flex items-center"><span class="material-icons-outlined text-sm mr-0.5">arrow_upward</span> 8 new since last week</p>
+</div>
+<div class="bg-white dark:bg-gray-900/60 p-5 rounded-xl border border-gray-200 dark:border-gray-800">
+<div class="flex items-center justify-between">
+<p class="text-sm font-medium text-gray-500 dark:text-gray-400">Total Enrolled</p>
+<div class="w-10 h-10 flex items-center justify-center bg-primary/10 dark:bg-primary/20 rounded-full">
+<span class="material-icons-outlined text-xl text-primary">school</span>
+</div>
+</div>
+<p class="text-3xl font-bold text-gray-900 dark:text-white mt-2">2,458 Students</p>
+<p class="text-xs text-gray-500 dark:text-gray-400 mt-1">+120 this semester</p>
+</div>
+</div>
+<!-- Charts -->
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mt-6">
+<div class="lg:col-span-1 bg-white dark:bg-gray-900/60 p-6 rounded-xl border border-gray-200 dark:border-gray-800">
+<h3 class="text-lg font-semibold text-gray-900 dark:text-white">Enrollment by Program</h3>
+<div class="relative flex items-center justify-center my-6 h-48">
+<svg class="transform -rotate-90" height="100%" viewbox="0 0 120 120" width="100%">
+<circle class="dark:stroke-gray-700" cx="60" cy="60" fill="none" r="54" stroke="#e6e6e6" stroke-width="12"></circle>
+<circle cx="60" cy="60" fill="none" r="54" stroke="#135bec" stroke-dasharray="270" stroke-dashoffset="0" stroke-width="12"></circle>
+</svg>
+<div class="absolute flex flex-col items-center">
+<span class="text-3xl font-bold text-gray-900 dark:text-white">82%</span>
+<span class="text-sm text-gray-500 dark:text-gray-400">Fashion</span>
+</div>
+</div>
+<div class="space-y-3">
+<div class="flex justify-between items-center">
+<div class="flex items-center">
+<span class="w-2.5 h-2.5 rounded-full bg-primary mr-2"></span>
+<span class="text-sm font-medium text-gray-600 dark:text-gray-300">Fashion Design</span>
+</div>
+<span class="text-sm font-semibold text-gray-800 dark:text-gray-100">2,015 Students</span>
+</div>
+<div class="flex justify-between items-center">
+<div class="flex items-center">
+<span class="w-2.5 h-2.5 rounded-full bg-gray-300 dark:bg-gray-600 mr-2"></span>
+<span class="text-sm font-medium text-gray-600 dark:text-gray-300">Interior Design</span>
+</div>
+<span class="text-sm font-semibold text-gray-800 dark:text-gray-100">443 Students</span>
+</div>
+</div>
+</div>
+<div class="lg:col-span-2 bg-white dark:bg-gray-900/60 p-6 rounded-xl border border-gray-200 dark:border-gray-800">
+<h3 class="text-lg font-semibold text-gray-900 dark:text-white">Outstanding Fees Summary</h3>
+<div class="h-64 mt-4 flex items-end space-x-4">
+<div class="flex-1 flex flex-col items-center space-y-2 h-full justify-end">
+<div class="w-full bg-primary/20 rounded-t-md" style="height: 75%;">
+<div class="w-full bg-primary rounded-t-md h-full"></div>
+</div>
+<span class="text-xs text-gray-500 dark:text-gray-400">Fashion - Sem 1</span>
+</div>
+<div class="flex-1 flex flex-col items-center space-y-2 h-full justify-end">
+<div class="w-full bg-primary/20 rounded-t-md" style="height: 60%;">
+<div class="w-full bg-primary rounded-t-md h-full"></div>
+</div>
+<span class="text-xs text-gray-500 dark:text-gray-400">Fashion - Sem 3</span>
+</div>
+<div class="flex-1 flex flex-col items-center space-y-2 h-full justify-end">
+<div class="w-full bg-primary/20 rounded-t-md" style="height: 40%;">
+<div class="w-full bg-primary rounded-t-md h-full"></div>
+</div>
+<span class="text-xs text-gray-500 dark:text-gray-400">Fashion - Sem 5</span>
+</div>
+<div class="flex-1 flex flex-col items-center space-y-2 h-full justify-end">
+<div class="w-full bg-gray-200 dark:bg-gray-700 rounded-t-md" style="height: 50%;"></div>
+<span class="text-xs text-gray-500 dark:text-gray-400">Interior - Sem 1</span>
+</div>
+<div class="flex-1 flex flex-col items-center space-y-2 h-full justify-end">
+<div class="w-full bg-gray-200 dark:bg-gray-700 rounded-t-md" style="height: 35%;"></div>
+<span class="text-xs text-gray-500 dark:text-gray-400">Interior - Sem 3</span>
+</div>
+<div class="flex-1 flex flex-col items-center space-y-2 h-full justify-end">
+<div class="w-full bg-gray-200 dark:bg-gray-700 rounded-t-md" style="height: 20%;"></div>
+<span class="text-xs text-gray-500 dark:text-gray-400">Interior - Sem 5</span>
+</div>
+</div>
+</div>
+</div>
+<!-- Recent Payments Table -->
+<div class="mt-6 bg-white dark:bg-gray-900/60 rounded-xl border border-gray-200 dark:border-gray-800 overflow-hidden">
+<div class="p-6 flex justify-between items-center">
+<h3 class="text-lg font-semibold text-gray-900 dark:text-white">Recent Payments</h3>
+<div class="relative">
+<span class="material-icons-outlined absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 dark:text-gray-500 text-xl">search</span>
+<input class="w-64 pl-10 pr-4 py-2 text-sm border-gray-300 dark:border-gray-700 bg-background-light dark:bg-gray-800 rounded-lg focus:ring-primary focus:border-primary" placeholder="Search students..." type="text"/>
+</div>
+</div>
+<div class="overflow-x-auto">
+<table class="w-full text-sm text-left">
+<thead class="bg-gray-50 dark:bg-gray-900 text-xs text-gray-600 dark:text-gray-400 uppercase font-semibold">
+<tr>
+<th class="px-6 py-3" scope="col">Student Name</th>
+<th class="px-6 py-3" scope="col">Program / Stream</th>
+<th class="px-6 py-3" scope="col">Amount Paid</th>
+<th class="px-6 py-3" scope="col">Payment Date</th>
+<th class="px-6 py-3" scope="col">Status</th>
+</tr>
+</thead>
+<tbody>
+<tr class="border-b border-gray-200 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800/50">
+<td class="px-6 py-4 font-medium text-gray-900 dark:text-white">Olivia Rhye</td>
+<td class="px-6 py-4 text-gray-600 dark:text-gray-300">Fashion Design / Sem 3</td>
+<td class="px-6 py-4 font-medium text-gray-800 dark:text-gray-100">$2,500.00</td>
+<td class="px-6 py-4 text-gray-600 dark:text-gray-300">Oct 15, 2023</td>
+<td class="px-6 py-4">
+<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-500/20 dark:text-green-300">Paid</span>
+</td>
+</tr>
+<tr class="border-b border-gray-200 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800/50">
+<td class="px-6 py-4 font-medium text-gray-900 dark:text-white">Phoenix Baker</td>
+<td class="px-6 py-4 text-gray-600 dark:text-gray-300">Interior Design / Sem 1</td>
+<td class="px-6 py-4 font-medium text-gray-800 dark:text-gray-100">$3,200.00</td>
+<td class="px-6 py-4 text-gray-600 dark:text-gray-300">Oct 14, 2023</td>
+<td class="px-6 py-4">
+<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-500/20 dark:text-green-300">Paid</span>
+</td>
+</tr>
+<tr class="border-b border-gray-200 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800/50">
+<td class="px-6 py-4 font-medium text-gray-900 dark:text-white">Lana Steiner</td>
+<td class="px-6 py-4 text-gray-600 dark:text-gray-300">Fashion Design / Sem 5</td>
+<td class="px-6 py-4 font-medium text-gray-800 dark:text-gray-100">$1,800.00</td>
+<td class="px-6 py-4 text-gray-600 dark:text-gray-300">Oct 14, 2023</td>
+<td class="px-6 py-4">
+<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-500/20 dark:text-green-300">Paid</span>
+</td>
+</tr>
+<tr class="border-b border-gray-200 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800/50">
+<td class="px-6 py-4 font-medium text-gray-900 dark:text-white">Demi Wilkinson</td>
+<td class="px-6 py-4 text-gray-600 dark:text-gray-300">Fashion Design / Sem 1</td>
+<td class="px-6 py-4 font-medium text-gray-800 dark:text-gray-100">$2,500.00</td>
+<td class="px-6 py-4 text-gray-600 dark:text-gray-300">Oct 12, 2023</td>
+<td class="px-6 py-4">
+<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800 dark:bg-amber-500/20 dark:text-amber-300">Pending</span>
+</td>
+</tr>
+<tr class="hover:bg-gray-50 dark:hover:bg-gray-800/50">
+<td class="px-6 py-4 font-medium text-gray-900 dark:text-white">Candice Wu</td>
+<td class="px-6 py-4 text-gray-600 dark:text-gray-300">Interior Design / Sem 3</td>
+<td class="px-6 py-4 font-medium text-gray-800 dark:text-gray-100">$3,200.00</td>
+<td class="px-6 py-4 text-gray-600 dark:text-gray-300">Oct 11, 2023</td>
+<td class="px-6 py-4">
+<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-500/20 dark:text-green-300">Paid</span>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+</div>
+</main>
+</div>
+</body></html>
