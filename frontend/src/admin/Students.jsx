@@ -492,7 +492,7 @@ const downloadTemplate = () => {
           <table className="w-full border-collapse">
             <thead>
               <tr className="bg-yellow-50">
-                {["Name","Roll No.","Class","Section","Health Status","Attendance Today","Status","Fees Due","Phone","Actions"]
+                {["Name","Roll No.","Class","Section","Fees Due","Phone"]
                   .map((h) => (
                     <th key={h} className="border-b border-yellow-100 px-6 py-3 text-left text-sm font-semibold text-yellow-800">{h}</th>
                   ))
@@ -517,54 +517,6 @@ const downloadTemplate = () => {
                   <td className="border-b border-yellow-100 px-6 py-4 text-gray-600">{student.grade}</td>
                   <td className="border-b border-yellow-100 px-6 py-4 text-gray-600">{student.section}</td>
 
-                  {/* Health Status */}
-                  <td className="border-b border-yellow-100 px-6 py-4">
-                    {(() => {
-                      const healthStatus = getHealthStatus(student);
-                      const config = {
-                        healthy: { icon: Heart, color: "text-green-600", bg: "bg-green-100", text: "Healthy" },
-                        sick: { icon: AlertCircle, color: "text-red-600", bg: "bg-red-100", text: "Sick" },
-                        injured: { icon: AlertCircle, color: "text-orange-600", bg: "bg-orange-100", text: "Injured" },
-                        "absent-sick": { icon: AlertCircle, color: "text-red-600", bg: "bg-red-100", text: "Absent (Sick)" },
-                      }[healthStatus] || { icon: Heart, color: "text-green-600", bg: "bg-green-100", text: "Healthy" };
-                      const Icon = config.icon;
-                      return (
-                        <div className="flex items-center gap-2">
-                          <Icon size={16} className={config.color} />
-                          <span className={`px-2 py-1 rounded-full text-xs font-medium ${config.bg} ${config.color}`}>{config.text}</span>
-                        </div>
-                      );
-                    })()}
-                  </td>
-
-                  {/* Today's Attendance */}
-                  <td className="border-b border-yellow-100 px-6 py-4">
-                    {(() => {
-                      const todayAttendance = getTodayAttendance(student);
-                      if (!todayAttendance) {
-                        return (
-                          <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-600">
-                            <Calendar size={12} className="mr-1" /> Not Marked
-                          </span>
-                        );
-                      }
-                      const ok = todayAttendance.status === "present";
-                      return (
-                        <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${ok ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"}`}>
-                          {ok ? (<><CheckCircle size={12} className="mr-1" /> Present</>) : (<><AlertCircle size={12} className="mr-1" /> Absent</>)}
-                        </span>
-                      );
-                    })()}
-                  </td>
-
-                  {/* Status */}
-                  <td className="border-b border-yellow-100 px-6 py-4">
-                    <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                      student.status === 'Active' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
-                    }`}>
-                      {student.status}
-                    </span>
-                  </td>
 
                   {/* Fees Due */}
                   <td className="border-b border-yellow-100 px-6 py-4">
@@ -593,28 +545,6 @@ const downloadTemplate = () => {
                   </td>
 
                   <td className="border-b border-yellow-100 px-6 py-4 text-gray-600">{student.mobile}</td>
-                  <td className="border-b border-yellow-100 px-6 py-4">
-                    <div className="flex items-center gap-2">
-                      <button className="text-green-600 hover:text-green-800 p-1 rounded hover:bg-green-50" title="Mark Present">
-                        <CheckCircle size={16} />
-                      </button>
-                      <button className="text-red-600 hover:text-red-800 p-1 rounded hover:bg-red-50" title="Mark Absent">
-                        <AlertCircle size={16} />
-                      </button>
-                      <button className="text-purple-600 hover:text-purple-800 p-1 rounded hover:bg-purple-50" title="Health Status">
-                        <Heart size={16} />
-                      </button>
-                      <button className="text-orange-600 hover:text-orange-800 p-1 rounded hover:bg-orange-50" title="Fees">
-                        <IndianRupee size={16} />
-                      </button>
-                      <button className="text-blue-600 hover:text-blue-800 p-1 rounded hover:bg-blue-50" title="Edit">
-                        <Edit2 size={16} />
-                      </button>
-                      <button className="text-gray-600 hover:text-gray-800 p-1 rounded hover:bg-gray-50" title="More">
-                        <MoreVertical size={16} />
-                      </button>
-                    </div>
-                  </td>
                 </tr>
               ))}
               {filteredStudents.length === 0 && (
