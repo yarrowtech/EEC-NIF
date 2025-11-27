@@ -130,48 +130,6 @@ const FeesDashboard = ({ setShowAdminHeader }) => {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Header Bar */}
-      <header className="bg-white border-b border-gray-200 shadow-sm">
-        <div className="px-8 h-16 flex items-center justify-between">
-          <h2 className="text-xl font-bold text-gray-900">Fees Management Dashboard</h2>
-          <div className="flex items-center space-x-6">
-            <div className="flex items-center space-x-2">
-              <div className="relative">
-                <button className="flex items-center space-x-2 text-sm font-medium text-gray-600 bg-white border border-gray-300 rounded-lg px-3 py-1.5 hover:bg-gray-50">
-                  <Calendar size={16} />
-                  <span>{dateRange}</span>
-                  <TrendingDown size={16} />
-                </button>
-              </div>
-              <button 
-                onClick={generateReport}
-                className="text-sm font-semibold py-2 px-4 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center"
-              >
-                <Download size={16} className="mr-1.5" />
-                Generate Report
-              </button>
-            </div>
-            <div className="w-px h-6 bg-gray-300"></div>
-            <div className="flex items-center space-x-4">
-              <button className="text-gray-500 hover:text-blue-600">
-                <Bell size={20} />
-              </button>
-              <div className="flex items-center space-x-3">
-                <img 
-                  className="w-9 h-9 rounded-full object-cover" 
-                  src="https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=150&h=150&fit=crop&crop=face" 
-                  alt="Admin User" 
-                />
-                <div>
-                  <h3 className="text-sm font-semibold text-gray-800">Admin User</h3>
-                  <p className="text-xs text-gray-500">admin@college.edu</p>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </header>
-
       {/* Page Content */}
       <div className="p-8">
         {/* KPI Summary Cards */}
