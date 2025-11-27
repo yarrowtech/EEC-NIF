@@ -1,37 +1,68 @@
+
+// frontend/src/admin/pages/Students.jsx
 import React, { useState, useEffect, useRef } from "react";
 import {
-  Mail, Phone, Calendar, ChevronDown, Hash, BookOpen,
-  Search, Plus, Edit2, MoreVertical, Heart, AlertCircle, CheckCircle,
-  IndianRupee, Smile, Frown, Meh, TrendingUp, Brain, Users, MessageCircle,
-  Star, X, Upload, FileDown
+  Mail,
+  Phone,
+  Calendar,
+  ChevronDown,
+  Hash,
+  BookOpen,
+  Search,
+  Plus,
+  Edit2,
+  MoreVertical,
+  Heart,
+  AlertCircle,
+  CheckCircle,
+  IndianRupee,
+  Smile,
+  Frown,
+  Meh,
+  TrendingUp,
+  Brain,
+  Users,
+  MessageCircle,
+  Star,
+  X,
+  Upload,
+  FileDown,
 } from "lucide-react";
-import toast from "react-hot-toast";
 import Swal from "sweetalert2";
-
 
 const Students = ({ setShowAdminHeader }) => {
   const [studentData, setStudentData] = useState([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [showAddForm, setShowAddForm] = useState(false);
+  const [showWellbeingModal, setShowWellbeingModal] = useState(false);
   const [selectedStudent, setSelectedStudent] = useState(null);
-  const [courses, setCourses] = useState([]);
+  const [wellbeingData, setWellbeingData] = useState({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
   const fileInputRef = useRef(null);
 
   const [newStudent, setNewStudent] = useState({
+    // core
     name: "",
+    email: "",
+    mobile: "",
+    gender: "",
+    dob: "",
+    address: "",
+    pincode: "",
+    status: "Active",
+
+    // academic / nif
+    serialNo: "",
+    batchCode: "",
+    admissionDate: "",
     roll: "",
     grade: "",
     section: "",
-    gender: "",
-    mobile: "",
-    email: "",
-    address: "",
-    dob: "",
-    pincode: "",
     course: "",
-    status: "Active",
+    duration: "",
+    formNo: "",
+    enrollmentNo: "",
   });
 
   /* -------------------- Derived -------------------- */
@@ -45,12 +76,17 @@ const Students = ({ setShowAdminHeader }) => {
   const getTodayAttendance = (student) => {
     if (!student.attendance || student.attendance.length === 0) return null;
     const today = new Date().toDateString();
-    return student.attendance.find((att) => new Date(att.date).toDateString() === today);
+    return student.attendance.find(
+      (att) => new Date(att.date).toDateString() === today
+    );
   };
 
   const getHealthStatus = (student) => {
     const healthStatuses = ["healthy", "sick", "injured", "absent-sick"];
-    return student.healthStatus || healthStatuses[Math.floor(Math.random() * healthStatuses.length)];
+    return (
+      student.healthStatus ||
+      healthStatuses[Math.floor(Math.random() * healthStatuses.length)]
+    );
   };
 
   const getFeesStatus = () => {
@@ -61,323 +97,427 @@ const Students = ({ setShowAdminHeader }) => {
     };
     mockFees.dueAmount = mockFees.totalDue - mockFees.paidAmount;
     mockFees.status =
-      mockFees.dueAmount === 0 ? "paid" :
-      mockFees.dueAmount < mockFees.totalDue ? "partial" : "due";
+      mockFees.dueAmount === 0
+        ? "paid"
+        : mockFees.dueAmount < mockFees.totalDue
+        ? "partial"
+        : "due";
     return mockFees;
   };
 
+  const getMoodIcon = (mood) => {
+    const moodIcons = {
+      excellent: { icon: Smile, color: "text-green-600", bg: "bg-green-100" },
+      good: { icon: Smile, color: "text-blue-600", bg: "bg-blue-100" },
+      neutral: { icon: Meh, color: "text-yellow-600", bg: "bg-yellow-100" },
+      concerning: { icon: Frown, color: "text-orange-600", bg: "bg-orange-100" },
+      critical: { icon: AlertCircle, color: "text-red-600", bg: "bg-red-100" },
+    };
+    return moodIcons[mood] || moodIcons.neutral;
+  };
+
+  const getWellbeingStatus = (studentId) => {
+    if (!wellbeingData[studentId]) {
+      const moods = ["excellent", "good", "neutral", "concerning", "critical"];
+      const mood = moods[Math.floor(Math.random() * moods.length)];
+      const socialEngagement = Math.floor(Math.random() * 10) + 1;
+      const academicStress = Math.floor(Math.random() * 10) + 1;
+      const behaviorChanges = Math.random() > 0.7;
+
+      setWellbeingData((prev) => ({
+        ...prev,
+        [studentId]: {
+          mood,
+          socialEngagement,
+          academicStress,
+          behaviorChanges,
+          lastAssessment: new Date().toISOString().split("T")[0],
+          notes: "",
+          interventions: [],
+          counselingSessions: Math.floor(Math.random() * 5),
+          parentNotifications: Math.floor(Math.random() * 3),
+        },
+      }));
+      return { mood, socialEngagement, academicStress, behaviorChanges };
+    }
+    return wellbeingData[studentId];
+  };
+
+  const updateWellbeingData = (studentId, updates) => {
+    setWellbeingData((prev) => ({
+      ...prev,
+      [studentId]: {
+        ...prev[studentId],
+        ...updates,
+        lastAssessment: new Date().toISOString().split("T")[0],
+      },
+    }));
+  };
+
+  const openWellbeingModal = (student) => {
+    setSelectedStudent(student);
+    setShowWellbeingModal(true);
+  };
 
   const refreshStudents = async () => {
-    const res = await fetch(`${import.meta.env.VITE_API_URL}/api/nif/students`, {
-      method: "GET",
-      headers: {
-        "Content-Type": "application/json",
-        authorization: `Bearer ${localStorage.getItem("token")}`,
-      },
-    });
+    const res = await fetch(
+      `${import.meta.env.VITE_API_URL}/api/nif/students`,
+      {
+        method: "GET",
+        headers: {
+          "Content-Type": "application/json",
+          authorization: `Bearer ${localStorage.getItem("token")}`,
+        },
+      }
+    );
     if (res.ok) {
       const data = await res.json();
       setStudentData(data);
     }
   };
 
+  /* -------------------- Effects -------------------- */
+  useEffect(() => {
+    setShowAdminHeader?.(true);
+    refreshStudents().catch(console.error);
+  }, [setShowAdminHeader]);
 
-useEffect(() => {
-  setShowAdminHeader?.(true);
+  /* -------------------- Add Student -------------------- */
+  const handleAddStudentChange = (e) => {
+    const { name, value } = e.target;
+    setNewStudent((prev) => ({ ...prev, [name]: value }));
+  };
 
-  refreshStudents().catch((err) => {
-    console.error(err);
-    toast.error("Failed to load students");
-  });
+  const handleAddStudentSubmit = async (e) => {
+    e.preventDefault();
+    const requiredFields = [
+      "name",
+      "mobile",
+      "gender",
+      "batchCode",
+      "admissionDate",
+      "roll",
+      "grade",
+      "section",
+      "course",
+    ];
 
-  fetch(`${import.meta.env.VITE_API_URL}/api/nif/course/fetch`, {
-    method: "GET",
-    headers: {
-      "Content-Type": "application/json",
-      authorization: `Bearer ${localStorage.getItem("token")}`,
-    },
-  })
-    .then((res) => (res.ok ? res.json() : Promise.reject(new Error("Failed to fetch courses"))))
-    .then((data) => setCourses(data))
-    .catch((err) => {
-      console.error("Error fetching courses:", err);
-      toast.error("Failed to load courses");
-    });
-}, [setShowAdminHeader]);
-
-// /* -------------------- Add Student -------------------- */
-// const handleAddStudentChange = (e) => {
-//   const { name, value } = e.target;
-//   setNewStudent((prev) => ({ ...prev, [name]: value }));
-// };
-
-// const handleAddStudentSubmit = async (e) => {
-//   e.preventDefault();
-
-//   const requiredFields = ["name", "email", "mobile", "dob", "gender", "roll", "grade", "section"];
-//   const missing = requiredFields.filter((f) => !newStudent[f] || String(newStudent[f]).trim() === "");
-
-//   if (missing.length) {
-//     toast.error(`Missing: ${missing.join(", ")}`);
-//     return;
-//   }
-
-//   setIsSubmitting(true);
-
-//   try {
-//     const res = await fetch(`${import.meta.env.VITE_API_URL}/api/nif/students/register`, {
-//       method: "POST",
-//       headers: {
-//         "Content-Type": "application/json",
-//         authorization: `Bearer ${localStorage.getItem("token")}`,
-//       },
-//       body: JSON.stringify(newStudent),
-//     });
-
-//     const data = await res.json().catch(() => ({}));
-
-//     if (!res.ok) {
-//       toast.error(data.message || "Registration failed");
-//       return;
-//     }
-
-//     toast.success("Student enrolled successfully!");
-
-//     await refreshStudents();
-
-//     setShowAddForm(false);
-//     setNewStudent({
-//       name: "",
-//       roll: "",
-//       grade: "",
-//       section: "",
-//       gender: "",
-//       mobile: "",
-//       email: "",
-//       address: "",
-//       dob: "",
-//       pincode: "",
-//       course: "",
-//       status: "Active",
-//     });
-//   } catch (err) {
-//     toast.error(err.message);
-//   } finally {
-//     setIsSubmitting(false);
-//   }
-// };
-
-/* -------------------- Add Student -------------------- */
-const handleAddStudentChange = (e) => {
-  const { name, value } = e.target;
-  setNewStudent((prev) => ({ ...prev, [name]: value }));
-};
-
-const handleAddStudentSubmit = async (e) => {
-  e.preventDefault();
-
-  const requiredFields = ["name", "email", "mobile", "dob", "gender", "roll", "grade", "section"];
-  const missing = requiredFields.filter((f) => !newStudent[f] || String(newStudent[f]).trim() === "");
-
-  if (missing.length) {
-    Swal.fire({
-      icon: "error",
-      title: "Missing Fields",
-      text: `Missing: ${missing.join(", ")}`,
-    });
-    return;
-  }
-
-  setIsSubmitting(true);
-
-  try {
-    const res = await fetch(`${import.meta.env.VITE_API_URL}/api/nif/students/register`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        authorization: `Bearer ${localStorage.getItem("token")}`,
-      },
-      body: JSON.stringify(newStudent),
-    });
-
-    const data = await res.json().catch(() => ({}));
-
-    if (!res.ok) {
-      Swal.fire({
-        icon: "error",
-        title: "Registration Failed",
-        text: data.message || "Something went wrong",
-      });
-      return;
-    }
-
-    Swal.fire({
-      icon: "success",
-      title: "Student Enrolled!",
-      text: "The student has been registered successfully.",
-      timer: 1800,
-      showConfirmButton: false,
-    });
-
-    await refreshStudents();
-
-    setShowAddForm(false);
-    setNewStudent({
-      name: "",
-      roll: "",
-      grade: "",
-      section: "",
-      gender: "",
-      mobile: "",
-      email: "",
-      address: "",
-      dob: "",
-      pincode: "",
-      course: "",
-      status: "Active",
-    });
-  } catch (err) {
-    Swal.fire({
-      icon: "error",
-      title: "Error",
-      text: err.message,
-    });
-  } finally {
-    setIsSubmitting(false);
-  }
-};
-
-
-/* -------------------- Bulk Upload -------------------- */
-
-const handleBulkFilePicked = async (file) => {
-  try {
-    setIsImporting(true);
-
-    const text = await file.text();
-    const rows = parseCsv(text);
-
-    if (!rows.length) {
-      toast.error("CSV is empty");
-      return;
-    }
-
-    const header = rows[0].map(normalize);
-    const missing = REQUIRED_HEADERS.filter((h) => !header.includes(h));
-
+    const missing = requiredFields.filter(
+      (f) => !newStudent[f] || String(newStudent[f]).trim() === ""
+    );
     if (missing.length) {
-      toast.error(`Missing headers: ${missing.join(", ")}`);
+      alert(`Please fill required fields: ${missing.join(", ")}`);
       return;
     }
 
-    const idx = Object.fromEntries(header.map((h, i) => [h, i]));
-    const payload = [];
+    setIsSubmitting(true);
+    try {
+      const payload = {
+        ...newStudent,
+        // convert serialNo to number if provided
+        serialNo: newStudent.serialNo
+          ? Number(newStudent.serialNo)
+          : undefined,
+      };
 
-    for (let r = 1; r < rows.length; r++) {
-      const raw = rows[r];
-      if (!raw || raw.every((c) => !String(c || "").trim())) continue;
+      const res = await fetch(
+        `${import.meta.env.VITE_API_URL}/api/nif/students`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            authorization: `Bearer ${localStorage.getItem("token")}`,
+          },
+          body: JSON.stringify(payload),
+        }
+      );
 
-      const obj = {};
-      for (const h of ALL_HEADERS) obj[h] = String(raw[idx[h]] ?? "").trim();
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        alert(`Registration failed: ${data.message || res.statusText}`);
+        return;
+      }
+      Swal.fire({
+            icon: "success",
+            title: "student enrolled successfully!",
+            toast: true,
+            position: "top-end",
+            showConfirmButton: false,
+            timer: 2000,
+            timerProgressBar: true,
+          });
 
-      if (!REQUIRED_HEADERS.every((k) => obj[k])) continue;
 
-      const dob = toISO(obj.dob);
-      if (!dob) continue;
+      await refreshStudents();
 
-      payload.push({
-        name: obj.name,
-        roll: obj.roll,
-        grade: obj.grade,
-        section: obj.section,
-        gender: obj.gender,
-        mobile: obj.mobile,
-        email: obj.email.toLowerCase(),
-        address: obj.address || "",
-        dob,
-        pincode: obj.pincode || "",
-        course: obj.course || "",
-        status: obj.status || "Active",
+      setShowAddForm(false);
+      setNewStudent({
+        name: "",
+        email: "",
+        mobile: "",
+        gender: "",
+        dob: "",
+        address: "",
+        pincode: "",
+        status: "Active",
+        serialNo: "",
+        batchCode: "",
+        admissionDate: "",
+        roll: "",
+        grade: "",
+        section: "",
+        course: "",
+        duration: "",
+        formNo: "",
+        enrollmentNo: "",
       });
+    } catch (err) {
+      console.error(err);
+      alert(`Error: ${err.message}`);
+    } finally {
+      setIsSubmitting(false);
     }
+  };
 
-    if (!payload.length) {
-      toast.error("No valid rows found");
-      return;
-    }
-
-    const res = await fetch(`${import.meta.env.VITE_API_URL}/api/nif/students/bulk`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        authorization: `Bearer ${localStorage.getItem("token")}`,
-      },
-      body: JSON.stringify({ students: payload }),
-    });
-
-    const data = await res.json().catch(() => ({}));
-
-    if (!res.ok) {
-      toast.error(data.message || "Bulk import failed");
-      return;
-    }
-
-    toast.success(`Imported: ${data.imported}, Failed: ${data.failed}`);
-
-    await refreshStudents();
-  } catch (e) {
-    toast.error("Bulk import error: " + e.message);
-  } finally {
-    setIsImporting(false);
-    if (fileInputRef.current) fileInputRef.current.value = "";
-  }
-};
-
-/* -------------------- Template Download -------------------- */
-const downloadTemplate = () => {
-  const headers = [
-    "name",
-    "roll",
-    "grade",
-    "section",
-    "gender",
-    "mobile",
+  /* -------------------- Bulk Upload -------------------- */
+  const REQUIRED_HEADERS = ["name", "mobile"]; // keep minimum strict
+  const OPTIONAL_HEADERS = [
     "email",
+    "gender",
     "dob",
     "address",
     "pincode",
-    "course",
     "status",
+    "serialNo",
+    "batchCode",
+    "admissionDate",
+    "roll",
+    "grade",
+    "section",
+    "course",
+    "duration",
+    "formNo",
+    "enrollmentNo",
   ];
+  const ALL_HEADERS = [...REQUIRED_HEADERS, ...OPTIONAL_HEADERS];
 
-  const blob = new Blob([headers.join(",") + "\n"], { type: "text/csv;charset=utf-8" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = "nif_students_template.csv";
-  a.click();
-  URL.revokeObjectURL(url);
+  const normalize = (h) => h?.toString().trim().toLowerCase();
 
-  toast.success("Template downloaded");
-};
+  // simple CSV parser with quotes support
+  const parseCsv = (text) => {
+    const out = [];
+    let i = 0,
+      f = "",
+      row = [],
+      q = false;
+    const pf = () => {
+        row.push(f);
+        f = "";
+      },
+      pr = () => {
+        out.push(row);
+        row = [];
+      };
+
+    while (i < text.length) {
+      const c = text[i];
+      if (q) {
+        if (c === '"') {
+          if (text[i + 1] === '"') {
+            f += '"';
+            i += 2;
+          } else {
+            q = false;
+            i++;
+          }
+        } else {
+          f += c;
+          i++;
+        }
+      } else {
+        if (c === '"') {
+          q = true;
+          i++;
+        } else if (c === ",") {
+          pf();
+          i++;
+        } else if (c === "\r") {
+          i++;
+        } else if (c === "\n") {
+          pf();
+          pr();
+          i++;
+        } else {
+          f += c;
+          i++;
+        }
+      }
+    }
+    pf();
+    if (row.length) pr();
+    return out;
+  };
+
+  const toISO = (s) => {
+    const t = String(s || "").trim();
+    if (!t) return null;
+    if (/^\d{4}-\d{2}-\d{2}$/.test(t)) return t;
+    const m = t.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{4})$/); // dd/mm/yyyy or mm/dd/yyyy
+    if (m) {
+      const dd = String(m[1]).padStart(2, "0");
+      const mm = String(m[2]).padStart(2, "0");
+      return `${m[3]}-${mm}-${dd}`;
+    }
+    return null;
+  };
+
+  const handleBulkFilePicked = async (file) => {
+    try {
+      setIsImporting(true);
+      const text = await file.text();
+      const rows = parseCsv(text);
+      if (!rows.length) {
+        alert("CSV is empty");
+        return;
+      }
+      const header = rows[0].map(normalize);
+      const missing = REQUIRED_HEADERS.filter((h) => !header.includes(h));
+      if (missing.length) {
+        alert(`Missing headers: ${missing.join(", ")}`);
+        return;
+      }
+
+      const idx = Object.fromEntries(header.map((h, i) => [h, i]));
+      const payload = [];
+
+      for (let r = 1; r < rows.length; r++) {
+        const raw = rows[r];
+        if (!raw || raw.every((c) => !String(c || "").trim())) continue;
+
+        const obj = {};
+        for (const h of ALL_HEADERS) {
+          const key = h.toLowerCase();
+          if (idx[key] !== undefined) {
+            obj[h] = String(raw[idx[key]] ?? "").trim();
+          } else {
+            obj[h] = "";
+          }
+        }
+
+        if (!obj.name || !obj.mobile) continue;
+
+        const dob = toISO(obj.dob);
+        const admissionDate = toISO(obj.admissionDate);
+
+        payload.push({
+          name: obj.name,
+          mobile: obj.mobile,
+          email: (obj.email || "").toLowerCase(),
+          gender: obj.gender || "Other",
+          dob,
+          address: obj.address || "",
+          pincode: obj.pincode || "",
+          status: obj.status || "Active",
+          serialNo: obj.serialNo ? Number(obj.serialNo) : undefined,
+          batchCode: obj.batchCode || "",
+          admissionDate,
+          roll: obj.roll || "",
+          grade: obj.grade || "",
+          section: obj.section || "",
+          course: obj.course || "",
+          duration: obj.duration || "",
+          formNo: obj.formNo || "",
+          enrollmentNo: obj.enrollmentNo || "",
+        });
+      }
+
+      if (!payload.length) {
+        alert("No valid rows found.");
+        return;
+      }
+
+      const res = await fetch(
+        `${import.meta.env.VITE_API_URL}/api/nif/students/bulk`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            authorization: `Bearer ${localStorage.getItem("token")}`,
+          },
+          body: JSON.stringify({ students: payload }),
+        }
+      );
+
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        alert(`Import failed: ${data.message || res.statusText}`);
+        return;
+      }
+
+      alert(
+        `Import complete\nImported: ${data.imported}\nFailed: ${data.failed}`
+      );
+      await refreshStudents();
+    } catch (e) {
+      console.error(e);
+      alert(`Bulk import error: ${e.message}`);
+    } finally {
+      setIsImporting(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  };
+
+  const downloadTemplate = () => {
+    const headers = [
+      "serialNo",
+      "batchCode",
+      "admissionDate",
+      "name",
+      "mobile",
+      "email",
+      "gender",
+      "dob",
+      "roll",
+      "grade",
+      "section",
+      "course",
+      "duration",
+      "formNo",
+      "enrollmentNo",
+      "address",
+      "pincode",
+      "status",
+    ];
+    const blob = new Blob([headers.join(",") + "\n"], {
+      type: "text/csv;charset=utf-8",
+    });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "nif_students_template.csv";
+    a.click();
+    URL.revokeObjectURL(url);
+  };
 
   /* -------------------- UI -------------------- */
   return (
     <div className="min-h-screen bg-gradient-to-br from-yellow-50 via-yellow-100 to-amber-100 p-8">
       <div className="max-w-7xl mx-auto bg-white/90 rounded-2xl shadow-2xl p-8 border border-yellow-200">
-
         {/* Header */}
         <div className="flex flex-wrap gap-3 justify-between items-center mb-8">
           <div>
-            <h1 className="text-3xl font-bold text-yellow-700">Student Management</h1>
-            <p className="text-gray-600 mt-2">Manage students, attendance, wellbeing and fees</p>
+            <h1 className="text-3xl font-bold text-yellow-700">
+              Student Management (NIF)
+            </h1>
+            <p className="text-gray-600 mt-2">
+              Manage NIF students, bulk upload & wellbeing overview
+            </p>
           </div>
           <div className="flex flex-wrap gap-3">
             <button
               onClick={() => fileInputRef.current?.click()}
               disabled={isImporting}
               className="bg-amber-600 text-white px-4 py-2 rounded-lg hover:bg-amber-700 disabled:opacity-60 flex items-center gap-2"
-              title="Upload CSV to import students"
             >
               <Upload size={16} />
               {isImporting ? "Importing..." : "Bulk Upload"}
@@ -395,7 +535,6 @@ const downloadTemplate = () => {
             <button
               onClick={downloadTemplate}
               className="bg-white border border-amber-300 text-amber-700 px-4 py-2 rounded-lg hover:bg-amber-50 flex items-center gap-2"
-              title="Download CSV template"
             >
               <FileDown size={16} />
               CSV Template
@@ -406,6 +545,21 @@ const downloadTemplate = () => {
             >
               <Plus size={16} /> Add Student
             </button>
+            <button
+              onClick={() => {
+                setSelectedStudent({
+                  _id: "test",
+                  name: "Test Student",
+                  roll: "001",
+                  grade: "FD",
+                  section: "A",
+                });
+                setShowWellbeingModal(true);
+              }}
+              className="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 flex items-center gap-2"
+            >
+              <Brain size={16} /> Test Wellbeing
+            </button>
           </div>
         </div>
 
@@ -414,11 +568,17 @@ const downloadTemplate = () => {
           <div className="bg-white p-4 rounded-lg shadow-sm border border-yellow-200">
             <div className="flex items-center justify-between">
               <div>
-                <h3 className="text-sm font-medium text-gray-600">Total Students</h3>
-                <p className="text-2xl font-bold text-gray-900">{studentData.length}</p>
+                <h3 className="text-sm font-medium text-gray-600">
+                  Total Students
+                </h3>
+                <p className="text-2xl font-bold text-gray-900">
+                  {studentData.length}
+                </p>
               </div>
               <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center">
-                <span className="text-blue-600 font-semibold">{studentData.length}</span>
+                <span className="text-blue-600 font-semibold">
+                  {studentData.length}
+                </span>
               </div>
             </div>
           </div>
@@ -426,9 +586,15 @@ const downloadTemplate = () => {
           <div className="bg-white p-4 rounded-lg shadow-sm border border-yellow-200">
             <div className="flex items-center justify-between">
               <div>
-                <h3 className="text-sm font-medium text-gray-600">Present Today</h3>
+                <h3 className="text-sm font-medium text-gray-600">
+                  Present Today
+                </h3>
                 <p className="text-2xl font-bold text-green-600">
-                  {studentData.filter((s) => getTodayAttendance(s)?.status === "present").length}
+                  {
+                    studentData.filter(
+                      (s) => getTodayAttendance(s)?.status === "present"
+                    ).length
+                  }
                 </p>
               </div>
               <CheckCircle className="w-8 h-8 text-green-500" />
@@ -438,9 +604,17 @@ const downloadTemplate = () => {
           <div className="bg-white p-4 rounded-lg shadow-sm border border-yellow-200">
             <div className="flex items-center justify-between">
               <div>
-                <h3 className="text-sm font-medium text-gray-600">Health Issues</h3>
+                <h3 className="text-sm font-medium text-gray-600">
+                  Health Issues
+                </h3>
                 <p className="text-2xl font-bold text-red-600">
-                  {studentData.filter((s) => ["sick","injured","absent-sick"].includes(getHealthStatus(s))).length}
+                  {
+                    studentData.filter((s) =>
+                      ["sick", "injured", "absent-sick"].includes(
+                        getHealthStatus(s)
+                      )
+                    ).length
+                  }
                 </p>
               </div>
               <Heart className="w-8 h-8 text-red-500" />
@@ -450,9 +624,15 @@ const downloadTemplate = () => {
           <div className="bg-white p-4 rounded-lg shadow-sm border border-yellow-200">
             <div className="flex items-center justify-between">
               <div>
-                <h3 className="text-sm font-medium text-gray-600">Fees Pending</h3>
+                <h3 className="text-sm font-medium text-gray-600">
+                  Fees Pending
+                </h3>
                 <p className="text-2xl font-bold text-orange-600">
-                  {studentData.filter(() => getFeesStatus().status !== "paid").length}
+                  {
+                    studentData.filter(
+                      () => getFeesStatus().status !== "paid"
+                    ).length
+                  }
                 </p>
               </div>
               <IndianRupee className="w-8 h-8 text-orange-500" />
@@ -462,9 +642,16 @@ const downloadTemplate = () => {
           <div className="bg-white p-4 rounded-lg shadow-sm border border-yellow-200">
             <div className="flex items-center justify-between">
               <div>
-                <h3 className="text-sm font-medium text-gray-600">Active Students</h3>
+                <h3 className="text-sm font-medium text-gray-600">
+                  Wellbeing Alert
+                </h3>
                 <p className="text-2xl font-bold text-purple-600">
-                  {studentData.filter((student) => student.status === "Active").length}
+                  {studentData.filter((student) => {
+                    const w = getWellbeingStatus(student._id || student.id);
+                    return (
+                      w.mood === "concerning" || w.mood === "critical"
+                    );
+                  }).length}
                 </p>
               </div>
               <Brain className="w-8 h-8 text-purple-500" />
@@ -475,7 +662,10 @@ const downloadTemplate = () => {
         {/* Search */}
         <div className="mb-6 flex flex-wrap items-center gap-4">
           <div className="flex-1 min-w-[240px] relative">
-            <Search size={20} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+            <Search
+              size={20}
+              className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
+            />
             <input
               type="text"
               placeholder="Search students..."
@@ -484,7 +674,6 @@ const downloadTemplate = () => {
               onChange={(e) => setSearchTerm(e.target.value)}
             />
           </div>
-          {/* (Optional) Add class/section filters here if needed */}
         </div>
 
         {/* Students Table */}
@@ -492,64 +681,234 @@ const downloadTemplate = () => {
           <table className="w-full border-collapse">
             <thead>
               <tr className="bg-yellow-50">
-                {["Name","Roll No.","Class","Section","Fees Due","Phone"]
-                  .map((h) => (
-                    <th key={h} className="border-b border-yellow-100 px-6 py-3 text-left text-sm font-semibold text-yellow-800">{h}</th>
-                  ))
-                }
+                {[
+                  "Name",
+                  "Roll No.",
+                  "Program",
+                  "Batch",
+                  "Course",
+                  "Health Status",
+                  "Attendance Today",
+                  "Wellbeing",
+                  "Phone",
+                  "Actions",
+                ].map((h) => (
+                  <th
+                    key={h}
+                    className="border-b border-yellow-100 px-6 py-3 text-left text-sm font-semibold text-yellow-800"
+                  >
+                    {h}
+                  </th>
+                ))}
               </tr>
             </thead>
             <tbody>
               {filteredStudents.map((student) => (
-                <tr key={student._id || student.id} className="hover:bg-yellow-50 transition-colors">
+                <tr
+                  key={student._id || student.id}
+                  className="hover:bg-yellow-50 transition-colors"
+                >
                   <td className="border-b border-yellow-100 px-6 py-4">
                     <div className="flex items-center gap-3">
                       <div className="w-8 h-8 rounded-full bg-yellow-200 flex items-center justify-center">
                         {student.name?.charAt(0) || "?"}
                       </div>
                       <div>
-                        <div className="font-medium text-gray-900">{student.name}</div>
-                        <div className="text-sm text-gray-500">{student.email}</div>
+                        <div className="font-medium text-gray-900">
+                          {student.name}
+                        </div>
+                        <div className="text-sm text-gray-500">
+                          {student.email}
+                        </div>
                       </div>
                     </div>
                   </td>
-                  <td className="border-b border-yellow-100 px-6 py-4 text-gray-600">{student.roll}</td>
-                  <td className="border-b border-yellow-100 px-6 py-4 text-gray-600">{student.grade}</td>
-                  <td className="border-b border-yellow-100 px-6 py-4 text-gray-600">{student.section}</td>
+                  <td className="border-b border-yellow-100 px-6 py-4 text-gray-600">
+                    {student.roll}
+                  </td>
+                  <td className="border-b border-yellow-100 px-6 py-4 text-gray-600">
+                    {student.grade}
+                  </td>
+                  <td className="border-b border-yellow-100 px-6 py-4 text-gray-600">
+                    {student.batchCode}
+                  </td>
+                  <td className="border-b border-yellow-100 px-6 py-4 text-gray-600">
+                    {student.course}
+                  </td>
 
-
-                  {/* Fees Due */}
+                  {/* Health Status */}
                   <td className="border-b border-yellow-100 px-6 py-4">
                     {(() => {
-                      const feesStatus = getFeesStatus();
+                      const healthStatus = getHealthStatus(student);
+                      const config =
+                        {
+                          healthy: {
+                            icon: Heart,
+                            color: "text-green-600",
+                            bg: "bg-green-100",
+                            text: "Healthy",
+                          },
+                          sick: {
+                            icon: AlertCircle,
+                            color: "text-red-600",
+                            bg: "bg-red-100",
+                            text: "Sick",
+                          },
+                          injured: {
+                            icon: AlertCircle,
+                            color: "text-orange-600",
+                            bg: "bg-orange-100",
+                            text: "Injured",
+                          },
+                          "absent-sick": {
+                            icon: AlertCircle,
+                            color: "text-red-600",
+                            bg: "bg-red-100",
+                            text: "Absent (Sick)",
+                          },
+                        }[healthStatus] || {
+                          icon: Heart,
+                          color: "text-green-600",
+                          bg: "bg-green-100",
+                          text: "Healthy",
+                        };
+                      const Icon = config.icon;
                       return (
-                        <div className="space-y-1">
-                          <div className="flex items-center gap-1">
-                            <IndianRupee size={12} className="text-gray-500" />
-                            <span className={`text-sm font-medium ${
-                              feesStatus.status === "paid" ? "text-green-600" :
-                              feesStatus.status === "partial" ? "text-orange-600" : "text-red-600"
-                            }`}>
-                              ₹{feesStatus.dueAmount.toLocaleString()}
-                            </span>
-                          </div>
-                          <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${
-                            feesStatus.status === "paid" ? "bg-green-100 text-green-800" :
-                            feesStatus.status === "partial" ? "bg-orange-100 text-orange-800" : "bg-red-100 text-red-800"
-                          }`}>
-                            {feesStatus.status === "paid" ? "Paid" : feesStatus.status === "partial" ? "Partial" : "Due"}
+                        <div className="flex items-center gap-2">
+                          <Icon size={16} className={config.color} />
+                          <span
+                            className={`px-2 py-1 rounded-full text-xs font-medium ${config.bg} ${config.color}`}
+                          >
+                            {config.text}
                           </span>
                         </div>
                       );
                     })()}
                   </td>
 
-                  <td className="border-b border-yellow-100 px-6 py-4 text-gray-600">{student.mobile}</td>
+                  {/* Today's Attendance */}
+                  <td className="border-b border-yellow-100 px-6 py-4">
+                    {(() => {
+                      const todayAttendance = getTodayAttendance(student);
+                      if (!todayAttendance) {
+                        return (
+                          <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-600">
+                            <Calendar size={12} className="mr-1" /> Not Marked
+                          </span>
+                        );
+                      }
+                      const ok = todayAttendance.status === "present";
+                      return (
+                        <span
+                          className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
+                            ok
+                              ? "bg-green-100 text-green-800"
+                              : "bg-red-100 text-red-800"
+                          }`}
+                        >
+                          {ok ? (
+                            <>
+                              <CheckCircle size={12} className="mr-1" /> Present
+                            </>
+                          ) : (
+                            <>
+                              <AlertCircle size={12} className="mr-1" /> Absent
+                            </>
+                          )}
+                        </span>
+                      );
+                    })()}
+                  </td>
+
+                  {/* Wellbeing */}
+                  <td className="border-b border-yellow-100 px-6 py-4">
+                    {(() => {
+                      const wellbeing = getWellbeingStatus(
+                        student._id || student.id
+                      );
+                      const moodConfig = getMoodIcon(wellbeing.mood);
+                      const Icon = moodConfig.icon;
+                      return (
+                        <div className="space-y-1">
+                          <div className="flex items-center gap-2">
+                            <Icon size={16} className={moodConfig.color} />
+                            <span
+                              className={`px-2 py-1 rounded-full text-xs font-medium ${moodConfig.bg} ${moodConfig.color}`}
+                            >
+                              {wellbeing.mood[0].toUpperCase() +
+                                wellbeing.mood.slice(1)}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-2 text-xs text-gray-500">
+                            <span>
+                              Stress: {wellbeing.academicStress}/10
+                            </span>
+                            {wellbeing.behaviorChanges && (
+                              <AlertCircle
+                                size={12}
+                                className="text-orange-500"
+                                title="Behavior changes noted"
+                              />
+                            )}
+                          </div>
+                          <button
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              openWellbeingModal(student);
+                            }}
+                            className="text-xs text-purple-600 hover:text-purple-800 font-medium"
+                          >
+                            View Details
+                          </button>
+                        </div>
+                      );
+                    })()}
+                  </td>
+
+                  <td className="border-b border-yellow-100 px-6 py-4 text-gray-600">
+                    {student.mobile}
+                  </td>
+                  <td className="border-b border-yellow-100 px-6 py-4">
+                    <div className="flex items-center gap-2">
+                      <button className="text-green-600 hover:text-green-800 p-1 rounded hover:bg-green-50">
+                        <CheckCircle size={16} />
+                      </button>
+                      <button className="text-red-600 hover:text-red-800 p-1 rounded hover:bg-red-50">
+                        <AlertCircle size={16} />
+                      </button>
+                      <button className="text-purple-600 hover:text-purple-800 p-1 rounded hover:bg-purple-50">
+                        <Heart size={16} />
+                      </button>
+                      <button className="text-orange-600 hover:text-orange-800 p-1 rounded hover:bg-orange-50">
+                        <IndianRupee size={16} />
+                      </button>
+                      <button
+                        className="text-purple-600 hover:text-purple-800 p-1 rounded hover:bg-purple-50"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          openWellbeingModal(student);
+                        }}
+                      >
+                        <Brain size={16} />
+                      </button>
+                      <button className="text-blue-600 hover:text-blue-800 p-1 rounded hover:bg-blue-50">
+                        <Edit2 size={16} />
+                      </button>
+                      <button className="text-gray-600 hover:text-gray-800 p-1 rounded hover:bg-gray-50">
+                        <MoreVertical size={16} />
+                      </button>
+                    </div>
+                  </td>
                 </tr>
               ))}
               {filteredStudents.length === 0 && (
                 <tr>
-                  <td colSpan={10} className="text-center text-gray-500 py-10">
+                  <td
+                    colSpan={10}
+                    className="text-center text-gray-500 py-10"
+                  >
                     No students found.
                   </td>
                 </tr>
@@ -558,17 +917,248 @@ const downloadTemplate = () => {
           </table>
         </div>
 
-        {/* Pagination (simple placeholder) */}
+        {/* Pagination */}
         <div className="mt-6 flex items-center justify-between">
           <div className="text-gray-600">
             Showing {filteredStudents.length} of {studentData.length} students
           </div>
           <div className="flex gap-2">
-            <button className="px-4 py-2 border border-gray-200 rounded-lg hover:bg-yellow-50">Previous</button>
-            <button className="px-4 py-2 border border-gray-200 rounded-lg hover:bg-yellow-50">Next</button>
+            <button className="px-4 py-2 border border-gray-200 rounded-lg hover:bg-yellow-50">
+              Previous
+            </button>
+            <button className="px-4 py-2 border border-gray-200 rounded-lg hover:bg-yellow-50">
+              Next
+            </button>
           </div>
         </div>
 
+        {/* Wellbeing Modal */}
+        {showWellbeingModal && selectedStudent && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+              <div className="p-6 border-b border-gray-200 flex justify-between items-center">
+                <div>
+                  <h2 className="text-2xl font-bold text-gray-900">
+                    Emotional Wellbeing Assessment
+                  </h2>
+                  <p className="text-gray-600 mt-1">
+                    {selectedStudent.name} • Roll: {selectedStudent.roll} •
+                    Program: {selectedStudent.grade} • Batch:{" "}
+                    {selectedStudent.batchCode}
+                  </p>
+                </div>
+                <button
+                  onClick={() => setShowWellbeingModal(false)}
+                  className="text-gray-400 hover:text-gray-600 p-2"
+                >
+                  <X size={24} />
+                </button>
+              </div>
+
+              <div className="p-6 space-y-6">
+                <div className="bg-gradient-to-r from-purple-50 to-pink-50 rounded-xl p-6">
+                  <h3 className="text-lg font-semibold text-gray-900 mb-4">
+                    Current Status
+                  </h3>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    {(() => {
+                      const w = getWellbeingStatus(
+                        selectedStudent._id || selectedStudent.id
+                      );
+                      const moodConfig = getMoodIcon(w.mood);
+                      const MoodIcon = moodConfig.icon;
+                      return (
+                        <>
+                          <div className="text-center">
+                            <div
+                              className={`inline-flex items-center justify-center w-16 h-16 rounded-full ${moodConfig.bg} mb-2`}
+                            >
+                              <MoodIcon
+                                className={`w-8 h-8 ${moodConfig.color}`}
+                              />
+                            </div>
+                            <h4 className="font-medium text-gray-900">
+                              Overall Mood
+                            </h4>
+                            <p
+                              className={`text-sm font-medium ${moodConfig.color}`}
+                            >
+                              {w.mood[0].toUpperCase() + w.mood.slice(1)}
+                            </p>
+                          </div>
+                          <div className="text-center">
+                            <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-blue-100 mb-2">
+                              <Users className="w-8 h-8 text-blue-600" />
+                            </div>
+                            <h4 className="font-medium text-gray-900">
+                              Social Engagement
+                            </h4>
+                            <p className="text-sm font-medium text-blue-600">
+                              {w.socialEngagement}/10
+                            </p>
+                          </div>
+                          <div className="text-center">
+                            <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-orange-100 mb-2">
+                              <TrendingUp className="w-8 h-8 text-orange-600" />
+                            </div>
+                            <h4 className="font-medium text-gray-900">
+                              Academic Stress
+                            </h4>
+                            <p className="text-sm font-medium text-orange-600">
+                              {w.academicStress}/10
+                            </p>
+                          </div>
+                        </>
+                      );
+                    })()}
+                  </div>
+                </div>
+
+                <div className="bg-white border border-gray-200 rounded-xl p-6">
+                  <h3 className="text-lg font-semibold text-gray-900 mb-4">
+                    Update Assessment
+                  </h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Mood Rating
+                      </label>
+                      <select
+                        className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-purple-500"
+                        value={
+                          wellbeingData[selectedStudent._id || selectedStudent.id]
+                            ?.mood || "neutral"
+                        }
+                        onChange={(e) =>
+                          updateWellbeingData(
+                            selectedStudent._id || selectedStudent.id,
+                            { mood: e.target.value }
+                          )
+                        }
+                      >
+                        <option value="excellent">Excellent</option>
+                        <option value="good">Good</option>
+                        <option value="neutral">Neutral</option>
+                        <option value="concerning">Concerning</option>
+                        <option value="critical">Critical</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Social Engagement (1-10)
+                      </label>
+                      <input
+                        type="range"
+                        min="1"
+                        max="10"
+                        className="w-full"
+                        value={
+                          wellbeingData[
+                            selectedStudent._id || selectedStudent.id
+                          ]?.socialEngagement || 5
+                        }
+                        onChange={(e) =>
+                          updateWellbeingData(
+                            selectedStudent._id || selectedStudent.id,
+                            { socialEngagement: parseInt(e.target.value) }
+                          )
+                        }
+                      />
+                      <div className="text-center text-sm text-gray-600 mt-1">
+                        {wellbeingData[selectedStudent._id || selectedStudent.id]
+                          ?.socialEngagement || 5}
+                        /10
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Academic Stress (1-10)
+                      </label>
+                      <input
+                        type="range"
+                        min="1"
+                        max="10"
+                        className="w-full"
+                        value={
+                          wellbeingData[
+                            selectedStudent._id || selectedStudent.id
+                          ]?.academicStress || 5
+                        }
+                        onChange={(e) =>
+                          updateWellbeingData(
+                            selectedStudent._id || selectedStudent.id,
+                            { academicStress: parseInt(e.target.value) }
+                          )
+                        }
+                      />
+                      <div className="text-center text-sm text-gray-600 mt-1">
+                        {wellbeingData[selectedStudent._id || selectedStudent.id]
+                          ?.academicStress || 5}
+                        /10
+                      </div>
+                    </div>
+                    <div className="flex items-center">
+                      <input
+                        type="checkbox"
+                        id="behaviorChanges"
+                        className="h-4 w-4 text-purple-600 border-gray-300 rounded"
+                        checked={
+                          wellbeingData[
+                            selectedStudent._id || selectedStudent.id
+                          ]?.behaviorChanges || false
+                        }
+                        onChange={(e) =>
+                          updateWellbeingData(
+                            selectedStudent._id || selectedStudent.id,
+                            { behaviorChanges: e.target.checked }
+                          )
+                        }
+                      />
+                      <label
+                        htmlFor="behaviorChanges"
+                        className="ml-2 text-sm text-gray-700"
+                      >
+                        Behavior changes observed
+                      </label>
+                    </div>
+                  </div>
+                  <div className="mt-4">
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Notes
+                    </label>
+                    <textarea
+                      className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-purple-500"
+                      rows="3"
+                      placeholder="Add any observations, concerns, or notes..."
+                      value={
+                        wellbeingData[selectedStudent._id || selectedStudent.id]
+                          ?.notes || ""
+                      }
+                      onChange={(e) =>
+                        updateWellbeingData(
+                          selectedStudent._id || selectedStudent.id,
+                          { notes: e.target.value }
+                        )
+                      }
+                    />
+                  </div>
+                </div>
+
+                <div className="flex justify-end gap-3">
+                  <button
+                    onClick={() => setShowWellbeingModal(false)}
+                    className="px-6 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50"
+                  >
+                    Cancel
+                  </button>
+                  <button className="px-6 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700">
+                    Save Assessment
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Add Student Modal */}
         {showAddForm && (
@@ -582,26 +1172,47 @@ const downloadTemplate = () => {
                       <Plus className="w-6 h-6 text-white" />
                     </div>
                     <div>
-                      <h2 className="text-2xl font-bold text-white">Enroll New Student</h2>
-                      <p className="text-yellow-100 mt-1">Complete all sections to register student</p>
+                      <h2 className="text-2xl font-bold text-white">
+                        Enroll New NIF Student
+                      </h2>
+                      <p className="text-yellow-100 mt-1">
+                        Complete all sections to register student
+                      </p>
                     </div>
                   </div>
-                  <button onClick={() => setShowAddForm(false)} className="text-white/80 hover:text-white p-2 hover:bg-white/10 rounded-lg">
+                  <button
+                    onClick={() => setShowAddForm(false)}
+                    className="text-white/80 hover:text-white p-2 hover:bg-white/10 rounded-lg"
+                  >
                     <X size={24} />
                   </button>
                 </div>
               </div>
 
-              {/* Steps */}
+              {/* Steps (visual only) */}
               <div className="bg-white border-b border-gray-200 px-6 py-4">
                 <div className="flex items-center justify-between max-w-2xl mx-auto">
                   {["Personal", "Academic", "Review"].map((step, idx) => (
                     <div key={step} className="flex items-center">
-                      <div className={`flex items-center justify-center w-8 h-8 rounded-full border-2 ${
-                        idx === 0 ? "bg-yellow-500 border-yellow-500 text-white" : "border-gray-300 text-gray-500"
-                      } font-semibold text-sm`}>{idx + 1}</div>
-                      <span className={`ml-2 text-sm font-medium ${idx === 0 ? "text-yellow-600" : "text-gray-500"}`}>{step}</span>
-                      {idx < 2 && <div className="w-12 h-0.5 bg-gray-300 mx-4" />}
+                      <div
+                        className={`flex items-center justify-center w-8 h-8 rounded-full border-2 ${
+                          idx === 0
+                            ? "bg-yellow-500 border-yellow-500 text-white"
+                            : "border-gray-300 text-gray-500"
+                        } font-semibold text-sm`}
+                      >
+                        {idx + 1}
+                      </div>
+                      <span
+                        className={`ml-2 text-sm font-medium ${
+                          idx === 0 ? "text-yellow-600" : "text-gray-500"
+                        }`}
+                      >
+                        {step}
+                      </span>
+                      {idx < 2 && (
+                        <div className="w-12 h-0.5 bg-gray-300 mx-4" />
+                      )}
                     </div>
                   ))}
                 </div>
@@ -609,138 +1220,376 @@ const downloadTemplate = () => {
 
               {/* Form */}
               <div className="p-6 max-h-[60vh] overflow-y-auto">
-                <form onSubmit={handleAddStudentSubmit} className="space-y-8">
+                <form
+                  onSubmit={handleAddStudentSubmit}
+                  className="space-y-8"
+                >
                   {/* Personal */}
                   <div className="space-y-6">
                     <div className="flex items-center gap-3">
                       <div className="w-6 h-6 rounded-full bg-yellow-100 flex items-center justify-center">
                         <Users className="w-3 h-3 text-yellow-600" />
                       </div>
-                      <h3 className="text-lg font-semibold text-gray-900">Personal Information</h3>
+                      <h3 className="text-lg font-semibold text-gray-900">
+                        Personal Information
+                      </h3>
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                       <div className="space-y-2">
-                        <label className="flex items-center text-sm font-medium text-gray-700">Full Name<span className="text-red-500 ml-1">*</span></label>
+                        <label className="flex items-center text-sm font-medium text-gray-700">
+                          Full Name
+                          <span className="text-red-500 ml-1">*</span>
+                        </label>
                         <div className="relative">
-                          <input type="text" name="name" value={newStudent.name} onChange={handleAddStudentChange} required
+                          <input
+                            type="text"
+                            name="name"
+                            value={newStudent.name}
+                            onChange={handleAddStudentChange}
+                            required
                             className="w-full border border-gray-300 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-yellow-500"
-                            placeholder="Enter student's full name" />
-                          <div className="absolute right-3 top-1/2 -translate-y-1/2"><Users className="w-4 h-4 text-gray-400" /></div>
+                            placeholder="Enter student's full name"
+                          />
+                          <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                            <Users className="w-4 h-4 text-gray-400" />
+                          </div>
                         </div>
                       </div>
 
                       <div className="space-y-2">
-                        <label className="flex items-center text-sm font-medium text-gray-700">Email Address<span className="text-red-500 ml-1">*</span></label>
+                        <label className="flex items-center text-sm font-medium text-gray-700">
+                          Mobile Number
+                          <span className="text-red-500 ml-1">*</span>
+                        </label>
                         <div className="relative">
-                          <input type="email" name="email" value={newStudent.email} onChange={handleAddStudentChange} required
+                          <input
+                            type="tel"
+                            name="mobile"
+                            value={newStudent.mobile}
+                            onChange={handleAddStudentChange}
+                            required
                             className="w-full border border-gray-300 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-yellow-500"
-                            placeholder="student@example.com" />
-                          <div className="absolute right-3 top-1/2 -translate-y-1/2"><Mail className="w-4 h-4 text-gray-400" /></div>
+                            placeholder="+91 98765 43210"
+                          />
+                          <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                            <Phone className="w-4 h-4 text-gray-400" />
+                          </div>
                         </div>
                       </div>
 
                       <div className="space-y-2">
-                        <label className="flex items-center text-sm font-medium text-gray-700">Mobile Number<span className="text-red-500 ml-1">*</span></label>
+                        <label className="flex items-center text-sm font-medium text-gray-700">
+                          Email Address
+                        </label>
                         <div className="relative">
-                          <input type="tel" name="mobile" value={newStudent.mobile} onChange={handleAddStudentChange} required
+                          <input
+                            type="email"
+                            name="email"
+                            value={newStudent.email}
+                            onChange={handleAddStudentChange}
                             className="w-full border border-gray-300 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-yellow-500"
-                            placeholder="+91 98765 43210" />
-                          <div className="absolute right-3 top-1/2 -translate-y-1/2"><Phone className="w-4 h-4 text-gray-400" /></div>
+                            placeholder="student@example.com"
+                          />
+                          <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                            <Mail className="w-4 h-4 text-gray-400" />
+                          </div>
                         </div>
                       </div>
 
                       <div className="space-y-2">
-                        <label className="flex items-center text-sm font-medium text-gray-700">Date of Birth<span className="text-red-500 ml-1">*</span></label>
+                        <label className="flex items-center text-sm font-medium text-gray-700">
+                          Date of Birth
+                        </label>
                         <div className="relative">
-                          <input type="date" name="dob" value={newStudent.dob} onChange={handleAddStudentChange} required
-                            className="w-full border border-gray-300 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-yellow-500" />
-                          <div className="absolute right-3 top-1/2 -translate-y-1/2"><Calendar className="w-4 h-4 text-gray-400" /></div>
+                          <input
+                            type="date"
+                            name="dob"
+                            value={newStudent.dob}
+                            onChange={handleAddStudentChange}
+                            className="w-full border border-gray-300 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-yellow-500"
+                          />
+                          <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                            <Calendar className="w-4 h-4 text-gray-400" />
+                          </div>
                         </div>
                       </div>
 
                       <div className="space-y-2 relative">
-                        <label className="flex items-center text-sm font-medium text-gray-700">Gender<span className="text-red-500 ml-1">*</span></label>
-                        <select name="gender" value={newStudent.gender} onChange={handleAddStudentChange} required
-                          className="w-full border border-gray-300 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-yellow-500 appearance-none bg-white">
+                        <label className="flex items-center text-sm font-medium text-gray-700">
+                          Gender
+                          <span className="text-red-500 ml-1">*</span>
+                        </label>
+                        <select
+                          name="gender"
+                          value={newStudent.gender}
+                          onChange={handleAddStudentChange}
+                          required
+                          className="w-full border border-gray-300 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-yellow-500 appearance-none bg-white"
+                        >
                           <option value="">Select Gender</option>
                           <option value="Male">Male</option>
                           <option value="Female">Female</option>
                           <option value="Other">Other</option>
                         </select>
-                        <div className="pointer-events-none absolute right-3 top-[45px]"><ChevronDown className="w-4 h-4 text-gray-400" /></div>
+                        <div className="pointer-events-none absolute right-3 top-[45px]">
+                          <ChevronDown className="w-4 h-4 text-gray-400" />
+                        </div>
                       </div>
 
                       <div className="space-y-2">
-                        <label className="text-sm font-medium text-gray-700">Pincode</label>
-                        <input type="text" name="pincode" value={newStudent.pincode} onChange={handleAddStudentChange}
+                        <label className="text-sm font-medium text-gray-700">
+                          Pincode
+                        </label>
+                        <input
+                          type="text"
+                          name="pincode"
+                          value={newStudent.pincode}
+                          onChange={handleAddStudentChange}
+                          maxLength={6}
                           className="w-full border border-gray-300 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-yellow-500"
-                          placeholder="Enter 6-digit pincode" maxLength={6} />
+                          placeholder="Enter 6-digit pincode"
+                        />
                       </div>
                     </div>
 
                     <div className="space-y-2">
-                      <label className="text-sm font-medium text-gray-700">Address</label>
-                      <textarea name="address" value={newStudent.address} onChange={handleAddStudentChange} rows={3}
+                      <label className="text-sm font-medium text-gray-700">
+                        Address
+                      </label>
+                      <textarea
+                        name="address"
+                        value={newStudent.address}
+                        onChange={handleAddStudentChange}
+                        rows={3}
                         className="w-full border border-gray-300 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-yellow-500 resize-none"
-                        placeholder="Enter complete residential address..." />
+                        placeholder="Enter complete residential address..."
+                      />
                     </div>
                   </div>
 
-                  {/* Academic */}
+                  {/* Academic & NIF Details */}
                   <div className="space-y-6 pt-6 border-t border-gray-200">
                     <div className="flex items-center gap-3">
                       <div className="w-6 h-6 rounded-full bg-blue-100 flex items-center justify-center">
                         <BookOpen className="w-3 h-3 text-blue-600" />
                       </div>
-                      <h3 className="text-lg font-semibold text-gray-900">Academic Details</h3>
+                      <h3 className="text-lg font-semibold text-gray-900">
+                        Academic & NIF Details
+                      </h3>
                     </div>
 
+                    {/* Row 1: Serial, Batch, Admission Date */}
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                       <div className="space-y-2">
-                        <label className="flex items-center text-sm font-medium text-gray-700">Roll Number<span className="text-red-500 ml-1">*</span></label>
+                        <label className="text-sm font-medium text-gray-700">
+                          Serial No (optional)
+                        </label>
+                        <input
+                          type="number"
+                          name="serialNo"
+                          value={newStudent.serialNo}
+                          onChange={handleAddStudentChange}
+                          className="w-full border border-gray-300 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-yellow-500"
+                          placeholder="Srl No"
+                        />
+                      </div>
+
+                      <div className="space-y-2">
+                        <label className="flex items-center text-sm font-medium text-gray-700">
+                          Batch Code
+                          <span className="text-red-500 ml-1">*</span>
+                        </label>
+                        <input
+                          type="text"
+                          name="batchCode"
+                          value={newStudent.batchCode}
+                          onChange={handleAddStudentChange}
+                          required
+                          className="w-full border border-gray-300 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-yellow-500"
+                          placeholder="e.g. 1124B02"
+                        />
+                      </div>
+
+                      <div className="space-y-2">
+                        <label className="flex items-center text-sm font-medium text-gray-700">
+                          Date of Admission
+                          <span className="text-red-500 ml-1">*</span>
+                        </label>
                         <div className="relative">
-                          <input type="text" name="roll" value={newStudent.roll} onChange={handleAddStudentChange} required
+                          <input
+                            type="date"
+                            name="admissionDate"
+                            value={newStudent.admissionDate}
+                            onChange={handleAddStudentChange}
+                            required
                             className="w-full border border-gray-300 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-yellow-500"
-                            placeholder="Enter roll number" />
-                          <div className="absolute right-3 top-1/2 -translate-y-1/2"><Hash className="w-4 h-4 text-gray-400" /></div>
+                          />
+                          <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                            <Calendar className="w-4 h-4 text-gray-400" />
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Row 2: Program, Course, Duration */}
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-4">
+                      <div className="space-y-2 relative">
+                        <label className="flex items-center text-sm font-medium text-gray-700">
+                          Program
+                          <span className="text-red-500 ml-1">*</span>
+                        </label>
+                        <select
+                          name="grade"
+                          value={newStudent.grade}
+                          onChange={handleAddStudentChange}
+                          required
+                          className="w-full border border-gray-300 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-yellow-500 appearance-none bg-white"
+                        >
+                          <option value="">Select Program</option>
+                          <optgroup label="Fashion Design">
+                            <option value="Fashion Design - 1 year Certificate Program">
+                              1 year Certificate Program
+                            </option>
+                            <option value="Fashion Design - 2 year Advanced Certificate">
+                              2 year Advanced Certificate
+                            </option>
+                            <option value="Fashion Design - 3 year B Voc Program">
+                              3 year B Voc Program
+                            </option>
+                            <option value="Fashion Design - 4 year B Des Program">
+                              4 year B Des Program
+                            </option>
+                            <option value="Fashion Design - 2 Year M Voc program">
+                              2 Year M Voc program
+                            </option>
+                          </optgroup>
+                          <optgroup label="Interior Design">
+                            <option value="Interior Design - 1 year Certificate Program">
+                              1 year Certificate Program
+                            </option>
+                            <option value="Interior Design - 2 year Advanced Certificate">
+                              2 year Advanced Certificate
+                            </option>
+                            <option value="Interior Design - 3 year B Voc Program">
+                              3 year B Voc Program
+                            </option>
+                            <option value="Interior Design - 4 year B Des Program">
+                              4 year B Des Program
+                            </option>
+                            <option value="Interior Design - 2 Year M Voc program">
+                              2 Year M Voc program
+                            </option>
+                          </optgroup>
+                        </select>
+                        <div className="pointer-events-none absolute right-3 top-[45px]">
+                          <ChevronDown className="w-4 h-4 text-gray-400" />
+                        </div>
+                      </div>
+
+                      <div className="space-y-2">
+                        <label className="flex items-center text-sm font-medium text-gray-700">
+                          Course Name
+                          <span className="text-red-500 ml-1">*</span>
+                        </label>
+                        <input
+                          type="text"
+                          name="course"
+                          value={newStudent.course}
+                          onChange={handleAddStudentChange}
+                          required
+                          className="w-full border border-gray-300 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-yellow-500"
+                          placeholder="e.g. AD-201 TWO YEARS FD"
+                        />
+                      </div>
+
+                      <div className="space-y-2">
+                        <label className="text-sm font-medium text-gray-700">
+                          Duration
+                        </label>
+                        <input
+                          type="text"
+                          name="duration"
+                          value={newStudent.duration}
+                          onChange={handleAddStudentChange}
+                          className="w-full border border-gray-300 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-yellow-500"
+                          placeholder="e.g. 2 Years"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Row 3: Roll, Section, Form No, Enrollment No */}
+                    <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mt-4">
+                      <div className="space-y-2">
+                        <label className="flex items-center text-sm font-medium text-gray-700">
+                          Roll Number
+                          <span className="text-red-500 ml-1">*</span>
+                        </label>
+                        <div className="relative">
+                          <input
+                            type="text"
+                            name="roll"
+                            value={newStudent.roll}
+                            onChange={handleAddStudentChange}
+                            required
+                            className="w-full border border-gray-300 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-yellow-500"
+                            placeholder="Enter roll number"
+                          />
+                          <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                            <Hash className="w-4 h-4 text-gray-400" />
+                          </div>
                         </div>
                       </div>
 
                       <div className="space-y-2 relative">
-                        <label className="flex items-center text-sm font-medium text-gray-700">Program<span className="text-red-500 ml-1">*</span></label>
-                        <select name="grade" value={newStudent.grade} onChange={handleAddStudentChange} required
-                          className="w-full border border-gray-300 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-yellow-500 appearance-none bg-white">
-                          <option value="">Select Program</option>
-                          <optgroup label="Fashion Design">
-                            <option value="Fashion Design - 1 year Certificate Program">1 year Certificate Program</option>
-                            <option value="Fashion Design - 2 year Advanced Certificate">2 year Advanced Certificate</option>
-                            <option value="Fashion Design - 3 year B Voc Program">3 year B Voc Program</option>
-                            <option value="Fashion Design - 4 year B Des Program">4 year B Des Program</option>
-                            <option value="Fashion Design - 2 Year M Voc program">2 Year M Voc program</option>
-                          </optgroup>
-                          <optgroup label="Interior Design">
-                            <option value="Interior Design - 1 year Certificate Program">1 year Certificate Program</option>
-                            <option value="Interior Design - 2 year Advanced Certificate">2 year Advanced Certificate</option>
-                            <option value="Interior Design - 3 year B Voc Program">3 year B Voc Program</option>
-                            <option value="Interior Design - 4 year B Des Program">4 year B Des Program</option>
-                            <option value="Interior Design - 2 Year M Voc program">2 Year M Voc program</option>
-                          </optgroup>
-                        </select>
-                        <div className="pointer-events-none absolute right-3 top-[45px]"><ChevronDown className="w-4 h-4 text-gray-400" /></div>
-                      </div>
-
-                      <div className="space-y-2 relative">
-                        <label className="flex items-center text-sm font-medium text-gray-700">Section<span className="text-red-500 ml-1">*</span></label>
-                        <select name="section" value={newStudent.section} onChange={handleAddStudentChange} required
-                          className="w-full border border-gray-300 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-yellow-500 appearance-none bg-white">
+                        <label className="flex items-center text-sm font-medium text-gray-700">
+                          Section
+                          <span className="text-red-500 ml-1">*</span>
+                        </label>
+                        <select
+                          name="section"
+                          value={newStudent.section}
+                          onChange={handleAddStudentChange}
+                          required
+                          className="w-full border border-gray-300 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-yellow-500 appearance-none bg-white"
+                        >
                           <option value="">Select Section</option>
                           <option value="A">Section A</option>
                           <option value="B">Section B</option>
                           <option value="C">Section C</option>
                           <option value="D">Section D</option>
                         </select>
-                        <div className="pointer-events-none absolute right-3 top-[45px]"><ChevronDown className="w-4 h-4 text-gray-400" /></div>
+                        <div className="pointer-events-none absolute right-3 top-[45px]">
+                          <ChevronDown className="w-4 h-4 text-gray-400" />
+                        </div>
+                      </div>
+
+                      <div className="space-y-2">
+                        <label className="text-sm font-medium text-gray-700">
+                          Form No
+                        </label>
+                        <input
+                          type="text"
+                          name="formNo"
+                          value={newStudent.formNo}
+                          onChange={handleAddStudentChange}
+                          className="w-full border border-gray-300 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-yellow-500"
+                          placeholder="Enter form number"
+                        />
+                      </div>
+
+                      <div className="space-y-2">
+                        <label className="text-sm font-medium text-gray-700">
+                          Enrollment No
+                        </label>
+                        <input
+                          type="text"
+                          name="enrollmentNo"
+                          value={newStudent.enrollmentNo}
+                          onChange={handleAddStudentChange}
+                          className="w-full border border-gray-300 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-yellow-500"
+                          placeholder="Enter enrollment no"
+                        />
                       </div>
                     </div>
                   </div>
@@ -748,14 +1597,22 @@ const downloadTemplate = () => {
                   {/* Actions */}
                   <div className="flex justify-between items-center pt-6 border-t border-gray-200">
                     <div className="text-sm text-gray-500">
-                      All fields marked with <span className="text-red-500">*</span> are required
+                      All fields marked with{" "}
+                      <span className="text-red-500">*</span> are required
                     </div>
                     <div className="flex gap-3">
-                      <button type="button" onClick={() => setShowAddForm(false)} className="px-8 py-3 border border-gray-300 rounded-xl text-gray-700 hover:bg-gray-50">
+                      <button
+                        type="button"
+                        onClick={() => setShowAddForm(false)}
+                        className="px-8 py-3 border border-gray-300 rounded-xl text-gray-700 hover:bg-gray-50"
+                      >
                         Cancel
                       </button>
-                      <button type="submit" disabled={isSubmitting}
-                        className="px-8 py-3 bg-gradient-to-r from-yellow-500 to-amber-500 text-white rounded-xl hover:from-yellow-600 hover:to-amber-600 disabled:from-gray-400 disabled:to-gray-500 disabled:cursor-not-allowed flex items-center gap-2">
+                      <button
+                        type="submit"
+                        disabled={isSubmitting}
+                        className="px-8 py-3 bg-gradient-to-r from-yellow-500 to-amber-500 text-white rounded-xl hover:from-yellow-600 hover:to-amber-600 disabled:from-gray-400 disabled:to-gray-500 disabled:cursor-not-allowed flex items-center gap-2"
+                      >
                         <Plus size={18} />
                         {isSubmitting ? "Enrolling..." : "Enroll Student"}
                       </button>
@@ -763,7 +1620,6 @@ const downloadTemplate = () => {
                   </div>
                 </form>
               </div>
-
             </div>
           </div>
         )}
