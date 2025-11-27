@@ -14,7 +14,8 @@ import {
   BookOpen,
   Settings,
   Receipt,
-  UserSearch
+  UserSearch,
+  BarChart4
 } from 'lucide-react';
 
 export const ADMIN_MENU_ITEMS = [
@@ -101,6 +102,11 @@ export const ADMIN_MENU_ITEMS = [
     path: '/admin/fees',
     hasSubmenu: true,
     submenu: [
+      {
+        icon: BarChart4,
+        label: 'Fees Dashboard',
+        path: '/admin/fees/dashboard'
+      },
       {
         icon: Receipt,
         label: 'Fee Collection',

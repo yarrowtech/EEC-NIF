@@ -16,6 +16,7 @@ import SubjectManagement from './pages/SubjectManagement';
 import AttendanceManagement from './pages/AttendanceManagement';
 import Result from './pages/Result';
 import FeesCollection from './pages/FeesCollection';
+import FeesDashboard from './pages/FeesDashboard';
 import FeeConfiguration from './pages/FeeConfiguration';
 import StudentFeeDetails from './pages/StudentFeeDetails';
 import HR from './pages/HR';
@@ -63,6 +64,7 @@ const AdminApp = () => {
         <Route path="lesson-plans" element={<LessonPlanPage setShowAdminHeader={setShowAdminHeader} />} />
         <Route path="result" element={<Result setShowAdminHeader={setShowAdminHeader} />} />
         <Route path="fees" element={<FeesCollection setShowAdminHeader={setShowAdminHeader} />} />
+        <Route path="fees/dashboard" element={<FeesDashboard setShowAdminHeader={setShowAdminHeader} />} />
         <Route path="fees/configuration" element={<FeeConfiguration setShowAdminHeader={setShowAdminHeader} />} />
         <Route path="fees/student-details" element={<StudentFeeDetails setShowAdminHeader={setShowAdminHeader} />} />
         <Route path="hr" element={<HR setShowAdminHeader={setShowAdminHeader} />} />
