@@ -783,6 +783,7 @@ import {
   Download,
   Eye,
   X,
+  Search,
 } from 'lucide-react';
 
 const API_BASE = import.meta.env.VITE_API_URL;
@@ -823,6 +824,7 @@ const NifFeesCollection = ({ setShowAdminHeader }) => {
   const [selectedStudent, setSelectedStudent] = useState(null);
   const [collectionAmount, setCollectionAmount] = useState('');
   const [paymentMethod, setPaymentMethod] = useState('cash');
+  const [searchTerm, setSearchTerm] = useState('');
 
   const yearOptions = useMemo(
     () => getYearsForProgram(programType),
@@ -861,9 +863,82 @@ const NifFeesCollection = ({ setShowAdminHeader }) => {
     fetchFees();
   }, [programType, course, yearNumber]);
 
+  // Sample students for demonstration when no data from API
+  const sampleStudents = [
+    {
+      feeRecordId: 'sample1',
+      name: 'Aarav Sharma',
+      roll: 'FAD101',
+      program: '3 Year B VOC',
+      course: 'Fashion Design',
+      totalFee: 15000,
+      paidAmount: 15000,
+      dueAmount: 0,
+      status: 'paid'
+    },
+    {
+      feeRecordId: 'sample2',
+      name: 'Priya Patel',
+      roll: 'INT202',
+      program: '4 Year B DES',
+      course: 'Interior Design',
+      totalFee: 20000,
+      paidAmount: 10000,
+      dueAmount: 10000,
+      status: 'partial'
+    },
+    {
+      feeRecordId: 'sample3',
+      name: 'Rohan Mehta',
+      roll: 'FAD303',
+      program: '2 Year M VOC',
+      course: 'Fashion Design',
+      totalFee: 18000,
+      paidAmount: 5000,
+      dueAmount: 13000,
+      status: 'due'
+    },
+    {
+      feeRecordId: 'sample4',
+      name: 'Saanvi Gupta',
+      roll: 'INT404',
+      program: '1 Year Certificate',
+      course: 'Interior Design',
+      totalFee: 8000,
+      paidAmount: 8000,
+      dueAmount: 0,
+      status: 'paid'
+    },
+    {
+      feeRecordId: 'sample5',
+      name: 'Vikram Singh',
+      roll: 'FAD505',
+      program: '2 Year Advanced Cert.',
+      course: 'Fashion Design',
+      totalFee: 12000,
+      paidAmount: 12000,
+      dueAmount: 0,
+      status: 'paid'
+    }
+  ];
+
+  // Filter students based on search term
+  const filteredStudents = useMemo(() => {
+    const studentsToFilter = students.length > 0 ? students : sampleStudents;
+    
+    if (!searchTerm) return studentsToFilter;
+    
+    return studentsToFilter.filter(student => 
+      student.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      student.roll?.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+  }, [students, searchTerm]);
+
   // Summary calculations
   const summary = useMemo(() => {
-    if (!students.length) {
+    const studentsToCalculate = students.length > 0 ? students : sampleStudents;
+    
+    if (!studentsToCalculate.length) {
       return {
         totalStudents: 0,
         totalDue: 0,
@@ -876,20 +951,20 @@ const NifFeesCollection = ({ setShowAdminHeader }) => {
       };
     }
 
-    const totalStudents = students.length;
-    const totalDue = students.reduce((sum, s) => sum + (s.totalFee || 0), 0);
-    const totalCollected = students.reduce(
+    const totalStudents = studentsToCalculate.length;
+    const totalDue = studentsToCalculate.reduce((sum, s) => sum + (s.totalFee || 0), 0);
+    const totalCollected = studentsToCalculate.reduce(
       (sum, s) => sum + (s.paidAmount || 0),
       0
     );
-    const totalPending = students.reduce(
+    const totalPending = studentsToCalculate.reduce(
       (sum, s) => sum + (s.dueAmount || 0),
       0
     );
 
-    const paidStudents = students.filter((s) => s.status === 'paid').length;
-    const partialStudents = students.filter((s) => s.status === 'partial').length;
-    const dueStudents = students.filter((s) => s.status === 'due').length;
+    const paidStudents = studentsToCalculate.filter((s) => s.status === 'paid').length;
+    const partialStudents = studentsToCalculate.filter((s) => s.status === 'partial').length;
+    const dueStudents = studentsToCalculate.filter((s) => s.status === 'due').length;
 
     const collectionPercentage =
       totalDue > 0 ? ((totalCollected / totalDue) * 100).toFixed(1) : 0;
@@ -1190,7 +1265,7 @@ const NifFeesCollection = ({ setShowAdminHeader }) => {
       </div>
 
       {/* Summary cards */}
-      {students.length > 0 && (
+      {(
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
             <div className="flex items-center justify-between">
@@ -1246,23 +1321,60 @@ const NifFeesCollection = ({ setShowAdminHeader }) => {
         </div>
       )}
 
-      {/* No selection / no data */}
-      {students.length === 0 && !loading && (
+      {/* Loading state */}
+      {loading && (
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-12">
           <div className="text-center">
-            <Filter className="mx-auto h-12 w-12 text-gray-400" />
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
             <h3 className="mt-2 text-lg font-medium text-gray-900">
-              No NIF fee records
+              Loading NIF fee records...
             </h3>
             <p className="mt-1 text-sm text-gray-500">
-              Adjust program, course or year to view NIF fee records.
+              Please wait while we fetch the data.
             </p>
           </div>
         </div>
       )}
 
+      {/* Search and Filters Section */}
+      {(
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
+          <div className="flex flex-col md:flex-row gap-4 items-center">
+            <div className="flex-1 w-full">
+              <label className="flex flex-col min-w-40 h-12 w-full">
+                <div className="flex w-full flex-1 items-stretch rounded-lg h-full">
+                  <div className="text-gray-500 flex border border-gray-300 bg-gray-50 items-center justify-center pl-4 rounded-l-lg border-r-0">
+                    <Search size={20} />
+                  </div>
+                  <input 
+                    className="form-input flex w-full min-w-0 flex-1 resize-none overflow-hidden rounded-lg text-gray-900 focus:outline-0 focus:ring-2 focus:ring-blue-500 border border-gray-300 bg-gray-50 focus:border-blue-500 h-full placeholder:text-gray-500 px-4 rounded-l-none border-l-0 pl-2 text-base font-normal leading-normal" 
+                    placeholder="Search by Student Name or ID" 
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                  />
+                </div>
+              </label>
+            </div>
+            <div className="flex gap-3 overflow-x-auto w-full md:w-auto">
+              <button className="flex h-12 shrink-0 items-center justify-center gap-x-2 rounded-lg bg-gray-50 border border-gray-300 px-4">
+                <p className="text-gray-800 text-sm font-medium leading-normal">Stream</p>
+                <ChevronDown className="text-gray-800 text-xl" />
+              </button>
+              <button className="flex h-12 shrink-0 items-center justify-center gap-x-2 rounded-lg bg-gray-50 border border-gray-300 px-4">
+                <p className="text-gray-800 text-sm font-medium leading-normal">Program</p>
+                <ChevronDown className="text-gray-800 text-xl" />
+              </button>
+              <button className="flex h-12 shrink-0 items-center justify-center gap-x-2 rounded-lg bg-gray-50 border border-gray-300 px-4">
+                <p className="text-gray-800 text-sm font-medium leading-normal">Fee Status</p>
+                <ChevronDown className="text-gray-800 text-xl" />
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Table */}
-      {students.length > 0 && (
+      {(
         <div className="bg-white rounded-lg shadow-sm border border-gray-200">
           <div className="px-6 py-4 border-b border-gray-200 flex justify-between items-center">
             <h2 className="text-xl font-semibold text-gray-800">
@@ -1273,77 +1385,86 @@ const NifFeesCollection = ({ setShowAdminHeader }) => {
               className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
             >
               <Download size={16} className="mr-2" />
-              Export Report
+              Export to CSV
             </button>
           </div>
 
           <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Student
+            <table className="min-w-full text-left">
+              <thead>
+                <tr className="bg-gray-50">
+                  <th className="p-4 w-12 text-center">
+                    <input 
+                      className="h-5 w-5 rounded border-gray-300 bg-transparent text-blue-600 checked:bg-blue-600 checked:border-blue-600 focus:ring-2 focus:ring-blue-500 focus:ring-offset-0 focus:outline-none" 
+                      type="checkbox"
+                    />
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-4 py-3 text-left text-gray-600 text-xs font-medium uppercase tracking-wider">
+                    Student Name
+                  </th>
+                  <th className="px-4 py-3 text-left text-gray-600 text-xs font-medium uppercase tracking-wider">
+                    Student ID
+                  </th>
+                  <th className="px-4 py-3 text-left text-gray-600 text-xs font-medium uppercase tracking-wider">
                     Program
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Total Fee
+                  <th className="px-4 py-3 text-left text-gray-600 text-xs font-medium uppercase tracking-wider">
+                    Stream
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Paid
+                  <th className="px-4 py-3 text-left text-gray-600 text-xs font-medium uppercase tracking-wider">
+                    Fee Status
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Due
+                  <th className="px-4 py-3 text-right text-gray-600 text-xs font-medium uppercase tracking-wider">
+                    Total Fees
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Status
+                  <th className="px-4 py-3 text-right text-gray-600 text-xs font-medium uppercase tracking-wider">
+                    Amount Paid
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-4 py-3 text-right text-gray-600 text-xs font-medium uppercase tracking-wider">
+                    Balance
+                  </th>
+                  <th className="px-4 py-3 text-center text-gray-600 text-xs font-medium uppercase tracking-wider">
                     Actions
                   </th>
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
-                {students.map((s) => (
+                {filteredStudents.map((s) => (
                   <tr key={s.feeRecordId} className="hover:bg-gray-50">
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div>
-                        <div className="text-sm font-medium text-gray-900">
-                          {s.name}
-                        </div>
-                        <div className="text-sm text-gray-500">
-                          Roll: {s.roll} • Sec: {s.section}
-                        </div>
-                      </div>
+                    <td className="p-4 w-12 text-center">
+                      <input 
+                        className="h-5 w-5 rounded border-gray-300 bg-transparent text-blue-600 checked:bg-blue-600 checked:border-blue-600 focus:ring-2 focus:ring-blue-500 focus:ring-offset-0 focus:outline-none" 
+                        type="checkbox"
+                      />
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
+                    <td className="px-4 py-3 text-gray-900 text-sm font-medium">
+                      {s.name}
+                    </td>
+                    <td className="px-4 py-3 text-gray-500 text-sm">
+                      {s.roll}
+                    </td>
+                    <td className="px-4 py-3 text-gray-500 text-sm">
                       {s.program}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-gray-900">
+                    <td className="px-4 py-3 text-gray-500 text-sm">
+                      {s.course}
+                    </td>
+                    <td className="px-4 py-3 text-sm">
+                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(s.status)}`}>
+                        {s.status?.charAt(0).toUpperCase() + s.status?.slice(1)}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 text-gray-500 text-sm text-right">
                       ₹{(s.totalFee || 0).toLocaleString()}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-green-600">
+                    <td className="px-4 py-3 text-gray-500 text-sm text-right">
                       ₹{(s.paidAmount || 0).toLocaleString()}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-red-600">
+                    <td className="px-4 py-3 text-gray-900 text-sm text-right font-medium">
                       ₹{(s.dueAmount || 0).toLocaleString()}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="flex items-center space-x-2">
-                        {getStatusIcon(s.status)}
-                        <span
-                          className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(
-                            s.status
-                          )}`}
-                        >
-                          {s.status?.charAt(0).toUpperCase() +
-                            s.status?.slice(1)}
-                        </span>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      <div className="flex space-x-2">
+                    <td className="px-4 py-3 text-center">
+                      <div className="flex justify-center space-x-2">
                         {s.status !== 'paid' && (
                           <button
                             onClick={() => handleCollectFees(s)}
@@ -1353,9 +1474,8 @@ const NifFeesCollection = ({ setShowAdminHeader }) => {
                             Collect
                           </button>
                         )}
-                        <button className="inline-flex items-center px-3 py-1 border border-gray-300 text-xs font-medium rounded text-gray-700 bg-white hover:bg-gray-50">
-                          <Eye size={12} className="mr-1" />
-                          View
+                        <button className="text-gray-500 hover:text-blue-600">
+                          <Eye size={16} />
                         </button>
                       </div>
                     </td>
@@ -1363,6 +1483,30 @@ const NifFeesCollection = ({ setShowAdminHeader }) => {
                 ))}
               </tbody>
             </table>
+          </div>
+          
+          {/* Pagination Controls */}
+          <div className="flex items-center justify-between p-4 border-t border-gray-200">
+            <span className="text-sm text-gray-600">
+              Showing 1 to {filteredStudents.length} of {filteredStudents.length} results
+            </span>
+            <div className="flex items-center gap-2">
+              <button className="flex items-center justify-center h-8 w-8 rounded-lg border border-gray-300 bg-white text-gray-600 hover:bg-gray-50">
+                <ChevronDown className="text-xl rotate-90" />
+              </button>
+              <button className="flex items-center justify-center h-8 w-8 rounded-lg border border-blue-600 bg-blue-100 text-blue-600">
+                1
+              </button>
+              <button className="flex items-center justify-center h-8 w-8 rounded-lg border border-gray-300 bg-white text-gray-600 hover:bg-gray-50">
+                2
+              </button>
+              <button className="flex items-center justify-center h-8 w-8 rounded-lg border border-gray-300 bg-white text-gray-600 hover:bg-gray-50">
+                3
+              </button>
+              <button className="flex items-center justify-center h-8 w-8 rounded-lg border border-gray-300 bg-white text-gray-600 hover:bg-gray-50">
+                <ChevronDown className="text-xl -rotate-90" />
+              </button>
+            </div>
           </div>
         </div>
       )}

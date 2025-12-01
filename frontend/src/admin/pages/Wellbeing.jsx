@@ -41,31 +41,17 @@ const Wellbeing = ({ setShowAdminHeader }) => {
 
   // Emotional Wellbeing Functions
   const getWellbeingStatus = (studentId) => {
-    if (!wellbeingData[studentId]) {
-      // Initialize with random data for demo
-      const moods = ['excellent', 'good', 'neutral', 'concerning', 'critical'];
-      const mood = moods[Math.floor(Math.random() * moods.length)];
-      const socialEngagement = Math.floor(Math.random() * 10) + 1;
-      const academicStress = Math.floor(Math.random() * 10) + 1;
-      const behaviorChanges = Math.random() > 0.7;
-      
-      setWellbeingData(prev => ({
-        ...prev,
-        [studentId]: {
-          mood,
-          socialEngagement,
-          academicStress,
-          behaviorChanges,
-          lastAssessment: new Date().toISOString().split('T')[0],
-          notes: '',
-          interventions: [],
-          counselingSessions: Math.floor(Math.random() * 5),
-          parentNotifications: Math.floor(Math.random() * 3)
-        }
-      }));
-      return { mood, socialEngagement, academicStress, behaviorChanges };
-    }
-    return wellbeingData[studentId];
+    return wellbeingData[studentId] || {
+      mood: 'neutral',
+      socialEngagement: 5,
+      academicStress: 5,
+      behaviorChanges: false,
+      lastAssessment: 'N/A',
+      notes: '',
+      interventions: [],
+      counselingSessions: 0,
+      parentNotifications: 0
+    };
   };
 
   const getMoodIcon = (mood) => {
@@ -91,9 +77,30 @@ const Wellbeing = ({ setShowAdminHeader }) => {
   };
 
   const openWellbeingModal = (student) => {
-    console.log('Opening wellbeing modal for student:', student);
     setSelectedStudent(student);
     setShowWellbeingModal(true);
+    fetch(`${import.meta.env.VITE_API_URL}/api/wellbeing/${student.id}`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+        'authorization': `Bearer ${localStorage.getItem('token')}`
+      }
+    })
+    .then(res => {
+      if (!res.ok) {
+        throw new Error('Failed to fetch wellbeing data');
+      }
+      return res.json();
+    })
+    .then(data => {
+      setWellbeingData(prev => ({
+        ...prev,
+        [student.id]: data
+      }));
+    })
+    .catch(err => {
+      console.error('Error fetching wellbeing data:', err);
+    });
   };
 
   // Fetch students data
@@ -129,6 +136,35 @@ const Wellbeing = ({ setShowAdminHeader }) => {
     neutral: studentData.filter(s => getWellbeingStatus(s.id).mood === 'neutral').length,
     concerning: studentData.filter(s => getWellbeingStatus(s.id).mood === 'concerning').length,
     critical: studentData.filter(s => getWellbeingStatus(s.id).mood === 'critical').length
+  };
+
+  const handleSaveAssessment = () => {
+    if (!selectedStudent) return;
+
+    const studentWellbeing = wellbeingData[selectedStudent.id];
+    if (!studentWellbeing) return;
+
+    fetch(`${import.meta.env.VITE_API_URL}/api/wellbeing/${selectedStudent.id}`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        'authorization': `Bearer ${localStorage.getItem('token')}`
+      },
+      body: JSON.stringify(studentWellbeing)
+    })
+    .then(res => {
+      if (!res.ok) {
+        throw new Error('Failed to save assessment');
+      }
+      return res.json();
+    })
+    .then(data => {
+      console.log('Assessment saved:', data);
+      setShowWellbeingModal(false);
+    })
+    .catch(err => {
+      console.error('Error saving assessment:', err);
+    });
   };
 
   return (
@@ -507,7 +543,10 @@ const Wellbeing = ({ setShowAdminHeader }) => {
                   >
                     Cancel
                   </button>
-                  <button className="px-6 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700">
+                  <button 
+                    onClick={handleSaveAssessment}
+                    className="px-6 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700"
+                  >
                     Save Assessment
                   </button>
                 </div>

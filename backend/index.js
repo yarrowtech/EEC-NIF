@@ -72,6 +72,10 @@ app.use('/api/nif/students', nifStudentRoute);
 const nifRoutes = require('./routes/nifRoutes');
 app.use('/api/nif', nifRoutes);
 
+const wellbeingRoute = require('./routes/wellbeingRoute');
+app.use('/api/wellbeing', wellbeingRoute);
+
+
 
 
 const PORT = process.env.PORT || 5000;
