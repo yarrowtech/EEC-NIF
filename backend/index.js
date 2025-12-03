@@ -71,8 +71,8 @@ app.use('/api/nif/course', nifCourseRoute);
 const nifStudentRoute = require("./routes/nifStudentRoute");
 app.use('/api/nif/students', nifStudentRoute);
 
-
-
+const nifFeesRoute = require("./routes/nifFeesRoute");
+app.use("/api/nif/fees", nifFeesRoute);
 
 
 const wellbeingRoute = require('./routes/wellbeingRoute');
