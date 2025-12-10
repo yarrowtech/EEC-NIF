@@ -770,10 +770,8 @@
 
 // export default FeesCollection;
 
-
-import React, { useState, useEffect, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { jsPDF } from 'jspdf';
+// src/NIF/FeesCollection.jsx
+import React, { useEffect, useState } from "react";
 import {
   ChevronDown,
   IndianRupee,
@@ -787,31 +785,14 @@ import {
   Search,
 } from 'lucide-react';
 
-const API_BASE = import.meta.env.VITE_API_URL;
+const API_BASE = import.meta.env.VITE_API_BASE_URL || "http://localhost:5000";
 
-const PROGRAM_TYPES = [
-  { value: 'ADV_CERT', label: 'Advance Certificate (1 / 2 Years)' },
-  { value: 'B_VOC', label: 'B.Voc (3 Years)' },
-  { value: 'M_VOC', label: 'M.Voc (2 Years)' },
-  { value: 'B_DES', label: 'B.Des (4 Years)' },
-];
-
-const COURSES = [
-  { value: 'Fashion Design', label: 'Fashion Design' },
-  { value: 'Interior Design', label: 'Interior Design' },
-];
-const DEFAULT_STREAMS = COURSES.map((c) => c.value);
-const ALL_PROGRAM = { value: 'ALL', label: 'All Programs' };
-const ALL_COURSE = 'ALL';
-const ALL_YEAR = 'ALL';
-
-const getYearsForProgram = (programType) => {
-  if (programType === 'ADV_CERT') return [1, 2];
-  if (programType === 'B_VOC') return [1, 2, 3];
-  if (programType === 'M_VOC') return [1, 2];
-  if (programType === 'B_DES') return [1, 2, 3, 4];
-  return [];
-};
+const formatINR = (amount) =>
+  new Intl.NumberFormat("en-IN", {
+    style: "currency",
+    currency: "INR",
+    maximumFractionDigits: 0,
+  }).format(amount || 0);
 
 const NifFeesCollection = ({ setShowAdminHeader }) => {
   useEffect(() => {
@@ -819,284 +800,88 @@ const NifFeesCollection = ({ setShowAdminHeader }) => {
     setShowAdminHeader(false);
   }, [setShowAdminHeader]);
 
-  const [programType, setProgramType] = useState(ALL_PROGRAM.value);
-  const [course, setCourse] = useState(ALL_COURSE);
-  const [yearNumber, setYearNumber] = useState(ALL_YEAR);
-  const [viewType, setViewType] = useState('overview');
-  const [programOptions, setProgramOptions] = useState(PROGRAM_TYPES);
-  const [coursesByProgram, setCoursesByProgram] = useState({});
-  const [courseOptions, setCourseOptions] = useState(DEFAULT_STREAMS);
+  const [programType, setProgramType] = useState("ADV_CERT");
+  const [course, setCourse] = useState("Fashion Design");
+  const [yearNumber, setYearNumber] = useState(1);
+  const [search, setSearch] = useState("");
 
-  const [students, setStudents] = useState([]);
+  const [records, setRecords] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [fetchError, setFetchError] = useState("");
 
-  const [showCollectionModal, setShowCollectionModal] = useState(false);
-  const [selectedStudent, setSelectedStudent] = useState(null);
-  const [collectionAmount, setCollectionAmount] = useState('');
-  const [paymentMethod, setPaymentMethod] = useState('cash');
-  const [searchTerm, setSearchTerm] = useState('');
+  const [paymentModalOpen, setPaymentModalOpen] = useState(false);
+  const [selectedRecord, setSelectedRecord] = useState(null);
+  const [paymentAmount, setPaymentAmount] = useState("");
+  const [paymentMethod, setPaymentMethod] = useState("cash");
+  const [paymentNote, setPaymentNote] = useState("");
+  const [paymentLoading, setPaymentLoading] = useState(false);
 
-  const navigate = useNavigate();
+  const programs = [
+    { value: "ADV_CERT", label: "Advance Certification" },
+    { value: "B_VOC", label: "B.Voc" },
+    { value: "M_VOC", label: "M.Voc" },
+    { value: "B_DES", label: "B.Des" },
+  ];
 
-  const yearOptions = useMemo(() => {
-    if (programType === ALL_PROGRAM.value) return [];
-    return getYearsForProgram(programType);
-  }, [programType]);
+  const courses = ["Fashion Design", "Interior Design"];
 
-  useEffect(() => {
-    const fetchCourseFilters = async () => {
-      try {
-        const res = await fetch(`${API_BASE}/api/nif/course/fetch`, {
-          headers: {
-            'Content-Type': 'application/json',
-            authorization: `Bearer ${localStorage.getItem('token')}`,
-          },
-        });
-        if (!res.ok) throw new Error('Failed to load course filters');
-        const data = await res.json();
-        if (!Array.isArray(data) || !data.length) return;
+  // Fetch records from backend
+  const fetchRecords = async () => {
+    setLoading(true);
+    setFetchError("");
+    try {
+      const params = new URLSearchParams();
+      if (programType) params.append("programType", programType);
+      if (course) params.append("course", course);
+      if (yearNumber) params.append("year", yearNumber);
 
-        const grouped = {};
-        data.forEach((item) => {
-          const type = item.programType || 'ADV_CERT';
-          if (!grouped[type]) {
-            grouped[type] = {
-              label:
-                item.programLabel ||
-                PROGRAM_TYPES.find((p) => p.value === type)?.label ||
-                type,
-              courses: new Set(),
-            };
-          }
-          if (item.department) {
-            grouped[type].courses.add(item.department);
-          }
-        });
+      const res = await fetch(
+        `${API_BASE}/api/nif/fees/records/fetch?${params.toString()}`
+      );
 
-        const derivedPrograms = Object.entries(grouped).map(
-          ([value, meta]) => ({
-            value,
-            label: meta.label,
-          })
-        );
-        if (derivedPrograms.length) {
-          const mergedPrograms = PROGRAM_TYPES.map((base) => {
-            const match = derivedPrograms.find(
-              (item) => item.value === base.value
-            );
-            return match || base;
-          });
-          const additionalPrograms = derivedPrograms.filter(
-            (item) => !PROGRAM_TYPES.some((base) => base.value === item.value)
-          );
-          setProgramOptions([...mergedPrograms, ...additionalPrograms]);
-        } else {
-          setProgramOptions(PROGRAM_TYPES);
-        }
-        const mappedCourses = Object.fromEntries(
-          Object.entries(grouped).map(([type, meta]) => [
-            type,
-            Array.from(meta.courses),
-          ])
-        );
-        setCoursesByProgram(mappedCourses);
-
-        const nextProgram =
-          programType !== ALL_PROGRAM.value &&
-          mappedCourses[programType] &&
-          mappedCourses[programType].length
-            ? programType
-            : derivedPrograms[0]?.value || programType;
-        if (
-          nextProgram &&
-          nextProgram !== programType &&
-          nextProgram !== ALL_PROGRAM.value
-        ) {
-          setProgramType(nextProgram);
-        }
-        const nextCourseList =
-          nextProgram &&
-          nextProgram !== ALL_PROGRAM.value &&
-          mappedCourses[nextProgram] &&
-          mappedCourses[nextProgram].length
-            ? mappedCourses[nextProgram]
-            : DEFAULT_STREAMS;
-        setCourseOptions(nextCourseList);
-        if (
-          course !== ALL_COURSE &&
-          nextCourseList.length &&
-          !nextCourseList.includes(course)
-        ) {
-          setCourse(nextCourseList[0] || ALL_COURSE);
-        }
-      } catch (err) {
-        console.error('Course filter load error:', err);
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.message || "Failed to fetch fee records");
       }
-    };
 
-    fetchCourseFilters();
-  }, []);
-
-  // Fetch NIF fee records from backend
-  useEffect(() => {
-    const fetchFees = async () => {
-      if (!programType || !course || !yearNumber) return;
-      setLoading(true);
-      try {
-        const params = new URLSearchParams();
-        if (programType && programType !== ALL_PROGRAM.value) {
-          params.append('programType', programType);
-        }
-        if (course && course !== ALL_COURSE) {
-          params.append('course', course);
-        }
-        if (
-          programType !== ALL_PROGRAM.value &&
-          yearNumber !== ALL_YEAR
-        ) {
-          params.append('year', String(yearNumber));
-        }
-
-        const url =
-          params.toString().length > 0
-            ? `${API_BASE}/api/nif/fees?${params.toString()}`
-            : `${API_BASE}/api/nif/fees`;
-
-        const res = await fetch(url, {
-          headers: {
-            'Content-Type': 'application/json',
-            authorization: `Bearer ${localStorage.getItem('token')}`,
-          },
-        });
-
-        if (!res.ok) throw new Error('Failed to fetch NIF fees');
-        const data = await res.json();
-        setStudents(data);
-      } catch (err) {
-        console.error(err);
-      } finally {
-        setLoading(false);
-      }
-    };
+      const data = await res.json();
+      setRecords(Array.isArray(data) ? data : []);
+    } catch (err) {
+      console.error(err);
+      setFetchError(err.message);
+      alert(`Error fetching fees: ${err.message}`);
+    } finally {
+      setLoading(false);
+    }
+  };
 
     fetchFees();
   }, [programType, course, yearNumber]);
 
-  useEffect(() => {
-    if (programType === ALL_PROGRAM.value) {
-      setCourseOptions(DEFAULT_STREAMS);
-      if (
-        course !== ALL_COURSE &&
-        !DEFAULT_STREAMS.includes(course)
-      ) {
-        setCourse(DEFAULT_STREAMS[0] || ALL_COURSE);
-      }
-      return;
-    }
-
-    const mapped = coursesByProgram[programType];
-    if (mapped && mapped.length) {
-      setCourseOptions(mapped);
-      if (course !== ALL_COURSE && !mapped.includes(course)) {
-        setCourse(mapped[0]);
-      }
-    } else {
-      setCourseOptions(DEFAULT_STREAMS);
-      if (
-        course !== ALL_COURSE &&
-        !DEFAULT_STREAMS.includes(course)
-      ) {
-        setCourse(DEFAULT_STREAMS[0] || ALL_COURSE);
-      }
-    }
-  }, [programType, coursesByProgram]);
-
-  // Filter students based on search term
-  const filteredStudents = useMemo(() => {
-    if (!students.length) return [];
-
-    if (!searchTerm) return students;
-
-    return students.filter(student =>
-      student.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      student.roll?.toLowerCase().includes(searchTerm.toLowerCase())
-    );
-  }, [students, searchTerm]);
-
-  // Summary calculations
-  const summary = useMemo(() => {
-    if (!students.length) {
-      return {
-        totalStudents: 0,
-        totalDue: 0,
-        totalCollected: 0,
-        totalPending: 0,
-        paidStudents: 0,
-        partialStudents: 0,
-        dueStudents: 0,
-        collectionPercentage: 0,
-      };
-    }
-
-    const totalStudents = students.length;
-    const totalDue = students.reduce((sum, s) => sum + (s.totalFee || 0), 0);
-    const totalCollected = students.reduce(
-      (sum, s) => sum + (s.paidAmount || 0),
-      0
-    );
-    const totalPending = students.reduce(
-      (sum, s) => sum + (s.dueAmount || 0),
-      0
-    );
-
-    const paidStudents = students.filter((s) => s.status === 'paid').length;
-    const partialStudents = students.filter((s) => s.status === 'partial').length;
-    const dueStudents = students.filter((s) => s.status === 'due').length;
-
-    const collectionPercentage =
-      totalDue > 0 ? ((totalCollected / totalDue) * 100).toFixed(1) : 0;
-
-    return {
-      totalStudents,
-      totalDue,
-      totalCollected,
-      totalPending,
-      paidStudents,
-      partialStudents,
-      dueStudents,
-      collectionPercentage,
-    };
-  }, [students]);
-
-  const formatAmount = (value = 0) =>
-    `₹${Number(value || 0).toLocaleString()}`;
-
-  const formatDate = (value) =>
-    value ? new Date(value).toLocaleDateString() : "-";
-
-  const getStatusColor = (status) => {
-    switch (status) {
-      case 'paid':
-        return 'bg-green-100 text-green-800';
-      case 'partial':
-        return 'bg-yellow-100 text-yellow-800';
-      case 'due':
-        return 'bg-red-100 text-red-800';
-      default:
-        return 'bg-gray-100 text-gray-800';
-    }
+  const openPaymentModal = (record) => {
+    setSelectedRecord(record);
+    setPaymentAmount(record?.dueAmount || "");
+    setPaymentMethod("cash");
+    setPaymentNote("");
+    setPaymentModalOpen(true);
   };
 
-  const getStatusIcon = (status) => {
-    switch (status) {
-      case 'paid':
-        return <CheckCircle2 size={16} className="text-green-600" />;
-      case 'partial':
-        return <AlertCircle size={16} className="text-yellow-600" />;
-      case 'due':
-        return <AlertCircle size={16} className="text-red-600" />;
-      default:
-        return null;
+  const closePaymentModal = () => {
+    setPaymentModalOpen(false);
+    setSelectedRecord(null);
+    setPaymentAmount("");
+    setPaymentMethod("cash");
+    setPaymentNote("");
+  };
+
+  const handlePaymentSubmit = async (e) => {
+    e.preventDefault();
+    if (!selectedRecord) return;
+
+    const amountNum = Number(paymentAmount);
+    if (!amountNum || amountNum <= 0) {
+      alert("Please enter a valid amount");
+      return;
     }
   };
 
@@ -1151,239 +936,109 @@ const NifFeesCollection = ({ setShowAdminHeader }) => {
       setCollectionAmount('');
     } catch (err) {
       console.error(err);
-      alert('Failed to collect payment');
+      alert(`Error collecting payment: ${err.message}`);
+    } finally {
+      setPaymentLoading(false);
     }
   };
 
-  const handleViewDetails = (record) => {
-    if (!record?.feeRecordId) return;
-    navigate(`/admin/fees/student-details?record=${record.feeRecordId}`, {
-      state: { feeRecordId: record.feeRecordId },
-    });
-  };
-
-  const exportFeesReport = () => {
-    if (!students.length) return;
-
-    const pdf = new jsPDF();
-    const pageWidth = pdf.internal.pageSize.width;
-    const currentDate = new Date().toLocaleDateString();
-    let y = 20;
-
-    pdf.setFontSize(18);
-    pdf.setFont(undefined, 'bold');
-    pdf.text('NIF Fees Collection Report', pageWidth / 2, y, {
-      align: 'center',
-    });
-
-    y += 8;
-    pdf.setFontSize(11);
-    pdf.setFont(undefined, 'normal');
-    const progLabel =
-      PROGRAM_TYPES.find((p) => p.value === programType)?.label || programType;
-    pdf.text(
-      `Program: ${progLabel} | Course: ${course} | Year: ${yearNumber}`,
-      pageWidth / 2,
-      y,
-      { align: 'center' }
+  const filteredRecords = records.filter((r) => {
+    if (!search.trim()) return true;
+    const q = search.toLowerCase();
+    return (
+      r.name?.toLowerCase().includes(q) ||
+      r.roll?.toLowerCase().includes(q) ||
+      r.course?.toLowerCase().includes(q)
     );
-    y += 6;
-    pdf.text(`Generated on: ${currentDate}`, pageWidth / 2, y, {
-      align: 'center',
-    });
+  });
 
-    y += 10;
-    pdf.setFontSize(13);
-    pdf.setFont(undefined, 'bold');
-    pdf.text('Summary', 15, y);
-    y += 7;
-    pdf.setFontSize(10);
-    pdf.setFont(undefined, 'normal');
-    pdf.text(`Total Students: ${summary.totalStudents}`, 20, y);
-    y += 5;
-    pdf.text(`Total Fees: ₹${summary.totalDue.toLocaleString()}`, 20, y);
-    y += 5;
-    pdf.text(`Collected: ₹${summary.totalCollected.toLocaleString()}`, 20, y);
-    y += 5;
-    pdf.text(`Pending: ₹${summary.totalPending.toLocaleString()}`, 20, y);
-    y += 5;
-    pdf.text(`Collection Rate: ${summary.collectionPercentage}%`, 20, y);
-
-    y += 10;
-    pdf.setFontSize(11);
-    pdf.setFont(undefined, 'bold');
-    pdf.text('Name', 10, y);
-    pdf.text('Roll', 55, y);
-    pdf.text('Total', 80, y);
-    pdf.text('Paid', 105, y);
-    pdf.text('Due', 130, y);
-    pdf.text('Status', 155, y);
-    pdf.text('Last Pay', 180, y);
-
-    y += 3;
-    pdf.line(10, y, pageWidth - 10, y);
-    y += 6;
-
-    pdf.setFontSize(9);
-    pdf.setFont(undefined, 'normal');
-
-    students.forEach((s) => {
-      if (y > 270) {
-        pdf.addPage();
-        y = 20;
-      }
-      pdf.text(s.name || '', 10, y);
-      pdf.text(s.roll || '', 55, y);
-      pdf.text(`₹${(s.totalFee || 0).toLocaleString()}`, 80, y);
-      pdf.text(`₹${(s.paidAmount || 0).toLocaleString()}`, 105, y);
-      pdf.text(`₹${(s.dueAmount || 0).toLocaleString()}`, 130, y);
-      pdf.text(s.status || '', 155, y);
-      pdf.text(
-        s.lastPayment ? new Date(s.lastPayment).toLocaleDateString() : '-',
-        180,
-        y
-      );
-      y += 6;
-    });
-
-    pdf.save(
-      `nif-fees-${programType}-${course}-year${yearNumber}-${currentDate.replace(
-        /\//g,
-        '-'
-      )}.pdf`
-    );
+  const getStatusBadge = (status) => {
+    switch (status) {
+      case "paid":
+        return "bg-green-100 text-green-800";
+      case "partial":
+        return "bg-blue-100 text-blue-800";
+      case "due":
+        return "bg-red-100 text-red-800";
+      default:
+        return "bg-gray-100 text-gray-800";
+    }
   };
 
   return (
-    <div className="space-y-6">
-      {/* Filters header */}
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-        <h1 className="text-2xl font-bold text-gray-800 mb-6">
-          NIF Fees Collection
-        </h1>
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          {/* Program type */}
-          <div className="relative">
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Program Type
-            </label>
-            <div className="relative">
-              <select
-                value={programType}
-                onChange={(e) => {
-                  const val = e.target.value;
-                  setProgramType(val);
-                  if (val === ALL_PROGRAM.value) {
-                    setYearNumber(ALL_YEAR);
-                    return;
-                  }
-                  const ys = getYearsForProgram(val);
-                  if (
-                    typeof yearNumber !== 'number' ||
-                    !ys.includes(Number(yearNumber))
-                  ) {
-                    setYearNumber(ys[0] || 1);
-                  }
-                }}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-transparent appearance-none bg-white"
-              >
-                <option value={ALL_PROGRAM.value}>
-                  {ALL_PROGRAM.label}
-                </option>
-                {programOptions.map((p) => (
-                  <option key={p.value} value={p.value}>
-                    {p.label}
-                  </option>
-                ))}
-              </select>
-              <ChevronDown
-                size={20}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none"
-              />
+    <div className="min-h-screen bg-gray-50">
+      <div className="p-6 space-y-6">
+        {/* Header & Filters */}
+        <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+            <div>
+              <h1 className="text-2xl font-bold text-gray-900">
+                NIF Fees Collection
+              </h1>
+              <p className="text-sm text-gray-600 mt-1">
+                View student-wise fee status and collect pending installments.
+              </p>
             </div>
-          </div>
-
-          {/* Course */}
-          <div className="relative">
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Course
-            </label>
-            <div className="relative">
+            <div className="flex flex-wrap gap-3 items-center">
+              <div className="flex items-center border rounded-lg px-3 py-1.5 bg-gray-50">
+                <Filter className="w-4 h-4 text-gray-500 mr-2" />
+                <select
+                  value={programType}
+                  onChange={(e) => setProgramType(e.target.value)}
+                  className="bg-transparent text-sm outline-none"
+                >
+                  {programs.map((p) => (
+                    <option key={p.value} value={p.value}>
+                      {p.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
               <select
                 value={course}
                 onChange={(e) => setCourse(e.target.value)}
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-transparent appearance-none bg-white"
               >
-                <option value={ALL_COURSE}>All Streams</option>
-                {courseOptions.map((c) => (
+                {courses.map((c) => (
                   <option key={c} value={c}>
                     {c}
                   </option>
                 ))}
               </select>
-              <ChevronDown
-                size={20}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none"
-              />
-            </div>
-          </div>
-
-          {/* Year */}
-          <div className="relative">
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Year
-            </label>
-            <div className="relative">
-              {programType === ALL_PROGRAM.value ? (
-                <select
-                  value={ALL_YEAR}
-                  disabled
-                  className="w-full px-4 py-2 border border-gray-200 rounded-lg bg-gray-50 text-gray-500 cursor-not-allowed"
-                >
-                  <option value={ALL_YEAR}>All Years</option>
-                </select>
-              ) : (
-                <select
-                  value={yearNumber}
-                  onChange={(e) => setYearNumber(Number(e.target.value))}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-transparent appearance-none bg-white"
-                >
-                  {yearOptions.map((y) => (
-                    <option key={y} value={y}>
-                      Year {y}
-                    </option>
-                  ))}
-                </select>
-              )}
-              <ChevronDown
-                size={20}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none"
-              />
-            </div>
-          </div>
-
-          {/* View */}
-          <div className="relative">
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              View
-            </label>
-            <div className="relative">
               <select
-                value={viewType}
-                onChange={(e) => setViewType(e.target.value)}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-transparent appearance-none bg-white"
+                value={yearNumber}
+                onChange={(e) => setYearNumber(Number(e.target.value))}
+                className="border rounded-lg px-3 py-1.5 text-sm bg-gray-50"
               >
-                <option value="overview">Overview</option>
-                <option value="detailed">Detailed</option>
+                {[1, 2, 3, 4].map((yr) => (
+                  <option key={yr} value={yr}>
+                    Year {yr}
+                  </option>
+                ))}
               </select>
-              <ChevronDown
-                size={20}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none"
-              />
             </div>
           </div>
-        </div>
-      </div>
+
+          {/* Search */}
+          <div className="mt-4 flex justify-between items-center">
+            <div className="relative w-full md:w-72">
+              <Search className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
+              <input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search by name, roll, course..."
+                className="w-full pl-9 pr-3 py-2 text-sm border rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none"
+              />
+            </div>
+            <button
+              onClick={fetchRecords}
+              disabled={loading}
+              className="hidden md:inline-flex items-center px-3 py-2 text-sm rounded-lg border border-gray-300 hover:bg-gray-50"
+            >
+              {loading && <Loader2 className="w-4 h-4 animate-spin mr-2" />}
+              Refresh
+            </button>
+          </div>
 
       {/* Summary cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -1558,108 +1213,64 @@ const NifFeesCollection = ({ setShowAdminHeader }) => {
                     <td className="px-4 py-3 text-gray-900 text-sm font-medium">
                       {s.name}
                     </td>
-                    <td className="px-4 py-3 text-gray-500 text-sm">
-                      {s.roll}
-                    </td>
-                    <td className="px-4 py-3 text-gray-500 text-sm">
-                      {s.program}
-                    </td>
-                    <td className="px-4 py-3 text-gray-500 text-sm">
-                      {s.course}
-                    </td>
-                    <td className="px-4 py-3 text-sm">
-                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(s.status)}`}>
-                        {s.status?.charAt(0).toUpperCase() + s.status?.slice(1)}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 text-gray-500 text-sm text-right">
-                      ₹{(s.totalFee || 0).toLocaleString()}
-                    </td>
-                    <td className="px-4 py-3 text-gray-500 text-sm text-right">
-                      ₹{(s.paidAmount || 0).toLocaleString()}
-                    </td>
-                    <td className="px-4 py-3 text-gray-900 text-sm text-right font-medium">
-                      ₹{(s.dueAmount || 0).toLocaleString()}
-                    </td>
-                    <td className="px-4 py-3 text-center">
-                      <div className="flex justify-center space-x-2">
-                        {s.status !== 'paid' && (
-                          <button
-                            onClick={() => handleCollectFees(s)}
-                            className="inline-flex items-center px-3 py-1 border border-transparent text-xs font-medium rounded text-white bg-green-600 hover:bg-green-700"
-                          >
-                            <IndianRupee size={12} className="mr-1" />
-                            Collect
-                          </button>
-                        )}
-                        <button
-                          onClick={() => handleViewDetails(s)}
-                          className="text-gray-500 hover:text-blue-600"
-                        >
-                          <Eye size={16} />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-                {!filteredStudents.length && (
-                  <tr>
-                    <td
-                      colSpan={10}
-                      className="text-center text-gray-500 py-10"
-                    >
-                      No students found for the selected filters.
-                    </td>
                   </tr>
                 )}
+
+                {!loading &&
+                  filteredRecords.map((r) => (
+                    <tr key={r.feeRecordId} className="border-t">
+                      <td className="px-6 py-3 text-gray-900 font-medium">
+                        {r.name || "-"}
+                      </td>
+                      <td className="px-6 py-3 text-gray-700">
+                        {r.roll || "-"}
+                      </td>
+                      <td className="px-6 py-3 text-gray-700">
+                        {r.course} / Year {r.yearNumber}
+                      </td>
+                      <td className="px-6 py-3 text-right text-gray-900">
+                        {formatINR(r.totalFee)}
+                      </td>
+                      <td className="px-6 py-3 text-right text-green-700">
+                        {formatINR(r.paidAmount)}
+                      </td>
+                      <td className="px-6 py-3 text-right text-red-700">
+                        {formatINR(r.dueAmount)}
+                      </td>
+                      <td className="px-6 py-3 text-center">
+                        <span
+                          className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusBadge(
+                            r.status
+                          )}`}
+                        >
+                          {r.status?.toUpperCase() || "NA"}
+                        </span>
+                      </td>
+                      <td className="px-6 py-3 text-center">
+                        <button
+                          onClick={() => openPaymentModal(r)}
+                          disabled={r.dueAmount <= 0}
+                          className="inline-flex items-center px-3 py-1.5 text-xs rounded-lg border border-blue-500 text-blue-600 hover:bg-blue-50 disabled:opacity-40"
+                        >
+                          <CreditCard className="w-3 h-3 mr-1" />
+                          {r.dueAmount <= 0 ? "Cleared" : "Collect Fee"}
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
               </tbody>
             </table>
           </div>
-          
-          {/* Pagination Controls */}
-          <div className="flex items-center justify-between p-4 border-t border-gray-200">
-            <span className="text-sm text-gray-600">
-              Showing 1 to {filteredStudents.length} of {filteredStudents.length} results
-            </span>
-            <div className="flex items-center gap-2">
-              <button className="flex items-center justify-center h-8 w-8 rounded-lg border border-gray-300 bg-white text-gray-600 hover:bg-gray-50">
-                <ChevronDown className="text-xl rotate-90" />
-              </button>
-              <button className="flex items-center justify-center h-8 w-8 rounded-lg border border-blue-600 bg-blue-100 text-blue-600">
-                1
-              </button>
-              <button className="flex items-center justify-center h-8 w-8 rounded-lg border border-gray-300 bg-white text-gray-600 hover:bg-gray-50">
-                2
-              </button>
-              <button className="flex items-center justify-center h-8 w-8 rounded-lg border border-gray-300 bg-white text-gray-600 hover:bg-gray-50">
-                3
-              </button>
-              <button className="flex items-center justify-center h-8 w-8 rounded-lg border border-gray-300 bg-white text-gray-600 hover:bg-gray-50">
-                <ChevronDown className="text-xl -rotate-90" />
-              </button>
-            </div>
-          </div>
         </div>
-      ) : (
-        !loading && (
-          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-12 text-center">
-            <h3 className="text-lg font-semibold text-gray-900">
-              No fee records yet
-            </h3>
-            <p className="text-gray-500 mt-2">
-              Add students to a NIF course to see them listed here.
-            </p>
-          </div>
-        )
-      )}
+      </div>
 
-      {/* Collection Modal */}
-      {showCollectionModal && selectedStudent && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg shadow-xl max-w-md w-full m-4">
-            <div className="flex items-center justify-between p-6 border-b border-gray-200">
-              <h3 className="text-lg font-semibold text-gray-900">
-                Collect Fees
+      {/* Payment Modal */}
+      {paymentModalOpen && selectedRecord && (
+        <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-md">
+            <div className="flex items-center justify-between px-5 py-3 border-b">
+              <h3 className="font-semibold text-gray-900 text-lg">
+                Collect Fees – {selectedRecord.name}
               </h3>
               <button
                 onClick={() => setShowCollectionModal(false)}
@@ -1765,4 +1376,4 @@ const NifFeesCollection = ({ setShowAdminHeader }) => {
   );
 };
 
-export default NifFeesCollection;
+export default FeesCollection;
