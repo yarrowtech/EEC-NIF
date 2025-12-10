@@ -1,5 +1,6 @@
 // backend/models/NifFeeRecord.js
 const mongoose = require('mongoose');
+const { Schema } = mongoose;
 
 // 🔁 Put your exact values from PDFs here:
 const NIF_FEE_TOTALS = {
