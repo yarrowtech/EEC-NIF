@@ -66,12 +66,34 @@
 const mongoose = require("mongoose");
 const { Schema } = mongoose;
 
+const feeInstallmentSchema = new Schema(
+  {
+    label: { type: String, required: true, trim: true },
+    amount: { type: Number, required: true, min: 0 },
+    dueMonth: { type: String, trim: true },
+  },
+  { _id: false }
+);
+
 const nifStudentSchema = new Schema(
   {
     /* -------- Core identity -------- */
     name: {
       type: String,
       required: true,
+      trim: true,
+    },
+    guardianName: {
+      type: String,
+      trim: true,
+    },
+    guardianEmail: {
+      type: String,
+      trim: true,
+      lowercase: true,
+    },
+    guardianPhone: {
+      type: String,
       trim: true,
     },
     email: {
@@ -101,12 +123,16 @@ const nifStudentSchema = new Schema(
     admissionDate: {
       type: Date, // Date of Adm
     },
+    academicYear: {
+      type: String,
+      trim: true,
+    },
     roll: {
       type: String,
       trim: true,
     },
     grade: {
-      type: String, // Program (B.Voc / Certificate etc.)
+      type: String, // Program label for UI
       trim: true,
     },
     section: {
@@ -129,6 +155,17 @@ const nifStudentSchema = new Schema(
       type: String,
       trim: true,
     },
+
+    /* -------- Course / fee mapping -------- */
+    courseId: { type: Schema.Types.ObjectId, ref: "NifCourse" },
+    stream: { type: String, trim: true },
+    programType: {
+      type: String,
+      enum: ["ADV_CERT", "B_VOC", "M_VOC", "B_DES"],
+    },
+    programLabel: { type: String, trim: true },
+    totalFee: { type: Number, min: 0 },
+    feeInstallments: { type: [feeInstallmentSchema], default: [] },
 
     /* -------- Personal / address -------- */
     dob: {
@@ -159,5 +196,8 @@ const nifStudentSchema = new Schema(
     timestamps: true,
   }
 );
+
+nifStudentSchema.index({ roll: 1 }, { unique: true, sparse: true });
+nifStudentSchema.index({ email: 1 }, { unique: true, sparse: true });
 
 module.exports = mongoose.model("NifStudent", nifStudentSchema);

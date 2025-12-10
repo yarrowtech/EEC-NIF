@@ -16,6 +16,12 @@ const NIF_FEE_TOTALS = {
     1: 205000,
     2: 205000,
   },
+  B_DES: {
+    1: 203000,
+    2: 203000,
+    3: 203000,
+    4: 203000,
+  },
 };
 
 function getNifFeeTotal(programType, yearNumber) {
@@ -39,6 +45,15 @@ const paymentSchema = new mongoose.Schema(
   { _id: false }
 );
 
+const installmentSnapshotSchema = new mongoose.Schema(
+  {
+    label: { type: String, required: true },
+    amount: { type: Number, required: true, min: 0 },
+    dueMonth: { type: String },
+  },
+  { _id: false }
+);
+
 const NifFeeRecordSchema = new mongoose.Schema(
   {
     student: {
@@ -49,14 +64,13 @@ const NifFeeRecordSchema = new mongoose.Schema(
 
     programType: {
       type: String,
-      enum: ['ADV_CERT', 'B_VOC', 'M_VOC'],
+      enum: ['ADV_CERT', 'B_VOC', 'M_VOC', 'B_DES'],
       required: true,
     },
-    course: {
-      type: String,
-      enum: ['Fashion Design', 'Interior Design'],
-      required: true,
-    },
+    programLabel: { type: String },
+    courseId: { type: mongoose.Schema.Types.ObjectId, ref: 'NifCourse' },
+    course: { type: String, required: true }, // Stream
+    courseName: { type: String },
 
     academicYear: { type: String, required: true }, // "2025-26"
     yearNumber: { type: Number, enum: [1, 2, 3, 4], required: true },
@@ -73,6 +87,7 @@ const NifFeeRecordSchema = new mongoose.Schema(
     },
 
     payments: [paymentSchema],
+    installmentsSnapshot: { type: [installmentSnapshotSchema], default: [] },
   },
   { timestamps: true }
 );
@@ -89,21 +104,36 @@ NifFeeRecordSchema.set('toJSON', {
 // Create a record for a given student + year
 NifFeeRecordSchema.statics.createForStudentYear = async function (
   student,
-  yearNumber
+  yearNumber,
+  options = {}
 ) {
-  const total = getNifFeeTotal(student.programType, yearNumber);
+  const total =
+    typeof options.totalFee === 'number'
+      ? options.totalFee
+      : typeof student.totalFee === 'number'
+      ? student.totalFee
+      : getNifFeeTotal(
+          options.programType || student.programType,
+          yearNumber
+        );
   if (!total) throw new Error('No NIF fee total for this program/year');
 
   return this.create({
     student: student._id,
-    programType: student.programType,
-    course: student.course,
-    academicYear: student.academicYear || '2025-26',
+    programType: options.programType || student.programType,
+    programLabel: options.programLabel || student.programLabel,
+    courseId: options.courseId || student.courseId,
+    course: options.stream || student.stream || student.course,
+    courseName: options.courseName || student.course,
+    academicYear:
+      options.academicYear || student.academicYear || '2025-26',
     yearNumber,
     totalFee: total,
     paidAmount: 0,
     dueAmount: total,
     status: 'due',
+    installmentsSnapshot:
+      options.installments || student.feeInstallments || [],
   });
 };
 

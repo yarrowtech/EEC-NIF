@@ -3,16 +3,33 @@ const mongoose = require("mongoose");
 
 const { Schema } = mongoose;
 
+const installmentSchema = new Schema(
+  {
+    label: { type: String, required: true, trim: true },
+    amount: { type: Number, required: true, min: 0 },
+    dueMonth: { type: String, trim: true },
+  },
+  { _id: false }
+);
+
 const nifCourseSchema = new Schema(
   {
     // what your cards render
-    title: { type: String, required: true, trim: true },          // e.g., "1 Year Certificate Program"
-    department: { type: String, required: true, trim: true },      // e.g., "Fashion Design" | "Interior Design"
+    title: { type: String, required: true, trim: true }, // e.g., "1 Year Certificate Program"
+    department: { type: String, required: true, trim: true }, // e.g., "Fashion Design" | "Interior Design"
+
+    programType: {
+      type: String,
+      enum: ["ADV_CERT", "B_VOC", "M_VOC", "B_DES"],
+      required: true,
+    },
+    programLabel: { type: String, default: "" },
 
     // optional details the cards may show
     desc: { type: String, default: "" },
-    duration: { type: String, required: true, trim: true },        // e.g., "1 year", "6 months"
-    fees: { type: Number, required: true, min: 0 },                // INR
+    duration: { type: String, required: true, trim: true }, // e.g., "1 year", "6 months"
+    fees: { type: Number, required: true, min: 0 }, // INR
+    installments: { type: [installmentSchema], default: [] },
     instructor: { type: String, default: "" },
     totalStudents: { type: Number, default: 0, min: 0 },
     startingDate: { type: Date },

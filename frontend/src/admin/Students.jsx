@@ -1,6 +1,6 @@
 
 // frontend/src/admin/pages/Students.jsx
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useMemo } from "react";
 import {
   Mail,
   Phone,
@@ -30,6 +30,8 @@ import {
 } from "lucide-react";
 import Swal from "sweetalert2";
 
+const API_BASE = import.meta.env.VITE_API_URL;
+
 const Students = ({ setShowAdminHeader }) => {
   const [studentData, setStudentData] = useState([]);
   const [searchTerm, setSearchTerm] = useState("");
@@ -40,6 +42,8 @@ const Students = ({ setShowAdminHeader }) => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
   const fileInputRef = useRef(null);
+  const [courseOptions, setCourseOptions] = useState([]);
+  const [coursesLoading, setCoursesLoading] = useState(false);
 
   const [newStudent, setNewStudent] = useState({
     // core
@@ -51,6 +55,9 @@ const Students = ({ setShowAdminHeader }) => {
     address: "",
     pincode: "",
     status: "Active",
+    guardianName: "",
+    guardianEmail: "",
+    guardianPhone: "",
 
     // academic / nif
     serialNo: "",
@@ -60,10 +67,19 @@ const Students = ({ setShowAdminHeader }) => {
     grade: "",
     section: "",
     course: "",
+    courseId: "",
     duration: "",
     formNo: "",
     enrollmentNo: "",
   });
+
+  const selectedCourse = useMemo(
+    () =>
+      courseOptions.find((course) => course._id === newStudent.courseId) ||
+      null,
+    [courseOptions, newStudent.courseId]
+  );
+  const selectedCourseInstallments = selectedCourse?.installments || [];
 
   /* -------------------- Derived -------------------- */
   const filteredStudents = studentData.filter((student) =>
@@ -89,21 +105,20 @@ const Students = ({ setShowAdminHeader }) => {
     );
   };
 
-  const getFeesStatus = () => {
-    const mockFees = {
-      totalDue: 18700,
-      paidAmount: Math.floor(Math.random() * 18700),
-      dueDate: "2024-02-15",
-    };
-    mockFees.dueAmount = mockFees.totalDue - mockFees.paidAmount;
-    mockFees.status =
-      mockFees.dueAmount === 0
-        ? "paid"
-        : mockFees.dueAmount < mockFees.totalDue
-        ? "partial"
-        : "due";
-    return mockFees;
+  const getFeeStatusClass = (status) => {
+    switch (status) {
+      case "paid":
+        return "bg-green-100 text-green-800";
+      case "partial":
+        return "bg-yellow-100 text-yellow-800";
+      case "due":
+      default:
+        return "bg-red-100 text-red-800";
+    }
   };
+
+  const formatCurrency = (value = 0) =>
+    `₹${Number(value || 0).toLocaleString()}`;
 
   const getMoodIcon = (mood) => {
     const moodIcons = {
@@ -160,19 +175,37 @@ const Students = ({ setShowAdminHeader }) => {
   };
 
   const refreshStudents = async () => {
-    const res = await fetch(
-      `${import.meta.env.VITE_API_URL}/api/nif/students`,
-      {
+    const res = await fetch(`${API_BASE}/api/nif/students`, {
+      method: "GET",
+      headers: {
+        "Content-Type": "application/json",
+        authorization: `Bearer ${localStorage.getItem("token")}`,
+      },
+    });
+    if (res.ok) {
+      const data = await res.json();
+      setStudentData(data);
+    }
+  };
+
+  const fetchCourses = async () => {
+    setCoursesLoading(true);
+    try {
+      const res = await fetch(`${API_BASE}/api/nif/course/fetch`, {
         method: "GET",
         headers: {
           "Content-Type": "application/json",
           authorization: `Bearer ${localStorage.getItem("token")}`,
         },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setCourseOptions(data || []);
       }
-    );
-    if (res.ok) {
-      const data = await res.json();
-      setStudentData(data);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setCoursesLoading(false);
     }
   };
 
@@ -180,12 +213,25 @@ const Students = ({ setShowAdminHeader }) => {
   useEffect(() => {
     setShowAdminHeader?.(true);
     refreshStudents().catch(console.error);
+    fetchCourses().catch(console.error);
   }, [setShowAdminHeader]);
 
   /* -------------------- Add Student -------------------- */
   const handleAddStudentChange = (e) => {
     const { name, value } = e.target;
     setNewStudent((prev) => ({ ...prev, [name]: value }));
+  };
+
+  const handleCourseSelect = (e) => {
+    const { value } = e.target;
+    const course = courseOptions.find((c) => c._id === value);
+    setNewStudent((prev) => ({
+      ...prev,
+      courseId: value,
+      course: course?.title || "",
+      grade: course?.programLabel || prev.grade,
+      duration: course?.duration || prev.duration,
+    }));
   };
 
   const handleAddStudentSubmit = async (e) => {
@@ -197,14 +243,15 @@ const Students = ({ setShowAdminHeader }) => {
       "batchCode",
       "admissionDate",
       "roll",
-      "grade",
       "section",
-      "course",
     ];
 
     const missing = requiredFields.filter(
       (f) => !newStudent[f] || String(newStudent[f]).trim() === ""
     );
+    if (!newStudent.courseId) {
+      missing.push("course");
+    }
     if (missing.length) {
       alert(`Please fill required fields: ${missing.join(", ")}`);
       return;
@@ -214,23 +261,24 @@ const Students = ({ setShowAdminHeader }) => {
     try {
       const payload = {
         ...newStudent,
+        courseId: newStudent.courseId,
+        course: selectedCourse?.title || newStudent.course,
+        grade: selectedCourse?.programLabel || newStudent.grade,
+        duration: selectedCourse?.duration || newStudent.duration,
         // convert serialNo to number if provided
         serialNo: newStudent.serialNo
           ? Number(newStudent.serialNo)
           : undefined,
       };
 
-      const res = await fetch(
-        `${import.meta.env.VITE_API_URL}/api/nif/students`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            authorization: `Bearer ${localStorage.getItem("token")}`,
-          },
-          body: JSON.stringify(payload),
-        }
-      );
+      const res = await fetch(`${API_BASE}/api/nif/students`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          authorization: `Bearer ${localStorage.getItem("token")}`,
+        },
+        body: JSON.stringify(payload),
+      });
 
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
@@ -260,6 +308,9 @@ const Students = ({ setShowAdminHeader }) => {
         address: "",
         pincode: "",
         status: "Active",
+        guardianName: "",
+        guardianEmail: "",
+        guardianPhone: "",
         serialNo: "",
         batchCode: "",
         admissionDate: "",
@@ -267,6 +318,7 @@ const Students = ({ setShowAdminHeader }) => {
         grade: "",
         section: "",
         course: "",
+        courseId: "",
         duration: "",
         formNo: "",
         enrollmentNo: "",
@@ -280,8 +332,9 @@ const Students = ({ setShowAdminHeader }) => {
   };
 
   /* -------------------- Bulk Upload -------------------- */
-  const REQUIRED_HEADERS = ["name", "mobile"]; // keep minimum strict
+  const REQUIRED_HEADERS = ["name", "mobile", "course"];
   const OPTIONAL_HEADERS = [
+    "courseId",
     "email",
     "gender",
     "dob",
@@ -294,7 +347,6 @@ const Students = ({ setShowAdminHeader }) => {
     "roll",
     "grade",
     "section",
-    "course",
     "duration",
     "formNo",
     "enrollmentNo",
@@ -409,6 +461,10 @@ const Students = ({ setShowAdminHeader }) => {
         const dob = toISO(obj.dob);
         const admissionDate = toISO(obj.admissionDate);
 
+        if (!obj.course && !obj.courseId) {
+          continue;
+        }
+
         payload.push({
           name: obj.name,
           mobile: obj.mobile,
@@ -425,6 +481,7 @@ const Students = ({ setShowAdminHeader }) => {
           grade: obj.grade || "",
           section: obj.section || "",
           course: obj.course || "",
+          courseId: obj.courseId || "",
           duration: obj.duration || "",
           formNo: obj.formNo || "",
           enrollmentNo: obj.enrollmentNo || "",
@@ -436,17 +493,14 @@ const Students = ({ setShowAdminHeader }) => {
         return;
       }
 
-      const res = await fetch(
-        `${import.meta.env.VITE_API_URL}/api/nif/students/bulk`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            authorization: `Bearer ${localStorage.getItem("token")}`,
-          },
-          body: JSON.stringify({ students: payload }),
-        }
-      );
+      const res = await fetch(`${API_BASE}/api/nif/students/bulk`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          authorization: `Bearer ${localStorage.getItem("token")}`,
+        },
+        body: JSON.stringify({ students: payload }),
+      });
 
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
@@ -481,6 +535,7 @@ const Students = ({ setShowAdminHeader }) => {
       "grade",
       "section",
       "course",
+      "courseId",
       "duration",
       "formNo",
       "enrollmentNo",
@@ -579,6 +634,8 @@ const Students = ({ setShowAdminHeader }) => {
                   "Batch",
                   "Course",
                   "Phone",
+                  "Fees",
+                  "Balance",
                 ].map((h) => (
                   <th
                     key={h}
@@ -626,12 +683,31 @@ const Students = ({ setShowAdminHeader }) => {
                   <td className="border-b border-yellow-100 px-6 py-4 text-gray-600">
                     {student.mobile}
                   </td>
+                  <td className="border-b border-yellow-100 px-6 py-4 text-gray-600">
+                    <div className="text-sm text-gray-600">
+                      {formatCurrency(student.feeSummary?.paidAmount)} /{" "}
+                      {formatCurrency(student.feeSummary?.totalFee)}
+                    </div>
+                    <span
+                      className={`inline-flex mt-1 px-2 py-0.5 text-xs rounded-full ${getFeeStatusClass(
+                        student.feeSummary?.status
+                      )}`}
+                    >
+                      {student.feeSummary?.status
+                        ? student.feeSummary.status.charAt(0).toUpperCase() +
+                          student.feeSummary.status.slice(1)
+                        : "N/A"}
+                    </span>
+                  </td>
+                  <td className="border-b border-yellow-100 px-6 py-4 text-gray-900 font-semibold">
+                    {formatCurrency(student.feeSummary?.dueAmount)}
+                  </td>
                 </tr>
               ))}
               {filteredStudents.length === 0 && (
                 <tr>
                   <td
-                    colSpan={6}
+                    colSpan={8}
                     className="text-center text-gray-500 py-10"
                   >
                     No students found.
@@ -853,6 +929,48 @@ const Students = ({ setShowAdminHeader }) => {
                       </div>
                     </div>
 
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                      <div className="space-y-2">
+                        <label className="text-sm font-medium text-gray-700">
+                          Guardian Name
+                        </label>
+                        <input
+                          type="text"
+                          name="guardianName"
+                          value={newStudent.guardianName}
+                          onChange={handleAddStudentChange}
+                          className="w-full border border-gray-300 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-yellow-500"
+                          placeholder="Parent/Guardian Name"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <label className="text-sm font-medium text-gray-700">
+                          Guardian Phone
+                        </label>
+                        <input
+                          type="tel"
+                          name="guardianPhone"
+                          value={newStudent.guardianPhone}
+                          onChange={handleAddStudentChange}
+                          className="w-full border border-gray-300 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-yellow-500"
+                          placeholder="+91 90000 00000"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <label className="text-sm font-medium text-gray-700">
+                          Guardian Email
+                        </label>
+                        <input
+                          type="email"
+                          name="guardianEmail"
+                          value={newStudent.guardianEmail}
+                          onChange={handleAddStudentChange}
+                          className="w-full border border-gray-300 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-yellow-500"
+                          placeholder="guardian@example.com"
+                        />
+                      </div>
+                    </div>
+
                     <div className="space-y-2">
                       <label className="text-sm font-medium text-gray-700">
                         Address
@@ -989,18 +1107,38 @@ const Students = ({ setShowAdminHeader }) => {
 
                       <div className="space-y-2">
                         <label className="flex items-center text-sm font-medium text-gray-700">
-                          Course Name
+                          Course & Fees
                           <span className="text-red-500 ml-1">*</span>
                         </label>
-                        <input
-                          type="text"
-                          name="course"
-                          value={newStudent.course}
-                          onChange={handleAddStudentChange}
-                          required
-                          className="w-full border border-gray-300 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-yellow-500"
-                          placeholder="e.g. AD-201 TWO YEARS FD"
-                        />
+                        <div className="relative">
+                          <select
+                            name="courseId"
+                            value={newStudent.courseId}
+                            onChange={handleCourseSelect}
+                            required
+                            className="w-full border border-gray-300 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-yellow-500 appearance-none bg-white"
+                          >
+                            <option value="">
+                              {coursesLoading
+                                ? "Loading courses..."
+                                : "Select course"}
+                            </option>
+                            {courseOptions.map((course) => (
+                              <option key={course._id} value={course._id}>
+                                {course.title} ({course.department})
+                              </option>
+                            ))}
+                          </select>
+                          <div className="pointer-events-none absolute right-3 top-[45px]">
+                            <ChevronDown className="w-4 h-4 text-gray-400" />
+                          </div>
+                        </div>
+                        {selectedCourse && (
+                          <p className="text-xs text-gray-500">
+                            Program: {selectedCourse.programLabel} • Total Fee: ₹
+                            {selectedCourse.fees?.toLocaleString()}
+                          </p>
+                        )}
                       </div>
 
                       <div className="space-y-2">
@@ -1092,6 +1230,52 @@ const Students = ({ setShowAdminHeader }) => {
                         />
                       </div>
                     </div>
+
+                    {selectedCourse && (
+                      <div className="mt-6 bg-yellow-50 border border-yellow-200 rounded-2xl p-6">
+                        <div className="flex justify-between items-center mb-4">
+                          <div>
+                            <h4 className="text-lg font-semibold text-yellow-800">
+                              Course Fee Snapshot
+                            </h4>
+                            <p className="text-sm text-yellow-700">
+                              Total Fee: ₹{selectedCourse.fees?.toLocaleString()} •{" "}
+                              {selectedCourse.installments?.length || 0} Installments
+                            </p>
+                          </div>
+                          <div className="px-3 py-1 bg-white/70 rounded-full text-xs text-yellow-800 border border-yellow-200">
+                            {selectedCourse.programLabel}
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          {selectedCourseInstallments.slice(0, 6).map((inst, idx) => (
+                            <div
+                              key={`${inst.label}-${idx}`}
+                              className="bg-white rounded-xl p-3 shadow-sm border border-yellow-100"
+                            >
+                              <p className="text-sm font-medium text-gray-700">
+                                {inst.label}
+                              </p>
+                              <div className="flex justify-between items-center mt-1">
+                                <span className="text-xs text-gray-500">
+                                  {inst.dueMonth || "Scheduled"}
+                                </span>
+                                <span className="text-sm font-semibold text-gray-900">
+                                  ₹{inst.amount?.toLocaleString()}
+                                </span>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                        {selectedCourseInstallments.length > 6 && (
+                          <p className="text-xs text-gray-500 mt-2">
+                            Showing first 6 installments. Full schedule included in course
+                            record.
+                          </p>
+                        )}
+                      </div>
+                    )}
                   </div>
 
                   {/* Actions */}

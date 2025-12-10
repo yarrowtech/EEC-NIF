@@ -64,11 +64,6 @@ app.use('/api/alcove', alcoveRouter);
 
 
 app.use('/api/nif/course', nifCourseRoute);
-
-const nifStudentRoute = require("./routes/nifStudentRoute");
-app.use('/api/nif/students', nifStudentRoute);
-
-
 const nifRoutes = require('./routes/nifRoutes');
 app.use('/api/nif', nifRoutes);
 

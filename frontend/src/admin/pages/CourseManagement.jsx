@@ -11,8 +11,22 @@ import {
   IndianRupee,
   X,
   ChevronDown,
+  ListOrdered,
 } from "lucide-react";
 import Swal from "sweetalert2";
+
+const PROGRAM_OPTIONS = [
+  { value: "ADV_CERT", label: "Advance Certificate (1-2 Years)" },
+  { value: "B_VOC", label: "B.Voc (3 Years)" },
+  { value: "M_VOC", label: "M.Voc (2 Years)" },
+  { value: "B_DES", label: "B.Des (4 Years)" },
+];
+
+const createInstallmentRow = () => ({
+  label: "",
+  amount: "",
+  dueMonth: "",
+});
 
 
 /* ---------------------- STATIC FEE STRUCTURES ---------------------- */
@@ -263,9 +277,87 @@ const CourseManagement = ({ setShowAdminHeader }) => {
     duration: "",
     fees: "",
     description: "",
+    programType: "ADV_CERT",
+    installments: [createInstallmentRow()],
   });
 
   const activeStructure = FEE_STRUCTURES[activeFeeTab];
+
+  const sanitizeInstallmentsForSubmit = (items = []) =>
+    items
+      .map((row) => ({
+        label: row.label?.trim(),
+        amount: row.amount === "" ? "" : Number(row.amount),
+        dueMonth: row.dueMonth?.trim() || "",
+      }))
+      .filter(
+        (row) =>
+          row.label &&
+          row.amount !== "" &&
+          Number.isFinite(Number(row.amount)) &&
+          Number(row.amount) >= 0
+      )
+      .map((row) => ({
+        label: row.label,
+        amount: Number(row.amount),
+        dueMonth: row.dueMonth,
+      }));
+
+  const updateInstallmentRow = (mode, index, field, value) => {
+    if (mode === "new") {
+      setNewCourse((prev) => {
+        const installments = [...(prev.installments || [])];
+        installments[index] = { ...installments[index], [field]: value };
+        return { ...prev, installments };
+      });
+    } else if (mode === "edit" && editCourse) {
+      setEditCourse((prev) => {
+        const installments = [...(prev.installments || [])];
+        installments[index] = { ...installments[index], [field]: value };
+        return { ...prev, installments };
+      });
+    }
+  };
+
+  const addInstallmentRow = (mode) => {
+    if (mode === "new") {
+      setNewCourse((prev) => ({
+        ...prev,
+        installments: [...(prev.installments || []), createInstallmentRow()],
+      }));
+    } else if (mode === "edit" && editCourse) {
+      setEditCourse((prev) => ({
+        ...prev,
+        installments: [...(prev.installments || []), createInstallmentRow()],
+      }));
+    }
+  };
+
+  const removeInstallmentRow = (mode, index) => {
+    if (mode === "new") {
+      setNewCourse((prev) => {
+        const installments = [...(prev.installments || [])];
+        installments.splice(index, 1);
+        return {
+          ...prev,
+          installments: installments.length
+            ? installments
+            : [createInstallmentRow()],
+        };
+      });
+    } else if (mode === "edit" && editCourse) {
+      setEditCourse((prev) => {
+        const installments = [...(prev.installments || [])];
+        installments.splice(index, 1);
+        return {
+          ...prev,
+          installments: installments.length
+            ? installments
+            : [createInstallmentRow()],
+        };
+      });
+    }
+  };
 
   /* ---------------------- Fetch Courses ---------------------- */
   const fetchCourses = async () => {
@@ -305,7 +397,7 @@ const handleAddCourseChange = (e) => {
 const handleAddCourseSubmit = async (e) => {
   e.preventDefault();
 
-  const requiredFields = ["stream", "name", "duration", "fees"];
+  const requiredFields = ["stream", "name", "duration", "fees", "programType"];
   const missingFields = requiredFields.filter(
     (field) => !newCourse[field] || newCourse[field].trim() === ""
   );
@@ -328,6 +420,8 @@ const handleAddCourseSubmit = async (e) => {
       duration: newCourse.duration,
       fees: newCourse.fees,
       description: newCourse.description,
+      programType: newCourse.programType,
+      installments: sanitizeInstallmentsForSubmit(newCourse.installments),
     };
 
     const res = await fetch(`${API_BASE}/add`, {
@@ -365,6 +459,8 @@ const handleAddCourseSubmit = async (e) => {
       duration: "",
       fees: "",
       description: "",
+      programType: "ADV_CERT",
+      installments: [createInstallmentRow()],
     });
   } catch (err) {
     console.error("Error adding course:", err);
@@ -389,6 +485,19 @@ const openEditModal = (course) => {
     duration: course.duration || "",
     fees: course.fees != null ? String(course.fees) : "",
     description: course.desc || "",
+    programType: course.programType || "ADV_CERT",
+    installments:
+      (course.installments && course.installments.length
+        ? course.installments
+        : [createInstallmentRow()]
+      ).map((inst) => ({
+        label: inst.label || "",
+        amount:
+          inst.amount === 0 || inst.amount
+            ? String(inst.amount)
+            : "",
+        dueMonth: inst.dueMonth || "",
+      })),
   });
 };
 
@@ -401,7 +510,7 @@ const handleEditSubmit = async (e) => {
   e.preventDefault();
   if (!editCourse?._id) return;
 
-  const requiredFields = ["stream", "name", "duration", "fees"];
+  const requiredFields = ["stream", "name", "duration", "fees", "programType"];
   const missingFields = requiredFields.filter(
     (field) => !editCourse[field] || editCourse[field].trim() === ""
   );
@@ -424,6 +533,8 @@ const handleEditSubmit = async (e) => {
       duration: editCourse.duration,
       fees: editCourse.fees,
       description: editCourse.description,
+      programType: editCourse.programType,
+      installments: sanitizeInstallmentsForSubmit(editCourse.installments),
     };
 
     const res = await fetch(`${API_BASE}/${editCourse._id}`, {
@@ -598,6 +709,12 @@ const handleDeleteCourse = async (course) => {
                   )}
 
                   <div className="space-y-2 text-sm text-gray-600">
+                    {course.programLabel && (
+                      <div className="flex items-center">
+                        <BookOpen className="w-4 h-4 mr-2" />
+                        <span>Program: {course.programLabel}</span>
+                      </div>
+                    )}
                     {course.duration && (
                       <div className="flex items-center">
                         <Clock className="w-4 h-4 mr-2" />
@@ -610,6 +727,12 @@ const handleDeleteCourse = async (course) => {
                         <span>Fees: ₹{course.fees}</span>
                       </div>
                     )}
+                    {course.installments?.length ? (
+                      <div className="flex items-center">
+                        <ListOrdered className="w-4 h-4 mr-2" />
+                        <span>{course.installments.length} Installments</span>
+                      </div>
+                    ) : null}
                     {course.instructor && (
                       <div className="flex items-center">
                         <Users className="w-4 h-4 mr-2" />
@@ -713,6 +836,54 @@ const handleDeleteCourse = async (course) => {
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Program Type <span className="text-red-500">*</span>
+                  </label>
+                  <div className="relative">
+                    <select
+                      name="programType"
+                      value={editCourse.programType}
+                      onChange={handleEditChange}
+                      required
+                      className="w-full border border-gray-300 rounded-lg px-4 py-3 focus:ring-2 focus:ring-yellow-400 focus:outline-none bg-white appearance-none"
+                    >
+                      {PROGRAM_OPTIONS.map((option) => (
+                        <option key={option.value} value={option.value}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </select>
+                    <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-3">
+                      <ChevronDown className="h-4 w-4 text-gray-400" />
+                    </div>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Program Type <span className="text-red-500">*</span>
+                  </label>
+                  <div className="relative">
+                    <select
+                      name="programType"
+                      value={newCourse.programType}
+                      onChange={handleAddCourseChange}
+                      required
+                      className="w-full border border-gray-300 rounded-lg px-4 py-3 focus:ring-2 focus:ring-yellow-400 focus:outline-none bg-white appearance-none"
+                    >
+                      {PROGRAM_OPTIONS.map((option) => (
+                        <option key={option.value} value={option.value}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </select>
+                    <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-3">
+                      <ChevronDown className="h-4 w-4 text-gray-400" />
+                    </div>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
                     Fees <span className="text-red-500">*</span>
                   </label>
                   <div className="relative">
@@ -745,6 +916,164 @@ const handleDeleteCourse = async (course) => {
                     placeholder="Short description about the course"
                     className="w-full border border-gray-300 rounded-lg px-4 py-3 focus:ring-2 focus:ring-yellow-400 focus:outline-none placeholder-gray-400 text-gray-800 resize-none"
                   />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Installment Breakdown
+                  </label>
+                  <div className="space-y-3">
+                    {editCourse.installments.map((inst, idx) => (
+                      <div
+                        key={`edit-installment-${idx}`}
+                        className="grid grid-cols-1 md:grid-cols-12 gap-3 items-end"
+                      >
+                        <div className="md:col-span-4">
+                          <label className="text-xs font-medium text-gray-500">
+                            Label
+                          </label>
+                          <input
+                            value={inst.label}
+                            onChange={(e) =>
+                              updateInstallmentRow("edit", idx, "label", e.target.value)
+                            }
+                            placeholder="e.g., Time of Admission"
+                            className="w-full border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-yellow-400 focus:outline-none"
+                          />
+                        </div>
+                        <div className="md:col-span-4">
+                          <label className="text-xs font-medium text-gray-500">
+                            Amount
+                          </label>
+                          <div className="relative">
+                            <IndianRupee
+                              className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
+                              size={14}
+                            />
+                            <input
+                              type="number"
+                              min="0"
+                              value={inst.amount}
+                              onChange={(e) =>
+                                updateInstallmentRow("edit", idx, "amount", e.target.value)
+                              }
+                              placeholder="7500"
+                              className="w-full pl-8 border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-yellow-400 focus:outline-none"
+                            />
+                          </div>
+                        </div>
+                        <div className="md:col-span-3">
+                          <label className="text-xs font-medium text-gray-500">
+                            Due Timeline
+                          </label>
+                          <input
+                            value={inst.dueMonth}
+                            onChange={(e) =>
+                              updateInstallmentRow("edit", idx, "dueMonth", e.target.value)
+                            }
+                            placeholder="e.g., Month 2"
+                            className="w-full border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-yellow-400 focus:outline-none"
+                          />
+                        </div>
+                        <div className="md:col-span-1 flex justify-end">
+                          <button
+                            type="button"
+                            onClick={() => removeInstallmentRow("edit", idx)}
+                            className="text-sm text-red-500 hover:text-red-600"
+                            disabled={editCourse.installments.length === 1}
+                          >
+                            Remove
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                    <button
+                      type="button"
+                      onClick={() => addInstallmentRow("edit")}
+                      className="text-sm text-yellow-700 font-medium"
+                    >
+                      + Add Installment
+                    </button>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Installment Breakdown
+                  </label>
+                  <div className="space-y-3">
+                    {newCourse.installments.map((inst, idx) => (
+                      <div
+                        key={`new-installment-${idx}`}
+                        className="grid grid-cols-1 md:grid-cols-12 gap-3 items-end"
+                      >
+                        <div className="md:col-span-4">
+                          <label className="text-xs font-medium text-gray-500">
+                            Label
+                          </label>
+                          <input
+                            value={inst.label}
+                            onChange={(e) =>
+                              updateInstallmentRow("new", idx, "label", e.target.value)
+                            }
+                            placeholder="e.g., Time of Admission"
+                            className="w-full border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-yellow-400 focus:outline-none"
+                          />
+                        </div>
+                        <div className="md:col-span-4">
+                          <label className="text-xs font-medium text-gray-500">
+                            Amount
+                          </label>
+                          <div className="relative">
+                            <IndianRupee
+                              className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
+                              size={14}
+                            />
+                            <input
+                              type="number"
+                              min="0"
+                              value={inst.amount}
+                              onChange={(e) =>
+                                updateInstallmentRow("new", idx, "amount", e.target.value)
+                              }
+                              placeholder="7500"
+                              className="w-full pl-8 border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-yellow-400 focus:outline-none"
+                            />
+                          </div>
+                        </div>
+                        <div className="md:col-span-3">
+                          <label className="text-xs font-medium text-gray-500">
+                            Due Timeline
+                          </label>
+                          <input
+                            value={inst.dueMonth}
+                            onChange={(e) =>
+                              updateInstallmentRow("new", idx, "dueMonth", e.target.value)
+                            }
+                            placeholder="e.g., Month 2"
+                            className="w-full border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-yellow-400 focus:outline-none"
+                          />
+                        </div>
+                        <div className="md:col-span-1 flex justify-end">
+                          <button
+                            type="button"
+                            onClick={() => removeInstallmentRow("new", idx)}
+                            className="text-sm text-red-500 hover:text-red-600"
+                            disabled={newCourse.installments.length === 1}
+                          >
+                            Remove
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                    <button
+                      type="button"
+                      onClick={() => addInstallmentRow("new")}
+                      className="text-sm text-yellow-700 font-medium"
+                    >
+                      + Add Installment
+                    </button>
+                  </div>
                 </div>
 
                 <div className="flex gap-3">

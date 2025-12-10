@@ -772,6 +772,7 @@
 
 
 import React, { useState, useEffect, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { jsPDF } from 'jspdf';
 import {
   ChevronDown,
@@ -792,17 +793,23 @@ const PROGRAM_TYPES = [
   { value: 'ADV_CERT', label: 'Advance Certificate (1 / 2 Years)' },
   { value: 'B_VOC', label: 'B.Voc (3 Years)' },
   { value: 'M_VOC', label: 'M.Voc (2 Years)' },
+  { value: 'B_DES', label: 'B.Des (4 Years)' },
 ];
 
 const COURSES = [
   { value: 'Fashion Design', label: 'Fashion Design' },
   { value: 'Interior Design', label: 'Interior Design' },
 ];
+const DEFAULT_STREAMS = COURSES.map((c) => c.value);
+const ALL_PROGRAM = { value: 'ALL', label: 'All Programs' };
+const ALL_COURSE = 'ALL';
+const ALL_YEAR = 'ALL';
 
 const getYearsForProgram = (programType) => {
   if (programType === 'ADV_CERT') return [1, 2];
   if (programType === 'B_VOC') return [1, 2, 3];
   if (programType === 'M_VOC') return [1, 2];
+  if (programType === 'B_DES') return [1, 2, 3, 4];
   return [];
 };
 
@@ -812,10 +819,13 @@ const NifFeesCollection = ({ setShowAdminHeader }) => {
     setShowAdminHeader(false);
   }, [setShowAdminHeader]);
 
-  const [programType, setProgramType] = useState('ADV_CERT');
-  const [course, setCourse] = useState('Fashion Design');
-  const [yearNumber, setYearNumber] = useState(1);
+  const [programType, setProgramType] = useState(ALL_PROGRAM.value);
+  const [course, setCourse] = useState(ALL_COURSE);
+  const [yearNumber, setYearNumber] = useState(ALL_YEAR);
   const [viewType, setViewType] = useState('overview');
+  const [programOptions, setProgramOptions] = useState(PROGRAM_TYPES);
+  const [coursesByProgram, setCoursesByProgram] = useState({});
+  const [courseOptions, setCourseOptions] = useState(DEFAULT_STREAMS);
 
   const [students, setStudents] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -826,10 +836,106 @@ const NifFeesCollection = ({ setShowAdminHeader }) => {
   const [paymentMethod, setPaymentMethod] = useState('cash');
   const [searchTerm, setSearchTerm] = useState('');
 
-  const yearOptions = useMemo(
-    () => getYearsForProgram(programType),
-    [programType]
-  );
+  const navigate = useNavigate();
+
+  const yearOptions = useMemo(() => {
+    if (programType === ALL_PROGRAM.value) return [];
+    return getYearsForProgram(programType);
+  }, [programType]);
+
+  useEffect(() => {
+    const fetchCourseFilters = async () => {
+      try {
+        const res = await fetch(`${API_BASE}/api/nif/course/fetch`, {
+          headers: {
+            'Content-Type': 'application/json',
+            authorization: `Bearer ${localStorage.getItem('token')}`,
+          },
+        });
+        if (!res.ok) throw new Error('Failed to load course filters');
+        const data = await res.json();
+        if (!Array.isArray(data) || !data.length) return;
+
+        const grouped = {};
+        data.forEach((item) => {
+          const type = item.programType || 'ADV_CERT';
+          if (!grouped[type]) {
+            grouped[type] = {
+              label:
+                item.programLabel ||
+                PROGRAM_TYPES.find((p) => p.value === type)?.label ||
+                type,
+              courses: new Set(),
+            };
+          }
+          if (item.department) {
+            grouped[type].courses.add(item.department);
+          }
+        });
+
+        const derivedPrograms = Object.entries(grouped).map(
+          ([value, meta]) => ({
+            value,
+            label: meta.label,
+          })
+        );
+        if (derivedPrograms.length) {
+          const mergedPrograms = PROGRAM_TYPES.map((base) => {
+            const match = derivedPrograms.find(
+              (item) => item.value === base.value
+            );
+            return match || base;
+          });
+          const additionalPrograms = derivedPrograms.filter(
+            (item) => !PROGRAM_TYPES.some((base) => base.value === item.value)
+          );
+          setProgramOptions([...mergedPrograms, ...additionalPrograms]);
+        } else {
+          setProgramOptions(PROGRAM_TYPES);
+        }
+        const mappedCourses = Object.fromEntries(
+          Object.entries(grouped).map(([type, meta]) => [
+            type,
+            Array.from(meta.courses),
+          ])
+        );
+        setCoursesByProgram(mappedCourses);
+
+        const nextProgram =
+          programType !== ALL_PROGRAM.value &&
+          mappedCourses[programType] &&
+          mappedCourses[programType].length
+            ? programType
+            : derivedPrograms[0]?.value || programType;
+        if (
+          nextProgram &&
+          nextProgram !== programType &&
+          nextProgram !== ALL_PROGRAM.value
+        ) {
+          setProgramType(nextProgram);
+        }
+        const nextCourseList =
+          nextProgram &&
+          nextProgram !== ALL_PROGRAM.value &&
+          mappedCourses[nextProgram] &&
+          mappedCourses[nextProgram].length
+            ? mappedCourses[nextProgram]
+            : DEFAULT_STREAMS;
+        setCourseOptions(nextCourseList);
+        if (
+          course !== ALL_COURSE &&
+          nextCourseList.length &&
+          !nextCourseList.includes(course)
+        ) {
+          setCourse(nextCourseList[0] || ALL_COURSE);
+        }
+      } catch (err) {
+        console.error('Course filter load error:', err);
+      }
+    };
+
+    fetchCourseFilters();
+  }, []);
 
   // Fetch NIF fee records from backend
   useEffect(() => {
@@ -837,13 +943,26 @@ const NifFeesCollection = ({ setShowAdminHeader }) => {
       if (!programType || !course || !yearNumber) return;
       setLoading(true);
       try {
-        const params = new URLSearchParams({
-          programType,
-          course,
-          year: String(yearNumber),
-        }).toString();
+        const params = new URLSearchParams();
+        if (programType && programType !== ALL_PROGRAM.value) {
+          params.append('programType', programType);
+        }
+        if (course && course !== ALL_COURSE) {
+          params.append('course', course);
+        }
+        if (
+          programType !== ALL_PROGRAM.value &&
+          yearNumber !== ALL_YEAR
+        ) {
+          params.append('year', String(yearNumber));
+        }
 
-        const res = await fetch(`${API_BASE}/api/nif/fees?${params}`, {
+        const url =
+          params.toString().length > 0
+            ? `${API_BASE}/api/nif/fees?${params.toString()}`
+            : `${API_BASE}/api/nif/fees`;
+
+        const res = await fetch(url, {
           headers: {
             'Content-Type': 'application/json',
             authorization: `Bearer ${localStorage.getItem('token')}`,
@@ -863,72 +982,42 @@ const NifFeesCollection = ({ setShowAdminHeader }) => {
     fetchFees();
   }, [programType, course, yearNumber]);
 
-  // Sample students for demonstration when no data from API
-  const sampleStudents = [
-    {
-      feeRecordId: 'sample1',
-      name: 'Aarav Sharma',
-      roll: 'FAD101',
-      program: '3 Year B VOC',
-      course: 'Fashion Design',
-      totalFee: 15000,
-      paidAmount: 15000,
-      dueAmount: 0,
-      status: 'paid'
-    },
-    {
-      feeRecordId: 'sample2',
-      name: 'Priya Patel',
-      roll: 'INT202',
-      program: '4 Year B DES',
-      course: 'Interior Design',
-      totalFee: 20000,
-      paidAmount: 10000,
-      dueAmount: 10000,
-      status: 'partial'
-    },
-    {
-      feeRecordId: 'sample3',
-      name: 'Rohan Mehta',
-      roll: 'FAD303',
-      program: '2 Year M VOC',
-      course: 'Fashion Design',
-      totalFee: 18000,
-      paidAmount: 5000,
-      dueAmount: 13000,
-      status: 'due'
-    },
-    {
-      feeRecordId: 'sample4',
-      name: 'Saanvi Gupta',
-      roll: 'INT404',
-      program: '1 Year Certificate',
-      course: 'Interior Design',
-      totalFee: 8000,
-      paidAmount: 8000,
-      dueAmount: 0,
-      status: 'paid'
-    },
-    {
-      feeRecordId: 'sample5',
-      name: 'Vikram Singh',
-      roll: 'FAD505',
-      program: '2 Year Advanced Cert.',
-      course: 'Fashion Design',
-      totalFee: 12000,
-      paidAmount: 12000,
-      dueAmount: 0,
-      status: 'paid'
+  useEffect(() => {
+    if (programType === ALL_PROGRAM.value) {
+      setCourseOptions(DEFAULT_STREAMS);
+      if (
+        course !== ALL_COURSE &&
+        !DEFAULT_STREAMS.includes(course)
+      ) {
+        setCourse(DEFAULT_STREAMS[0] || ALL_COURSE);
+      }
+      return;
     }
-  ];
+
+    const mapped = coursesByProgram[programType];
+    if (mapped && mapped.length) {
+      setCourseOptions(mapped);
+      if (course !== ALL_COURSE && !mapped.includes(course)) {
+        setCourse(mapped[0]);
+      }
+    } else {
+      setCourseOptions(DEFAULT_STREAMS);
+      if (
+        course !== ALL_COURSE &&
+        !DEFAULT_STREAMS.includes(course)
+      ) {
+        setCourse(DEFAULT_STREAMS[0] || ALL_COURSE);
+      }
+    }
+  }, [programType, coursesByProgram]);
 
   // Filter students based on search term
   const filteredStudents = useMemo(() => {
-    const studentsToFilter = students.length > 0 ? students : sampleStudents;
-    
-    if (!searchTerm) return studentsToFilter;
-    
-    return studentsToFilter.filter(student => 
+    if (!students.length) return [];
+
+    if (!searchTerm) return students;
+
+    return students.filter(student =>
       student.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       student.roll?.toLowerCase().includes(searchTerm.toLowerCase())
     );
@@ -936,9 +1025,7 @@ const NifFeesCollection = ({ setShowAdminHeader }) => {
 
   // Summary calculations
   const summary = useMemo(() => {
-    const studentsToCalculate = students.length > 0 ? students : sampleStudents;
-    
-    if (!studentsToCalculate.length) {
+    if (!students.length) {
       return {
         totalStudents: 0,
         totalDue: 0,
@@ -951,20 +1038,20 @@ const NifFeesCollection = ({ setShowAdminHeader }) => {
       };
     }
 
-    const totalStudents = studentsToCalculate.length;
-    const totalDue = studentsToCalculate.reduce((sum, s) => sum + (s.totalFee || 0), 0);
-    const totalCollected = studentsToCalculate.reduce(
+    const totalStudents = students.length;
+    const totalDue = students.reduce((sum, s) => sum + (s.totalFee || 0), 0);
+    const totalCollected = students.reduce(
       (sum, s) => sum + (s.paidAmount || 0),
       0
     );
-    const totalPending = studentsToCalculate.reduce(
+    const totalPending = students.reduce(
       (sum, s) => sum + (s.dueAmount || 0),
       0
     );
 
-    const paidStudents = studentsToCalculate.filter((s) => s.status === 'paid').length;
-    const partialStudents = studentsToCalculate.filter((s) => s.status === 'partial').length;
-    const dueStudents = studentsToCalculate.filter((s) => s.status === 'due').length;
+    const paidStudents = students.filter((s) => s.status === 'paid').length;
+    const partialStudents = students.filter((s) => s.status === 'partial').length;
+    const dueStudents = students.filter((s) => s.status === 'due').length;
 
     const collectionPercentage =
       totalDue > 0 ? ((totalCollected / totalDue) * 100).toFixed(1) : 0;
@@ -980,6 +1067,12 @@ const NifFeesCollection = ({ setShowAdminHeader }) => {
       collectionPercentage,
     };
   }, [students]);
+
+  const formatAmount = (value = 0) =>
+    `₹${Number(value || 0).toLocaleString()}`;
+
+  const formatDate = (value) =>
+    value ? new Date(value).toLocaleDateString() : "-";
 
   const getStatusColor = (status) => {
     switch (status) {
@@ -1060,6 +1153,13 @@ const NifFeesCollection = ({ setShowAdminHeader }) => {
       console.error(err);
       alert('Failed to collect payment');
     }
+  };
+
+  const handleViewDetails = (record) => {
+    if (!record?.feeRecordId) return;
+    navigate(`/admin/fees/student-details?record=${record.feeRecordId}`, {
+      state: { feeRecordId: record.feeRecordId },
+    });
   };
 
   const exportFeesReport = () => {
@@ -1173,14 +1273,24 @@ const NifFeesCollection = ({ setShowAdminHeader }) => {
                 onChange={(e) => {
                   const val = e.target.value;
                   setProgramType(val);
+                  if (val === ALL_PROGRAM.value) {
+                    setYearNumber(ALL_YEAR);
+                    return;
+                  }
                   const ys = getYearsForProgram(val);
-                  if (!ys.includes(yearNumber)) {
+                  if (
+                    typeof yearNumber !== 'number' ||
+                    !ys.includes(Number(yearNumber))
+                  ) {
                     setYearNumber(ys[0] || 1);
                   }
                 }}
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-transparent appearance-none bg-white"
               >
-                {PROGRAM_TYPES.map((p) => (
+                <option value={ALL_PROGRAM.value}>
+                  {ALL_PROGRAM.label}
+                </option>
+                {programOptions.map((p) => (
                   <option key={p.value} value={p.value}>
                     {p.label}
                   </option>
@@ -1204,9 +1314,10 @@ const NifFeesCollection = ({ setShowAdminHeader }) => {
                 onChange={(e) => setCourse(e.target.value)}
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-transparent appearance-none bg-white"
               >
-                {COURSES.map((c) => (
-                  <option key={c.value} value={c.value}>
-                    {c.label}
+                <option value={ALL_COURSE}>All Streams</option>
+                {courseOptions.map((c) => (
+                  <option key={c} value={c}>
+                    {c}
                   </option>
                 ))}
               </select>
@@ -1223,17 +1334,27 @@ const NifFeesCollection = ({ setShowAdminHeader }) => {
               Year
             </label>
             <div className="relative">
-              <select
-                value={yearNumber}
-                onChange={(e) => setYearNumber(Number(e.target.value))}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-transparent appearance-none bg-white"
-              >
-                {yearOptions.map((y) => (
-                  <option key={y} value={y}>
-                    Year {y}
-                  </option>
-                ))}
-              </select>
+              {programType === ALL_PROGRAM.value ? (
+                <select
+                  value={ALL_YEAR}
+                  disabled
+                  className="w-full px-4 py-2 border border-gray-200 rounded-lg bg-gray-50 text-gray-500 cursor-not-allowed"
+                >
+                  <option value={ALL_YEAR}>All Years</option>
+                </select>
+              ) : (
+                <select
+                  value={yearNumber}
+                  onChange={(e) => setYearNumber(Number(e.target.value))}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-transparent appearance-none bg-white"
+                >
+                  {yearOptions.map((y) => (
+                    <option key={y} value={y}>
+                      Year {y}
+                    </option>
+                  ))}
+                </select>
+              )}
               <ChevronDown
                 size={20}
                 className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none"
@@ -1265,8 +1386,7 @@ const NifFeesCollection = ({ setShowAdminHeader }) => {
       </div>
 
       {/* Summary cards */}
-      {(
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
             <div className="flex items-center justify-between">
               <div>
@@ -1317,9 +1437,9 @@ const NifFeesCollection = ({ setShowAdminHeader }) => {
               </div>
               <AlertCircle className="h-8 w-8 text-red-500" />
             </div>
-          </div>
-        </div>
-      )}
+      </div>
+    </div>
+
 
       {/* Loading state */}
       {loading && (
@@ -1337,8 +1457,7 @@ const NifFeesCollection = ({ setShowAdminHeader }) => {
       )}
 
       {/* Search and Filters Section */}
-      {(
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
+      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
           <div className="flex flex-col md:flex-row gap-4 items-center">
             <div className="flex-1 w-full">
               <label className="flex flex-col min-w-40 h-12 w-full">
@@ -1371,10 +1490,9 @@ const NifFeesCollection = ({ setShowAdminHeader }) => {
             </div>
           </div>
         </div>
-      )}
 
       {/* Table */}
-      {(
+      {students.length > 0 ? (
         <div className="bg-white rounded-lg shadow-sm border border-gray-200">
           <div className="px-6 py-4 border-b border-gray-200 flex justify-between items-center">
             <h2 className="text-xl font-semibold text-gray-800">
@@ -1474,13 +1592,26 @@ const NifFeesCollection = ({ setShowAdminHeader }) => {
                             Collect
                           </button>
                         )}
-                        <button className="text-gray-500 hover:text-blue-600">
+                        <button
+                          onClick={() => handleViewDetails(s)}
+                          className="text-gray-500 hover:text-blue-600"
+                        >
                           <Eye size={16} />
                         </button>
                       </div>
                     </td>
                   </tr>
                 ))}
+                {!filteredStudents.length && (
+                  <tr>
+                    <td
+                      colSpan={10}
+                      className="text-center text-gray-500 py-10"
+                    >
+                      No students found for the selected filters.
+                    </td>
+                  </tr>
+                )}
               </tbody>
             </table>
           </div>
@@ -1509,6 +1640,17 @@ const NifFeesCollection = ({ setShowAdminHeader }) => {
             </div>
           </div>
         </div>
+      ) : (
+        !loading && (
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-12 text-center">
+            <h3 className="text-lg font-semibold text-gray-900">
+              No fee records yet
+            </h3>
+            <p className="text-gray-500 mt-2">
+              Add students to a NIF course to see them listed here.
+            </p>
+          </div>
+        )
       )}
 
       {/* Collection Modal */}

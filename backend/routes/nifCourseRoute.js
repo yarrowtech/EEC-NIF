@@ -6,6 +6,30 @@ const router = express.Router();
 const NifCourse = require("../models/NifCourse");
 // const authAdmin = require("../middleware/authAdmin"); // enable later if needed
 
+const PROGRAM_LABELS = {
+  ADV_CERT: "Advance Certificate",
+  B_VOC: "B.Voc",
+  M_VOC: "M.Voc",
+  B_DES: "B.Des",
+};
+
+const sanitizeInstallments = (items) => {
+  if (!Array.isArray(items)) return [];
+
+  return items
+    .map((item) => {
+      const label = String(item?.label || item?.name || "").trim();
+      const amount = Number(item?.amount ?? item?.value);
+      if (!label || Number.isNaN(amount) || amount < 0) return null;
+      return {
+        label,
+        amount,
+        dueMonth: item?.dueMonth ? String(item.dueMonth).trim() : "",
+      };
+    })
+    .filter(Boolean);
+};
+
 /* -----------------------------------------------------
    GET /api/nif/course/fetch
    Query: q, department, status, page, limit, sort
@@ -66,11 +90,21 @@ router.post("/add", /* authAdmin, */ async (req, res, next) => {
     const department = (body.stream || "").trim();
     const duration = (body.duration || "").trim();
     const fees = Number(body.fees);
+    const programType = (body.programType || "").trim();
+    const programLabel =
+      (body.programLabel || "").trim() || PROGRAM_LABELS[programType];
 
-    if (!title || !department || !duration || Number.isNaN(fees)) {
+    if (
+      !title ||
+      !department ||
+      !duration ||
+      Number.isNaN(fees) ||
+      !programType ||
+      !PROGRAM_LABELS[programType]
+    ) {
       return res.status(400).json({
         message:
-          "Missing/invalid fields. Required: stream (department), name (title), duration, fees",
+          "Missing/invalid fields. Required: stream, name, duration, fees, programType",
       });
     }
 
@@ -91,6 +125,9 @@ router.post("/add", /* authAdmin, */ async (req, res, next) => {
       department,
       duration,
       fees,
+      programType,
+      programLabel,
+      installments: sanitizeInstallments(body.installments),
       desc: body.desc || body.description || "",
       instructor: body.instructor || "",
       totalStudents,
@@ -169,6 +206,18 @@ router.patch("/:id", /* authAdmin, */ async (req, res, next) => {
         return res.status(400).json({ message: "Invalid fees" });
       }
       updates.fees = f;
+    }
+
+    if (typeof updates.programType !== "undefined") {
+      if (!PROGRAM_LABELS[updates.programType]) {
+        return res.status(400).json({ message: "Invalid programType" });
+      }
+      updates.programLabel =
+        updates.programLabel || PROGRAM_LABELS[updates.programType];
+    }
+
+    if (typeof updates.installments !== "undefined") {
+      updates.installments = sanitizeInstallments(updates.installments);
     }
 
     if (typeof updates.totalStudents !== "undefined") {
