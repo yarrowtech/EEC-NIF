@@ -544,7 +544,7 @@ const NifFeesCollection = ({ setShowAdminHeader }) => {
           </div>
           <button
             onClick={exportFeesReport}
-            className="inline-flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg text-sm hover:bg-gray-50"
+            className="inline-flex items-center gap-2 px-4 py-2 border border-black rounded-lg text-sm text-black hover:bg-gray-50"
           >
             <Download size={16} />
             Export Report
@@ -552,7 +552,7 @@ const NifFeesCollection = ({ setShowAdminHeader }) => {
           <button
             onClick={fetchRecords}
             disabled={loading}
-            className="inline-flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg text-sm hover:bg-gray-50 disabled:opacity-50"
+            className="inline-flex items-center gap-2 px-4 py-2 border border-black rounded-lg text-sm text-black hover:bg-gray-50 disabled:opacity-50"
           >
             {loading && <Loader2 className="w-4 h-4 animate-spin" />}
             Refresh
