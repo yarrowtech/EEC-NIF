@@ -1,80 +1,181 @@
-
-// // backend/models/NifStudent.js
+// // models/NifStudent.js
 // const mongoose = require("mongoose");
 // const { Schema } = mongoose;
 
-// const attendanceSchema = new Schema(
+// const feeInstallmentSchema = new Schema(
 //   {
-//     date: { type: Date, required: true },
-//     status: {
-//       type: String,
-//       enum: ["present", "absent", "leave"],
-//       required: true,
-//     },
-//     remarks: { type: String, default: "" },
-//     markedBy: { type: Schema.Types.ObjectId, ref: "Admin" },
+//     label: { type: String, required: true, trim: true },
+//     amount: { type: Number, required: true, min: 0 },
+//     dueMonth: { type: String, trim: true },
 //   },
 //   { _id: false }
 // );
 
 // const nifStudentSchema = new Schema(
 //   {
-//     // Basic identity
-//     name: { type: String, required: true, trim: true },
-//     roll: { type: String, required: true, trim: true }, // unique per student
+//     /* -------- Core identity -------- */
+//     name: {
+//       type: String,
+//       required: true,
+//       trim: true,
+//     },
+//     guardianName: {
+//       type: String,
+//       trim: true,
+//     },
+//     guardianEmail: {
+//       type: String,
+//       trim: true,
+//       lowercase: true,
+//     },
+//     guardianPhone: {
+//       type: String,
+//       trim: true,
+//     },
+//     email: {
+//       type: String,
+//       trim: true,
+//       lowercase: true,
+//     },
+//     mobile: {
+//       type: String,
+//       required: true,
+//       trim: true,
+//     },
 //     gender: {
 //       type: String,
 //       enum: ["Male", "Female", "Other"],
-//       required: true,
+//       default: "Other",
 //     },
 
-//     // Academic / Program (you’re using `grade` as “Program” in UI)
-//     grade: { type: String, required: true, trim: true },   // e.g. "Fashion Design - 1 year Certificate Program"
-//     section: { type: String, required: true, trim: true }, // A/B/C/D
+//     /* -------- NIF academic / admission details -------- */
+//     serialNo: {
+//       type: Number, // Srl No from sheet (optional)
+//     },
+//     batchCode: {
+//       type: String, // Batch Code
+//       trim: true,
+//     },
+//     admissionDate: {
+//       type: Date, // Date of Adm
+//     },
+//     academicYear: {
+//       type: String,
+//       trim: true,
+//     },
+//     roll: {
+//       type: String,
+//       trim: true,
+//     },
+//     grade: {
+//       type: String, // Program label for UI
+//       trim: true,
+//     },
+//     section: {
+//       type: String,
+//       trim: true,
+//     },
+//     course: {
+//       type: String, // Course Name from sheet
+//       trim: true,
+//     },
+//     duration: {
+//       type: String, // Duration from sheet
+//       trim: true,
+//     },
+//     formNo: {
+//       type: String,
+//       trim: true,
+//     },
+//     enrollmentNo: {
+//       type: String,
+//       trim: true,
+//     },
 
-//     // Contact
-//     mobile: { type: String, required: true, trim: true },
-//     email: { type: String, required: true, trim: true, lowercase: true },
-//     address: { type: String, default: "" },
-//     pincode: { type: String, default: "" },
+//     /* -------- Course / fee mapping -------- */
+//     courseId: { type: Schema.Types.ObjectId, ref: "NifCourse" },
+//     stream: { type: String, trim: true },
+//     programType: {
+//       type: String,
+//       enum: ["ADV_CERT", "B_VOC", "M_VOC", "B_DES"],
+//     },
+//     programLabel: { type: String, trim: true },
+//     totalFee: { type: Number, min: 0 },
+//     feeInstallments: { type: [feeInstallmentSchema], default: [] },
 
-//     // NIF specific
-//     course: { type: String, default: "" }, // optional, can map to NifCourse in future
-//     dob: { type: Date, required: true },
+//     /* -------- Personal / address -------- */
+//     dob: {
+//       type: Date,
+//     },
+//     address: {
+//       type: String,
+//       default: "",
+//     },
+//     pincode: {
+//       type: String,
+//       default: "",
+//     },
 
+//     /* -------- Meta -------- */
 //     status: {
 //       type: String,
-//       enum: ["Active", "Inactive", "Alumni", "Dropped"],
+//       enum: ["Active", "Inactive"],
 //       default: "Active",
 //     },
-
-//     // Embedded attendance records
-//     attendance: { type: [attendanceSchema], default: [] },
+//     source: {
+//       type: String,
+//       enum: ["manual", "bulk"],
+//       default: "manual",
+//     },
 //   },
-//   { timestamps: true }
+//   {
+//     timestamps: true,
+//   }
+  
 // );
 
-// // Uniqueness
-// nifStudentSchema.index({ roll: 1 }, { unique: true });
-// nifStudentSchema.index({ email: 1 }, { unique: true });
 
-// module.exports =
-//   mongoose.models.NifStudent || mongoose.model("NifStudent", nifStudentSchema);
+// nifStudentSchema.index({ roll: 1 }, { unique: true, sparse: true });
+// nifStudentSchema.index({ email: 1 }, { unique: true, sparse: true });
 
-
-// models/NifStudent.js
+// module.exports = mongoose.model("NifStudent", nifStudentSchema);
+// backend/models/NifStudent.js
 const mongoose = require("mongoose");
 const { Schema } = mongoose;
 
+/* ============================================
+   Fee Installment Schema (for course mapping)
+============================================ */
 const feeInstallmentSchema = new Schema(
   {
-    label: { type: String, required: true, trim: true },
+    label: { type: String, required: true, trim: true }, // e.g. "Registration", "1st Installment"
     amount: { type: Number, required: true, min: 0 },
-    dueMonth: { type: String, trim: true },
+    dueMonth: { type: String, trim: true }, // e.g. "July", "Aug"
   },
   { _id: false }
 );
 
+/* ============================================
+   Fee Summary Schema (for quick card display)
+   Used in Students.jsx → student.feeSummary
+============================================ */
+const feeSummarySchema = new Schema(
+  {
+    totalFee: { type: Number, default: 0 },
+    paidAmount: { type: Number, default: 0 },
+    dueAmount: { type: Number, default: 0 },
+    status: {
+      type: String,
+      enum: ["paid", "partial", "due", "overdue", "na"],
+      default: "na",
+    },
+  },
+  { _id: false }
+);
+
+/* ============================================
+   Main NIF Student Schema
+============================================ */
 const nifStudentSchema = new Schema(
   {
     /* -------- Core identity -------- */
@@ -83,6 +184,24 @@ const nifStudentSchema = new Schema(
       required: true,
       trim: true,
     },
+    email: {
+      type: String,
+      trim: true,
+      lowercase: true,
+    },
+    mobile: {
+      type: String,
+      trim: true,
+    },
+    gender: {
+      type: String,
+      enum: ["Male", "Female", "Other"],
+    },
+    dob: {
+      type: Date,
+    },
+
+    /* -------- Guardian / emergency -------- */
     guardianName: {
       type: String,
       trim: true,
@@ -96,35 +215,32 @@ const nifStudentSchema = new Schema(
       type: String,
       trim: true,
     },
-    email: {
+
+    /* -------- Address -------- */
+    address: {
       type: String,
       trim: true,
-      lowercase: true,
+      default: "",
     },
-    mobile: {
+    pincode: {
       type: String,
-      required: true,
       trim: true,
-    },
-    gender: {
-      type: String,
-      enum: ["Male", "Female", "Other"],
-      default: "Other",
+      default: "",
     },
 
-    /* -------- NIF academic / admission details -------- */
+    /* -------- Academic / NIF Details -------- */
     serialNo: {
-      type: Number, // Srl No from sheet (optional)
+      type: Number, // Srl No from sheet
     },
     batchCode: {
-      type: String, // Batch Code
+      type: String, // Batch code like "FD-2024-01"
       trim: true,
     },
     admissionDate: {
-      type: Date, // Date of Adm
+      type: Date, // Date of admission
     },
     academicYear: {
-      type: String,
+      type: String, // e.g. "2024-25"
       trim: true,
     },
     roll: {
@@ -132,19 +248,24 @@ const nifStudentSchema = new Schema(
       trim: true,
     },
     grade: {
-      type: String, // Program label for UI
+      type: String, // You are using grade as program label (FD, ADV CERT etc.)
       trim: true,
     },
     section: {
       type: String,
       trim: true,
     },
+
     course: {
-      type: String, // Course Name from sheet
+      type: String, // human readable course/program name
       trim: true,
     },
+    courseId: {
+      type: Schema.Types.ObjectId,
+      ref: "NifCourse",
+    },
     duration: {
-      type: String, // Duration from sheet
+      type: String, // e.g. "1 Year", "3 Years"
       trim: true,
     },
     formNo: {
@@ -156,34 +277,45 @@ const nifStudentSchema = new Schema(
       trim: true,
     },
 
-    /* -------- Course / fee mapping -------- */
-    courseId: { type: Schema.Types.ObjectId, ref: "NifCourse" },
+    /* -------- Program / stream mapping -------- */
     stream: { type: String, trim: true },
     programType: {
       type: String,
       enum: ["ADV_CERT", "B_VOC", "M_VOC", "B_DES"],
     },
     programLabel: { type: String, trim: true },
-    totalFee: { type: Number, min: 0 },
-    feeInstallments: { type: [feeInstallmentSchema], default: [] },
 
-    /* -------- Personal / address -------- */
-    dob: {
+    /* -------- Fee configuration -------- */
+    totalFee: { type: Number, min: 0 },
+    feeInstallments: {
+      type: [feeInstallmentSchema],
+      default: [],
+    },
+
+    /* -------- Fee summary (for dashboard display) -------- */
+    feeSummary: {
+      type: feeSummarySchema,
+      default: () => ({}),
+    },
+
+    /* -------- Archive control -------- */
+    isArchived: {
+      type: Boolean,
+      default: false,
+      index: true,
+    },
+    archivedAt: {
       type: Date,
     },
-    address: {
+    passedOutYear: {
+      // e.g. "2024" or "2023-24"
       type: String,
-      default: "",
-    },
-    pincode: {
-      type: String,
-      default: "",
     },
 
     /* -------- Meta -------- */
     status: {
       type: String,
-      enum: ["Active", "Inactive"],
+      enum: ["Active", "Inactive", "Alumni", "Dropped"],
       default: "Active",
     },
     source: {
@@ -197,7 +329,7 @@ const nifStudentSchema = new Schema(
   }
 );
 
-nifStudentSchema.index({ roll: 1 }, { unique: true, sparse: true });
-nifStudentSchema.index({ email: 1 }, { unique: true, sparse: true });
+nifStudentSchema.index({ roll: 1 }, { unique: false, sparse: true });
+nifStudentSchema.index({ email: 1 }, { unique: false, sparse: true });
 
 module.exports = mongoose.model("NifStudent", nifStudentSchema);

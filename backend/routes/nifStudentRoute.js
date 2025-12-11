@@ -376,20 +376,48 @@
 
 
 
-
-// routes/nifStudentRoute.js
+// backend/routes/nifStudentRoute.js
 const express = require("express");
 const router = express.Router();
 
 const NifStudent = require("../models/NifStudent");
+const NifArchivedStudent = require("../models/NifArchivedStudent");
+const NifFeeRecord = require("../models/NifFeeRecord");
 
 /**
  * GET /api/nif/students
- * List all NIF students
+ * Return only NON-ARCHIVED students for Student Management page
  */
 router.get("/", async (req, res) => {
   try {
-    const students = await NifStudent.find().sort({ createdAt: -1 });
+    const { q } = req.query || {};
+
+    const baseFilter = {
+      $or: [{ isArchived: { $exists: false } }, { isArchived: false }],
+    };
+
+    const filter = { ...baseFilter };
+
+    if (q && q.trim()) {
+      const regex = new RegExp(q.trim(), "i");
+      // search by name, roll, email, mobile, course, batch, etc.
+      filter.$and = [
+        {
+          $or: [
+            { name: regex },
+            { email: regex },
+            { mobile: regex },
+            { roll: regex },
+            { grade: regex },
+            { batchCode: regex },
+            { course: regex },
+          ],
+        },
+      ];
+    }
+
+    const students = await NifStudent.find(filter).sort({ createdAt: -1 });
+
     res.json(students);
   } catch (err) {
     console.error("Error fetching NIF students:", err);
@@ -399,13 +427,13 @@ router.get("/", async (req, res) => {
 
 /**
  * POST /api/nif/students
- * Create single NIF student (from form)
+ * Create a new student (used by Add Student modal in Students.jsx)
  */
 router.post("/", async (req, res) => {
   try {
     const payload = {
-      ...req.body,
-      source: req.body.source || "manual",
+      ...(req.body || {}),
+      source: req.body?.source || "manual",
     };
 
     if (!payload.name || !payload.mobile) {
@@ -428,6 +456,7 @@ router.post("/", async (req, res) => {
  * POST /api/nif/students/bulk
  * Bulk import NIF students
  * Body: { students: [ {...}, {...} ] }
+ * Used by CSV import in Students.jsx
  */
 router.post("/bulk", async (req, res) => {
   try {
@@ -454,9 +483,12 @@ router.post("/bulk", async (req, res) => {
           source: "bulk",
         });
         imported++;
-      } catch (e) {
+      } catch (err) {
         failed++;
-        errors.push({ row, reason: e.message });
+        errors.push({
+          row,
+          reason: err.message || "Validation failed",
+        });
       }
     }
 
@@ -471,6 +503,85 @@ router.post("/bulk", async (req, res) => {
       message: "Bulk import failed",
       details: err.message,
     });
+  }
+});
+
+/**
+ * PUT /api/nif/students/:id/archive
+ * Archive one student (called from Students.jsx handleArchiveStudent)
+ */
+router.put("/:id/archive", async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const student = await NifStudent.findById(id);
+    if (!student) {
+      return res.status(404).json({ message: "Student not found" });
+    }
+
+    if (student.isArchived) {
+      return res.status(400).json({ message: "Student already archived" });
+    }
+
+    // Collect fee records snapshot if using NifFeeRecord
+    const feeRecords = await NifFeeRecord.find({ studentId: id }).lean();
+
+    const totalPaid = feeRecords.reduce(
+      (sum, r) => sum + (r.paidAmount || 0),
+      0
+    );
+    const totalFee = feeRecords.reduce(
+      (sum, r) => sum + (r.totalFee || 0),
+      0
+    );
+    const totalDue = totalFee - totalPaid;
+
+    const now = new Date();
+
+    // Create archive document
+    await NifArchivedStudent.create({
+      originalStudentId: student._id,
+      studentName: student.name,
+      email: student.email,
+      mobile: student.mobile,
+      gender: student.gender,
+      dob: student.dob,
+
+      roll: student.roll,
+      grade: student.grade,
+      section: student.section,
+      batchCode: student.batchCode,
+      course: student.course,
+      courseId: student.courseId,
+      duration: student.duration,
+      admissionDate: student.admissionDate,
+
+      archiveStatus: "passed",
+      passedOutYear: student.passedOutYear || String(now.getFullYear()),
+      archivedBy: "admin", // later use req.user?.name
+
+      feeSummary: {
+        totalFee,
+        totalPaid,
+        totalDue,
+      },
+      feeRecords,
+      snapshot: student.toObject(),
+      archivedAt: now,
+    });
+
+    // Mark original as archived
+    student.isArchived = true;
+    student.archivedAt = now;
+    if (!student.passedOutYear) {
+      student.passedOutYear = String(now.getFullYear());
+    }
+    await student.save();
+
+    res.json({ message: "Student archived successfully" });
+  } catch (err) {
+    console.error("Error archiving student", err);
+    res.status(500).json({ message: "Server error" });
   }
 });
 

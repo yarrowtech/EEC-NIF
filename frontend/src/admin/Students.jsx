@@ -1,5 +1,5 @@
-// frontend/src/admin/pages/Students.jsx
 import React, { useState, useEffect, useRef, useMemo } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   Mail,
   Phone,
@@ -34,6 +34,8 @@ import Swal from "sweetalert2";
 const API_BASE = import.meta.env.VITE_API_URL;
 
 const Students = ({ setShowAdminHeader }) => {
+  const navigate = useNavigate(); 
+
   const [studentData, setStudentData] = useState([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [showAddForm, setShowAddForm] = useState(false);
@@ -248,13 +250,16 @@ const Students = ({ setShowAdminHeader }) => {
 
     setIsArchiving(true);
     try {
-      const res = await fetch(`${API_BASE}/api/nif/students/${student._id}/archive`, {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-          authorization: `Bearer ${localStorage.getItem("token")}`,
-        },
-      });
+      const res = await fetch(
+        `${API_BASE}/api/nif/students/${student._id}/archive`,
+        {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+            authorization: `Bearer ${localStorage.getItem("token")}`,
+          },
+        }
+      );
 
       if (res.ok) {
         Swal.fire({
@@ -282,14 +287,7 @@ const Students = ({ setShowAdminHeader }) => {
 
   /* -------------------- View Archive -------------------- */
   const handleViewArchive = () => {
-    // In a real application, you would navigate to an archive page
-    // For now, we'll show an alert and you can implement navigation
-    Swal.fire({
-      title: "View Archive",
-      text: "This would navigate to the archived students page. Implement navigation as needed.",
-      icon: "info",
-      confirmButtonText: "OK",
-    });
+    navigate("/admin/archived-students");
   };
 
   /* -------------------- Add Student -------------------- */
