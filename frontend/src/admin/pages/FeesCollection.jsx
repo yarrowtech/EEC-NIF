@@ -638,9 +638,9 @@ const NifFeesCollection = ({ setShowAdminHeader }) => {
                         )}
                         <button
                           onClick={() => handleViewDetails(record)}
-                          className="inline-flex items-center gap-1 px-3 py-1 text-xs font-medium rounded border border-gray-300 hover:bg-gray-50"
+                          className="inline-flex items-center gap-1 px-3 py-1 text-xs font-medium rounded border border-purple-300 hover:bg-green-50 text-black"
                         >
-                          <Eye size={12} />
+                          <Eye size={12} className="text-black" />
                           View
                         </button>
                       </div>
