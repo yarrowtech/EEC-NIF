@@ -1,4 +1,3 @@
-
 // frontend/src/admin/pages/Students.jsx
 import React, { useState, useEffect, useRef, useMemo } from "react";
 import {
@@ -27,6 +26,8 @@ import {
   X,
   Upload,
   FileDown,
+  Archive,
+  Trash2,
 } from "lucide-react";
 import Swal from "sweetalert2";
 
@@ -41,6 +42,7 @@ const Students = ({ setShowAdminHeader }) => {
   const [wellbeingData, setWellbeingData] = useState({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
+  const [isArchiving, setIsArchiving] = useState(false);
   const fileInputRef = useRef(null);
   const [courseOptions, setCourseOptions] = useState([]);
   const [coursesLoading, setCoursesLoading] = useState(false);
@@ -216,6 +218,80 @@ const Students = ({ setShowAdminHeader }) => {
     fetchCourses().catch(console.error);
   }, [setShowAdminHeader]);
 
+  /* -------------------- Archive Student -------------------- */
+  const handleArchiveStudent = async (student) => {
+    const result = await Swal.fire({
+      title: "Archive Student?",
+      text: `Are you sure you want to archive ${student.name}?`,
+      icon: "question",
+      showCancelButton: true,
+      confirmButtonColor: "#3085d6",
+      cancelButtonColor: "#d33",
+      confirmButtonText: "Yes, archive it!",
+      cancelButtonText: "Cancel",
+    });
+
+    if (!result.isConfirmed) return;
+
+    const confirmResult = await Swal.fire({
+      title: "Confirm Archive",
+      text: "Would you like to add this record to archive?",
+      icon: "warning",
+      showCancelButton: true,
+      confirmButtonColor: "#3085d6",
+      cancelButtonColor: "#d33",
+      confirmButtonText: "Yes, move to archive",
+      cancelButtonText: "No, keep active",
+    });
+
+    if (!confirmResult.isConfirmed) return;
+
+    setIsArchiving(true);
+    try {
+      const res = await fetch(`${API_BASE}/api/nif/students/${student._id}/archive`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          authorization: `Bearer ${localStorage.getItem("token")}`,
+        },
+      });
+
+      if (res.ok) {
+        Swal.fire({
+          title: "Archived!",
+          text: `${student.name} has been moved to archive.`,
+          icon: "success",
+          timer: 2000,
+          showConfirmButton: false,
+        });
+        await refreshStudents();
+      } else {
+        throw new Error("Failed to archive student");
+      }
+    } catch (err) {
+      console.error(err);
+      Swal.fire({
+        title: "Error!",
+        text: "Failed to archive student. Please try again.",
+        icon: "error",
+      });
+    } finally {
+      setIsArchiving(false);
+    }
+  };
+
+  /* -------------------- View Archive -------------------- */
+  const handleViewArchive = () => {
+    // In a real application, you would navigate to an archive page
+    // For now, we'll show an alert and you can implement navigation
+    Swal.fire({
+      title: "View Archive",
+      text: "This would navigate to the archived students page. Implement navigation as needed.",
+      icon: "info",
+      confirmButtonText: "OK",
+    });
+  };
+
   /* -------------------- Add Student -------------------- */
   const handleAddStudentChange = (e) => {
     const { name, value } = e.target;
@@ -286,15 +362,14 @@ const Students = ({ setShowAdminHeader }) => {
         return;
       }
       Swal.fire({
-            icon: "success",
-            title: "student enrolled successfully!",
-            toast: true,
-            position: "top-end",
-            showConfirmButton: false,
-            timer: 2000,
-            timerProgressBar: true,
-          });
-
+        icon: "success",
+        title: "student enrolled successfully!",
+        toast: true,
+        position: "top-end",
+        showConfirmButton: false,
+        timer: 2000,
+        timerProgressBar: true,
+      });
 
       await refreshStudents();
 
@@ -521,39 +596,6 @@ const Students = ({ setShowAdminHeader }) => {
     }
   };
 
-  const downloadTemplate = () => {
-    const headers = [
-      "serialNo",
-      "batchCode",
-      "admissionDate",
-      "name",
-      "mobile",
-      "email",
-      "gender",
-      "dob",
-      "roll",
-      "grade",
-      "section",
-      "course",
-      "courseId",
-      "duration",
-      "formNo",
-      "enrollmentNo",
-      "address",
-      "pincode",
-      "status",
-    ];
-    const blob = new Blob([headers.join(",") + "\n"], {
-      type: "text/csv;charset=utf-8",
-    });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = "nif_students_template.csv";
-    a.click();
-    URL.revokeObjectURL(url);
-  };
-
   /* -------------------- UI -------------------- */
   return (
     <div className="min-h-screen bg-gradient-to-br from-yellow-50 via-yellow-100 to-amber-100 p-8">
@@ -588,11 +630,11 @@ const Students = ({ setShowAdminHeader }) => {
               }}
             />
             <button
-              onClick={downloadTemplate}
-              className="bg-white border border-amber-300 text-amber-700 px-4 py-2 rounded-lg hover:bg-amber-50 flex items-center gap-2"
+              onClick={handleViewArchive}
+              className="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 flex items-center gap-2"
             >
-              <FileDown size={16} />
-              CSV Template
+              <Archive size={16} />
+              View Archive
             </button>
             <button
               onClick={() => setShowAddForm(true)}
@@ -602,8 +644,6 @@ const Students = ({ setShowAdminHeader }) => {
             </button>
           </div>
         </div>
-
-        {/* Summary Cards */}
 
         {/* Search */}
         <div className="mb-6 flex flex-wrap items-center gap-4">
@@ -636,6 +676,7 @@ const Students = ({ setShowAdminHeader }) => {
                   "Phone",
                   "Fees",
                   "Balance",
+                  "Archive",
                 ].map((h) => (
                   <th
                     key={h}
@@ -702,12 +743,23 @@ const Students = ({ setShowAdminHeader }) => {
                   <td className="border-b border-yellow-100 px-6 py-4 text-gray-900 font-semibold">
                     {formatCurrency(student.feeSummary?.dueAmount)}
                   </td>
+                  <td className="border-b border-yellow-100 px-6 py-4">
+                    <button
+                      onClick={() => handleArchiveStudent(student)}
+                      disabled={isArchiving}
+                      className="px-3 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-sm flex items-center gap-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                      title="Archive Student"
+                    >
+                      <Archive size={14} />
+                      {isArchiving ? "Archiving..." : "Archive"}
+                    </button>
+                  </td>
                 </tr>
               ))}
               {filteredStudents.length === 0 && (
                 <tr>
                   <td
-                    colSpan={8}
+                    colSpan={9}
                     className="text-center text-gray-500 py-10"
                   >
                     No students found.
@@ -732,9 +784,6 @@ const Students = ({ setShowAdminHeader }) => {
             </button>
           </div>
         </div>
-
-        {/* Wellbeing Modal */}
-        
 
         {/* Add Student Modal */}
         {showAddForm && (
