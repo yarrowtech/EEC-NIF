@@ -51,7 +51,7 @@ const NifFeesCollection = ({ setShowAdminHeader }) => {
   const [programType, setProgramType] = useState(ALL_PROGRAM.value);
   const [course, setCourse] = useState(ALL_COURSE);
   const [yearNumber, setYearNumber] = useState(ALL_YEAR);
-  const [viewType, setViewType] = useState('overview');
+  const [recordStatusFilter, setRecordStatusFilter] = useState('active');
 
   const [records, setRecords] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -167,6 +167,13 @@ const NifFeesCollection = ({ setShowAdminHeader }) => {
       if (programType !== ALL_PROGRAM.value && yearNumber !== ALL_YEAR) {
         params.append('year', String(yearNumber));
       }
+      if (recordStatusFilter === 'archived') {
+        params.append('archived', 'true');
+      } else if (recordStatusFilter === 'all') {
+        params.append('archived', 'all');
+      } else {
+        params.append('archived', 'false');
+      }
 
       const url =
         params.toString().length > 0
@@ -194,7 +201,7 @@ const NifFeesCollection = ({ setShowAdminHeader }) => {
   useEffect(() => {
     fetchRecords();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [programType, course, yearNumber]);
+  }, [programType, course, yearNumber, recordStatusFilter]);
 
   const filteredRecords = useMemo(() => {
     if (!searchTerm) return records;
@@ -489,16 +496,17 @@ const NifFeesCollection = ({ setShowAdminHeader }) => {
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              View
+              Records
             </label>
             <div className="relative">
               <select
-                value={viewType}
-                onChange={(e) => setViewType(e.target.value)}
+                value={recordStatusFilter}
+                onChange={(e) => setRecordStatusFilter(e.target.value)}
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-transparent appearance-none bg-white"
               >
-                <option value="overview">Overview</option>
-                <option value="detailed">Detailed</option>
+                <option value="active">Active</option>
+                <option value="archived">Archived</option>
+                <option value="all">All</option>
               </select>
               <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400" />
             </div>
@@ -542,9 +550,21 @@ const NifFeesCollection = ({ setShowAdminHeader }) => {
               />
             </div>
           </div>
+          <div className="flex items-center gap-2">
+            <span className="text-sm text-gray-600">Records</span>
+            <select
+              value={recordStatusFilter}
+              onChange={(e) => setRecordStatusFilter(e.target.value)}
+              className="border border-gray-300 rounded-lg px-3 py-2 text-sm"
+            >
+              <option value="active">Active</option>
+              <option value="archived">Archived</option>
+              <option value="all">All</option>
+            </select>
+          </div>
           <button
             onClick={exportFeesReport}
-            className="inline-flex items-center gap-2 px-4 py-2 border border-black rounded-lg text-sm text-black hover:bg-gray-50"
+            className="inline-flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg text-sm hover:bg-gray-50"
           >
             <Download size={16} />
             Export Report
@@ -552,7 +572,7 @@ const NifFeesCollection = ({ setShowAdminHeader }) => {
           <button
             onClick={fetchRecords}
             disabled={loading}
-            className="inline-flex items-center gap-2 px-4 py-2 border border-black rounded-lg text-sm text-black hover:bg-gray-50 disabled:opacity-50"
+            className="inline-flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg text-sm hover:bg-gray-50 disabled:opacity-50"
           >
             {loading && <Loader2 className="w-4 h-4 animate-spin" />}
             Refresh
@@ -640,8 +660,8 @@ const NifFeesCollection = ({ setShowAdminHeader }) => {
                           onClick={() => handleViewDetails(record)}
                           className="inline-flex items-center gap-1 px-3 py-1 text-xs font-medium rounded border border-purple-300 hover:bg-green-50 text-black"
                         >
-                          <Eye size={12} className="text-black" />
-                          View
+                          <Eye size={12} />
+                          Fee Breakup
                         </button>
                       </div>
                     </td>

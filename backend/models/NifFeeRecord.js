@@ -51,6 +51,15 @@ const installmentSnapshotSchema = new mongoose.Schema(
     label: { type: String, required: true },
     amount: { type: Number, required: true, min: 0 },
     dueMonth: { type: String },
+    status: {
+      type: String,
+      enum: ['paid', 'partial', 'due'],
+      default: 'due',
+    },
+    paid: { type: Number, default: 0, min: 0 },
+    outstanding: { type: Number, default: 0, min: 0 },
+    paidOn: { type: Date },
+    method: { type: String },
   },
   { _id: false }
 );

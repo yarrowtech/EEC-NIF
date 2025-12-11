@@ -1,11 +1,11 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   Download,
-  CheckSquare,
-  Calendar,
   IndianRupee,
   ArrowLeft,
   AlertCircle,
+  Calendar,
+  CheckSquare,
 } from 'lucide-react';
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 
@@ -19,6 +19,7 @@ const StudentFeeDetails = ({ setShowAdminHeader }) => {
   const location = useLocation();
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
+
   const feeRecordId =
     location.state?.feeRecordId || searchParams.get('record') || '';
 
@@ -29,7 +30,7 @@ const StudentFeeDetails = ({ setShowAdminHeader }) => {
   useEffect(() => {
     const fetchDetails = async () => {
       if (!feeRecordId) {
-        setError('No fee record selected. Return to Fees Collection and pick a student.');
+        setError('No fee record selected. Please return to Fees Collection.');
         setLoading(false);
         return;
       }
@@ -61,9 +62,51 @@ const StudentFeeDetails = ({ setShowAdminHeader }) => {
     fetchDetails();
   }, [feeRecordId]);
 
-  const installmentBreakdown = detail?.installments || [];
-  const paymentHistory = detail?.payments || [];
   const student = detail?.student;
+  const payments = detail?.payments || [];
+  const [breakdown, setBreakdown] = useState([]);
+  const [processingIdx, setProcessingIdx] = useState(null);
+
+  useEffect(() => {
+    if (!detail) return;
+    const source =
+      detail.installments && detail.installments.length
+        ? detail.installments
+        : [
+            {
+              label: 'Program Fee',
+              amount: detail.totalFee,
+              dueMonth: detail.academicYear || '—',
+            },
+          ];
+
+    const normalized = source.map((inst, idx) => {
+      const amount = Number(inst.amount || 0);
+      const paidAmount = Number(inst.paid || 0);
+      const outstanding =
+        inst.outstanding != null
+          ? Number(inst.outstanding)
+          : Math.max(0, amount - paidAmount);
+      const status =
+        inst.status ||
+        (paidAmount >= amount
+          ? 'paid'
+          : paidAmount > 0
+          ? 'partial'
+          : 'due');
+
+      return {
+        label: inst.label || `Installment ${idx + 1}`,
+        dueMonth: inst.dueMonth || 'Scheduled',
+        amount,
+        paid: paidAmount,
+        outstanding,
+        status,
+      };
+    });
+
+    setBreakdown(normalized);
+  }, [detail]);
 
   const totals = useMemo(() => {
     if (!detail) {
@@ -88,18 +131,44 @@ const StudentFeeDetails = ({ setShowAdminHeader }) => {
     return badges[status] || 'bg-gray-100 text-gray-800';
   };
 
+  const markInstallmentPaid = async (idx) => {
+    if (!feeRecordId) return;
+    setProcessingIdx(idx);
+    try {
+      const res = await fetch(
+        `${API_BASE}/api/nif/fees/installments/pay/${feeRecordId}`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            authorization: `Bearer ${localStorage.getItem('token')}`,
+          },
+          body: JSON.stringify({ installmentIndex: idx, method: 'cash' }),
+        }
+      );
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.message || 'Failed to mark installment as paid');
+      }
+      setDetail(data);
+    } catch (err) {
+      alert(err.message || 'Could not mark as paid');
+    } finally {
+      setProcessingIdx(null);
+    }
+  };
+
   const generateStatement = () => {
-    // Placeholder for PDF/report generation
-    alert('Implement fee statement generation.');
+    alert('Implement statement export.');
   };
 
   const recordPayment = () => {
-    alert('Implement payment recording flow.');
+    alert('Hook this up to the collect API if needed.');
   };
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-full">
+      <div className="h-full flex items-center justify-center">
         <div className="text-center text-gray-600">
           <div className="animate-spin h-10 w-10 border-2 border-yellow-600 border-t-transparent rounded-full mx-auto mb-4" />
           Loading student fee details...
@@ -110,7 +179,7 @@ const StudentFeeDetails = ({ setShowAdminHeader }) => {
 
   if (error) {
     return (
-      <div className="max-w-3xl mx-auto bg-white p-8 rounded-2xl shadow border border-red-100 flex flex-col gap-4">
+      <div className="max-w-3xl mx-auto bg-white rounded-2xl border border-red-100 shadow p-8 flex flex-col gap-4">
         <div className="flex items-center gap-3 text-red-600">
           <AlertCircle />
           <p className="font-semibold">{error}</p>
@@ -140,7 +209,7 @@ const StudentFeeDetails = ({ setShowAdminHeader }) => {
             </button>
             <h1 className="text-3xl font-bold text-gray-800">Student Fee Details</h1>
             <p className="text-gray-600 mt-1">
-              A comprehensive overview of {student?.name || 'the student'}'s financial record.
+              Overview of {student?.name || 'the student'}'s financial record.
             </p>
           </div>
           <div className="flex items-center gap-3">
@@ -219,16 +288,84 @@ const StudentFeeDetails = ({ setShowAdminHeader }) => {
             </div>
           </div>
 
-          <div className="bg-white rounded-lg shadow-sm border border-gray-200">
-            <div className="flex justify-between items-center p-6 border-b border-gray-200">
-              <h3 className="text-lg font-bold text-gray-900">Fee Breakdown</h3>
-              <button className="flex items-center gap-2 px-3 py-2 bg-gray-100 text-gray-900 rounded-lg text-sm font-medium hover:bg-gray-200 transition-colors">
-                <CheckSquare size={16} />
-                Mark Selected as Paid
-              </button>
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+            <div className="flex flex-col gap-2 mb-4">
+              <div>
+                <h3 className="text-lg font-bold text-gray-900">Fee Breakup</h3>
+                <p className="text-xs text-gray-500">
+                  Registration parts and installments with paid vs remaining. Click an item to mark it as paid.
+                </p>
+              </div>
+              {breakdown.length ? (
+                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                  {breakdown.map((fee, idx) => (
+                    <div
+                      key={`${fee.label}-${idx}`}
+                      className="flex flex-col gap-3 rounded-lg border border-gray-200 bg-white px-4 py-3 shadow-xs"
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <div>
+                          <p className="text-sm font-semibold text-gray-900">
+                            {fee.label}
+                          </p>
+                          <p className="text-xs text-gray-500">
+                            {fee.dueMonth || 'Scheduled'}
+                          </p>
+                        </div>
+                        <span
+                          className={`px-2 py-1 rounded-full text-[11px] font-semibold ${getStatusBadge(
+                            fee.status
+                          )}`}
+                        >
+                          {fee.status.toUpperCase()}
+                        </span>
+                      </div>
+                      <div className="grid grid-cols-3 gap-2 text-xs text-gray-600">
+                        <div className="flex flex-col">
+                          <span className="text-[11px] uppercase tracking-wide">
+                            Amount
+                          </span>
+                          <span className="font-semibold text-gray-900">
+                            {formatCurrency(fee.amount)}
+                          </span>
+                        </div>
+                        <div className="flex flex-col">
+                          <span className="text-[11px] uppercase tracking-wide text-green-700">
+                            Paid
+                          </span>
+                          <span className="font-semibold text-green-700">
+                            {formatCurrency(fee.paid)}
+                          </span>
+                        </div>
+                        <div className="flex flex-col">
+                          <span className="text-[11px] uppercase tracking-wide text-red-700">
+                            Remaining
+                          </span>
+                          <span className="font-semibold text-red-700">
+                            {formatCurrency(fee.outstanding)}
+                          </span>
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => markInstallmentPaid(idx)}
+                        disabled={fee.status === 'paid'}
+                        className={`text-xs font-semibold self-start ${
+                          fee.status === 'paid'
+                            ? 'text-gray-400 cursor-not-allowed'
+                            : 'text-blue-600 hover:underline'
+                        }`}
+                      >
+                        {fee.status === 'paid' ? 'Completed' : 'Mark as Paid'}
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-sm text-gray-500">No fee breakup available.</p>
+              )}
             </div>
 
-            <div className="overflow-x-auto">
+            <div className="overflow-x-auto mt-6">
               <table className="w-full text-sm text-left">
                 <thead className="text-xs text-gray-500 uppercase bg-gray-50">
                   <tr>
@@ -239,14 +376,15 @@ const StudentFeeDetails = ({ setShowAdminHeader }) => {
                       />
                     </th>
                     <th className="px-6 py-3">Fee Item</th>
-                    <th className="px-6 py-3">Due Timeline</th>
+                    <th className="px-6 py-3">Due Date</th>
                     <th className="px-6 py-3">Amount</th>
-                    <th className="px-6 py-3 text-right">Status</th>
+                    <th className="px-6 py-3">Status</th>
+                    <th className="px-6 py-3 text-right">Action</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-200">
-                  {installmentBreakdown.length ? (
-                    installmentBreakdown.map((fee, idx) => (
+                  {breakdown.length ? (
+                    breakdown.map((fee, idx) => (
                       <tr key={`${fee.label}-${idx}`} className="hover:bg-gray-50">
                         <td className="p-4 w-4">
                           <input
@@ -255,7 +393,7 @@ const StudentFeeDetails = ({ setShowAdminHeader }) => {
                           />
                         </td>
                         <td className="px-6 py-3 text-gray-900 font-medium">
-                          {fee.label || `Installment ${idx + 1}`}
+                          {fee.label}
                         </td>
                         <td className="px-6 py-3 text-gray-500 flex items-center gap-2">
                           <Calendar size={14} />
@@ -264,20 +402,36 @@ const StudentFeeDetails = ({ setShowAdminHeader }) => {
                         <td className="px-6 py-3 text-gray-900">
                           {formatCurrency(fee.amount)}
                         </td>
-                        <td className="px-6 py-3 text-right">
-                          <span className="inline-flex px-3 py-1 rounded-full bg-gray-100 text-gray-600 text-xs font-medium">
-                            Pending
+                        <td className="px-6 py-3">
+                          <span
+                            className={`inline-flex px-3 py-1 rounded-full text-xs font-medium ${getStatusBadge(
+                              fee.status
+                            )}`}
+                          >
+                            {fee.status.toUpperCase()}
                           </span>
+                        </td>
+                        <td className="px-6 py-3 text-right">
+                          {fee.status === 'paid' ? (
+                            <span className="text-gray-400 italic">Completed</span>
+                          ) : (
+                            <button
+                              onClick={() => markInstallmentPaid(idx)}
+                              className="font-medium text-blue-600 hover:underline"
+                            >
+                              Mark as Paid
+                            </button>
+                          )}
                         </td>
                       </tr>
                     ))
                   ) : (
                     <tr>
                       <td
-                        className="px-6 py-6 text-center text-gray-500"
-                        colSpan={5}
+                        className="px-6 py-8 text-center text-gray-500"
+                        colSpan={6}
                       >
-                        No installment breakdown available for this course.
+                        No fee breakup available for this course.
                       </td>
                     </tr>
                   )}
@@ -288,11 +442,12 @@ const StudentFeeDetails = ({ setShowAdminHeader }) => {
         </div>
 
         <div className="flex flex-col gap-6">
+
           <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
             <h3 className="text-lg font-bold text-gray-900 mb-4">Payment History</h3>
-            {paymentHistory.length ? (
-              <div className="space-y-4">
-                {paymentHistory.map((payment, idx) => (
+            {payments.length ? (
+              <div className="space-y-3">
+                {payments.map((payment, idx) => (
                   <div
                     key={`${payment.paidOn}-${idx}`}
                     className="flex items-center justify-between border border-gray-200 rounded-xl p-3"
@@ -322,18 +477,14 @@ const StudentFeeDetails = ({ setShowAdminHeader }) => {
 
           <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
             <h3 className="text-lg font-bold text-gray-900 mb-4">Current Status</h3>
-            <div className="flex flex-col gap-3">
+            <div className="space-y-3 text-sm text-gray-600">
               <div className="flex items-center justify-between">
-                <span className="text-gray-600">Status</span>
-                <span
-                  className={`px-3 py-1 rounded-full text-xs font-medium ${getStatusBadge(
-                    detail?.status
-                  )}`}
-                >
+                <span>Status</span>
+                <span className="px-3 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-700">
                   {detail?.status?.toUpperCase()}
                 </span>
               </div>
-              <div className="flex items-center justify-between text-gray-600">
+              <div className="flex items-center justify-between">
                 <span>Last Payment</span>
                 <span>
                   {detail?.lastPayment

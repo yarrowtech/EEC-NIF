@@ -1,3 +1,4 @@
+// frontend/src/admin/pages/Students.jsx
 import React, { useState, useEffect, useRef, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import {
@@ -27,7 +28,7 @@ import {
   Upload,
   FileDown,
   Archive,
-  Trash2,
+  RotateCcw,
 } from "lucide-react";
 import Swal from "sweetalert2";
 
@@ -44,10 +45,12 @@ const Students = ({ setShowAdminHeader }) => {
   const [wellbeingData, setWellbeingData] = useState({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
-  const [isArchiving, setIsArchiving] = useState(false);
   const fileInputRef = useRef(null);
   const [courseOptions, setCourseOptions] = useState([]);
   const [coursesLoading, setCoursesLoading] = useState(false);
+  const [archivedStudents, setArchivedStudents] = useState([]);
+  const [showArchiveModal, setShowArchiveModal] = useState(false);
+  const [archiveActionLoading, setArchiveActionLoading] = useState(false);
 
   const [newStudent, setNewStudent] = useState({
     // core
@@ -213,11 +216,19 @@ const Students = ({ setShowAdminHeader }) => {
     }
   };
 
+  // Placeholder until archive endpoints are implemented
+  const refreshArchivedStudents = async () => {
+    setArchivedStudents([]);
+  };
+
+  const handleViewArchive = () => setShowArchiveModal(true);
+
   /* -------------------- Effects -------------------- */
   useEffect(() => {
     setShowAdminHeader?.(true);
     refreshStudents().catch(console.error);
     fetchCourses().catch(console.error);
+    refreshArchivedStudents().catch(console.error);
   }, [setShowAdminHeader]);
 
   /* -------------------- Archive Student -------------------- */
@@ -250,16 +261,13 @@ const Students = ({ setShowAdminHeader }) => {
 
     setIsArchiving(true);
     try {
-      const res = await fetch(
-        `${API_BASE}/api/nif/students/${student._id}/archive`,
-        {
-          method: "PUT",
-          headers: {
-            "Content-Type": "application/json",
-            authorization: `Bearer ${localStorage.getItem("token")}`,
-          },
-        }
-      );
+      const res = await fetch(`${API_BASE}/api/nif/students/${student._id}/archive`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          authorization: `Bearer ${localStorage.getItem("token")}`,
+        },
+      });
 
       if (res.ok) {
         Swal.fire({
@@ -287,7 +295,14 @@ const Students = ({ setShowAdminHeader }) => {
 
   /* -------------------- View Archive -------------------- */
   const handleViewArchive = () => {
-    navigate("/admin/archived-students");
+    // In a real application, you would navigate to an archive page
+    // For now, we'll show an alert and you can implement navigation
+    Swal.fire({
+      title: "View Archive",
+      text: "This would navigate to the archived students page. Implement navigation as needed.",
+      icon: "info",
+      confirmButtonText: "OK",
+    });
   };
 
   /* -------------------- Add Student -------------------- */
@@ -401,6 +416,78 @@ const Students = ({ setShowAdminHeader }) => {
       alert(`Error: ${err.message}`);
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  const handleArchiveStudent = async (studentId) => {
+    if (!studentId) return;
+    if (!window.confirm("Move this student to archive?")) return;
+    try {
+      setArchiveActionLoading(true);
+      const res = await fetch(
+        `${API_BASE}/api/nif/students/${studentId}/archive`,
+        {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+            authorization: `Bearer ${localStorage.getItem("token")}`,
+          },
+        }
+      );
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data.message || "Failed to archive student");
+      }
+      await Promise.all([refreshStudents(), refreshArchivedStudents()]);
+      Swal.fire({
+        icon: "success",
+        title: "Student archived",
+        toast: true,
+        position: "top-end",
+        showConfirmButton: false,
+        timer: 1500,
+      });
+    } catch (err) {
+      console.error(err);
+      alert(err.message);
+    } finally {
+      setArchiveActionLoading(false);
+    }
+  };
+
+  const handleUnarchiveStudent = async (studentId) => {
+    if (!studentId) return;
+    if (!window.confirm("Restore this student from archive?")) return;
+    try {
+      setArchiveActionLoading(true);
+      const res = await fetch(
+        `${API_BASE}/api/nif/students/${studentId}/unarchive`,
+        {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+            authorization: `Bearer ${localStorage.getItem("token")}`,
+          },
+        }
+      );
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data.message || "Failed to restore student");
+      }
+      await Promise.all([refreshStudents(), refreshArchivedStudents()]);
+      Swal.fire({
+        icon: "success",
+        title: "Student restored",
+        toast: true,
+        position: "top-end",
+        showConfirmButton: false,
+        timer: 1500,
+      });
+    } catch (err) {
+      console.error(err);
+      alert(err.message);
+    } finally {
+      setArchiveActionLoading(false);
     }
   };
 
@@ -640,6 +727,12 @@ const Students = ({ setShowAdminHeader }) => {
             >
               <Plus size={16} /> Add Student
             </button>
+            <button
+              onClick={() => setShowArchiveModal(true)}
+              className="bg-white border border-gray-300 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-50 flex items-center gap-2"
+            >
+              <Archive size={16} /> Archived
+            </button>
           </div>
         </div>
 
@@ -743,13 +836,12 @@ const Students = ({ setShowAdminHeader }) => {
                   </td>
                   <td className="border-b border-yellow-100 px-6 py-4">
                     <button
-                      onClick={() => handleArchiveStudent(student)}
-                      disabled={isArchiving}
-                      className="px-3 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-sm flex items-center gap-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                      title="Archive Student"
+                      onClick={() => handleArchiveStudent(student._id)}
+                      disabled={archiveActionLoading}
+                      className="inline-flex items-center gap-2 px-3 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-sm transition-colors disabled:opacity-50"
                     >
                       <Archive size={14} />
-                      {isArchiving ? "Archiving..." : "Archive"}
+                      {archiveActionLoading ? "Archiving..." : "Archive"}
                     </button>
                   </td>
                 </tr>
@@ -1350,6 +1442,90 @@ const Students = ({ setShowAdminHeader }) => {
                     </div>
                   </div>
                 </form>
+              </div>
+            </div>
+          </div>
+        )}
+        {showArchiveModal && (
+          <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[80vh] overflow-hidden border border-gray-200">
+              <div className="px-6 py-4 border-b flex items-center justify-between">
+                <h3 className="text-xl font-semibold text-gray-900">
+                  Archived Students
+                </h3>
+                <button
+                  onClick={() => setShowArchiveModal(false)}
+                  className="text-gray-500 hover:text-gray-700"
+                >
+                  <X size={20} />
+                </button>
+              </div>
+              <div className="overflow-auto">
+                <table className="w-full text-sm">
+                  <thead className="bg-gray-50 text-xs uppercase text-gray-500">
+                    <tr>
+                      <th className="px-4 py-3 text-left">Name</th>
+                      <th className="px-4 py-3 text-left">Roll</th>
+                      <th className="px-4 py-3 text-left">Program</th>
+                      <th className="px-4 py-3 text-left">Course</th>
+                      <th className="px-4 py-3 text-left">Phone</th>
+                      <th className="px-4 py-3 text-right">Outstanding</th>
+                      <th className="px-4 py-3 text-center">Action</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {archivedStudents.map((student) => (
+                      <tr key={student._id} className="border-t">
+                        <td className="px-4 py-3 text-gray-900 font-medium">
+                          {student.name}
+                        </td>
+                        <td className="px-4 py-3 text-gray-600">
+                          {student.roll}
+                        </td>
+                        <td className="px-4 py-3 text-gray-600">
+                          {student.grade}
+                        </td>
+                        <td className="px-4 py-3 text-gray-600">
+                          {student.course}
+                        </td>
+                        <td className="px-4 py-3 text-gray-600">
+                          {student.mobile}
+                        </td>
+                        <td className="px-4 py-3 text-right text-red-600 font-semibold">
+                          {formatCurrency(student.feeSummary?.dueAmount)}
+                        </td>
+                        <td className="px-4 py-3 text-center">
+                          <button
+                            onClick={() => handleUnarchiveStudent(student._id)}
+                            disabled={archiveActionLoading}
+                            className="inline-flex items-center gap-2 px-3 py-1 rounded-lg bg-green-100 text-green-700 hover:bg-green-200 text-sm disabled:opacity-50"
+                          >
+                            <RotateCcw size={14} />
+                            Restore
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                    {!archivedStudents.length && (
+                      <tr>
+                        <td
+                          colSpan={7}
+                          className="px-4 py-10 text-center text-gray-500"
+                        >
+                          No archived students.
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+              <div className="px-6 py-4 border-t flex justify-end">
+                <button
+                  onClick={() => setShowArchiveModal(false)}
+                  className="px-4 py-2 text-sm rounded-lg border border-gray-300 hover:bg-gray-50"
+                >
+                  Close
+                </button>
               </div>
             </div>
           </div>

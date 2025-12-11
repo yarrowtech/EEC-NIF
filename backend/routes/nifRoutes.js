@@ -38,6 +38,95 @@ const PROGRAM_DEFAULT_TOTALS = {
   B_DES: 203000,
 };
 
+const mapInstallments = (items = []) =>
+  items.map((inst) => ({
+    label: inst.label,
+    amount: inst.amount,
+    dueMonth: inst.dueMonth,
+    status: inst.status || 'due',
+    paid: inst.paid || 0,
+    outstanding:
+      inst.outstanding != null ? inst.outstanding : inst.amount - (inst.paid || 0),
+    paidOn: inst.paidOn,
+    method: inst.method,
+  }));
+
+const PROGRAM_INSTALLMENTS = {
+  ADV_CERT: [
+    { label: 'Admission Fee', amount: 22000, dueMonth: 'Admission' },
+    { label: 'Batch Commencement', amount: 19000, dueMonth: 'Commencement' },
+    { label: 'Registration Part 1', amount: 5000, dueMonth: 'Week 1' },
+    { label: 'Registration Part 2', amount: 17000, dueMonth: 'Month 1' },
+    { label: 'Registration Part 3', amount: 17000, dueMonth: 'Month 3' },
+    { label: 'Installment 1', amount: 7500, dueMonth: 'Month 1' },
+    { label: 'Installment 2', amount: 7500, dueMonth: 'Month 2' },
+    { label: 'Installment 3', amount: 7500, dueMonth: 'Month 3' },
+    { label: 'Installment 4', amount: 7500, dueMonth: 'Month 4' },
+    { label: 'Installment 5', amount: 7500, dueMonth: 'Month 5' },
+    { label: 'Installment 6', amount: 7500, dueMonth: 'Month 6' },
+    { label: 'Installment 7', amount: 7500, dueMonth: 'Month 7' },
+    { label: 'Installment 8', amount: 7500, dueMonth: 'Month 8' },
+    { label: 'Installment 9', amount: 7500, dueMonth: 'Month 9' },
+    { label: 'Installment 10', amount: 7500, dueMonth: 'Month 10' },
+  ],
+  B_VOC: [
+    { label: 'Admission Fee', amount: 22000, dueMonth: 'Admission' },
+    { label: 'MSU Fee (Odd Sem)', amount: 18000, dueMonth: 'Sem 1' },
+    { label: 'Batch Commencement', amount: 19000, dueMonth: 'Commencement' },
+    { label: 'Registration Part 1', amount: 5000, dueMonth: 'Week 1' },
+    { label: 'Registration Part 2', amount: 17000, dueMonth: 'Month 1' },
+    { label: 'Registration Part 3', amount: 17000, dueMonth: 'Month 3' },
+    { label: 'MSU Fee (Even Sem)', amount: 18000, dueMonth: 'Sem 2' },
+    { label: 'Installment 1', amount: 7500, dueMonth: 'Month 1' },
+    { label: 'Installment 2', amount: 7500, dueMonth: 'Month 2' },
+    { label: 'Installment 3', amount: 7500, dueMonth: 'Month 3' },
+    { label: 'Installment 4', amount: 7500, dueMonth: 'Month 4' },
+    { label: 'Installment 5', amount: 7500, dueMonth: 'Month 5' },
+    { label: 'Installment 6', amount: 7500, dueMonth: 'Month 6' },
+    { label: 'Installment 7', amount: 7500, dueMonth: 'Month 7' },
+    { label: 'Installment 8', amount: 7500, dueMonth: 'Month 8' },
+    { label: 'Installment 9', amount: 7500, dueMonth: 'Month 9' },
+    { label: 'Installment 10', amount: 7500, dueMonth: 'Month 10' },
+  ],
+  M_VOC: [
+    { label: 'Admission Fee', amount: 22000, dueMonth: 'Admission' },
+    { label: 'MSU Fee (Odd Sem)', amount: 24000, dueMonth: 'Semester 1' },
+    { label: 'Batch Commencement', amount: 19000, dueMonth: 'Commencement' },
+    { label: 'Registration Part 1', amount: 5000, dueMonth: 'Week 1' },
+    { label: 'Registration Part 2', amount: 24000, dueMonth: 'Month 1' },
+    { label: 'Registration Part 3', amount: 24000, dueMonth: 'Month 3' },
+    { label: 'Installment 1', amount: 7500, dueMonth: 'Month 1' },
+    { label: 'Installment 2', amount: 7500, dueMonth: 'Month 2' },
+    { label: 'Installment 3', amount: 7500, dueMonth: 'Month 3' },
+    { label: 'Installment 4', amount: 7500, dueMonth: 'Month 4' },
+    { label: 'Installment 5', amount: 7500, dueMonth: 'Month 5' },
+    { label: 'Installment 6', amount: 7500, dueMonth: 'Month 6' },
+    { label: 'Installment 7', amount: 7500, dueMonth: 'Month 7' },
+    { label: 'Installment 8', amount: 7500, dueMonth: 'Month 8' },
+    { label: 'Installment 9', amount: 7500, dueMonth: 'Month 9' },
+    { label: 'Installment 10', amount: 7500, dueMonth: 'Month 10' },
+  ],
+  B_DES: [
+    { label: 'Admission Fee', amount: 22000, dueMonth: 'Admission' },
+    { label: 'MSU Fee (Odd Sem)', amount: 24000, dueMonth: 'Odd Sem' },
+    { label: 'Batch Commencement', amount: 19000, dueMonth: 'Commencement' },
+    { label: 'Registration Part 1', amount: 5000, dueMonth: 'Week 1' },
+    { label: 'Registration Part 2', amount: 17000, dueMonth: 'Month 1' },
+    { label: 'Registration Part 3', amount: 17000, dueMonth: 'Month 3' },
+    { label: 'MSU Fee (Even Sem)', amount: 24000, dueMonth: 'Even Sem' },
+    { label: 'Installment 1', amount: 7500, dueMonth: 'Month 1' },
+    { label: 'Installment 2', amount: 7500, dueMonth: 'Month 2' },
+    { label: 'Installment 3', amount: 7500, dueMonth: 'Month 3' },
+    { label: 'Installment 4', amount: 7500, dueMonth: 'Month 4' },
+    { label: 'Installment 5', amount: 7500, dueMonth: 'Month 5' },
+    { label: 'Installment 6', amount: 7500, dueMonth: 'Month 6' },
+    { label: 'Installment 7', amount: 7500, dueMonth: 'Month 7' },
+    { label: 'Installment 8', amount: 7500, dueMonth: 'Month 8' },
+    { label: 'Installment 9', amount: 7500, dueMonth: 'Month 9' },
+    { label: 'Installment 10', amount: 7500, dueMonth: 'Month 10' },
+  ],
+};
+
 const inferProgramTypeFromText = (text = '') => {
   const lower = text.toLowerCase();
   if (lower.includes('b.des') || lower.includes('b des') || lower.includes('4 year')) {
@@ -94,9 +183,10 @@ const deriveProgramMeta = (body = {}, courseDoc = {}) => {
       ? courseDoc.fees
       : PROGRAM_DEFAULT_TOTALS[programType];
 
-  const installments = Array.isArray(courseDoc.installments)
-    ? courseDoc.installments
-    : [];
+  const installments =
+    Array.isArray(courseDoc.installments) && courseDoc.installments.length
+      ? courseDoc.installments
+      : PROGRAM_INSTALLMENTS[programType] || [];
 
   return {
     programType,
@@ -104,7 +194,7 @@ const deriveProgramMeta = (body = {}, courseDoc = {}) => {
     stream,
     courseName: courseDoc.title || title || stream,
     totalFee,
-    installments,
+    installments: mapInstallments(installments),
   };
 };
 
@@ -185,6 +275,15 @@ const ensureFeeRecordForStudent = async (student) => {
       ? courseDoc.fees
       : PROGRAM_DEFAULT_TOTALS[programType];
 
+  let installments =
+    (student.feeInstallments && student.feeInstallments.length
+      ? student.feeInstallments
+      : courseDoc?.installments) || [];
+  if (!installments.length) {
+    installments = PROGRAM_INSTALLMENTS[programType] || [];
+  }
+  installments = mapInstallments(installments);
+
   const record = await NifFeeRecord.create({
     student: student._id,
     programType,
@@ -198,7 +297,8 @@ const ensureFeeRecordForStudent = async (student) => {
     paidAmount: 0,
     dueAmount: totalFee,
     status: 'due',
-    installmentsSnapshot: student.feeInstallments || courseDoc?.installments || [],
+    installmentsSnapshot: installments,
+    archived: student.archived || false,
   });
 
   return record.toObject();
@@ -491,27 +591,53 @@ router.get('/fees/details/:id', adminAuth, async (req, res) => {
       return res.status(400).json({ message: 'Invalid id' });
     }
 
-    const record = await NifFeeRecord.findById(id)
-      .populate('student')
-      .lean();
+    const record = await NifFeeRecord.findById(id).populate('student');
 
     if (!record) {
       return res.status(404).json({ message: 'Fee record not found' });
     }
 
+    let installments = record.installmentsSnapshot || [];
+    if (!installments.length) {
+      let fallbackInstallments = [];
+      if (record.courseId && mongoose.isValidObjectId(record.courseId)) {
+        const courseDoc = await NifCourse.findById(record.courseId).lean();
+        if (courseDoc?.installments?.length) {
+          fallbackInstallments = courseDoc.installments;
+        }
+      }
+      if (!fallbackInstallments.length && record.student?.feeInstallments?.length) {
+        fallbackInstallments = record.student.feeInstallments;
+      }
+      if (!fallbackInstallments.length) {
+        fallbackInstallments = PROGRAM_INSTALLMENTS[record.programType] || [];
+      }
+      installments = fallbackInstallments;
+      if (fallbackInstallments.length) {
+        record.installmentsSnapshot = fallbackInstallments;
+        try {
+          await record.save();
+        } catch (saveErr) {
+          console.warn('Could not persist installmentsSnapshot', saveErr);
+        }
+      }
+    }
+
+    const obj = record.toObject();
+
     res.json({
-      feeRecordId: record._id,
-      student: record.student,
-      totalFee: record.totalFee,
-      paidAmount: record.paidAmount,
-      dueAmount: record.dueAmount,
-      status: record.status,
-      academicYear: record.academicYear,
-      payments: (record.payments || []).sort(
-        (a, b) => new Date(b.paidOn) - new Date(a.paidOn)
-      ),
-      installments: record.installmentsSnapshot || [],
-      lastPayment: record.lastPayment,
+      feeRecordId: obj._id,
+      student: obj.student,
+      totalFee: obj.totalFee,
+      paidAmount: obj.paidAmount,
+      dueAmount: obj.dueAmount,
+      status: obj.status,
+      academicYear: obj.academicYear,
+      payments: (obj.payments || []).sort((a, b) => new Date(b.paidOn) - new Date(a.paidOn)),
+      installments: installments.length
+        ? installments
+        : PROGRAM_INSTALLMENTS[record.programType] || [],
+      lastPayment: obj.lastPayment,
     });
   } catch (err) {
     console.error('NIF fee details error:', err);
@@ -550,6 +676,134 @@ router.post('/fees/collect/:id', adminAuth, async (req, res) => {
   } catch (err) {
     console.error('NIF fee collect error:', err);
     res.status(500).json({ message: 'Failed to collect payment' });
+  }
+});
+
+router.post('/fees/installments/pay/:id', adminAuth, async (req, res) => {
+  try {
+    const { installmentIndex, method } = req.body || {};
+    const record = await NifFeeRecord.findById(req.params.id);
+    if (!record) {
+      return res.status(404).json({ message: 'Fee record not found' });
+    }
+
+    if (
+      !Number.isInteger(installmentIndex) ||
+      installmentIndex < 0 ||
+      installmentIndex >= record.installmentsSnapshot.length
+    ) {
+      return res.status(400).json({ message: 'Invalid installment index' });
+    }
+
+    const installment = record.installmentsSnapshot[installmentIndex];
+    const alreadyPaid = Number(installment.paid || 0);
+    const amount = Number(installment.amount || 0);
+    const snapshotOutstanding =
+      installment.outstanding != null
+        ? Number(installment.outstanding)
+        : null;
+    let outstanding = Math.max(0, amount - alreadyPaid);
+    if (!outstanding && snapshotOutstanding > 0) {
+      outstanding = snapshotOutstanding;
+    }
+    if (
+      !outstanding &&
+      installment.status !== 'paid' &&
+      amount > 0 &&
+      alreadyPaid <= 0
+    ) {
+      // Snapshot might be stale (e.g. imported record) – fall back to full amount
+      outstanding = amount;
+    }
+
+    if (!outstanding) {
+      return res.status(400).json({ message: 'Installment already paid' });
+    }
+
+    installment.paid = alreadyPaid + outstanding;
+    installment.outstanding = 0;
+    installment.status = 'paid';
+    installment.paidOn = new Date();
+    installment.method = method || 'cash';
+
+    record.paidAmount += outstanding;
+    record.dueAmount = Math.max(0, record.totalFee - record.paidAmount);
+    record.status = record.dueAmount === 0 ? 'paid' : 'partial';
+    record.lastPayment = new Date();
+    record.payments.push({
+      amount: outstanding,
+      method: method || 'cash',
+    });
+
+    await record.save();
+    res.json(record.toJSON());
+  } catch (err) {
+    console.error('Installment pay error:', err);
+    res.status(500).json({ message: 'Failed to mark installment as paid' });
+  }
+});
+
+// Mark a specific installment as paid (uses sequential allocation logic)
+router.post('/fees/installments/pay/:id', adminAuth, async (req, res) => {
+  try {
+    const { installmentIndex, method } = req.body;
+    const record = await NifFeeRecord.findById(req.params.id);
+    if (!record) {
+      return res.status(404).json({ message: 'Fee record not found' });
+    }
+
+    const installments = record.installmentsSnapshot || [
+      {
+        label: 'Program Fee',
+        amount: record.totalFee,
+        dueMonth: record.academicYear,
+      },
+    ];
+
+    const idx = Number(installmentIndex);
+    if (!Number.isInteger(idx) || idx < 0 || idx >= installments.length) {
+      return res.status(400).json({ message: 'Invalid installment index' });
+    }
+
+    // Compute outstanding for the target installment based on paidAmount allocation
+    let remainingPaid = Number(record.paidAmount || 0);
+    let outstandingForTarget = 0;
+    installments.forEach((inst, i) => {
+      const amt = Number(inst.amount || 0);
+      if (i < idx) {
+        remainingPaid = Math.max(0, remainingPaid - Math.min(amt, remainingPaid));
+      } else if (i === idx) {
+        const paidHere = Math.min(amt, remainingPaid);
+        remainingPaid = Math.max(0, remainingPaid - paidHere);
+        outstandingForTarget = Math.max(0, amt - paidHere);
+      }
+    });
+
+    if (outstandingForTarget <= 0) {
+      return res.status(400).json({ message: 'Installment already paid' });
+    }
+
+    if (outstandingForTarget > record.dueAmount) {
+      return res
+        .status(400)
+        .json({ message: 'Payment exceeds outstanding balance' });
+    }
+
+    record.paidAmount += outstandingForTarget;
+    record.dueAmount = Math.max(0, record.dueAmount - outstandingForTarget);
+    record.lastPayment = new Date();
+    record.status = record.dueAmount === 0 ? 'paid' : 'partial';
+    record.payments.push({
+      amount: outstandingForTarget,
+      method: method || 'cash',
+      notes: `Installment ${idx + 1} marked as paid`,
+    });
+
+    await record.save();
+    res.json(record.toJSON());
+  } catch (err) {
+    console.error('NIF installment pay error:', err);
+    res.status(500).json({ message: 'Failed to mark installment as paid' });
   }
 });
 
