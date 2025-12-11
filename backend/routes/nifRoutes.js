@@ -38,6 +38,25 @@ const PROGRAM_DEFAULT_TOTALS = {
   B_DES: 203000,
 };
 
+const inferProgramTypeFromText = (text = '') => {
+  const lower = text.toLowerCase();
+  if (lower.includes('b.des') || lower.includes('b des') || lower.includes('4 year')) {
+    return 'B_DES';
+  }
+  if (lower.includes('m.voc') || lower.includes('m voc') || lower.includes('2 year m')) {
+    return 'M_VOC';
+  }
+  if (lower.includes('b.voc') || lower.includes('b voc') || lower.includes('3 year')) {
+    return 'B_VOC';
+  }
+  return 'ADV_CERT';
+};
+
+const inferStreamFromText = (text = '') => {
+  const lower = text.toLowerCase();
+  return lower.includes('interior') ? 'Interior Design' : 'Fashion Design';
+};
+
 const deriveProgramMeta = (body = {}, courseDoc = {}) => {
   const gradeText = sanitizeString(body.grade) || '';
   const title = courseDoc.title || gradeText || '';
@@ -128,6 +147,61 @@ const buildStudentDoc = (body, courseDoc) => {
   };
 
   return { studentDoc, programMeta: meta };
+};
+
+const ensureFeeRecordForStudent = async (student) => {
+  const existing = await NifFeeRecord.findOne({ student: student._id }).lean();
+  if (existing) return existing;
+
+  let courseDoc = null;
+  if (student.courseId && mongoose.isValidObjectId(student.courseId)) {
+    courseDoc = await NifCourse.findById(student.courseId).lean();
+  }
+
+  let programType =
+    student.programType ||
+    (courseDoc?.programType ||
+      inferProgramTypeFromText(student.grade || student.course || ''));
+
+  if (!PROGRAM_DEFAULT_TOTALS[programType]) {
+    programType = 'ADV_CERT';
+  }
+
+  const programLabel =
+    student.programLabel ||
+    student.grade ||
+    courseDoc?.programLabel ||
+    PROGRAM_LABELS[programType];
+
+  const stream =
+    student.stream ||
+    courseDoc?.department ||
+    inferStreamFromText(student.course || student.grade || '');
+
+  const totalFee =
+    typeof student.totalFee === 'number' && student.totalFee > 0
+      ? student.totalFee
+      : typeof courseDoc?.fees === 'number'
+      ? courseDoc.fees
+      : PROGRAM_DEFAULT_TOTALS[programType];
+
+  const record = await NifFeeRecord.create({
+    student: student._id,
+    programType,
+    programLabel,
+    courseId: student.courseId || courseDoc?._id,
+    course: stream,
+    courseName: student.course || courseDoc?.title || programLabel,
+    academicYear: student.academicYear || '2025-26',
+    yearNumber: 1,
+    totalFee,
+    paidAmount: 0,
+    dueAmount: totalFee,
+    status: 'due',
+    installmentsSnapshot: student.feeInstallments || courseDoc?.installments || [],
+  });
+
+  return record.toObject();
 };
 
 const getFeeSummary = (record) => ({
@@ -286,6 +360,19 @@ router.get('/students', adminAuth, async (req, res) => {
       feeRecords.map((record) => [String(record.student), record])
     );
 
+    const missing = students.filter(
+      (student) => !feeByStudent.has(String(student._id))
+    );
+
+    if (missing.length) {
+      const createdRecords = await Promise.all(
+        missing.map((student) => ensureFeeRecordForStudent(student))
+      );
+      createdRecords.forEach((record) => {
+        feeByStudent.set(String(record.student), record);
+      });
+    }
+
     const mapped = students.map((s) => ({
       ...s,
       id: s._id,
@@ -330,6 +417,23 @@ router.get('/students/:id', adminAuth, async (req, res) => {
 /* ========== 5) LIST FEE RECORDS (for Fees Collection UI) ========== */
 router.get('/fees', adminAuth, async (req, res) => {
   try {
+    const allStudents = await NifStudent.find().lean();
+    const studentsWithRecords = await NifFeeRecord.find(
+      {},
+      { student: 1 }
+    ).lean();
+    const withRecordSet = new Set(
+      studentsWithRecords.map((rec) => String(rec.student))
+    );
+    const missingStudents = allStudents.filter(
+      (student) => !withRecordSet.has(String(student._id))
+    );
+    if (missingStudents.length) {
+      await Promise.all(
+        missingStudents.map((student) => ensureFeeRecordForStudent(student))
+      );
+    }
+
     const { programType, course, year } = req.query;
     const filter = {};
 
