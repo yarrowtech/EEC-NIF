@@ -51,6 +51,7 @@ const Students = ({ setShowAdminHeader }) => {
   const [archivedStudents, setArchivedStudents] = useState([]);
   const [showArchiveModal, setShowArchiveModal] = useState(false);
   const [archiveActionLoading, setArchiveActionLoading] = useState(false);
+  const [isArchiving, setIsArchiving] = useState(false);
 
   const [newStudent, setNewStudent] = useState({
     // core
@@ -293,18 +294,6 @@ const Students = ({ setShowAdminHeader }) => {
     }
   };
 
-  /* -------------------- View Archive -------------------- */
-  const handleViewArchive = () => {
-    // In a real application, you would navigate to an archive page
-    // For now, we'll show an alert and you can implement navigation
-    Swal.fire({
-      title: "View Archive",
-      text: "This would navigate to the archived students page. Implement navigation as needed.",
-      icon: "info",
-      confirmButtonText: "OK",
-    });
-  };
-
   /* -------------------- Add Student -------------------- */
   const handleAddStudentChange = (e) => {
     const { name, value } = e.target;
@@ -419,41 +408,6 @@ const Students = ({ setShowAdminHeader }) => {
     }
   };
 
-  const handleArchiveStudent = async (studentId) => {
-    if (!studentId) return;
-    if (!window.confirm("Move this student to archive?")) return;
-    try {
-      setArchiveActionLoading(true);
-      const res = await fetch(
-        `${API_BASE}/api/nif/students/${studentId}/archive`,
-        {
-          method: "PATCH",
-          headers: {
-            "Content-Type": "application/json",
-            authorization: `Bearer ${localStorage.getItem("token")}`,
-          },
-        }
-      );
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        throw new Error(data.message || "Failed to archive student");
-      }
-      await Promise.all([refreshStudents(), refreshArchivedStudents()]);
-      Swal.fire({
-        icon: "success",
-        title: "Student archived",
-        toast: true,
-        position: "top-end",
-        showConfirmButton: false,
-        timer: 1500,
-      });
-    } catch (err) {
-      console.error(err);
-      alert(err.message);
-    } finally {
-      setArchiveActionLoading(false);
-    }
-  };
 
   const handleUnarchiveStudent = async (studentId) => {
     if (!studentId) return;
@@ -836,12 +790,12 @@ const Students = ({ setShowAdminHeader }) => {
                   </td>
                   <td className="border-b border-yellow-100 px-6 py-4">
                     <button
-                      onClick={() => handleArchiveStudent(student._id)}
-                      disabled={archiveActionLoading}
+                      onClick={() => handleArchiveStudent(student)}
+                      disabled={isArchiving}
                       className="inline-flex items-center gap-2 px-3 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-sm transition-colors disabled:opacity-50"
                     >
                       <Archive size={14} />
-                      {archiveActionLoading ? "Archiving..." : "Archive"}
+                      {isArchiving ? "Archiving..." : "Archive"}
                     </button>
                   </td>
                 </tr>
