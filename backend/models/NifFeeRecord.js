@@ -53,11 +53,12 @@ const installmentSnapshotSchema = new mongoose.Schema(
     dueMonth: { type: String },
     status: {
       type: String,
-      enum: ['paid', 'partial', 'due'],
+      enum: ['paid', 'partial', 'due', 'discounted'],
       default: 'due',
     },
     paid: { type: Number, default: 0, min: 0 },
     outstanding: { type: Number, default: 0, min: 0 },
+    discountImpact: { type: Number, default: 0, min: 0 },
     paidOn: { type: Date },
     method: { type: String },
   },
@@ -88,6 +89,8 @@ const NifFeeRecordSchema = new mongoose.Schema(
     totalFee: { type: Number, required: true },
     paidAmount: { type: Number, default: 0 },
     dueAmount: { type: Number, required: true },
+    discountAmount: { type: Number, default: 0, min: 0 },
+    discountNote: { type: String, default: '' },
 
     lastPayment: { type: Date },
     status: {
@@ -128,6 +131,16 @@ NifFeeRecordSchema.statics.createForStudentYear = async function (
         );
   if (!total) throw new Error('No NIF fee total for this program/year');
 
+  const discountAmount = Math.max(0, Number(options.discountAmount || 0));
+  const dueAmount = Math.max(0, total - discountAmount);
+
+  const initialStatus =
+    dueAmount === 0
+      ? discountAmount > 0
+        ? 'discounted'
+        : 'paid'
+      : 'due';
+
   return this.create({
     student: student._id,
     programType: options.programType || student.programType,
@@ -139,9 +152,10 @@ NifFeeRecordSchema.statics.createForStudentYear = async function (
       options.academicYear || student.academicYear || '2025-26',
     yearNumber,
     totalFee: total,
+    discountAmount,
     paidAmount: 0,
-    dueAmount: total,
-    status: 'due',
+    dueAmount,
+    status: initialStatus,
     installmentsSnapshot:
       options.installments || student.feeInstallments || [],
   });

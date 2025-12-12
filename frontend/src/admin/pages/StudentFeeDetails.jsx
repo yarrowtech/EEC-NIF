@@ -1,12 +1,5 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import {
-  Download,
-  IndianRupee,
-  ArrowLeft,
-  AlertCircle,
-  Calendar,
-  CheckSquare,
-} from 'lucide-react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { Download, ArrowLeft, AlertCircle, Calendar } from 'lucide-react';
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 
 const API_BASE = import.meta.env.VITE_API_URL;
@@ -27,16 +20,21 @@ const StudentFeeDetails = ({ setShowAdminHeader }) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
-  useEffect(() => {
-    const fetchDetails = async () => {
+  const fetchDetails = useCallback(
+    async ({ silent } = {}) => {
       if (!feeRecordId) {
         setError('No fee record selected. Please return to Fees Collection.');
-        setLoading(false);
+        if (!silent) {
+          setLoading(false);
+        }
         return;
       }
 
-      try {
+      if (!silent) {
         setLoading(true);
+      }
+
+      try {
         setError('');
         const res = await fetch(
           `${API_BASE}/api/nif/fees/details/${feeRecordId}`,
@@ -55,24 +53,85 @@ const StudentFeeDetails = ({ setShowAdminHeader }) => {
       } catch (err) {
         setError(err.message || 'Failed to load fee details');
       } finally {
-        setLoading(false);
+        if (!silent) {
+          setLoading(false);
+        }
       }
-    };
+    },
+    [feeRecordId]
+  );
 
+  useEffect(() => {
     fetchDetails();
-  }, [feeRecordId]);
+  }, [fetchDetails]);
 
   const student = detail?.student;
   const payments = detail?.payments || [];
   const [breakdown, setBreakdown] = useState([]);
-  const [processingIdx, setProcessingIdx] = useState(null);
+  const [discountValue, setDiscountValue] = useState('');
+  const [discountNote, setDiscountNote] = useState('');
+  const [savingDiscount, setSavingDiscount] = useState(false);
+
+  useEffect(() => {
+    if (!detail) {
+      setDiscountValue('');
+      setDiscountNote('');
+      return;
+    }
+    setDiscountValue(
+      detail.discountAmount != null ? String(detail.discountAmount) : ''
+    );
+    setDiscountNote(detail.discountNote || '');
+  }, [detail]);
+
+  const applyDiscountToInstallments = useCallback((installments = [], discountAmount = 0) => {
+    if (!discountAmount) return installments;
+
+    let remainingDiscount = Number(discountAmount);
+    if (!Number.isFinite(remainingDiscount) || remainingDiscount <= 0) {
+      return installments;
+    }
+
+    const updated = installments.map((inst) => ({
+      ...inst,
+      discountImpact: 0,
+    }));
+
+    for (let idx = updated.length - 1; idx >= 0 && remainingDiscount > 0; idx -= 1) {
+      const inst = updated[idx];
+      const dueBeforeDiscount =
+        inst.outstanding != null
+          ? Math.max(0, Number(inst.outstanding))
+          : Math.max(0, Number(inst.amount || 0) - Number(inst.paid || 0));
+
+      if (!dueBeforeDiscount) {
+        continue;
+      }
+
+      const appliedDiscount = Math.min(remainingDiscount, dueBeforeDiscount);
+      inst.outstanding = dueBeforeDiscount - appliedDiscount;
+      inst.discountImpact = appliedDiscount;
+      remainingDiscount -= appliedDiscount;
+
+      if (inst.outstanding === 0) {
+        inst.status = 'discounted';
+      }
+    }
+
+    return updated;
+  }, []);
 
   useEffect(() => {
     if (!detail) return;
-    const source =
+    const installmentsSource =
       detail.installments && detail.installments.length
         ? detail.installments
-        : [
+        : detail.installmentsSnapshot && detail.installmentsSnapshot.length
+        ? detail.installmentsSnapshot
+        : null;
+    const source =
+      installmentsSource ||
+      [
             {
               label: 'Program Fee',
               amount: detail.totalFee,
@@ -87,6 +146,7 @@ const StudentFeeDetails = ({ setShowAdminHeader }) => {
         inst.outstanding != null
           ? Number(inst.outstanding)
           : Math.max(0, amount - paidAmount);
+      const discountImpact = Number(inst.discountImpact || 0);
       const status =
         inst.status ||
         (paidAmount >= amount
@@ -102,21 +162,43 @@ const StudentFeeDetails = ({ setShowAdminHeader }) => {
         paid: paidAmount,
         outstanding,
         status,
+        discountImpact,
       };
     });
 
-    setBreakdown(normalized);
-  }, [detail]);
+    const discountAmount = Number(detail.discountAmount || 0);
+    const backendHasDiscounts =
+      normalized.some(
+        (inst) => inst.discountImpact > 0 || inst.status === 'discounted'
+      );
+    const shouldSimulateDiscount =
+      discountAmount > 0 && !backendHasDiscounts;
+
+    const withDiscounts = shouldSimulateDiscount
+      ? applyDiscountToInstallments(normalized, discountAmount)
+      : normalized;
+
+    setBreakdown(withDiscounts);
+  }, [applyDiscountToInstallments, detail]);
 
   const totals = useMemo(() => {
     if (!detail) {
-      return { totalFee: 0, totalPaid: 0, outstanding: 0, progress: 0 };
+      return {
+        totalFee: 0,
+        totalPaid: 0,
+        discountAmount: 0,
+        netTotal: 0,
+        outstanding: 0,
+        progress: 0,
+      };
     }
     const totalFee = Number(detail.totalFee || 0);
     const totalPaid = Number(detail.paidAmount || 0);
-    const outstanding = Math.max(0, totalFee - totalPaid);
-    const progress = totalFee ? Math.round((totalPaid / totalFee) * 100) : 0;
-    return { totalFee, totalPaid, outstanding, progress };
+    const discountAmount = Number(detail.discountAmount || 0);
+    const netTotal = Math.max(0, totalFee - discountAmount);
+    const outstanding = Math.max(0, netTotal - totalPaid);
+    const progress = netTotal ? Math.round((totalPaid / netTotal) * 100) : 0;
+    return { totalFee, totalPaid, discountAmount, netTotal, outstanding, progress };
   }, [detail]);
 
   const formatCurrency = (value = 0) =>
@@ -127,13 +209,15 @@ const StudentFeeDetails = ({ setShowAdminHeader }) => {
       paid: 'bg-green-100 text-green-800',
       partial: 'bg-yellow-100 text-yellow-800',
       due: 'bg-red-100 text-red-800',
+      discounted: 'bg-yellow-100 text-yellow-800',
     };
     return badges[status] || 'bg-gray-100 text-gray-800';
   };
+  const getStatusLabel = (status = '') =>
+    status === 'discounted' ? 'DISCOUNT' : status?.toUpperCase?.() || '';
 
   const markInstallmentPaid = async (idx) => {
     if (!feeRecordId) return;
-    setProcessingIdx(idx);
     try {
       const res = await fetch(
         `${API_BASE}/api/nif/fees/installments/pay/${feeRecordId}`,
@@ -150,20 +234,55 @@ const StudentFeeDetails = ({ setShowAdminHeader }) => {
       if (!res.ok) {
         throw new Error(data.message || 'Failed to mark installment as paid');
       }
-      setDetail(data);
+      await fetchDetails({ silent: true });
     } catch (err) {
       alert(err.message || 'Could not mark as paid');
     } finally {
-      setProcessingIdx(null);
+    }
+  };
+
+  const handleApplyDiscount = async () => {
+    if (!feeRecordId) return;
+    const numericValue = Number(discountValue || 0);
+    if (!Number.isFinite(numericValue) || numericValue < 0) {
+      alert('Enter a valid discount amount');
+      return;
+    }
+    if (detail && numericValue > Number(detail.totalFee || 0)) {
+      alert('Discount cannot exceed the total fee amount');
+      return;
+    }
+
+    setSavingDiscount(true);
+    try {
+      const res = await fetch(
+        `${API_BASE}/api/nif/fees/discount/${feeRecordId}`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            authorization: `Bearer ${localStorage.getItem('token')}`,
+          },
+          body: JSON.stringify({
+            amount: numericValue,
+            note: discountNote,
+          }),
+        }
+      );
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.message || 'Failed to update discount');
+      }
+      await fetchDetails({ silent: true });
+    } catch (err) {
+      alert(err.message || 'Could not update discount');
+    } finally {
+      setSavingDiscount(false);
     }
   };
 
   const generateStatement = () => {
     alert('Implement statement export.');
-  };
-
-  const recordPayment = () => {
-    alert('Hook this up to the collect API if needed.');
   };
 
   if (loading) {
@@ -212,22 +331,13 @@ const StudentFeeDetails = ({ setShowAdminHeader }) => {
               Overview of {student?.name || 'the student'}'s financial record.
             </p>
           </div>
-          <div className="flex items-center gap-3">
-            <button
-              onClick={generateStatement}
-              className="flex items-center gap-2 px-4 py-2 bg-gray-100 text-gray-900 rounded-lg font-medium hover:bg-gray-200 transition-colors"
-            >
-              <Download size={16} />
-              Generate Statement
-            </button>
-            <button
-              onClick={recordPayment}
-              className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors"
-            >
-              <IndianRupee size={16} />
-              Record Payment
-            </button>
-          </div>
+          <button
+            onClick={generateStatement}
+            className="flex items-center gap-2 px-4 py-2 bg-gray-100 text-gray-900 rounded-lg font-medium hover:bg-gray-200 transition-colors"
+          >
+            <Download size={16} />
+            Generate Statement
+          </button>
         </div>
 
         <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 p-4 rounded-xl bg-gray-50 border border-gray-200">
@@ -250,11 +360,17 @@ const StudentFeeDetails = ({ setShowAdminHeader }) => {
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
         <div className="xl:col-span-2 flex flex-col gap-6">
           <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
               <div className="flex flex-col gap-1 p-4 rounded-lg border border-gray-200">
                 <p className="text-gray-600 text-sm font-medium">Total Fees</p>
                 <p className="text-gray-900 text-2xl font-bold">
                   {formatCurrency(totals.totalFee)}
+                </p>
+              </div>
+              <div className="flex flex-col gap-1 p-4 rounded-lg border border-gray-200">
+                <p className="text-gray-600 text-sm font-medium">Discount Applied</p>
+                <p className="text-amber-600 text-2xl font-bold">
+                  {formatCurrency(totals.discountAmount)}
                 </p>
               </div>
               <div className="flex flex-col gap-1 p-4 rounded-lg border border-gray-200">
@@ -283,7 +399,10 @@ const StudentFeeDetails = ({ setShowAdminHeader }) => {
                 />
               </div>
               <p className="text-gray-500 text-sm">
-                {formatCurrency(totals.totalPaid)} of {formatCurrency(totals.totalFee)} paid
+                {formatCurrency(totals.totalPaid)} of {formatCurrency(totals.netTotal)} paid
+              </p>
+              <p className="text-gray-500 text-xs">
+                Net payable after discount: {formatCurrency(totals.netTotal)}
               </p>
             </div>
           </div>
@@ -298,67 +417,91 @@ const StudentFeeDetails = ({ setShowAdminHeader }) => {
               </div>
               {breakdown.length ? (
                 <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                  {breakdown.map((fee, idx) => (
-                    <div
-                      key={`${fee.label}-${idx}`}
-                      className="flex flex-col gap-3 rounded-lg border border-gray-200 bg-white px-4 py-3 shadow-xs"
-                    >
-                      <div className="flex items-start justify-between gap-2">
-                        <div>
-                          <p className="text-sm font-semibold text-gray-900">
-                            {fee.label}
-                          </p>
-                          <p className="text-xs text-gray-500">
-                            {fee.dueMonth || 'Scheduled'}
-                          </p>
-                        </div>
-                        <span
-                          className={`px-2 py-1 rounded-full text-[11px] font-semibold ${getStatusBadge(
-                            fee.status
-                          )}`}
-                        >
-                          {fee.status.toUpperCase()}
-                        </span>
-                      </div>
-                      <div className="grid grid-cols-3 gap-2 text-xs text-gray-600">
-                        <div className="flex flex-col">
-                          <span className="text-[11px] uppercase tracking-wide">
-                            Amount
-                          </span>
-                          <span className="font-semibold text-gray-900">
-                            {formatCurrency(fee.amount)}
-                          </span>
-                        </div>
-                        <div className="flex flex-col">
-                          <span className="text-[11px] uppercase tracking-wide text-green-700">
-                            Paid
-                          </span>
-                          <span className="font-semibold text-green-700">
-                            {formatCurrency(fee.paid)}
-                          </span>
-                        </div>
-                        <div className="flex flex-col">
-                          <span className="text-[11px] uppercase tracking-wide text-red-700">
-                            Remaining
-                          </span>
-                          <span className="font-semibold text-red-700">
-                            {formatCurrency(fee.outstanding)}
-                          </span>
-                        </div>
-                      </div>
-                      <button
-                        onClick={() => markInstallmentPaid(idx)}
-                        disabled={fee.status === 'paid'}
-                        className={`text-xs font-semibold self-start ${
-                          fee.status === 'paid'
-                            ? 'text-gray-400 cursor-not-allowed'
-                            : 'text-blue-600 hover:underline'
+                  {breakdown.map((fee, idx) => {
+                    const isDiscountImpacted =
+                      fee.discountImpact > 0 || fee.status === 'discounted';
+                    const statusForDisplay = isDiscountImpacted ? 'discounted' : fee.status;
+
+                    return (
+                      <div
+                        key={`${fee.label}-${idx}`}
+                        className={`flex flex-col gap-3 rounded-lg border px-4 py-3 shadow-xs ${
+                          isDiscountImpacted
+                            ? 'border-amber-200 bg-amber-50/60'
+                            : 'border-gray-200 bg-white'
                         }`}
                       >
-                        {fee.status === 'paid' ? 'Completed' : 'Mark as Paid'}
-                      </button>
-                    </div>
-                  ))}
+                        <div className="flex items-start justify-between gap-2">
+                          <div>
+                            <p className="text-sm font-semibold text-gray-900">
+                              {fee.label}
+                            </p>
+                            <p className="text-xs text-gray-500">
+                              {fee.dueMonth || 'Scheduled'}
+                            </p>
+                            {isDiscountImpacted && (
+                              <p className="text-[11px] text-amber-600 font-semibold">
+                                Discount applied
+                                {fee.discountImpact > 0 && (
+                                  <span className="ml-1 font-normal text-amber-700">
+                                    ({formatCurrency(fee.discountImpact)})
+                                  </span>
+                                )}
+                              </p>
+                            )}
+                          </div>
+                          <span
+                            className={`px-2 py-1 rounded-full text-[11px] font-semibold ${getStatusBadge(
+                              statusForDisplay
+                            )}`}
+                          >
+                            {getStatusLabel(statusForDisplay)}
+                          </span>
+                        </div>
+                        <div className="grid grid-cols-3 gap-2 text-xs text-gray-600">
+                          <div className="flex flex-col">
+                            <span className="text-[11px] uppercase tracking-wide">
+                              Amount
+                            </span>
+                            <span className="font-semibold text-gray-900">
+                              {formatCurrency(fee.amount)}
+                            </span>
+                          </div>
+                          <div className="flex flex-col">
+                            <span className="text-[11px] uppercase tracking-wide text-green-700">
+                              Paid
+                            </span>
+                            <span className="font-semibold text-green-700">
+                              {formatCurrency(fee.paid)}
+                            </span>
+                          </div>
+                          <div className="flex flex-col">
+                            <span className="text-[11px] uppercase tracking-wide text-red-700">
+                              Remaining
+                            </span>
+                            <span className="font-semibold text-red-700">
+                              {formatCurrency(fee.outstanding)}
+                            </span>
+                          </div>
+                        </div>
+                        <button
+                          onClick={() => markInstallmentPaid(idx)}
+                          disabled={['paid', 'discounted'].includes(fee.status)}
+                          className={`text-xs font-semibold self-start ${
+                            ['paid', 'discounted'].includes(fee.status)
+                              ? 'text-gray-400 cursor-not-allowed'
+                              : 'text-blue-600 hover:underline'
+                          }`}
+                        >
+                          {['paid', 'discounted'].includes(fee.status)
+                            ? fee.status === 'discounted'
+                              ? 'Discounted'
+                              : 'Completed'
+                            : 'Mark as Paid'}
+                        </button>
+                      </div>
+                    );
+                  })}
                 </div>
               ) : (
                 <p className="text-sm text-gray-500">No fee breakup available.</p>
@@ -384,47 +527,65 @@ const StudentFeeDetails = ({ setShowAdminHeader }) => {
                 </thead>
                 <tbody className="divide-y divide-gray-200">
                   {breakdown.length ? (
-                    breakdown.map((fee, idx) => (
-                      <tr key={`${fee.label}-${idx}`} className="hover:bg-gray-50">
-                        <td className="p-4 w-4">
-                          <input
-                            type="checkbox"
-                            className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500"
-                          />
-                        </td>
-                        <td className="px-6 py-3 text-gray-900 font-medium">
-                          {fee.label}
-                        </td>
-                        <td className="px-6 py-3 text-gray-500 flex items-center gap-2">
-                          <Calendar size={14} />
-                          {fee.dueMonth || 'Scheduled'}
-                        </td>
-                        <td className="px-6 py-3 text-gray-900">
-                          {formatCurrency(fee.amount)}
-                        </td>
-                        <td className="px-6 py-3">
-                          <span
-                            className={`inline-flex px-3 py-1 rounded-full text-xs font-medium ${getStatusBadge(
-                              fee.status
-                            )}`}
-                          >
-                            {fee.status.toUpperCase()}
-                          </span>
-                        </td>
-                        <td className="px-6 py-3 text-right">
-                          {fee.status === 'paid' ? (
-                            <span className="text-gray-400 italic">Completed</span>
-                          ) : (
-                            <button
-                              onClick={() => markInstallmentPaid(idx)}
-                              className="font-medium text-blue-600 hover:underline"
+                    breakdown.map((fee, idx) => {
+                      const isDiscountImpacted =
+                        fee.discountImpact > 0 || fee.status === 'discounted';
+                      const statusForDisplay = isDiscountImpacted ? 'discounted' : fee.status;
+
+                      return (
+                        <tr
+                          key={`${fee.label}-${idx}`}
+                          className={`${
+                            isDiscountImpacted ? 'bg-amber-50/70' : 'hover:bg-gray-50'
+                          }`}
+                        >
+                          <td className="p-4 w-4">
+                            <input
+                              type="checkbox"
+                              className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500"
+                            />
+                          </td>
+                          <td className="px-6 py-3 text-gray-900 font-medium">
+                            {fee.label}
+                            {isDiscountImpacted && (
+                              <span className="ml-2 text-[11px] font-semibold text-amber-600 bg-amber-100 px-2 py-0.5 rounded-full">
+                                Discounted
+                              </span>
+                            )}
+                          </td>
+                          <td className="px-6 py-3 text-gray-500 flex items-center gap-2">
+                            <Calendar size={14} />
+                            {fee.dueMonth || 'Scheduled'}
+                          </td>
+                          <td className="px-6 py-3 text-gray-900">
+                            {formatCurrency(fee.amount)}
+                          </td>
+                          <td className="px-6 py-3">
+                            <span
+                              className={`inline-flex px-3 py-1 rounded-full text-xs font-medium ${getStatusBadge(
+                                statusForDisplay
+                              )}`}
                             >
-                              Mark as Paid
-                            </button>
-                          )}
-                        </td>
-                      </tr>
-                    ))
+                              {getStatusLabel(statusForDisplay)}
+                            </span>
+                          </td>
+                          <td className="px-6 py-3 text-right">
+                            {['paid', 'discounted'].includes(fee.status) ? (
+                              <span className="text-gray-400 italic">
+                                {fee.status === 'discounted' ? 'Discounted' : 'Completed'}
+                              </span>
+                            ) : (
+                              <button
+                                onClick={() => markInstallmentPaid(idx)}
+                                className="font-medium text-blue-600 hover:underline"
+                              >
+                                Mark as Paid
+                              </button>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })
                   ) : (
                     <tr>
                       <td
@@ -442,6 +603,51 @@ const StudentFeeDetails = ({ setShowAdminHeader }) => {
         </div>
 
         <div className="flex flex-col gap-6">
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+            <h3 className="text-lg font-bold text-gray-900 mb-2">Fee Discount</h3>
+            <p className="text-sm text-gray-600">
+              Current discount: {formatCurrency(detail?.discountAmount || 0)} • Net payable:{' '}
+              {formatCurrency(totals.netTotal)}
+            </p>
+            <p className="text-xs text-gray-500 mt-1">
+              {detail?.discountNote ? `Note: ${detail.discountNote}` : 'No discount note added yet.'}
+            </p>
+
+            <div className="mt-4 space-y-3">
+              <div className="flex flex-col gap-1">
+                <label className="text-sm font-medium text-gray-700">Discount Amount</label>
+                <input
+                  type="number"
+                  min="0"
+                  max={detail?.totalFee || undefined}
+                  value={discountValue}
+                  onChange={(e) => setDiscountValue(e.target.value)}
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="Enter amount"
+                />
+                <span className="text-xs text-gray-400">
+                  Max allowed: {formatCurrency(detail?.totalFee || 0)}
+                </span>
+              </div>
+              <div className="flex flex-col gap-1">
+                <label className="text-sm font-medium text-gray-700">Note (optional)</label>
+                <input
+                  type="text"
+                  value={discountNote}
+                  onChange={(e) => setDiscountNote(e.target.value)}
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="Reason for discount"
+                />
+              </div>
+              <button
+                onClick={handleApplyDiscount}
+                disabled={savingDiscount}
+                className="w-full inline-flex items-center justify-center gap-2 rounded-lg bg-emerald-600 text-white px-4 py-2 text-sm font-semibold hover:bg-emerald-700 disabled:bg-gray-300"
+              >
+                {savingDiscount ? 'Saving...' : 'Apply Discount'}
+              </button>
+            </div>
+          </div>
 
           <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
             <h3 className="text-lg font-bold text-gray-900 mb-4">Payment History</h3>
@@ -480,8 +686,12 @@ const StudentFeeDetails = ({ setShowAdminHeader }) => {
             <div className="space-y-3 text-sm text-gray-600">
               <div className="flex items-center justify-between">
                 <span>Status</span>
-                <span className="px-3 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-700">
-                  {detail?.status?.toUpperCase()}
+                <span
+                  className={`px-3 py-1 rounded-full text-xs font-medium ${getStatusBadge(
+                    detail?.status
+                  )}`}
+                >
+                  {getStatusLabel(detail?.status)}
                 </span>
               </div>
               <div className="flex items-center justify-between">

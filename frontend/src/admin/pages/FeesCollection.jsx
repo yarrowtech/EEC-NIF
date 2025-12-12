@@ -238,61 +238,6 @@ const NifFeesCollection = ({ setShowAdminHeader }) => {
     return { totalStudents, totalDue, totalCollected, totalPending };
   }, [records]);
 
-  const handleCollectFees = async (record) => {
-    if (!record?.feeRecordId) return;
-    const input = window.prompt(
-      `Enter amount to collect for ${record.name}`,
-      record.dueAmount || ''
-    );
-    if (!input) return;
-    const amount = Number(input);
-    if (!amount || amount <= 0) {
-      alert('Enter a valid amount');
-      return;
-    }
-    if (amount > (record.dueAmount || 0)) {
-      alert('Amount cannot exceed due amount');
-      return;
-    }
-    const method =
-      window.prompt('Enter payment method (cash/card/upi/...):', 'cash') ||
-      'cash';
-
-    try {
-      const res = await fetch(
-        `${API_BASE}/api/nif/fees/collect/${record.feeRecordId}`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            authorization: `Bearer ${localStorage.getItem('token')}`,
-          },
-          body: JSON.stringify({ amount, method }),
-        }
-      );
-      const data = await res.json();
-      if (!res.ok) {
-        throw new Error(data.message || 'Payment failed');
-      }
-      setRecords((prev) =>
-        prev.map((item) =>
-          item.feeRecordId === record.feeRecordId
-            ? {
-                ...item,
-                paidAmount: data.paidAmount,
-                dueAmount: data.dueAmount,
-                status: data.status,
-                lastPayment: data.lastPayment,
-              }
-            : item
-        )
-      );
-      alert('Payment collected successfully');
-    } catch (err) {
-      alert(err.message || 'Failed to collect payment');
-    }
-  };
-
   const handleViewDetails = (record) => {
     if (!record?.feeRecordId) return;
     navigate(`/admin/fees/student-details?record=${record.feeRecordId}`, {
@@ -394,17 +339,22 @@ const NifFeesCollection = ({ setShowAdminHeader }) => {
     },
   ];
 
-  const getStatusChip = (status) => {
-    switch (status) {
-      case 'paid':
-        return 'bg-green-100 text-green-700';
-      case 'partial':
-        return 'bg-yellow-100 text-yellow-700';
-      case 'due':
-      default:
-        return 'bg-red-100 text-red-700';
-    }
-  };
+const getStatusChip = (status) => {
+  switch (status) {
+    case 'paid':
+      return 'bg-green-100 text-green-700';
+    case 'partial':
+      return 'bg-yellow-100 text-yellow-700';
+    case 'discounted':
+      return 'bg-amber-100 text-amber-700';
+    case 'due':
+    default:
+      return 'bg-red-100 text-red-700';
+  }
+};
+
+const getStatusLabel = (status = '') =>
+  status === 'discounted' ? 'DISCOUNT' : status?.toUpperCase?.() || '';
 
   return (
     <div className="space-y-6">
@@ -642,28 +592,17 @@ const NifFeesCollection = ({ setShowAdminHeader }) => {
                           record.status
                         )}`}
                       >
-                        {record.status?.toUpperCase()}
+                        {getStatusLabel(record.status)}
                       </span>
                     </td>
                     <td className="px-4 py-3 text-center">
-                      <div className="flex items-center justify-center gap-2">
-                        {record.status !== 'paid' && (
-                          <button
-                            onClick={() => handleCollectFees(record)}
-                            className="inline-flex items-center gap-1 px-3 py-1 text-xs font-medium rounded bg-green-600 text-white hover:bg-green-700"
-                          >
-                            <IndianRupee size={12} />
-                            Collect
-                          </button>
-                        )}
-                        <button
-                          onClick={() => handleViewDetails(record)}
-                          className="inline-flex items-center gap-1 px-3 py-1 text-xs font-medium rounded border border-purple-300 hover:bg-green-50 text-black"
-                        >
-                          <Eye size={12} />
-                          Fee Breakup
-                        </button>
-                      </div>
+                      <button
+                        onClick={() => handleViewDetails(record)}
+                        className="inline-flex items-center gap-1 px-3 py-1 text-xs font-medium rounded border border-purple-300 hover:bg-green-50 text-black"
+                      >
+                        <Eye size={12} />
+                        Fee Breakup
+                      </button>
                     </td>
                   </tr>
                 ))}

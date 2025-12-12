@@ -49,7 +49,77 @@ const mapInstallments = (items = []) =>
       inst.outstanding != null ? inst.outstanding : inst.amount - (inst.paid || 0),
     paidOn: inst.paidOn,
     method: inst.method,
+    discountImpact: inst.discountImpact || 0,
   }));
+
+const applyDiscountToInstallments = (items = [], discountAmount = 0) => {
+  const normalized = items.map((inst) => {
+    const amount = Number(inst.amount || 0);
+    const paid = Number(inst.paid || 0);
+    const outstanding =
+      inst.outstanding != null
+        ? Math.max(0, Number(inst.outstanding))
+        : Math.max(0, amount - paid);
+    return {
+      ...inst,
+      amount,
+      paid,
+      outstanding,
+      discountImpact: 0,
+    };
+  });
+
+  let remainingDiscount = Math.max(0, Number(discountAmount || 0));
+  if (!remainingDiscount) {
+    return normalized;
+  }
+
+  for (let idx = normalized.length - 1; idx >= 0; idx -= 1) {
+    if (remainingDiscount <= 0) break;
+    const inst = normalized[idx];
+    if (inst.outstanding <= 0) continue;
+    const reduction = Math.min(inst.outstanding, remainingDiscount);
+    if (reduction <= 0) continue;
+
+    const newOutstanding = inst.outstanding - reduction;
+    inst.outstanding = newOutstanding;
+    inst.amount = inst.paid + newOutstanding;
+    inst.discountImpact += reduction;
+
+    if (newOutstanding === 0) {
+      inst.status = inst.paid > 0 ? 'paid' : 'discounted';
+    } else if (inst.status === 'paid' || inst.status === 'due') {
+      inst.status = 'partial';
+    }
+
+    remainingDiscount -= reduction;
+  }
+
+  return normalized;
+};
+
+const computeDueAmount = (record = {}) => {
+  const total = Number(record.totalFee || 0);
+  const discount = Number(record.discountAmount || 0);
+  const paid = Number(record.paidAmount || 0);
+  return Math.max(0, total - discount - paid);
+};
+
+const recomputeDueAndStatus = (record) => {
+  record.dueAmount = computeDueAmount(record);
+  if (record.dueAmount === 0) {
+    if (record.paidAmount > 0) {
+      record.status = 'paid';
+    } else if (Number(record.discountAmount || 0) > 0) {
+      record.status = 'discounted';
+    } else {
+      record.status = 'paid';
+    }
+  } else {
+    record.status = record.paidAmount > 0 ? 'partial' : 'due';
+  }
+  return record.dueAmount;
+};
 
 const PROGRAM_INSTALLMENTS = {
   ADV_CERT: [
@@ -284,6 +354,8 @@ const ensureFeeRecordForStudent = async (student) => {
   }
   installments = mapInstallments(installments);
 
+  const initialStatus = totalFee === 0 ? 'paid' : 'due';
+
   const record = await NifFeeRecord.create({
     student: student._id,
     programType,
@@ -294,9 +366,10 @@ const ensureFeeRecordForStudent = async (student) => {
     academicYear: student.academicYear || '2025-26',
     yearNumber: 1,
     totalFee,
+    discountAmount: 0,
     paidAmount: 0,
     dueAmount: totalFee,
-    status: 'due',
+    status: initialStatus,
     installmentsSnapshot: installments,
     archived: student.archived || false,
   });
@@ -308,6 +381,7 @@ const getFeeSummary = (record) => ({
   totalFee: record?.totalFee || 0,
   paidAmount: record?.paidAmount || 0,
   dueAmount: record?.dueAmount || 0,
+  discountAmount: record?.discountAmount || 0,
   status: record?.status || 'due',
   lastPayment: record?.lastPayment,
 });
@@ -612,14 +686,42 @@ router.get('/fees/details/:id', adminAuth, async (req, res) => {
       if (!fallbackInstallments.length) {
         fallbackInstallments = PROGRAM_INSTALLMENTS[record.programType] || [];
       }
-      installments = fallbackInstallments;
-      if (fallbackInstallments.length) {
-        record.installmentsSnapshot = fallbackInstallments;
+      installments = mapInstallments(fallbackInstallments);
+      record.installmentsSnapshot = installments;
+      record.markModified('installmentsSnapshot');
+      try {
+        await record.save();
+      } catch (saveErr) {
+        console.warn('Could not persist installmentsSnapshot', saveErr);
+      }
+    }
+
+    const discountToApply = Number(record.discountAmount || 0);
+    if (discountToApply > 0) {
+      const adjusted = applyDiscountToInstallments(installments, discountToApply);
+      const changed =
+        adjusted.length !== installments.length ||
+        adjusted.some((inst, idx) => {
+          const original = installments[idx];
+          return (
+            Number(inst.outstanding || 0) !== Number(original.outstanding || 0) ||
+            Number(inst.amount || 0) !== Number(original.amount || 0) ||
+            Number(inst.discountImpact || 0) !== Number(original.discountImpact || 0) ||
+            (inst.status || '') !== (original.status || '')
+          );
+        });
+
+      if (changed) {
+        record.installmentsSnapshot = adjusted;
+        record.markModified('installmentsSnapshot');
+        installments = adjusted;
         try {
           await record.save();
         } catch (saveErr) {
-          console.warn('Could not persist installmentsSnapshot', saveErr);
+          console.warn('Could not persist discounted installments', saveErr);
         }
+      } else {
+        installments = adjusted;
       }
     }
 
@@ -631,12 +733,12 @@ router.get('/fees/details/:id', adminAuth, async (req, res) => {
       totalFee: obj.totalFee,
       paidAmount: obj.paidAmount,
       dueAmount: obj.dueAmount,
+      discountAmount: obj.discountAmount || 0,
+      discountNote: obj.discountNote || '',
       status: obj.status,
       academicYear: obj.academicYear,
       payments: (obj.payments || []).sort((a, b) => new Date(b.paidOn) - new Date(a.paidOn)),
-      installments: installments.length
-        ? installments
-        : PROGRAM_INSTALLMENTS[record.programType] || [],
+      installments,
       lastPayment: obj.lastPayment,
     });
   } catch (err) {
@@ -646,36 +748,59 @@ router.get('/fees/details/:id', adminAuth, async (req, res) => {
 });
 
 /* ========== 7) COLLECT FEES ========== */
-router.post('/fees/collect/:id', adminAuth, async (req, res) => {
+router.post('/fees/discount/:id', adminAuth, async (req, res) => {
   try {
-    const { amount, method } = req.body;
-    const feeRecord = await NifFeeRecord.findById(req.params.id);
-    if (!feeRecord) {
+    const { amount, note } = req.body || {};
+    const record = await NifFeeRecord.findById(req.params.id);
+    if (!record) {
       return res.status(404).json({ message: 'Fee record not found' });
     }
 
-    const amt = Number(amount);
-    if (!amt || amt <= 0) {
-      return res.status(400).json({ message: 'Invalid amount' });
-    }
-    if (amt > feeRecord.dueAmount) {
-      return res.status(400).json({ message: 'Amount exceeds due' });
+    if (amount === undefined || amount === null) {
+      return res.status(400).json({ message: 'Discount amount is required' });
     }
 
-    feeRecord.paidAmount += amt;
-    feeRecord.dueAmount -= amt;
-    feeRecord.lastPayment = new Date();
-    feeRecord.status = feeRecord.dueAmount === 0 ? 'paid' : 'partial';
-    feeRecord.payments.push({
-      amount: amt,
-      method: method || 'cash',
-    });
+    const discount = Number(amount);
+    if (!Number.isFinite(discount) || discount < 0) {
+      return res.status(400).json({ message: 'Invalid discount amount' });
+    }
+    if (discount > record.totalFee) {
+      return res.status(400).json({ message: 'Discount exceeds total fee' });
+    }
 
-    await feeRecord.save();
-    res.json(feeRecord.toJSON());
+    record.discountAmount = discount;
+    record.discountNote = note ? String(note).trim() : '';
+    recomputeDueAndStatus(record);
+
+    let installments = record.installmentsSnapshot || [];
+    if (!installments.length) {
+      let fallbackInstallments = [];
+      if (record.courseId && mongoose.isValidObjectId(record.courseId)) {
+        const courseDoc = await NifCourse.findById(record.courseId).lean();
+        if (courseDoc?.installments?.length) {
+          fallbackInstallments = courseDoc.installments;
+        }
+      }
+      if (!fallbackInstallments.length && record.student?.feeInstallments?.length) {
+        fallbackInstallments = record.student.feeInstallments;
+      }
+      if (!fallbackInstallments.length) {
+        fallbackInstallments = PROGRAM_INSTALLMENTS[record.programType] || [];
+      }
+      installments = mapInstallments(fallbackInstallments);
+    }
+    const adjustedInstallments = applyDiscountToInstallments(
+      installments,
+      record.discountAmount
+    );
+    record.installmentsSnapshot = adjustedInstallments;
+    record.markModified('installmentsSnapshot');
+
+    await record.save();
+    res.json(record.toJSON());
   } catch (err) {
-    console.error('NIF fee collect error:', err);
-    res.status(500).json({ message: 'Failed to collect payment' });
+    console.error('NIF discount error:', err);
+    res.status(500).json({ message: 'Failed to update discount' });
   }
 });
 
@@ -727,8 +852,7 @@ router.post('/fees/installments/pay/:id', adminAuth, async (req, res) => {
     installment.method = method || 'cash';
 
     record.paidAmount += outstanding;
-    record.dueAmount = Math.max(0, record.totalFee - record.paidAmount);
-    record.status = record.dueAmount === 0 ? 'paid' : 'partial';
+    recomputeDueAndStatus(record);
     record.lastPayment = new Date();
     record.payments.push({
       amount: outstanding,
@@ -783,16 +907,16 @@ router.post('/fees/installments/pay/:id', adminAuth, async (req, res) => {
       return res.status(400).json({ message: 'Installment already paid' });
     }
 
-    if (outstandingForTarget > record.dueAmount) {
+    const currentDue = computeDueAmount(record);
+    if (outstandingForTarget > currentDue) {
       return res
         .status(400)
         .json({ message: 'Payment exceeds outstanding balance' });
     }
 
     record.paidAmount += outstandingForTarget;
-    record.dueAmount = Math.max(0, record.dueAmount - outstandingForTarget);
+    recomputeDueAndStatus(record);
     record.lastPayment = new Date();
-    record.status = record.dueAmount === 0 ? 'paid' : 'partial';
     record.payments.push({
       amount: outstandingForTarget,
       method: method || 'cash',
