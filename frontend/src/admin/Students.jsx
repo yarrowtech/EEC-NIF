@@ -29,6 +29,7 @@ import {
   FileDown,
   Archive,
   RotateCcw,
+  Trash2,
 } from "lucide-react";
 import Swal from "sweetalert2";
 
@@ -52,6 +53,7 @@ const Students = ({ setShowAdminHeader }) => {
   const [showArchiveModal, setShowArchiveModal] = useState(false);
   const [archiveActionLoading, setArchiveActionLoading] = useState(false);
   const [isArchiving, setIsArchiving] = useState(false);
+  const [deletingId, setDeletingId] = useState(null);
 
   const [newStudent, setNewStudent] = useState({
     // core
@@ -291,6 +293,66 @@ const Students = ({ setShowAdminHeader }) => {
       });
     } finally {
       setIsArchiving(false);
+    }
+  };
+
+  const handleDeleteStudent = async (student) => {
+    if (!student?._id || deletingId) return;
+
+    const firstConfirm = await Swal.fire({
+      title: "Delete student?",
+      text: `This will remove ${student.name} from students list.`,
+      icon: "warning",
+      showCancelButton: true,
+      confirmButtonColor: "#d33",
+      cancelButtonColor: "#3085d6",
+      confirmButtonText: "Delete",
+    });
+    if (!firstConfirm.isConfirmed) return;
+
+    const secondConfirm = await Swal.fire({
+      title: "Are you absolutely sure?",
+      text: "Click delete again to permanently remove all associated records.",
+      icon: "error",
+      showCancelButton: true,
+      confirmButtonColor: "#b91c1c",
+      cancelButtonColor: "#6b7280",
+      confirmButtonText: "Delete permanently",
+    });
+    if (!secondConfirm.isConfirmed) return;
+
+    setDeletingId(student._id);
+    try {
+      const res = await fetch(`${API_BASE}/api/nif/students/${student._id}`, {
+        method: "DELETE",
+        headers: {
+          "Content-Type": "application/json",
+          authorization: `Bearer ${localStorage.getItem("token")}`,
+        },
+      });
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.message || "Failed to delete student");
+      }
+
+      await Swal.fire({
+        title: "Deleted",
+        text: `${student.name} and associated fee records have been removed.`,
+        icon: "success",
+        timer: 2000,
+        showConfirmButton: false,
+      });
+      await refreshStudents();
+    } catch (err) {
+      console.error(err);
+      Swal.fire({
+        title: "Error",
+        text: err.message || "Failed to delete student",
+        icon: "error",
+      });
+    } finally {
+      setDeletingId(null);
     }
   };
 
@@ -789,14 +851,24 @@ const Students = ({ setShowAdminHeader }) => {
                     {formatCurrency(student.feeSummary?.dueAmount)}
                   </td>
                   <td className="border-b border-yellow-100 px-6 py-4">
-                    <button
-                      onClick={() => handleArchiveStudent(student)}
-                      disabled={isArchiving}
-                      className="inline-flex items-center gap-2 px-3 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-sm transition-colors disabled:opacity-50"
-                    >
-                      <Archive size={14} />
-                      {isArchiving ? "Archiving..." : "Archive"}
-                    </button>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => handleArchiveStudent(student)}
+                        disabled={isArchiving}
+                        className="inline-flex items-center gap-2 px-3 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-sm transition-colors disabled:opacity-50"
+                      >
+                        <Archive size={14} />
+                        {isArchiving ? "Archiving..." : "Archive"}
+                      </button>
+                      <button
+                        onClick={() => handleDeleteStudent(student)}
+                        disabled={!!deletingId}
+                        className="inline-flex items-center gap-2 px-3 py-1.5 bg-red-50 text-red-700 hover:bg-red-100 rounded-lg text-sm transition-colors disabled:opacity-50"
+                      >
+                        <Trash2 size={14} />
+                        {deletingId === student._id ? "Deleting..." : "Delete"}
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}

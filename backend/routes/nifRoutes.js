@@ -268,6 +268,43 @@ const deriveProgramMeta = (body = {}, courseDoc = {}) => {
   };
 };
 
+const purgeNamelessStudents = async () => {
+  const namelessQuery = {
+    $or: [
+      { name: { $exists: false } },
+      { name: null },
+      { name: '' },
+      { name: { $regex: /^\s*$/ } },
+    ],
+  };
+  const nameless = await NifStudent.find(namelessQuery).select('_id').lean();
+  if (!nameless.length) return 0;
+  const ids = nameless.map((doc) => doc._id);
+  await Promise.all([
+    NifStudent.deleteMany({ _id: { $in: ids } }),
+    NifFeeRecord.deleteMany({ student: { $in: ids } }),
+  ]);
+  return ids.length;
+};
+
+const purgeOrphanFeeRecords = async () => {
+  const validStudentIds = await NifStudent.find()
+    .distinct('_id')
+    .catch(() => []);
+  if (!validStudentIds || !validStudentIds.length) {
+    const result = await NifFeeRecord.deleteMany({});
+    return result.deletedCount || 0;
+  }
+  const result = await NifFeeRecord.deleteMany({
+    $or: [
+      { student: { $exists: false } },
+      { student: null },
+      { student: { $nin: validStudentIds } },
+    ],
+  });
+  return result.deletedCount || 0;
+};
+
 const buildStudentDoc = (body, courseDoc) => {
   const meta = deriveProgramMeta(body, courseDoc);
 
@@ -426,6 +463,30 @@ router.post('/students', adminAuth, async (req, res) => {
   }
 });
 
+router.delete('/students/:id', adminAuth, async (req, res) => {
+  try {
+    const { id } = req.params;
+    if (!mongoose.isValidObjectId(id)) {
+      return res.status(400).json({ message: 'Invalid student id' });
+    }
+
+    const student = await NifStudent.findById(id);
+    if (!student) {
+      return res.status(404).json({ message: 'Student not found' });
+    }
+
+    await Promise.all([
+      NifFeeRecord.deleteMany({ student: id }),
+      NifStudent.findByIdAndDelete(id),
+    ]);
+
+    res.json({ success: true });
+  } catch (err) {
+    console.error('NIF delete student error:', err);
+    res.status(500).json({ message: 'Failed to delete student' });
+  }
+});
+
 /* ========== 2) BULK IMPORT STUDENTS ========== */
 router.post('/students/bulk', adminAuth, async (req, res) => {
   try {
@@ -507,6 +568,12 @@ router.post('/students/bulk', adminAuth, async (req, res) => {
 /* ========== 3) LIST NIF STUDENTS (searchable) ========== */
 router.get('/students', adminAuth, async (req, res) => {
   try {
+    await purgeNamelessStudents().catch((err) =>
+      console.warn('Failed to purge nameless students', err)
+    );
+    await purgeOrphanFeeRecords().catch((err) =>
+      console.warn('Failed to purge orphan fee records', err)
+    );
     const q = sanitizeString(req.query.q);
     const filter = {};
 
@@ -591,6 +658,12 @@ router.get('/students/:id', adminAuth, async (req, res) => {
 /* ========== 5) LIST FEE RECORDS (for Fees Collection UI) ========== */
 router.get('/fees', adminAuth, async (req, res) => {
   try {
+    await purgeNamelessStudents().catch((err) =>
+      console.warn('Failed to purge nameless students', err)
+    );
+    await purgeOrphanFeeRecords().catch((err) =>
+      console.warn('Failed to purge orphan fee records', err)
+    );
     const allStudents = await NifStudent.find().lean();
     const studentsWithRecords = await NifFeeRecord.find(
       {},
@@ -694,24 +767,21 @@ router.get('/fees/details/:id', adminAuth, async (req, res) => {
       } catch (saveErr) {
         console.warn('Could not persist installmentsSnapshot', saveErr);
       }
+    } else {
+      installments = mapInstallments(installments);
     }
 
     const discountToApply = Number(record.discountAmount || 0);
     if (discountToApply > 0) {
-      const adjusted = applyDiscountToInstallments(installments, discountToApply);
-      const changed =
-        adjusted.length !== installments.length ||
-        adjusted.some((inst, idx) => {
-          const original = installments[idx];
-          return (
-            Number(inst.outstanding || 0) !== Number(original.outstanding || 0) ||
-            Number(inst.amount || 0) !== Number(original.amount || 0) ||
-            Number(inst.discountImpact || 0) !== Number(original.discountImpact || 0) ||
-            (inst.status || '') !== (original.status || '')
-          );
-        });
-
-      if (changed) {
+      const hasDiscountMeta = installments.some(
+        (inst) =>
+          Number(inst.discountImpact || 0) > 0 || inst.status === 'discounted'
+      );
+      if (!hasDiscountMeta) {
+        const adjusted = applyDiscountToInstallments(
+          installments,
+          discountToApply
+        );
         record.installmentsSnapshot = adjusted;
         record.markModified('installmentsSnapshot');
         installments = adjusted;
@@ -720,8 +790,6 @@ router.get('/fees/details/:id', adminAuth, async (req, res) => {
         } catch (saveErr) {
           console.warn('Could not persist discounted installments', saveErr);
         }
-      } else {
-        installments = adjusted;
       }
     }
 

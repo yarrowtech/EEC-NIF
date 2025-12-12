@@ -418,9 +418,11 @@ const StudentFeeDetails = ({ setShowAdminHeader }) => {
               {breakdown.length ? (
                 <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                   {breakdown.map((fee, idx) => {
+                    const discountImpact = Number(fee.discountImpact || 0);
                     const isDiscountImpacted =
-                      fee.discountImpact > 0 || fee.status === 'discounted';
+                      discountImpact > 0 || fee.status === 'discounted';
                     const statusForDisplay = isDiscountImpacted ? 'discounted' : fee.status;
+                    const canMarkPaid = Number(fee.outstanding || 0) > 0;
 
                     return (
                       <div
@@ -442,9 +444,9 @@ const StudentFeeDetails = ({ setShowAdminHeader }) => {
                             {isDiscountImpacted && (
                               <p className="text-[11px] text-amber-600 font-semibold">
                                 Discount applied
-                                {fee.discountImpact > 0 && (
+                                {discountImpact > 0 && (
                                   <span className="ml-1 font-normal text-amber-700">
-                                    ({formatCurrency(fee.discountImpact)})
+                                    ({formatCurrency(discountImpact)})
                                   </span>
                                 )}
                               </p>
@@ -486,18 +488,18 @@ const StudentFeeDetails = ({ setShowAdminHeader }) => {
                         </div>
                         <button
                           onClick={() => markInstallmentPaid(idx)}
-                          disabled={['paid', 'discounted'].includes(fee.status)}
+                          disabled={!canMarkPaid}
                           className={`text-xs font-semibold self-start ${
-                            ['paid', 'discounted'].includes(fee.status)
-                              ? 'text-gray-400 cursor-not-allowed'
-                              : 'text-blue-600 hover:underline'
+                            canMarkPaid
+                              ? 'text-blue-600 hover:underline'
+                              : 'text-gray-400 cursor-not-allowed'
                           }`}
                         >
-                          {['paid', 'discounted'].includes(fee.status)
-                            ? fee.status === 'discounted'
-                              ? 'Discounted'
-                              : 'Completed'
-                            : 'Mark as Paid'}
+                          {canMarkPaid
+                            ? 'Mark as Paid'
+                            : statusForDisplay === 'discounted'
+                            ? 'Discounted'
+                            : 'Completed'}
                         </button>
                       </div>
                     );
@@ -528,9 +530,11 @@ const StudentFeeDetails = ({ setShowAdminHeader }) => {
                 <tbody className="divide-y divide-gray-200">
                   {breakdown.length ? (
                     breakdown.map((fee, idx) => {
+                      const discountImpact = Number(fee.discountImpact || 0);
                       const isDiscountImpacted =
-                        fee.discountImpact > 0 || fee.status === 'discounted';
+                        discountImpact > 0 || fee.status === 'discounted';
                       const statusForDisplay = isDiscountImpacted ? 'discounted' : fee.status;
+                      const canMarkPaid = Number(fee.outstanding || 0) > 0;
 
                       return (
                         <tr
@@ -550,6 +554,11 @@ const StudentFeeDetails = ({ setShowAdminHeader }) => {
                             {isDiscountImpacted && (
                               <span className="ml-2 text-[11px] font-semibold text-amber-600 bg-amber-100 px-2 py-0.5 rounded-full">
                                 Discounted
+                                {discountImpact > 0 && (
+                                  <span className="ml-1 text-amber-700">
+                                    ({formatCurrency(discountImpact)})
+                                  </span>
+                                )}
                               </span>
                             )}
                           </td>
@@ -570,17 +579,17 @@ const StudentFeeDetails = ({ setShowAdminHeader }) => {
                             </span>
                           </td>
                           <td className="px-6 py-3 text-right">
-                            {['paid', 'discounted'].includes(fee.status) ? (
-                              <span className="text-gray-400 italic">
-                                {fee.status === 'discounted' ? 'Discounted' : 'Completed'}
-                              </span>
-                            ) : (
+                            {canMarkPaid ? (
                               <button
                                 onClick={() => markInstallmentPaid(idx)}
                                 className="font-medium text-blue-600 hover:underline"
                               >
                                 Mark as Paid
                               </button>
+                            ) : (
+                              <span className="text-gray-400 italic">
+                                {statusForDisplay === 'discounted' ? 'Discounted' : 'Completed'}
+                              </span>
                             )}
                           </td>
                         </tr>
