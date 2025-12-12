@@ -422,7 +422,9 @@ const StudentFeeDetails = ({ setShowAdminHeader }) => {
                     const isDiscountImpacted =
                       discountImpact > 0 || fee.status === 'discounted';
                     const statusForDisplay = isDiscountImpacted ? 'discounted' : fee.status;
-                    const canMarkPaid = Number(fee.outstanding || 0) > 0;
+                    const isCompletedStatus =
+                      statusForDisplay === 'paid' || statusForDisplay === 'discounted';
+                    const canMarkPaid = !isCompletedStatus;
 
                     return (
                       <div
@@ -534,7 +536,9 @@ const StudentFeeDetails = ({ setShowAdminHeader }) => {
                       const isDiscountImpacted =
                         discountImpact > 0 || fee.status === 'discounted';
                       const statusForDisplay = isDiscountImpacted ? 'discounted' : fee.status;
-                      const canMarkPaid = Number(fee.outstanding || 0) > 0;
+                      const isCompletedStatus =
+                        statusForDisplay === 'paid' || statusForDisplay === 'discounted';
+                      const canMarkPaid = !isCompletedStatus;
 
                       return (
                         <tr

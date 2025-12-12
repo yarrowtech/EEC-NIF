@@ -121,6 +121,40 @@ const recomputeDueAndStatus = (record) => {
   return record.dueAmount;
 };
 
+const syncTotalsFromInstallments = (record, installments = []) => {
+  if (!record || !Array.isArray(installments) || !installments.length) {
+    return false;
+  }
+
+  let totalPaidFromInstallments = 0;
+  installments.forEach((inst) => {
+    const amount = Math.max(0, Number(inst.amount || 0));
+    let paid = Number(inst.paid || 0);
+    if (
+      paid <= 0 &&
+      typeof inst.status === 'string' &&
+      inst.status.toLowerCase() === 'paid'
+    ) {
+      paid = amount;
+    }
+    totalPaidFromInstallments += Math.min(amount, Math.max(0, paid));
+  });
+
+  const normalizedPaid = Math.min(
+    Number(record.totalFee || 0),
+    totalPaidFromInstallments
+  );
+
+  const prevPaid = Number(record.paidAmount || 0);
+  if (Math.abs(normalizedPaid - prevPaid) < 0.5) {
+    return false;
+  }
+
+  record.paidAmount = normalizedPaid;
+  recomputeDueAndStatus(record);
+  return true;
+};
+
 const PROGRAM_INSTALLMENTS = {
   ADV_CERT: [
     { label: 'Admission Fee', amount: 22000, dueMonth: 'Admission' },
@@ -773,15 +807,20 @@ router.get('/fees/details/:id', adminAuth, async (req, res) => {
 
     const discountToApply = Number(record.discountAmount || 0);
     if (discountToApply > 0) {
-      const hasDiscountMeta = installments.some(
-        (inst) =>
-          Number(inst.discountImpact || 0) > 0 || inst.status === 'discounted'
-      );
-      if (!hasDiscountMeta) {
-        const adjusted = applyDiscountToInstallments(
-          installments,
-          discountToApply
-        );
+      const adjusted = applyDiscountToInstallments(installments, discountToApply);
+      const changed =
+        adjusted.length !== installments.length ||
+        adjusted.some((inst, idx) => {
+          const original = installments[idx];
+          return (
+            Number(inst.outstanding || 0) !== Number(original.outstanding || 0) ||
+            Number(inst.amount || 0) !== Number(original.amount || 0) ||
+            Number(inst.discountImpact || 0) !== Number(original.discountImpact || 0) ||
+            (inst.status || '') !== (original.status || '')
+          );
+        });
+
+      if (changed) {
         record.installmentsSnapshot = adjusted;
         record.markModified('installmentsSnapshot');
         installments = adjusted;
@@ -790,6 +829,17 @@ router.get('/fees/details/:id', adminAuth, async (req, res) => {
         } catch (saveErr) {
           console.warn('Could not persist discounted installments', saveErr);
         }
+      } else {
+        installments = adjusted;
+      }
+    }
+
+    const totalsUpdated = syncTotalsFromInstallments(record, installments);
+    if (totalsUpdated) {
+      try {
+        await record.save();
+      } catch (saveErr) {
+        console.warn('Could not persist totals sync', saveErr);
       }
     }
 
@@ -863,6 +913,14 @@ router.post('/fees/discount/:id', adminAuth, async (req, res) => {
     );
     record.installmentsSnapshot = adjustedInstallments;
     record.markModified('installmentsSnapshot');
+    const totalsUpdated = syncTotalsFromInstallments(
+      record,
+      adjustedInstallments
+    );
+
+    if (totalsUpdated) {
+      record.markModified('installmentsSnapshot');
+    }
 
     await record.save();
     res.json(record.toJSON());

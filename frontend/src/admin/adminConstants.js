@@ -88,8 +88,7 @@ export const ADMIN_MENU_ITEMS = [
   { 
     icon: ClipboardList, 
     label: 'Lesson Plan', 
-    path: '/admin/lesson-plans',
-    hasSubmenu: true
+    path: '/admin/lesson-plans'
   },
   { 
     icon: FileText, 

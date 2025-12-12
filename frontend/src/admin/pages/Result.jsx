@@ -1,9 +1,11 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { ChevronDown, Download, FileText } from 'lucide-react';
-import jsPDF from 'jspdf';
+import { jsPDF } from 'jspdf';
 
 const Result = ({ setShowAdminHeader }) => {
-  setShowAdminHeader(true);
+  useEffect(() => {
+    setShowAdminHeader?.(true);
+  }, [setShowAdminHeader]);
   
   const [selectedClass, setSelectedClass] = useState('');
   const [selectedSection, setSelectedSection] = useState('');
