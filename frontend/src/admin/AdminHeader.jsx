@@ -23,35 +23,29 @@ const AdminHeader = ({ adminUser }) => {
   }, []);
 
   const handleLogout = () => {
-    // Clear any auth tokens or user data here if needed
-    localStorage.removeItem('token'); // Example: remove JWT token
-    // Redirect to login page
+    localStorage.removeItem('token');
     navigate('/');
   };
 
   return (
-    <div className={`border-b border-gray-200 max-w-[95vw] box-border`}>
-      <header className="bg-white py-3 px-6 w-full box-border">
-        <div className="flex items-center justify-between w-full">
-          {/* Left Section */}
-          <div className="flex items-center gap-4">
-            {/* Search Bar */}
-            <div className="hidden md:flex items-center">
-              <div className="relative">
+    <div className="border-b border-gray-200 shadow-sm bg-white">
+      <header className="py-4 px-6 w-full box-border">
+        <div className="flex items-center justify-between w-full gap-4">
+          <div className="flex items-center gap-4 flex-1">
+            <div className="hidden md:flex items-center flex-1">
+              <div className="relative w-full max-w-md">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
                 <input
                   type="text"
                   placeholder="Search..."
-                  className="pl-10 pr-4 py-2 border border-gray-200 rounded-lg w-[300px] focus:outline-none focus:ring-2 focus:ring-yellow-500 focus:border-transparent"
+                  className="pl-10 pr-4 py-2 border border-gray-200 rounded-2xl w-full focus:outline-none focus:ring-2 focus:ring-yellow-500 focus:border-transparent bg-gray-50"
                 />
               </div>
             </div>
           </div>
 
-          {/* Right Section */}
           <div className="flex items-center space-x-4">
-            {/* Current Date & Time */}
-            <div className="hidden md:flex items-center gap-2 px-3 py-2 rounded-lg">
+            <div className="hidden md:flex items-center gap-2 px-3 py-2 rounded-xl bg-gray-50">
               <Clock size={18} className="text-gray-500" />
               <span className="text-sm font-medium text-gray-700">
                 {now.toLocaleDateString(undefined, { weekday: 'long' })}
@@ -63,17 +57,15 @@ const AdminHeader = ({ adminUser }) => {
                 {now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
               </span>
             </div>
-            {/* Language Selector */}
-            <div className="hidden md:flex items-center gap-2 px-3 py-2 hover:bg-gray-50 rounded-lg cursor-pointer">
+            <div className="hidden md:flex items-center gap-2 px-3 py-2 hover:bg-gray-50 rounded-xl cursor-pointer border border-gray-100">
               <Globe size={20} className="text-gray-500" />
               <span className="text-sm text-gray-600 font-medium">English</span>
               <ChevronDown size={16} className="text-gray-400" />
             </div>
 
-            {/* Notifications */}
             <div className="relative">
               <button 
-                className="p-2 hover:bg-gray-100 rounded-lg text-gray-600 relative"
+                className="p-2 hover:bg-gray-100 rounded-xl text-gray-600 relative border border-gray-100"
                 onClick={() => setShowNotifications(!showNotifications)}
               >
                 <Bell size={20} />
@@ -81,12 +73,11 @@ const AdminHeader = ({ adminUser }) => {
               </button>
               
               {showNotifications && (
-                <div className="absolute right-0 mt-2 w-80 bg-white rounded-lg shadow-lg border border-gray-200 py-2 z-50">
+                <div className="absolute right-0 mt-2 w-80 bg-white rounded-xl shadow-lg border border-gray-200 py-2 z-50">
                   <div className="px-4 py-2 border-b border-gray-200">
                     <h3 className="font-semibold text-gray-900">Notifications</h3>
                   </div>
                   <div className="max-h-[300px] overflow-y-auto">
-                    {/* Sample Notifications */}
                     <div className="px-4 py-3 hover:bg-gray-50 cursor-pointer">
                       <p className="text-sm text-gray-800">New student registration request</p>
                       <p className="text-xs text-gray-500 mt-1">2 minutes ago</p>
@@ -100,16 +91,14 @@ const AdminHeader = ({ adminUser }) => {
               )}
             </div>
 
-            {/* Messages */}
-            <button className="p-2 hover:bg-gray-100 rounded-lg text-gray-600 relative">
+            <button className="p-2 hover:bg-gray-100 rounded-xl text-gray-600 relative border border-gray-100">
               <MessageSquare size={20} />
               <span className="absolute top-1 right-1 w-2 h-2 bg-yellow-500 rounded-full"></span>
             </button>
 
-            {/* Profile Menu */}
             <div className="relative">
               <button
-                className="flex items-center gap-2 hover:bg-gray-50 rounded-lg py-2 px-3"
+                className="flex items-center gap-2 hover:bg-gray-50 rounded-2xl py-2 px-3 border border-gray-100"
                 onClick={() => setShowProfileMenu(!showProfileMenu)}
               >
                 <div className="w-8 h-8 rounded-full bg-yellow-100 flex items-center justify-center">
@@ -127,7 +116,7 @@ const AdminHeader = ({ adminUser }) => {
               </button>
 
               {showProfileMenu && (
-                <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-gray-200 py-2 z-50">
+                <div className="absolute right-0 mt-2 w-48 bg-white rounded-xl shadow-lg border border-gray-200 py-2 z-50">
                   <button className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2">
                     <Settings size={16} className="text-gray-400" />
                     Settings

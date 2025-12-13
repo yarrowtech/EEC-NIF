@@ -35,7 +35,7 @@ import Swal from "sweetalert2";
 
 const API_BASE = import.meta.env.VITE_API_URL;
 
-const STUDENTS_PER_PAGE = 12;
+const STUDENTS_PER_PAGE = 5;
 
 const Students = ({ setShowAdminHeader, setShowAdminBreadcrumb }) => {
   const navigate = useNavigate(); 
@@ -744,8 +744,8 @@ const Students = ({ setShowAdminHeader, setShowAdminBreadcrumb }) => {
 
   /* -------------------- UI -------------------- */
   return (
-    <div className="h-full w-full bg-gradient-to-br from-yellow-50 via-yellow-100 to-amber-100 p-0 overflow-hidden">
-      <div className="h-full w-full bg-white/95 p-6 flex flex-col overflow-hidden">
+    <div className="-m-4 lg:-m-8 flex-1 bg-white overflow-hidden flex flex-col">
+      <div className="w-full flex-1 flex flex-col p-4 lg:p-6 overflow-hidden text-[1.02rem]">
         {/* Header */}
         <div className="flex flex-wrap gap-3 justify-between items-center mb-6 flex-shrink-0">
           <div>
@@ -796,7 +796,7 @@ const Students = ({ setShowAdminHeader, setShowAdminBreadcrumb }) => {
             </button>
           </div>
         </div>
-        <div className="flex-1 flex flex-col overflow-hidden">
+        <div className="flex-1 flex flex-col min-h-0">
           {/* Search */}
           <div className="mb-4 flex flex-wrap items-center gap-4 flex-shrink-0">
             <div className="flex-1 min-w-[240px] relative">
@@ -815,7 +815,7 @@ const Students = ({ setShowAdminHeader, setShowAdminBreadcrumb }) => {
           </div>
 
           {/* Students Table */}
-          <div className="overflow-x-auto flex-1">
+          <div className="flex-1 overflow-x-auto overflow-y-auto">
             <table className="w-full border-collapse">
               <thead>
                 <tr className="bg-yellow-50">
@@ -932,7 +932,7 @@ const Students = ({ setShowAdminHeader, setShowAdminBreadcrumb }) => {
           </div>
 
           {/* Pagination */}
-          <div className="mt-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between flex-shrink-0">
+          <div className="mt-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between flex-shrink-0 mt-auto pt-4 border-t border-yellow-100">
             <div className="text-gray-600 text-sm">
               {filteredStudents.length === 0
                 ? "No students to display"
