@@ -1,10 +1,9 @@
-import React, { useState, useEffect } from 'react';
-import { 
-  Calendar, 
-  Download, 
-  Bell, 
-  TrendingUp, 
-  TrendingDown,
+import React, { useState, useEffect, useMemo } from 'react';
+import {
+  Calendar,
+  Download,
+  Bell,
+  TrendingUp,
   DollarSign,
   Users,
   AlertCircle,
@@ -12,8 +11,10 @@ import {
   Search,
   ArrowUp,
   CheckCircle,
-  Clock
+  Clock,
 } from 'lucide-react';
+
+const API_BASE = import.meta.env.VITE_API_URL;
 
 const FeesDashboard = ({ setShowAdminHeader }) => {
   useEffect(() => {
@@ -22,153 +23,146 @@ const FeesDashboard = ({ setShowAdminHeader }) => {
 
   const [searchTerm, setSearchTerm] = useState('');
   const [dateRange, setDateRange] = useState('Last 30 Days');
+  const [summary, setSummary] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
 
-  // Mock data based on the reference dashboard
-  const kpiData = {
-    totalOutstanding: 450230.50,
-    monthlyCollection: 1280600.00,
-    overduePayments: 124,
-    totalEnrolled: 2458,
-    monthlyGrowth: {
-      outstanding: 5.2,
-      collection: 12.8,
-      overdue: 8,
-      enrolled: 120
-    }
+  useEffect(() => {
+    const controller = new AbortController();
+    const loadSummary = async () => {
+      setError('');
+      setLoading(true);
+      try {
+        const res = await fetch(`${API_BASE}/api/nif/fees/dashboard-summary`, {
+          headers: {
+            'Content-Type': 'application/json',
+            authorization: `Bearer ${localStorage.getItem('token')}`,
+          },
+          signal: controller.signal,
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          throw new Error(data.message || 'Failed to load fees dashboard data');
+        }
+        setSummary(data);
+      } catch (err) {
+        if (controller.signal.aborted) return;
+        console.error(err);
+        setError(err.message || 'Failed to load dashboard data');
+      } finally {
+        if (!controller.signal.aborted) {
+          setLoading(false);
+        }
+      }
+    };
+    loadSummary();
+    return () => controller.abort();
+  }, []);
+
+  const totals = summary?.totals || {
+    totalOutstanding: 0,
+    monthlyCollection: 0,
+    overduePayments: 0,
+    totalEnrolled: 0,
+    totalCollected: 0,
   };
+  const enrollmentData = summary?.enrollment || [];
+  const outstandingFeesData = summary?.outstandingSegments || [];
+  const recentPayments = summary?.recentPayments || [];
 
-  const enrollmentData = [
-    { program: 'Fashion Design', students: 2015, percentage: 82 },
-    { program: 'Interior Design', students: 443, percentage: 18 }
-  ];
+  const filteredPayments = useMemo(() => {
+    return recentPayments.filter(
+      (payment) =>
+        payment.studentName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        payment.program.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+  }, [recentPayments, searchTerm]);
 
-  const outstandingFeesData = [
-    { label: 'Fashion - Sem 1', percentage: 75 },
-    { label: 'Fashion - Sem 3', percentage: 60 },
-    { label: 'Fashion - Sem 5', percentage: 40 },
-    { label: 'Interior - Sem 1', percentage: 50 },
-    { label: 'Interior - Sem 3', percentage: 35 },
-    { label: 'Interior - Sem 5', percentage: 20 }
-  ];
-
-  const recentPayments = [
-    {
-      id: 1,
-      studentName: 'Priya Sharma',
-      program: 'Fashion Design',
-      semester: 'Sem 3',
-      amount: 2500.00,
-      paymentDate: 'Oct 15, 2024',
-      status: 'Paid'
-    },
-    {
-      id: 2,
-      studentName: 'Arjun Patel',
-      program: 'Interior Design',
-      semester: 'Sem 1',
-      amount: 3200.00,
-      paymentDate: 'Oct 14, 2024',
-      status: 'Paid'
-    },
-    {
-      id: 3,
-      studentName: 'Ananya Singh',
-      program: 'Fashion Design',
-      semester: 'Sem 5',
-      amount: 1800.00,
-      paymentDate: 'Oct 14, 2024',
-      status: 'Paid'
-    },
-    {
-      id: 4,
-      studentName: 'Rohit Kumar',
-      program: 'Fashion Design',
-      semester: 'Sem 1',
-      amount: 2500.00,
-      paymentDate: 'Oct 12, 2024',
-      status: 'Pending'
-    },
-    {
-      id: 5,
-      studentName: 'Sneha Reddy',
-      program: 'Interior Design',
-      semester: 'Sem 3',
-      amount: 3200.00,
-      paymentDate: 'Oct 11, 2024',
-      status: 'Paid'
-    }
-  ];
-
-  const filteredPayments = recentPayments.filter(payment =>
-    payment.studentName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    payment.program.toLowerCase().includes(searchTerm.toLowerCase())
-  );
-
-  const getStatusColor = (status) => {
-    switch (status) {
-      case 'Paid':
-        return 'bg-green-100 text-green-800';
-      case 'Pending':
-        return 'bg-yellow-100 text-yellow-800';
-      case 'Overdue':
-        return 'bg-red-100 text-red-800';
-      default:
-        return 'bg-gray-100 text-gray-800';
-    }
-  };
-
-  const formatCurrency = (amount) => {
-    return new Intl.NumberFormat('en-IN', {
+  const formatCurrency = (amount = 0) =>
+    new Intl.NumberFormat('en-IN', {
       style: 'currency',
-      currency: 'INR'
+      currency: 'INR',
     }).format(amount);
-  };
+
+  const getStatusColor = (status) =>
+    status === 'Paid'
+      ? 'bg-green-100 text-green-800'
+      : 'bg-gray-100 text-gray-800';
+
+  const collectionTrend = useMemo(() => {
+    const today = new Date();
+    const result = [];
+    for (let i = 6; i >= 0; i -= 1) {
+      const date = new Date(today);
+      date.setDate(today.getDate() - i);
+      const key = date.toISOString().split('T')[0];
+      result.push({
+        key,
+        label: date.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }),
+        value: 0,
+      });
+    }
+    const seriesMap = result.reduce((map, entry) => {
+      map.set(entry.key, entry);
+      return map;
+    }, new Map());
+    recentPayments.forEach((payment) => {
+      if (!payment.paidOn) return;
+      const paidOnKey = new Date(payment.paidOn).toISOString().split('T')[0];
+      if (seriesMap.has(paidOnKey)) {
+        seriesMap.get(paidOnKey).value += Number(payment.amount || 0);
+      }
+    });
+    return result;
+  }, [recentPayments]);
+
+  const peakCollection = Math.max(
+    ...collectionTrend.map((entry) => entry.value),
+    1
+  );
 
   const generateReport = () => {
     alert('Generating comprehensive fees report...');
   };
 
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center text-gray-600">
+          <div className="animate-spin h-10 w-10 border-2 border-blue-600 border-t-transparent rounded-full mx-auto mb-4" />
+          Loading the latest fee analytics...
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Page Content */}
       <div className="p-8">
-        {/* KPI Summary Cards */}
+        {error && (
+          <div className="mb-6 rounded-lg border border-red-200 bg-red-50 text-red-700 px-4 py-3 text-sm">
+            {error}
+          </div>
+        )}
+
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-          {/* Total Outstanding */}
           <div className="bg-white p-5 rounded-xl border border-gray-200 shadow-sm">
             <div className="flex items-center justify-between">
-              <p className="text-sm font-medium text-gray-500">Total Outstanding</p>
+              <p className="text-sm font-medium text-gray-500">
+                Total Outstanding
+              </p>
               <div className="w-10 h-10 flex items-center justify-center bg-amber-100 rounded-full">
                 <Clock className="w-5 h-5 text-amber-600" />
               </div>
             </div>
             <p className="text-3xl font-bold text-gray-900 mt-2">
-              {formatCurrency(kpiData.totalOutstanding)}
+              {formatCurrency(totals.totalOutstanding)}
             </p>
-            <p className="text-xs text-gray-500 mt-1 flex items-center">
-              <TrendingUp className="w-3 h-3 mr-1" />
-              +{kpiData.monthlyGrowth.outstanding}% from last month
-            </p>
-          </div>
-
-          {/* Fees Collected */}
-          <div className="bg-white p-5 rounded-xl border border-gray-200 shadow-sm">
-            <div className="flex items-center justify-between">
-              <p className="text-sm font-medium text-gray-500">Fees Collected (Month)</p>
-              <div className="w-10 h-10 flex items-center justify-center bg-green-100 rounded-full">
-                <DollarSign className="w-5 h-5 text-green-600" />
-              </div>
-            </div>
-            <p className="text-3xl font-bold text-gray-900 mt-2">
-              {formatCurrency(kpiData.monthlyCollection)}
-            </p>
-            <p className="text-xs text-green-600 mt-1 flex items-center">
-              <ArrowUp className="w-3 h-3 mr-1" />
-              +{kpiData.monthlyGrowth.collection}% vs last month
+            <p className="text-xs text-gray-500 mt-1">
+              Live balance pending across all records
             </p>
           </div>
 
-          {/* Overdue Payments */}
           <div className="bg-white p-5 rounded-xl border border-gray-200 shadow-sm">
             <div className="flex items-center justify-between">
               <p className="text-sm font-medium text-gray-500">Overdue Payments</p>
@@ -177,15 +171,14 @@ const FeesDashboard = ({ setShowAdminHeader }) => {
               </div>
             </div>
             <p className="text-3xl font-bold text-gray-900 mt-2">
-              {kpiData.overduePayments} Students
+              {totals.overduePayments} Students
             </p>
             <p className="text-xs text-red-600 mt-1 flex items-center">
               <ArrowUp className="w-3 h-3 mr-1" />
-              +{kpiData.monthlyGrowth.overdue} new since last week
+              Require immediate follow-up
             </p>
           </div>
 
-          {/* Total Enrolled */}
           <div className="bg-white p-5 rounded-xl border border-gray-200 shadow-sm">
             <div className="flex items-center justify-between">
               <p className="text-sm font-medium text-gray-500">Total Enrolled</p>
@@ -194,116 +187,219 @@ const FeesDashboard = ({ setShowAdminHeader }) => {
               </div>
             </div>
             <p className="text-3xl font-bold text-gray-900 mt-2">
-              {kpiData.totalEnrolled.toLocaleString()} Students
+              {totals.totalEnrolled.toLocaleString()} Students
             </p>
             <p className="text-xs text-gray-500 mt-1">
-              +{kpiData.monthlyGrowth.enrolled} this semester
+              Students linked to fee records
             </p>
           </div>
         </div>
 
-        {/* Charts Section */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mt-6">
-          {/* Enrollment by Program */}
-          <div className="lg:col-span-1 bg-white p-6 rounded-xl border border-gray-200 shadow-sm">
-            <h3 className="text-lg font-semibold text-gray-900">Enrollment by Program</h3>
-            <div className="relative flex items-center justify-center my-6 h-48">
-              {/* Simple pie chart representation */}
-              <div className="relative w-32 h-32 rounded-full bg-gradient-to-r from-blue-600 to-blue-400" 
-                   style={{
-                     background: `conic-gradient(#2563eb 0% ${enrollmentData[0].percentage}%, #e5e7eb ${enrollmentData[0].percentage}% 100%)`
-                   }}>
-                <div className="absolute inset-4 bg-white rounded-full flex items-center justify-center">
-                  <div className="text-center">
-                    <span className="text-2xl font-bold text-gray-900">{enrollmentData[0].percentage}%</span>
-                    <p className="text-xs text-gray-500">Fashion</p>
-                  </div>
+        <div className="mt-8 grid grid-cols-1 xl:grid-cols-3 gap-6">
+          <div className="xl:col-span-2 space-y-6">
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
+                <div>
+                  <h2 className="text-xl font-semibold text-gray-900">
+                    Collection Trend
+                  </h2>
+                  <p className="text-sm text-gray-500">
+                    Daily collections over the last 7 days.
+                  </p>
+                </div>
+                <div className="flex items-center gap-3 text-sm text-gray-500">
+                  <Calendar className="w-4 h-4 text-gray-500" />
+                  <span>{dateRange}</span>
                 </div>
               </div>
-            </div>
-            <div className="space-y-3">
-              {enrollmentData.map((item, index) => (
-                <div key={index} className="flex justify-between items-center">
-                  <div className="flex items-center">
-                    <span className={`w-2.5 h-2.5 rounded-full mr-2 ${
-                      index === 0 ? 'bg-blue-600' : 'bg-gray-300'
-                    }`}></span>
-                    <span className="text-sm font-medium text-gray-600">{item.program}</span>
+              <div className="flex gap-3 items-end h-48">
+                {collectionTrend.map((entry) => (
+                  <div key={entry.key} className="flex flex-col items-center w-full">
+                    <div className="w-full flex-1 flex items-end">
+                      <div
+                        className="w-full rounded-t-lg bg-gradient-to-t from-blue-500 to-emerald-400 shadow"
+                        style={{
+                          height: `${(entry.value / peakCollection) * 100}%`,
+                        }}
+                      />
+                    </div>
+                    <div className="mt-2 text-center">
+                      <p className="text-xs font-medium text-gray-700">
+                        {formatCurrency(entry.value)}
+                      </p>
+                      <p className="text-xs text-gray-500">{entry.label}</p>
+                    </div>
                   </div>
-                  <span className="text-sm font-semibold text-gray-800">
-                    {item.students.toLocaleString()} Students
-                  </span>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Outstanding Fees Summary */}
-          <div className="lg:col-span-2 bg-white p-6 rounded-xl border border-gray-200 shadow-sm">
-            <h3 className="text-lg font-semibold text-gray-900">Outstanding Fees Summary</h3>
-            <div className="h-64 mt-4 flex items-end space-x-4">
-              {outstandingFeesData.map((item, index) => (
-                <div key={index} className="flex-1 flex flex-col items-center space-y-2 h-full justify-end">
-                  <div 
-                    className="w-full bg-gray-200 rounded-t-md relative"
-                    style={{ height: `${item.percentage}%` }}
-                  >
-                    <div className={`w-full rounded-t-md h-full ${
-                      item.label.includes('Fashion') ? 'bg-blue-600' : 'bg-gray-400'
-                    }`}></div>
-                  </div>
-                  <span className="text-xs text-gray-500 text-center">{item.label}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-
-        {/* Recent Payments Table */}
-        <div className="mt-6 bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-          <div className="p-6 flex justify-between items-center">
-            <h3 className="text-lg font-semibold text-gray-900">Recent Payments</h3>
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
-              <input 
-                className="w-64 pl-10 pr-4 py-2 text-sm border border-gray-300 bg-gray-50 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                placeholder="Search students..."
-                type="text"
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-              />
-            </div>
-          </div>
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm text-left">
-              <thead className="bg-gray-50 text-xs text-gray-600 uppercase font-semibold">
-                <tr>
-                  <th className="px-6 py-3">Student Name</th>
-                  <th className="px-6 py-3">Program / Stream</th>
-                  <th className="px-6 py-3">Amount Paid</th>
-                  <th className="px-6 py-3">Payment Date</th>
-                  <th className="px-6 py-3">Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredPayments.map((payment) => (
-                  <tr key={payment.id} className="border-b border-gray-200 hover:bg-gray-50">
-                    <td className="px-6 py-4 font-medium text-gray-900">{payment.studentName}</td>
-                    <td className="px-6 py-4 text-gray-600">{payment.program} / {payment.semester}</td>
-                    <td className="px-6 py-4 font-medium text-gray-800">
-                      {formatCurrency(payment.amount)}
-                    </td>
-                    <td className="px-6 py-4 text-gray-600">{payment.paymentDate}</td>
-                    <td className="px-6 py-4">
-                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(payment.status)}`}>
-                        {payment.status === 'Paid' && <CheckCircle className="w-3 h-3 mr-1" />}
-                        {payment.status}
-                      </span>
-                    </td>
-                  </tr>
                 ))}
-              </tbody>
-            </table>
+              </div>
+            </div>
+
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
+              <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
+                <div>
+                  <h2 className="text-xl font-semibold text-gray-900">
+                    Recent Payments
+                  </h2>
+                  <p className="text-sm text-gray-500">
+                    Payments logged directly from fee records.
+                  </p>
+                </div>
+                <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-2">
+                    <Search className="w-4 h-4 text-gray-500" />
+                    <input
+                      type="text"
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                      placeholder="Search students..."
+                      className="text-sm border border-gray-300 rounded-lg px-3 py-1.5 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                    />
+                  </div>
+                  <select
+                    value={dateRange}
+                    onChange={(e) => setDateRange(e.target.value)}
+                    className="text-sm border border-gray-300 rounded-lg px-3 py-1.5 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                  >
+                    <option>Last 30 Days</option>
+                    <option>Last 7 Days</option>
+                    <option>All Time</option>
+                  </select>
+                  <button
+                    onClick={generateReport}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 transition-colors"
+                  >
+                    <Download size={16} />
+                    Report
+                  </button>
+                </div>
+              </div>
+
+              <div className="space-y-4">
+                {filteredPayments.length ? (
+                  filteredPayments.map((payment, idx) => (
+                    <div
+                      key={`${payment.studentName}-${idx}`}
+                      className="bg-gray-50 rounded-2xl border border-gray-200 p-4 flex items-center justify-between"
+                    >
+                      <div className="space-y-1">
+                        <p className="text-lg font-semibold text-gray-900">
+                          {payment.studentName}
+                        </p>
+                        <p className="text-sm text-gray-500">
+                          {payment.program}
+                        </p>
+                      </div>
+                      <div className="text-right space-y-1">
+                        <p className="text-xl font-semibold text-gray-900">
+                          {formatCurrency(payment.amount)}
+                        </p>
+                        <p className="text-sm text-gray-500">
+                          {payment.paidOn
+                            ? new Date(payment.paidOn).toLocaleDateString()
+                            : '—'}
+                        </p>
+                        <div
+                          className={`inline-flex items-center px-3 py-1 rounded-full text-sm ${getStatusColor(
+                            payment.status
+                          )}`}
+                        >
+                          {payment.status || 'Paid'}
+                        </div>
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <p className="text-sm text-gray-500 text-center py-6">
+                    No recent payments match your search.
+                  </p>
+                )}
+              </div>
+            </div>
+          </div>
+
+          <div className="space-y-6">
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
+              <div className="flex items-center justify-between mb-6">
+                <div>
+                  <h2 className="text-xl font-semibold text-gray-900">
+                    Enrollment by Program
+                  </h2>
+                  <p className="text-sm text-gray-500">
+                    Distribution of students with fee records.
+                  </p>
+                </div>
+                <Users className="w-6 h-6 text-blue-600" />
+              </div>
+              {enrollmentData.length ? (
+                <div className="grid gap-4">
+                  {enrollmentData.map((program, index) => (
+                    <div
+                      key={program.program}
+                      className="bg-gray-50 rounded-xl border border-gray-200 p-4 flex items-center justify-between"
+                    >
+                      <div>
+                        <p className="text-sm text-gray-500">
+                          {program.program}
+                        </p>
+                        <p className="text-2xl font-semibold text-gray-900">
+                          {program.students}
+                        </p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-sm text-gray-500">Share</p>
+                        <p className="text-lg font-semibold text-gray-900">
+                          {program.percentage}%
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-sm text-gray-500">
+                  No enrollment data available.
+                </p>
+              )}
+            </div>
+
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
+              <div className="flex items-center justify-between mb-6">
+                <div>
+                  <h2 className="text-xl font-semibold text-gray-900">
+                    Outstanding Overview
+                  </h2>
+                  <p className="text-sm text-gray-500">
+                    Top programs and batches with outstanding dues.
+                  </p>
+                </div>
+                <CheckCircle className="w-6 h-6 text-green-600" />
+              </div>
+              {outstandingFeesData.length ? (
+                <div className="space-y-4">
+                  {outstandingFeesData.map((segment) => (
+                    <div key={segment.label}>
+                      <div className="flex items-center justify-between mb-2">
+                        <p className="text-sm font-medium text-gray-700">
+                          {segment.label}
+                        </p>
+                        <span className="text-sm text-gray-500">
+                          {segment.percentage}%
+                        </span>
+                      </div>
+                      <div className="w-full bg-gray-200 rounded-full h-2">
+                        <div
+                          className="bg-gradient-to-r from-amber-400 to-amber-500 h-2 rounded-full"
+                          style={{ width: `${segment.percentage}%` }}
+                        />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-sm text-gray-500">
+                  No outstanding data to display.
+                </p>
+              )}
+            </div>
           </div>
         </div>
       </div>

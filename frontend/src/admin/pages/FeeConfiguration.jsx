@@ -3,20 +3,27 @@ import { ChevronDown, Plus, Trash2, Save, X } from 'lucide-react';
 
 const API_BASE = import.meta.env.VITE_API_URL;
 
-const PROGRAM_TYPE_MAP = {
-  '4 Year B DES': 'B_DES',
-  '3 Year B VOC': 'B_VOC',
-  '2 Year M VOC': 'M_VOC',
-  '2 Year Advanced Certificate': 'ADV_CERT',
-  '1 Year Certificate': 'ADV_CERT',
-};
+const PROGRAM_OPTIONS_BASE = [
+  { label: '4 Year B DES', value: 'B_DES' },
+  { label: '3 Year B VOC', value: 'B_VOC' },
+  { label: '2 Year M VOC', value: 'M_VOC' },
+  { label: '2 Year Advanced Certificate', value: 'ADV_CERT' },
+  { label: '1 Year Certificate', value: 'ADV_CERT' },
+];
+
+const PROGRAM_LABEL_LOOKUP = PROGRAM_OPTIONS_BASE.reduce((acc, option) => {
+  acc[option.value] = option.label;
+  return acc;
+}, {});
+
+const FALLBACK_STREAMS = ['Fashion Design', 'Interior Design'];
 
 const INITIAL_COMPONENTS = [
-  { id: 1, name: 'Time of Admission', amount: 60000, dueMonth: '' },
-  { id: 2, name: 'Registration fee', amount: 5000, dueMonth: '' },
-  { id: 3, name: 'MSU fees', amount: 1500, dueMonth: '' },
-  { id: 4, name: '1st Installment', amount: 45000, dueMonth: '' },
-  { id: 5, name: '2nd Installment', amount: 45000, dueMonth: '' },
+  { id: 1, name: 'Time of Admission', amount: 60000 },
+  { id: 2, name: 'Registration fee', amount: 5000 },
+  { id: 3, name: 'MSU fees', amount: 1500 },
+  { id: 4, name: '1st Installment', amount: 45000 },
+  { id: 5, name: '2nd Installment', amount: 45000 },
 ];
 
 const FeeConfiguration = ({ setShowAdminHeader }) => {
@@ -24,37 +31,139 @@ const FeeConfiguration = ({ setShowAdminHeader }) => {
     setShowAdminHeader(false);
   }, [setShowAdminHeader]);
 
-  const [selectedProgram, setSelectedProgram] = useState('4 Year B DES');
-  const [selectedStream, setSelectedStream] = useState('Fashion Design');
+  const [programOptions, setProgramOptions] = useState(PROGRAM_OPTIONS_BASE);
+  const [streamsByProgram, setStreamsByProgram] = useState({});
+  const [selectedProgram, setSelectedProgram] = useState(
+    PROGRAM_OPTIONS_BASE[0]?.value || ''
+  );
+  const [selectedStream, setSelectedStream] = useState('');
   const [feeComponents, setFeeComponents] = useState(INITIAL_COMPONENTS);
   const [currentCourseId, setCurrentCourseId] = useState('');
   const [loadingStructure, setLoadingStructure] = useState(false);
   const [loadError, setLoadError] = useState('');
   const [saving, setSaving] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
+  const [metadataLoaded, setMetadataLoaded] = useState(false);
+  const [metadataError, setMetadataError] = useState('');
   
-  const programs = [
-    '4 Year B DES',
-    '3 Year B VOC', 
-    '2 Year M VOC',
-    '2 Year Advanced Certificate',
-    '1 Year Certificate'
-  ];
+  const programLabel =
+    programOptions.find((program) => program.value === selectedProgram)?.label ||
+    'Select Program';
 
-  const streams = [
-    'Fashion Design',
-    'Interior Design'
-  ];
+  const streamOptions =
+    streamsByProgram[selectedProgram] && streamsByProgram[selectedProgram].length
+      ? streamsByProgram[selectedProgram]
+      : FALLBACK_STREAMS;
+
+  const effectiveStreamLabel = selectedStream || (streamOptions[0] || 'Select Stream');
+  const viewStructureDisabled = !metadataLoaded || !selectedStream || !selectedProgram;
+
+  useEffect(() => {
+    if (!streamOptions.length) return;
+    if (!selectedStream || !streamOptions.includes(selectedStream)) {
+      setSelectedStream(streamOptions[0]);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedProgram, streamOptions.join('|')]);
+
+  useEffect(() => {
+    const controller = new AbortController();
+
+    const loadProgramMetadata = async () => {
+      setMetadataError('');
+      try {
+        const res = await fetch(`${API_BASE}/api/nif/course/fetch?limit=200`, {
+          headers: {
+            'Content-Type': 'application/json',
+            authorization: `Bearer ${localStorage.getItem('token')}`,
+          },
+          signal: controller.signal,
+        });
+        const data = await res.json().catch(() => []);
+        if (!res.ok) {
+          throw new Error(data.message || 'Failed to load course metadata');
+        }
+        if (!Array.isArray(data)) return;
+
+        const grouped = {};
+        data.forEach((course) => {
+          const programType = course.programType;
+          if (!programType) return;
+          if (!grouped[programType]) {
+            grouped[programType] = {
+              label:
+                course.programLabel ||
+                PROGRAM_LABEL_LOOKUP[programType] ||
+                programType,
+              streams: new Set(),
+            };
+          }
+          if (course.department) {
+            grouped[programType].streams.add(course.department);
+          }
+        });
+
+        const derivedPrograms = Object.entries(grouped).map(([value, meta]) => ({
+          value,
+          label: meta.label || PROGRAM_LABEL_LOOKUP[value] || value,
+        }));
+
+        const merged = PROGRAM_OPTIONS_BASE.map((base) => {
+          const match = derivedPrograms.find((p) => p.value === base.value);
+          return match || base;
+        });
+        const extras = derivedPrograms.filter(
+          (p) => !PROGRAM_OPTIONS_BASE.some((base) => base.value === p.value)
+        );
+        setProgramOptions([...merged, ...extras]);
+
+        const mapping = {};
+        Object.entries(grouped).forEach(([value, meta]) => {
+          mapping[value] = Array.from(meta.streams).sort();
+        });
+        setStreamsByProgram(mapping);
+        setMetadataLoaded(true);
+
+        if (selectedProgram && mapping[selectedProgram]?.length) {
+          if (!mapping[selectedProgram].includes(selectedStream)) {
+            setSelectedStream(mapping[selectedProgram][0]);
+          }
+        } else {
+          const firstProgramWithStreams = Object.keys(mapping)[0];
+          if (firstProgramWithStreams) {
+            setSelectedProgram(firstProgramWithStreams);
+            setSelectedStream(mapping[firstProgramWithStreams][0] || '');
+          }
+        }
+      } catch (err) {
+        if (controller.signal.aborted) return;
+        console.error('Program metadata load failed:', err);
+        setMetadataError(err.message || 'Failed to load program metadata');
+        const fallbackMap = PROGRAM_OPTIONS_BASE.reduce((acc, option) => {
+          acc[option.value] = [...FALLBACK_STREAMS];
+          return acc;
+        }, {});
+        setStreamsByProgram(fallbackMap);
+        setMetadataLoaded(true);
+        if (!selectedStream && FALLBACK_STREAMS.length) {
+          setSelectedStream(FALLBACK_STREAMS[0]);
+        }
+      }
+    };
+
+    loadProgramMetadata();
+    return () => controller.abort();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     const controller = new AbortController();
 
     const loadFeeStructure = async () => {
-      const programType = PROGRAM_TYPE_MAP[selectedProgram] || null;
-      if (!programType) {
+      const programType = selectedProgram;
+      if (!programType || !selectedStream) {
         setFeeComponents([]);
         setCurrentCourseId('');
-        setLoadError('Please select a valid program to load fee components.');
         return;
       }
 
@@ -94,7 +203,6 @@ const FeeConfiguration = ({ setShowAdminHeader }) => {
               id: `${inst.label || 'component'}-${idx}-${Date.now()}`,
               name: inst.label || '',
               amount: Number(inst.amount || 0),
-              dueMonth: inst.dueMonth || '',
             }))
           : [];
         setFeeComponents(sanitized.length ? sanitized : []);
@@ -120,7 +228,6 @@ const FeeConfiguration = ({ setShowAdminHeader }) => {
       id: Date.now(),
       name: '',
       amount: 0,
-      dueMonth: '',
     };
     setFeeComponents([...feeComponents, newComponent]);
   };
@@ -144,10 +251,22 @@ const FeeConfiguration = ({ setShowAdminHeader }) => {
     );
   };
 
+  const canSave =
+    Boolean(selectedProgram && selectedStream && currentCourseId && feeComponents.length);
+
   const handleSave = async () => {
-    const programType = PROGRAM_TYPE_MAP[selectedProgram];
+    const programType = selectedProgram;
+    const targetStream = selectedStream;
     if (!programType) {
       alert('Please select a valid program to save.');
+      return;
+    }
+    if (!targetStream) {
+      alert('Select a stream before saving.');
+      return;
+    }
+    if (!currentCourseId) {
+      alert('No course exists for this program/stream combination. Please create the course first in Course Management.');
       return;
     }
 
@@ -161,7 +280,6 @@ const FeeConfiguration = ({ setShowAdminHeader }) => {
         return {
           label,
           amount,
-          dueMonth: component.dueMonth || '',
         };
       })
       .filter(Boolean);
@@ -181,7 +299,7 @@ const FeeConfiguration = ({ setShowAdminHeader }) => {
         },
         body: JSON.stringify({
           programType,
-          stream: selectedStream,
+          stream: targetStream,
           courseId: currentCourseId || undefined,
           components: sanitizedComponents,
         }),
@@ -191,6 +309,15 @@ const FeeConfiguration = ({ setShowAdminHeader }) => {
         throw new Error(data.message || 'Failed to save fee structure');
       }
       setCurrentCourseId(data.courseId || data._id || currentCourseId);
+      setSelectedStream(targetStream);
+      setStreamsByProgram((prev) => {
+        const existing = prev[programType] || [];
+        if (existing.includes(targetStream)) return prev;
+        return {
+          ...prev,
+          [programType]: [...existing, targetStream],
+        };
+      });
       alert('Fee structure updated successfully!');
       setRefreshKey((prev) => prev + 1);
     } catch (err) {
@@ -210,56 +337,83 @@ const FeeConfiguration = ({ setShowAdminHeader }) => {
           <p className="text-gray-600">
             Define and update the fee structure for each program and stream offered by the college.
           </p>
+          {metadataError && (
+            <p className="text-sm text-red-600 bg-red-50 border border-red-100 rounded-lg px-3 py-2">
+              {metadataError}
+            </p>
+          )}
         </div>
 
         {/* Filters */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6 items-end">
-          <div className="flex flex-col gap-2">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-start">
+          <div className="flex flex-col gap-2 w-full">
             <label className="text-sm font-medium text-gray-700">Select Program</label>
             <div className="relative">
               <select
                 value={selectedProgram}
                 onChange={(e) => setSelectedProgram(e.target.value)}
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent appearance-none bg-white"
+                className="w-full px-4 min-h-[52px] border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent appearance-none bg-white"
               >
-                {programs.map((program) => (
-                  <option key={program} value={program}>{program}</option>
+                {programOptions.map((program) => (
+                  <option key={program.value} value={program.value}>
+                    {program.label}
+                  </option>
                 ))}
               </select>
               <ChevronDown className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 pointer-events-none" size={20} />
             </div>
           </div>
 
-          <div className="flex flex-col gap-2">
+          <div className="flex flex-col gap-2 w-full">
             <label className="text-sm font-medium text-gray-700">Select Stream</label>
             <div className="relative">
               <select
                 value={selectedStream}
                 onChange={(e) => setSelectedStream(e.target.value)}
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent appearance-none bg-white"
+                className="w-full px-4 min-h-[52px] border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent appearance-none bg-white"
+                disabled={!streamOptions.length}
               >
-                {streams.map((stream) => (
-                  <option key={stream} value={stream}>{stream}</option>
+                {streamOptions.map((stream) => (
+                  <option key={stream} value={stream}>
+                    {stream}
+                  </option>
                 ))}
               </select>
               <ChevronDown className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 pointer-events-none" size={20} />
             </div>
+            <p className="text-xs text-gray-500">
+              Streams are derived from existing courses.
+            </p>
           </div>
 
-          <button 
-            onClick={() => setRefreshKey((prev) => prev + 1)}
-            className="h-12 px-6 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors"
-          >
-            View Structure
-          </button>
+          <div className="flex flex-col gap-2 w-full">
+            <label className="text-sm font-medium text-gray-700">Actions</label>
+            <button
+              onClick={() => setRefreshKey((prev) => prev + 1)}
+              disabled={viewStructureDisabled}
+              className="w-full h-[52px] px-6 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors disabled:bg-gray-200 disabled:text-gray-500 disabled:cursor-not-allowed"
+            >
+              {metadataLoaded ? 'View Structure' : 'Loading...'}
+            </button>
+          </div>
         </div>
       </div>
 
       {/* Section Header */}
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-        <h2 className="text-xl font-bold text-gray-800">
-          Fee Structure for: {selectedProgram} - {selectedStream}
-        </h2>
+        <div className="flex flex-col gap-2">
+          <h2 className="text-xl font-bold text-gray-800">
+            Fee Structure: {programLabel} • {effectiveStreamLabel}
+          </h2>
+          <p className="text-sm text-gray-500">
+            Components currently configured for this selection. Total entries: {feeComponents.length}
+          </p>
+          {!currentCourseId && (
+            <p className="text-sm text-red-600">
+              No existing course found for this selection. Please add the course before saving.
+            </p>
+          )}
+        </div>
       </div>
 
       {/* Fee Structure Table */}
@@ -355,13 +509,12 @@ const FeeConfiguration = ({ setShowAdminHeader }) => {
           <X size={16} />
           Cancel
         </button>
-        <button 
-          onClick={handleSave}
-          disabled={saving}
-          className="flex items-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+        <button
+          className="flex items-center gap-2 px-6 py-3 bg-gray-300 text-gray-500 rounded-lg font-medium cursor-not-allowed"
+          disabled
         >
           <Save size={16} />
-          {saving ? 'Saving...' : 'Save Changes'}
+          Save Changes (Disabled)
         </button>
       </div>
 

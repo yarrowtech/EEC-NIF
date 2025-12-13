@@ -764,6 +764,123 @@ router.get('/fees', adminAuth, async (req, res) => {
   }
 });
 
+router.get('/fees/dashboard-summary', adminAuth, async (req, res) => {
+  try {
+    const [feeRecords, students] = await Promise.all([
+      NifFeeRecord.find()
+        .populate('student', 'name course grade section programLabel')
+        .lean(),
+      NifStudent.find().select('course grade programLabel').lean(),
+    ]);
+
+    const totalOutstanding = feeRecords.reduce(
+      (sum, rec) => sum + Number(rec.dueAmount || 0),
+      0
+    );
+    const totalCollected = feeRecords.reduce(
+      (sum, rec) => sum + Number(rec.paidAmount || 0),
+      0
+    );
+    const overduePayments = feeRecords.filter((rec) =>
+      ['due', 'partial'].includes(rec.status)
+    ).length;
+    const totalEnrolled = students.length;
+
+    const now = new Date();
+    const thirtyDaysAgo = new Date(now);
+    thirtyDaysAgo.setDate(now.getDate() - 30);
+
+    let monthlyCollection = 0;
+    const paymentRecords = [];
+
+    feeRecords.forEach((rec) => {
+      const programName =
+        rec.programLabel ||
+        rec.student?.grade ||
+        rec.student?.course ||
+        'Program';
+      (rec.payments || []).forEach((payment) => {
+        const amount = Number(payment.amount || 0);
+        const paidOn = payment.paidOn ? new Date(payment.paidOn) : null;
+        paymentRecords.push({
+          studentName: rec.student?.name || 'Unnamed Student',
+          program: programName,
+          amount,
+          paidOn,
+          method: payment.method || 'cash',
+        });
+        if (paidOn && paidOn >= thirtyDaysAgo) {
+          monthlyCollection += amount;
+        }
+      });
+    });
+
+    const enrollmentMap = students.reduce((acc, student) => {
+      const key = student.course || student.grade || 'Unassigned';
+      acc[key] = (acc[key] || 0) + 1;
+      return acc;
+    }, {});
+
+    const enrollment = Object.entries(enrollmentMap).map(
+      ([program, count]) => ({
+        program,
+        students: count,
+        percentage: totalEnrolled
+          ? Math.round((count / totalEnrolled) * 100)
+          : 0,
+      })
+    );
+
+    const outstandingTotals = feeRecords.reduce((acc, rec) => {
+      const key =
+        rec.course || rec.programLabel || rec.student?.course || 'Program';
+      acc[key] = (acc[key] || 0) + Number(rec.dueAmount || 0);
+      return acc;
+    }, {});
+
+    const outstandingTotalAmount =
+      Object.values(outstandingTotals).reduce((sum, val) => sum + val, 0) || 1;
+
+    const outstandingSegments = Object.entries(outstandingTotals)
+      .map(([label, amount]) => ({
+        label,
+        amount,
+        percentage: Math.round((amount / outstandingTotalAmount) * 100),
+      }))
+      .sort((a, b) => b.amount - a.amount)
+      .slice(0, 6);
+
+    const recentPayments = paymentRecords
+      .filter((payment) => payment.paidOn)
+      .sort((a, b) => b.paidOn - a.paidOn)
+      .slice(0, 8)
+      .map((payment) => ({
+        studentName: payment.studentName,
+        program: payment.program,
+        amount: payment.amount,
+        paidOn: payment.paidOn,
+        method: payment.method,
+        status: 'Paid',
+      }));
+
+    res.json({
+      totals: {
+        totalOutstanding,
+        totalCollected,
+        monthlyCollection,
+        overduePayments,
+        totalEnrolled,
+      },
+      enrollment,
+      outstandingSegments,
+      recentPayments,
+    });
+  } catch (err) {
+    console.error('NIF fees dashboard summary error:', err);
+    res.status(500).json({ message: 'Failed to fetch fees dashboard data' });
+  }
+});
+
 /* ========== 6) FEE RECORD DETAILS ========== */
 router.get('/fees/details/:id', adminAuth, async (req, res) => {
   try {
