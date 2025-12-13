@@ -31,7 +31,8 @@ const AdminApp = () => {
   };
 
   // state to manage admin header
-  const [showAdminHeader, setShowAdminHeader] = useState(true)
+  const [showAdminHeader, setShowAdminHeader] = useState(true);
+  const [showAdminBreadcrumb, setShowAdminBreadcrumb] = useState(true);
 
   return (
     <AdminLayout
@@ -45,6 +46,7 @@ const AdminApp = () => {
         avatar: 'src/koushik-bala-pp.jpg',
       }}
       showAdminHeader={showAdminHeader}
+      showBreadcrumb={showAdminBreadcrumb}
     >
       <Routes>
         <Route path="dashboard" element={<Dashboard setShowAdminHeader={setShowAdminHeader} />} />
@@ -52,7 +54,15 @@ const AdminApp = () => {
         <Route path="analytics" element={<Analytics setShowAdminHeader={setShowAdminHeader} />} />
         <Route path="teachers" element={<Teachers setShowAdminHeader={setShowAdminHeader} />} />
         <Route path="staff" element={<Staff setShowAdminHeader={setShowAdminHeader} />} />
-        <Route path="students" element={<Students setShowAdminHeader={setShowAdminHeader} />} />
+        <Route
+          path="students"
+          element={
+            <Students
+              setShowAdminHeader={setShowAdminHeader}
+              setShowAdminBreadcrumb={setShowAdminBreadcrumb}
+            />
+          }
+        />
         <Route path="wellbeing" element={<Wellbeing setShowAdminHeader={setShowAdminHeader} />} />
         <Route path="routines" element={<Routines setShowAdminHeader={setShowAdminHeader} />} />
         <Route path="parents" element={<ParentsManagement setShowAdminHeader={setShowAdminHeader} />} />

@@ -24,6 +24,7 @@ const AdminSidebar = ({
         ${collapsed ? "w-20" : "w-72"}
         bg-white border-r border-gray-200
         flex flex-col h-full shadow-lg
+        transition-[width] duration-300 ease-in-out
       `}>
         {/* Logo */}
         <div className={`${collapsed ? 'p-3' : 'p-6'} border-b border-gray-200 relative`}>
@@ -50,7 +51,7 @@ const AdminSidebar = ({
         </div>
 
         {/* Menu Items */}
-        <nav className="flex-1 px-4 py-4 overflow-y-auto">
+        <nav className="flex-1 px-4 py-4 overflow-y-auto sidebar-scroll">
           {ADMIN_MENU_ITEMS.map((item, index) => {
             const Icon = item.icon;
             const isExpanded = expandedMenus[item.label];

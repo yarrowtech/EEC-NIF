@@ -41,6 +41,43 @@ body {
   background: #ffffff;
 }
 
+.sidebar-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: #facc15 transparent; /* Firefox */
+}
+.sidebar-scroll::-webkit-scrollbar {
+  width: 8px;
+}
+.sidebar-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+.sidebar-scroll::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, #fcd34d, #f59e0b);
+  border-radius: 9999px;
+  border: 2px solid rgba(255, 255, 255, 0.6);
+}
+.sidebar-scroll::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(180deg, #fbbf24, #d97706);
+}
+
+.animated-fee-gradient {
+  background: linear-gradient(125deg, #fde68a, #fcd34d, #f59e0b, #f97316, #facc15);
+  background-size: 300% 300%;
+  animation: feeGradientShift 10s ease-in-out infinite;
+}
+
+@keyframes feeGradientShift {
+  0% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
+}
+
 /* Submenu expand/collapse animation */
 .submenu {
   max-height: 0;
@@ -103,4 +140,42 @@ button:focus-visible {
   /* button {
     background-color: #f9f9f9;
   } */
+}
+.error-state-card {
+  background: radial-gradient(circle at top, rgba(252, 165, 165, 0.25), transparent 70%),
+    radial-gradient(circle at bottom, rgba(254, 215, 170, 0.25), transparent 70%),
+    #ffffff;
+}
+.error-state-card::before,
+.error-state-card::after {
+  content: "";
+  position: absolute;
+  width: 200px;
+  height: 200px;
+  border-radius: 9999px;
+  filter: blur(70px);
+  opacity: 0.4;
+  animation: softPulse 8s ease-in-out infinite alternate;
+}
+.error-state-card::before {
+  top: -80px;
+  right: -60px;
+  background: rgba(248, 113, 113, 0.4);
+}
+.error-state-card::after {
+  bottom: -100px;
+  left: -40px;
+  background: rgba(251, 191, 36, 0.4);
+  animation-delay: 3s;
+}
+
+@keyframes softPulse {
+  from {
+    transform: scale(1);
+    opacity: 0.3;
+  }
+  to {
+    transform: scale(1.15);
+    opacity: 0.5;
+  }
 }

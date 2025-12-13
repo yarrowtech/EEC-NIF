@@ -1,5 +1,17 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Download, ArrowLeft, AlertCircle, Calendar } from 'lucide-react';
+import {
+  Download,
+  ArrowLeft,
+  AlertCircle,
+  Calendar,
+  Wallet,
+  PiggyBank,
+  BadgeCheck,
+  Phone,
+  Mail,
+  User,
+  Clock,
+} from 'lucide-react';
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 
 const API_BASE = import.meta.env.VITE_API_URL;
@@ -216,6 +228,32 @@ const StudentFeeDetails = ({ setShowAdminHeader }) => {
   const getStatusLabel = (status = '') =>
     status === 'discounted' ? 'DISCOUNT' : status?.toUpperCase?.() || '';
 
+  const dueInstallments = useMemo(
+    () =>
+      breakdown.filter((inst) => Number(inst.outstanding ?? inst.amount ?? 0) > 0),
+    [breakdown]
+  );
+
+  const upcomingInstallment = useMemo(
+    () => dueInstallments[0] || null,
+    [dueInstallments]
+  );
+
+  const upcomingPreview = useMemo(
+    () => dueInstallments.slice(0, 3),
+    [dueInstallments]
+  );
+
+  const latestPayment = useMemo(() => {
+    if (!payments.length) return null;
+    return [...payments].sort(
+      (a, b) => new Date(b.paidOn || 0) - new Date(a.paidOn || 0)
+    )[0];
+  }, [payments]);
+
+  const guardianPhone = student?.guardianPhone || student?.mobile || 'Not provided';
+  const guardianEmail = student?.guardianEmail || student?.email || 'Not provided';
+
   const markInstallmentPaid = async (idx) => {
     if (!feeRecordId) return;
     try {
@@ -298,115 +336,276 @@ const StudentFeeDetails = ({ setShowAdminHeader }) => {
 
   if (error) {
     return (
-      <div className="max-w-3xl mx-auto bg-white rounded-2xl border border-red-100 shadow p-8 flex flex-col gap-4">
-        <div className="flex items-center gap-3 text-red-600">
-          <AlertCircle />
-          <p className="font-semibold">{error}</p>
+      <div className="min-h-[70vh] flex items-center justify-center px-4">
+        <div className="relative max-w-xl w-full rounded-3xl border border-red-100 shadow-2xl overflow-hidden error-state-card">
+          <div className="relative z-10 p-8 flex flex-col items-center text-center gap-6">
+            <div className="w-16 h-16 rounded-2xl bg-red-50 border border-red-100 flex items-center justify-center text-red-500">
+              <AlertCircle size={28} />
+            </div>
+            <div className="space-y-2">
+              <h2 className="text-2xl font-bold text-gray-900">Something’s missing</h2>
+              <p className="text-gray-600">
+                {error || 'No fee record selected. Please return to Fees Collection.'}
+              </p>
+            </div>
+            <button
+              onClick={() => navigate('/admin/fees')}
+              className="inline-flex items-center gap-2 px-5 py-3 rounded-xl bg-gradient-to-r from-yellow-500 to-amber-500 text-white font-semibold shadow hover:shadow-lg transition-all"
+            >
+              <ArrowLeft size={16} />
+              Back to Fees Collection
+            </button>
+          </div>
         </div>
-        <button
-          onClick={() => navigate('/admin/fees')}
-          className="inline-flex items-center gap-2 w-fit px-4 py-2 rounded-lg bg-yellow-500 text-white hover:bg-yellow-600 transition-colors"
-        >
-          <ArrowLeft size={16} />
-          Back to Fees Collection
-        </button>
       </div>
     );
   }
 
   return (
-    <div className="space-y-6">
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-        <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 mb-6">
-          <div>
-            <button
-              onClick={() => navigate(-1)}
-              className="inline-flex items-center gap-2 text-sm text-gray-600 hover:text-gray-800 mb-4"
-            >
-              <ArrowLeft size={16} />
-              Back
-            </button>
-            <h1 className="text-3xl font-bold text-gray-800">Student Fee Details</h1>
-            <p className="text-gray-600 mt-1">
-              Overview of {student?.name || 'the student'}'s financial record.
-            </p>
+    <div className="space-y-8">
+      <div className="rounded-3xl border border-gray-200 bg-white shadow-2xl overflow-hidden">
+        <div className="relative isolate px-6 py-8 sm:px-8 animated-fee-gradient text-white">
+          <div className="absolute inset-y-0 right-0 w-64 blur-3xl bg-white/30 opacity-40 pointer-events-none" />
+          <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between relative z-10">
+            <div className="space-y-4">
+              <button
+                onClick={() => navigate(-1)}
+                className="inline-flex items-center gap-2 text-sm text-white/80 hover:text-white transition-colors"
+              >
+                <ArrowLeft size={16} />
+                Back to Fees
+              </button>
+              <div className="flex flex-wrap items-center gap-3">
+                <h1 className="text-3xl font-bold">
+                  {student?.name || 'Unnamed Student'}
+                </h1>
+                <span className="px-3 py-1 rounded-full text-xs font-semibold bg-white/25 text-white">
+                  {getStatusLabel(detail?.status) || 'STATUS'}
+                </span>
+              </div>
+              <p className="text-white/80">
+                Roll: {student?.roll || '—'} • Program:{' '}
+                {student?.grade || detail?.programLabel || '—'}
+              </p>
+              <p className="text-white/80">
+                Academic Year: {detail?.academicYear || student?.academicYear || '—'}
+              </p>
+              <div className="flex flex-wrap gap-4 text-sm text-white/80">
+                <span className="inline-flex items-center gap-2">
+                  <User size={16} />
+                  {student?.guardianName || 'Guardian not added'}
+                </span>
+                <span className="inline-flex items-center gap-2">
+                  <Phone size={16} />
+                  {guardianPhone}
+                </span>
+                <span className="inline-flex items-center gap-2">
+                  <Mail size={16} />
+                  {guardianEmail}
+                </span>
+              </div>
+            </div>
+            <div className="flex flex-col gap-3 w-full max-w-sm">
+              <div className="rounded-2xl bg-white/15 border border-white/30 p-4 shadow-lg backdrop-blur">
+                <p className="text-sm text-white/80">Outstanding balance</p>
+                <p className="text-3xl font-bold">
+                  {formatCurrency(totals.outstanding)}
+                </p>
+                <p className="text-xs text-white/70">
+                  Net payable: {formatCurrency(totals.netTotal)}
+                </p>
+              </div>
+              <div className="rounded-2xl bg-white/10 border border-white/20 p-4">
+                <p className="text-sm text-white/80">Next installment</p>
+                <p className="text-2xl font-semibold">
+                  {upcomingInstallment
+                    ? formatCurrency(
+                        upcomingInstallment.outstanding ?? upcomingInstallment.amount
+                      )
+                    : 'All clear'}
+                </p>
+                <p className="text-xs text-white/80 flex items-center gap-2 mt-1">
+                  <Calendar size={14} />
+                  {upcomingInstallment?.dueMonth || 'To be scheduled'}
+                </p>
+              </div>
+              <button
+                onClick={generateStatement}
+                className="flex items-center justify-center gap-2 px-4 py-3 bg-white text-amber-600 rounded-2xl font-semibold shadow hover:bg-amber-50 transition-colors"
+              >
+                <Download size={16} />
+                Generate Statement
+              </button>
+            </div>
           </div>
-          <button
-            onClick={generateStatement}
-            className="flex items-center gap-2 px-4 py-2 bg-gray-100 text-gray-900 rounded-lg font-medium hover:bg-gray-200 transition-colors"
-          >
-            <Download size={16} />
-            Generate Statement
-          </button>
+          <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3 text-sm text-white/80 relative z-10">
+            <div className="flex items-center gap-3 rounded-2xl bg-white/10 border border-white/20 p-3">
+              <Calendar size={18} />
+              <div>
+                <p className="text-xs uppercase tracking-wide text-white/70">
+                  Course Duration
+                </p>
+                <p className="font-semibold">
+                  {student?.duration || detail?.programLabel || 'Not specified'}
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-3 rounded-2xl bg-white/10 border border-white/20 p-3">
+              <Clock size={18} />
+              <div>
+                <p className="text-xs uppercase tracking-wide text-white/70">
+                  Last Payment
+                </p>
+                <p className="font-semibold">
+                  {latestPayment?.paidOn
+                    ? new Date(latestPayment.paidOn).toLocaleDateString()
+                    : 'No payments yet'}
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-3 rounded-2xl bg-white/10 border border-white/20 p-3">
+              <BadgeCheck size={18} />
+              <div>
+                <p className="text-xs uppercase tracking-wide text-white/70">
+                  Payments Logged
+                </p>
+                <p className="font-semibold">{payments.length || 0} entries</p>
+              </div>
+            </div>
+          </div>
         </div>
 
-        <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 p-4 rounded-xl bg-gray-50 border border-gray-200">
-          <div>
-            <h2 className="text-2xl font-bold text-gray-900">{student?.name || 'Unnamed Student'}</h2>
-            <p className="text-gray-600 mt-1">
-              Roll: {student?.roll || '—'} • Program: {student?.grade || detail?.programLabel}
-            </p>
-            <p className="text-gray-600">
-              Academic Year: {detail?.academicYear || student?.academicYear || '—'}
-            </p>
+        <div className="p-6 space-y-6 bg-white">
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+            <div className="rounded-2xl border border-gray-100 p-4 bg-white shadow-sm">
+              <div className="flex items-center justify-between text-sm text-gray-500">
+                <span>Total Fee</span>
+                <Wallet size={18} className="text-yellow-600" />
+              </div>
+              <p className="text-2xl font-bold text-gray-900">
+                {formatCurrency(totals.totalFee)}
+              </p>
+            </div>
+            <div className="rounded-2xl border border-gray-100 p-4 bg-white shadow-sm">
+              <div className="flex items-center justify-between text-sm text-gray-500">
+                <span>Discount Applied</span>
+                <PiggyBank size={18} className="text-amber-600" />
+              </div>
+              <p className="text-2xl font-bold text-amber-600">
+                {formatCurrency(totals.discountAmount)}
+              </p>
+            </div>
+            <div className="rounded-2xl border border-gray-100 p-4 bg-white shadow-sm">
+              <div className="flex items-center justify-between text-sm text-gray-500">
+                <span>Total Paid</span>
+                <BadgeCheck size={18} className="text-emerald-600" />
+              </div>
+              <p className="text-2xl font-bold text-emerald-600">
+                {formatCurrency(totals.totalPaid)}
+              </p>
+            </div>
+            <div className="rounded-2xl border border-gray-100 p-4 bg-white shadow-sm">
+              <div className="flex items-center justify-between text-sm text-gray-500">
+                <span>Outstanding</span>
+                <AlertCircle size={18} className="text-red-500" />
+              </div>
+              <p className="text-2xl font-bold text-red-600">
+                {formatCurrency(totals.outstanding)}
+              </p>
+            </div>
           </div>
-          <div className="text-sm text-gray-500">
-            <p>Guardian: {student?.guardianName || '—'}</p>
-            <p>Contact: {student?.guardianPhone || student?.guardianEmail || '—'}</p>
+
+          <div className="grid gap-6 lg:grid-cols-2">
+            <div className="rounded-2xl border border-gray-200 p-5">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-gray-500">Payment Progress</p>
+                  <p className="text-2xl font-semibold text-gray-900">
+                    {totals.progress}%
+                  </p>
+                </div>
+                <div className="text-right text-sm text-gray-500">
+                  <p>Last payment</p>
+                  <p className="text-base font-semibold text-gray-900">
+                    {latestPayment ? formatCurrency(latestPayment.amount) : '—'}
+                  </p>
+                  <p className="text-xs">
+                    {latestPayment?.paidOn
+                      ? new Date(latestPayment.paidOn).toLocaleString()
+                      : 'No payments yet'}
+                  </p>
+                </div>
+              </div>
+              <div className="mt-4 w-full bg-gray-200 rounded-full h-2.5">
+                <div
+                  className="h-2.5 rounded-full bg-gradient-to-r from-emerald-400 to-emerald-600 transition-all duration-300"
+                  style={{ width: `${totals.progress}%` }}
+                />
+              </div>
+              <p className="mt-2 text-xs text-gray-500">
+                {formatCurrency(totals.totalPaid)} of{' '}
+                {formatCurrency(totals.netTotal)} paid
+              </p>
+            </div>
+
+            <div className="rounded-2xl border border-gray-200 p-5">
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <p className="text-sm font-semibold text-gray-900">
+                    Upcoming installments
+                  </p>
+                  <p className="text-xs text-gray-500">
+                    Next dues at a glance
+                  </p>
+                </div>
+                <span className="px-3 py-1 rounded-full text-xs font-medium bg-yellow-50 text-yellow-700">
+                  {dueInstallments.length} pending
+                </span>
+              </div>
+              {upcomingPreview.length ? (
+                <div className="space-y-3">
+                  {upcomingPreview.map((inst, idx) => (
+                    <div
+                      key={`${inst.label}-${idx}`}
+                      className="flex items-center justify-between rounded-xl border border-gray-100 bg-gray-50 px-3 py-2"
+                    >
+                      <div>
+                        <p className="text-sm font-semibold text-gray-900">
+                          {inst.label}
+                        </p>
+                        <p className="text-xs text-gray-500 flex items-center gap-1">
+                          <Calendar size={12} />
+                          {inst.dueMonth || 'Scheduled'}
+                        </p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-sm font-semibold text-gray-900">
+                          {formatCurrency(inst.outstanding ?? inst.amount)}
+                        </p>
+                        <p className="text-[11px] text-gray-500 uppercase">
+                          {getStatusLabel(inst.status)}
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+                  {dueInstallments.length > upcomingPreview.length && (
+                    <p className="text-xs text-gray-500">
+                      +{dueInstallments.length - upcomingPreview.length} more installments
+                    </p>
+                  )}
+                </div>
+              ) : (
+                <p className="text-sm text-gray-500">
+                  All installments are settled. No pending dues.
+                </p>
+              )}
+            </div>
           </div>
         </div>
       </div>
 
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
         <div className="xl:col-span-2 flex flex-col gap-6">
-          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-              <div className="flex flex-col gap-1 p-4 rounded-lg border border-gray-200">
-                <p className="text-gray-600 text-sm font-medium">Total Fees</p>
-                <p className="text-gray-900 text-2xl font-bold">
-                  {formatCurrency(totals.totalFee)}
-                </p>
-              </div>
-              <div className="flex flex-col gap-1 p-4 rounded-lg border border-gray-200">
-                <p className="text-gray-600 text-sm font-medium">Discount Applied</p>
-                <p className="text-amber-600 text-2xl font-bold">
-                  {formatCurrency(totals.discountAmount)}
-                </p>
-              </div>
-              <div className="flex flex-col gap-1 p-4 rounded-lg border border-gray-200">
-                <p className="text-gray-600 text-sm font-medium">Total Paid</p>
-                <p className="text-green-600 text-2xl font-bold">
-                  {formatCurrency(totals.totalPaid)}
-                </p>
-              </div>
-              <div className="flex flex-col gap-1 p-4 rounded-lg border border-gray-200">
-                <p className="text-gray-600 text-sm font-medium">Outstanding Balance</p>
-                <p className="text-red-600 text-2xl font-bold">
-                  {formatCurrency(totals.outstanding)}
-                </p>
-              </div>
-            </div>
-
-            <div className="flex flex-col gap-3">
-              <div className="flex justify-between">
-                <p className="text-gray-900 text-base font-medium">Fee Payment Progress</p>
-                <p className="text-gray-900 text-sm">{totals.progress}%</p>
-              </div>
-              <div className="w-full bg-gray-200 rounded-full h-2">
-                <div
-                  className="h-2 rounded-full bg-blue-600 transition-all duration-300"
-                  style={{ width: `${totals.progress}%` }}
-                />
-              </div>
-              <p className="text-gray-500 text-sm">
-                {formatCurrency(totals.totalPaid)} of {formatCurrency(totals.netTotal)} paid
-              </p>
-              <p className="text-gray-500 text-xs">
-                Net payable after discount: {formatCurrency(totals.netTotal)}
-              </p>
-            </div>
-          </div>
-
           <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
             <div className="flex flex-col gap-2 mb-4">
               <div>

@@ -1,5 +1,23 @@
 import React, { useState, useEffect } from 'react';
-import { ChevronDown, Plus, Trash2, Save, X, Percent } from 'lucide-react';
+import { ChevronDown, Plus, Trash2, Save, X } from 'lucide-react';
+
+const API_BASE = import.meta.env.VITE_API_URL;
+
+const PROGRAM_TYPE_MAP = {
+  '4 Year B DES': 'B_DES',
+  '3 Year B VOC': 'B_VOC',
+  '2 Year M VOC': 'M_VOC',
+  '2 Year Advanced Certificate': 'ADV_CERT',
+  '1 Year Certificate': 'ADV_CERT',
+};
+
+const INITIAL_COMPONENTS = [
+  { id: 1, name: 'Time of Admission', amount: 60000, dueMonth: '' },
+  { id: 2, name: 'Registration fee', amount: 5000, dueMonth: '' },
+  { id: 3, name: 'MSU fees', amount: 1500, dueMonth: '' },
+  { id: 4, name: '1st Installment', amount: 45000, dueMonth: '' },
+  { id: 5, name: '2nd Installment', amount: 45000, dueMonth: '' },
+];
 
 const FeeConfiguration = ({ setShowAdminHeader }) => {
   useEffect(() => {
@@ -8,22 +26,13 @@ const FeeConfiguration = ({ setShowAdminHeader }) => {
 
   const [selectedProgram, setSelectedProgram] = useState('4 Year B DES');
   const [selectedStream, setSelectedStream] = useState('Fashion Design');
-  const [feeComponents, setFeeComponents] = useState([
-    { id: 1, name: 'Time of Admission', amount: 60000 },
-    { id: 2, name: 'Registration fee', amount: 5000 },
-    { id: 3, name: 'MSU fees', amount: 1500 },
-    { id: 4, name: '1st Installment', amount: 45000 },
-    { id: 5, name: '2nd Installment', amount: 45000 }
-  ]);
+  const [feeComponents, setFeeComponents] = useState(INITIAL_COMPONENTS);
+  const [currentCourseId, setCurrentCourseId] = useState('');
+  const [loadingStructure, setLoadingStructure] = useState(false);
+  const [loadError, setLoadError] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [refreshKey, setRefreshKey] = useState(0);
   
-  const [showDiscountModal, setShowDiscountModal] = useState(false);
-  const [discountData, setDiscountData] = useState({
-    type: 'percentage', // 'percentage' or 'fixed'
-    value: 0,
-    description: '',
-    applicableCategories: []
-  });
-
   const programs = [
     '4 Year B DES',
     '3 Year B VOC', 
@@ -34,15 +43,84 @@ const FeeConfiguration = ({ setShowAdminHeader }) => {
 
   const streams = [
     'Fashion Design',
-    'Interior Design',
-    'Graphic Design'
+    'Interior Design'
   ];
+
+  useEffect(() => {
+    const controller = new AbortController();
+
+    const loadFeeStructure = async () => {
+      const programType = PROGRAM_TYPE_MAP[selectedProgram] || null;
+      if (!programType) {
+        setFeeComponents([]);
+        setCurrentCourseId('');
+        setLoadError('Please select a valid program to load fee components.');
+        return;
+      }
+
+      setLoadingStructure(true);
+      setLoadError('');
+      try {
+        const params = new URLSearchParams({
+          programType,
+          stream: selectedStream,
+        });
+
+        const res = await fetch(
+          `${API_BASE}/api/nif/course/fee-structure?${params.toString()}`,
+          {
+            headers: {
+              'Content-Type': 'application/json',
+              authorization: `Bearer ${localStorage.getItem('token')}`,
+            },
+            signal: controller.signal,
+          }
+        );
+
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          if (res.status === 404) {
+            setFeeComponents([]);
+            setCurrentCourseId('');
+            setLoadError('No fee structure found for this program and stream yet.');
+            return;
+          }
+          throw new Error(data.message || 'Failed to load fee structure');
+        }
+
+        setCurrentCourseId(data.courseId || data._id || '');
+        const sanitized = Array.isArray(data.installments)
+          ? data.installments.map((inst, idx) => ({
+              id: `${inst.label || 'component'}-${idx}-${Date.now()}`,
+              name: inst.label || '',
+              amount: Number(inst.amount || 0),
+              dueMonth: inst.dueMonth || '',
+            }))
+          : [];
+        setFeeComponents(sanitized.length ? sanitized : []);
+      } catch (err) {
+        if (controller.signal.aborted) return;
+        console.error('Fee structure fetch failed:', err);
+        setLoadError(err.message || 'Failed to load fee structure');
+        setFeeComponents([]);
+        setCurrentCourseId('');
+      } finally {
+        if (!controller.signal.aborted) {
+          setLoadingStructure(false);
+        }
+      }
+    };
+
+    loadFeeStructure();
+    return () => controller.abort();
+  }, [selectedProgram, selectedStream, refreshKey]);
 
   const addFeeComponent = () => {
     const newComponent = {
       id: Date.now(),
       name: '',
-      amount: 0
+      amount: 0,
+      dueMonth: '',
     };
     setFeeComponents([...feeComponents, newComponent]);
   };
@@ -60,24 +138,67 @@ const FeeConfiguration = ({ setShowAdminHeader }) => {
   };
 
   const getTotalFee = () => {
-    return feeComponents.reduce((sum, component) => sum + component.amount, 0);
+    return feeComponents.reduce(
+      (sum, component) => sum + Number(component.amount || 0),
+      0
+    );
   };
 
-  const handleSave = () => {
-    alert('Fee structure saved successfully!');
-  };
+  const handleSave = async () => {
+    const programType = PROGRAM_TYPE_MAP[selectedProgram];
+    if (!programType) {
+      alert('Please select a valid program to save.');
+      return;
+    }
 
-  const handleDiscountSave = () => {
-    // Here you would typically save the discount to the backend
-    console.log('Discount data:', discountData);
-    alert(`Discount of ${discountData.type === 'percentage' ? discountData.value + '%' : '₹' + discountData.value} saved successfully!`);
-    setShowDiscountModal(false);
-    setDiscountData({
-      type: 'percentage',
-      value: 0,
-      description: '',
-      applicableCategories: []
-    });
+    const sanitizedComponents = feeComponents
+      .map((component) => {
+        const label = (component.name || '').trim();
+        const amount = Number(component.amount || 0);
+        if (!label || Number.isNaN(amount) || amount < 0) {
+          return null;
+        }
+        return {
+          label,
+          amount,
+          dueMonth: component.dueMonth || '',
+        };
+      })
+      .filter(Boolean);
+
+    if (!sanitizedComponents.length) {
+      alert('Add at least one fee component before saving.');
+      return;
+    }
+
+    setSaving(true);
+    try {
+      const res = await fetch(`${API_BASE}/api/nif/course/fee-structure`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          authorization: `Bearer ${localStorage.getItem('token')}`,
+        },
+        body: JSON.stringify({
+          programType,
+          stream: selectedStream,
+          courseId: currentCourseId || undefined,
+          components: sanitizedComponents,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data.message || 'Failed to save fee structure');
+      }
+      setCurrentCourseId(data.courseId || data._id || currentCourseId);
+      alert('Fee structure updated successfully!');
+      setRefreshKey((prev) => prev + 1);
+    } catch (err) {
+      console.error('Fee structure save failed:', err);
+      alert(err.message || 'Failed to save fee structure');
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -126,6 +247,7 @@ const FeeConfiguration = ({ setShowAdminHeader }) => {
           </div>
 
           <button 
+            onClick={() => setRefreshKey((prev) => prev + 1)}
             className="h-12 px-6 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors"
           >
             View Structure
@@ -142,55 +264,72 @@ const FeeConfiguration = ({ setShowAdminHeader }) => {
 
       {/* Fee Structure Table */}
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead>
-              <tr className="bg-gray-50 border-b border-gray-200">
-                <th className="px-6 py-4 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
-                  Fee Component Name
-                </th>
-                <th className="px-6 py-4 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
-                  Amount (INR)
-                </th>
-                <th className="px-6 py-4 text-right text-xs font-medium uppercase tracking-wider text-gray-500">
-                  Actions
-                </th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-200">
-              {feeComponents.map((component) => (
-                <tr key={component.id} className="hover:bg-gray-50">
-                  <td className="px-6 py-4">
-                    <input
-                      type="text"
-                      value={component.name}
-                      onChange={(e) => updateFeeComponent(component.id, 'name', e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                      placeholder="Enter fee component name"
-                    />
-                  </td>
-                  <td className="px-6 py-4">
-                    <input
-                      type="number"
-                      value={component.amount}
-                      onChange={(e) => updateFeeComponent(component.id, 'amount', e.target.value)}
-                      className="w-48 px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                      placeholder="0"
-                    />
-                  </td>
-                  <td className="px-6 py-4 text-right">
-                    <button
-                      onClick={() => deleteFeeComponent(component.id)}
-                      className="text-gray-400 hover:text-red-600 transition-colors"
-                    >
-                      <Trash2 size={20} />
-                    </button>
-                  </td>
+        {loadError && !loadingStructure && (
+          <div className="px-6 py-3 text-sm text-red-600 border-b border-red-200 bg-red-50">
+            {loadError}
+          </div>
+        )}
+        {loadingStructure ? (
+          <div className="p-6 text-center text-gray-500">Loading fee structure...</div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead>
+                <tr className="bg-gray-50 border-b border-gray-200">
+                  <th className="px-6 py-4 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
+                    Fee Component Name
+                  </th>
+                  <th className="px-6 py-4 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
+                    Amount (INR)
+                  </th>
+                  <th className="px-6 py-4 text-right text-xs font-medium uppercase tracking-wider text-gray-500">
+                    Actions
+                  </th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody className="divide-y divide-gray-200">
+                {feeComponents.length ? (
+                  feeComponents.map((component) => (
+                    <tr key={component.id} className="hover:bg-gray-50">
+                      <td className="px-6 py-4">
+                        <input
+                          type="text"
+                          value={component.name}
+                          onChange={(e) => updateFeeComponent(component.id, 'name', e.target.value)}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                          placeholder="Enter fee component name"
+                        />
+                      </td>
+                      <td className="px-6 py-4">
+                        <input
+                          type="number"
+                          value={component.amount}
+                          onChange={(e) => updateFeeComponent(component.id, 'amount', e.target.value)}
+                          className="w-48 px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                          placeholder="0"
+                        />
+                      </td>
+                      <td className="px-6 py-4 text-right">
+                        <button
+                          onClick={() => deleteFeeComponent(component.id)}
+                          className="text-gray-400 hover:text-red-600 transition-colors"
+                        >
+                          <Trash2 size={20} />
+                        </button>
+                      </td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr>
+                    <td className="px-6 py-8 text-center text-gray-500" colSpan={3}>
+                      No fee components defined for this course. Click “Add Fee Component” to get started.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        )}
 
         {/* Footer */}
         <div className="flex flex-col sm:flex-row justify-between items-center p-4 border-t border-gray-200 bg-gray-50">
@@ -201,13 +340,6 @@ const FeeConfiguration = ({ setShowAdminHeader }) => {
             >
               <Plus size={16} />
               Add Fee Component
-            </button>
-            <button
-              onClick={() => setShowDiscountModal(true)}
-              className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-green-600 hover:bg-green-50 rounded-lg transition-colors"
-            >
-              <Percent size={16} />
-              Add Discount
             </button>
           </div>
           <div className="flex items-center gap-4 mt-4 sm:mt-0">
@@ -225,114 +357,14 @@ const FeeConfiguration = ({ setShowAdminHeader }) => {
         </button>
         <button 
           onClick={handleSave}
-          className="flex items-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors"
+          disabled={saving}
+          className="flex items-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
         >
           <Save size={16} />
-          Save Changes
+          {saving ? 'Saving...' : 'Save Changes'}
         </button>
       </div>
 
-      {/* Discount Modal */}
-      {showDiscountModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg shadow-xl max-w-md w-full m-4">
-            <div className="flex items-center justify-between p-6 border-b border-gray-200">
-              <h3 className="text-lg font-semibold text-gray-900">Add Discount</h3>
-              <button 
-                onClick={() => setShowDiscountModal(false)}
-                className="text-gray-400 hover:text-gray-600"
-              >
-                <X size={20} />
-              </button>
-            </div>
-            
-            <div className="p-6 space-y-4">
-              {/* Discount Type */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Discount Type</label>
-                <select
-                  value={discountData.type}
-                  onChange={(e) => setDiscountData(prev => ({ ...prev, type: e.target.value }))}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                >
-                  <option value="percentage">Percentage (%)</option>
-                  <option value="fixed">Fixed Amount (₹)</option>
-                </select>
-              </div>
-
-              {/* Discount Value */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Discount Value {discountData.type === 'percentage' ? '(%)' : '(₹)'}
-                </label>
-                <input
-                  type="number"
-                  value={discountData.value}
-                  onChange={(e) => setDiscountData(prev => ({ ...prev, value: Number(e.target.value) }))}
-                  min="0"
-                  max={discountData.type === 'percentage' ? '100' : undefined}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  placeholder={discountData.type === 'percentage' ? 'Enter percentage (0-100)' : 'Enter amount'}
-                />
-              </div>
-
-              {/* Description */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Description</label>
-                <input
-                  type="text"
-                  value={discountData.description}
-                  onChange={(e) => setDiscountData(prev => ({ ...prev, description: e.target.value }))}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  placeholder="e.g., Early bird discount, Sibling discount, Merit scholarship"
-                />
-              </div>
-
-              {/* Applicable Categories */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Applicable Categories</label>
-                <div className="space-y-2">
-                  {['Academic Excellence', 'Financial Need', 'Sibling Discount', 'Early Payment', 'Staff Family'].map((category) => (
-                    <label key={category} className="flex items-center">
-                      <input
-                        type="checkbox"
-                        checked={discountData.applicableCategories.includes(category)}
-                        onChange={(e) => {
-                          setDiscountData(prev => ({
-                            ...prev,
-                            applicableCategories: e.target.checked
-                              ? [...prev.applicableCategories, category]
-                              : prev.applicableCategories.filter(c => c !== category)
-                          }));
-                        }}
-                        className="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-                      />
-                      <span className="ml-2 text-sm text-gray-700">{category}</span>
-                    </label>
-                  ))}
-                </div>
-              </div>
-            </div>
-
-            <div className="flex justify-end gap-3 p-6 border-t border-gray-200">
-              <button
-                onClick={() => setShowDiscountModal(false)}
-                className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleDiscountSave}
-                disabled={!discountData.value || !discountData.description}
-                className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:bg-gray-300 disabled:cursor-not-allowed"
-              >
-                <Percent size={16} className="inline mr-2" />
-                Add Discount
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 };

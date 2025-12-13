@@ -13,6 +13,28 @@ const PROGRAM_LABELS = {
   B_DES: "B.Des",
 };
 
+const PROGRAM_TYPE_ALIASES = {
+  ADV_CERT: "ADV_CERT",
+  "ADVANCED CERTIFICATE": "ADV_CERT",
+  "2 YEAR ADVANCED CERTIFICATE": "ADV_CERT",
+  "1 YEAR CERTIFICATE": "ADV_CERT",
+  B_VOC: "B_VOC",
+  "3 YEAR B VOC": "B_VOC",
+  BVOC: "B_VOC",
+  M_VOC: "M_VOC",
+  "2 YEAR M VOC": "M_VOC",
+  MVOC: "M_VOC",
+  B_DES: "B_DES",
+  "4 YEAR B DES": "B_DES",
+  BDES: "B_DES",
+};
+
+const normalizeProgramType = (value = "") => {
+  if (!value) return null;
+  const key = String(value).trim().toUpperCase().replace(/\./g, "");
+  return PROGRAM_TYPE_ALIASES[key] || null;
+};
+
 const sanitizeInstallments = (items) => {
   if (!Array.isArray(items)) return [];
 
@@ -161,6 +183,126 @@ router.post("/add", /* authAdmin, */ async (req, res, next) => {
 /* -----------------------------------------------------
    GET /api/nif/course/:id
 ------------------------------------------------------ */
+router.get("/fee-structure", async (req, res, next) => {
+  try {
+    const { programType, stream, courseId } = req.query || {};
+
+    let course = null;
+    if (courseId && mongoose.isValidObjectId(courseId)) {
+      course = await NifCourse.findById(courseId).lean();
+    }
+
+    const normalizedProgram = normalizeProgramType(programType);
+    const normalizedStream = typeof stream === "string" ? stream.trim() : "";
+
+    if (!course) {
+      if (!normalizedProgram || !normalizedStream) {
+        return res
+          .status(400)
+          .json({ message: "programType and stream are required" });
+      }
+
+      course = await NifCourse.findOne({
+        programType: normalizedProgram,
+        department: normalizedStream,
+      }).lean();
+    }
+
+    if (!course) {
+      return res
+        .status(404)
+        .json({ message: "Course not found for the provided selection" });
+    }
+
+    const installments = Array.isArray(course.installments)
+      ? course.installments
+      : [];
+    const totalFee =
+      typeof course.fees === "number"
+        ? course.fees
+        : installments.reduce((sum, inst) => sum + Number(inst.amount || 0), 0);
+
+    res.json({
+      courseId: course._id,
+      title: course.title,
+      programType: course.programType,
+      stream: course.department,
+      totalFee,
+      installments,
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+/* -----------------------------------------------------
+   POST /api/nif/course/fee-structure
+   Body: { programType, stream, courseId?, components: [] }
+------------------------------------------------------ */
+router.post("/fee-structure", async (req, res, next) => {
+  try {
+    const { programType, stream, courseId, components } = req.body || {};
+
+    const normalizedProgram = normalizeProgramType(programType);
+    const normalizedStream = typeof stream === "string" ? stream.trim() : "";
+
+    if (!normalizedProgram || !normalizedStream) {
+      return res
+        .status(400)
+        .json({ message: "programType and stream are required" });
+    }
+
+    let course = null;
+    if (courseId && mongoose.isValidObjectId(courseId)) {
+      course = await NifCourse.findById(courseId);
+    }
+    if (!course) {
+      course = await NifCourse.findOne({
+        programType: normalizedProgram,
+        department: normalizedStream,
+      });
+    }
+
+    if (!course) {
+      return res
+        .status(404)
+        .json({ message: "Course not found for the provided selection" });
+    }
+
+    const sanitized = sanitizeInstallments(components);
+    if (!sanitized.length) {
+      return res
+        .status(400)
+        .json({ message: "At least one valid fee component is required" });
+    }
+
+    const totalFee = sanitized.reduce(
+      (sum, inst) => sum + Number(inst.amount || 0),
+      0
+    );
+
+    course.installments = sanitized;
+    course.fees = totalFee;
+    course.programType = normalizedProgram;
+    course.programLabel =
+      course.programLabel || PROGRAM_LABELS[normalizedProgram];
+    await course.save();
+
+    res.json({
+      courseId: course._id,
+      totalFee: course.fees,
+      installments: course.installments,
+      programType: course.programType,
+      stream: course.department,
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+/* -----------------------------------------------------
+   GET /api/nif/course/:id
+------------------------------------------------------ */
 router.get("/:id", async (req, res, next) => {
   try {
     const { id } = req.params;
@@ -280,6 +422,10 @@ router.patch("/:id", /* authAdmin, */ async (req, res, next) => {
   }
 });
 
+/* -----------------------------------------------------
+   GET /api/nif/course/fee-structure
+   Query: programType, stream, courseId(optional)
+------------------------------------------------------ */
 /* -----------------------------------------------------
    DELETE /api/nif/course/:id
 ------------------------------------------------------ */

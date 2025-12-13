@@ -35,7 +35,9 @@ import Swal from "sweetalert2";
 
 const API_BASE = import.meta.env.VITE_API_URL;
 
-const Students = ({ setShowAdminHeader }) => {
+const STUDENTS_PER_PAGE = 12;
+
+const Students = ({ setShowAdminHeader, setShowAdminBreadcrumb }) => {
   const navigate = useNavigate(); 
 
   const [studentData, setStudentData] = useState([]);
@@ -91,12 +93,50 @@ const Students = ({ setShowAdminHeader }) => {
   );
   const selectedCourseInstallments = selectedCourse?.installments || [];
 
+  const [currentPage, setCurrentPage] = useState(1);
+
   /* -------------------- Derived -------------------- */
-  const filteredStudents = studentData.filter((student) =>
-    [student.name, student.roll, student.email]
-      .filter(Boolean)
-      .some((v) => String(v).toLowerCase().includes(searchTerm.toLowerCase()))
+  const filteredStudents = useMemo(
+    () =>
+      studentData.filter((student) =>
+        [student.name, student.roll, student.email]
+          .filter(Boolean)
+          .some((v) =>
+            String(v).toLowerCase().includes(searchTerm.toLowerCase())
+          )
+      ),
+    [studentData, searchTerm]
   );
+  const totalPages = Math.max(
+    1,
+    Math.ceil(filteredStudents.length / STUDENTS_PER_PAGE)
+  );
+  const paginatedStudents = useMemo(() => {
+    const start = (currentPage - 1) * STUDENTS_PER_PAGE;
+    return filteredStudents.slice(start, start + STUDENTS_PER_PAGE);
+  }, [filteredStudents, currentPage]);
+  const pageNumbers = useMemo(
+    () => Array.from({ length: totalPages }, (_, idx) => idx + 1),
+    [totalPages]
+  );
+  const startItem =
+    filteredStudents.length > 0
+      ? (currentPage - 1) * STUDENTS_PER_PAGE + 1
+      : 0;
+  const endItem = Math.min(
+    currentPage * STUDENTS_PER_PAGE,
+    filteredStudents.length
+  );
+  useEffect(() => {
+    setCurrentPage((prev) => {
+      const next = Math.min(prev, totalPages);
+      return next < 1 ? 1 : next;
+    });
+  }, [totalPages]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm]);
 
   /* -------------------- Helpers -------------------- */
   const getTodayAttendance = (student) => {
@@ -229,10 +269,15 @@ const Students = ({ setShowAdminHeader }) => {
   /* -------------------- Effects -------------------- */
   useEffect(() => {
     setShowAdminHeader?.(true);
+    setShowAdminBreadcrumb?.(false);
     refreshStudents().catch(console.error);
     fetchCourses().catch(console.error);
     refreshArchivedStudents().catch(console.error);
-  }, [setShowAdminHeader]);
+
+    return () => {
+      setShowAdminBreadcrumb?.(true);
+    };
+  }, [setShowAdminHeader, setShowAdminBreadcrumb]);
 
   /* -------------------- Archive Student -------------------- */
   const handleArchiveStudent = async (student) => {
@@ -699,10 +744,10 @@ const Students = ({ setShowAdminHeader }) => {
 
   /* -------------------- UI -------------------- */
   return (
-    <div className="min-h-screen bg-gradient-to-br from-yellow-50 via-yellow-100 to-amber-100 p-8">
-      <div className="max-w-7xl mx-auto bg-white/90 rounded-2xl shadow-2xl p-8 border border-yellow-200">
+    <div className="h-full w-full bg-gradient-to-br from-yellow-50 via-yellow-100 to-amber-100 p-0 overflow-hidden">
+      <div className="h-full w-full bg-white/95 p-6 flex flex-col overflow-hidden">
         {/* Header */}
-        <div className="flex flex-wrap gap-3 justify-between items-center mb-8">
+        <div className="flex flex-wrap gap-3 justify-between items-center mb-6 flex-shrink-0">
           <div>
             <h1 className="text-3xl font-bold text-yellow-700">
               Student Management (NIF)
@@ -751,153 +796,179 @@ const Students = ({ setShowAdminHeader }) => {
             </button>
           </div>
         </div>
-
-        {/* Search */}
-        <div className="mb-6 flex flex-wrap items-center gap-4">
-          <div className="flex-1 min-w-[240px] relative">
-            <Search
-              size={20}
-              className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
-            />
-            <input
-              type="text"
-              placeholder="Search students..."
-              className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-500"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-            />
+        <div className="flex-1 flex flex-col overflow-hidden">
+          {/* Search */}
+          <div className="mb-4 flex flex-wrap items-center gap-4 flex-shrink-0">
+            <div className="flex-1 min-w-[240px] relative">
+              <Search
+                size={20}
+                className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
+              />
+              <input
+                type="text"
+                placeholder="Search students..."
+                className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-500"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+              />
+            </div>
           </div>
-        </div>
 
-        {/* Students Table */}
-        <div className="overflow-x-auto">
-          <table className="w-full border-collapse">
-            <thead>
-              <tr className="bg-yellow-50">
-                {[
-                  "Name",
-                  "Roll No.",
-                  "Program",
-                  "Batch",
-                  "Course",
-                  "Phone",
-                  "Fees",
-                  "Balance",
-                  "Archive",
-                ].map((h) => (
-                  <th
-                    key={h}
-                    className="border-b border-yellow-100 px-6 py-3 text-left text-sm font-semibold text-yellow-800"
-                  >
-                    {h}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {filteredStudents.map((student) => (
-                <tr
-                  key={student._id || student.id}
-                  className="hover:bg-yellow-50 transition-colors"
-                >
-                  <td className="border-b border-yellow-100 px-6 py-4">
-                    <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 rounded-full bg-yellow-200 flex items-center justify-center">
-                        {student.name?.charAt(0) || "?"}
-                      </div>
-                      <div>
-                        <div className="font-medium text-gray-900">
-                          {student.name}
-                        </div>
-                        <div className="text-sm text-gray-500">
-                          {student.email}
-                        </div>
-                      </div>
-                    </div>
-                  </td>
-                  <td className="border-b border-yellow-100 px-6 py-4 text-gray-600">
-                    {student.roll}
-                  </td>
-                  <td className="border-b border-yellow-100 px-6 py-4 text-gray-600">
-                    {student.grade}
-                  </td>
-                  <td className="border-b border-yellow-100 px-6 py-4 text-gray-600">
-                    {student.batchCode}
-                  </td>
-                  <td className="border-b border-yellow-100 px-6 py-4 text-gray-600">
-                    {student.course}
-                  </td>
-
-                  <td className="border-b border-yellow-100 px-6 py-4 text-gray-600">
-                    {student.mobile}
-                  </td>
-                  <td className="border-b border-yellow-100 px-6 py-4 text-gray-600">
-                    <div className="text-sm text-gray-600">
-                      {formatCurrency(student.feeSummary?.paidAmount)} /{" "}
-                      {formatCurrency(student.feeSummary?.totalFee)}
-                    </div>
-                    <span
-                      className={`inline-flex mt-1 px-2 py-0.5 text-xs rounded-full ${getFeeStatusClass(
-                        student.feeSummary?.status
-                      )}`}
+          {/* Students Table */}
+          <div className="overflow-x-auto flex-1">
+            <table className="w-full border-collapse">
+              <thead>
+                <tr className="bg-yellow-50">
+                  {[
+                    "Name",
+                    "Roll No.",
+                    "Program",
+                    "Batch",
+                    "Course",
+                    "Phone",
+                    "Fees",
+                    "Balance",
+                    "Archive",
+                  ].map((h) => (
+                    <th
+                      key={h}
+                      className="border-b border-yellow-100 px-6 py-3 text-left text-sm font-semibold text-yellow-800"
                     >
-                      {student.feeSummary?.status
-                        ? student.feeSummary.status.charAt(0).toUpperCase() +
-                          student.feeSummary.status.slice(1)
-                        : "N/A"}
-                    </span>
-                  </td>
-                  <td className="border-b border-yellow-100 px-6 py-4 text-gray-900 font-semibold">
-                    {formatCurrency(student.feeSummary?.dueAmount)}
-                  </td>
-                  <td className="border-b border-yellow-100 px-6 py-4">
-                    <div className="flex items-center gap-2">
-                      <button
-                        onClick={() => handleArchiveStudent(student)}
-                        disabled={isArchiving}
-                        className="inline-flex items-center gap-2 px-3 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-sm transition-colors disabled:opacity-50"
-                      >
-                        <Archive size={14} />
-                        {isArchiving ? "Archiving..." : "Archive"}
-                      </button>
-                      <button
-                        onClick={() => handleDeleteStudent(student)}
-                        disabled={!!deletingId}
-                        className="inline-flex items-center gap-2 px-3 py-1.5 bg-red-50 text-red-700 hover:bg-red-100 rounded-lg text-sm transition-colors disabled:opacity-50"
-                      >
-                        <Trash2 size={14} />
-                        {deletingId === student._id ? "Deleting..." : "Delete"}
-                      </button>
-                    </div>
-                  </td>
+                      {h}
+                    </th>
+                  ))}
                 </tr>
-              ))}
-              {filteredStudents.length === 0 && (
-                <tr>
-                  <td
-                    colSpan={9}
-                    className="text-center text-gray-500 py-10"
+              </thead>
+              <tbody>
+                {paginatedStudents.map((student) => (
+                  <tr
+                    key={student._id || student.id}
+                    className="hover:bg-yellow-50 transition-colors"
                   >
-                    No students found.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
+                    <td className="border-b border-yellow-100 px-6 py-4">
+                      <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 rounded-full bg-yellow-200 flex items-center justify-center">
+                          {student.name?.charAt(0) || "?"}
+                        </div>
+                        <div>
+                          <div className="font-medium text-gray-900">
+                            {student.name}
+                          </div>
+                          <div className="text-sm text-gray-500">
+                            {student.email}
+                          </div>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="border-b border-yellow-100 px-6 py-4 text-gray-600">
+                      {student.roll}
+                    </td>
+                    <td className="border-b border-yellow-100 px-6 py-4 text-gray-600">
+                      {student.grade}
+                    </td>
+                    <td className="border-b border-yellow-100 px-6 py-4 text-gray-600">
+                      {student.batchCode}
+                    </td>
+                    <td className="border-b border-yellow-100 px-6 py-4 text-gray-600">
+                      {student.course}
+                    </td>
 
-        {/* Pagination */}
-        <div className="mt-6 flex items-center justify-between">
-          <div className="text-gray-600">
-            Showing {filteredStudents.length} of {studentData.length} students
+                    <td className="border-b border-yellow-100 px-6 py-4 text-gray-600">
+                      {student.mobile}
+                    </td>
+                    <td className="border-b border-yellow-100 px-6 py-4 text-gray-600">
+                      <div className="text-sm text-gray-600">
+                        {formatCurrency(student.feeSummary?.paidAmount)} /{" "}
+                        {formatCurrency(student.feeSummary?.totalFee)}
+                      </div>
+                      <span
+                        className={`inline-flex mt-1 px-2 py-0.5 text-xs rounded-full ${getFeeStatusClass(
+                          student.feeSummary?.status
+                        )}`}
+                      >
+                        {student.feeSummary?.status
+                          ? student.feeSummary.status.charAt(0).toUpperCase() +
+                            student.feeSummary.status.slice(1)
+                          : "N/A"}
+                      </span>
+                    </td>
+                    <td className="border-b border-yellow-100 px-6 py-4 text-gray-900 font-semibold">
+                      {formatCurrency(student.feeSummary?.dueAmount)}
+                    </td>
+                    <td className="border-b border-yellow-100 px-6 py-4">
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => handleArchiveStudent(student)}
+                          disabled={isArchiving}
+                          className="inline-flex items-center gap-2 px-3 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-sm transition-colors disabled:opacity-50"
+                        >
+                          <Archive size={14} />
+                          {isArchiving ? "Archiving..." : "Archive"}
+                        </button>
+                        <button
+                          onClick={() => handleDeleteStudent(student)}
+                          disabled={!!deletingId}
+                          className="inline-flex items-center gap-2 px-3 py-1.5 bg-red-50 text-red-700 hover:bg-red-100 rounded-lg text-sm transition-colors disabled:opacity-50"
+                        >
+                          <Trash2 size={14} />
+                          {deletingId === student._id ? "Deleting..." : "Delete"}
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+                {filteredStudents.length === 0 && (
+                  <tr>
+                    <td
+                      colSpan={9}
+                      className="text-center text-gray-500 py-10"
+                    >
+                      No students found.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
           </div>
-          <div className="flex gap-2">
-            <button className="px-4 py-2 border border-gray-200 rounded-lg hover:bg-yellow-50">
-              Previous
-            </button>
-            <button className="px-4 py-2 border border-gray-200 rounded-lg hover:bg-yellow-50">
-              Next
-            </button>
+
+          {/* Pagination */}
+          <div className="mt-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between flex-shrink-0">
+            <div className="text-gray-600 text-sm">
+              {filteredStudents.length === 0
+                ? "No students to display"
+                : `Showing ${startItem}-${endItem} of ${filteredStudents.length} students`}
+            </div>
+            <div className="flex items-center gap-2 flex-wrap">
+              <button
+                className="px-3 py-1.5 border border-gray-200 rounded-lg text-sm hover:bg-yellow-50 disabled:opacity-50"
+                onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
+                disabled={currentPage === 1}
+              >
+                Previous
+              </button>
+              {pageNumbers.map((page) => (
+                <button
+                  key={page}
+                  onClick={() => setCurrentPage(page)}
+                  className={`px-3 py-1.5 rounded-lg text-sm border ${
+                    page === currentPage
+                      ? "bg-yellow-500 text-white border-yellow-500"
+                      : "border-gray-200 text-gray-700 hover:bg-yellow-50"
+                  }`}
+                >
+                  Page {page}
+                </button>
+              ))}
+              <button
+                className="px-3 py-1.5 border border-gray-200 rounded-lg text-sm hover:bg-yellow-50 disabled:opacity-50"
+                onClick={() =>
+                  setCurrentPage((prev) => Math.min(prev + 1, totalPages))
+                }
+                disabled={currentPage === totalPages}
+              >
+                Next
+              </button>
+            </div>
           </div>
         </div>
 

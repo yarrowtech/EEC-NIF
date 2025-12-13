@@ -1,5 +1,5 @@
 import React from 'react';
-import { ChevronRight, Grid3X3, Menu } from 'lucide-react';
+import { ChevronRight, Menu } from 'lucide-react';
 import AdminHeader from './AdminHeader';
 import AdminSidebar from './AdminSidebar';
 
@@ -11,7 +11,8 @@ const AdminLayout = ({
   onToggleSidebar,
   adminUser,
   breadcrumbs = [],
-  showAdminHeader
+  showAdminHeader,
+  showBreadcrumb = true
 }) => {
   const defaultBreadcrumbs = [
     { label: 'Admin', path: '/admin' },
@@ -36,8 +37,8 @@ const AdminLayout = ({
         />}
         
         {/* Breadcrumb */}
-        <div className="px-4 lg:px-8 py-4 bg-white border-b">
-          <div className="flex items-center justify-between">
+        {showBreadcrumb && (
+          <div className="px-4 lg:px-8 py-4 bg-white border-b">
             <div className="flex items-center space-x-2 text-gray-600 overflow-x-auto">
               {sidebarCollapsed && (
                 <button 
@@ -61,11 +62,8 @@ const AdminLayout = ({
                 ))}
               </div>
             </div>
-            <button className="p-2 bg-indigo-600 text-black rounded-lg hover:bg-indigo-700 transition-colors flex-shrink-0">
-              <Grid3X3 size={20} />
-            </button>
           </div>
-        </div>
+        )}
 
         {/* Main Content */}
         <main className="flex-1 p-4 lg:p-8 overflow-auto">
