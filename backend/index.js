@@ -26,6 +26,9 @@ const alcoveRouter = require("./routes/alcoveRoute");
 const nifCourseRoute = require("./routes/nifCourseRoute");
 const nifStudentArchiveRoutes = require("./routes/nifStudentArchiveRoutes");
 
+const uploadRoutes = require("./routes/uploadRoutes");
+
+
 
 const app = express();
 
@@ -74,6 +77,7 @@ app.use('/api/wellbeing', wellbeingRoute);
 
 
 app.use('api/nifStudentArchiveRoutes', nifStudentArchiveRoutes );
+app.use("/api/uploads", uploadRoutes);
 
 
 const PORT = process.env.PORT || 5000;

@@ -1,4 +1,3 @@
-// frontend/src/admin/pages/Students.jsx
 import React, { useState, useEffect, useRef, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import {
@@ -56,6 +55,13 @@ const Students = ({ setShowAdminHeader, setShowAdminBreadcrumb }) => {
   const [archiveActionLoading, setArchiveActionLoading] = useState(false);
   const [isArchiving, setIsArchiving] = useState(false);
   const [deletingId, setDeletingId] = useState(null);
+
+const mediaInputRef = useRef(null);
+  const [isMediaUploading, setIsMediaUploading] = useState(false);
+  const [mediaProgress, setMediaProgress] = useState(0);
+  const [uploadedMedia, setUploadedMedia] = useState([]);
+  const [mediaFolder, setMediaFolder] = useState("nif_students");
+  const [mediaTags, setMediaTags] = useState("students,documents");
 
   const [newStudent, setNewStudent] = useState({
     // core
@@ -775,6 +781,9 @@ const Students = ({ setShowAdminHeader, setShowAdminBreadcrumb }) => {
                 if (f) handleBulkFilePicked(f);
               }}
             />
+
+
+            
             <button
               onClick={handleViewArchive}
               className="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 flex items-center gap-2"
