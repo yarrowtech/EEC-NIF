@@ -61,22 +61,9 @@ body {
 }
 
 .animated-fee-gradient {
-  background: linear-gradient(125deg, #fde68a, #fcd34d, #f59e0b, #f97316, #facc15);
-  background-size: 300% 300%;
-  animation: feeGradientShift 10s ease-in-out infinite;
+  background: linear-gradient(125deg, #93c5fd, #3b82f6, #1d4ed8, #1e40af, #1e3a8a);
 }
 
-@keyframes feeGradientShift {
-  0% {
-    background-position: 0% 50%;
-  }
-  50% {
-    background-position: 100% 50%;
-  }
-  100% {
-    background-position: 0% 50%;
-  }
-}
 
 /* Submenu expand/collapse animation */
 .submenu {
