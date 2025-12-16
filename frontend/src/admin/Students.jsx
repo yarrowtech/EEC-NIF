@@ -1059,7 +1059,7 @@ const Students = ({ setShowAdminHeader, setShowAdminBreadcrumb }) => {
                 {paginatedStudents.map((student) => (
                   <tr
                     key={student._id || student.id}
-                    className="hover:bg-yellow-50 transition-colors"
+                    className="hover:shadow-[0_0_15px_rgba(147,51,234,0.4)] hover:rounded-xl transition-all duration-200"
                   >
                     <td className="border-b border-yellow-100 px-6 py-4">
                       <div className="flex items-center gap-3">
@@ -1156,7 +1156,7 @@ const Students = ({ setShowAdminHeader, setShowAdminBreadcrumb }) => {
             </div>
             <div className="flex items-center gap-2 flex-wrap">
               <button
-                className="px-3 py-1.5 border border-gray-200 rounded-lg text-sm hover:bg-yellow-50 disabled:opacity-50"
+                className="px-3 py-1.5 border border-gray-200 rounded-lg text-sm hover:bg-yellow-50 disabled:opacity-50 text-black"
                 onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
                 disabled={currentPage === 1}
               >
@@ -1835,7 +1835,7 @@ const Students = ({ setShowAdminHeader, setShowAdminBreadcrumb }) => {
               <div className="px-6 py-4 border-t flex justify-end">
                 <button
                   onClick={() => setShowArchiveModal(false)}
-                  className="px-4 py-2 text-sm rounded-lg border border-gray-300 hover:bg-gray-50"
+                  className="px-4 py-2 text-sm rounded-lg border border-gray-300 hover:bg-gray-50 text-black"
                 >
                   Close
                 </button>
