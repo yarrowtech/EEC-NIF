@@ -1176,7 +1176,7 @@ const Students = ({ setShowAdminHeader, setShowAdminBreadcrumb }) => {
                 </button>
               ))}
               <button
-                className="px-3 py-1.5 border border-gray-200 rounded-lg text-sm hover:bg-yellow-50 disabled:opacity-50"
+                className="px-3 py-1.5 border border-gray-200 rounded-lg text-sm hover:bg-yellow-50 disabled:opacity-50 text-black"
                 onClick={() =>
                   setCurrentPage((prev) => Math.min(prev + 1, totalPages))
                 }
