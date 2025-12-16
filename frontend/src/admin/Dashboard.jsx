@@ -1,8 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import DashboardNav from './components/DashboardNav';
-import { BarChart2, Bus, Users, UserCheck, User, Calendar as CalendarIcon, FileText, PhoneCall, School, RefreshCw } from 'lucide-react';
+import { BarChart2, Bus, Users, UserCheck, User, Calendar as CalendarIcon, FileText, PhoneCall, School } from 'lucide-react';
 
-const staticCourses = { label: 'Courses', value: 18, icon: '📚', trend: '+3' };
+const stats = [
+  { label: 'Teachers', value: 12, icon: '👨‍🏫', trend: '+2' },
+  { label: 'Students', value: 120, icon: '👨‍🎓', trend: '+15' },
+  { label: 'Courses', value: 18, icon: '📚', trend: '+3' },
+  { label: 'Parents', value: 110, icon: '👥', trend: '+8' },
+];
 
 const quickActions = [
   { title: 'Add New Student', action: 'student', icon: '➕' },
@@ -63,75 +68,15 @@ const documents = [
 
 const Dashboard = ({ setShowAdminHeader }) => {
   const [selectedAction, setSelectedAction] = useState(null);
-  const [liveStats, setLiveStats] = useState(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [lastUpdated, setLastUpdated] = useState(null);
 
   const handleActionClick = (action) => {
     setSelectedAction(action);
     setTimeout(() => setSelectedAction(null), 2000);
   };
 
-  // Fetch live statistics from API
-  const fetchLiveStats = async () => {
-    try {
-      const token = localStorage.getItem('token');
-      const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000';
-      const response = await fetch(`${API_BASE}/api/admin/dashboard-stats`, {
-        headers: {
-          'Content-Type': 'application/json',
-          'authorization': `Bearer ${token}`
-        }
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        setLiveStats(data);
-        setLastUpdated(new Date());
-      }
-    } catch (error) {
-      console.error('Failed to fetch dashboard stats:', error);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
   useEffect(() => {
     setShowAdminHeader(true);
-    fetchLiveStats();
-
-    // Auto-refresh every 60 seconds
-    const refreshInterval = setInterval(fetchLiveStats, 60000);
-    return () => clearInterval(refreshInterval);
   }, []);
-
-  // Build stats array with live data
-  const stats = liveStats ? [
-    {
-      label: 'Teachers',
-      value: liveStats.teachers.total,
-      icon: '👨‍🏫',
-      trend: `+${liveStats.teachers.recent}`
-    },
-    {
-      label: 'Students',
-      value: liveStats.students.total,
-      icon: '👨‍🎓',
-      trend: `+${liveStats.students.recent}`
-    },
-    staticCourses,
-    {
-      label: 'Parents',
-      value: liveStats.parents.total,
-      icon: '👥',
-      trend: `+${liveStats.parents.recent}`
-    },
-  ] : [
-    { label: 'Teachers', value: 12, icon: '👨‍🏫', trend: '+2' },
-    { label: 'Students', value: 120, icon: '👨‍🎓', trend: '+15' },
-    staticCourses,
-    { label: 'Parents', value: 110, icon: '👥', trend: '+8' },
-  ];
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-yellow-200 via-yellow-300 to-yellow-400 p-8">
@@ -139,27 +84,8 @@ const Dashboard = ({ setShowAdminHeader }) => {
 
         {/* Header */}
         <div className="mb-8">
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-4xl font-bold text-yellow-800 mb-2">Admin Dashboard</h1>
-              <p className="text-yellow-700 text-lg">Overview of the institution's key statistics and quick actions.</p>
-            </div>
-            <div className="flex items-center gap-3">
-              {lastUpdated && (
-                <span className="text-sm text-yellow-700">
-                  Last updated: {lastUpdated.toLocaleTimeString()}
-                </span>
-              )}
-              <button
-                onClick={fetchLiveStats}
-                disabled={isLoading}
-                className="flex items-center gap-2 px-4 py-2 bg-yellow-500 hover:bg-yellow-600 text-white rounded-lg font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                <RefreshCw size={16} className={isLoading ? 'animate-spin' : ''} />
-                {isLoading ? 'Refreshing...' : 'Refresh Data'}
-              </button>
-            </div>
-          </div>
+          <h1 className="text-4xl font-bold text-yellow-800 mb-2">Admin Dashboard</h1>
+          <p className="text-yellow-700 text-lg">Overview of the institution's key statistics and quick actions.</p>
         </div>
 
         <DashboardNav />
