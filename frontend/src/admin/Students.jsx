@@ -144,6 +144,13 @@ const mediaInputRef = useRef(null);
     setCurrentPage(1);
   }, [searchTerm]);
 
+  // Refresh archived students when modal opens
+  useEffect(() => {
+    if (showArchiveModal) {
+      refreshArchivedStudents();
+    }
+  }, [showArchiveModal]);
+
   /* -------------------- Helpers -------------------- */
   const getTodayAttendance = (student) => {
     if (!student.attendance || student.attendance.length === 0) return null;
@@ -265,12 +272,35 @@ const mediaInputRef = useRef(null);
     }
   };
 
-  // Placeholder until archive endpoints are implemented
+  // Fetch archived students from backend
   const refreshArchivedStudents = async () => {
-    setArchivedStudents([]);
+    try {
+      const token = localStorage.getItem("token");
+      console.log("Fetching archived students from:", `${API_BASE}/api/nif/students/archived`);
+      console.log("Using token:", token ? "Present" : "Missing");
+      
+      const res = await fetch(`${API_BASE}/api/nif/students/archived`, {
+        method: "GET",
+        headers: {
+          "Content-Type": "application/json",
+          authorization: `Bearer ${token}`,
+        },
+      });
+      console.log("Response status:", res.status);
+      if (res.ok) {
+        const data = await res.json();
+        console.log("Archived students data:", data);
+        setArchivedStudents(Array.isArray(data) ? data : []);
+      } else {
+        const errorText = await res.text();
+        console.error("Failed to fetch archived students:", res.status, errorText);
+        setArchivedStudents([]);
+      }
+    } catch (err) {
+      console.error("Error fetching archived students:", err);
+      setArchivedStudents([]);
+    }
   };
-
-  const handleViewArchive = () => setShowArchiveModal(true);
 
   /* -------------------- Effects -------------------- */
   useEffect(() => {
@@ -332,6 +362,7 @@ const mediaInputRef = useRef(null);
           showConfirmButton: false,
         });
         await refreshStudents();
+        await refreshArchivedStudents();
       } else {
         throw new Error("Failed to archive student");
       }
@@ -541,7 +572,8 @@ const mediaInputRef = useRef(null);
       if (!res.ok) {
         throw new Error(data.message || "Failed to restore student");
       }
-      await Promise.all([refreshStudents(), refreshArchivedStudents()]);
+      await refreshStudents();
+      await refreshArchivedStudents();
       Swal.fire({
         icon: "success",
         title: "Student restored",
@@ -785,13 +817,6 @@ const mediaInputRef = useRef(null);
 
             
             <button
-              onClick={handleViewArchive}
-              className="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 flex items-center gap-2"
-            >
-              <Archive size={16} />
-              View Archive
-            </button>
-            <button
               onClick={() => setShowAddForm(true)}
               className="bg-yellow-600 text-white px-4 py-2 rounded-lg hover:bg-yellow-700 flex items-center gap-2"
             >
@@ -799,9 +824,9 @@ const mediaInputRef = useRef(null);
             </button>
             <button
               onClick={() => setShowArchiveModal(true)}
-              className="bg-white border border-gray-300 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-50 flex items-center gap-2"
+              className="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 flex items-center gap-2"
             >
-              <Archive size={16} /> Archived
+              <Archive size={16} /> View Archived
             </button>
           </div>
         </div>
@@ -1583,7 +1608,7 @@ const mediaInputRef = useRef(null);
                     {archivedStudents.map((student) => (
                       <tr key={student._id} className="border-t">
                         <td className="px-4 py-3 text-gray-900 font-medium">
-                          {student.name}
+                          {student.studentName}
                         </td>
                         <td className="px-4 py-3 text-gray-600">
                           {student.roll}
@@ -1598,7 +1623,7 @@ const mediaInputRef = useRef(null);
                           {student.mobile}
                         </td>
                         <td className="px-4 py-3 text-right text-red-600 font-semibold">
-                          {formatCurrency(student.feeSummary?.dueAmount)}
+                          {formatCurrency(student.feeSummary?.totalDue)}
                         </td>
                         <td className="px-4 py-3 text-center">
                           <button

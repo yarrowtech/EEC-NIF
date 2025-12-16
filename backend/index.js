@@ -154,11 +154,10 @@ app.use('/api/alcove', alcoveRouter);
 
 
 app.use('/api/nif/course', nifCourseRoute);
+app.use('/api/nif/students/archived', nifStudentArchiveRoutes);
+
 const nifRoutes = require('./routes/nifRoutes');
 app.use('/api/nif', nifRoutes);
-
-
-app.use('/api/nifStudentArchiveRoutes', nifStudentArchiveRoutes);
 
 
 app.use("/api/uploads", uploadRoutes);

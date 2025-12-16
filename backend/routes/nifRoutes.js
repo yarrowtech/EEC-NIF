@@ -1174,4 +1174,142 @@ router.post('/fees/installments/pay/:id', adminAuth, async (req, res) => {
   }
 });
 
+/* ========== 8) ARCHIVE STUDENT ========== */
+router.put('/students/:id/archive', adminAuth, async (req, res) => {
+  try {
+    const { id } = req.params;
+    if (!mongoose.isValidObjectId(id)) {
+      return res.status(400).json({ message: 'Invalid student ID' });
+    }
+
+    const student = await NifStudent.findById(id);
+    if (!student) {
+      return res.status(404).json({ message: 'Student not found' });
+    }
+
+    // Get fee record for the student
+    const feeRecord = await NifFeeRecord.findOne({ student: id }).lean();
+    
+    const NifArchivedStudent = require('../models/NifArchivedStudent');
+    
+    // Create archived student record
+    const archivedStudent = await NifArchivedStudent.create({
+      originalStudentId: student._id,
+      studentName: student.name,
+      email: student.email,
+      mobile: student.mobile,
+      gender: student.gender,
+      dob: student.dob,
+      roll: student.roll,
+      grade: student.grade,
+      section: student.section,
+      batchCode: student.batchCode,
+      course: student.course,
+      courseId: student.courseId,
+      duration: student.duration,
+      admissionDate: student.admissionDate,
+      archiveStatus: 'passed',
+      passedOutYear: new Date().getFullYear().toString(),
+      archivedAt: new Date(),
+      archivedBy: req.user?.name || 'Admin',
+      feeSummary: feeRecord ? {
+        totalFee: feeRecord.totalFee || 0,
+        totalPaid: feeRecord.paidAmount || 0,
+        totalDue: feeRecord.dueAmount || 0,
+      } : {},
+      feeRecords: feeRecord ? [feeRecord] : [],
+      snapshot: student.toObject ? student.toObject() : student,
+    });
+
+    // Delete original student and fee records
+    await Promise.all([
+      NifStudent.findByIdAndDelete(id),
+      NifFeeRecord.deleteMany({ student: id })
+    ]);
+
+    res.json({ 
+      success: true, 
+      message: 'Student archived successfully',
+      archivedStudent: archivedStudent
+    });
+
+  } catch (err) {
+    console.error('Archive student error:', err);
+    res.status(500).json({ message: 'Failed to archive student' });
+  }
+});
+
+/* ========== 9) UNARCHIVE STUDENT ========== */
+router.patch('/students/:id/unarchive', adminAuth, async (req, res) => {
+  try {
+    const { id } = req.params;
+    if (!mongoose.isValidObjectId(id)) {
+      return res.status(400).json({ message: 'Invalid archived student ID' });
+    }
+
+    const NifArchivedStudent = require('../models/NifArchivedStudent');
+    const archivedStudent = await NifArchivedStudent.findById(id);
+    
+    if (!archivedStudent) {
+      return res.status(404).json({ message: 'Archived student not found' });
+    }
+
+    // Restore student from snapshot
+    const studentData = {
+      name: archivedStudent.studentName,
+      email: archivedStudent.email,
+      mobile: archivedStudent.mobile,
+      gender: archivedStudent.gender,
+      dob: archivedStudent.dob,
+      roll: archivedStudent.roll,
+      grade: archivedStudent.grade,
+      section: archivedStudent.section,
+      batchCode: archivedStudent.batchCode,
+      course: archivedStudent.course,
+      courseId: archivedStudent.courseId,
+      duration: archivedStudent.duration,
+      admissionDate: archivedStudent.admissionDate,
+      status: 'Active',
+      // Add any other fields from snapshot if needed
+      ...(archivedStudent.snapshot || {})
+    };
+
+    // Remove _id from snapshot to avoid conflicts
+    delete studentData._id;
+    delete studentData.id;
+
+    const restoredStudent = await NifStudent.create(studentData);
+
+    // Restore fee records if they exist
+    if (archivedStudent.feeRecords && archivedStudent.feeRecords.length > 0) {
+      for (const feeData of archivedStudent.feeRecords) {
+        const feeRecord = {
+          ...feeData,
+          student: restoredStudent._id,
+        };
+        delete feeRecord._id;
+        delete feeRecord.id;
+        
+        await NifFeeRecord.create(feeRecord);
+      }
+    } else {
+      // Create a new fee record using the standard logic
+      await ensureFeeRecordForStudent(restoredStudent);
+    }
+
+    // Delete the archived record
+    await NifArchivedStudent.findByIdAndDelete(id);
+
+    res.json({ 
+      success: true, 
+      message: 'Student restored successfully',
+      student: restoredStudent
+    });
+
+  } catch (err) {
+    console.error('Unarchive student error:', err);
+    res.status(500).json({ message: 'Failed to restore student' });
+  }
+});
+
 module.exports = router;

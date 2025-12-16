@@ -1,6 +1,7 @@
 // backend/routes/nifStudentArchiveRoutes.js
 const express = require("express");
 const router = express.Router();
+const adminAuth = require("../middleware/adminAuth");
 
 const NifArchivedStudent = require("../models/NifArchivedStudent");
 
@@ -8,12 +9,14 @@ const NifArchivedStudent = require("../models/NifArchivedStudent");
  * GET /api/nif/students/archived
  * List archived students (for ArchivedStudents.jsx table)
  */
-router.get("/", async (req, res) => {
+router.get("/", adminAuth, async (req, res) => {
   try {
+    console.log("Fetching archived students...");
     const archived = await NifArchivedStudent.find()
       .sort({ archivedAt: -1 })
       .lean();
 
+    console.log(`Found ${archived.length} archived students`);
     res.json(archived);
   } catch (err) {
     console.error("Error fetching archived students", err);
@@ -25,7 +28,7 @@ router.get("/", async (req, res) => {
  * GET /api/nif/students/archived/export
  * Download CSV of archived students
  */
-router.get("/export", async (req, res) => {
+router.get("/export", adminAuth, async (req, res) => {
   try {
     const archived = await NifArchivedStudent.find().sort({
       archivedAt: -1,
@@ -89,7 +92,7 @@ router.get("/export", async (req, res) => {
  * (Optional) PUT /api/nif/students/archived/:id/restore
  * Restore a student from archive back to active (for future use)
  */
-router.put("/:id/restore", async (req, res) => {
+router.put("/:id/restore", adminAuth, async (req, res) => {
   try {
     // Implementation in future if you want restore feature
     return res.status(501).json({ message: "Restore not implemented yet" });
