@@ -112,11 +112,6 @@ export const ADMIN_MENU_ITEMS = [
         path: '/admin/fees'
       },
       {
-        icon: Settings,
-        label: 'Fee Configuration',
-        path: '/admin/fees/configuration'
-      },
-      {
         icon: UserSearch,
         label: 'Student Fee Details',
         path: '/admin/fees/student-details'
