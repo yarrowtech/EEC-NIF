@@ -1169,7 +1169,7 @@ const Students = ({ setShowAdminHeader, setShowAdminBreadcrumb }) => {
                   className={`px-3 py-1.5 rounded-lg text-sm border ${
                     page === currentPage
                       ? "bg-yellow-500 text-white border-yellow-500"
-                      : "border-gray-200 text-gray-700 hover:bg-yellow-50"
+                      : "border-gray-200 text-black hover:bg-yellow-50"
                   }`}
                 >
                   Page {page}
