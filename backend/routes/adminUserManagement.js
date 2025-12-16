@@ -58,4 +58,49 @@ router.get("/get-parents", adminAuth, async (req, res) => {
   }
 });
 
+// Live dashboard statistics endpoint
+router.get("/dashboard-stats", adminAuth, async (req, res) => {
+  try {
+    // Fetch counts from all user types
+    const [studentCount, teacherCount, parentCount] = await Promise.all([
+      StudentUser.countDocuments(),
+      TeacherUser.countDocuments(),
+      ParentUser.countDocuments()
+    ]);
+
+    // Calculate additional stats
+    const totalUsers = studentCount + teacherCount + parentCount;
+
+    // Get recent registrations (last 30 days)
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+    const [recentStudents, recentTeachers, recentParents] = await Promise.all([
+      StudentUser.countDocuments({ createdAt: { $gte: thirtyDaysAgo } }),
+      TeacherUser.countDocuments({ createdAt: { $gte: thirtyDaysAgo } }),
+      ParentUser.countDocuments({ createdAt: { $gte: thirtyDaysAgo } })
+    ]);
+
+    res.status(200).json({
+      students: {
+        total: studentCount,
+        recent: recentStudents
+      },
+      teachers: {
+        total: teacherCount,
+        recent: recentTeachers
+      },
+      parents: {
+        total: parentCount,
+        recent: recentParents
+      },
+      totalUsers,
+      recentTotal: recentStudents + recentTeachers + recentParents,
+      timestamp: new Date().toISOString()
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 module.exports = router;
