@@ -49,10 +49,12 @@ const nifStudentSchema = new Schema(
     },
     mobile: {
       type: String,
+      required: true,
       trim: true,
     },
     gender: {
       type: String,
+      required: true,
       enum: ["Male", "Female", "Other"],
     },
     dob: {
@@ -92,10 +94,12 @@ const nifStudentSchema = new Schema(
     },
     batchCode: {
       type: String, // Batch code like "FD-2024-01"
+      required: true,
       trim: true,
     },
     admissionDate: {
       type: Date, // Date of admission
+      required: true,
     },
     academicYear: {
       type: String, // e.g. "2024-25"
@@ -103,6 +107,7 @@ const nifStudentSchema = new Schema(
     },
     roll: {
       type: String,
+      required: true,
       trim: true,
     },
     grade: {
@@ -111,11 +116,13 @@ const nifStudentSchema = new Schema(
     },
     section: {
       type: String,
+      required: true,
       trim: true,
     },
 
     course: {
       type: String, // human readable course/program name
+      required: true,
       trim: true,
     },
     courseId: {

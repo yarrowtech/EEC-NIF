@@ -1,0 +1,4 @@
+name,mobile,gender,batchCode,admissionDate,roll,section,Course,email,dob,address,pincode,guardianName,guardianPhone,serialNo,formNo,enrollmentNo
+John Doe,9876543210,Male,FD-2024-01,15-07-2024,101,A,Fashion Design,john.doe@example.com,01-01-2000,123 Main Street,110001,Parent Name,9876543211,1,FD001,EN2024001
+Jane Smith,9876543212,Female,FD-2024-01,20-07-2024,102,A,Fashion Design,jane.smith@example.com,15-03-1999,456 Park Avenue,110002,Guardian Name,9876543213,2,FD002,EN2024002
+Alex Johnson,9876543214,Male,ADV-2024-02,22-08-2024,201,B,Advanced Certificate,alex.j@example.com,10-06-2001,789 Oak Road,110003,Alex Parent,9876543215,3,ADV001,EN2024003

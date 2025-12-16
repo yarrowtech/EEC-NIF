@@ -31,6 +31,7 @@ import {
   Trash2,
 } from "lucide-react";
 import Swal from "sweetalert2";
+import * as XLSX from "xlsx";
 
 const API_BASE = import.meta.env.VITE_API_URL;
 
@@ -55,13 +56,6 @@ const Students = ({ setShowAdminHeader, setShowAdminBreadcrumb }) => {
   const [archiveActionLoading, setArchiveActionLoading] = useState(false);
   const [isArchiving, setIsArchiving] = useState(false);
   const [deletingId, setDeletingId] = useState(null);
-
-const mediaInputRef = useRef(null);
-  const [isMediaUploading, setIsMediaUploading] = useState(false);
-  const [mediaProgress, setMediaProgress] = useState(0);
-  const [uploadedMedia, setUploadedMedia] = useState([]);
-  const [mediaFolder, setMediaFolder] = useState("nif_students");
-  const [mediaTags, setMediaTags] = useState("students,documents");
 
   const [newStudent, setNewStudent] = useState({
     // core
@@ -591,28 +585,68 @@ const mediaInputRef = useRef(null);
   };
 
   /* -------------------- Bulk Upload -------------------- */
-  const REQUIRED_HEADERS = ["name", "mobile", "course"];
-  const OPTIONAL_HEADERS = [
-    "courseId",
-    "email",
-    "gender",
-    "dob",
-    "address",
-    "pincode",
-    "status",
-    "serialNo",
-    "batchCode",
-    "admissionDate",
-    "roll",
-    "grade",
-    "section",
-    "duration",
-    "formNo",
-    "enrollmentNo",
-  ];
-  const ALL_HEADERS = [...REQUIRED_HEADERS, ...OPTIONAL_HEADERS];
+  // These match the required fields in the manual "Add Student" form
+  // Simple normalization - remove spaces, underscores, hyphens and lowercase
+  const normalize = (h) => h?.toString().trim().toLowerCase().replace(/[\s_-]+/g, '');
 
-  const normalize = (h) => h?.toString().trim().toLowerCase();
+  // Map Excel column headers to model field names (case-insensitive, flexible)
+  const COLUMN_MAP = {
+    // Core fields
+    'name': 'name',
+    'mobile': 'mobile',
+    'email': 'email',
+    'gender': 'gender',
+    'dob': 'dob',
+    'dateofbirth': 'dob',
+
+    // Address
+    'address': 'address',
+    'pincode': 'pincode',
+    'pin': 'pincode',
+
+    // Academic
+    'batchcode': 'batchCode',
+    'batch': 'batchCode',
+    'admissiondate': 'admissionDate',
+    'admission': 'admissionDate',
+    'dateofadmission': 'admissionDate',
+    'roll': 'roll',
+    'rollno': 'roll',
+    'rollnumber': 'roll',
+    'section': 'section',
+    'course': 'course',
+    'coursename': 'course',
+    'courseid': 'courseId',
+    'grade': 'grade',
+    'duration': 'duration',
+
+    // IDs
+    'serialno': 'serialNo',
+    'serialn': 'serialNo',
+    'srlno': 'serialNo',
+    'serial': 'serialNo',
+    'formno': 'formNo',
+    'formn': 'formNo',
+    'form': 'formNo',
+    'enrollmentno': 'enrollmentNo',
+    'enrollmentn': 'enrollmentNo',
+    'enrollment': 'enrollmentNo',
+
+    // Guardian
+    'guardianname': 'guardianName',
+    'guardian': 'guardianName',
+    'parentname': 'guardianName',
+    'guardianemail': 'guardianEmail',
+    'parentemail': 'guardianEmail',
+    'guardianphone': 'guardianPhone',
+    'guardianph': 'guardianPhone',
+    'guardianphn': 'guardianPhone',
+    'guardiancontact': 'guardianPhone',
+    'parentphone': 'guardianPhone',
+
+    // Status
+    'status': 'status',
+  };
 
   // simple CSV parser with quotes support
   const parseCsv = (text) => {
@@ -672,85 +706,213 @@ const mediaInputRef = useRef(null);
   const toISO = (s) => {
     const t = String(s || "").trim();
     if (!t) return null;
+
+    // Already in ISO format (YYYY-MM-DD)
     if (/^\d{4}-\d{2}-\d{2}$/.test(t)) return t;
-    const m = t.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{4})$/); // dd/mm/yyyy or mm/dd/yyyy
-    if (m) {
-      const dd = String(m[1]).padStart(2, "0");
-      const mm = String(m[2]).padStart(2, "0");
-      return `${m[3]}-${mm}-${dd}`;
+
+    // Handle DD/MM/YYYY or DD-MM-YYYY (day first - common in many countries)
+    const ddmmyyyy = t.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{4})$/);
+    if (ddmmyyyy) {
+      const day = String(ddmmyyyy[1]).padStart(2, "0");
+      const month = String(ddmmyyyy[2]).padStart(2, "0");
+      const year = ddmmyyyy[3];
+      return `${year}-${month}-${day}`;
     }
+
+    // Handle Excel date serial numbers (days since 1900-01-01)
+    if (/^\d{5}$/.test(t)) {
+      const excelEpoch = new Date(1900, 0, 1);
+      const days = parseInt(t) - 2; // Excel has a bug counting 1900 as leap year
+      const date = new Date(excelEpoch.getTime() + days * 24 * 60 * 60 * 1000);
+      const year = date.getFullYear();
+      const month = String(date.getMonth() + 1).padStart(2, "0");
+      const day = String(date.getDate()).padStart(2, "0");
+      return `${year}-${month}-${day}`;
+    }
+
+    // Handle M/D/YYYY or MM/DD/YYYY formats (try parsing as date)
+    const parsed = new Date(t);
+    if (!isNaN(parsed.getTime())) {
+      const year = parsed.getFullYear();
+      const month = String(parsed.getMonth() + 1).padStart(2, "0");
+      const day = String(parsed.getDate()).padStart(2, "0");
+      return `${year}-${month}-${day}`;
+    }
+
     return null;
+  };
+
+  const parseFileToRows = async (file) => {
+    const fileName = file.name.toLowerCase();
+
+    // Handle Excel files (.xlsx, .xls)
+    if (fileName.endsWith('.xlsx') || fileName.endsWith('.xls')) {
+      const buffer = await file.arrayBuffer();
+      const workbook = XLSX.read(buffer, { type: 'array' });
+      const sheetName = workbook.SheetNames[0];
+      const worksheet = workbook.Sheets[sheetName];
+      const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: "" });
+      return jsonData;
+    }
+
+    // Handle CSV files
+    if (fileName.endsWith('.csv')) {
+      const text = await file.text();
+      return parseCsv(text);
+    }
+
+    throw new Error("Unsupported file format. Please use .csv, .xlsx, or .xls files.");
   };
 
   const handleBulkFilePicked = async (file) => {
     try {
       setIsImporting(true);
-      const text = await file.text();
-      const rows = parseCsv(text);
+
+      const rows = await parseFileToRows(file);
+
       if (!rows.length) {
-        alert("CSV is empty");
-        return;
-      }
-      const header = rows[0].map(normalize);
-      const missing = REQUIRED_HEADERS.filter((h) => !header.includes(h));
-      if (missing.length) {
-        alert(`Missing headers: ${missing.join(", ")}`);
+        alert("File is empty");
         return;
       }
 
-      const idx = Object.fromEntries(header.map((h, i) => [h, i]));
+      // Get headers from Excel and normalize them
+      const rawHeaders = rows[0];
+      const headerMap = {}; // Maps normalized column name to column index
+
+      rawHeaders.forEach((h, i) => {
+        const normalizedCol = normalize(h);
+        const mappedField = COLUMN_MAP[normalizedCol];
+        if (mappedField) {
+          headerMap[mappedField] = i;
+        }
+      });
+
       const payload = [];
+      const skippedRows = [];
 
+      // Process each row
       for (let r = 1; r < rows.length; r++) {
         const raw = rows[r];
+
+        // Skip empty rows
         if (!raw || raw.every((c) => !String(c || "").trim())) continue;
 
-        const obj = {};
-        for (const h of ALL_HEADERS) {
-          const key = h.toLowerCase();
-          if (idx[key] !== undefined) {
-            obj[h] = String(raw[idx[key]] ?? "").trim();
-          } else {
-            obj[h] = "";
+        // Build student object from row data
+        const student = {};
+
+        // Map all columns from Excel to model fields
+        Object.keys(COLUMN_MAP).forEach(normalizedCol => {
+          const fieldName = COLUMN_MAP[normalizedCol];
+          const colIndex = headerMap[fieldName];
+          if (colIndex !== undefined) {
+            const value = String(raw[colIndex] ?? "").trim();
+            if (value) {
+              student[fieldName] = value;
+            }
           }
-        }
+        });
 
-        if (!obj.name || !obj.mobile) continue;
-
-        const dob = toISO(obj.dob);
-        const admissionDate = toISO(obj.admissionDate);
-
-        if (!obj.course && !obj.courseId) {
+        // Check required fields (let backend handle validation)
+        if (!student.name || !student.mobile || !student.gender ||
+            !student.batchCode || !student.admissionDate ||
+            !student.roll || !student.section || !student.course) {
+          skippedRows.push({
+            row: r + 1,
+            reason: "Missing required fields"
+          });
           continue;
         }
 
+        // Parse dates
+        const dob = toISO(student.dob);
+        const admissionDate = toISO(student.admissionDate);
+
+        if (!admissionDate) {
+          skippedRows.push({
+            row: r + 1,
+            reason: "Invalid admission date format"
+          });
+          continue;
+        }
+
+        // Build final payload
         payload.push({
-          name: obj.name,
-          mobile: obj.mobile,
-          email: (obj.email || "").toLowerCase(),
-          gender: obj.gender || "Other",
+          name: student.name,
+          mobile: student.mobile,
+          email: (student.email || "").toLowerCase(),
+          gender: student.gender,
           dob,
-          address: obj.address || "",
-          pincode: obj.pincode || "",
-          status: obj.status || "Active",
-          serialNo: obj.serialNo ? Number(obj.serialNo) : undefined,
-          batchCode: obj.batchCode || "",
+          address: student.address || "",
+          pincode: student.pincode || "",
+          status: student.status || "Active",
+          guardianName: student.guardianName || "",
+          guardianEmail: student.guardianEmail ? student.guardianEmail.toLowerCase() : "",
+          guardianPhone: student.guardianPhone || "",
+          serialNo: student.serialNo ? Number(student.serialNo) : undefined,
+          batchCode: student.batchCode,
           admissionDate,
-          roll: obj.roll || "",
-          grade: obj.grade || "",
-          section: obj.section || "",
-          course: obj.course || "",
-          courseId: obj.courseId || "",
-          duration: obj.duration || "",
-          formNo: obj.formNo || "",
-          enrollmentNo: obj.enrollmentNo || "",
+          roll: student.roll,
+          grade: student.grade || "",
+          section: student.section,
+          course: student.course || "",
+          courseId: student.courseId || "",
+          duration: student.duration || "",
+          formNo: student.formNo || "",
+          enrollmentNo: student.enrollmentNo || "",
         });
       }
 
       if (!payload.length) {
-        alert("No valid rows found.");
+        Swal.fire({
+          icon: "warning",
+          title: "No Valid Rows",
+          html: skippedRows.length > 0 ? `<div style="text-align: left;">
+            <p>All rows were skipped due to validation errors:</p>
+            <ul style="max-height: 300px; overflow-y: auto;">
+              ${skippedRows.slice(0, 20).map(s =>
+                `<li>Row ${s.row}: ${s.reason}</li>`
+              ).join('')}
+              ${skippedRows.length > 20 ? `<li>...and ${skippedRows.length - 20} more</li>` : ''}
+            </ul>
+          </div>` : "No valid data rows found in the file.",
+        });
         return;
       }
+
+      // Show preview if there are skipped rows
+      if (skippedRows.length > 0) {
+        const confirmResult = await Swal.fire({
+          icon: "warning",
+          title: `${skippedRows.length} rows will be skipped`,
+          html: `<div style="text-align: left;">
+            <p><strong>${payload.length}</strong> valid rows found</p>
+            <p><strong>${skippedRows.length}</strong> rows will be skipped:</p>
+            <ul style="max-height: 200px; overflow-y: auto;">
+              ${skippedRows.slice(0, 10).map(s =>
+                `<li>Row ${s.row}: ${s.reason}</li>`
+              ).join('')}
+              ${skippedRows.length > 10 ? `<li>...and ${skippedRows.length - 10} more</li>` : ''}
+            </ul>
+            <p style="margin-top: 10px;">Do you want to continue importing the valid rows?</p>
+          </div>`,
+          showCancelButton: true,
+          confirmButtonText: "Yes, Import Valid Rows",
+          cancelButtonText: "Cancel",
+        });
+
+        if (!confirmResult.isConfirmed) {
+          setIsImporting(false);
+          if (fileInputRef.current) fileInputRef.current.value = "";
+          return;
+        }
+      }
+
+      // Debug: Log first student to console
+      console.log("Sending to backend:", {
+        count: payload.length,
+        firstStudent: payload[0],
+        sample: payload[0]
+      });
 
       const res = await fetch(`${API_BASE}/api/nif/students/bulk`, {
         method: "POST",
@@ -767,13 +929,33 @@ const mediaInputRef = useRef(null);
         return;
       }
 
-      alert(
-        `Import complete\nImported: ${data.imported}\nFailed: ${data.failed}`
-      );
+      await Swal.fire({
+        icon: "success",
+        title: "Import Complete!",
+        html: `<div style="text-align: left;">
+          <p><strong>Successfully imported:</strong> ${data.imported} students</p>
+          <p><strong>Failed:</strong> ${data.failed} rows</p>
+          ${data.errors && data.errors.length > 0 ?
+            `<p style="margin-top: 10px;"><strong>Errors:</strong></p>
+             <ul style="max-height: 200px; overflow-y: auto; text-align: left;">
+               ${data.errors.slice(0, 10).map(err =>
+                 `<li>Row ${err.index + 1}: ${err.message}</li>`
+               ).join('')}
+               ${data.errors.length > 10 ? `<li>...and ${data.errors.length - 10} more errors</li>` : ''}
+             </ul>`
+            : ''}
+        </div>`,
+        confirmButtonText: "OK"
+      });
+
       await refreshStudents();
     } catch (e) {
       console.error(e);
-      alert(`Bulk import error: ${e.message}`);
+      Swal.fire({
+        icon: "error",
+        title: "Import Failed",
+        text: e.message || "An error occurred during import",
+      });
     } finally {
       setIsImporting(false);
       if (fileInputRef.current) fileInputRef.current.value = "";
@@ -806,7 +988,7 @@ const mediaInputRef = useRef(null);
             <input
               ref={fileInputRef}
               type="file"
-              accept=".csv"
+              accept=".csv,.xlsx,.xls"
               className="hidden"
               onChange={(e) => {
                 const f = e.target.files?.[0];

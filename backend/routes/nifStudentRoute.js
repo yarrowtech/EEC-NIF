@@ -18,15 +18,16 @@ const toDate = (v) => {
   return isNaN(d.getTime()) ? null : d;
 };
 
+// Match the NifStudent model required fields
 const REQUIRED = [
   "name",
-  "roll",
-  "grade",
-  "section",
-  "gender",
   "mobile",
-  "email",
-  "dob",
+  "gender",
+  "batchCode",
+  "admissionDate",
+  "roll",
+  "section",
+  "course",
 ];
 
 /* ====================================================
@@ -72,24 +73,33 @@ router.post("/register", async (req, res, next) => {
       }
     }
 
-    const dob = toDate(payload.dob);
-    if (!dob) {
-      return res
-        .status(400)
-        .json({ message: "Invalid dob (use YYYY-MM-DD)" });
+    // Parse dates
+    const admissionDate = toDate(payload.admissionDate);
+    if (!admissionDate) {
+      return res.status(400).json({ message: "Invalid admissionDate (use YYYY-MM-DD)" });
     }
-    payload.dob = dob;
+    payload.admissionDate = admissionDate;
 
-    payload.email = payload.email.toLowerCase().trim();
+    if (payload.dob) {
+      const dob = toDate(payload.dob);
+      if (dob) {
+        payload.dob = dob;
+      }
+    }
 
-    // Unique roll / email
-    const conflict = await NifStudent.findOne({
-      $or: [{ roll: payload.roll }, { email: payload.email }],
-    }).lean();
+    if (payload.email) {
+      payload.email = payload.email.toLowerCase().trim();
+    }
+
+    // Unique roll / email check (if email provided)
+    const orConditions = [{ roll: payload.roll }];
+    if (payload.email) {
+      orConditions.push({ email: payload.email });
+    }
+
+    const conflict = await NifStudent.findOne({ $or: orConditions }).lean();
     if (conflict) {
-      return res
-        .status(409)
-        .json({ message: "Student with same roll or email exists" });
+      return res.status(409).json({ message: "Student with same roll or email exists" });
     }
 
     const created = await NifStudent.create(payload);
@@ -118,70 +128,113 @@ router.post("/bulk", async (req, res, next) => {
       return res.status(400).json({ message: "Provide students array" });
     }
 
+    // Debug: Log first student received
+    console.log("Backend received - First student:", JSON.stringify(items[0], null, 2));
+
     const prepared = [];
     const errors = [];
 
     for (let i = 0; i < items.length; i++) {
       const s = items[i] || {};
+
+      // Debug: Check what fields are present
+      if (i === 0) {
+        console.log("Student fields:", Object.keys(s));
+        console.log("Course value:", s.course);
+      }
+
       const missing = REQUIRED.filter(
         (k) => !s[k] || String(s[k]).trim() === ""
       );
       if (missing.length) {
+        console.log(`Row ${i}: Missing fields:`, missing);
         errors.push({ index: i, message: `Missing: ${missing.join(", ")}` });
         continue;
       }
 
-      const dob = toDate(s.dob);
-      if (!dob) {
-        errors.push({ index: i, message: "Invalid dob" });
+      // Parse dates
+      const dob = s.dob ? toDate(s.dob) : null;
+      const admissionDate = toDate(s.admissionDate);
+
+      if (!admissionDate) {
+        errors.push({ index: i, message: "Invalid admissionDate" });
         continue;
       }
 
-      prepared.push({
+      const doc = {
+        // Required fields
         name: String(s.name).trim(),
-        roll: String(s.roll).trim(),
-        grade: String(s.grade).trim(),
-        section: String(s.section).trim(),
-        gender: String(s.gender).trim(),
         mobile: String(s.mobile).trim(),
-        email: String(s.email).toLowerCase().trim(),
-        address: (s.address || "").trim(),
+        gender: String(s.gender).trim(),
+        batchCode: String(s.batchCode).trim(),
+        admissionDate,
+        roll: String(s.roll).trim(),
+        section: String(s.section).trim(),
+        course: String(s.course).trim(),
+
+        // Optional fields
+        email: s.email ? String(s.email).toLowerCase().trim() : "",
         dob,
+        address: (s.address || "").trim(),
         pincode: (s.pincode || "").trim(),
-        course: (s.course || "").trim(),
-        status:
-          s.status &&
-          ["Active", "Inactive", "Alumni", "Dropped"].includes(s.status)
-            ? s.status
-            : "Active",
-      });
+        grade: (s.grade || "").trim(),
+        duration: (s.duration || "").trim(),
+
+        // Guardian info
+        guardianName: (s.guardianName || "").trim(),
+        guardianEmail: s.guardianEmail ? String(s.guardianEmail).toLowerCase().trim() : "",
+        guardianPhone: (s.guardianPhone || "").trim(),
+
+        // IDs
+        serialNo: s.serialNo ? Number(s.serialNo) : undefined,
+        formNo: (s.formNo || "").trim(),
+        enrollmentNo: (s.enrollmentNo || "").trim(),
+        courseId: s.courseId || undefined,
+
+        // Status
+        status: s.status && ["Active", "Inactive", "Alumni", "Dropped"].includes(s.status)
+            ? s.status : "Active",
+
+        source: "bulk",
+      };
+
+      prepared.push(doc);
     }
 
     let inserted = 0;
+
+    console.log(`Attempting to insert ${prepared.length} students`);
+
     try {
       if (prepared.length) {
         const result = await NifStudent.insertMany(prepared, {
           ordered: false,
         });
         inserted = result.length;
+        console.log(`Successfully inserted ${inserted} students`);
       }
     } catch (e) {
+      console.error("Insert error:", e.message);
       if (e?.writeErrors?.length) {
+        console.log(`Write errors: ${e.writeErrors.length}`);
         inserted =
           (e.insertedDocs || []).length ||
           Math.max(0, prepared.length - e.writeErrors.length);
 
         e.writeErrors.forEach((we) => {
+          console.log(`Write error at index ${we.index}:`, we.errmsg);
           errors.push({
             index: we.index,
             message: we.errmsg || "Duplicate/validation error",
           });
         });
       } else {
+        console.error("Full error:", e);
         throw e;
       }
     }
 
+    console.log(`Final result: ${inserted} inserted, ${errors.length} failed`);
     res.json({ imported: inserted, failed: errors.length, errors });
   } catch (err) {
     next(err);

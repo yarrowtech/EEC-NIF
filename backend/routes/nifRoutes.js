@@ -529,6 +529,9 @@ router.post('/students/bulk', adminAuth, async (req, res) => {
       return res.status(400).json({ message: 'students array required' });
     }
 
+    console.log('NIF Routes - Bulk import received:', rows.length, 'students');
+    console.log('First student:', JSON.stringify(rows[0], null, 2));
+
     const courses = await NifCourse.find().lean();
     const courseById = new Map();
     const courseByTitle = new Map();
@@ -549,9 +552,8 @@ router.post('/students/bulk', adminAuth, async (req, res) => {
         continue;
       }
 
-      let course = row.courseId
-        ? courseById.get(String(row.courseId))
-        : null;
+      // Try to find course by ID or name
+      let course = row.courseId ? courseById.get(String(row.courseId)) : null;
 
       if (!course && row.course) {
         course = courseByTitle.get(String(row.course).toLowerCase());
@@ -561,12 +563,17 @@ router.post('/students/bulk', adminAuth, async (req, res) => {
         course = courseByTitle.get(String(row.courseName).toLowerCase());
       }
 
+      // If no course found in database, create a minimal course object with the course name
       if (!course) {
-        errors.push({
-          index: i,
-          message: 'Course not found for row',
-        });
-        continue;
+        console.log(`Row ${i}: No course found in DB for "${row.course}", using name directly`);
+        course = {
+          _id: null,
+          title: row.course || 'Unknown Course',
+          department: row.course?.toLowerCase().includes('interior') ? 'Interior Design' : 'Fashion Design',
+          programType: 'ADV_CERT',
+          fees: 155000,
+          installments: [],
+        };
       }
 
       try {
@@ -575,16 +582,21 @@ router.post('/students/bulk', adminAuth, async (req, res) => {
           course
         );
         const student = await NifStudent.create(studentDoc);
-        await NifFeeRecord.createForStudentYear(student, 1, {
-          totalFee: programMeta.totalFee,
-          stream: programMeta.stream,
-          courseId: course._id,
-          courseName: programMeta.courseName,
-          programLabel: student.programLabel || programMeta.programLabel,
-          programType: programMeta.programType,
-          academicYear: studentDoc.academicYear,
-          installments: programMeta.installments,
-        });
+
+        // Only create fee record if we have course integration enabled
+        if (course._id) {
+          await NifFeeRecord.createForStudentYear(student, 1, {
+            totalFee: programMeta.totalFee,
+            stream: programMeta.stream,
+            courseId: course._id,
+            courseName: programMeta.courseName,
+            programLabel: student.programLabel || programMeta.programLabel,
+            programType: programMeta.programType,
+            academicYear: studentDoc.academicYear,
+            installments: programMeta.installments,
+          });
+        }
+
         imported += 1;
       } catch (err) {
         console.error('bulk import error', err);
@@ -592,6 +604,7 @@ router.post('/students/bulk', adminAuth, async (req, res) => {
       }
     }
 
+    console.log(`Bulk import complete: ${imported} imported, ${errors.length} failed`);
     res.json({ imported, failed: errors.length, errors });
   } catch (err) {
     console.error('NIF students bulk error:', err);

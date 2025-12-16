@@ -1,0 +1,113 @@
+╔══════════════════════════════════════════════════════════════════════════╗
+║           STUDENT BULK UPLOAD - QUICK REFERENCE CARD                     ║
+╚══════════════════════════════════════════════════════════════════════════╝
+
+
+  ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+  ┃  8 REQUIRED COLUMNS - MUST HAVE VALUES IN EVERY ROW               ┃
+  ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
+
+    1. name            →  Rajesh Kumar
+    2. mobile          →  9876543210
+    3. gender          →  Male / Female / Other
+    4. batchCode       →  1124B02
+    5. admissionDate   →  2024-01-15  (YYYY-MM-DD)
+    6. roll            →  FD001  (must be unique!)
+    7. section         →  A / B / C / D
+    8. course          →  Fashion Design
+
+
+  ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+  ┃  14 OPTIONAL COLUMNS - CAN BE EMPTY OR LEFT OUT                   ┃
+  ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
+
+    email, dob, address, pincode, status, guardianName, guardianEmail,
+    guardianPhone, serialNo, grade, duration, formNo, enrollmentNo, courseId
+
+
+═══════════════════════════════════════════════════════════════════════════
+
+
+  📋 COPY THIS AS YOUR FIRST ROW (Header):
+
+     name,mobile,gender,batchCode,admissionDate,roll,section,course
+
+
+  📝 THEN ADD YOUR DATA ROWS:
+
+     Rajesh Kumar,9876543210,Male,1124B02,2024-01-15,FD001,A,Fashion Design
+     Priya Sharma,9876543212,Female,1124B02,2024-01-15,ID001,B,Interior Design
+
+
+═══════════════════════════════════════════════════════════════════════════
+
+
+  ⚠️  IMPORTANT RULES:
+
+     ✓  Roll numbers must be UNIQUE (no duplicates)
+     ✓  Dates must be YYYY-MM-DD  (e.g., 2024-01-15)
+     ✓  Course name must match your database exactly
+     ✓  Gender must be: Male, Female, or Other
+     ✓  Section must be: A, B, C, or D
+     ✓  First row = Column names (header)
+     ✓  All 8 required fields must have values
+
+
+═══════════════════════════════════════════════════════════════════════════
+
+
+  🎓 VALID COURSE NAMES:
+
+     Fashion Design
+     Interior Design
+     Fashion Design - 1 year Certificate Program
+     Fashion Design - 2 year Advanced Certificate
+     Fashion Design - 3 year B Voc Program
+     Fashion Design - 4 year B Des Program
+     Interior Design - 1 year Certificate Program
+     Interior Design - 2 year Advanced Certificate
+     Interior Design - 3 year B Voc Program
+     Interior Design - 4 year B Des Program
+
+
+═══════════════════════════════════════════════════════════════════════════
+
+
+  💾 FILE FORMATS SUPPORTED:
+
+     ✓  CSV  (.csv)
+     ✓  Excel (.xlsx)
+     ✓  Excel (.xls)
+
+
+═══════════════════════════════════════════════════════════════════════════
+
+
+  🚀 HOW TO UPLOAD:
+
+     1. Open:   student-bulk-upload-template.csv  (or .xlsx)
+     2. Fill:   Your student data (keep header row)
+     3. Save:   The file
+     4. Go to:  Student Management page
+     5. Click:  "Bulk Upload" button
+     6. Select: Your file
+     7. Done!   Check the results
+
+
+═══════════════════════════════════════════════════════════════════════════
+
+
+  ✨ QUICK TIPS:
+
+     • Start with the template files (already have correct format)
+     • Test with 2-3 students first
+     • Check course names match your database
+     • Ensure roll numbers are unique
+     • Use YYYY-MM-DD date format
+
+
+═══════════════════════════════════════════════════════════════════════════
+
+                        READY TO UPLOAD! 🎉
+
+═══════════════════════════════════════════════════════════════════════════
