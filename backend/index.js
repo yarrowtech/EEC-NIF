@@ -134,8 +134,8 @@ app.get("/", (req, res) => {
 app.get("/health", (req, res) => res.json({ ok: true }));
 
 // Auth & core routes (unchanged)
-app.use('/api/admin', adminUserManagementRoutes);
-app.use('/api/admin', adminAuthRoutes);
+app.use('/api/admin/users', adminUserManagementRoutes);
+app.use('/api/admin/auth', adminAuthRoutes);
 app.use('/api/teacher/auth', teacherAuthRoutes);
 app.use('/api/student/auth', studentAuthRoutes);
 app.use('/api/parent/auth', parentAuthRoutes);
