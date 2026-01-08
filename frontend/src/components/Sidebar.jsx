@@ -193,11 +193,6 @@ const Sidebar = ({ activeView, isOpen, setIsOpen }) => {
                 
                 {/* Divider */}
                 <div className="w-8 h-px bg-gray-300" />
-                
-                {/* Student Initial */}
-                <div className="w-8 h-8 bg-gradient-to-br from-yellow-400 to-orange-500 rounded-lg flex items-center justify-center text-white text-sm font-bold shadow-sm">
-                  S
-                </div>
               </div>
             </div>
           )}
