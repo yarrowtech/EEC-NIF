@@ -50,7 +50,7 @@ const Dashboard = () => {
   };
 
   return (
-    <div className={`min-h-screen w-full bg-gray-50 grid ${sidebarOpen ? "grid-cols-[250px_1fr]" : "grid-cols-[100px_1fr]"} transition-all duration-300`}>
+    <div className="min-h-screen w-full bg-gray-50 flex relative overflow-hidden">
       <Sidebar 
         activeView={activeView} 
         setActiveView={setActiveView}
@@ -58,7 +58,9 @@ const Dashboard = () => {
         setIsOpen={setSidebarOpen}
       />
       <div 
-        className={`h-screen min-h-0 ${(activeView === 'chat' || activeView === 'excuse-letter') ? 'overflow-hidden' : 'overflow-y-auto custom-scrollbar'} flex-1 flex flex-col w-full transition-all duration-300`}
+        className={`flex-1 flex flex-col h-screen transition-all duration-300 ${
+          sidebarOpen ? '' : ''
+        } ${(activeView === 'chat' || activeView === 'excuse-letter') ? 'overflow-hidden' : 'overflow-y-auto custom-scrollbar'}`}
       >
         <Header 
           sidebarOpen={sidebarOpen}

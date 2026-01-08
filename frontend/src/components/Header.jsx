@@ -49,7 +49,7 @@ const Header = ({ sidebarOpen, setSidebarOpen, onOpenProfile }) => {
           <div className="flex items-center gap-3 min-w-0">
             <button
               onClick={() => setSidebarOpen(!sidebarOpen)}
-              className="p-2 rounded-lg hover:bg-gray-100 transition-colors"
+              className="p-2 rounded-lg hover:bg-yellow-100 transition-colors"
               aria-label="Toggle sidebar"
             >
               <Menu size={22} className="text-gray-700" />

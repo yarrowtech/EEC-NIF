@@ -60,6 +60,30 @@ body {
   background: linear-gradient(180deg, #fbbf24, #d97706);
 }
 
+/* Modern minimalistic scrollbar for sidebar navigation */
+.modern-scrollbar {
+  scrollbar-width: thin;               /* Firefox */
+  scrollbar-color: rgba(156, 163, 175, 0.6) transparent; /* gray-400 with opacity */
+}
+.modern-scrollbar::-webkit-scrollbar {
+  width: 6px;                          /* Thinner than default */
+}
+.modern-scrollbar::-webkit-scrollbar-track {
+  background: transparent;             /* Invisible track */
+}
+.modern-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(156, 163, 175, 0.4); /* Light gray with opacity */
+  border-radius: 9999px;              /* Fully rounded */
+  border: none;                        /* No border for cleaner look */
+  transition: background-color 0.2s ease; /* Smooth transition */
+}
+.modern-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgba(107, 114, 128, 0.7); /* Darker gray on hover */
+}
+.modern-scrollbar::-webkit-scrollbar-thumb:active {
+  background: rgba(75, 85, 99, 0.8);    /* Even darker when dragging */
+}
+
 .animated-fee-gradient {
   background: linear-gradient(125deg, #93c5fd, #3b82f6, #1d4ed8, #1e40af, #1e3a8a);
 }

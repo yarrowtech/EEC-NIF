@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Home, 
   Calendar, 
@@ -8,16 +8,23 @@ import {
   Award,
   Settings,
   LogOut,
-  ChevronLeft,
+  ChevronDown,
   ChevronRight,
   User,
   File,
-  Atom,
   Trophy,
   Bell,
   MessageCircle,
   MessageSquare,
-  Brain
+  Brain,
+  Menu,
+  X,
+  GraduationCap,
+  BarChart3,
+  Heart,
+  Zap,
+  Star,
+  Target
 } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 
@@ -26,41 +33,72 @@ const Sidebar = ({ activeView, setActiveView, isOpen, setIsOpen }) => {
   const [openGroups, setOpenGroups] = useState({});
 
   const menuItems = [
-    { id: 'dashboard', name: 'Dashboard', icon: Home },
+    { 
+      id: 'dashboard', 
+      name: 'Dashboard', 
+      icon: Home,
+      gradient: 'from-blue-500 to-blue-600',
+      description: 'Overview & Analytics'
+    },
     { 
       id: 'ai-learning', 
       name: 'AI Learning', 
       icon: Brain,
+      gradient: 'from-purple-500 to-purple-600',
+      description: 'Smart Learning Hub',
       children: [
-        { id: 'ai-learning-courses', name: 'Courses', icon: BookOpen },
+        { id: 'ai-learning-courses', name: 'AI Courses', icon: GraduationCap },
+        { id: 'ai-learning-tutor', name: 'AI Tutor', icon: Brain },
       ]
     },
-    { id: 'attendance', name: 'Attendance', icon: Users },
-    { id: 'routine', name: 'Routine', icon: Calendar },
     { 
-      id: 'assignments', 
-      name: 'Assignments', 
-      icon: FileText,
+      id: 'academics', 
+      name: 'Academics', 
+      icon: BookOpen,
+      gradient: 'from-emerald-500 to-emerald-600',
+      description: 'Learning Materials',
       children: [
-        { id: 'assignments', name: 'Assignment', icon: FileText },
+        { id: 'assignments', name: 'Assignments', icon: FileText },
         { id: 'assignments-journal', name: 'Journal', icon: File },
-        { id: 'assignments-academic-alcove', name: 'Academic Alcove', icon: BookOpen },
+        { id: 'assignments-academic-alcove', name: 'Study Hub', icon: Target },
+        { id: 'results', name: 'Results', icon: BarChart3 },
       ]
     },
-    { id: 'results', name: 'Results', icon: Trophy },
-    { id: 'noticeboard', name: 'Notice Board', icon: Bell },
-    { id: 'teacherfeedback', name: 'Teacher Feedback', icon: MessageCircle },
     { 
-      id: 'chat', 
-      name: 'Chat', 
-      icon: MessageSquare,
+      id: 'schedule', 
+      name: 'Schedule', 
+      icon: Calendar,
+      gradient: 'from-orange-500 to-orange-600',
+      description: 'Time Management',
       children: [
-        { id: 'chat', name: 'Messages', icon: MessageSquare },
-        { id: 'excuse-letter', name: 'Excuse Letter', icon: FileText },
+        { id: 'routine', name: 'Daily Routine', icon: Calendar },
+        { id: 'attendance', name: 'Attendance', icon: Users },
       ]
     },
-    { id: 'wellbeing', name: 'Wellbeing', icon: Brain },
-    { id: 'achievements', name: 'Achievements', icon: Award },
+    { 
+      id: 'communication', 
+      name: 'Communication', 
+      icon: MessageSquare,
+      gradient: 'from-indigo-500 to-indigo-600',
+      description: 'Connect & Collaborate',
+      children: [
+        { id: 'chat', name: 'Messages', icon: MessageCircle },
+        { id: 'teacherfeedback', name: 'Teacher Feedback', icon: Star },
+        { id: 'excuse-letter', name: 'Excuse Letter', icon: FileText },
+        { id: 'noticeboard', name: 'Notice Board', icon: Bell },
+      ]
+    },
+    { 
+      id: 'wellness', 
+      name: 'Wellness', 
+      icon: Heart,
+      gradient: 'from-pink-500 to-pink-600',
+      description: 'Health & Wellbeing',
+      children: [
+        { id: 'wellbeing', name: 'Mental Health', icon: Heart },
+        { id: 'achievements', name: 'Achievements', icon: Trophy },
+      ]
+    },
   ];
 
   const handleLogout = () => {
@@ -70,137 +108,268 @@ const Sidebar = ({ activeView, setActiveView, isOpen, setIsOpen }) => {
     navigate('/');
   };
 
+  // Close sidebar on mobile when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (window.innerWidth < 768 && isOpen && !event.target.closest('.sidebar')) {
+        setIsOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [isOpen, setIsOpen]);
+
   return (
     <>
-      {/* Backdrop for mobile */}
-      {/* {isOpen && (
-        <div className="fixed inset-0 bg-black bg-opacity-30 z-40 md:hidden" onClick={() => setIsOpen(false)} aria-label="Close sidebar" />
-      )} */}
+      {/* Mobile backdrop */}
+      {isOpen && (
+        <div 
+          className="fixed inset-0 bg-black bg-opacity-50 z-40 md:hidden transition-opacity duration-300" 
+          onClick={() => setIsOpen(false)} 
+        />
+      )}
+      
       <div
-        className={`h-screen bg-gradient-to-b from-yellow-50 to-amber-50 shadow-lg transition-all duration-300 z-50 border-r border-yellow-200 flex flex-col
-        `}
+        className={`sidebar fixed md:relative h-screen bg-white shadow-2xl transition-all duration-300 z-50 flex flex-col border-r border-gray-200 ${
+          isOpen ? 'w-80' : 'w-20'
+        } ${isOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'} ${!isOpen ? 'overflow-hidden' : ''}`}
         aria-label="Sidebar"
-        aria-hidden={!isOpen && window.innerWidth < 768}
       >
-        {/* Header */}
-        <div className="flex items-center justify-between p-4 border-b border-yellow-200">
-          <div className={`flex items-center space-x-3 ${isOpen ? 'block' : 'hidden md:block'}`}> 
-            <div className="w-8 h-8 bg-gradient-to-r from-yellow-400 to-amber-500 rounded-full overflow-hidden flex items-center justify-center shadow-sm">
-              <img src='/harrow-hall-school.png' className="text-white font-bold text-sm w-full"/>
+        {/* Modern Header */}
+        <div className="relative">
+          {/* Background gradient */}
+          <div className="absolute inset-0 bg-gradient-to-br from-yellow-600 to-yellow-500 opacity-75" />
+          <div className="relative p-3">
+            <div className="flex items-center justify-between">
+              <div className={`flex items-center space-x-3 ${isOpen ? 'block' : 'hidden'}`}>
+                <div className="relative">
+                  <div className="w-10 h-10 bg-white/20 backdrop-blur-sm rounded-xl flex items-center justify-center shadow-lg border border-white/30">
+                    <img src='/harrow-hall-school.png' className="w-6 h-6 rounded-lg" alt="School Logo"/>
+                  </div>
+                  <div className="absolute -top-1 -right-1 w-4 h-4 bg-green-400 rounded-full border-2 border-white animate-pulse" />
+                </div>
+                <div className="text-white">
+                  <div className="font-bold text-lg">Student Name</div>
+                  <div className="text-white/80 text-xs">Student Dashboard</div>
+                </div>
+              </div>
+              
+              {/* Mobile menu toggle */}
+              <button
+                onClick={() => setIsOpen(!isOpen)}
+                className="md:hidden p-2 rounded-lg bg-white/20 backdrop-blur-sm text-white hover:bg-white/30 transition-colors border border-white/30"
+              >
+                {isOpen ? <X size={20} /> : <Menu size={20} />}
+              </button>
             </div>
-            {isOpen && <span className="font-bold text-amber-800">Student Portal</span>}
+            
+            {/* User profile section - only visible when expanded */}
           </div>
-          <button
-            onClick={() => setIsOpen(!isOpen)}
-            className="p-2 rounded-lg hover:bg-yellow-100 transition-colors text-amber-700"
-            aria-label={isOpen ? 'Close sidebar' : 'Open sidebar'}
-          >
-            {isOpen ? <ChevronLeft size={20} /> : <ChevronRight size={20} />}
-          </button>
         </div>
-        {/* Navigation */}
-        <nav className="mt-6 px-3 flex-1 overflow-y-auto custom-scrollbar">
-          <ul className="space-y-2">
+        {/* Modern Navigation */}
+        <nav className={`flex-1 px-4 py-6 overflow-y-auto modern-scrollbar ${!isOpen ? 'overflow-x-hidden' : ''}`}>
+          <div className="space-y-2">
             {menuItems.map((item) => {
               const Icon = item.icon;
               const hasChildren = !!item.children?.length;
-              const isActive = activeView === item.id || (hasChildren && activeView.startsWith(`${item.id}-`));
-              const defaultExpanded = hasChildren && (activeView === item.id || (activeView && activeView.startsWith(`${item.id}-`)) || item.children?.some(c => c.id === activeView));
+              const isActive = activeView === item.id || (hasChildren && activeView.startsWith(`${item.id}-`)) || 
+                             (hasChildren && item.children?.some(c => c.id === activeView));
+              const defaultExpanded = hasChildren && isActive;
               const expanded = openGroups[item.id] === undefined ? defaultExpanded : openGroups[item.id];
+              
               if (item.link) {
                 return (
-                  <li key={item.id}>
+                  <div key={item.id}>
                     <Link
                       to={item.link}
-                      // No sidebar close on menu click
-                      className={`w-full flex items-center space-x-3 px-3 py-2 rounded-lg transition-all duration-200 ${
+                      className={`group relative flex items-center ${
+                        isOpen ? 'px-4 py-3' : 'px-2 py-2 justify-center'
+                      } rounded-xl transition-all duration-200 ${
                         window.location.pathname === item.link
-                          ? 'bg-gradient-to-r from-yellow-400 to-amber-500 text-white shadow-lg'
-                          : 'text-amber-700 hover:bg-yellow-100 hover:text-amber-800'
+                          ? !isOpen
+                            ? `bg-gradient-to-r ${item.gradient} text-white shadow-lg`
+                            : `bg-gradient-to-r ${item.gradient} text-white shadow-lg transform scale-105`
+                          : 'text-gray-700 hover:bg-gray-50 hover:text-gray-900'
                       }`}
                     >
-                      <Icon size={20} className="flex-shrink-0" />
-                      {isOpen && <span className={`font-medium ${isOpen ? 'block' : 'hidden md:block'}`}>{item.name}</span>}
+                      <div className={`flex items-center justify-center w-10 h-10 rounded-lg ${
+                        window.location.pathname === item.link 
+                          ? 'bg-white/20 text-white' 
+                          : 'bg-gray-100 text-gray-600 group-hover:bg-gray-200'
+                      }`}>
+                        <Icon size={20} />
+                      </div>
+                      {isOpen && (
+                        <div className="ml-3 flex-1">
+                          <div className="font-semibold text-sm">{item.name}</div>
+                          <div className={`text-xs ${
+                            window.location.pathname === item.link ? 'text-white/80' : 'text-gray-500'
+                          }`}>
+                            {item.description}
+                          </div>
+                        </div>
+                      )}
+                      {!isOpen && (
+                        <div className="absolute left-full ml-2 px-2 py-1 bg-gray-900 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-50">
+                          {item.name}
+                        </div>
+                      )}
                     </Link>
-                  </li>
+                  </div>
                 );
               }
+              
               return (
-                <li
-                  key={item.id}
-                  className="relative"
-                >
+                <div key={item.id}>
                   <button
                     onClick={() => {
                       if (hasChildren) {
-                        setActiveView(item.id);
                         setOpenGroups((prev) => ({ ...prev, [item.id]: !expanded }));
+                        if (!expanded) {
+                          setActiveView(item.id);
+                        }
                       } else {
                         setActiveView(item.id);
                       }
                     }}
-                    className={`w-full flex items-center justify-between px-3 py-2 rounded-lg transition-all duration-200 ${
-                      isActive 
-                        ? 'bg-gradient-to-r from-yellow-400 to-amber-500 text-white shadow-lg' 
-                        : 'text-amber-700 hover:bg-yellow-100 hover:text-amber-800'
+                    className={`group relative w-full flex items-center ${
+                      isOpen ? 'px-4 py-3' : 'px-2 py-2 justify-center'
+                    } rounded-xl transition-all duration-200 ${
+                      isActive && !hasChildren
+                        ? !isOpen 
+                          ? `bg-gradient-to-r ${item.gradient} text-white shadow-lg`
+                          : `bg-gradient-to-r ${item.gradient} text-white shadow-lg transform scale-105`
+                        : isActive && hasChildren
+                        ? 'bg-gray-50 text-gray-900'
+                        : 'text-gray-700 hover:bg-gray-50 hover:text-gray-900'
                     }`}
-                    aria-expanded={hasChildren ? expanded : undefined}
-                    aria-controls={hasChildren ? `submenu-${item.id}` : undefined}
                   >
-                    <span className="flex items-center space-x-3">
-                      <Icon size={20} className="flex-shrink-0" />
-                      {isOpen && <span className={`font-medium ${isOpen ? 'block' : 'hidden md:block'}`}>{item.name}</span>}
-                    </span>
-                    {hasChildren && (
-                      <span className="ml-2 text-xs text-amber-800">{expanded ? '▾' : '▸'}</span>
+                    <div className={`flex items-center justify-center w-10 h-10 rounded-lg ${
+                      isActive && !hasChildren
+                        ? 'bg-white/20 text-white' 
+                        : isActive && hasChildren
+                        ? 'bg-gray-200 text-gray-700'
+                        : 'bg-gray-100 text-gray-600 group-hover:bg-gray-200'
+                    }`}>
+                      <Icon size={20} />
+                    </div>
+                    {isOpen && (
+                      <div className="ml-3 flex-1">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <div className="font-semibold text-sm text-left">{item.name}</div>
+                            <div className={`text-xs text-left ${
+                              isActive ? 'text-gray-600' : 'text-gray-500'
+                            }`}>
+                              {item.description}
+                            </div>
+                          </div>
+                          {hasChildren && (
+                            <ChevronDown 
+                              size={16} 
+                              className={`transition-transform duration-200 ${expanded ? 'rotate-180' : ''}`} 
+                            />
+                          )}
+                        </div>
+                      </div>
+                    )}
+                    {!isOpen && (
+                      <div className="absolute left-full ml-2 px-2 py-1 bg-gray-900 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-50">
+                        {item.name}
+                      </div>
                     )}
                   </button>
-                  {item.children && (
-                    <ul
-                      id={`submenu-${item.id}`}
-                      className={`mt-1 ${isOpen ? 'ml-6' : 'ml-2'} space-y-1 submenu ${expanded ? 'submenu-open' : 'submenu-closed'}`}
-                    >
-                      {item.children.map((child) => {
-                        const ChildIcon = child.icon;
-                        const childActive = activeView === child.id;
-                        return (
-                          <li key={child.id}>
+                  
+                  {/* Submenu */}
+                  {hasChildren && (
+                    <div className={`overflow-hidden transition-all duration-300 ${
+                      expanded ? 'max-h-96 opacity-100' : 'max-h-0 opacity-0'
+                    }`}>
+                      <div className="mt-2 ml-6 space-y-1">
+                        {item.children.map((child) => {
+                          const ChildIcon = child.icon;
+                          const childActive = activeView === child.id;
+                          return (
                             <button
+                              key={child.id}
                               onClick={() => setActiveView(child.id)}
-                              className={`w-full flex items-center ${isOpen ? 'space-x-3 px-3' : 'justify-center'} py-2 rounded-lg text-sm transition-all duration-200 ${
+                              className={`group relative w-full flex items-center ${
+                                isOpen ? 'px-3 py-2' : 'px-1 py-1 justify-center'
+                              } rounded-lg text-sm transition-all duration-200 ${
                                 childActive
-                                  ? 'bg-yellow-100 text-amber-900 border border-yellow-300'
-                                  : 'text-amber-700 hover:bg-yellow-100 hover:text-amber-800'
+                                  ? `bg-gradient-to-r ${item.gradient} text-white shadow-md`
+                                  : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
                               }`}
                             >
-                              <ChildIcon size={16} className="flex-shrink-0" />
+                              <div className={`flex items-center justify-center w-8 h-8 rounded-lg ${
+                                isOpen ? 'mr-3' : 'mr-0'
+                              } ${
+                                childActive
+                                  ? 'bg-white/20 text-white'
+                                  : 'bg-gray-100 text-gray-500 group-hover:bg-gray-200'
+                              }`}>
+                                <ChildIcon size={16} />
+                              </div>
                               {isOpen && <span className="font-medium">{child.name}</span>}
+                              {!isOpen && (
+                                <div className="absolute left-full ml-2 px-2 py-1 bg-gray-900 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-50">
+                                  {child.name}
+                                </div>
+                              )}
                             </button>
-                          </li>
-                        );
-                      })}
-                    </ul>
+                          );
+                        })}
+                      </div>
+                    </div>
                   )}
-                </li>
+                </div>
               );
             })}
-          </ul>
+          </div>
         </nav>
-        {/* Bottom Section */}
-        <div className="p-3 border-t border-yellow-200">
+        {/* Modern Bottom Section */}
+        <div className="border-t border-gray-200 p-4">
           <div className="space-y-2">
-            <button className="w-full flex items-center space-x-3 px-3 py-3 rounded-lg text-amber-700 hover:bg-yellow-100 hover:text-amber-800 transition-colors">
-              <Settings size={20} className="flex-shrink-0" />
-              {isOpen && <span className={`font-medium ${isOpen ? 'block' : 'hidden md:block'}`}>Settings</span>}
+            {/* Settings */}
+            <button className="group relative w-full flex items-center px-4 py-3 rounded-xl text-gray-700 hover:bg-gray-50 hover:text-gray-900 transition-all duration-200">
+              <div className="flex items-center justify-center w-10 h-10 rounded-lg bg-gray-100 text-gray-600 group-hover:bg-gray-200">
+                <Settings size={20} />
+              </div>
+              {isOpen && (
+                <div className="ml-3">
+                  <div className="font-semibold text-sm">Settings</div>
+                  <div className="text-xs text-gray-500">Preferences & Config</div>
+                </div>
+              )}
+              {!isOpen && (
+                <div className="absolute left-full ml-2 px-2 py-1 bg-gray-900 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-50">
+                  Settings
+                </div>
+              )}
             </button>
+            
+            {/* Logout */}
             <button
               onClick={handleLogout}
-              className="w-full flex items-center space-x-3 px-3 py-3 rounded-lg text-red-600 hover:bg-red-50 hover:text-red-700 transition-colors"
+              className="group relative w-full flex items-center px-4 py-3 rounded-xl text-red-600 hover:bg-red-50 hover:text-red-700 transition-all duration-200"
             >
-              <LogOut size={20} className="flex-shrink-0" />
-              {isOpen && <span className={`font-medium ${isOpen ? 'block' : 'hidden md:block'}`}>Logout</span>}
+              <div className="flex items-center justify-center w-10 h-10 rounded-lg bg-red-100 text-red-600 group-hover:bg-red-200">
+                <LogOut size={20} />
+              </div>
+              {isOpen && (
+                <div className="ml-3">
+                  <div className="font-semibold text-sm">Logout</div>
+                  <div className="text-xs text-red-500">Sign out securely</div>
+                </div>
+              )}
+              {!isOpen && (
+                <div className="absolute left-full ml-2 px-2 py-1 bg-gray-900 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-50">
+                  Logout
+                </div>
+              )}
             </button>
           </div>
+
         </div>
       </div>
     </>
