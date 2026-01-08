@@ -25,6 +25,28 @@ function App() {
       <Routes>
         <Route path="/" element={<LoginForm />} />
         <Route path="/dashboard" element={<Dashboard />} />
+        <Route path="/dashboard/home" element={<Dashboard />} />
+        <Route path="/dashboard/ai-learning" element={<Dashboard />} />
+        <Route path="/dashboard/ai-learning-courses" element={<Dashboard />} />
+        <Route path="/dashboard/ai-learning-tutor" element={<Dashboard />} />
+        <Route path="/dashboard/academics" element={<Dashboard />} />
+        <Route path="/dashboard/assignments" element={<Dashboard />} />
+        <Route path="/dashboard/assignments-journal" element={<Dashboard />} />
+        <Route path="/dashboard/assignments-academic-alcove" element={<Dashboard />} />
+        <Route path="/dashboard/results" element={<Dashboard />} />
+        <Route path="/dashboard/schedule" element={<Dashboard />} />
+        <Route path="/dashboard/routine" element={<Dashboard />} />
+        <Route path="/dashboard/attendance" element={<Dashboard />} />
+        <Route path="/dashboard/communication" element={<Dashboard />} />
+        <Route path="/dashboard/chat" element={<Dashboard />} />
+        <Route path="/dashboard/teacherfeedback" element={<Dashboard />} />
+        <Route path="/dashboard/excuse-letter" element={<Dashboard />} />
+        <Route path="/dashboard/noticeboard" element={<Dashboard />} />
+        <Route path="/dashboard/wellness" element={<Dashboard />} />
+        <Route path="/dashboard/wellbeing" element={<Dashboard />} />
+        <Route path="/dashboard/achievements" element={<Dashboard />} />
+        <Route path="/dashboard/profile" element={<Dashboard />} />
+        <Route path="/dashboard/themecustomizer" element={<Dashboard />} />
         <Route path="/signup" element={<SignupForm />} />
         <Route path="/complaint" element={<ComplaintManagementSystem />} />
         <Route path="/admin/*" element={<AdminApp />} />

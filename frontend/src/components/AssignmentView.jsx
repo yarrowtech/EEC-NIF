@@ -21,6 +21,27 @@ import { addPoints, hasAward, markAwarded, getPoints } from '../utils/points';
 import Assignment from './Assignment';
 import Tryout from './Tryout';
 
+const QUESTION_DATA = {
+  '9': {
+    math: {
+      mcq: [
+        { q: 'What is 2+2?', o: ['3', '4', '5', '6'], a: '4', e: 'Simple addition' },
+        { q: 'What is 5*3?', o: ['10', '15', '20', '25'], a: '15', e: 'Multiplication' }
+      ],
+      blank: [
+        { q: 'Fill in the blank: 2 + 2 = ___', a: '4', e: 'Simple addition' }
+      ]
+    },
+    science: {
+      mcq: [
+        { q: 'What is H2O?', o: ['Water', 'Hydrogen', 'Oxygen', 'Salt'], a: 'Water', e: 'Chemical formula for water' }
+      ],
+      blank: [
+        { q: 'H2O is the chemical formula for ___', a: 'water', e: 'Chemical formula' }
+      ]
+    }
+  }
+};
 
 const AssignmentView = ({ defaultType = "school" }) => {
   const [filter, setFilter] = useState("all"); // all, pending, completed, overdue
@@ -67,29 +88,6 @@ const AssignmentView = ({ defaultType = "school" }) => {
   const labCameraRef = useRef(null);
   const labInitialCamPosRef = useRef(null);
   const labModelRef = useRef(null);
-
-  // Mock data
-  const questionData = {
-    '9': {
-      'math': {
-        'mcq': [
-          { q: 'What is 2+2?', o: ['3', '4', '5', '6'], a: '4', e: 'Simple addition' },
-          { q: 'What is 5*3?', o: ['10', '15', '20', '25'], a: '15', e: 'Multiplication' }
-        ],
-        'blank': [
-          { q: 'Fill in the blank: 2 + 2 = ___', a: '4', e: 'Simple addition' }
-        ]
-      },
-      'science': {
-        'mcq': [
-          { q: 'What is H2O?', o: ['Water', 'Hydrogen', 'Oxygen', 'Salt'], a: 'Water', e: 'Chemical formula for water' }
-        ],
-        'blank': [
-          { q: 'H2O is the chemical formula for ___', a: 'water', e: 'Chemical formula' }
-        ]
-      }
-    }
-  };
 
   // Tryout difficulty options
   const tryoutDifficultyOptions = [
@@ -188,8 +186,8 @@ const AssignmentView = ({ defaultType = "school" }) => {
 
   // Initialize EEC state
   useEffect(() => {
-    if(!selectedClass || !questionData[selectedClass]) return;
-    setEecSubject(Object.keys(questionData[selectedClass])[0])
+    if(!selectedClass || !QUESTION_DATA[selectedClass]) return;
+    setEecSubject(Object.keys(QUESTION_DATA[selectedClass])[0])
   }, [selectedClass])
 
   useEffect(() => {
@@ -198,14 +196,14 @@ const AssignmentView = ({ defaultType = "school" }) => {
 
   // Build flashcard deck from questionPaper (MCQ -> front: question, back: answer + explanation)
   useEffect(() => {
-    if (!questionData[selectedClass] || !questionData[selectedClass][eecSubject]) {
+    if (!QUESTION_DATA[selectedClass] || !QUESTION_DATA[selectedClass][eecSubject]) {
       setFlashDeck([]);
       setFlashIndex(0);
       setFlashKnown({});
       setFlashFlipped(false);
       return;
     }
-    const mcq = questionData[selectedClass][eecSubject]?.mcq || [];
+    const mcq = QUESTION_DATA[selectedClass][eecSubject]?.mcq || [];
     let deck = mcq.map((q) => ({
       front: q.q,
       back: `${q.a ? `Answer: ${q.a}` : ''}${q.e ? `\n${q.e}` : ''}`.trim(),
@@ -220,7 +218,7 @@ const AssignmentView = ({ defaultType = "school" }) => {
     setFlashIndex(0);
     setFlashKnown({});
     setFlashFlipped(false);
-  }, [questionData, selectedClass, eecSubject, flashShuffle]);
+  }, [selectedClass, eecSubject, flashShuffle]);
 
   // Keyboard controls for FlashCard mode
   useEffect(() => {

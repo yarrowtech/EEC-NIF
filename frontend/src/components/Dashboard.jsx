@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import Sidebar from './Sidebar';
 import Header from './Header';
 import DashboardHome from './DashboardHome';
@@ -19,25 +20,54 @@ import AcademicAlcove from './AcademicAlcove';
 import StudentWellbeing from './StudentWellbeing';
 
 const Dashboard = () => {
-  const [activeView, setActiveView] = useState('dashboard');
+  const location = useLocation();
+  const navigate = useNavigate();
   const [sidebarOpen, setSidebarOpen] = useState(false); // default to closed on mobile
+  
+  // Extract the current view from the URL path
+  const getActiveViewFromPath = (pathname) => {
+    if (pathname === '/dashboard' || pathname === '/dashboard/') {
+      return 'dashboard';
+    }
+    // Extract everything after /dashboard/
+    const match = pathname.match(/^\/dashboard\/(.+)$/);
+    if (match) {
+      const view = match[1];
+      return view;
+    }
+    return 'dashboard';
+  };
+
+  const activeView = getActiveViewFromPath(location.pathname);
+
+  // Function to handle navigation
+  const setActiveView = (view) => {
+    const path = view === 'dashboard' ? '/dashboard' : `/dashboard/${view}`;
+    navigate(path);
+  };
 
   // Define view components in an object for cleaner code
   const viewComponents = {
     dashboard: (props) => <DashboardHome {...props} setActiveView={setActiveView} />,
+    home: (props) => <DashboardHome {...props} setActiveView={setActiveView} />,
     'ai-learning': AILearningDashboard,
     'ai-learning-courses': CoursesView,
+    'ai-learning-tutor': AILearningDashboard,
+    academics: (props) => <AssignmentView {...props} defaultType="school" />,
     attendance: AttendanceView,
     routine: RoutineView,
+    schedule: RoutineView,
     assignments: (props) => <AssignmentView {...props} defaultType="school" />,
     'assignments-journal': (props) => <AssignmentView {...props} defaultType="journal" />,
     'assignments-academic-alcove': (props) => <AcademicAlcove {...props} />,
     courses: CoursesView,
     results: ResultsView,
+    communication: StudentChat,
     noticeboard: NoticeBoard,
     teacherfeedback: TeacherFeedback,
     chat: StudentChat,
     'excuse-letter': ExcuseLetter,
+    wellness: StudentWellbeing,
     wellbeing: StudentWellbeing,
     achievements: AchievementsView,
     profile: ProfileUpdate,
@@ -45,15 +75,19 @@ const Dashboard = () => {
   };
 
   const renderContent = () => {
-    const Component = viewComponents[activeView] || DashboardHome;
-    return typeof Component === 'function' ? <Component /> : <DashboardHome setActiveView={setActiveView} />;
+    const Component = viewComponents[activeView];
+    
+    if (Component) {
+      return typeof Component === 'function' ? <Component /> : <Component setActiveView={setActiveView} />;
+    } else {
+      return <DashboardHome setActiveView={setActiveView} />;
+    }
   };
 
   return (
     <div className="min-h-screen w-full bg-gray-50 flex relative overflow-hidden">
       <Sidebar 
-        activeView={activeView} 
-        setActiveView={setActiveView}
+        activeView={activeView}
         isOpen={sidebarOpen}
         setIsOpen={setSidebarOpen}
       />
@@ -65,7 +99,7 @@ const Dashboard = () => {
         <Header 
           sidebarOpen={sidebarOpen}
           setSidebarOpen={setSidebarOpen}
-          onOpenProfile={() => setActiveView('profile')}
+          onOpenProfile={() => navigate('/dashboard/profile')}
         />
         <main className={`flex-1 min-h-0 ${(activeView === 'chat' || activeView === 'excuse-letter') ? 'p-0' : 'p-2 sm:p-4 md:p-6'} w-full flex flex-col`}>
           {renderContent()}

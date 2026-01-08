@@ -26,11 +26,24 @@ import {
   Star,
   Target
 } from 'lucide-react';
-import { Link, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 
-const Sidebar = ({ activeView, setActiveView, isOpen, setIsOpen }) => {
+const Sidebar = ({ activeView, isOpen, setIsOpen }) => {
   const navigate = useNavigate();
   const [openGroups, setOpenGroups] = useState({});
+
+  // Helper function to navigate to a page
+  const navigateToPage = (pageId) => {
+    const path = pageId === 'dashboard' ? '/dashboard' : `/dashboard/${pageId}`;
+    navigate(path);
+  };
+
+  const handleNavigation = (pageId) => {
+    navigateToPage(pageId);
+    if (typeof window !== 'undefined' && window.innerWidth < 768) {
+      setIsOpen(false);
+    }
+  };
 
   const menuItems = [
     { 
@@ -177,59 +190,21 @@ const Sidebar = ({ activeView, setActiveView, isOpen, setIsOpen }) => {
               const defaultExpanded = hasChildren && isActive;
               const expanded = openGroups[item.id] === undefined ? defaultExpanded : openGroups[item.id];
               
-              if (item.link) {
-                return (
-                  <div key={item.id}>
-                    <Link
-                      to={item.link}
-                      className={`group relative flex items-center ${
-                        isOpen ? 'px-4 py-3' : 'px-2 py-2 justify-center'
-                      } rounded-xl transition-all duration-200 ${
-                        window.location.pathname === item.link
-                          ? !isOpen
-                            ? `bg-gradient-to-r ${item.gradient} text-white shadow-lg`
-                            : `bg-gradient-to-r ${item.gradient} text-white shadow-lg transform scale-105`
-                          : 'text-gray-700 hover:bg-gray-50 hover:text-gray-900'
-                      }`}
-                    >
-                      <div className={`flex items-center justify-center w-10 h-10 rounded-lg ${
-                        window.location.pathname === item.link 
-                          ? 'bg-white/20 text-white' 
-                          : 'bg-gray-100 text-gray-600 group-hover:bg-gray-200'
-                      }`}>
-                        <Icon size={20} />
-                      </div>
-                      {isOpen && (
-                        <div className="ml-3 flex-1">
-                          <div className="font-semibold text-sm">{item.name}</div>
-                          <div className={`text-xs ${
-                            window.location.pathname === item.link ? 'text-white/80' : 'text-gray-500'
-                          }`}>
-                            {item.description}
-                          </div>
-                        </div>
-                      )}
-                      {!isOpen && (
-                        <div className="absolute left-full ml-2 px-2 py-1 bg-gray-900 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-50">
-                          {item.name}
-                        </div>
-                      )}
-                    </Link>
-                  </div>
-                );
-              }
               
               return (
                 <div key={item.id}>
                   <button
-                    onClick={() => {
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      
                       if (hasChildren) {
                         setOpenGroups((prev) => ({ ...prev, [item.id]: !expanded }));
                         if (!expanded) {
-                          setActiveView(item.id);
+                          handleNavigation(item.id);
                         }
                       } else {
-                        setActiveView(item.id);
+                        handleNavigation(item.id);
                       }
                     }}
                     className={`group relative w-full flex items-center ${
@@ -292,7 +267,11 @@ const Sidebar = ({ activeView, setActiveView, isOpen, setIsOpen }) => {
                           return (
                             <button
                               key={child.id}
-                              onClick={() => setActiveView(child.id)}
+                              onClick={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                handleNavigation(child.id);
+                              }}
                               className={`group relative w-full flex items-center ${
                                 isOpen ? 'px-3 py-2' : 'px-1 py-1 justify-center'
                               } rounded-lg text-sm transition-all duration-200 ${
