@@ -148,40 +148,63 @@ const Sidebar = ({ activeView, isOpen, setIsOpen }) => {
         } ${isOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'} ${!isOpen ? 'overflow-hidden' : ''}`}
         aria-label="Sidebar"
       >
-        {/* Modern Header */}
+        {/* Redesigned Header */}
         <div className="relative">
-          {/* Background gradient */}
-          <div className="absolute inset-0 bg-gradient-to-br from-yellow-600 to-yellow-500 opacity-75" />
-          <div className="relative p-3">
-            <div className="flex items-center justify-between">
-              <div className={`flex items-center space-x-3 ${isOpen ? 'block' : 'hidden'}`}>
-                <div className="relative">
-                  <div className="w-10 h-10 bg-white/20 backdrop-blur-sm rounded-xl flex items-center justify-center shadow-lg border border-white/30">
-                    <img src='/harrow-hall-school.png' className="w-6 h-6 rounded-lg" alt="School Logo"/>
+          {isOpen ? (
+            <>
+              {/* Expanded Header with Gradient */}
+              <div className="absolute inset-0 bg-gradient-to-br from-indigo-600 via-purple-600 to-pink-500 opacity-90" />
+              <div className="relative p-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-3">
+                    <div className="relative">
+                      <div className="w-10 h-10 bg-white/20 backdrop-blur-sm rounded-xl flex items-center justify-center shadow-lg border border-white/30">
+                        <img src='/harrow-hall-school.png' className="w-6 h-6 rounded-lg" alt="School Logo"/>
+                      </div>
+                      <div className="absolute -top-1 -right-1 w-4 h-4 bg-green-400 rounded-full border-2 border-white animate-pulse" />
+                    </div>
+                    <div className="text-white">
+                      <div className="font-bold text-lg">Student Name</div>
+                      <div className="text-white/80 text-xs">Student Dashboard</div>
+                    </div>
                   </div>
-                  <div className="absolute -top-1 -right-1 w-4 h-4 bg-green-400 rounded-full border-2 border-white animate-pulse" />
-                </div>
-                <div className="text-white">
-                  <div className="font-bold text-lg">Student Name</div>
-                  <div className="text-white/80 text-xs">Student Dashboard</div>
+                  
+                  {/* Mobile menu toggle */}
+                  <button
+                    onClick={() => setIsOpen(!isOpen)}
+                    className="md:hidden p-2 rounded-lg bg-white/20 backdrop-blur-sm text-white hover:bg-white/30 transition-colors border border-white/30"
+                  >
+                    <X size={20} />
+                  </button>
                 </div>
               </div>
-              
-              {/* Mobile menu toggle */}
-              <button
-                onClick={() => setIsOpen(!isOpen)}
-                className="md:hidden p-2 rounded-lg bg-white/20 backdrop-blur-sm text-white hover:bg-white/30 transition-colors border border-white/30"
-              >
-                {isOpen ? <X size={20} /> : <Menu size={20} />}
-              </button>
+            </>
+          ) : (
+            /* Collapsed Header - Clean & Minimal */
+            <div className="p-3 border-b border-gray-200">
+              <div className="flex flex-col items-center space-y-3">
+                {/* Logo */}
+                <div className="relative">
+                  <div className="w-10 h-10 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-xl flex items-center justify-center shadow-md">
+                    <img src='/harrow-hall-school.png' className="w-6 h-6 rounded-lg" alt="School Logo"/>
+                  </div>
+                  <div className="absolute -top-1 -right-1 w-3 h-3 bg-green-400 rounded-full border-2 border-white" />
+                </div>
+                
+                {/* Divider */}
+                <div className="w-8 h-px bg-gray-300" />
+                
+                {/* Student Initial */}
+                <div className="w-8 h-8 bg-gradient-to-br from-yellow-400 to-orange-500 rounded-lg flex items-center justify-center text-white text-sm font-bold shadow-sm">
+                  S
+                </div>
+              </div>
             </div>
-            
-            {/* User profile section - only visible when expanded */}
-          </div>
+          )}
         </div>
-        {/* Modern Navigation */}
-        <nav className={`flex-1 px-4 py-6 overflow-y-auto modern-scrollbar ${!isOpen ? 'overflow-x-hidden' : ''}`}>
-          <div className="space-y-2">
+        {/* Completely Redesigned Navigation */}
+        <nav className={`flex-1 overflow-y-auto modern-scrollbar ${!isOpen ? 'px-1 py-2' : 'px-4 py-6'}`}>
+          <div className={`${isOpen ? 'space-y-2' : 'space-y-1'}`}>
             {menuItems.map((item) => {
               const Icon = item.icon;
               const hasChildren = !!item.children?.length;
@@ -190,7 +213,95 @@ const Sidebar = ({ activeView, isOpen, setIsOpen }) => {
               const defaultExpanded = hasChildren && isActive;
               const expanded = openGroups[item.id] === undefined ? defaultExpanded : openGroups[item.id];
               
+              if (!isOpen) {
+                // Revolutionary Collapsed Design - Perfect Alignment & Spacing
+                return (
+                  <div key={item.id} className="relative">
+                    <button
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        handleNavigation(item.id);
+                      }}
+                      className={`group relative w-full h-12 flex items-center justify-center rounded-xl transition-all duration-300 ease-out ${
+                        isActive
+                          ? `bg-gradient-to-br ${item.gradient} text-white shadow-xl shadow-gray-400/20 transform scale-[1.02] ring-1 ring-white/20`
+                          : 'text-gray-500 hover:bg-gradient-to-br hover:from-gray-100 hover:to-gray-50 hover:scale-[1.02] hover:shadow-md hover:text-gray-700'
+                      }`}
+                    >
+                      {/* Perfect Icon Container */}
+                      <div className={`relative flex items-center justify-center w-6 h-6 transition-all duration-300 ${
+                        isActive
+                          ? 'text-white drop-shadow-sm'
+                          : 'text-gray-500 group-hover:text-gray-700'
+                      }`}>
+                        <Icon size={18} strokeWidth={isActive ? 2.2 : 1.8} className="transition-all duration-300" />
+                      </div>
+                      
+                      {/* Modern Active Indicator - Right Side */}
+                      {isActive && (
+                        <div className="absolute right-0 top-1/2 transform -translate-y-1/2 w-1 h-8 bg-white/90 rounded-l-full shadow-sm" />
+                      )}
+                      
+                      {/* Enhanced Tooltip with Better Positioning */}
+                      <div className="absolute left-full ml-3 opacity-0 group-hover:opacity-100 transition-all duration-300 ease-out transform translate-x-2 group-hover:translate-x-0 pointer-events-none z-50">
+                        <div className="bg-gray-900 text-white px-4 py-3 rounded-xl shadow-2xl border border-gray-700 min-w-max">
+                          <div className="font-semibold text-sm">{item.name}</div>
+                          <div className="text-xs text-gray-300 mt-1">{item.description}</div>
+                          
+                          {/* Modern Arrow */}
+                          <div className="absolute left-0 top-1/2 transform -translate-x-1 -translate-y-1/2">
+                            <div className="w-2 h-2 bg-gray-900 border-l border-t border-gray-700 rotate-45" />
+                          </div>
+                        </div>
+                      </div>
+                      
+                      {/* Subtle Hover Ring */}
+                      <div className="absolute inset-0 rounded-xl ring-1 ring-transparent group-hover:ring-gray-300/30 transition-all duration-300" />
+                    </button>
+                    
+                    {/* Refined Submenu Dots for Children */}
+                    {hasChildren && isActive && (
+                      <div className="mt-1 flex flex-col items-center space-y-0.5 py-2">
+                        {item.children.slice(0, 4).map((child, index) => (
+                          <button
+                            key={child.id}
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              handleNavigation(child.id);
+                            }}
+                            className={`group/child relative w-8 h-8 flex items-center justify-center rounded-lg transition-all duration-200 ${
+                              activeView === child.id
+                                ? `bg-gradient-to-br ${item.gradient} text-white shadow-lg scale-105`
+                                : 'text-gray-400 hover:bg-gray-100 hover:text-gray-600 hover:scale-105'
+                            }`}
+                          >
+                            <child.icon size={12} strokeWidth={activeView === child.id ? 2.5 : 2} />
+                            
+                            {/* Child Tooltip - Compact */}
+                            <div className="absolute left-full ml-2 opacity-0 group-hover/child:opacity-100 transition-all duration-200 pointer-events-none z-50">
+                              <div className="bg-gray-800 text-white px-3 py-2 rounded-lg text-xs font-medium whitespace-nowrap shadow-xl">
+                                {child.name}
+                                <div className="absolute left-0 top-1/2 transform -translate-x-1 -translate-y-1/2">
+                                  <div className="w-1.5 h-1.5 bg-gray-800 rotate-45" />
+                                </div>
+                              </div>
+                            </div>
+                          </button>
+                        ))}
+                        
+                        {/* More indicator if there are additional children */}
+                        {item.children.length > 4 && (
+                          <div className="w-1 h-1 bg-gray-400 rounded-full mt-1" />
+                        )}
+                      </div>
+                    )}
+                  </div>
+                );
+              }
               
+              // Expanded State Design - Full Menu with Modern Cards
               return (
                 <div key={item.id}>
                   <button
@@ -207,19 +318,15 @@ const Sidebar = ({ activeView, isOpen, setIsOpen }) => {
                         handleNavigation(item.id);
                       }
                     }}
-                    className={`group relative w-full flex items-center ${
-                      isOpen ? 'px-4 py-3' : 'px-2 py-2 justify-center'
-                    } rounded-xl transition-all duration-200 ${
+                    className={`group relative w-full flex items-center px-4 py-3 rounded-xl transition-all duration-200 ${
                       isActive && !hasChildren
-                        ? !isOpen 
-                          ? `bg-gradient-to-r ${item.gradient} text-white shadow-lg`
-                          : `bg-gradient-to-r ${item.gradient} text-white shadow-lg transform scale-105`
+                        ? `bg-gradient-to-r ${item.gradient} text-white shadow-lg transform scale-[1.02]`
                         : isActive && hasChildren
-                        ? 'bg-gray-50 text-gray-900'
+                        ? 'bg-gray-50 text-gray-900 border border-gray-200'
                         : 'text-gray-700 hover:bg-gray-50 hover:text-gray-900'
                     }`}
                   >
-                    <div className={`flex items-center justify-center w-10 h-10 rounded-lg ${
+                    <div className={`flex items-center justify-center w-10 h-10 rounded-lg mr-3 ${
                       isActive && !hasChildren
                         ? 'bg-white/20 text-white' 
                         : isActive && hasChildren
@@ -228,34 +335,27 @@ const Sidebar = ({ activeView, isOpen, setIsOpen }) => {
                     }`}>
                       <Icon size={20} />
                     </div>
-                    {isOpen && (
-                      <div className="ml-3 flex-1">
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <div className="font-semibold text-sm text-left">{item.name}</div>
-                            <div className={`text-xs text-left ${
-                              isActive ? 'text-gray-600' : 'text-gray-500'
-                            }`}>
-                              {item.description}
-                            </div>
+                    <div className="flex-1">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <div className="font-semibold text-sm text-left">{item.name}</div>
+                          <div className={`text-xs text-left ${
+                            isActive ? 'text-gray-600' : 'text-gray-500'
+                          }`}>
+                            {item.description}
                           </div>
-                          {hasChildren && (
-                            <ChevronDown 
-                              size={16} 
-                              className={`transition-transform duration-200 ${expanded ? 'rotate-180' : ''}`} 
-                            />
-                          )}
                         </div>
+                        {hasChildren && (
+                          <ChevronDown 
+                            size={16} 
+                            className={`transition-transform duration-200 ${expanded ? 'rotate-180' : ''}`} 
+                          />
+                        )}
                       </div>
-                    )}
-                    {!isOpen && (
-                      <div className="absolute left-full ml-2 px-2 py-1 bg-gray-900 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-50">
-                        {item.name}
-                      </div>
-                    )}
+                    </div>
                   </button>
                   
-                  {/* Submenu */}
+                  {/* Expanded Submenu */}
                   {hasChildren && (
                     <div className={`overflow-hidden transition-all duration-300 ${
                       expanded ? 'max-h-96 opacity-100' : 'max-h-0 opacity-0'
@@ -272,29 +372,20 @@ const Sidebar = ({ activeView, isOpen, setIsOpen }) => {
                                 e.stopPropagation();
                                 handleNavigation(child.id);
                               }}
-                              className={`group relative w-full flex items-center ${
-                                isOpen ? 'px-3 py-2' : 'px-1 py-1 justify-center'
-                              } rounded-lg text-sm transition-all duration-200 ${
+                              className={`group relative w-full flex items-center px-3 py-2 rounded-lg text-sm transition-all duration-200 ${
                                 childActive
                                   ? `bg-gradient-to-r ${item.gradient} text-white shadow-md`
                                   : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
                               }`}
                             >
-                              <div className={`flex items-center justify-center w-8 h-8 rounded-lg ${
-                                isOpen ? 'mr-3' : 'mr-0'
-                              } ${
+                              <div className={`flex items-center justify-center w-8 h-8 rounded-lg mr-3 ${
                                 childActive
                                   ? 'bg-white/20 text-white'
                                   : 'bg-gray-100 text-gray-500 group-hover:bg-gray-200'
                               }`}>
                                 <ChildIcon size={16} />
                               </div>
-                              {isOpen && <span className="font-medium">{child.name}</span>}
-                              {!isOpen && (
-                                <div className="absolute left-full ml-2 px-2 py-1 bg-gray-900 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-50">
-                                  {child.name}
-                                </div>
-                              )}
+                              <span className="font-medium">{child.name}</span>
                             </button>
                           );
                         })}
@@ -306,49 +397,85 @@ const Sidebar = ({ activeView, isOpen, setIsOpen }) => {
             })}
           </div>
         </nav>
-        {/* Modern Bottom Section */}
-        <div className="border-t border-gray-200 p-4">
-          <div className="space-y-2">
-            {/* Settings */}
-            <button className="group relative w-full flex items-center px-4 py-3 rounded-xl text-gray-700 hover:bg-gray-50 hover:text-gray-900 transition-all duration-200">
-              <div className="flex items-center justify-center w-10 h-10 rounded-lg bg-gray-100 text-gray-600 group-hover:bg-gray-200">
-                <Settings size={20} />
-              </div>
-              {isOpen && (
+        {/* Redesigned Bottom Section - Matches New Style */}
+        <div className={`border-t border-gray-200 ${!isOpen ? 'p-2' : 'p-4'}`}>
+          <div className={`${isOpen ? 'space-y-2' : 'space-y-1'}`}>
+            {/* Settings Button */}
+            {!isOpen ? (
+              <button className="group relative w-full h-12 flex items-center justify-center rounded-xl text-gray-500 hover:bg-gradient-to-br hover:from-gray-100 hover:to-gray-50 hover:scale-[1.02] hover:shadow-md hover:text-gray-700 transition-all duration-300 ease-out">
+                <div className="relative flex items-center justify-center w-6 h-6 transition-all duration-300 text-gray-500 group-hover:text-gray-700">
+                  <Settings size={18} strokeWidth={1.8} className="transition-all duration-300" />
+                </div>
+                
+                {/* Enhanced Tooltip */}
+                <div className="absolute left-full ml-3 opacity-0 group-hover:opacity-100 transition-all duration-300 ease-out transform translate-x-2 group-hover:translate-x-0 pointer-events-none z-50">
+                  <div className="bg-gray-900 text-white px-4 py-3 rounded-xl shadow-2xl border border-gray-700 min-w-max">
+                    <div className="font-semibold text-sm">Settings</div>
+                    <div className="text-xs text-gray-300 mt-1">Preferences & Config</div>
+                    
+                    {/* Modern Arrow */}
+                    <div className="absolute left-0 top-1/2 transform -translate-x-1 -translate-y-1/2">
+                      <div className="w-2 h-2 bg-gray-900 border-l border-t border-gray-700 rotate-45" />
+                    </div>
+                  </div>
+                </div>
+                
+                {/* Subtle Hover Ring */}
+                <div className="absolute inset-0 rounded-xl ring-1 ring-transparent group-hover:ring-gray-300/30 transition-all duration-300" />
+              </button>
+            ) : (
+              <button className="group relative w-full flex items-center px-4 py-3 rounded-xl text-gray-700 hover:bg-gray-50 hover:text-gray-900 transition-all duration-200">
+                <div className="flex items-center justify-center w-10 h-10 rounded-lg bg-gray-100 text-gray-600 group-hover:bg-gray-200">
+                  <Settings size={20} />
+                </div>
                 <div className="ml-3">
                   <div className="font-semibold text-sm">Settings</div>
                   <div className="text-xs text-gray-500">Preferences & Config</div>
                 </div>
-              )}
-              {!isOpen && (
-                <div className="absolute left-full ml-2 px-2 py-1 bg-gray-900 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-50">
-                  Settings
-                </div>
-              )}
-            </button>
+              </button>
+            )}
             
-            {/* Logout */}
-            <button
-              onClick={handleLogout}
-              className="group relative w-full flex items-center px-4 py-3 rounded-xl text-red-600 hover:bg-red-50 hover:text-red-700 transition-all duration-200"
-            >
-              <div className="flex items-center justify-center w-10 h-10 rounded-lg bg-red-100 text-red-600 group-hover:bg-red-200">
-                <LogOut size={20} />
-              </div>
-              {isOpen && (
+            {/* Logout Button */}
+            {!isOpen ? (
+              <button
+                onClick={handleLogout}
+                className="group relative w-full h-12 flex items-center justify-center rounded-xl text-red-500 hover:bg-gradient-to-br hover:from-red-50 hover:to-red-100 hover:scale-[1.02] hover:shadow-md hover:text-red-600 transition-all duration-300 ease-out"
+              >
+                <div className="relative flex items-center justify-center w-6 h-6 transition-all duration-300 text-red-500 group-hover:text-red-600">
+                  <LogOut size={18} strokeWidth={1.8} className="transition-all duration-300" />
+                </div>
+                
+                {/* Enhanced Tooltip */}
+                <div className="absolute left-full ml-3 opacity-0 group-hover:opacity-100 transition-all duration-300 ease-out transform translate-x-2 group-hover:translate-x-0 pointer-events-none z-50">
+                  <div className="bg-gray-900 text-white px-4 py-3 rounded-xl shadow-2xl border border-gray-700 min-w-max">
+                    <div className="font-semibold text-sm">Logout</div>
+                    <div className="text-xs text-gray-300 mt-1">Sign out securely</div>
+                    
+                    {/* Modern Arrow */}
+                    <div className="absolute left-0 top-1/2 transform -translate-x-1 -translate-y-1/2">
+                      <div className="w-2 h-2 bg-gray-900 border-l border-t border-gray-700 rotate-45" />
+                    </div>
+                  </div>
+                </div>
+                
+                {/* Subtle Hover Ring */}
+                <div className="absolute inset-0 rounded-xl ring-1 ring-transparent group-hover:ring-red-300/30 transition-all duration-300" />
+              </button>
+            ) : (
+              <button
+                onClick={handleLogout}
+                className="group relative w-full flex items-center px-4 py-3 rounded-xl text-red-600 hover:bg-red-50 hover:text-red-700 transition-all duration-200"
+              >
+                <div className="flex items-center justify-center w-10 h-10 rounded-lg bg-red-100 text-red-600 group-hover:bg-red-200">
+                  <LogOut size={20} />
+                </div>
                 <div className="ml-3">
                   <div className="font-semibold text-sm">Logout</div>
                   <div className="text-xs text-red-500">Sign out securely</div>
                 </div>
-              )}
-              {!isOpen && (
-                <div className="absolute left-full ml-2 px-2 py-1 bg-gray-900 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-50">
-                  Logout
-                </div>
-              )}
-            </button>
+              </button>
+            )}
           </div>
-
         </div>
       </div>
     </>
