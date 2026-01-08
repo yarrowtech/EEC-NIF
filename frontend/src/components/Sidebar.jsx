@@ -143,45 +143,50 @@ const Sidebar = ({ activeView, isOpen, setIsOpen }) => {
       )}
       
       <div
-        className={`sidebar fixed md:relative h-screen bg-white shadow-2xl transition-all duration-300 z-50 flex flex-col border-r border-gray-200 ${
+        className={`sidebar fixed md:relative h-screen bg-white shadow-2xl transition-all duration-500 ease-in-out z-50 flex flex-col border-r border-gray-200 overflow-x-hidden ${
           isOpen ? 'w-80' : 'w-20'
         } ${isOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'} ${!isOpen ? 'overflow-hidden' : ''}`}
+        style={{
+          transitionProperty: 'width, transform, box-shadow',
+          transitionDuration: '0.4s',
+          transitionTimingFunction: 'cubic-bezier(0.4, 0, 0.2, 1)'
+        }}
         aria-label="Sidebar"
       >
-        {/* Redesigned Header */}
-        <div className="relative">
-          {isOpen ? (
-            <>
-              {/* Expanded Header with Gradient */}
-              <div className="absolute inset-0 bg-gradient-to-br from-indigo-600 via-purple-600 to-pink-500 opacity-90" />
-              <div className="relative p-3">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center space-x-3">
-                    <div className="relative">
-                      <div className="w-10 h-10 bg-white/20 backdrop-blur-sm rounded-xl flex items-center justify-center shadow-lg border border-white/30">
-                        <img src='/harrow-hall-school.png' className="w-6 h-6 rounded-lg" alt="School Logo"/>
-                      </div>
-                      <div className="absolute -top-1 -right-1 w-4 h-4 bg-green-400 rounded-full border-2 border-white animate-pulse" />
+        {/* Redesigned Header with Smooth Transitions */}
+        <div className="relative overflow-hidden">
+          <div className={`transition-all duration-400 ease-in-out ${isOpen ? 'opacity-100 transform translate-x-0' : 'opacity-0 transform -translate-x-4 pointer-events-none absolute inset-0'}`}>
+            {/* Expanded Header with Gradient */}
+            <div className="absolute inset-0 bg-gradient-to-br from-indigo-600 via-purple-600 to-pink-500 opacity-90" />
+            <div className="relative p-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-3">
+                  <div className="relative">
+                    <div className="w-10 h-10 bg-white/20 backdrop-blur-sm rounded-xl flex items-center justify-center shadow-lg border border-white/30">
+                      <img src='/harrow-hall-school.png' className="w-6 h-6 rounded-lg" alt="School Logo"/>
                     </div>
-                    <div className="text-white">
-                      <div className="font-bold text-lg">Student Name</div>
-                      <div className="text-white/80 text-xs">Student Dashboard</div>
-                    </div>
+                    <div className="absolute -top-1 -right-1 w-4 h-4 bg-green-400 rounded-full border-2 border-white animate-pulse" />
                   </div>
-                  
-                  {/* Mobile menu toggle */}
-                  <button
-                    onClick={() => setIsOpen(!isOpen)}
-                    className="md:hidden p-2 rounded-lg bg-white/20 backdrop-blur-sm text-white hover:bg-white/30 transition-colors border border-white/30"
-                  >
-                    <X size={20} />
-                  </button>
+                  <div className="text-white">
+                    <div className="font-bold text-lg">Student Name</div>
+                    <div className="text-white/80 text-xs">Student Dashboard</div>
+                  </div>
                 </div>
+                
+                {/* Mobile menu toggle */}
+                <button
+                  onClick={() => setIsOpen(!isOpen)}
+                  className="md:hidden p-2 rounded-lg bg-white/20 backdrop-blur-sm text-white hover:bg-white/30 transition-colors border border-white/30"
+                >
+                  <X size={20} />
+                </button>
               </div>
-            </>
-          ) : (
-            /* Collapsed Header - Clean & Minimal */
-            <div className="p-3 border-b border-gray-200">
+            </div>
+          </div>
+
+          <div className={`transition-all duration-400 ease-in-out ${!isOpen ? 'opacity-100 transform translate-x-0' : 'opacity-0 transform translate-x-4 pointer-events-none absolute inset-0'}`}>
+            {/* Collapsed Header - Clean & Minimal */}
+            <div className="p-2 border-b border-gray-200">
               <div className="flex flex-col items-center space-y-3">
                 {/* Logo */}
                 <div className="relative">
@@ -195,10 +200,10 @@ const Sidebar = ({ activeView, isOpen, setIsOpen }) => {
                 <div className="w-8 h-px bg-gray-300" />
               </div>
             </div>
-          )}
+          </div>
         </div>
         {/* Completely Redesigned Navigation */}
-        <nav className={`flex-1 overflow-y-auto modern-scrollbar ${!isOpen ? 'px-1 py-2' : 'px-4 py-6'}`}>
+        <nav className={`flex-1 overflow-y-auto overflow-x-hidden modern-scrollbar ${!isOpen ? 'px-1 py-2' : 'px-4 py-6'}`}>
           <div className={`${isOpen ? 'space-y-2' : 'space-y-1'}`}>
             {menuItems.map((item) => {
               const Icon = item.icon;
