@@ -38,7 +38,7 @@ const AdminLayout = ({
         
         {/* Breadcrumb */}
         {showBreadcrumb && (
-          <div className="px-4 lg:px-8 py-4 bg-white border-b">
+          <div className="px-4 lg:px-8 py-2 bg-white border-b">
             <div className="flex items-center space-x-2 text-gray-600 overflow-x-auto">
               {sidebarCollapsed && (
                 <button 
@@ -66,7 +66,7 @@ const AdminLayout = ({
         )}
 
         {/* Main Content */}
-        <main className="flex-1 p-4 lg:p-8 overflow-auto">
+        <main className="flex-1 overflow-auto">
           {children}
         </main>
       </div>

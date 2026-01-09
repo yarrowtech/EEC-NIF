@@ -33,7 +33,7 @@ const AdminHeader = ({ adminUser }) => {
 
   return (
     <div className="border-b border-gray-200 shadow-sm bg-white">
-      <header className="py-4 px-6 w-full box-border">
+      <header className="py-3 px-4 lg:px-8 w-full box-border">
         <div className="flex items-center justify-between w-full gap-4">
           <div className="flex items-center gap-4 flex-1">
             <div className="hidden md:flex items-center flex-1">
@@ -61,15 +61,9 @@ const AdminHeader = ({ adminUser }) => {
                 {now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
               </span>
             </div>
-            <div className="hidden md:flex items-center gap-2 px-3 py-2 hover:bg-gray-50 rounded-xl cursor-pointer border border-gray-100">
-              <Globe size={20} className="text-gray-500" />
-              <span className="text-sm text-gray-600 font-medium">English</span>
-              <ChevronDown size={16} className="text-gray-400" />
-            </div>
-
             <div className="relative">
               <button 
-                className="p-2 hover:bg-gray-100 rounded-xl text-gray-600 relative border border-gray-100"
+                className="p-3 hover:bg-gray-100 rounded-xl text-gray-600 relative border border-gray-100"
                 onClick={() => setShowNotifications(!showNotifications)}
               >
                 <Bell size={20} />
@@ -95,7 +89,7 @@ const AdminHeader = ({ adminUser }) => {
               )}
             </div>
 
-            <button className="p-2 hover:bg-gray-100 rounded-xl text-gray-600 relative border border-gray-100">
+            <button className="p- hover:bg-gray-100 rounded-xl text-gray-600 relative border border-gray-100">
               <MessageSquare size={20} />
               <span className="absolute top-1 right-1 w-2 h-2 bg-yellow-500 rounded-full"></span>
             </button>
