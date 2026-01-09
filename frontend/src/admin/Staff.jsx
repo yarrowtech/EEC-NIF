@@ -405,13 +405,13 @@ const Staff = ({setShowAdminHeader}) => {
 
   return (
     <div className="h-screen bg-gradient-to-br from-blue-50 via-blue-100 to-indigo-100 flex flex-col">
-      <div className="flex-1 flex flex-col max-w-7xl mx-auto w-full bg-white/90 rounded-2xl shadow-2xl m-4 border border-blue-200 overflow-hidden">
+      <div className="flex-1 flex flex-col max-w-7xl mx-auto w-full bg-white/90 shadow-2xlborder border-blue-200 overflow-hidden">
         
         {/* Fixed Header Section */}
-        <div className="flex-shrink-0 p-8 bg-white/90 border-b border-blue-100">
+        <div className="flex-shrink-0 p- bg-white/90 border-b border-blue-100">
           {/* Header */}
           <div className="flex justify-between items-center mb-8">
-            <div className="flex items-center gap-6">
+            <div className="flex items-center gap-75">
               <div>
                 <h1 className="text-3xl font-bold text-blue-700">Staff Management</h1>
                 <p className="text-gray-600 mt-2">Manage administrative staff performance, schedules, and evaluations</p>
@@ -771,14 +771,14 @@ const Staff = ({setShowAdminHeader}) => {
         </div>
 
         {/* Fixed Footer Section */}
-        <div className="flex-shrink-0 p-8 pt-4 bg-white/90 border-t border-blue-100">
+        <div className="flex-shrink-0 pt-7 bg-white/90 border-t border-blue-100">
           <div className="flex items-center justify-between">
-            <div className="text-gray-600">
+            <div className="text-black">
               Showing {filteredStaff.length} of {staff.length} staff members
             </div>
             <div className="flex gap-2">
-              <button className="px-4 py-2 border border-gray-200 rounded-lg hover:bg-blue-50 transition-colors">Previous</button>
-              <button className="px-4 py-2 border border-gray-200 rounded-lg hover:bg-blue-50 transition-colors">Next</button>
+              <button className="px-4 py-2 border text-black rounded-2xl transition-colors">Previous</button>
+              <button className="px-4 py-2 border text-black rounded-2xl transition-colors">Next</button>
             </div>
           </div>
         </div>

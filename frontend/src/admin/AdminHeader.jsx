@@ -33,7 +33,7 @@ const AdminHeader = ({ adminUser }) => {
 
   return (
     <div className="border-b border-gray-200 shadow-sm bg-white">
-      <header className="py-3 px-4 lg:px-8 w-full box-border">
+      <header className="p-4 px-4  w-full box-border">
         <div className="flex items-center justify-between w-full gap-4">
           <div className="flex items-center gap-4 flex-1">
             <div className="hidden md:flex items-center flex-1">
