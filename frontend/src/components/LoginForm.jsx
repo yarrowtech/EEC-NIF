@@ -92,6 +92,7 @@ const LoginForm = () => {
           navigate('/admin/dashboard');
           break;
         default:
+          navigate('/dashboard');
           break;
       }
     } catch (error) {

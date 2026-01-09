@@ -4,6 +4,7 @@ import "./App.css";
 import LoginForm from "./components/LoginForm";
 import SignupForm from "./components/SignupForm";
 import Dashboard from "./components/Dashboard";
+import ProtectedRoute from "./components/ProtectedRoute";
 import ComplaintManagementSystem from "./parents/ComplaintManagementSystem";
 import AdminApp from "./admin/AdminApp";
 import PrincipalDashboard from "./principal/PrincipalDashboard";
@@ -24,44 +25,251 @@ function App() {
     <BrowserRouter>
       <Routes>
         <Route path="/" element={<LoginForm />} />
-        <Route path="/dashboard" element={<Dashboard />} />
-        <Route path="/dashboard/home" element={<Dashboard />} />
-        <Route path="/dashboard/ai-learning" element={<Dashboard />} />
-        <Route path="/dashboard/ai-learning-courses" element={<Dashboard />} />
-        <Route path="/dashboard/ai-learning-tutor" element={<Dashboard />} />
-        <Route path="/dashboard/academics" element={<Dashboard />} />
-        <Route path="/dashboard/assignments" element={<Dashboard />} />
-        <Route path="/dashboard/assignments-journal" element={<Dashboard />} />
-        <Route path="/dashboard/assignments-academic-alcove" element={<Dashboard />} />
-        <Route path="/dashboard/results" element={<Dashboard />} />
-        <Route path="/dashboard/schedule" element={<Dashboard />} />
-        <Route path="/dashboard/routine" element={<Dashboard />} />
-        <Route path="/dashboard/attendance" element={<Dashboard />} />
-        <Route path="/dashboard/communication" element={<Dashboard />} />
-        <Route path="/dashboard/chat" element={<Dashboard />} />
-        <Route path="/dashboard/teacherfeedback" element={<Dashboard />} />
-        <Route path="/dashboard/excuse-letter" element={<Dashboard />} />
-        <Route path="/dashboard/noticeboard" element={<Dashboard />} />
-        <Route path="/dashboard/wellness" element={<Dashboard />} />
-        <Route path="/dashboard/wellbeing" element={<Dashboard />} />
-        <Route path="/dashboard/achievements" element={<Dashboard />} />
-        <Route path="/dashboard/profile" element={<Dashboard />} />
-        <Route path="/dashboard/themecustomizer" element={<Dashboard />} />
+        <Route
+          path="/dashboard"
+          element={
+            <ProtectedRoute allowedRoles={["Student", "Admin"]}>
+              <Dashboard />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/dashboard/home"
+          element={
+            <ProtectedRoute allowedRoles={["Student", "Admin"]}>
+              <Dashboard />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/dashboard/ai-learning"
+          element={
+            <ProtectedRoute allowedRoles={["Student", "Admin"]}>
+              <Dashboard />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/dashboard/ai-learning-courses"
+          element={
+            <ProtectedRoute allowedRoles={["Student", "Admin"]}>
+              <Dashboard />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/dashboard/ai-learning-tutor"
+          element={
+            <ProtectedRoute allowedRoles={["Student", "Admin"]}>
+              <Dashboard />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/dashboard/academics"
+          element={
+            <ProtectedRoute allowedRoles={["Student", "Admin"]}>
+              <Dashboard />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/dashboard/assignments"
+          element={
+            <ProtectedRoute allowedRoles={["Student", "Admin"]}>
+              <Dashboard />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/dashboard/assignments-journal"
+          element={
+            <ProtectedRoute allowedRoles={["Student", "Admin"]}>
+              <Dashboard />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/dashboard/assignments-academic-alcove"
+          element={
+            <ProtectedRoute allowedRoles={["Student", "Admin"]}>
+              <Dashboard />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/dashboard/results"
+          element={
+            <ProtectedRoute allowedRoles={["Student", "Admin"]}>
+              <Dashboard />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/dashboard/schedule"
+          element={
+            <ProtectedRoute allowedRoles={["Student", "Admin"]}>
+              <Dashboard />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/dashboard/routine"
+          element={
+            <ProtectedRoute allowedRoles={["Student", "Admin"]}>
+              <Dashboard />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/dashboard/attendance"
+          element={
+            <ProtectedRoute allowedRoles={["Student", "Admin"]}>
+              <Dashboard />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/dashboard/communication"
+          element={
+            <ProtectedRoute allowedRoles={["Student", "Admin"]}>
+              <Dashboard />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/dashboard/chat"
+          element={
+            <ProtectedRoute allowedRoles={["Student", "Admin"]}>
+              <Dashboard />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/dashboard/teacherfeedback"
+          element={
+            <ProtectedRoute allowedRoles={["Student", "Admin"]}>
+              <Dashboard />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/dashboard/excuse-letter"
+          element={
+            <ProtectedRoute allowedRoles={["Student", "Admin"]}>
+              <Dashboard />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/dashboard/noticeboard"
+          element={
+            <ProtectedRoute allowedRoles={["Student", "Admin"]}>
+              <Dashboard />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/dashboard/wellness"
+          element={
+            <ProtectedRoute allowedRoles={["Student", "Admin"]}>
+              <Dashboard />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/dashboard/wellbeing"
+          element={
+            <ProtectedRoute allowedRoles={["Student", "Admin"]}>
+              <Dashboard />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/dashboard/achievements"
+          element={
+            <ProtectedRoute allowedRoles={["Student", "Admin"]}>
+              <Dashboard />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/dashboard/profile"
+          element={
+            <ProtectedRoute allowedRoles={["Student", "Admin"]}>
+              <Dashboard />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/dashboard/themecustomizer"
+          element={
+            <ProtectedRoute allowedRoles={["Student", "Admin"]}>
+              <Dashboard />
+            </ProtectedRoute>
+          }
+        />
         <Route path="/signup" element={<SignupForm />} />
         <Route path="/complaint" element={<ComplaintManagementSystem />} />
-        <Route path="/admin/*" element={<AdminApp />} />
-        <Route path="/principal" element={<PrincipalDashboard />} />
+        <Route
+          path="/admin/*"
+          element={
+            <ProtectedRoute allowedRoles={["Admin"]}>
+              <AdminApp />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/principal"
+          element={
+            <ProtectedRoute allowedRoles={["Admin"]}>
+              <PrincipalDashboard />
+            </ProtectedRoute>
+          }
+        />
         <Route path="/profile" element={<ProfileUpdate />} />
-        <Route path="/parents/*" element={<ParentPortal />} />
-        <Route path="/teachers/*" element={<TeacherPortal />} />
+        <Route
+          path="/parents/*"
+          element={
+            <ProtectedRoute allowedRoles={["Parent", "Admin"]}>
+              <ParentPortal />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/teachers/*"
+          element={
+            <ProtectedRoute allowedRoles={["Teacher", "Admin"]}>
+              <TeacherPortal />
+            </ProtectedRoute>
+          }
+        />
         <Route path="/feedback" element={<FeedbackPage />} />
         <Route path="/feedback/thank-you" element={<FeedbackThankYou />} />
         <Route path="/meet-the-developer" element={<MeetTheDeveloper />} />
-        <Route path="/dashboard/games" element={<GamesPage />} />
-        <Route path="/dashboard/games/:gameKey" element={<GamesPage />} />
+        <Route
+          path="/dashboard/games"
+          element={
+            <ProtectedRoute allowedRoles={["Student", "Admin"]}>
+              <GamesPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/dashboard/games/:gameKey"
+          element={
+            <ProtectedRoute allowedRoles={["Student", "Admin"]}>
+              <GamesPage />
+            </ProtectedRoute>
+          }
+        />
         <Route
           path="/admin/archived-students"
-          element={<ArchivedStudents />}
+          element={
+            <ProtectedRoute allowedRoles={["Admin"]}>
+              <ArchivedStudents />
+            </ProtectedRoute>
+          }
         />
       </Routes>
 
