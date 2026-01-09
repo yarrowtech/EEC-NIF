@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import DashboardNav from './components/DashboardNav';
 import { BarChart2, Bus, Users, UserCheck, User, Calendar as CalendarIcon, FileText, PhoneCall, School } from 'lucide-react';
 
 const stats = [
@@ -87,8 +86,6 @@ const Dashboard = ({ setShowAdminHeader }) => {
           <h1 className="text-4xl font-bold text-yellow-800 mb-2">Admin Dashboard</h1>
           <p className="text-yellow-700 text-lg">Overview of the institution's key statistics and quick actions.</p>
         </div>
-
-        <DashboardNav />
 
         {/* Attendance Stats */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
