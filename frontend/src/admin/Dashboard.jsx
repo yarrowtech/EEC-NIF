@@ -80,7 +80,7 @@ const Dashboard = ({ setShowAdminHeader }) => {
 
   return (
     <div className="min-h-screen">
-      <div className="mx-auto bg-yellow-50/95 shadow-2xl p-5">
+      <div className="mx-auto bg-yellow-50/95 shadow-2xl p-2">
 
         {/* Header */}
         <div className="mb-8">
