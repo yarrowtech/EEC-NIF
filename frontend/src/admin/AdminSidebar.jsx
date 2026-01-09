@@ -27,7 +27,7 @@ const AdminSidebar = ({
         transition-[width] duration-300 ease-in-out
       `}>
         {/* Logo */}
-        <div className={`${collapsed ? 'p-3' : 'p-4'} border-b border-gray-200 relative`}>
+        <div className={`${collapsed ? 'p-4' : 'p-4'} border-b border-gray-200 relative`}>
           <div className="flex items-center">
             <div className="flex items-center space-x-3">
               <div className={`${collapsed ? 'w-8 h-8' : 'w-12 h-12'} bg-gradient-to-br from-blue-900 to-yellow-500 rounded-lg flex items-center justify-center shadow-md`}>
