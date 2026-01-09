@@ -157,7 +157,7 @@ const Sidebar = ({ activeView, isOpen, setIsOpen }) => {
         <div className="relative overflow-hidden">
           <div className={`transition-all duration-400 ease-in-out ${isOpen ? 'opacity-100 transform translate-x-0' : 'opacity-0 transform -translate-x-4 pointer-events-none absolute inset-0'}`}>
             {/* Expanded Header with Gradient */}
-            <div className="absolute inset-0 bg-gradient-to-br from-indigo-600 via-purple-600 to-pink-500 opacity-90" />
+            <div className="absolute inset-0 bg-gradient-to-br from-yellow-600 via-yellow-600 to-yellow-500 opacity-90" />
             <div className="relative p-3">
               <div className="flex items-center justify-between">
                 <div className="flex items-center space-x-3">
@@ -190,7 +190,7 @@ const Sidebar = ({ activeView, isOpen, setIsOpen }) => {
               <div className="flex flex-col items-center space-y-3">
                 {/* Logo */}
                 <div className="relative">
-                  <div className="w-10 h-10 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-xl flex items-center justify-center shadow-md">
+                  <div className="w-10 h-10 bg-gradient-to-br from-yellow-500 to-yellow-600 rounded-xl flex items-center justify-center shadow-md">
                     <img src='/harrow-hall-school.png' className="w-6 h-6 rounded-lg" alt="School Logo"/>
                   </div>
                   <div className="absolute -top-1 -right-1 w-3 h-3 bg-green-400 rounded-full border-2 border-white" />

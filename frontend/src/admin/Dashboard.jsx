@@ -79,8 +79,8 @@ const Dashboard = ({ setShowAdminHeader }) => {
   }, []);
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-yellow-200 via-yellow-300 to-yellow-400 p-8">
-      <div className="mx-auto bg-yellow-50/95 rounded-2xl shadow-2xl p-8 border border-yellow-300">
+    <div className="min-h-screen">
+      <div className="mx-auto bg-yellow-50/95 shadow-2xl p-5">
 
         {/* Header */}
         <div className="mb-8">

@@ -35,7 +35,7 @@ import * as XLSX from "xlsx";
 
 const API_BASE = import.meta.env.VITE_API_URL;
 
-const STUDENTS_PER_PAGE = 5;
+const STUDENTS_PER_PAGE = 10;
 
 const Students = ({ setShowAdminHeader, setShowAdminBreadcrumb }) => {
   const navigate = useNavigate(); 
@@ -964,23 +964,23 @@ const Students = ({ setShowAdminHeader, setShowAdminBreadcrumb }) => {
 
   /* -------------------- UI -------------------- */
   return (
-    <div className="-m-4 lg:-m-8 flex-1 bg-white overflow-hidden flex flex-col">
-      <div className="w-full flex-1 flex flex-col p-4 lg:p-6 overflow-hidden text-[1.02rem]">
+    <div className="flex-1 bg-white overflow-hidden flex flex-col">
+      <div className="w-full flex-1 flex flex-col p-2 md:p-4 lg:p-6 overflow-hidden text-sm md:text-base">
         {/* Header */}
-        <div className="flex flex-wrap gap-3 justify-between items-center mb-6 flex-shrink-0">
+        <div className="flex flex-col sm:flex-row sm:flex-wrap gap-3 sm:justify-between sm:items-center mb-4 md:mb-6 flex-shrink-0">
           <div>
-            <h1 className="text-3xl font-bold text-yellow-700">
+            <h1 className="text-xl md:text-2xl lg:text-3xl font-bold text-yellow-700">
               Student Management (NIF)
             </h1>
-            <p className="text-gray-600 mt-2">
+            <p className="text-gray-600 mt-1 md:mt-2 text-sm md:text-base">
               Manage Students
             </p>
           </div>
-          <div className="flex flex-wrap gap-3">
+          <div className="flex flex-wrap gap-2 md:gap-3 w-full sm:w-auto justify-stretch sm:justify-start">
             <button
               onClick={() => fileInputRef.current?.click()}
               disabled={isImporting}
-              className="bg-amber-600 text-white px-4 py-2 rounded-lg hover:bg-amber-700 disabled:opacity-60 flex items-center gap-2"
+              className="bg-amber-600 text-white px-3 md:px-4 py-2 rounded-lg hover:bg-amber-700 disabled:opacity-60 flex items-center gap-2 text-sm md:text-base flex-1 sm:flex-none justify-center"
             >
               <Upload size={16} />
               {isImporting ? "Importing..." : "Bulk Upload"}
@@ -1000,13 +1000,13 @@ const Students = ({ setShowAdminHeader, setShowAdminBreadcrumb }) => {
             
             <button
               onClick={() => setShowAddForm(true)}
-              className="bg-yellow-600 text-white px-4 py-2 rounded-lg hover:bg-yellow-700 flex items-center gap-2"
+              className="bg-yellow-600 text-white px-3 md:px-4 py-2 rounded-lg hover:bg-yellow-700 flex items-center gap-2 text-sm md:text-base flex-1 sm:flex-none justify-center"
             >
               <Plus size={16} /> Add Student
             </button>
             <button
               onClick={() => setShowArchiveModal(true)}
-              className="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 flex items-center gap-2"
+              className="bg-purple-600 text-white px-3 md:px-4 py-2 rounded-lg hover:bg-purple-700 flex items-center gap-2 text-sm md:text-base flex-1 sm:flex-none justify-center"
             >
               <Archive size={16} /> View Archived
             </button>
@@ -1014,8 +1014,8 @@ const Students = ({ setShowAdminHeader, setShowAdminBreadcrumb }) => {
         </div>
         <div className="flex-1 flex flex-col min-h-0">
           {/* Search */}
-          <div className="mb-4 flex flex-wrap items-center gap-4 flex-shrink-0">
-            <div className="flex-1 min-w-[240px] relative">
+          <div className="mb-3 md:mb-4 flex flex-wrap items-center gap-4 flex-shrink-0">
+            <div className="flex-1 min-w-[200px] md:min-w-[240px] relative">
               <Search
                 size={20}
                 className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
@@ -1023,7 +1023,7 @@ const Students = ({ setShowAdminHeader, setShowAdminBreadcrumb }) => {
               <input
                 type="text"
                 placeholder="Search students..."
-                className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-500"
+                className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-500 text-sm md:text-base"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
               />
@@ -1031,103 +1031,113 @@ const Students = ({ setShowAdminHeader, setShowAdminBreadcrumb }) => {
           </div>
 
           {/* Students Table */}
-          <div className="flex-1 overflow-x-auto overflow-y-auto">
-            <table className="w-full border-collapse">
+          <div className="flex-1 overflow-y-auto rounded-lg border border-gray-200">
+            <table className="w-full border-collapse table-fixed">
               <thead>
                 <tr className="bg-yellow-50">
-                  {[
-                    "Name",
-                    "Roll No.",
-                    "Program",
-                    "Batch",
-                    "Course",
-                    "Phone",
-                    "Fees",
-                    "Balance",
-                    "Archive",
-                  ].map((h) => (
-                    <th
-                      key={h}
-                      className="border-b border-yellow-100 px-6 py-3 text-left text-sm font-semibold text-yellow-800"
-                    >
-                      {h}
-                    </th>
-                  ))}
+                  <th className="border-b border-yellow-100 px-2 py-2 text-left text-xs font-semibold text-yellow-800 w-[20%]">
+                    Student
+                  </th>
+                  <th className="border-b border-yellow-100 px-2 py-2 text-left text-xs font-semibold text-yellow-800 w-[12%]">
+                    Academic
+                  </th>
+                  <th className="border-b border-yellow-100 px-2 py-2 text-left text-xs font-semibold text-yellow-800 w-[15%]">
+                    Course
+                  </th>
+                  <th className="border-b border-yellow-100 px-2 py-2 text-left text-xs font-semibold text-yellow-800 w-[12%]">
+                    Contact
+                  </th>
+                  <th className="border-b border-yellow-100 px-2 py-2 text-left text-xs font-semibold text-yellow-800 w-[18%]">
+                    Fees
+                  </th>
+                  <th className="border-b border-yellow-100 px-2 py-2 text-center text-xs font-semibold text-yellow-800 w-[23%]">
+                    Actions
+                  </th>
                 </tr>
               </thead>
               <tbody>
                 {paginatedStudents.map((student) => (
                   <tr
                     key={student._id || student.id}
-                    className="hover:shadow-[0_0_15px_rgba(147,51,234,0.4)] hover:rounded-xl transition-all duration-200"
+                    className="hover:bg-yellow-50 transition-all duration-200"
                   >
-                    <td className="border-b border-yellow-100 px-6 py-4">
-                      <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-full bg-yellow-200 flex items-center justify-center">
+                    {/* Student Info */}
+                    <td className="border-b border-yellow-100 px-2 py-2">
+                      <div className="flex items-center gap-2">
+                        <div className="w-6 h-6 rounded-full bg-yellow-200 flex items-center justify-center text-xs flex-shrink-0">
                           {student.name?.charAt(0) || "?"}
                         </div>
-                        <div>
-                          <div className="font-medium text-gray-900">
+                        <div className="min-w-0 flex-1">
+                          <div className="font-medium text-gray-900 text-xs truncate">
                             {student.name}
                           </div>
-                          <div className="text-sm text-gray-500">
-                            {student.email}
+                          <div className="text-xs text-gray-500 truncate">
+                            {student.email || 'No email'}
                           </div>
                         </div>
                       </div>
                     </td>
-                    <td className="border-b border-yellow-100 px-6 py-4 text-gray-600">
-                      {student.roll}
+                    
+                    {/* Academic Info */}
+                    <td className="border-b border-yellow-100 px-2 py-2">
+                      <div className="text-xs text-gray-600">
+                        <div className="font-medium">Roll: {student.roll}</div>
+                        <div className="text-gray-500">{student.batchCode}</div>
+                      </div>
                     </td>
-                    <td className="border-b border-yellow-100 px-6 py-4 text-gray-600">
-                      {student.grade}
+                    
+                    {/* Course Info */}
+                    <td className="border-b border-yellow-100 px-2 py-2">
+                      <div className="text-xs text-gray-600">
+                        <div className="font-medium truncate" title={student.grade}>{student.grade}</div>
+                        <div className="text-gray-500 truncate" title={student.course}>{student.course}</div>
+                      </div>
                     </td>
-                    <td className="border-b border-yellow-100 px-6 py-4 text-gray-600">
-                      {student.batchCode}
-                    </td>
-                    <td className="border-b border-yellow-100 px-6 py-4 text-gray-600">
-                      {student.course}
-                    </td>
-
-                    <td className="border-b border-yellow-100 px-6 py-4 text-gray-600">
+                    
+                    {/* Contact */}
+                    <td className="border-b border-yellow-100 px-2 py-2 text-xs text-gray-600">
                       {student.mobile}
                     </td>
-                    <td className="border-b border-yellow-100 px-6 py-4 text-gray-600">
-                      <div className="text-sm text-gray-600">
-                        {formatCurrency(student.feeSummary?.paidAmount)} /{" "}
-                        {formatCurrency(student.feeSummary?.totalFee)}
+                    
+                    {/* Fees */}
+                    <td className="border-b border-yellow-100 px-2 py-2">
+                      <div className="text-xs">
+                        <div className="text-gray-600">
+                          {formatCurrency(student.feeSummary?.paidAmount)}/{formatCurrency(student.feeSummary?.totalFee)}
+                        </div>
+                        <div className="flex items-center gap-1 mt-1">
+                          <span
+                            className={`inline-flex px-1.5 py-0.5 text-xs rounded ${getFeeStatusClass(
+                              student.feeSummary?.status
+                            )}`}
+                          >
+                            {student.feeSummary?.status || "N/A"}
+                          </span>
+                          <span className="text-xs text-red-600 font-semibold">
+                            {formatCurrency(student.feeSummary?.dueAmount)}
+                          </span>
+                        </div>
                       </div>
-                      <span
-                        className={`inline-flex mt-1 px-2 py-0.5 text-xs rounded-full ${getFeeStatusClass(
-                          student.feeSummary?.status
-                        )}`}
-                      >
-                        {student.feeSummary?.status
-                          ? student.feeSummary.status.charAt(0).toUpperCase() +
-                            student.feeSummary.status.slice(1)
-                          : "N/A"}
-                      </span>
                     </td>
-                    <td className="border-b border-yellow-100 px-6 py-4 text-gray-900 font-semibold">
-                      {formatCurrency(student.feeSummary?.dueAmount)}
-                    </td>
-                    <td className="border-b border-yellow-100 px-6 py-4">
-                      <div className="flex items-center gap-2">
+                    
+                    {/* Actions */}
+                    <td className="border-b border-yellow-100 px-2 py-2">
+                      <div className="flex items-center gap-1 justify-center">
                         <button
                           onClick={() => handleArchiveStudent(student)}
                           disabled={isArchiving}
-                          className="inline-flex items-center gap-2 px-3 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-sm transition-colors disabled:opacity-50"
+                          className="inline-flex items-center px-2 py-1 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded text-xs transition-colors disabled:opacity-50"
+                          title="Archive Student"
                         >
-                          <Archive size={14} />
-                          {isArchiving ? "Archiving..." : "Archive"}
+                          <Archive size={12} />
                         </button>
                         <button
                           onClick={() => handleDeleteStudent(student)}
                           disabled={!!deletingId}
-                          className="inline-flex items-center gap-2 px-3 py-1.5 bg-red-50 text-red-700 hover:bg-red-100 rounded-lg text-sm transition-colors disabled:opacity-50"
+                          className="inline-flex items-center px-2 py-1 bg-red-50 text-red-700 hover:bg-red-100 rounded text-xs transition-colors disabled:opacity-50"
+                          title="Delete Student"
                         >
-                          <Trash2 size={14} />
-                          {deletingId === student._id ? "Deleting..." : "Delete"}
+                          <Trash2 size={12} />
                         </button>
                       </div>
                     </td>
@@ -1136,8 +1146,8 @@ const Students = ({ setShowAdminHeader, setShowAdminBreadcrumb }) => {
                 {filteredStudents.length === 0 && (
                   <tr>
                     <td
-                      colSpan={9}
-                      className="text-center text-gray-500 py-10"
+                      colSpan={6}
+                      className="text-center text-gray-500 py-10 text-sm"
                     >
                       No students found.
                     </td>
@@ -1148,15 +1158,15 @@ const Students = ({ setShowAdminHeader, setShowAdminBreadcrumb }) => {
           </div>
 
           {/* Pagination */}
-          <div className="mt-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between flex-shrink-0 mt-auto pt-4 border-t border-yellow-100">
-            <div className="text-gray-600 text-sm">
+          <div className="mt-3 md:mt-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between flex-shrink-0 pt-3 md:pt-4 border-t border-yellow-100">
+            <div className="text-gray-600 text-xs md:text-sm">
               {filteredStudents.length === 0
                 ? "No students to display"
                 : `Showing ${startItem}-${endItem} of ${filteredStudents.length} students`}
             </div>
             <div className="flex items-center gap-2 flex-wrap">
               <button
-                className="px-3 py-1.5 border border-gray-200 rounded-lg text-sm hover:bg-yellow-50 disabled:opacity-50 text-black"
+                className="px-2 md:px-3 py-1 md:py-1.5 border border-gray-200 rounded-lg text-xs md:text-sm hover:bg-yellow-50 disabled:opacity-50 text-black"
                 onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
                 disabled={currentPage === 1}
               >
@@ -1166,17 +1176,17 @@ const Students = ({ setShowAdminHeader, setShowAdminBreadcrumb }) => {
                 <button
                   key={page}
                   onClick={() => setCurrentPage(page)}
-                  className={`px-3 py-1.5 rounded-lg text-sm border ${
+                  className={`px-2 md:px-3 py-1 md:py-1.5 rounded-lg text-xs md:text-sm border ${
                     page === currentPage
                       ? "bg-yellow-500 text-white border-yellow-500"
                       : "border-gray-200 text-black hover:bg-yellow-50"
                   }`}
                 >
-                  Page {page}
+                  {page}
                 </button>
               ))}
               <button
-                className="px-3 py-1.5 border border-gray-200 rounded-lg text-sm hover:bg-yellow-50 disabled:opacity-50 text-black"
+                className="px-2 md:px-3 py-1 md:py-1.5 border border-gray-200 rounded-lg text-xs md:text-sm hover:bg-yellow-50 disabled:opacity-50 text-black"
                 onClick={() =>
                   setCurrentPage((prev) => Math.min(prev + 1, totalPages))
                 }
