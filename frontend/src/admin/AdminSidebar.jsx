@@ -40,7 +40,7 @@ const AdminSidebar = ({
             </div>
             <button 
               onClick={onToggleSidebar}
-              className={`absolute ${collapsed ? 'top-2 right-2' : 'top-4 right-4'} p-2 bg-transparent rounded-lg text-gray-500 hover:text-gray-700`}
+              className={`absolute ${collapsed ? 'top-2 right-[-7px] ' : 'top-4 right-[-5px]'} p-4 bg-transparent rounded-lg text-gray-500 hover:text-gray-700`}
               aria-label={collapsed ? 'Open sidebar' : 'Collapse sidebar'}
               title={collapsed ? 'Open sidebar' : 'Collapse sidebar'}
             >
@@ -63,7 +63,7 @@ const AdminSidebar = ({
                   <button
                     onClick={() => toggleSubmenu(item.label)}
                     className={`
-                      w-full flex items-center space-x-3 px-4 py-3 rounded-lg
+                      w-full flex items-center space-x-3 px-3 py-3 rounded-lg
                       group transition-colors duration-200
                       text-gray-600 hover:bg-gray-50 hover:text-gray-900
                     `}
