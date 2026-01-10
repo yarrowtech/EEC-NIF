@@ -40,12 +40,12 @@ const AdminSidebar = ({
             </div>
             <button 
               onClick={onToggleSidebar}
-              className={`absolute ${collapsed ? 'top-2 right-2' : 'top-4 right-4'} p-2 bg-transparent rounded-lg text-gray-500 hover:text-gray-700`}
+              className={`absolute ${collapsed ? 'top-2 right-[-7px] ' : 'top-4 right-[-5px]'} p-4 bg-transparent rounded-lg text-gray-500 hover:text-gray-700 transition-all duration-300 ease-out transform hover:scale-110 active:scale-95`}
               aria-label={collapsed ? 'Open sidebar' : 'Collapse sidebar'}
               title={collapsed ? 'Open sidebar' : 'Collapse sidebar'}
             >
-              {collapsed && <ChevronRight size={16} />}
-              {!collapsed && <ChevronLeft size={16} />}
+              {collapsed && <ChevronRight size={16} className="transition-transform duration-300 hover:translate-x-1" />}
+              {!collapsed && <ChevronLeft size={16} className="transition-transform duration-300 hover:-translate-x-1" />}
             </button>
           </div>
         </div>
@@ -63,18 +63,20 @@ const AdminSidebar = ({
                   <button
                     onClick={() => toggleSubmenu(item.label)}
                     className={`
-                      w-full flex items-center space-x-3 px-4 py-3 rounded-lg
-                      group transition-colors duration-200
-                      text-gray-600 hover:bg-gray-50 hover:text-gray-900
+                      w-full flex items-center space-x-3 px-3 py-3 rounded-lg
+                      group transition-all duration-300 ease-out
+                      text-gray-600 hover:bg-gradient-to-r hover:from-blue-50 hover:to-yellow-50 
+                      hover:text-gray-900 hover:shadow-md hover:scale-105
+                      transform active:scale-95
                     `}
                   >
-                    <Icon size={20} className="flex-shrink-0 transition-colors duration-200" />
-                    {!collapsed && <span className="font-medium flex-1 text-left">{item.label}</span>}
+                    <Icon size={20} className="flex-shrink-0 transition-all duration-300 group-hover:text-blue-600 group-hover:scale-110" />
+                    {!collapsed && <span className="font-medium flex-1 text-left transition-all duration-300">{item.label}</span>}
                     {!collapsed && (
                       isExpanded ? (
-                        <ChevronDown size={16} className="text-gray-400 group-hover:text-gray-600" />
+                        <ChevronDown size={16} className="text-gray-400 group-hover:text-blue-600 transition-all duration-300 group-hover:rotate-180" />
                       ) : (
-                        <ChevronRight size={16} className="text-gray-400 group-hover:text-gray-600" />
+                        <ChevronRight size={16} className="text-gray-400 group-hover:text-blue-600 transition-all duration-300 group-hover:translate-x-1" />
                       )
                     )}
                   </button>
@@ -82,16 +84,19 @@ const AdminSidebar = ({
                   <NavLink
                     to={item.path}
                     onClick={() => onMenuItemClick(item.label)}
-                    className={({ isActive }) => `
-                      flex items-center space-x-3 px-4 py-3 rounded-lg
-                      group transition-colors duration-200
-                      ${isActive 
-                        ? 'bg-yellow-50 text-yellow-700' 
-                        : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'}
-                    `}
                   >
-                    <Icon size={20} className="flex-shrink-0 transition-colors duration-200" />
-                    {!collapsed && <span className="font-medium flex-1">{item.label}</span>}
+                    {({ isActive }) => (
+                      <div className={`
+                        flex items-center space-x-3 px-4 py-3 rounded-lg
+                        group transition-all duration-300 ease-out transform
+                        ${isActive 
+                          ? 'bg-gradient-to-r from-yellow-100 to-yellow-50 text-yellow-700 shadow-md border-l-4 border-yellow-500' 
+                          : 'text-gray-600 hover:bg-gradient-to-r hover:from-blue-50 hover:to-yellow-50 hover:text-gray-900 hover:shadow-md hover:scale-105 active:scale-95 hover:border-l-4 hover:border-blue-300'}
+                      `}>
+                        <Icon size={20} className={`flex-shrink-0 transition-all duration-300 ${isActive ? 'text-yellow-600' : 'group-hover:text-blue-600 group-hover:scale-110'}`} />
+                        {!collapsed && <span className="font-medium flex-1 transition-all duration-300">{item.label}</span>}
+                      </div>
+                    )}
                   </NavLink>
                 )}
                 
@@ -105,16 +110,19 @@ const AdminSidebar = ({
                           key={subIndex}
                           to={subItem.path}
                           onClick={() => onMenuItemClick(subItem.label)}
-                          className={({ isActive }) => `
-                            flex items-center space-x-3 px-4 py-2 rounded-lg
-                            transition-colors duration-200
-                            ${isActive 
-                              ? 'bg-yellow-50 text-yellow-700 border-l-2 border-yellow-500' 
-                              : 'text-gray-500 hover:bg-gray-50 hover:text-gray-700'}
-                          `}
                         >
-                          <SubIcon size={16} className="flex-shrink-0" />
-                          <span className="text-sm font-medium">{subItem.label}</span>
+                          {({ isActive }) => (
+                            <div className={`
+                              flex items-center space-x-3 px-4 py-2 rounded-lg
+                              group transition-all duration-300 ease-out transform
+                              ${isActive 
+                                ? 'bg-gradient-to-r from-yellow-100 to-yellow-50 text-yellow-700 border-l-2 border-yellow-500 shadow-sm' 
+                                : 'text-gray-500 hover:bg-gradient-to-r hover:from-gray-50 hover:to-blue-50 hover:text-gray-700 hover:shadow-sm hover:scale-105 active:scale-95 hover:border-l-2 hover:border-blue-200'}
+                            `}>
+                              <SubIcon size={16} className={`flex-shrink-0 transition-all duration-300 ${isActive ? 'text-yellow-600' : 'group-hover:text-blue-600 group-hover:scale-110'}`} />
+                              <span className="text-sm font-medium transition-all duration-300">{subItem.label}</span>
+                            </div>
+                          )}
                         </NavLink>
                       );
                     })}
@@ -126,15 +134,15 @@ const AdminSidebar = ({
         </nav>
 
         {/* Admin Info Footer */}
-        <div className="p-4 border-t border-gray-200 bg-gray-50">
+        <div className="p-4 border-t border-gray-200 bg-gray-50 hover:bg-gradient-to-r hover:from-gray-50 hover:to-blue-50 transition-all duration-300 cursor-pointer group">
           <div className={`flex items-center ${collapsed ? 'justify-center space-x-0' : 'space-x-3'}`}>
-            <div className="w-10 h-10 rounded-full bg-yellow-100 flex items-center justify-center">
-              <span className="text-yellow-600 font-semibold">A</span>
+            <div className="w-10 h-10 rounded-full bg-yellow-100 group-hover:bg-blue-100 flex items-center justify-center transition-all duration-300 group-hover:scale-110 group-hover:shadow-md">
+              <span className="text-yellow-600 group-hover:text-blue-600 font-semibold transition-all duration-300">A</span>
             </div>
             {!collapsed && (
-              <div>
-                <p className="text-sm font-medium text-gray-900">Admin User</p>
-                <p className="text-xs text-gray-500">administrator@eec.edu</p>
+              <div className="transition-all duration-300">
+                <p className="text-sm font-medium text-gray-900 group-hover:text-blue-900 transition-all duration-300">Admin User</p>
+                <p className="text-xs text-gray-500 group-hover:text-blue-600 transition-all duration-300">administrator@eec.edu</p>
               </div>
             )}
           </div>
