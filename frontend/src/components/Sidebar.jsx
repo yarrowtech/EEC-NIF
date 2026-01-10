@@ -5,7 +5,6 @@ import {
   Users, 
   FileText, 
   BookOpen,
-  Award,
   Settings,
   LogOut,
   ChevronDown,
@@ -17,7 +16,6 @@ import {
   MessageCircle,
   MessageSquare,
   Brain,
-  Menu,
   X,
   GraduationCap,
   BarChart3,
@@ -31,6 +29,7 @@ import { useNavigate } from 'react-router-dom';
 const Sidebar = ({ activeView, isOpen, setIsOpen }) => {
   const navigate = useNavigate();
   const [openGroups, setOpenGroups] = useState({});
+  const collapsed = !isOpen;
 
   // Helper function to navigate to a page
   const navigateToPage = (pageId) => {
@@ -208,62 +207,76 @@ const Sidebar = ({ activeView, isOpen, setIsOpen }) => {
             {menuItems.map((item) => {
               const Icon = item.icon;
               const hasChildren = !!item.children?.length;
-              const isActive = activeView === item.id || (hasChildren && activeView.startsWith(`${item.id}-`)) || 
-                             (hasChildren && item.children?.some(c => c.id === activeView));
+              const isActive =
+                activeView === item.id ||
+                (hasChildren && activeView.startsWith(`${item.id}-`)) ||
+                (hasChildren && item.children?.some((c) => c.id === activeView));
               const defaultExpanded = hasChildren && isActive;
               const expanded = openGroups[item.id] === undefined ? defaultExpanded : openGroups[item.id];
-              
-              if (!isOpen) {
-                // Revolutionary Collapsed Design - Perfect Alignment & Spacing
-                return (
-                  <div key={item.id} className="relative">
-                    <button
-                      onClick={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        handleNavigation(item.id);
-                      }}
-                      className={`group relative w-full h-12 flex items-center justify-center rounded-xl transition-all duration-300 ease-out transform ${
-                        isActive
-                          ? `bg-gradient-to-br ${item.gradient} text-white shadow-xl shadow-gray-400/20 scale-[1.02] ring-1 ring-white/20`
-                          : 'text-gray-500 hover:bg-gradient-to-r hover:from-blue-50 hover:to-yellow-50 hover:scale-105 hover:shadow-lg hover:text-gray-700 active:scale-95'
+              const showSubmenu = hasChildren && expanded && !collapsed;
+
+              const handleItemClick = (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+
+                if (hasChildren) {
+                  if (collapsed) {
+                    handleNavigation(item.id);
+                    return;
+                  }
+
+                  setOpenGroups((prev) => ({ ...prev, [item.id]: !expanded }));
+                } else {
+                  handleNavigation(item.id);
+                }
+              };
+
+              return (
+                <div key={item.id} className="mb-1">
+                  <button
+                    onClick={handleItemClick}
+                    className={`
+                      ${hasChildren 
+                        ? 'w-full flex items-center space-x-3 px-3 py-3 rounded-lg' 
+                        : 'w-full flex items-center space-x-3 px-4 py-3 rounded-lg'
+                      }
+                      group transition-all duration-300 ease-out transform
+                      ${hasChildren
+                        ? 'text-gray-600 hover:bg-gradient-to-r hover:from-blue-50 hover:to-yellow-50 hover:text-gray-900 hover:shadow-md hover:scale-105 active:scale-95'
+                        : isActive 
+                          ? 'bg-gradient-to-r from-yellow-100 to-yellow-50 text-yellow-700 shadow-md border-l-4 border-yellow-500'
+                          : 'text-gray-600 hover:bg-gradient-to-r hover:from-blue-50 hover:to-yellow-50 hover:text-gray-900 hover:shadow-md hover:scale-105 active:scale-95 hover:border-l-4 hover:border-blue-300'
+                      }
+                    `}
+                  >
+                    <Icon
+                      size={20}
+                      className={`flex-shrink-0 transition-all duration-300 ${
+                        !hasChildren && isActive
+                          ? 'text-yellow-600'
+                          : 'text-gray-600 group-hover:text-blue-600 group-hover:scale-110'
                       }`}
-                    >
-                      {/* Perfect Icon Container */}
-                      <div className={`relative flex items-center justify-center w-6 h-6 transition-all duration-300 ${
-                        isActive
-                          ? 'text-white drop-shadow-sm'
-                          : 'text-gray-500 group-hover:text-blue-600 group-hover:scale-110'
-                      }`}>
-                        <Icon size={18} strokeWidth={isActive ? 2.2 : 1.8} className="transition-all duration-300" />
-                      </div>
-                      
-                      {/* Modern Active Indicator - Right Side */}
-                      {isActive && (
-                        <div className="absolute right-0 top-1/2 transform -translate-y-1/2 w-1 h-8 bg-white/90 rounded-l-full shadow-sm" />
-                      )}
-                      
-                      {/* Enhanced Tooltip with Better Positioning */}
-                      <div className="absolute left-full ml-3 opacity-0 group-hover:opacity-100 transition-all duration-300 ease-out transform translate-x-2 group-hover:translate-x-0 pointer-events-none z-50">
-                        <div className="bg-gray-900 text-white px-4 py-3 rounded-xl shadow-2xl border border-gray-700 min-w-max">
-                          <div className="font-semibold text-sm">{item.name}</div>
-                          <div className="text-xs text-gray-300 mt-1">{item.description}</div>
-                          
-                          {/* Modern Arrow */}
-                          <div className="absolute left-0 top-1/2 transform -translate-x-1 -translate-y-1/2">
-                            <div className="w-2 h-2 bg-gray-900 border-l border-t border-gray-700 rotate-45" />
-                          </div>
-                        </div>
-                      </div>
-                      
-                      {/* Subtle Hover Ring */}
-                      <div className="absolute inset-0 rounded-xl ring-1 ring-transparent group-hover:ring-gray-300/30 transition-all duration-300" />
-                    </button>
-                    
-                    {/* Refined Submenu Dots for Children */}
-                    {hasChildren && isActive && (
-                      <div className="mt-1 flex flex-col items-center space-y-0.5 py-2">
-                        {item.children.slice(0, 4).map((child, index) => (
+                    />
+                    {!collapsed && (
+                      <span className="font-medium flex-1 text-left transition-all duration-300">
+                        {item.name}
+                      </span>
+                    )}
+                    {!collapsed && hasChildren && (
+                      showSubmenu ? (
+                        <ChevronDown size={16} className="text-gray-400 group-hover:text-blue-600 transition-all duration-300 group-hover:rotate-180" />
+                      ) : (
+                        <ChevronRight size={16} className="text-gray-400 group-hover:text-blue-600 transition-all duration-300 group-hover:translate-x-1" />
+                      )
+                    )}
+                  </button>
+
+                  {showSubmenu && (
+                    <div className="ml-6 mt-1 space-y-1">
+                      {item.children.map((child) => {
+                        const ChildIcon = child.icon;
+                        const childActive = activeView === child.id;
+                        return (
                           <button
                             key={child.id}
                             onClick={(e) => {
@@ -271,125 +284,22 @@ const Sidebar = ({ activeView, isOpen, setIsOpen }) => {
                               e.stopPropagation();
                               handleNavigation(child.id);
                             }}
-                            className={`group/child relative w-8 h-8 flex items-center justify-center rounded-lg transition-all duration-300 ease-out transform ${
-                              activeView === child.id
-                                ? `bg-gradient-to-br ${item.gradient} text-white shadow-lg scale-105`
-                                : 'text-gray-400 hover:bg-gradient-to-r hover:from-gray-100 hover:to-blue-50 hover:text-blue-600 hover:scale-110 hover:shadow-md active:scale-95'
-                            }`}
+                            className={`
+                              w-full flex items-center space-x-3 px-4 py-2 rounded-lg
+                              group transition-all duration-300 ease-out transform
+                              ${childActive 
+                                ? 'bg-gradient-to-r from-yellow-100 to-yellow-50 text-yellow-700 border-l-2 border-yellow-500 shadow-sm' 
+                                : 'text-gray-500 hover:bg-gradient-to-r hover:from-gray-50 hover:to-blue-50 hover:text-gray-700 hover:shadow-sm hover:scale-105 active:scale-95 hover:border-l-2 hover:border-blue-200'}
+                            `}
                           >
-                            <child.icon size={12} strokeWidth={activeView === child.id ? 2.5 : 2} />
-                            
-                            {/* Child Tooltip - Compact */}
-                            <div className="absolute left-full ml-2 opacity-0 group-hover/child:opacity-100 transition-all duration-200 pointer-events-none z-50">
-                              <div className="bg-gray-800 text-white px-3 py-2 rounded-lg text-xs font-medium whitespace-nowrap shadow-xl">
-                                {child.name}
-                                <div className="absolute left-0 top-1/2 transform -translate-x-1 -translate-y-1/2">
-                                  <div className="w-1.5 h-1.5 bg-gray-800 rotate-45" />
-                                </div>
-                              </div>
-                            </div>
+                            <ChildIcon
+                              size={16}
+                              className={`flex-shrink-0 transition-all duration-300 ${childActive ? 'text-yellow-600' : 'group-hover:text-blue-600 group-hover:scale-110'}`}
+                            />
+                            <span className="text-sm font-medium transition-all duration-300">{child.name}</span>
                           </button>
-                        ))}
-                        
-                        {/* More indicator if there are additional children */}
-                        {item.children.length > 4 && (
-                          <div className="w-1 h-1 bg-gray-400 rounded-full mt-1" />
-                        )}
-                      </div>
-                    )}
-                  </div>
-                );
-              }
-              
-              // Expanded State Design - Full Menu with Modern Cards
-              return (
-                <div key={item.id}>
-                  <button
-                    onClick={(e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      
-                      if (hasChildren) {
-                        setOpenGroups((prev) => ({ ...prev, [item.id]: !expanded }));
-                        if (!expanded) {
-                          handleNavigation(item.id);
-                        }
-                      } else {
-                        handleNavigation(item.id);
-                      }
-                    }}
-                    className={`group relative w-full flex items-center px-4 py-3 rounded-xl transition-all duration-300 ease-out transform ${
-                      isActive && !hasChildren
-                        ? `bg-gradient-to-r ${item.gradient} text-white shadow-lg scale-[1.02]`
-                        : isActive && hasChildren
-                        ? 'bg-gradient-to-r from-gray-50 to-blue-50 text-gray-900 border border-gray-200 shadow-sm'
-                        : 'text-gray-700 hover:bg-gradient-to-r hover:from-blue-50 hover:to-yellow-50 hover:text-gray-900 hover:shadow-md hover:scale-105 active:scale-95'
-                    }`}
-                  >
-                    <div className={`flex items-center justify-center w-10 h-10 rounded-lg mr-3 transition-all duration-300 ${
-                      isActive && !hasChildren
-                        ? 'bg-white/20 text-white' 
-                        : isActive && hasChildren
-                        ? 'bg-blue-100 text-blue-700'
-                        : 'bg-gray-100 text-gray-600 group-hover:bg-blue-100 group-hover:text-blue-600 group-hover:scale-110'
-                    }`}>
-                      <Icon size={20} className="transition-all duration-300" />
-                    </div>
-                    <div className="flex-1">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <div className="font-semibold text-sm text-left">{item.name}</div>
-                          <div className={`text-xs text-left ${
-                            isActive ? 'text-gray-600' : 'text-gray-500'
-                          }`}>
-                            {item.description}
-                          </div>
-                        </div>
-                        {hasChildren && (
-                          <ChevronDown 
-                            size={16} 
-                            className={`transition-all duration-300 ${expanded ? 'rotate-180 text-blue-600' : 'group-hover:text-blue-600'}`} 
-                          />
-                        )}
-                      </div>
-                    </div>
-                  </button>
-                  
-                  {/* Expanded Submenu */}
-                  {hasChildren && (
-                    <div className={`overflow-hidden transition-all duration-300 ${
-                      expanded ? 'max-h-96 opacity-100' : 'max-h-0 opacity-0'
-                    }`}>
-                      <div className="mt-2 ml-6 space-y-1">
-                        {item.children.map((child) => {
-                          const ChildIcon = child.icon;
-                          const childActive = activeView === child.id;
-                          return (
-                            <button
-                              key={child.id}
-                              onClick={(e) => {
-                                e.preventDefault();
-                                e.stopPropagation();
-                                handleNavigation(child.id);
-                              }}
-                              className={`group relative w-full flex items-center px-3 py-2 rounded-lg text-sm transition-all duration-300 ease-out transform ${
-                                childActive
-                                  ? `bg-gradient-to-r ${item.gradient} text-white shadow-md`
-                                  : 'text-gray-600 hover:bg-gradient-to-r hover:from-gray-50 hover:to-blue-50 hover:text-gray-900 hover:shadow-sm hover:scale-105 active:scale-95'
-                              }`}
-                            >
-                              <div className={`flex items-center justify-center w-8 h-8 rounded-lg mr-3 transition-all duration-300 ${
-                                childActive
-                                  ? 'bg-white/20 text-white'
-                                  : 'bg-gray-100 text-gray-500 group-hover:bg-blue-100 group-hover:text-blue-600 group-hover:scale-110'
-                              }`}>
-                                <ChildIcon size={16} className="transition-all duration-300" />
-                              </div>
-                              <span className="font-medium transition-all duration-300">{child.name}</span>
-                            </button>
-                          );
-                        })}
-                      </div>
+                        );
+                      })}
                     </div>
                   )}
                 </div>
@@ -402,9 +312,9 @@ const Sidebar = ({ activeView, isOpen, setIsOpen }) => {
           <div className={`${isOpen ? 'space-y-2' : 'space-y-1'}`}>
             {/* Settings Button */}
             {!isOpen ? (
-              <button className="group relative w-full h-12 flex items-center justify-center rounded-xl text-gray-500 hover:bg-gradient-to-r hover:from-blue-50 hover:to-yellow-50 hover:scale-105 hover:shadow-lg hover:text-blue-600 transition-all duration-300 ease-out transform active:scale-95">
-                <div className="relative flex items-center justify-center w-6 h-6 transition-all duration-300 text-gray-500 group-hover:text-blue-600 group-hover:scale-110">
-                  <Settings size={18} strokeWidth={1.8} className="transition-all duration-300" />
+              <button className="group relative w-full h-12 flex items-center justify-center rounded-xl text-gray-600 hover:bg-gradient-to-r hover:from-blue-50 hover:to-yellow-50 hover:scale-105 hover:shadow-md hover:text-gray-900 transition-all duration-300 ease-out transform active:scale-95">
+                <div className="relative flex items-center justify-center w-6 h-6 transition-all duration-300 text-gray-600 group-hover:text-blue-600 group-hover:scale-110">
+                  <Settings size={18} strokeWidth={1.8} className="flex-shrink-0 transition-all duration-300" />
                 </div>
                 
                 {/* Enhanced Tooltip */}
@@ -424,12 +334,12 @@ const Sidebar = ({ activeView, isOpen, setIsOpen }) => {
                 <div className="absolute inset-0 rounded-xl ring-1 ring-transparent group-hover:ring-gray-300/30 transition-all duration-300" />
               </button>
             ) : (
-              <button className="group relative w-full flex items-center px-4 py-3 rounded-xl text-gray-700 hover:bg-gradient-to-r hover:from-blue-50 hover:to-yellow-50 hover:text-gray-900 hover:shadow-md hover:scale-105 transition-all duration-300 ease-out transform active:scale-95">
+              <button className="group relative w-full flex items-center px-4 py-3 rounded-xl text-gray-600 hover:bg-gradient-to-r hover:from-blue-50 hover:to-yellow-50 hover:text-gray-900 hover:shadow-md hover:scale-105 transition-all duration-300 ease-out transform active:scale-95">
                 <div className="flex items-center justify-center w-10 h-10 rounded-lg bg-gray-100 text-gray-600 group-hover:bg-blue-100 group-hover:text-blue-600 group-hover:scale-110 transition-all duration-300">
-                  <Settings size={20} className="transition-all duration-300" />
+                  <Settings size={20} className="flex-shrink-0 transition-all duration-300" />
                 </div>
                 <div className="ml-3">
-                  <div className="font-semibold text-sm transition-all duration-300">Settings</div>
+                  <div className="font-medium text-sm transition-all duration-300">Settings</div>
                   <div className="text-xs text-gray-500 group-hover:text-blue-600 transition-all duration-300">Preferences & Config</div>
                 </div>
               </button>
@@ -439,10 +349,10 @@ const Sidebar = ({ activeView, isOpen, setIsOpen }) => {
             {!isOpen ? (
               <button
                 onClick={handleLogout}
-                className="group relative w-full h-12 flex items-center justify-center rounded-xl text-red-500 hover:bg-gradient-to-r hover:from-red-50 hover:to-pink-50 hover:scale-105 hover:shadow-lg hover:text-red-600 transition-all duration-300 ease-out transform active:scale-95"
+                className="group relative w-full h-12 flex items-center justify-center rounded-xl text-red-500 hover:bg-gradient-to-r hover:from-red-50 hover:to-pink-50 hover:scale-105 hover:shadow-md hover:text-red-600 transition-all duration-300 ease-out transform active:scale-95"
               >
                 <div className="relative flex items-center justify-center w-6 h-6 transition-all duration-300 text-red-500 group-hover:text-red-600 group-hover:scale-110">
-                  <LogOut size={18} strokeWidth={1.8} className="transition-all duration-300" />
+                  <LogOut size={18} strokeWidth={1.8} className="flex-shrink-0 transition-all duration-300" />
                 </div>
                 
                 {/* Enhanced Tooltip */}
@@ -467,10 +377,10 @@ const Sidebar = ({ activeView, isOpen, setIsOpen }) => {
                 className="group relative w-full flex items-center px-4 py-3 rounded-xl text-red-600 hover:bg-gradient-to-r hover:from-red-50 hover:to-pink-50 hover:text-red-700 hover:shadow-md hover:scale-105 transition-all duration-300 ease-out transform active:scale-95"
               >
                 <div className="flex items-center justify-center w-10 h-10 rounded-lg bg-red-100 text-red-600 group-hover:bg-red-200 group-hover:scale-110 transition-all duration-300">
-                  <LogOut size={20} className="transition-all duration-300" />
+                  <LogOut size={20} className="flex-shrink-0 transition-all duration-300" />
                 </div>
                 <div className="ml-3">
-                  <div className="font-semibold text-sm transition-all duration-300">Logout</div>
+                  <div className="font-medium text-sm transition-all duration-300">Logout</div>
                   <div className="text-xs text-red-500 group-hover:text-red-600 transition-all duration-300">Sign out securely</div>
                 </div>
               </button>
