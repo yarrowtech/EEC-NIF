@@ -223,17 +223,17 @@ const Sidebar = ({ activeView, isOpen, setIsOpen }) => {
                         e.stopPropagation();
                         handleNavigation(item.id);
                       }}
-                      className={`group relative w-full h-12 flex items-center justify-center rounded-xl transition-all duration-300 ease-out ${
+                      className={`group relative w-full h-12 flex items-center justify-center rounded-xl transition-all duration-300 ease-out transform ${
                         isActive
-                          ? `bg-gradient-to-br ${item.gradient} text-white shadow-xl shadow-gray-400/20 transform scale-[1.02] ring-1 ring-white/20`
-                          : 'text-gray-500 hover:bg-gradient-to-br hover:from-gray-100 hover:to-gray-50 hover:scale-[1.02] hover:shadow-md hover:text-gray-700'
+                          ? `bg-gradient-to-br ${item.gradient} text-white shadow-xl shadow-gray-400/20 scale-[1.02] ring-1 ring-white/20`
+                          : 'text-gray-500 hover:bg-gradient-to-r hover:from-blue-50 hover:to-yellow-50 hover:scale-105 hover:shadow-lg hover:text-gray-700 active:scale-95'
                       }`}
                     >
                       {/* Perfect Icon Container */}
                       <div className={`relative flex items-center justify-center w-6 h-6 transition-all duration-300 ${
                         isActive
                           ? 'text-white drop-shadow-sm'
-                          : 'text-gray-500 group-hover:text-gray-700'
+                          : 'text-gray-500 group-hover:text-blue-600 group-hover:scale-110'
                       }`}>
                         <Icon size={18} strokeWidth={isActive ? 2.2 : 1.8} className="transition-all duration-300" />
                       </div>
@@ -271,10 +271,10 @@ const Sidebar = ({ activeView, isOpen, setIsOpen }) => {
                               e.stopPropagation();
                               handleNavigation(child.id);
                             }}
-                            className={`group/child relative w-8 h-8 flex items-center justify-center rounded-lg transition-all duration-200 ${
+                            className={`group/child relative w-8 h-8 flex items-center justify-center rounded-lg transition-all duration-300 ease-out transform ${
                               activeView === child.id
                                 ? `bg-gradient-to-br ${item.gradient} text-white shadow-lg scale-105`
-                                : 'text-gray-400 hover:bg-gray-100 hover:text-gray-600 hover:scale-105'
+                                : 'text-gray-400 hover:bg-gradient-to-r hover:from-gray-100 hover:to-blue-50 hover:text-blue-600 hover:scale-110 hover:shadow-md active:scale-95'
                             }`}
                           >
                             <child.icon size={12} strokeWidth={activeView === child.id ? 2.5 : 2} />
@@ -318,22 +318,22 @@ const Sidebar = ({ activeView, isOpen, setIsOpen }) => {
                         handleNavigation(item.id);
                       }
                     }}
-                    className={`group relative w-full flex items-center px-4 py-3 rounded-xl transition-all duration-200 ${
+                    className={`group relative w-full flex items-center px-4 py-3 rounded-xl transition-all duration-300 ease-out transform ${
                       isActive && !hasChildren
-                        ? `bg-gradient-to-r ${item.gradient} text-white shadow-lg transform scale-[1.02]`
+                        ? `bg-gradient-to-r ${item.gradient} text-white shadow-lg scale-[1.02]`
                         : isActive && hasChildren
-                        ? 'bg-gray-50 text-gray-900 border border-gray-200'
-                        : 'text-gray-700 hover:bg-gray-50 hover:text-gray-900'
+                        ? 'bg-gradient-to-r from-gray-50 to-blue-50 text-gray-900 border border-gray-200 shadow-sm'
+                        : 'text-gray-700 hover:bg-gradient-to-r hover:from-blue-50 hover:to-yellow-50 hover:text-gray-900 hover:shadow-md hover:scale-105 active:scale-95'
                     }`}
                   >
-                    <div className={`flex items-center justify-center w-10 h-10 rounded-lg mr-3 ${
+                    <div className={`flex items-center justify-center w-10 h-10 rounded-lg mr-3 transition-all duration-300 ${
                       isActive && !hasChildren
                         ? 'bg-white/20 text-white' 
                         : isActive && hasChildren
-                        ? 'bg-gray-200 text-gray-700'
-                        : 'bg-gray-100 text-gray-600 group-hover:bg-gray-200'
+                        ? 'bg-blue-100 text-blue-700'
+                        : 'bg-gray-100 text-gray-600 group-hover:bg-blue-100 group-hover:text-blue-600 group-hover:scale-110'
                     }`}>
-                      <Icon size={20} />
+                      <Icon size={20} className="transition-all duration-300" />
                     </div>
                     <div className="flex-1">
                       <div className="flex items-center justify-between">
@@ -348,7 +348,7 @@ const Sidebar = ({ activeView, isOpen, setIsOpen }) => {
                         {hasChildren && (
                           <ChevronDown 
                             size={16} 
-                            className={`transition-transform duration-200 ${expanded ? 'rotate-180' : ''}`} 
+                            className={`transition-all duration-300 ${expanded ? 'rotate-180 text-blue-600' : 'group-hover:text-blue-600'}`} 
                           />
                         )}
                       </div>
@@ -372,20 +372,20 @@ const Sidebar = ({ activeView, isOpen, setIsOpen }) => {
                                 e.stopPropagation();
                                 handleNavigation(child.id);
                               }}
-                              className={`group relative w-full flex items-center px-3 py-2 rounded-lg text-sm transition-all duration-200 ${
+                              className={`group relative w-full flex items-center px-3 py-2 rounded-lg text-sm transition-all duration-300 ease-out transform ${
                                 childActive
                                   ? `bg-gradient-to-r ${item.gradient} text-white shadow-md`
-                                  : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                                  : 'text-gray-600 hover:bg-gradient-to-r hover:from-gray-50 hover:to-blue-50 hover:text-gray-900 hover:shadow-sm hover:scale-105 active:scale-95'
                               }`}
                             >
-                              <div className={`flex items-center justify-center w-8 h-8 rounded-lg mr-3 ${
+                              <div className={`flex items-center justify-center w-8 h-8 rounded-lg mr-3 transition-all duration-300 ${
                                 childActive
                                   ? 'bg-white/20 text-white'
-                                  : 'bg-gray-100 text-gray-500 group-hover:bg-gray-200'
+                                  : 'bg-gray-100 text-gray-500 group-hover:bg-blue-100 group-hover:text-blue-600 group-hover:scale-110'
                               }`}>
-                                <ChildIcon size={16} />
+                                <ChildIcon size={16} className="transition-all duration-300" />
                               </div>
-                              <span className="font-medium">{child.name}</span>
+                              <span className="font-medium transition-all duration-300">{child.name}</span>
                             </button>
                           );
                         })}
@@ -402,8 +402,8 @@ const Sidebar = ({ activeView, isOpen, setIsOpen }) => {
           <div className={`${isOpen ? 'space-y-2' : 'space-y-1'}`}>
             {/* Settings Button */}
             {!isOpen ? (
-              <button className="group relative w-full h-12 flex items-center justify-center rounded-xl text-gray-500 hover:bg-gradient-to-br hover:from-gray-100 hover:to-gray-50 hover:scale-[1.02] hover:shadow-md hover:text-gray-700 transition-all duration-300 ease-out">
-                <div className="relative flex items-center justify-center w-6 h-6 transition-all duration-300 text-gray-500 group-hover:text-gray-700">
+              <button className="group relative w-full h-12 flex items-center justify-center rounded-xl text-gray-500 hover:bg-gradient-to-r hover:from-blue-50 hover:to-yellow-50 hover:scale-105 hover:shadow-lg hover:text-blue-600 transition-all duration-300 ease-out transform active:scale-95">
+                <div className="relative flex items-center justify-center w-6 h-6 transition-all duration-300 text-gray-500 group-hover:text-blue-600 group-hover:scale-110">
                   <Settings size={18} strokeWidth={1.8} className="transition-all duration-300" />
                 </div>
                 
@@ -424,13 +424,13 @@ const Sidebar = ({ activeView, isOpen, setIsOpen }) => {
                 <div className="absolute inset-0 rounded-xl ring-1 ring-transparent group-hover:ring-gray-300/30 transition-all duration-300" />
               </button>
             ) : (
-              <button className="group relative w-full flex items-center px-4 py-3 rounded-xl text-gray-700 hover:bg-gray-50 hover:text-gray-900 transition-all duration-200">
-                <div className="flex items-center justify-center w-10 h-10 rounded-lg bg-gray-100 text-gray-600 group-hover:bg-gray-200">
-                  <Settings size={20} />
+              <button className="group relative w-full flex items-center px-4 py-3 rounded-xl text-gray-700 hover:bg-gradient-to-r hover:from-blue-50 hover:to-yellow-50 hover:text-gray-900 hover:shadow-md hover:scale-105 transition-all duration-300 ease-out transform active:scale-95">
+                <div className="flex items-center justify-center w-10 h-10 rounded-lg bg-gray-100 text-gray-600 group-hover:bg-blue-100 group-hover:text-blue-600 group-hover:scale-110 transition-all duration-300">
+                  <Settings size={20} className="transition-all duration-300" />
                 </div>
                 <div className="ml-3">
-                  <div className="font-semibold text-sm">Settings</div>
-                  <div className="text-xs text-gray-500">Preferences & Config</div>
+                  <div className="font-semibold text-sm transition-all duration-300">Settings</div>
+                  <div className="text-xs text-gray-500 group-hover:text-blue-600 transition-all duration-300">Preferences & Config</div>
                 </div>
               </button>
             )}
@@ -439,9 +439,9 @@ const Sidebar = ({ activeView, isOpen, setIsOpen }) => {
             {!isOpen ? (
               <button
                 onClick={handleLogout}
-                className="group relative w-full h-12 flex items-center justify-center rounded-xl text-red-500 hover:bg-gradient-to-br hover:from-red-50 hover:to-red-100 hover:scale-[1.02] hover:shadow-md hover:text-red-600 transition-all duration-300 ease-out"
+                className="group relative w-full h-12 flex items-center justify-center rounded-xl text-red-500 hover:bg-gradient-to-r hover:from-red-50 hover:to-pink-50 hover:scale-105 hover:shadow-lg hover:text-red-600 transition-all duration-300 ease-out transform active:scale-95"
               >
-                <div className="relative flex items-center justify-center w-6 h-6 transition-all duration-300 text-red-500 group-hover:text-red-600">
+                <div className="relative flex items-center justify-center w-6 h-6 transition-all duration-300 text-red-500 group-hover:text-red-600 group-hover:scale-110">
                   <LogOut size={18} strokeWidth={1.8} className="transition-all duration-300" />
                 </div>
                 
@@ -464,14 +464,14 @@ const Sidebar = ({ activeView, isOpen, setIsOpen }) => {
             ) : (
               <button
                 onClick={handleLogout}
-                className="group relative w-full flex items-center px-4 py-3 rounded-xl text-red-600 hover:bg-red-50 hover:text-red-700 transition-all duration-200"
+                className="group relative w-full flex items-center px-4 py-3 rounded-xl text-red-600 hover:bg-gradient-to-r hover:from-red-50 hover:to-pink-50 hover:text-red-700 hover:shadow-md hover:scale-105 transition-all duration-300 ease-out transform active:scale-95"
               >
-                <div className="flex items-center justify-center w-10 h-10 rounded-lg bg-red-100 text-red-600 group-hover:bg-red-200">
-                  <LogOut size={20} />
+                <div className="flex items-center justify-center w-10 h-10 rounded-lg bg-red-100 text-red-600 group-hover:bg-red-200 group-hover:scale-110 transition-all duration-300">
+                  <LogOut size={20} className="transition-all duration-300" />
                 </div>
                 <div className="ml-3">
-                  <div className="font-semibold text-sm">Logout</div>
-                  <div className="text-xs text-red-500">Sign out securely</div>
+                  <div className="font-semibold text-sm transition-all duration-300">Logout</div>
+                  <div className="text-xs text-red-500 group-hover:text-red-600 transition-all duration-300">Sign out securely</div>
                 </div>
               </button>
             )}
