@@ -5,11 +5,14 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const { generateUsername, generatePassword } = require('../utils/generator');
 const adminAuth = require('../middleware/adminAuth');
+const rateLimit = require('../middleware/rateLimit');
+const { isStrongPassword, passwordPolicyMessage } = require('../utils/passwordPolicy');
 
 // Register Teacher
 router.post('/register', adminAuth, async (req, res) => {
   const {
     name,
+    schoolId,
     gender,
     mobile,
     email,
@@ -27,11 +30,16 @@ router.post('/register', adminAuth, async (req, res) => {
     const username = await generateUsername(name, "teacher")
     const password = generatePassword();
     const empId = await generateEmpId();
+    const resolvedSchoolId = req.admin?.schoolId || schoolId || null;
+    if (!resolvedSchoolId) {
+      return res.status(400).json({ error: 'schoolId is required' });
+    }
 
     const user = new TeacherUser({
       username,
       password,
       empId,
+      schoolId: resolvedSchoolId,
       name,
       gender,
       mobile,
@@ -53,7 +61,7 @@ router.post('/register', adminAuth, async (req, res) => {
 });
 
 // Login Teacher
-router.post('/login', async (req, res) => {
+router.post('/login', rateLimit({ windowMs: 60 * 1000, max: 10 }), async (req, res) => {
   const { username, password } = req.body;
 
   try {
@@ -63,7 +71,7 @@ router.post('/login', async (req, res) => {
     }
 
     const token = jwt.sign(
-      { id: user._id, userType: 'teacher' },
+      { id: user._id, userType: 'teacher', schoolId: user.schoolId || null },
       process.env.JWT_SECRET,
       { expiresIn: '1d' }
     );

@@ -12,6 +12,8 @@ const adminAuth = (req, res, next) => {
       return res.status(403).json({ error: 'Access denied' });
     }
     req.admin = decoded;
+    req.userType = 'Admin';
+    req.schoolId = decoded.schoolId || null;
     next();
   } catch (err) {
     res.status(401).json({ error: 'Invalid token' });

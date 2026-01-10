@@ -2,6 +2,7 @@ const mongoose = require('mongoose');
 
 const AlcovePostSchema = new mongoose.Schema(
   {
+    schoolId: { type: mongoose.Schema.Types.ObjectId, ref: 'School', required: true },
     title: { type: String, required: true, trim: true },
     subject: { type: String, required: true, index: true, trim: true },
     chapter: { type: String, required: true, index: true, trim: true },

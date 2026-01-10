@@ -12,14 +12,16 @@ const upload = multer({ storage });
 router.post('/profile/update', auth, upload.single('profilePic'), async (req, res) => {
   try {
     const updates = req.body;
+    const schoolId = req.schoolId || req.user?.schoolId || null;
+    if (!schoolId) return res.status(400).json({ error: 'schoolId is required' });
 
     // Handle profilePic if included
     if (req.file) {
       updates.profilePic = `data:${req.file.mimetype};base64,${req.file.buffer.toString('base64')}`;
     }
 
-    const updatedStudent = await StudentUser.findByIdAndUpdate(
-      req.user.id,
+    const updatedStudent = await StudentUser.findOneAndUpdate(
+      { _id: req.user.id, schoolId },
       updates,
       { new: true, runValidators: true }
     );
@@ -32,7 +34,9 @@ router.post('/profile/update', auth, upload.single('profilePic'), async (req, re
 
 router.get('/profile', auth, async (req, res) => {
   try {
-    const student = await StudentUser.findById(req.user.id).select('-password');
+    const schoolId = req.schoolId || req.user?.schoolId || null;
+    if (!schoolId) return res.status(400).json({ error: 'schoolId is required' });
+    const student = await StudentUser.findOne({ _id: req.user.id, schoolId }).select('-password');
     if (!student) {
       return res.status(404).json({ error: 'Student not found' });
     }

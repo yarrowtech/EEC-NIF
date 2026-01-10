@@ -5,6 +5,7 @@ const adminSchema = new mongoose.Schema({
   username: { type: String, required: true, unique: true },
   password: { type: String, required: true },
   name: String,
+  schoolId: { type: mongoose.Schema.Types.ObjectId, ref: 'School', default: null },
 });
 
 adminSchema.pre('save', async function (next) {

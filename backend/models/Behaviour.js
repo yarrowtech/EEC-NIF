@@ -3,6 +3,7 @@ const { questionPaper } = require("../../frontend/src/components/questionPaper")
 
 
 const behaviourSchema = new mongoose.Schema({
+    schoolId: { type: mongoose.Schema.Types.ObjectId, ref: 'School', required: true },
     studentClass: {
         type: String,
         required: true

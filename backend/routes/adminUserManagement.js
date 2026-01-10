@@ -5,6 +5,50 @@ const StudentUser = require('../models/StudentUser');
 const TeacherUser = require('../models/TeacherUser');
 const ParentUser = require('../models/ParentUser');
 
+const parseCsvLine = (line = '') => {
+  const out = [];
+  let current = '';
+  let inQuotes = false;
+  for (let i = 0; i < line.length; i += 1) {
+    const ch = line[i];
+    if (ch === '"') {
+      if (inQuotes && line[i + 1] === '"') {
+        current += '"';
+        i += 1;
+      } else {
+        inQuotes = !inQuotes;
+      }
+      continue;
+    }
+    if (ch === ',' && !inQuotes) {
+      out.push(current);
+      current = '';
+      continue;
+    }
+    current += ch;
+  }
+  out.push(current);
+  return out.map((val) => val.trim());
+};
+
+const parseCsv = (csvText = '') => {
+  const lines = String(csvText)
+    .split(/\r?\n/)
+    .map((l) => l.trim())
+    .filter((l) => l.length > 0);
+  if (!lines.length) return { headers: [], rows: [] };
+  const headers = parseCsvLine(lines[0]).map((h) => h.trim());
+  const rows = lines.slice(1).map((line) => {
+    const values = parseCsvLine(line);
+    const row = {};
+    headers.forEach((h, idx) => {
+      row[h] = values[idx] ?? '';
+    });
+    return row;
+  });
+  return { headers, rows };
+};
+
 // Utility to get the right model based on role
 const getModelByRole = (role) => {
   switch (role) {
@@ -17,13 +61,32 @@ const getModelByRole = (role) => {
 
 // Admin creates a user (student/teacher/parent)
 router.post('/create-user', adminAuth, async (req, res) => {
-  const { role, username, password, name, mobile, email, city, address, state, pinCode } = req.body;
+  const { role, username, password, name, mobile, email, city, address, state, pinCode, schoolId } = req.body;
 
   const Model = getModelByRole(role);
   if (!Model) return res.status(400).json({ error: 'Invalid user role' });
 
   try {
-    const newUser = new Model({ username, password, name, mobile, email, city, address, state, pinCode });
+    const { isStrongPassword, passwordPolicyMessage } = require('../utils/passwordPolicy');
+    if (!isStrongPassword(password)) {
+      return res.status(400).json({ error: passwordPolicyMessage });
+    }
+    const resolvedSchoolId = req.admin?.schoolId || schoolId || null;
+    if (!resolvedSchoolId) {
+      return res.status(400).json({ error: 'schoolId is required' });
+    }
+    const newUser = new Model({
+      username,
+      password,
+      name,
+      mobile,
+      email,
+      city,
+      address,
+      state,
+      pinCode,
+      schoolId: resolvedSchoolId,
+    });
     await newUser.save();
     res.status(201).json({ message: `${role} user created successfully` });
   } catch (err) {
@@ -31,9 +94,121 @@ router.post('/create-user', adminAuth, async (req, res) => {
   }
 });
 
+// Bulk create users for a role (admin only)
+router.post('/bulk-create-users', adminAuth, async (req, res) => {
+  const { role, users } = req.body || {};
+  const Model = getModelByRole(role);
+  if (!Model) return res.status(400).json({ error: 'Invalid user role' });
+  if (!Array.isArray(users) || users.length === 0) {
+    return res.status(400).json({ error: 'users array is required' });
+  }
+
+  const resolvedSchoolId = req.admin?.schoolId || null;
+  if (!resolvedSchoolId) {
+    return res.status(400).json({ error: 'schoolId is required' });
+  }
+
+  const results = {
+    created: 0,
+    failed: 0,
+    errors: [],
+  };
+
+  for (let i = 0; i < users.length; i += 1) {
+    const user = users[i] || {};
+    if (!user.username || !user.password) {
+      results.failed += 1;
+      results.errors.push({ index: i, error: 'username and password are required' });
+      continue;
+    }
+
+    try {
+      const { isStrongPassword, passwordPolicyMessage } = require('../utils/passwordPolicy');
+      if (!isStrongPassword(user.password)) {
+        results.failed += 1;
+        results.errors.push({ index: i, error: passwordPolicyMessage });
+        continue;
+      }
+      const payload = {
+        ...user,
+        schoolId: resolvedSchoolId,
+      };
+      delete payload._id;
+      delete payload.id;
+
+      const newUser = new Model(payload);
+      await newUser.save();
+      results.created += 1;
+    } catch (err) {
+      results.failed += 1;
+      results.errors.push({ index: i, error: err.message });
+    }
+  }
+
+  res.status(200).json(results);
+});
+
+// Bulk import users from CSV (admin only)
+router.post('/bulk-import-csv', adminAuth, async (req, res) => {
+  const { role, csv } = req.body || {};
+  const Model = getModelByRole(role);
+  if (!Model) return res.status(400).json({ error: 'Invalid user role' });
+  if (!csv || !String(csv).trim()) {
+    return res.status(400).json({ error: 'csv is required' });
+  }
+
+  const resolvedSchoolId = req.admin?.schoolId || null;
+  if (!resolvedSchoolId) {
+    return res.status(400).json({ error: 'schoolId is required' });
+  }
+
+  const { rows } = parseCsv(csv);
+  if (!rows.length) {
+    return res.status(400).json({ error: 'No rows found in csv' });
+  }
+
+  const results = {
+    created: 0,
+    failed: 0,
+    errors: [],
+  };
+
+  for (let i = 0; i < rows.length; i += 1) {
+    const row = rows[i] || {};
+    if (!row.username || !row.password) {
+      results.failed += 1;
+      results.errors.push({ index: i, error: 'username and password are required' });
+      continue;
+    }
+    try {
+      const { isStrongPassword, passwordPolicyMessage } = require('../utils/passwordPolicy');
+      if (!isStrongPassword(row.password)) {
+        results.failed += 1;
+        results.errors.push({ index: i, error: passwordPolicyMessage });
+        continue;
+      }
+      const payload = {
+        ...row,
+        schoolId: resolvedSchoolId,
+      };
+      delete payload._id;
+      delete payload.id;
+      const newUser = new Model(payload);
+      await newUser.save();
+      results.created += 1;
+    } catch (err) {
+      results.failed += 1;
+      results.errors.push({ index: i, error: err.message });
+    }
+  }
+
+  return res.status(200).json(results);
+});
+
 router.get("/get-students", adminAuth, async (req, res) => {
   try {
-    const students = await StudentUser.find();
+    const filter = req.admin?.schoolId ? { schoolId: req.admin.schoolId } : {};
+    const students = await StudentUser.find(filter);
     res.status(200).json(students);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -42,7 +217,8 @@ router.get("/get-students", adminAuth, async (req, res) => {
 
 router.get("/get-teachers", adminAuth, async (req, res) => {
   try {
-    const teachers = await TeacherUser.find();
+    const filter = req.admin?.schoolId ? { schoolId: req.admin.schoolId } : {};
+    const teachers = await TeacherUser.find(filter);
     res.status(200).json(teachers);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -51,8 +227,9 @@ router.get("/get-teachers", adminAuth, async (req, res) => {
 
 router.get("/get-parents", adminAuth, async (req, res) => {
   try {
-    const teachers = await ParentUser.find();
-    res.status(200).json(teachers);
+    const filter = req.admin?.schoolId ? { schoolId: req.admin.schoolId } : {};
+    const parents = await ParentUser.find(filter);
+    res.status(200).json(parents);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -61,11 +238,12 @@ router.get("/get-parents", adminAuth, async (req, res) => {
 // Live dashboard statistics endpoint
 router.get("/dashboard-stats", adminAuth, async (req, res) => {
   try {
+    const filter = req.admin?.schoolId ? { schoolId: req.admin.schoolId } : {};
     // Fetch counts from all user types
     const [studentCount, teacherCount, parentCount] = await Promise.all([
-      StudentUser.countDocuments(),
-      TeacherUser.countDocuments(),
-      ParentUser.countDocuments()
+      StudentUser.countDocuments(filter),
+      TeacherUser.countDocuments(filter),
+      ParentUser.countDocuments(filter)
     ]);
 
     // Calculate additional stats
@@ -76,9 +254,9 @@ router.get("/dashboard-stats", adminAuth, async (req, res) => {
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
     const [recentStudents, recentTeachers, recentParents] = await Promise.all([
-      StudentUser.countDocuments({ createdAt: { $gte: thirtyDaysAgo } }),
-      TeacherUser.countDocuments({ createdAt: { $gte: thirtyDaysAgo } }),
-      ParentUser.countDocuments({ createdAt: { $gte: thirtyDaysAgo } })
+      StudentUser.countDocuments({ ...filter, createdAt: { $gte: thirtyDaysAgo } }),
+      TeacherUser.countDocuments({ ...filter, createdAt: { $gte: thirtyDaysAgo } }),
+      ParentUser.countDocuments({ ...filter, createdAt: { $gte: thirtyDaysAgo } })
     ]);
 
     res.status(200).json({

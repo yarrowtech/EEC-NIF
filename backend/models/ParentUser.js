@@ -4,13 +4,14 @@ const bcrypt = require('bcryptjs');
 const parentUserSchema = new mongoose.Schema({
   username: { type: String, unique: true, required: true },
   password: { type: String, required: true },
+  schoolId: { type: mongoose.Schema.Types.ObjectId, ref: 'School', default: null },
   name: String,
 
    mobile: String,
   email: String,
   children: [String],
   grade: [String],
-});
+}, { timestamps: true });
 
 parentUserSchema.pre('save', async function (next) {
   if (!this.isModified('password')) return next();

@@ -9,7 +9,9 @@ const adminAuth = require('../middleware/adminAuth');
 router.post('/mark', authStudent, async (req, res) => {
   try {
     const { status, subject } = req.body;
-    const student = await StudentUser.findById(req.user.id);
+    const schoolId = req.schoolId || req.user?.schoolId || null;
+    if (!schoolId) return res.status(400).json({ error: 'schoolId is required' });
+    const student = await StudentUser.findOne({ _id: req.user.id, schoolId });
 
     if (!student) return res.status(404).json({ error: 'Student not found' });
 
@@ -33,7 +35,9 @@ router.post('/mark', authStudent, async (req, res) => {
 // === Teacher views all student attendance ===
 router.get('/all', authTeacher, async (req, res) => {
   try {
-    const students = await StudentUser.find({}, 'name email attendance');
+    const schoolId = req.schoolId || req.user?.schoolId || null;
+    if (!schoolId) return res.status(400).json({ error: 'schoolId is required' });
+    const students = await StudentUser.find({ schoolId }, 'name email attendance');
     res.json(students);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -43,7 +47,9 @@ router.get('/all', authTeacher, async (req, res) => {
 // === Admin views all attendance ===
 router.get('/admin/all', adminAuth, async (req, res) => {
   try {
-    const students = await StudentUser.find({}, 'name email attendance');
+    const schoolId = req.schoolId || req.admin?.schoolId || null;
+    if (!schoolId) return res.status(400).json({ error: 'schoolId is required' });
+    const students = await StudentUser.find({ schoolId }, 'name email attendance');
     res.json(students);
   } catch (err) {
     res.status(500).json({ error: err.message });

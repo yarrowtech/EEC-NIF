@@ -2,11 +2,22 @@ const express = require('express');
 const router = express.Router();
 const Behaviour = require('../models/Behaviour');
 
+const resolveSchoolId = (req, res) => {
+    const schoolId = req.body?.schoolId || null;
+    if (!schoolId) {
+        res.status(400).json({ error: 'schoolId is required' });
+        return null;
+    }
+    return schoolId;
+};
 
 router.post('/submit', async (req, res) => {
     try {
         const { studentClass, subject, questionType, startTime, endTime, correct, incorrect } = req.body;
+        const schoolId = resolveSchoolId(req, res);
+        if (!schoolId) return;
         const behaviourData = new Behaviour({
+            schoolId,
             studentClass,
             subject,
             questionType,

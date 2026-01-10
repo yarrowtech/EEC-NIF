@@ -1,3 +1,4 @@
+const crypto = require('crypto');
 const StudentUser = require('../models/StudentUser');
 const TeacherUser = require('../models/TeacherUser');
 const ParentUser = require('../models/ParentUser');
@@ -21,26 +22,30 @@ const generateUsername = async (name, type) => {
 
     // Check if username already exists
     switch (type) {
-        case 'student':
+        case 'student': {
             const existingUser = await StudentUser.findOne({ username });
             if (existingUser) {
                 // If username exists, try again with a different number
-                return generateUsername(name);
+                return generateUsername(name, type);
             }
             break;
-        case 'teacher':
+        }
+        case 'teacher': {
             const existingTeacher = await TeacherUser.findOne({ username });
             if (existingTeacher) {
                 // If username exists, try again with a different number
                 return generateUsername(name, type);
             }
-        case 'parent':
+            break;
+        }
+        case 'parent': {
             const existingParent = await ParentUser.findOne({ username });
             if (existingParent) {
                 // If username exists, try again with a different number
                 return generateUsername(name, type);
             }
             break;
+        }
         default:
             break;
     }
@@ -53,29 +58,29 @@ const generateUsername = async (name, type) => {
  * @returns {string} - Generated password
  */
 const generatePassword = (length = 10) => {
-    /*const uppercase = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
+    const uppercase = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
     const lowercase = 'abcdefghijkmnpqrstuvwxyz';
     const numbers = '23456789';
     const symbols = '@#$%&*!';
-
     const allChars = uppercase + lowercase + numbers + symbols;
 
     let password = '';
+    password += uppercase.charAt(crypto.randomInt(uppercase.length));
+    password += lowercase.charAt(crypto.randomInt(lowercase.length));
+    password += numbers.charAt(crypto.randomInt(numbers.length));
+    password += symbols.charAt(crypto.randomInt(symbols.length));
 
-    // Ensure at least one character from each type
-    password += uppercase.charAt(Math.floor(Math.random() * uppercase.length));
-    password += lowercase.charAt(Math.floor(Math.random() * lowercase.length));
-    password += numbers.charAt(Math.floor(Math.random() * numbers.length));
-    password += symbols.charAt(Math.floor(Math.random() * symbols.length));
-
-    // Fill the rest with random characters
     for (let i = 4; i < length; i++) {
-        password += allChars.charAt(Math.floor(Math.random() * allChars.length));
+        password += allChars.charAt(crypto.randomInt(allChars.length));
     }
 
-    // Shuffle the password characters
-    return password.split('').sort(() => 0.5 - Math.random()).join('');*/
-    return "password"
+    // Fisher-Yates shuffle
+    const chars = password.split('');
+    for (let i = chars.length - 1; i > 0; i -= 1) {
+        const j = crypto.randomInt(i + 1);
+        [chars[i], chars[j]] = [chars[j], chars[i]];
+    }
+    return chars.join('');
 };
 
 module.exports = {

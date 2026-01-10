@@ -2,6 +2,7 @@ const mongoose = require('mongoose');
 
 
 const feedbackSchema = new mongoose.Schema({
+    schoolId: { type: mongoose.Schema.Types.ObjectId, ref: 'School', required: true },
     role: String,
     name: String,
     schoolName: String,

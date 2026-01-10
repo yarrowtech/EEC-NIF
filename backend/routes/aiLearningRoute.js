@@ -2,14 +2,26 @@ const express = require('express');
 const router = express.Router();
 const StudentProgress = require('../models/StudentProgress');
 const StudentUser = require('../models/StudentUser');
+const adminAuth = require('../middleware/adminAuth');
+
+const resolveSchoolId = (req, res) => {
+  const schoolId = req.schoolId || req.admin?.schoolId || null;
+  if (!schoolId) {
+    res.status(400).json({ error: 'schoolId is required' });
+    return null;
+  }
+  return schoolId;
+};
 
 // Analyze student weakness and identify weak students
-router.post('/analyze-weakness/:studentId', async (req, res) => {
+router.post('/analyze-weakness/:studentId', adminAuth, async (req, res) => {
   try {
+    const schoolId = resolveSchoolId(req, res);
+    if (!schoolId) return;
     const { studentId } = req.params;
     const { subject } = req.body;
 
-    const progress = await StudentProgress.findOne({ studentId });
+    const progress = await StudentProgress.findOne({ studentId, schoolId });
     if (!progress) {
       return res.status(404).json({ error: 'Student progress not found' });
     }
@@ -51,11 +63,13 @@ router.post('/analyze-weakness/:studentId', async (req, res) => {
 });
 
 // Get all weak students
-router.get('/weak-students', async (req, res) => {
+router.get('/weak-students', adminAuth, async (req, res) => {
   try {
+    const schoolId = resolveSchoolId(req, res);
+    if (!schoolId) return;
     const { grade, section, subject, interventionLevel } = req.query;
     
-    let studentFilter = {};
+    let studentFilter = { schoolId };
     if (grade) studentFilter.grade = grade;
     if (section) studentFilter.section = section;
 
@@ -64,7 +78,8 @@ router.get('/weak-students', async (req, res) => {
 
     let progressFilter = { 
       studentId: { $in: studentIds },
-      isWeakStudent: true
+      isWeakStudent: true,
+      schoolId
     };
 
     if (interventionLevel) {
@@ -106,12 +121,14 @@ router.get('/weak-students', async (req, res) => {
 });
 
 // Generate AI learning path for a student
-router.post('/generate-learning-path/:studentId', async (req, res) => {
+router.post('/generate-learning-path/:studentId', adminAuth, async (req, res) => {
   try {
+    const schoolId = resolveSchoolId(req, res);
+    if (!schoolId) return;
     const { studentId } = req.params;
     const { subject, weakAreas, currentLevel } = req.body;
 
-    const progress = await StudentProgress.findOne({ studentId });
+    const progress = await StudentProgress.findOne({ studentId, schoolId });
     if (!progress) {
       return res.status(404).json({ error: 'Student progress not found' });
     }
@@ -141,11 +158,13 @@ router.post('/generate-learning-path/:studentId', async (req, res) => {
 });
 
 // Get learning path for a student
-router.get('/learning-path/:studentId/:subject', async (req, res) => {
+router.get('/learning-path/:studentId/:subject', adminAuth, async (req, res) => {
   try {
+    const schoolId = resolveSchoolId(req, res);
+    if (!schoolId) return;
     const { studentId, subject } = req.params;
 
-    const progress = await StudentProgress.findOne({ studentId })
+    const progress = await StudentProgress.findOne({ studentId, schoolId })
       .populate('studentId', 'name grade section roll');
       
     if (!progress) {
@@ -169,12 +188,14 @@ router.get('/learning-path/:studentId/:subject', async (req, res) => {
 });
 
 // Update learning progress
-router.put('/update-progress/:studentId/:subject', async (req, res) => {
+router.put('/update-progress/:studentId/:subject', adminAuth, async (req, res) => {
   try {
+    const schoolId = resolveSchoolId(req, res);
+    if (!schoolId) return;
     const { studentId, subject } = req.params;
     const { topicCompleted, resourceCompleted, progressPercentage } = req.body;
 
-    const progress = await StudentProgress.findOne({ studentId });
+    const progress = await StudentProgress.findOne({ studentId, schoolId });
     if (!progress) {
       return res.status(404).json({ error: 'Student progress not found' });
     }

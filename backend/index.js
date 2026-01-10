@@ -114,11 +114,33 @@ const alcoveRouter = require("./routes/alcoveRoute");
 const nifCourseRoute = require("./routes/nifCourseRoute");
 const nifStudentArchiveRoutes = require("./routes/nifStudentArchiveRoutes");
 const uploadRoutes = require("./routes/uploadRoutes");
+const schoolRoutes = require("./routes/schoolRoutes");
+const academicRoutes = require("./routes/academicRoutes");
+const feeRoutes = require("./routes/feeRoutes");
+const reportRoutes = require("./routes/reportRoutes");
+const timetableRoutes = require("./routes/timetableRoutes");
+const notificationRoutes = require("./routes/notificationRoutes");
+const auditLogRoutes = require("./routes/auditLogRoutes");
 
 const app = express();
 
-// Keep CORS permissive as you had it; you can restrict via env if needed
-app.use(cors());
+const allowedOrigins = process.env.CORS_ORIGINS
+  ? process.env.CORS_ORIGINS.split(',').map((o) => o.trim()).filter(Boolean)
+  : null;
+
+app.use(
+  cors({
+    origin: (origin, callback) => {
+      if (!allowedOrigins || allowedOrigins.length === 0) {
+        return callback(null, true);
+      }
+      if (!origin || allowedOrigins.includes(origin)) {
+        return callback(null, true);
+      }
+      return callback(new Error('Not allowed by CORS'));
+    },
+  })
+);
 app.use(express.json());
 
 // Mongo connect
@@ -158,6 +180,14 @@ app.use('/api/nif/students/archived', nifStudentArchiveRoutes);
 
 const nifRoutes = require('./routes/nifRoutes');
 app.use('/api/nif', nifRoutes);
+
+app.use('/api/schools', schoolRoutes);
+app.use('/api/academic', academicRoutes);
+app.use('/api/fees', feeRoutes);
+app.use('/api/reports', reportRoutes);
+app.use('/api/timetable', timetableRoutes);
+app.use('/api/notifications', notificationRoutes);
+app.use('/api/audit-logs', auditLogRoutes);
 
 
 app.use("/api/uploads", uploadRoutes);

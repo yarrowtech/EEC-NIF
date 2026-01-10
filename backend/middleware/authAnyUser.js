@@ -10,7 +10,8 @@ module.exports = function (req, res, next) {
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     req.user = decoded;
-    req.userType = decoded.userType || 'unknown';
+    req.userType = decoded.type === 'admin' ? 'Admin' : decoded.userType || 'unknown';
+    req.schoolId = decoded.schoolId || null;
     next();
   } catch (e) {
     return res.status(401).json({ error: 'Invalid token' });

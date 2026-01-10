@@ -3,18 +3,23 @@ const StudentUser = require('../models/StudentUser');
 
 exports.getWellbeing = async (req, res) => {
   const { studentId } = req.params;
+  const schoolId = req.schoolId || req.admin?.schoolId || null;
+  if (!schoolId) {
+    return res.status(400).json({ msg: 'schoolId is required' });
+  }
 
   try {
-    let wellbeing = await Wellbeing.findOne({ student: studentId });
+    let wellbeing = await Wellbeing.findOne({ student: studentId, schoolId });
 
     if (!wellbeing) {
       // If no wellbeing record exists, create a default one
-      const student = await StudentUser.findById(studentId);
+      const student = await StudentUser.findOne({ _id: studentId, schoolId });
       if (!student) {
         return res.status(404).json({ msg: 'Student not found' });
       }
       wellbeing = new Wellbeing({
         student: studentId,
+        schoolId,
       });
       await wellbeing.save();
     }
@@ -35,18 +40,23 @@ exports.updateWellbeing = async (req, res) => {
     behaviorChanges,
     notes,
   } = req.body;
+  const schoolId = req.schoolId || req.admin?.schoolId || null;
+  if (!schoolId) {
+    return res.status(400).json({ msg: 'schoolId is required' });
+  }
 
   try {
-    let student = await StudentUser.findById(studentId);
+    let student = await StudentUser.findOne({ _id: studentId, schoolId });
     if (!student) {
       return res.status(404).json({ msg: 'Student not found' });
     }
 
-    let wellbeing = await Wellbeing.findOne({ student: studentId });
+    let wellbeing = await Wellbeing.findOne({ student: studentId, schoolId });
 
     if (!wellbeing) {
       wellbeing = new Wellbeing({
         student: studentId,
+        schoolId,
       });
     }
 

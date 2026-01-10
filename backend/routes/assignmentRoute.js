@@ -1,20 +1,34 @@
 const express = require('express');
 const router = express.Router();
 const Assignment = require('../models/Assignment');
+const adminAuth = require('../middleware/adminAuth');
 
+const resolveSchoolId = (req, res) => {
+    const schoolId = req.schoolId || req.admin?.schoolId || null;
+    if (!schoolId) {
+        res.status(400).json({ error: 'schoolId is required' });
+        return null;
+    }
+    return schoolId;
+};
 
-router.get("/fetch", async (req, res) => {
+router.get("/fetch", adminAuth, async (req, res) => {
     try {
-        const assignments = await Assignment.find();
+        const schoolId = resolveSchoolId(req, res);
+        if (!schoolId) return;
+        const assignments = await Assignment.find({ schoolId });
         res.status(200).json(assignments);
     } catch(err) {
         res.status(500).json({ error: "Internal server error" });
     }
 })
-router.post("/add", async (req, res) => {
+router.post("/add", adminAuth, async (req, res) => {
     try {
         const { title, subject, class: className, marks, status, dueDate } = req.body;
+        const schoolId = resolveSchoolId(req, res);
+        if (!schoolId) return;
         const assignment = new Assignment({
+            schoolId,
             title,
             subject,
             class: className,

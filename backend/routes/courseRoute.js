@@ -4,12 +4,22 @@ const adminAuth = require('../middleware/adminAuth');
 const teacherAuth = require('../middleware/authTeacher');
 const Course = require("../models/Course")
 
+const resolveSchoolId = (req, res) => {
+    const schoolId = req.schoolId || req.admin?.schoolId || req.user?.schoolId || null;
+    if (!schoolId) {
+        res.status(400).json({ error: 'schoolId is required' });
+        return null;
+    }
+    return schoolId;
+};
 
 router.post("/add", adminAuth, async (req, res) => {
     try {
         const { courseName, courseCode, description, duration, credits, department, prerequisites, instructor, startingDate } = req.body
-        
+        const schoolId = resolveSchoolId(req, res);
+        if (!schoolId) return;
         const course = new Course({ 
+            schoolId,
             courseName, 
             courseCode, 
             description, 
@@ -38,7 +48,9 @@ router.post("/add", adminAuth, async (req, res) => {
 
 router.get("/fetch", adminAuth, async (req, res) => {
     try {
-        const allCourses = await Course.find({})
+        const schoolId = resolveSchoolId(req, res);
+        if (!schoolId) return;
+        const allCourses = await Course.find({ schoolId })
         res.status(200).json(allCourses)
     } catch(err) {
         res.status(400).json({error: err.message})
@@ -49,8 +61,10 @@ router.get("/fetch", adminAuth, async (req, res) => {
 router.post("/teacher/add", teacherAuth, async (req, res) => {
     try {
         const { courseName, courseCode, description, duration, credits, department, prerequisites } = req.body
-        
+        const schoolId = resolveSchoolId(req, res);
+        if (!schoolId) return;
         const course = new Course({ 
+            schoolId,
             courseName, 
             courseCode, 
             description, 
@@ -79,7 +93,9 @@ router.post("/teacher/add", teacherAuth, async (req, res) => {
 // Teacher route to fetch courses they created
 router.get("/teacher/fetch", teacherAuth, async (req, res) => {
     try {
-        const teacherCourses = await Course.find({ instructor: req.teacher.name })
+        const schoolId = resolveSchoolId(req, res);
+        if (!schoolId) return;
+        const teacherCourses = await Course.find({ schoolId, instructor: req.teacher?.name })
         res.status(200).json(teacherCourses)
     } catch(err) {
         res.status(400).json({error: err.message})

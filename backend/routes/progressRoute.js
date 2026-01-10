@@ -3,13 +3,25 @@ const router = express.Router();
 const StudentProgress = require('../models/StudentProgress');
 const StudentUser = require('../models/StudentUser');
 const Assignment = require('../models/Assignment');
+const adminAuth = require('../middleware/adminAuth');
+
+const resolveSchoolId = (req, res) => {
+  const schoolId = req.schoolId || req.admin?.schoolId || null;
+  if (!schoolId) {
+    res.status(400).json({ error: 'schoolId is required' });
+    return null;
+  }
+  return schoolId;
+};
 
 // Get progress for all students
-router.get('/students', async (req, res) => {
+router.get('/students', adminAuth, async (req, res) => {
   try {
+    const schoolId = resolveSchoolId(req, res);
+    if (!schoolId) return;
     const { grade, section, subject } = req.query;
     
-    let studentFilter = {};
+    let studentFilter = { schoolId };
     if (grade) studentFilter.grade = grade;
     if (section) studentFilter.section = section;
 
@@ -39,11 +51,13 @@ router.get('/students', async (req, res) => {
 });
 
 // Get detailed progress for a specific student
-router.get('/student/:studentId', async (req, res) => {
+router.get('/student/:studentId', adminAuth, async (req, res) => {
   try {
+    const schoolId = resolveSchoolId(req, res);
+    if (!schoolId) return;
     const { studentId } = req.params;
 
-    const progress = await StudentProgress.findOne({ studentId })
+    const progress = await StudentProgress.findOne({ studentId, schoolId })
       .populate('studentId', 'name grade section roll email mobile')
       .populate('submissions.assignmentId', 'title subject dueDate marks')
       .lean();
@@ -60,16 +74,18 @@ router.get('/student/:studentId', async (req, res) => {
 });
 
 // Update student submission score and feedback
-router.put('/submission/:studentId/:assignmentId', async (req, res) => {
+router.put('/submission/:studentId/:assignmentId', adminAuth, async (req, res) => {
   try {
+    const schoolId = resolveSchoolId(req, res);
+    if (!schoolId) return;
     const { studentId, assignmentId } = req.params;
     const { score, feedback, status } = req.body;
 
-    let progress = await StudentProgress.findOne({ studentId });
+    let progress = await StudentProgress.findOne({ studentId, schoolId });
     
     if (!progress) {
       // Create new progress record if doesn't exist
-      progress = new StudentProgress({ studentId, submissions: [] });
+      progress = new StudentProgress({ studentId, schoolId, submissions: [] });
     }
 
     // Find existing submission or create new one
@@ -93,7 +109,7 @@ router.put('/submission/:studentId/:assignmentId', async (req, res) => {
     }
 
     await progress.save();
-    await recalculateProgressMetrics(studentId);
+    await recalculateProgressMetrics(studentId, schoolId);
 
     res.status(200).json({ message: 'Submission updated successfully' });
   } catch (error) {
@@ -103,18 +119,20 @@ router.put('/submission/:studentId/:assignmentId', async (req, res) => {
 });
 
 // Get class performance analytics
-router.get('/analytics', async (req, res) => {
+router.get('/analytics', adminAuth, async (req, res) => {
   try {
+    const schoolId = resolveSchoolId(req, res);
+    if (!schoolId) return;
     const { grade, section, subject } = req.query;
 
-    let studentFilter = {};
+    let studentFilter = { schoolId };
     if (grade) studentFilter.grade = grade;
     if (section) studentFilter.section = section;
 
     const students = await StudentUser.find(studentFilter);
     const studentIds = students.map(student => student._id);
 
-    const progressData = await StudentProgress.find({ studentId: { $in: studentIds } })
+    const progressData = await StudentProgress.find({ studentId: { $in: studentIds }, schoolId })
       .populate('studentId', 'name grade section');
 
     // Calculate analytics
@@ -189,15 +207,15 @@ router.get('/analytics', async (req, res) => {
 });
 
 // Recalculate progress metrics for a student
-async function recalculateProgressMetrics(studentId) {
+async function recalculateProgressMetrics(studentId, schoolId) {
   try {
-    const progress = await StudentProgress.findOne({ studentId });
-    const student = await StudentUser.findById(studentId);
+    const progress = await StudentProgress.findOne({ studentId, schoolId });
+    const student = await StudentUser.findOne({ _id: studentId, schoolId });
     
     if (!progress || !student) return;
 
     // Get all assignments for calculation
-    const assignments = await Assignment.find().lean();
+    const assignments = await Assignment.find({ schoolId }).lean();
     
     // Group submissions by subject
     const subjectMetrics = {};
