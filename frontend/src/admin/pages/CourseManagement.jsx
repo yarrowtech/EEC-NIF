@@ -632,10 +632,10 @@ const handleDeleteCourse = async (course) => {
 
   return (
     <div className="h-screen bg-gradient-to-br from-yellow-50 via-yellow-100 to-amber-100 flex flex-col">
-      <div className=" flex flex-col max-w-7xl mx-auto w-full bg-white/90 border border-yellow-200 ">
+      <div className=" flex flex-col  mx w-full bg-white/90  border-yellow-200 ">
         {/* Header */}
         <div className="flex-shrink-0 p-8 bg-white/90 border-b border-yellow-100">
-          <div className="flex justify-between items-start mb-8 gap-4">
+          <div className="flex justify-between items-start mb-8 gap-2">
             <div>
               <h1 className="text-3xl font-bold text-yellow-700">
                 Course Management

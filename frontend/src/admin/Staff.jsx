@@ -405,7 +405,7 @@ const Staff = ({setShowAdminHeader}) => {
 
   return (
     <div className="h-screen bg-gradient-to-br from-blue-50 via-blue-100 to-indigo-100 flex flex-col">
-      <div className="flex-1 flex flex-col max-w-7xl mx-auto w-full bg-white/90 shadow-2xlborder border-blue-200 overflow-hidden p-5">
+      <div className="flex-1 flex flex-col  mx-auto w-full bg-white/90 shadow-2xlborder border-blue-200 overflow-hidden p-5">
         
         {/* Fixed Header Section */}
         <div className="flex-shrink-0 p- bg-white/90 border-b border-blue-100">

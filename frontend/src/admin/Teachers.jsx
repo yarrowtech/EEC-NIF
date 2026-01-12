@@ -163,7 +163,7 @@ const Teachers = ({setShowAdminHeader}) => {
 
   return (
     <div className="h-screen bg-gradient-to-br from-yellow-50 via-yellow-100 to-amber-100 flex flex-col">
-      <div className="flex-1 flex flex-col max-w-7xl mx-auto w-full bg-white/90 rounded-2xl shadow-2xl m-4 border border-yellow-200 overflow-hidden">
+      <div className="flex-1 flex flex-col  mx-auto w-full bg-white/90 border border-yellow-200 overflow-hidden">
         
         {/* Fixed Header Section */}
         <div className="flex-shrink-0 p-8 bg-white/90 border-b border-yellow-100">
