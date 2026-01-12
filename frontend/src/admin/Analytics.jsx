@@ -1,737 +1,501 @@
 import { useState, useEffect } from 'react';
-import { Line, Pie, Bar, Doughnut } from 'react-chartjs-2';
 import jsPDF from 'jspdf';
 import {
-  Chart as ChartJS,
-  CategoryScale,
-  LinearScale,
-  PointElement,
-  LineElement,
-  BarElement,
-  ArcElement,
-  Title,
+  LineChart,
+  Line,
+  BarChart,
+  Bar,
+  PieChart,
+  Pie,
+  Cell,
+  XAxis,
+  YAxis,
+  CartesianGrid,
   Tooltip,
   Legend,
-} from 'chart.js';
-
-// Register Chart.js components
-ChartJS.register(
-  CategoryScale,
-  LinearScale,
-  PointElement,
-  LineElement,
-  BarElement,
-  ArcElement,
-  Title,
-  Tooltip,
-  Legend
-);
+  ResponsiveContainer,
+  Area,
+  AreaChart
+} from 'recharts';
+import {
+  TrendingUp,
+  TrendingDown,
+  Users,
+  GraduationCap,
+  DollarSign,
+  Download,
+  Calendar,
+  Activity,
+  FileText,
+  CheckCircle,
+  Clock,
+  AlertCircle
+} from 'lucide-react';
 
 const Analytics = ({ setShowAdminHeader }) => {
-  const [activeTab, setActiveTab] = useState('overview');
-  // Fees chart filters
   const [selectedClass, setSelectedClass] = useState('Class 10');
   const [selectedSection, setSelectedSection] = useState('A');
 
-  // (Time period filter removed)
-
-  // making the admin header invisible
   useEffect(() => {
     setShowAdminHeader(true);
   }, []);
 
-  // Data for Student Performance Trend (Line Chart)
-  const performanceData = {
-    labels: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'],
-    datasets: [
-      {
-        label: 'Class 10-A',
-        data: [75, 78, 80, 82, 85, 88],
-        borderColor: '#8b5cf6',
-        backgroundColor: 'rgba(139, 92, 246, 0.2)',
-        fill: true,
-        tension: 0.4,
-      },
-      {
-        label: 'Class 9-B',
-        data: [68, 72, 75, 78, 80, 82],
-        borderColor: '#10b981',
-        backgroundColor: 'rgba(16, 185, 129, 0.2)',
-        fill: true,
-        tension: 0.4,
-      },
-      {
-        label: 'Class 11-C',
-        data: [80, 82, 79, 85, 87, 90],
-        borderColor: '#f59e0b',
-        backgroundColor: 'rgba(245, 158, 11, 0.2)',
-        fill: true,
-        tension: 0.4,
-      },
-    ],
-  };
+  // Key Metrics
+  const keyMetrics = [
+    {
+      title: 'Total Students',
+      value: '1,245',
+      change: '+5.2%',
+      trend: 'up',
+      icon: Users,
+      color: 'blue',
+      description: 'Active students'
+    },
+    {
+      title: 'Attendance Rate',
+      value: '85%',
+      change: '+2.1%',
+      trend: 'up',
+      icon: CheckCircle,
+      color: 'green',
+      description: 'This month'
+    },
+    {
+      title: 'Course Completion',
+      value: '72%',
+      change: '-1.3%',
+      trend: 'down',
+      icon: GraduationCap,
+      color: 'purple',
+      description: 'Average across all'
+    },
+    {
+      title: 'Fees Collected',
+      value: '₹7.8L',
+      change: '+12.5%',
+      trend: 'up',
+      icon: DollarSign,
+      color: 'orange',
+      description: 'Last 6 months'
+    },
+  ];
 
-  // Fees Collection (Bar Chart) with Class/Section dropdowns
-  const classOptions = ['Class 6', 'Class 7', 'Class 8', 'Class 9', 'Class 10', 'Class 11', 'Class 12'];
-  const sectionOptions = ['A', 'B', 'C', 'D'];
+  // Performance data
+  const performanceData = [
+    { month: 'Jan', class10A: 75, class9B: 68, class11C: 80 },
+    { month: 'Feb', class10A: 78, class9B: 72, class11C: 82 },
+    { month: 'Mar', class10A: 80, class9B: 75, class11C: 79 },
+    { month: 'Apr', class10A: 82, class9B: 78, class11C: 85 },
+    { month: 'May', class10A: 85, class9B: 80, class11C: 87 },
+    { month: 'Jun', class10A: 88, class9B: 82, class11C: 90 },
+  ];
 
-  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'];
-
+  // Fees data
   const getSeed = (cls, sec) => {
     const s = (cls + '-' + sec).split('').reduce((acc, ch) => acc + ch.charCodeAt(0), 0);
-    return s % 97 + 3; // simple deterministic seed
+    return s % 97 + 3;
   };
 
-  const feesChartData = (() => {
+  const feesData = (() => {
     const seed = getSeed(selectedClass, selectedSection);
-    const paid = months.map((_, i) => Math.round(50 + ((seed * (i + 1)) % 40))); // 50–90k
-    const pending = months.map((_, i) => Math.round(20 + ((seed * (i + 3)) % 30))); // 20–50k
-    return {
-      labels: months,
-      datasets: [
-        {
-          label: 'Paid (₹k)',
-          data: paid,
-          backgroundColor: '#10b981',
-          borderRadius: 4,
-        },
-        {
-          label: 'Pending (₹k)',
-          data: pending,
-          backgroundColor: '#ef4444',
-          borderRadius: 4,
-        },
-      ],
-    };
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'];
+    return months.map((month, i) => ({
+      month,
+      paid: Math.round(50 + ((seed * (i + 1)) % 40)),
+      pending: Math.round(20 + ((seed * (i + 3)) % 30)),
+    }));
   })();
 
-  const feesChartOptions = {
-    responsive: true,
-    plugins: {
-      legend: { position: 'top' },
-      tooltip: {
-        callbacks: {
-          label: (ctx) => `${ctx.dataset.label}: ₹${ctx.parsed.y}k`,
-        },
-      },
-    },
-    scales: {
-      y: {
-        beginAtZero: true,
-        title: { display: true, text: 'Amount (₹ thousands)' },
-      },
-      x: { title: { display: true, text: 'Month' } },
-    },
-  };
-
-  const performanceOptions = {
-    responsive: true,
-    plugins: {
-      legend: {
-        position: 'top',
-      },
-    },
-    scales: {
-      y: {
-        beginAtZero: false,
-        min: 60,
-        max: 100,
-        title: {
-          display: true,
-          text: 'Performance Score (%)',
-        },
-      },
-      x: {
-        title: {
-          display: true,
-          text: 'Month',
-        },
-      },
-    },
-  };
-
-  // Data for Attendance Breakdown (Pie Chart)
-  const attendanceData = {
-    labels: ['Present', 'Absent', 'Late', 'Excused'],
-    datasets: [
-      {
-        label: 'Attendance',
-        data: [85, 8, 4, 3],
-        backgroundColor: ['#34d399', '#ef4444', '#facc15', '#93c5fd'],
-        borderWidth: 0,
-      },
-    ],
-  };
-
-  const attendanceOptions = {
-    responsive: true,
-    plugins: {
-      legend: {
-        position: 'bottom',
-      },
-    },
-  };
-
-  // Derived summary stats
-  const totalStudentsCount = 1245;
-  const totalTeachersCount = 82;
-  const presentPercentage = attendanceData.datasets[0].data[0];
-  const presentStudentsCount = Math.round(totalStudentsCount * (presentPercentage / 100));
-  const presentTeachersPercent = 92; // demo percent
-  const presentTeachersCount = Math.round(totalTeachersCount * (presentTeachersPercent / 100));
-
-  // Data for Course Progress (Bar Chart)
-  const courseProgressData = {
-    labels: ['Mathematics', 'Science', 'History', 'English', 'Art', 'Physics', 'Chemistry'],
-    datasets: [
-      {
-        label: 'Completion Rate (%)',
-        data: [85, 70, 65, 90, 60, 75, 68],
-        backgroundColor: [
-          '#8b5cf6',
-          '#10b981',
-          '#f59e0b',
-          '#3b82f6',
-          '#ec4899',
-          '#6366f1',
-          '#14b8a6'
-        ],
-        borderRadius: 4,
-      },
-    ],
-  };
-
-  const courseProgressOptions = {
-    responsive: true,
-    plugins: {
-      legend: {
-        display: false,
-      },
-    },
-    scales: {
-      y: {
-        beginAtZero: true,
-        max: 100,
-        title: {
-          display: true,
-          text: 'Completion Rate (%)',
-        },
-      },
-    },
-  };
-
-  // Data for Assignment Submission (Doughnut Chart)
-  const assignmentData = {
-    labels: ['Submitted', 'Pending', 'Late', 'Not Submitted'],
-    datasets: [
-      {
-        label: 'Assignments',
-        data: [72, 15, 8, 5],
-        backgroundColor: ['#10b981', '#f59e0b', '#ef4444', '#6b7280'],
-        borderWidth: 0,
-      },
-    ],
-  };
-
-  // Data for Grade Distribution
-  const gradeDistributionData = {
-    labels: ['A (90-100)', 'B (80-89)', 'C (70-79)', 'D (60-69)', 'F (<60)'],
-    datasets: [
-      {
-        label: 'Students',
-        data: [120, 185, 210, 95, 40],
-        backgroundColor: [
-          '#10b981',
-          '#3b82f6',
-          '#f59e0b',
-          '#ef4444',
-          '#6b7280'
-        ],
-        borderRadius: 4,
-      },
-    ],
-  };
-
-  // Teacher Activity Data
-  const teacherActivities = [
-    { id: 1, name: 'Ms. Johnson', action: 'Created Lesson', date: 'Jun 15, 2025', details: 'Algebra Basics for Class 8', avatarColor: 'bg-blue-500' },
-    { id: 2, name: 'Mr. Patel', action: 'Graded Exam', date: 'Jun 14, 2025', details: 'Midterm Science Exam - Class 9', avatarColor: 'bg-green-500' },
-    { id: 3, name: 'Ms. Smith', action: 'Updated Timetable', date: 'Jun 13, 2025', details: 'Added extra session for History', avatarColor: 'bg-purple-500' },
-    { id: 4, name: 'Mr. Davis', action: 'Uploaded Resources', date: 'Jun 12, 2025', details: 'Chemistry lab manual', avatarColor: 'bg-yellow-500' },
-    { id: 5, name: 'Ms. Garcia', action: 'Created Assignment', date: 'Jun 11, 2025', details: 'English essay - due Jun 18', avatarColor: 'bg-pink-500' },
+  // Attendance breakdown
+  const attendanceData = [
+    { name: 'Present', value: 85, color: '#10b981' },
+    { name: 'Absent', value: 8, color: '#ef4444' },
+    { name: 'Late', value: 4, color: '#f59e0b' },
+    { name: 'Excused', value: 3, color: '#6b7280' },
   ];
 
-  // Upcoming Events Data
-  const upcomingEvents = [
-    { id: 1, title: 'Final Exams', date: 'Jul 5, 2025', type: 'exam' },
-    { id: 2, title: 'Parent-Teacher Meeting', date: 'Jul 12, 2025', type: 'meeting' },
-    { id: 3, title: 'Science Fair', date: 'Jul 20, 2025', type: 'event' },
-    { id: 4, title: 'End of Term', date: 'Jul 30, 2025', type: 'academic' },
+  // Course progress
+  const courseProgressData = [
+    { subject: 'Math', completion: 85 },
+    { subject: 'Science', completion: 70 },
+    { subject: 'History', completion: 65 },
+    { subject: 'English', completion: 90 },
+    { subject: 'Art', completion: 60 },
   ];
 
-  // Export Analytics to PDF
-  const exportAnalyticsToPDF = () => {
-    const pdf = new jsPDF('p', 'mm', 'a4');
-    const pageWidth = pdf.internal.pageSize.width;
-    const pageHeight = pdf.internal.pageSize.height;
-    let yPosition = 20;
-    const lineHeight = 7;
-    const sectionSpacing = 15;
-    const currentDate = new Date().toLocaleDateString();
+  // Grade distribution
+  const gradeDistributionData = [
+    { grade: 'A', students: 120, color: '#10b981' },
+    { grade: 'B', students: 185, color: '#3b82f6' },
+    { grade: 'C', students: 210, color: '#f59e0b' },
+    { grade: 'D', students: 95, color: '#ef4444' },
+    { grade: 'F', students: 40, color: '#6b7280' },
+  ];
 
-    // Helper function to add new page if needed
-    const checkNewPage = (requiredSpace) => {
-      if (yPosition + requiredSpace > pageHeight - 20) {
-        pdf.addPage();
-        yPosition = 20;
+  // Assignment status
+  const assignmentStats = [
+    { label: 'Submitted', value: 72, color: '#10b981' },
+    { label: 'Pending', value: 15, color: '#f59e0b' },
+    { label: 'Late', value: 8, color: '#ef4444' },
+    { label: 'Not Submitted', value: 5, color: '#6b7280' },
+  ];
+
+  // Recent activity
+  const recentActivity = [
+    { id: 1, teacher: 'Ms. Johnson', action: 'Created Lesson', subject: 'Algebra Basics', time: '2 hours ago', color: 'blue' },
+    { id: 2, teacher: 'Mr. Patel', action: 'Graded Exam', subject: 'Midterm Science', time: '5 hours ago', color: 'green' },
+    { id: 3, teacher: 'Ms. Smith', action: 'Updated Timetable', subject: 'History Session', time: '1 day ago', color: 'purple' },
+    { id: 4, teacher: 'Mr. Davis', action: 'Uploaded Resources', subject: 'Chemistry Lab', time: '2 days ago', color: 'orange' },
+  ];
+
+  const getColorClasses = (color) => {
+    const colors = {
+      blue: {
+        bg: 'bg-blue-50',
+        text: 'text-blue-600',
+        icon: 'text-blue-500',
+        gradient: 'from-blue-500 to-blue-600',
+        light: 'bg-blue-100'
+      },
+      green: {
+        bg: 'bg-green-50',
+        text: 'text-green-600',
+        icon: 'text-green-500',
+        gradient: 'from-green-500 to-green-600',
+        light: 'bg-green-100'
+      },
+      purple: {
+        bg: 'bg-purple-50',
+        text: 'text-purple-600',
+        icon: 'text-purple-500',
+        gradient: 'from-purple-500 to-purple-600',
+        light: 'bg-purple-100'
+      },
+      orange: {
+        bg: 'bg-orange-50',
+        text: 'text-orange-600',
+        icon: 'text-orange-500',
+        gradient: 'from-orange-500 to-orange-600',
+        light: 'bg-orange-100'
       }
     };
+    return colors[color] || colors.blue;
+  };
 
-    // Title
+  const exportAnalyticsToPDF = () => {
+    const pdf = new jsPDF('p', 'mm', 'a4');
+    const currentDate = new Date().toLocaleDateString();
+
     pdf.setFontSize(24);
     pdf.setFont(undefined, 'bold');
-    pdf.text('Analytics Dashboard Report', pageWidth / 2, yPosition, { align: 'center' });
-    
-    yPosition += 10;
+    pdf.text('Analytics Report', 105, 20, { align: 'center' });
+
     pdf.setFontSize(12);
     pdf.setFont(undefined, 'normal');
-    pdf.text(`Generated on: ${currentDate}`, pageWidth / 2, yPosition, { align: 'center' });
-    
-    yPosition += sectionSpacing;
+    pdf.text(`Generated on: ${currentDate}`, 105, 30, { align: 'center' });
 
-    // Summary Statistics Section
-    checkNewPage(60);
+    let yPos = 50;
+
+    // Key Metrics
     pdf.setFontSize(16);
     pdf.setFont(undefined, 'bold');
-    pdf.text('Summary Statistics', 20, yPosition);
-    yPosition += 10;
+    pdf.text('Key Metrics', 20, yPos);
+    yPos += 10;
 
     pdf.setFontSize(10);
     pdf.setFont(undefined, 'normal');
-    
-    const summaryStats = [
-      [`Total Students: ${totalStudentsCount.toLocaleString()}`, `Present Students: ${presentStudentsCount.toLocaleString()} (${presentPercentage}%)`],
-      [`Total Teachers: ${totalTeachersCount}`, `Present Teachers: ${presentTeachersCount} (${presentTeachersPercent}%)`],
-      [`Today's Attendance: ${presentPercentage}%`, `Updated: Today`]
-    ];
-
-    summaryStats.forEach(row => {
-      pdf.text(row[0], 25, yPosition);
-      pdf.text(row[1], 110, yPosition);
-      yPosition += lineHeight;
+    keyMetrics.forEach(metric => {
+      pdf.text(`${metric.title}: ${metric.value} (${metric.change})`, 25, yPos);
+      yPos += 7;
     });
 
-    yPosition += sectionSpacing;
-
-    // Student Performance Trend Data
-    checkNewPage(80);
-    pdf.setFontSize(16);
-    pdf.setFont(undefined, 'bold');
-    pdf.text('Student Performance Trend', 20, yPosition);
-    yPosition += 10;
-
-    pdf.setFontSize(10);
-    pdf.setFont(undefined, 'normal');
-    pdf.text('Average performance scores by class over the months:', 20, yPosition);
-    yPosition += lineHeight;
-
-    performanceData.datasets.forEach((dataset) => {
-      pdf.setFont(undefined, 'bold');
-      pdf.text(`${dataset.label}:`, 25, yPosition);
-      pdf.setFont(undefined, 'normal');
-      yPosition += lineHeight;
-      
-      performanceData.labels.forEach((label, index) => {
-        pdf.text(`  ${label}: ${dataset.data[index]}%`, 30, yPosition);
-        yPosition += lineHeight;
-      });
-      yPosition += 5;
-    });
-
-    yPosition += sectionSpacing;
-
-    // Fees Collection Data
-    checkNewPage(60);
-    pdf.setFontSize(16);
-    pdf.setFont(undefined, 'bold');
-    pdf.text(`Fees Collection - ${selectedClass} Section ${selectedSection}`, 20, yPosition);
-    yPosition += 10;
-
-    pdf.setFontSize(10);
-    pdf.setFont(undefined, 'normal');
-    
-    months.forEach((month, index) => {
-      const paid = feesChartData.datasets[0].data[index];
-      const pending = feesChartData.datasets[1].data[index];
-      pdf.text(`${month}: Paid ₹${paid}k, Pending ₹${pending}k`, 25, yPosition);
-      yPosition += lineHeight;
-    });
-
-    yPosition += sectionSpacing;
-
-    // Course Progress Data
-    checkNewPage(80);
-    pdf.setFontSize(16);
-    pdf.setFont(undefined, 'bold');
-    pdf.text('Course Progress', 20, yPosition);
-    yPosition += 10;
-
-    pdf.setFontSize(10);
-    pdf.setFont(undefined, 'normal');
-    pdf.text('Completion rates for active courses:', 20, yPosition);
-    yPosition += lineHeight;
-
-    courseProgressData.labels.forEach((course, index) => {
-      const completion = courseProgressData.datasets[0].data[index];
-      pdf.text(`  ${course}: ${completion}%`, 25, yPosition);
-      yPosition += lineHeight;
-    });
-
-    yPosition += sectionSpacing;
-
-    // Attendance Breakdown
-    checkNewPage(50);
-    pdf.setFontSize(16);
-    pdf.setFont(undefined, 'bold');
-    pdf.text('Attendance Breakdown', 20, yPosition);
-    yPosition += 10;
-
-    pdf.setFontSize(10);
-    pdf.setFont(undefined, 'normal');
-    attendanceData.labels.forEach((label, index) => {
-      const value = attendanceData.datasets[0].data[index];
-      pdf.text(`  ${label}: ${value}%`, 25, yPosition);
-      yPosition += lineHeight;
-    });
-
-    yPosition += sectionSpacing;
-
-    // Assignment Status
-    checkNewPage(50);
-    pdf.setFontSize(16);
-    pdf.setFont(undefined, 'bold');
-    pdf.text('Assignment Status', 20, yPosition);
-    yPosition += 10;
-
-    pdf.setFontSize(10);
-    pdf.setFont(undefined, 'normal');
-    assignmentData.labels.forEach((label, index) => {
-      const value = assignmentData.datasets[0].data[index];
-      pdf.text(`  ${label}: ${value}%`, 25, yPosition);
-      yPosition += lineHeight;
-    });
-
-    yPosition += sectionSpacing;
-
-    // Grade Distribution
-    checkNewPage(60);
-    pdf.setFontSize(16);
-    pdf.setFont(undefined, 'bold');
-    pdf.text('Grade Distribution', 20, yPosition);
-    yPosition += 10;
-
-    pdf.setFontSize(10);
-    pdf.setFont(undefined, 'normal');
-    gradeDistributionData.labels.forEach((grade, index) => {
-      const count = gradeDistributionData.datasets[0].data[index];
-      pdf.text(`  ${grade}: ${count} students`, 25, yPosition);
-      yPosition += lineHeight;
-    });
-
-    yPosition += sectionSpacing;
-
-    // Recent Teacher Activity
-    checkNewPage(80);
-    pdf.setFontSize(16);
-    pdf.setFont(undefined, 'bold');
-    pdf.text('Recent Teacher Activity', 20, yPosition);
-    yPosition += 10;
-
-    pdf.setFontSize(10);
-    pdf.setFont(undefined, 'normal');
-    teacherActivities.forEach((activity) => {
-      checkNewPage(15);
-      pdf.setFont(undefined, 'bold');
-      pdf.text(`${activity.name} - ${activity.date}`, 25, yPosition);
-      pdf.setFont(undefined, 'normal');
-      yPosition += lineHeight;
-      pdf.text(`  Action: ${activity.action}`, 25, yPosition);
-      yPosition += lineHeight;
-      pdf.text(`  Details: ${activity.details}`, 25, yPosition);
-      yPosition += lineHeight + 2;
-    });
-
-    yPosition += sectionSpacing;
-
-    // Upcoming Events
-    checkNewPage(60);
-    pdf.setFontSize(16);
-    pdf.setFont(undefined, 'bold');
-    pdf.text('Upcoming Events', 20, yPosition);
-    yPosition += 10;
-
-    pdf.setFontSize(10);
-    pdf.setFont(undefined, 'normal');
-    upcomingEvents.forEach((event) => {
-      checkNewPage(15);
-      pdf.setFont(undefined, 'bold');
-      pdf.text(`${event.title} - ${event.date}`, 25, yPosition);
-      pdf.setFont(undefined, 'normal');
-      yPosition += lineHeight;
-      pdf.text(`  Type: ${event.type}`, 25, yPosition);
-      yPosition += lineHeight + 2;
-    });
-
-    // Footer
-    pdf.setFontSize(8);
-    pdf.setFont(undefined, 'italic');
-    pdf.text('Generated by School Management System - Analytics Dashboard', pageWidth / 2, pageHeight - 10, { align: 'center' });
-
-    // Save the PDF
     pdf.save(`analytics-report-${currentDate.replace(/\//g, '-')}.pdf`);
   };
 
   return (
-    <div className="w-full min-h-screen bg-gray-50 p-6">
-      <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center mb-6">
-        <h2 className="text-2xl font-bold text-gray-800 mb-4 lg:mb-0">Analytics Dashboard</h2>
-        <div className="flex flex-col sm:flex-row gap-3">
-          <button 
-            onClick={exportAnalyticsToPDF}
-            className="flex items-center space-x-2 bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 transition-colors"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-            </svg>
-            <span>Export Report</span>
-          </button>
-          <div className="bg-white rounded-lg border border-gray-200 p-1 flex">
-            <button 
-              className={`px-3 py-1 rounded-md text-sm font-medium ${activeTab === 'overview' ? 'bg-purple-100 text-purple-700' : 'text-gray-600 hover:text-gray-800'}`}
-              onClick={() => setActiveTab('overview')}
-            >
-              Overview
-            </button>
-            <button 
-              className={`px-3 py-1 rounded-md text-sm font-medium ${activeTab === 'detailed' ? 'bg-purple-100 text-purple-700' : 'text-gray-600 hover:text-gray-800'}`}
-              onClick={() => setActiveTab('detailed')}
-            >
-              Detailed
-            </button>
-          </div>
-        </div>
-      </div>
+    <div className="min-h-screen bg-gray-50">
+      <div className="mx-auto p-6 space-y-6">
 
-      {/* Summary Stats */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 mb-8">
-        {/* Total Students */}
-        <div className="bg-white p-5 rounded-xl shadow-sm border border-gray-100">
-          <div className="flex items-center justify-between">
-            <div>
-              <h3 className="text-sm font-medium text-gray-600">Total Students</h3>
-              <p className="text-2xl font-bold text-gray-800 mt-1">{totalStudentsCount.toLocaleString()}</p>
-              <p className="text-xs text-green-600 mt-1 flex items-center">Updated today</p>
-            </div>
-            <div className="h-12 w-12 rounded-lg bg-purple-100 flex items-center justify-center">
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-purple-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-              </svg>
-            </div>
-          </div>
-        </div>
-
-        {/* Present Students */}
-        <div className="bg-white p-5 rounded-xl shadow-sm border border-gray-100">
-          <div className="flex items-center justify-between">
-            <div>
-              <h3 className="text-sm font-medium text-gray-600">Present Students</h3>
-              <p className="text-2xl font-bold text-gray-800 mt-1">{presentStudentsCount.toLocaleString()}</p>
-              <p className="text-xs text-green-600 mt-1 flex items-center">{presentPercentage}% present</p>
-            </div>
-            <div className="h-12 w-12 rounded-lg bg-green-100 flex items-center justify-center">
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-              </svg>
-            </div>
-          </div>
-        </div>
-
-        {/* Present Teachers */}
-        <div className="bg-white p-5 rounded-xl shadow-sm border border-gray-100">
-          <div className="flex items-center justify-between">
-            <div>
-              <h3 className="text-sm font-medium text-gray-600">Present Teachers</h3>
-              <p className="text-2xl font-bold text-gray-800 mt-1">{presentTeachersCount}</p>
-              <p className="text-xs text-green-600 mt-1 flex items-center">{presentTeachersPercent}% present</p>
-            </div>
-            <div className="h-12 w-12 rounded-lg bg-blue-100 flex items-center justify-center">
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 3v4M19 3v4M4 7h16M6 11h12M6 15h8M6 19h6" />
-              </svg>
-            </div>
-          </div>
-        </div>
-
-        {/* Attendance Today */}
-        <div className="bg-white p-5 rounded-xl shadow-sm border border-gray-100">
-          <div className="flex items-center justify-between">
-            <div>
-              <h3 className="text-sm font-medium text-gray-600">Attendance Today</h3>
-              <p className="text-2xl font-bold text-gray-800 mt-1">{presentPercentage}%</p>
-              <p className="text-xs text-green-600 mt-1 flex items-center">Based on attendance breakdown</p>
-            </div>
-            <div className="h-12 w-12 rounded-lg bg-yellow-100 flex items-center justify-center">
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-yellow-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-              </svg>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-        {/* Student Performance Trend */}
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
-          <h3 className="text-lg font-semibold text-gray-800 mb-2">Student Performance Trend</h3>
-          <p className="text-gray-600 text-sm mb-4">Average performance scores by class over time</p>
-          <div className="w-full h-80">
-            <Line data={performanceData} options={performanceOptions} />
-          </div>
-        </div>
-        {/* Fees Collection */}
-      <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 mb-8">
-        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-2">
+        {/* Header */}
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
           <div>
-            <h3 className="text-lg font-semibold text-gray-800">Fees Collection</h3>
-            <p className="text-gray-600 text-sm">Paid vs Pending by month</p>
+            <h1 className="text-3xl font-bold text-gray-900 mb-2">Analytics</h1>
+            <p className="text-gray-600">Comprehensive insights and performance metrics</p>
           </div>
-          <div className="flex gap-3">
-            <select
-              value={selectedClass}
-              onChange={(e) => setSelectedClass(e.target.value)}
-              className="border border-gray-300 rounded-lg px-3 py-2 text-gray-700 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
-            >
-              {classOptions.map(c => (
-                <option key={c} value={c}>{c}</option>
-              ))}
-            </select>
-            <select
-              value={selectedSection}
-              onChange={(e) => setSelectedSection(e.target.value)}
-              className="border border-gray-300 rounded-lg px-3 py-2 text-gray-700 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
-            >
-              {sectionOptions.map(s => (
-                <option key={s} value={s}>Section {s}</option>
-              ))}
-            </select>
-          </div>
-        </div>
-        <div className="w-full h-80">
-          <Bar data={feesChartData} options={feesChartOptions} />
-        </div>
-      </div>
-        {/* Course Progress */}
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
-          <h3 className="text-lg font-semibold text-gray-800 mb-2">Course Progress</h3>
-          <p className="text-gray-600 text-sm mb-4">Completion rates for active courses</p>
-          <div className="w-full h-80">
-            <Bar data={courseProgressData} options={courseProgressOptions} />
-          </div>
-        </div>
-      </div>
-
-      {/* Fees Collection */}
-      
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
-        {/* Attendance Breakdown */}
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
-          <h3 className="text-lg font-semibold text-gray-800 mb-2">Attendance Breakdown</h3>
-          <p className="text-gray-600 text-sm mb-4">Distribution of student attendance</p>
-          <div className="w-full max-w-xs mx-auto h-64">
-            <Pie data={attendanceData} options={attendanceOptions} />
-          </div>
+          <button
+            onClick={exportAnalyticsToPDF}
+            className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-lg hover:from-blue-600 hover:to-blue-700 transition-all shadow-sm hover:shadow-md"
+          >
+            <Download className="w-4 h-4" />
+            Export Report
+          </button>
         </div>
 
-        {/* Assignment Submission */}
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
-          <h3 className="text-lg font-semibold text-gray-800 mb-2">Assignment Status</h3>
-          <p className="text-gray-600 text-sm mb-4">Current assignment submission rates</p>
-          <div className="w-full max-w-xs mx-auto h-64">
-            <Doughnut data={assignmentData} options={attendanceOptions} />
-          </div>
-        </div>
+        {/* Key Metrics */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          {keyMetrics.map((metric, idx) => {
+            const Icon = metric.icon;
+            const colors = getColorClasses(metric.color);
+            const TrendIcon = metric.trend === 'up' ? TrendingUp : TrendingDown;
 
-        {/* Grade Distribution */}
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
-          <h3 className="text-lg font-semibold text-gray-800 mb-2">Grade Distribution</h3>
-          <p className="text-gray-600 text-sm mb-4">Distribution of student grades</p>
-          <div className="w-full h-64">
-            <Bar 
-              data={gradeDistributionData} 
-              options={{
-                responsive: true,
-                plugins: {
-                  legend: {
-                    display: false,
-                  },
-                },
-                scales: {
-                  y: {
-                    beginAtZero: true,
-                    title: {
-                      display: true,
-                      text: 'Number of Students',
-                    },
-                  },
-                },
-              }} 
-            />
-          </div>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Teacher Activity */}
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
-          <h3 className="text-lg font-semibold text-gray-800 mb-4">Recent Teacher Activity</h3>
-          <div className="space-y-4">
-            {teacherActivities.map(activity => (
-              <div key={activity.id} className="flex items-start p-3 rounded-lg hover:bg-gray-50 transition-colors">
-                <div className={`h-10 w-10 rounded-full ${activity.avatarColor} flex items-center justify-center text-white font-medium mr-3`}>
-                  {activity.name.split(' ')[0][0]}{activity.name.split(' ')[1][0]}
-                </div>
-                <div className="flex-1">
-                  <div className="flex justify-between items-start">
-                    <h4 className="font-medium text-gray-800">{activity.name}</h4>
-                    <span className="text-xs text-gray-500">{activity.date}</span>
+            return (
+              <div key={idx} className="bg-white rounded-xl p-6 shadow-sm border border-gray-200 hover:shadow-md transition-shadow">
+                <div className="flex items-start justify-between mb-4">
+                  <div className={`p-3 rounded-lg ${colors.bg}`}>
+                    <Icon className={`w-6 h-6 ${colors.icon}`} />
                   </div>
-                  <p className="text-sm text-gray-700">{activity.action}: <span className="text-gray-600">{activity.details}</span></p>
+                  <div className={`flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium ${
+                    metric.trend === 'up' ? 'bg-green-50 text-green-600' : 'bg-red-50 text-red-600'
+                  }`}>
+                    <TrendIcon className="w-3 h-3" />
+                    {metric.change}
+                  </div>
                 </div>
+                <h3 className="text-sm font-medium text-gray-600 mb-1">{metric.title}</h3>
+                <p className="text-3xl font-bold text-gray-900 mb-1">{metric.value}</p>
+                <p className="text-xs text-gray-500">{metric.description}</p>
               </div>
-            ))}
-          </div>
+            );
+          })}
         </div>
 
-        {/* Upcoming Events */}
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
-          <h3 className="text-lg font-semibold text-gray-800 mb-4">Upcoming Events</h3>
-          <div className="space-y-4">
-            {upcomingEvents.map(event => (
-              <div key={event.id} className="p-4 rounded-lg border border-gray-200 hover:border-purple-300 transition-colors">
-                <div className="flex justify-between items-start mb-2">
-                  <h4 className="font-medium text-gray-800">{event.title}</h4>
-                  <span className="text-xs px-2 py-1 bg-gray-100 text-gray-700 rounded-full capitalize">{event.type}</span>
-                </div>
-                <div className="flex items-center text-sm text-gray-600">
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                  </svg>
-                  {event.date}
-                </div>
-              </div>
-            ))}
+        {/* Main Charts */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+
+          {/* Performance Trend */}
+          <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-200">
+            <div className="mb-6">
+              <h2 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+                <Activity className="w-5 h-5 text-gray-700" />
+                Performance Trend
+              </h2>
+              <p className="text-sm text-gray-600 mt-1">Average scores by class over time</p>
+            </div>
+            <ResponsiveContainer width="100%" height={300}>
+              <AreaChart data={performanceData}>
+                <defs>
+                  <linearGradient id="colorClass10A" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.3}/>
+                    <stop offset="95%" stopColor="#8b5cf6" stopOpacity={0}/>
+                  </linearGradient>
+                  <linearGradient id="colorClass9B" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#10b981" stopOpacity={0.3}/>
+                    <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
+                  </linearGradient>
+                  <linearGradient id="colorClass11C" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#f59e0b" stopOpacity={0.3}/>
+                    <stop offset="95%" stopColor="#f59e0b" stopOpacity={0}/>
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                <XAxis dataKey="month" stroke="#9ca3af" style={{ fontSize: '12px' }} />
+                <YAxis stroke="#9ca3af" style={{ fontSize: '12px' }} domain={[60, 100]} />
+                <Tooltip
+                  contentStyle={{
+                    backgroundColor: 'white',
+                    border: '1px solid #e5e7eb',
+                    borderRadius: '8px',
+                    fontSize: '12px'
+                  }}
+                />
+                <Legend wrapperStyle={{ fontSize: '12px' }} />
+                <Area type="monotone" dataKey="class10A" stroke="#8b5cf6" fillOpacity={1} fill="url(#colorClass10A)" name="Class 10-A" />
+                <Area type="monotone" dataKey="class9B" stroke="#10b981" fillOpacity={1} fill="url(#colorClass9B)" name="Class 9-B" />
+                <Area type="monotone" dataKey="class11C" stroke="#f59e0b" fillOpacity={1} fill="url(#colorClass11C)" name="Class 11-C" />
+              </AreaChart>
+            </ResponsiveContainer>
           </div>
+
+          {/* Fees Collection */}
+          <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-200">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
+              <div>
+                <h2 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+                  <DollarSign className="w-5 h-5 text-gray-700" />
+                  Fees Collection
+                </h2>
+                <p className="text-sm text-gray-600 mt-1">Paid vs Pending by month</p>
+              </div>
+              <div className="flex gap-2">
+                <select
+                  value={selectedClass}
+                  onChange={(e) => setSelectedClass(e.target.value)}
+                  className="px-3 py-1.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  {['Class 6', 'Class 7', 'Class 8', 'Class 9', 'Class 10', 'Class 11', 'Class 12'].map(c => (
+                    <option key={c} value={c}>{c}</option>
+                  ))}
+                </select>
+                <select
+                  value={selectedSection}
+                  onChange={(e) => setSelectedSection(e.target.value)}
+                  className="px-3 py-1.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  {['A', 'B', 'C', 'D'].map(s => (
+                    <option key={s} value={s}>Sec {s}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+            <ResponsiveContainer width="100%" height={300}>
+              <BarChart data={feesData}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                <XAxis dataKey="month" stroke="#9ca3af" style={{ fontSize: '12px' }} />
+                <YAxis stroke="#9ca3af" style={{ fontSize: '12px' }} />
+                <Tooltip
+                  contentStyle={{
+                    backgroundColor: 'white',
+                    border: '1px solid #e5e7eb',
+                    borderRadius: '8px',
+                    fontSize: '12px'
+                  }}
+                  formatter={(value) => [`₹${value}k`, '']}
+                />
+                <Legend wrapperStyle={{ fontSize: '12px' }} />
+                <Bar dataKey="paid" fill="#10b981" radius={[8, 8, 0, 0]} name="Paid" />
+                <Bar dataKey="pending" fill="#ef4444" radius={[8, 8, 0, 0]} name="Pending" />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+
         </div>
+
+        {/* Secondary Charts */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+          {/* Attendance Breakdown */}
+          <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-200">
+            <h2 className="text-lg font-semibold text-gray-900 mb-1">Attendance</h2>
+            <p className="text-sm text-gray-600 mb-6">Distribution breakdown</p>
+            <ResponsiveContainer width="100%" height={200}>
+              <PieChart>
+                <Pie
+                  data={attendanceData}
+                  cx="50%"
+                  cy="50%"
+                  innerRadius={60}
+                  outerRadius={80}
+                  paddingAngle={2}
+                  dataKey="value"
+                >
+                  {attendanceData.map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={entry.color} />
+                  ))}
+                </Pie>
+                <Tooltip />
+              </PieChart>
+            </ResponsiveContainer>
+            <div className="grid grid-cols-2 gap-3 mt-4">
+              {attendanceData.map((item, idx) => (
+                <div key={idx} className="flex items-center gap-2">
+                  <div className="w-3 h-3 rounded-full" style={{ backgroundColor: item.color }}></div>
+                  <span className="text-xs text-gray-600">{item.name}: {item.value}%</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Course Progress */}
+          <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-200">
+            <h2 className="text-lg font-semibold text-gray-900 mb-1">Course Progress</h2>
+            <p className="text-sm text-gray-600 mb-4">Completion rates</p>
+            <div className="space-y-4">
+              {courseProgressData.map((course, idx) => (
+                <div key={idx}>
+                  <div className="flex justify-between items-center mb-1">
+                    <span className="text-sm font-medium text-gray-700">{course.subject}</span>
+                    <span className="text-sm font-semibold text-gray-900">{course.completion}%</span>
+                  </div>
+                  <div className="w-full bg-gray-200 rounded-full h-2">
+                    <div
+                      className="bg-gradient-to-r from-blue-500 to-purple-500 h-2 rounded-full transition-all duration-300"
+                      style={{ width: `${course.completion}%` }}
+                    ></div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Grade Distribution */}
+          <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-200">
+            <h2 className="text-lg font-semibold text-gray-900 mb-1">Grade Distribution</h2>
+            <p className="text-sm text-gray-600 mb-6">Student grades</p>
+            <ResponsiveContainer width="100%" height={200}>
+              <BarChart data={gradeDistributionData} layout="vertical">
+                <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                <XAxis type="number" stroke="#9ca3af" style={{ fontSize: '12px' }} />
+                <YAxis type="category" dataKey="grade" stroke="#9ca3af" style={{ fontSize: '12px' }} />
+                <Tooltip
+                  contentStyle={{
+                    backgroundColor: 'white',
+                    border: '1px solid #e5e7eb',
+                    borderRadius: '8px',
+                    fontSize: '12px'
+                  }}
+                />
+                <Bar dataKey="students" radius={[0, 4, 4, 0]}>
+                  {gradeDistributionData.map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={entry.color} />
+                  ))}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+
+        </div>
+
+        {/* Assignment Status & Recent Activity */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+
+          {/* Assignment Status */}
+          <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-200">
+            <h2 className="text-lg font-semibold text-gray-900 mb-1 flex items-center gap-2">
+              <FileText className="w-5 h-5 text-gray-700" />
+              Assignment Status
+            </h2>
+            <p className="text-sm text-gray-600 mb-6">Current submission rates</p>
+            <div className="grid grid-cols-2 gap-4">
+              {assignmentStats.map((stat, idx) => (
+                <div key={idx} className="p-4 rounded-lg border-2" style={{ borderColor: stat.color, backgroundColor: stat.color + '10' }}>
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-xs font-medium text-gray-600">{stat.label}</span>
+                    <div className="w-2 h-2 rounded-full" style={{ backgroundColor: stat.color }}></div>
+                  </div>
+                  <p className="text-2xl font-bold" style={{ color: stat.color }}>{stat.value}%</p>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Recent Activity */}
+          <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-200">
+            <h2 className="text-lg font-semibold text-gray-900 mb-1 flex items-center gap-2">
+              <Clock className="w-5 h-5 text-gray-700" />
+              Recent Activity
+            </h2>
+            <p className="text-sm text-gray-600 mb-4">Latest teacher actions</p>
+            <div className="space-y-3">
+              {recentActivity.map((activity) => {
+                const colors = getColorClasses(activity.color);
+                return (
+                  <div key={activity.id} className="flex items-start gap-3 p-3 rounded-lg bg-gray-50 hover:bg-gray-100 transition-colors">
+                    <div className={`w-10 h-10 rounded-full ${colors.bg} flex items-center justify-center flex-shrink-0`}>
+                      <Activity className={`w-5 h-5 ${colors.icon}`} />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-gray-900">{activity.teacher}</p>
+                      <p className="text-xs text-gray-600">{activity.action}: {activity.subject}</p>
+                      <p className="text-xs text-gray-500 mt-1">{activity.time}</p>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+        </div>
+
       </div>
     </div>
   );
