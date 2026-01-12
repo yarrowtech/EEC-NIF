@@ -1,68 +1,123 @@
 import React, { useState, useEffect } from 'react';
-import { BarChart2, Bus, Users, UserCheck, User, Calendar as CalendarIcon, FileText, PhoneCall, School } from 'lucide-react';
+import {
+  BarChart2,
+  Bus,
+  Users,
+  UserCheck,
+  User,
+  Calendar as CalendarIcon,
+  FileText,
+  School,
+  TrendingUp,
+  BookOpen,
+  GraduationCap,
+  UsersRound,
+  Plus,
+  Bell,
+  FileBarChart,
+  AlertCircle,
+  Clock
+} from 'lucide-react';
+import {
+  AreaChart,
+  Area,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+  Legend
+} from 'recharts';
 
-const stats = [
-  { label: 'Teachers', value: 12, icon: '👨‍🏫', trend: '+2' },
-  { label: 'Students', value: 120, icon: '👨‍🎓', trend: '+15' },
-  { label: 'Courses', value: 18, icon: '📚', trend: '+3' },
-  { label: 'Parents', value: 110, icon: '👥', trend: '+8' },
-];
-
-const quickActions = [
-  { title: 'Add New Student', action: 'student', icon: '➕' },
-  { title: 'Create Course', action: 'course', icon: '📝' },
-  { title: 'Send Notification', action: 'notification', icon: '📢' },
-  { title: 'Generate Report', action: 'report', icon: '📊' },
-];
-
-// Derived attendance figures (aligned with Analytics)
+// Derived attendance figures
 const totalStudentsCount = 1245;
-const presentPercentage = 85; // same as Analytics attendanceData present slice
+const presentPercentage = 85;
 const presentStudentsCount = Math.round(totalStudentsCount * (presentPercentage / 100));
 
 const totalTeachersCount = 82;
-const presentTeachersPercent = 92; // demo percent, matches Analytics
+const presentTeachersPercent = 92;
 const presentTeachersCount = Math.round(totalTeachersCount * (presentTeachersPercent / 100));
 
-const attendanceStats = [
-  { label: 'Teachers Present', value: presentTeachersCount, icon: <UserCheck className="w-7 h-7 text-yellow-700" /> },
-  { label: 'Students Present', value: presentStudentsCount, icon: <Users className="w-7 h-7 text-yellow-700" /> },
-  { label: 'Staff Present', value: 8, icon: <User className="w-7 h-7 text-yellow-700" /> },
-  { label: 'Buses Available', value: 6, icon: <Bus className="w-7 h-7 text-yellow-700" /> },
+// Key metrics for top cards
+const keyMetrics = [
+  {
+    label: 'Students Present',
+    value: presentStudentsCount,
+    total: totalStudentsCount,
+    percentage: presentPercentage,
+    icon: Users,
+    color: 'blue',
+    trend: '+5% from yesterday'
+  },
+  {
+    label: 'Teachers Present',
+    value: presentTeachersCount,
+    total: totalTeachersCount,
+    percentage: presentTeachersPercent,
+    icon: UserCheck,
+    color: 'green',
+    trend: '+2% from yesterday'
+  },
+  {
+    label: 'Staff Present',
+    value: 8,
+    total: 10,
+    percentage: 80,
+    icon: User,
+    color: 'purple',
+    trend: 'Same as yesterday'
+  },
+  {
+    label: 'Buses Available',
+    value: 6,
+    total: 8,
+    percentage: 75,
+    icon: Bus,
+    color: 'orange',
+    trend: '2 under maintenance'
+  },
 ];
 
+// Stats overview
+const statsOverview = [
+  { label: 'Total Teachers', value: 82, icon: GraduationCap, change: '+2', color: 'blue' },
+  { label: 'Total Students', value: 1245, icon: Users, change: '+15', color: 'green' },
+  { label: 'Active Courses', value: 18, icon: BookOpen, change: '+3', color: 'purple' },
+  { label: 'Total Parents', value: 1100, icon: UsersRound, change: '+8', color: 'orange' },
+];
+
+// Quick actions
+const quickActions = [
+  { title: 'Add Student', action: 'student', icon: Plus, color: 'blue' },
+  { title: 'Create Course', action: 'course', icon: BookOpen, color: 'green' },
+  { title: 'Send Notification', action: 'notification', icon: Bell, color: 'purple' },
+  { title: 'Generate Report', action: 'report', icon: FileBarChart, color: 'orange' },
+];
+
+// Fees data
 const feesData = [
-  { month: 'Jan', collected: 120000 },
-  { month: 'Feb', collected: 110000 },
-  { month: 'Mar', collected: 130000 },
-  { month: 'Apr', collected: 125000 },
-  { month: 'May', collected: 140000 },
-  { month: 'Jun', collected: 135000 },
+  { month: 'Jan', collected: 120000, due: 30000 },
+  { month: 'Feb', collected: 110000, due: 25000 },
+  { month: 'Mar', collected: 130000, due: 20000 },
+  { month: 'Apr', collected: 125000, due: 28000 },
+  { month: 'May', collected: 140000, due: 22000 },
+  { month: 'Jun', collected: 135000, due: 25000 },
 ];
-const feesDue = 25000;
 
+// Upcoming events
 const upcomingEvents = [
-  { date: '2025-07-05', title: 'Annual Sports Day', desc: 'All students and staff participate in sports events.' },
-  { date: '2025-07-12', title: 'Parent-Teacher Meeting', desc: 'Meetings for all classes.' },
-  { date: '2025-07-20', title: 'Science Exhibition', desc: 'Student science projects on display.' },
+  { date: '2025-07-05', title: 'Annual Sports Day', desc: 'All students and staff participate in sports events.', type: 'sports' },
+  { date: '2025-07-12', title: 'Parent-Teacher Meeting', desc: 'Meetings for all classes.', type: 'meeting' },
+  { date: '2025-07-20', title: 'Science Exhibition', desc: 'Student science projects on display.', type: 'academic' },
 ];
 
-const busSchedule = [
-  { bus: 'Bus 1', route: 'Sector 5 - School', departure: '7:15 AM', arrival: '1:45 PM' },
-  { bus: 'Bus 2', route: 'Salt Lake - School', departure: '7:30 AM', arrival: '2:00 PM' },
-];
-
-const classroomStatus = [
-  { room: 'Room 101', status: 'Occupied' },
-  { room: 'Room 102', status: 'Empty' },
-  { room: 'Room 103', status: 'Occupied' },
-  { room: 'Room 104', status: 'Empty' },
-];
-
-const documents = [
-  'Annual Report 2024-25',
-  'Safety Compliance Certificate',
-  'Accreditation Documents',
+// Recent activity
+const recentActivity = [
+  { time: '10 mins ago', activity: 'New student enrollment completed', type: 'info' },
+  { time: '1 hour ago', activity: 'Fee payment received from Class 10-A', type: 'success' },
+  { time: '2 hours ago', activity: 'Teacher leave request pending approval', type: 'warning' },
 ];
 
 const Dashboard = ({ setShowAdminHeader }) => {
@@ -77,176 +132,346 @@ const Dashboard = ({ setShowAdminHeader }) => {
     setShowAdminHeader(true);
   }, []);
 
+  const getColorClasses = (color) => {
+    const colors = {
+      blue: {
+        bg: 'bg-blue-50',
+        border: 'border-blue-200',
+        text: 'text-blue-600',
+        icon: 'text-blue-500',
+        hover: 'hover:bg-blue-100',
+        progress: 'bg-blue-500'
+      },
+      green: {
+        bg: 'bg-green-50',
+        border: 'border-green-200',
+        text: 'text-green-600',
+        icon: 'text-green-500',
+        hover: 'hover:bg-green-100',
+        progress: 'bg-green-500'
+      },
+      purple: {
+        bg: 'bg-purple-50',
+        border: 'border-purple-200',
+        text: 'text-purple-600',
+        icon: 'text-purple-500',
+        hover: 'hover:bg-purple-100',
+        progress: 'bg-purple-500'
+      },
+      orange: {
+        bg: 'bg-orange-50',
+        border: 'border-orange-200',
+        text: 'text-orange-600',
+        icon: 'text-orange-500',
+        hover: 'hover:bg-orange-100',
+        progress: 'bg-orange-500'
+      }
+    };
+    return colors[color] || colors.blue;
+  };
+
   return (
-    <div className="min-h-screen">
-      <div className="mx-auto bg-yellow-50/95 shadow-2xl p-2">
+    <div className="min-h-screen bg-gray-50">
+      <div className="mx-auto p-6 space-y-6">
 
         {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-4xl font-bold text-yellow-800 mb-2">Admin Dashboard</h1>
-          <p className="text-yellow-700 text-lg">Overview of the institution's key statistics and quick actions.</p>
+        <div className="mb-6">
+          <h1 className="text-3xl font-bold text-gray-900 mb-2">Dashboard</h1>
+          <p className="text-gray-600">Welcome back! Here's what's happening today.</p>
         </div>
 
-        {/* Attendance Stats */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-          {attendanceStats.map((stat) => (
-            <div key={stat.label} className="bg-gradient-to-br from-yellow-200 to-yellow-300 rounded-xl p-6 flex flex-col items-center shadow-md border border-yellow-400">
-              {stat.icon}
-              <span className="text-2xl font-bold mb-1 text-yellow-900">{stat.value}</span>
-              <span className="text-lg font-semibold text-yellow-800 mb-2">{stat.label}</span>
-            </div>
-          ))}
-        </div>
-
-        {/* Fees Chart */}
-        <div className="mb-8">
-          <h2 className="text-2xl font-bold text-yellow-800 mb-4 flex items-center gap-2"><BarChart2 className="w-6 h-6" /> Fees Collection (Last 6 Months)</h2>
-          <div className="bg-white rounded-xl p-6 shadow-md border border-yellow-300 flex flex-col md:flex-row gap-8 items-center">
-            <div className="flex-1 w-full">
-              <div className="flex items-end h-40 gap-4">
-                {feesData.map((d) => (
-                  <div key={d.month} className="flex flex-col items-center w-12">
-                    <div className="bg-yellow-400 rounded-t-lg" style={{ height: `${d.collected / 1500}px`, width: '100%' }} title={`₹${d.collected.toLocaleString()}`}></div>
-                    <span className="text-xs mt-2 text-yellow-900 font-semibold">{d.month}</span>
+        {/* Key Metrics - Attendance */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          {keyMetrics.map((metric) => {
+            const Icon = metric.icon;
+            const colors = getColorClasses(metric.color);
+            return (
+              <div key={metric.label} className={`bg-white rounded-xl p-6 shadow-sm border ${colors.border} hover:shadow-md transition-shadow duration-200`}>
+                <div className="flex items-start justify-between mb-4">
+                  <div className={`p-3 rounded-lg ${colors.bg}`}>
+                    <Icon className={`w-6 h-6 ${colors.icon}`} />
                   </div>
-                ))}
+                  <span className={`text-xs font-medium px-2 py-1 rounded-full ${colors.bg} ${colors.text}`}>
+                    {metric.percentage}%
+                  </span>
+                </div>
+                <div className="space-y-2">
+                  <p className="text-sm font-medium text-gray-600">{metric.label}</p>
+                  <div className="flex items-baseline gap-2">
+                    <h3 className="text-2xl font-bold text-gray-900">{metric.value}</h3>
+                    <span className="text-sm text-gray-500">/ {metric.total}</span>
+                  </div>
+                  {/* Progress bar */}
+                  <div className="w-full bg-gray-200 rounded-full h-2 mt-2">
+                    <div className={`${colors.progress} h-2 rounded-full transition-all duration-300`} style={{ width: `${metric.percentage}%` }}></div>
+                  </div>
+                  <p className="text-xs text-gray-500 mt-2">{metric.trend}</p>
+                </div>
               </div>
-              <div className="mt-4 text-sm text-yellow-800 font-medium">
-                Total Collected: ₹{feesData.reduce((a, b) => a + b.collected, 0).toLocaleString()}
-              </div>
-            </div>
-            <div className="flex flex-col items-center justify-center min-w-[180px]">
-              <div className="text-lg font-bold text-red-600">Due: ₹{feesDue.toLocaleString()}</div>
-              <div className="text-xs text-yellow-700">as of {feesData[feesData.length - 1].month} 2025</div>
-            </div>
-          </div>
+            );
+          })}
         </div>
 
-        {/* Stats Grid */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-          {stats.map((stat) => (
-            <div key={stat.label} className="bg-gradient-to-br from-yellow-300 to-yellow-400 rounded-xl p-6 flex flex-col items-center shadow-md hover:shadow-lg transition-shadow duration-300 border border-yellow-500">
-              <div className="text-4xl mb-2">{stat.icon}</div>
-              <span className="text-3xl font-bold mb-1 text-yellow-900">{stat.value}</span>
-              <span className="text-lg font-semibold text-yellow-800 mb-2">{stat.label}</span>
-              <span className="text-sm text-yellow-700 font-medium">{stat.trend} this month</span>
-            </div>
-          ))}
-        </div>
-
-        {/* Quick Actions */}
-        <div className="mb-8">
-          <h2 className="text-2xl font-bold text-yellow-800 mb-4">Quick Actions</h2>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            {quickActions.map((action) => (
-              <button key={action.action} onClick={() => handleActionClick(action.action)}
-                className={`p-4 rounded-lg border-2 transition-all duration-200 ${selectedAction === action.action
-                  ? 'bg-yellow-400 border-yellow-600 scale-95'
-                  : 'bg-yellow-200 border-yellow-500 hover:bg-yellow-300 hover:border-yellow-600 hover:scale-105'
-                }`}>
-                <div className="text-2xl mb-2">{action.icon}</div>
-                <div className="font-semibold text-yellow-900">{action.title}</div>
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* Upcoming Events */}
-        <div className="mb-8">
-          <h2 className="text-2xl font-bold text-yellow-800 mb-4 flex items-center gap-2"><CalendarIcon className="w-6 h-6" /> Upcoming Events</h2>
-          <div className="bg-white rounded-xl p-6 shadow-md border border-yellow-300">
-            <ul className="divide-y divide-yellow-100">
-              {upcomingEvents.map(ev => (
-                <li key={ev.date} className="py-4 flex flex-col md:flex-row md:items-center md:justify-between gap-2">
+        {/* Stats Overview */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          {statsOverview.map((stat) => {
+            const Icon = stat.icon;
+            const colors = getColorClasses(stat.color);
+            return (
+              <div key={stat.label} className="bg-white rounded-xl p-6 shadow-sm border border-gray-200 hover:shadow-md transition-shadow duration-200">
+                <div className="flex items-center justify-between">
                   <div>
-                    <div className="font-semibold text-yellow-900">{ev.title}</div>
-                    <div className="text-sm text-yellow-700">{ev.desc}</div>
+                    <p className="text-sm font-medium text-gray-600 mb-1">{stat.label}</p>
+                    <h3 className="text-2xl font-bold text-gray-900">{stat.value}</h3>
+                    <p className={`text-xs ${colors.text} font-medium mt-2 flex items-center gap-1`}>
+                      <TrendingUp className="w-3 h-3" />
+                      {stat.change} this month
+                    </p>
                   </div>
-                  <div className="text-sm text-yellow-700 font-bold flex items-center gap-2"><CalendarIcon className="w-4 h-4" /> {ev.date}</div>
-                </li>
+                  <div className={`p-3 rounded-lg ${colors.bg}`}>
+                    <Icon className={`w-6 h-6 ${colors.icon}`} />
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Fees Collection & Quick Actions */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+          {/* Fees Collection Chart */}
+          <div className="lg:col-span-2 bg-white rounded-xl p-6 shadow-sm border border-gray-200">
+            <div className="flex items-center justify-between mb-6">
+              <div>
+                <h2 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+                  <BarChart2 className="w-5 h-5 text-gray-700" />
+                  Fees Collection
+                </h2>
+                <p className="text-sm text-gray-600 mt-1">Last 6 months overview</p>
+              </div>
+              <div className="text-right">
+                <p className="text-xs text-gray-500">Total Collected</p>
+                <p className="text-xl font-bold text-gray-900">
+                  ₹{(feesData.reduce((a, b) => a + b.collected, 0) / 100000).toFixed(1)}L
+                </p>
+              </div>
+            </div>
+            <ResponsiveContainer width="100%" height={280}>
+              <BarChart data={feesData}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                <XAxis dataKey="month" stroke="#9ca3af" style={{ fontSize: '12px' }} />
+                <YAxis stroke="#9ca3af" style={{ fontSize: '12px' }} tickFormatter={(value) => `₹${value / 1000}k`} />
+                <Tooltip
+                  contentStyle={{
+                    backgroundColor: 'white',
+                    border: '1px solid #e5e7eb',
+                    borderRadius: '8px',
+                    fontSize: '12px'
+                  }}
+                  formatter={(value) => [`₹${value.toLocaleString()}`, '']}
+                />
+                <Legend wrapperStyle={{ fontSize: '12px' }} />
+                <Bar dataKey="collected" fill="#3b82f6" radius={[8, 8, 0, 0]} name="Collected" />
+                <Bar dataKey="due" fill="#f59e0b" radius={[8, 8, 0, 0]} name="Due" />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+
+          {/* Quick Actions */}
+          <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-200">
+            <h2 className="text-lg font-semibold text-gray-900 mb-4">Quick Actions</h2>
+            <div className="space-y-3">
+              {quickActions.map((action) => {
+                const Icon = action.icon;
+                const colors = getColorClasses(action.color);
+                return (
+                  <button
+                    key={action.action}
+                    onClick={() => handleActionClick(action.action)}
+                    className={`w-full flex items-center gap-3 p-4 rounded-lg border transition-all duration-200 ${
+                      selectedAction === action.action
+                        ? `${colors.bg} ${colors.border} scale-95`
+                        : `border-gray-200 hover:border-${action.color}-300 ${colors.hover}`
+                    }`}
+                  >
+                    <div className={`p-2 rounded-lg ${colors.bg}`}>
+                      <Icon className={`w-4 h-4 ${colors.icon}`} />
+                    </div>
+                    <span className="font-medium text-gray-900 text-sm">{action.title}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+
+        {/* Upcoming Events & Recent Activity */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+
+          {/* Upcoming Events */}
+          <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-200">
+            <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+              <CalendarIcon className="w-5 h-5 text-gray-700" />
+              Upcoming Events
+            </h2>
+            <div className="space-y-4">
+              {upcomingEvents.map((event, idx) => (
+                <div key={idx} className="flex gap-4 p-4 rounded-lg bg-gray-50 border border-gray-100 hover:bg-gray-100 transition-colors">
+                  <div className="flex flex-col items-center justify-center min-w-[60px] p-3 bg-blue-50 rounded-lg border border-blue-200">
+                    <span className="text-lg font-bold text-blue-600">{new Date(event.date).getDate()}</span>
+                    <span className="text-xs text-blue-600 font-medium">{new Date(event.date).toLocaleString('default', { month: 'short' })}</span>
+                  </div>
+                  <div className="flex-1">
+                    <h4 className="font-semibold text-gray-900 mb-1">{event.title}</h4>
+                    <p className="text-sm text-gray-600">{event.desc}</p>
+                  </div>
+                </div>
               ))}
-            </ul>
+            </div>
+          </div>
+
+          {/* Recent Activity */}
+          <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-200">
+            <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+              <Clock className="w-5 h-5 text-gray-700" />
+              Recent Activity
+            </h2>
+            <div className="space-y-4">
+              {recentActivity.map((item, idx) => (
+                <div key={idx} className="flex gap-3 pb-4 border-b border-gray-100 last:border-0 last:pb-0">
+                  <div className={`mt-1 p-1.5 rounded-full ${
+                    item.type === 'success' ? 'bg-green-100' :
+                    item.type === 'warning' ? 'bg-orange-100' : 'bg-blue-100'
+                  }`}>
+                    <div className={`w-2 h-2 rounded-full ${
+                      item.type === 'success' ? 'bg-green-500' :
+                      item.type === 'warning' ? 'bg-orange-500' : 'bg-blue-500'
+                    }`}></div>
+                  </div>
+                  <div className="flex-1">
+                    <p className="text-sm text-gray-900 mb-1">{item.activity}</p>
+                    <p className="text-xs text-gray-500">{item.time}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* Bus Schedule & Classroom Status */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+
+          {/* Bus Schedule */}
+          <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-200">
+            <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+              <Bus className="w-5 h-5 text-gray-700" />
+              Bus Schedule
+            </h2>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-gray-200">
+                    <th className="text-left py-3 px-2 font-semibold text-gray-700">Bus</th>
+                    <th className="text-left py-3 px-2 font-semibold text-gray-700">Route</th>
+                    <th className="text-left py-3 px-2 font-semibold text-gray-700">Departure</th>
+                    <th className="text-left py-3 px-2 font-semibold text-gray-700">Arrival</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr className="border-b border-gray-100">
+                    <td className="py-3 px-2 font-medium text-gray-900">Bus 1</td>
+                    <td className="py-3 px-2 text-gray-600">Sector 5 - School</td>
+                    <td className="py-3 px-2 text-gray-600">7:15 AM</td>
+                    <td className="py-3 px-2 text-gray-600">1:45 PM</td>
+                  </tr>
+                  <tr>
+                    <td className="py-3 px-2 font-medium text-gray-900">Bus 2</td>
+                    <td className="py-3 px-2 text-gray-600">Salt Lake - School</td>
+                    <td className="py-3 px-2 text-gray-600">7:30 AM</td>
+                    <td className="py-3 px-2 text-gray-600">2:00 PM</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {/* Classroom Status */}
+          <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-200">
+            <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+              <School className="w-5 h-5 text-gray-700" />
+              Classroom Status
+            </h2>
+            <div className="grid grid-cols-2 gap-3">
+              {[
+                { room: 'Room 101', status: 'Occupied' },
+                { room: 'Room 102', status: 'Empty' },
+                { room: 'Room 103', status: 'Occupied' },
+                { room: 'Room 104', status: 'Empty' },
+              ].map((room, idx) => (
+                <div
+                  key={idx}
+                  className={`p-4 rounded-lg border-2 ${
+                    room.status === 'Occupied'
+                      ? 'bg-green-50 border-green-200'
+                      : 'bg-gray-50 border-gray-200'
+                  }`}
+                >
+                  <h4 className="font-semibold text-gray-900 mb-1">{room.room}</h4>
+                  <p className={`text-sm font-medium ${
+                    room.status === 'Occupied' ? 'text-green-600' : 'text-gray-500'
+                  }`}>
+                    {room.status}
+                  </p>
+                </div>
+              ))}
+            </div>
           </div>
         </div>
 
         {/* Emergency Contacts */}
-        <div className="mb-8">
-          <h2 className="text-2xl font-bold text-yellow-800 mb-4">Emergency Contacts</h2>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <div className="bg-white p-4 rounded-lg shadow border border-yellow-300">
-              <h4 className="font-bold text-yellow-900">🚔 Police</h4>
-              <p className="text-sm text-yellow-700">Phone: 100</p>
-            </div>
-            <div className="bg-white p-4 rounded-lg shadow border border-yellow-300">
-              <h4 className="font-bold text-yellow-900">🔥 Fire</h4>
-              <p className="text-sm text-yellow-700">Phone: 101</p>
-            </div>
-            <div className="bg-white p-4 rounded-lg shadow border border-yellow-300">
-              <h4 className="font-bold text-yellow-900">🏥 Hospital</h4>
-              <p className="text-sm text-yellow-700">Phone: 102</p>
-            </div>
-          </div>
-        </div>
-
-        {/* Documents and Reports */}
-        <div className="mb-8">
-          <h2 className="text-2xl font-bold text-yellow-800 mb-4 flex items-center gap-2"><FileText className="w-6 h-6" /> Documents & Reports</h2>
-          <div className="bg-white p-4 rounded-lg shadow border border-yellow-300">
-            <ul className="list-disc pl-6 text-yellow-800">
-              {documents.map((doc, idx) => <li key={idx}>{doc}</li>)}
-            </ul>
-            <button className="mt-4 px-4 py-2 bg-yellow-500 text-yellow-900 font-semibold rounded hover:bg-yellow-600">Upload New Document</button>
-          </div>
-        </div>
-
-        {/* Bus Timetable */}
-        <div className="mb-8">
-          <h2 className="text-2xl font-bold text-yellow-800 mb-4 flex items-center gap-2"><Bus className="w-6 h-6" /> Bus Timetable</h2>
-          <table className="w-full bg-white border border-yellow-300 rounded-lg shadow text-sm">
-            <thead className="bg-yellow-200 text-yellow-900">
-              <tr>
-                <th className="p-2">Bus No.</th>
-                <th className="p-2">Route</th>
-                <th className="p-2">Departure</th>
-                <th className="p-2">Arrival</th>
-              </tr>
-            </thead>
-            <tbody>
-              {busSchedule.map((bus, i) => (
-                <tr key={i} className="text-center border-t">
-                  <td className="p-2">{bus.bus}</td>
-                  <td className="p-2">{bus.route}</td>
-                  <td className="p-2">{bus.departure}</td>
-                  <td className="p-2">{bus.arrival}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-
-        {/* Classroom Status */}
-        <div className="mb-8">
-          <h2 className="text-2xl font-bold text-yellow-800 mb-4 flex items-center gap-2"><School className="w-6 h-6" /> Classroom Status</h2>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            {classroomStatus.map((room, idx) => (
-              <div key={idx} className={`p-4 rounded-lg shadow border ${room.status === 'Occupied' ? 'bg-green-100 border-green-300 text-green-800' : 'bg-red-100 border-red-300 text-red-800'}`}>
-                <h4 className="font-bold text-lg">{room.room}</h4>
-                <p>Status: {room.status}</p>
+        <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-200">
+          <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+            <AlertCircle className="w-5 h-5 text-red-500" />
+            Emergency Contacts
+          </h2>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="flex items-center gap-4 p-4 rounded-lg bg-red-50 border border-red-200">
+              <div className="text-3xl">🚔</div>
+              <div>
+                <h4 className="font-semibold text-gray-900">Police</h4>
+                <p className="text-sm text-gray-600">Phone: 100</p>
               </div>
-            ))}
+            </div>
+            <div className="flex items-center gap-4 p-4 rounded-lg bg-orange-50 border border-orange-200">
+              <div className="text-3xl">🔥</div>
+              <div>
+                <h4 className="font-semibold text-gray-900">Fire</h4>
+                <p className="text-sm text-gray-600">Phone: 101</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-4 p-4 rounded-lg bg-blue-50 border border-blue-200">
+              <div className="text-3xl">🏥</div>
+              <div>
+                <h4 className="font-semibold text-gray-900">Hospital</h4>
+                <p className="text-sm text-gray-600">Phone: 102</p>
+              </div>
+            </div>
           </div>
         </div>
 
-        {/* Welcome Message */}
-        <div className="bg-gradient-to-r from-yellow-300 to-yellow-400 rounded-xl p-6 text-yellow-900 text-center shadow-md border border-yellow-500">
-          <h3 className="font-bold text-xl mb-2 text-yellow-900">Welcome to EEC Admin Dashboard!</h3>
-          <p className="font-medium">
-            {selectedAction
-              ? `Processing ${selectedAction} action...`
-              : 'Use the quick actions above or the sidebar to manage teachers, students, courses, and more.'
-            }
-          </p>
-        </div>
+        {/* Success Message */}
+        {selectedAction && (
+          <div className="bg-green-50 border border-green-200 rounded-xl p-4 flex items-center gap-3">
+            <div className="p-2 bg-green-100 rounded-lg">
+              <TrendingUp className="w-5 h-5 text-green-600" />
+            </div>
+            <p className="text-sm font-medium text-green-900">
+              Processing {selectedAction} action...
+            </p>
+          </div>
+        )}
+
       </div>
     </div>
   );
