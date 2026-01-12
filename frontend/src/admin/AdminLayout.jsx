@@ -23,15 +23,15 @@ const AdminLayout = ({
   const currentBreadcrumbs = breadcrumbs.length > 0 ? breadcrumbs : defaultBreadcrumbs;
   
   return (
-    <div className="flex w-screen h-screen bg-gray-50">
-      <AdminSidebar 
-        activeMenuItem={activeMenuItem} 
+    <div className="flex w-full h-screen bg-gray-50 overflow-hidden">
+      <AdminSidebar
+        activeMenuItem={activeMenuItem}
         onMenuItemClick={onMenuItemClick}
         collapsed={sidebarCollapsed}
         onToggleSidebar={onToggleSidebar}
       />
-      
-      <div className="flex-1 flex flex-col min-w-0">
+
+      <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
         {showAdminHeader && <AdminHeader
           adminUser={adminUser}
         />}
