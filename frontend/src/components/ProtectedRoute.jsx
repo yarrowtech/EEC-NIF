@@ -5,6 +5,7 @@ const roleHome = {
   Student: "/dashboard",
   Teacher: "/teachers",
   Parent: "/parents",
+  Principal: "/principal",
   Admin: "/admin/dashboard",
 };
 

@@ -64,8 +64,3 @@ System
 Admin
   -> Reports
 ```
-Added multi‑tenant School model/routes and schoolId to core user models + tokens
-Built Academic setup APIs (years, classes, sections, subjects)
-Built Fees, Reports, Timetable, Notifications, Audit Logs APIs
-Added CSV bulk import for users
-Hardened security (strong passwords, policy, rate limit, CORS) and tenant‑scoped core routes

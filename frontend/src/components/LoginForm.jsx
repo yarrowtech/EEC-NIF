@@ -56,6 +56,9 @@ const LoginForm = () => {
         case "Parent":
           url = "/api/parent/auth/login";
           break;
+        case "Principal":
+          url = "/api/principal/auth/login";
+          break;
         case "Admin":
           url = "/api/admin/auth/login";
           break;
@@ -87,6 +90,9 @@ const LoginForm = () => {
           break;
         case "Parent":
           navigate('/parents');
+          break;
+        case "Principal":
+          navigate('/principal');
           break;
         case "Admin":
           navigate('/admin/dashboard');
@@ -129,6 +135,7 @@ const LoginForm = () => {
               <option value="Student">Student</option>
               <option value="Teacher">Teacher</option>
               <option value="Parent">Parent</option>
+              <option value="Principal">Principal</option>
               <option value="Admin">Admin</option>
             </select>
           </div>

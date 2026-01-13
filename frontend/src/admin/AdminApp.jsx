@@ -13,6 +13,7 @@ import ExaminationManagement from './pages/ExaminationManagement';
 import ParentsManagement from './pages/ParentsManagement';
 import CourseManagement from './pages/CourseManagement';
 import SubjectManagement from './pages/SubjectManagement';
+import AcademicSetup from './pages/AcademicSetup';
 import AttendanceManagement from './pages/AttendanceManagement';
 import Result from './pages/Result';
 import FeesCollection from './pages/FeesCollection';
@@ -65,6 +66,7 @@ const AdminApp = () => {
         <Route path="wellbeing" element={<Wellbeing setShowAdminHeader={setShowAdminHeader} />} />
         <Route path="routines" element={<Routines setShowAdminHeader={setShowAdminHeader} />} />
         <Route path="parents" element={<ParentsManagement setShowAdminHeader={setShowAdminHeader} />} />
+        <Route path="academics" element={<AcademicSetup setShowAdminHeader={setShowAdminHeader} />} />
         <Route path="courses" element={<CourseManagement setShowAdminHeader={setShowAdminHeader} />} />
         <Route path="subjects" element={<SubjectManagement setShowAdminHeader={setShowAdminHeader} />} />
         <Route path="attendance" element={<AttendanceManagement setShowAdminHeader={setShowAdminHeader} />} />

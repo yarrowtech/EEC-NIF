@@ -1,91 +1,5 @@
-// const express = require('express');
-// const mongoose = require('mongoose');
-// const dotenv = require('dotenv');
-// const cors = require('cors');
-
-// dotenv.config();
-
-// const adminAuthRoutes = require('./routes/adminRoutes');
-// const teacherAuthRoutes = require('./routes/teacherRoute');
-// const studentAuthRoutes = require('./routes/studentRoute');
-// const parentAuthRoutes = require('./routes/parentRoute');
-// const attendanceRoutes = require('./routes/attendanceRoutes');
-// const adminUserManagementRoutes = require('./routes/adminUserManagement');
-// const courseRouter = require("./routes/courseRoute")
-// const subjectRouter = require("./routes/subjectRoute");
-// const examRouter = require("./routes/examRoute");
-// const feedbackRouter = require("./routes/feedbackRoute");
-// const assignmentRouter = require("./routes/assignmentRoute");
-// const behaviourRouter = require("./routes/behaviourRoute");
-// const progressRouter = require("./routes/progressRoute");
-// const aiLearningRouter = require("./routes/aiLearningRoute");
-// const studentAILearningRouter = require("./routes/studentAILearningRoute");
-// const alcoveRouter = require("./routes/alcoveRoute");
-
-
-// const nifCourseRoute = require("./routes/nifCourseRoute");
-// const nifStudentArchiveRoutes = require("./routes/nifStudentArchiveRoutes");
-
-// const uploadRoutes = require("./routes/uploadRoutes");
-
-
-
-// const app = express();
-
-// app.use(cors());
-// app.use(express.json());
-
-// mongoose
-//   .connect(process.env.MONGODB_URL)
-//   .then(() => console.log('MongoDB Connected'))
-//   .catch((err) => console.log(err));
-
-
-// app.get("/", (req, res) => {
-//   res.send("Welcome to the Electronic Educare API ..");
-// })
-
-// // Mount auth routes separately
-// app.use('/api/admin/users', adminUserManagementRoutes);
-// app.use('/api/admin/auth', adminAuthRoutes);
-// app.use('/api/teacher/auth', teacherAuthRoutes);
-// app.use('/api/student/auth', studentAuthRoutes);
-// app.use('/api/parent/auth', parentAuthRoutes);
-
-// app.use('/api/attendance', attendanceRoutes);
-// app.use('/api/student', require('./routes/student'));
-
-// app.use('/api/course', courseRouter)
-// app.use('/api/subject', subjectRouter);
-// app.use('/api/exam', examRouter);
-// app.use('/api/assignment', assignmentRouter);
-// app.use('/api/feedback', feedbackRouter);
-// app.use('/api/behaviour', behaviourRouter);
-// app.use('/api/progress', progressRouter);
-// app.use('/api/ai-learning', aiLearningRouter);
-// app.use('/api/student-ai-learning', studentAILearningRouter);
-// app.use('/api/alcove', alcoveRouter);
-
-
-// app.use('/api/nif/course', nifCourseRoute);
-// const nifRoutes = require('./routes/nifRoutes');
-
-// app.use('/api/nif', nifRoutes);
-
-// const wellbeingRoute = require('./routes/wellbeingRoute');
-// app.use('/api/wellbeing', wellbeingRoute);
-
-
-// app.use('api/nifStudentArchiveRoutes', nifStudentArchiveRoutes );
-
-// app.use("/api/uploads", uploadRoutes);
-
-
-// const PORT = process.env.PORT || 5000;
-// app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
-
-
-
+// Legacy bootstrap block retained for reference.
+// (Use the active block below.)
 
 const express = require('express');
 const mongoose = require('mongoose');
@@ -98,6 +12,7 @@ const adminAuthRoutes = require('./routes/adminRoutes');
 const teacherAuthRoutes = require('./routes/teacherRoute');
 const studentAuthRoutes = require('./routes/studentRoute');
 const parentAuthRoutes = require('./routes/parentRoute');
+const principalAuthRoutes = require('./routes/principalRoutes');
 const attendanceRoutes = require('./routes/attendanceRoutes');
 const adminUserManagementRoutes = require('./routes/adminUserManagement');
 const courseRouter = require("./routes/courseRoute");
@@ -121,6 +36,47 @@ const reportRoutes = require("./routes/reportRoutes");
 const timetableRoutes = require("./routes/timetableRoutes");
 const notificationRoutes = require("./routes/notificationRoutes");
 const auditLogRoutes = require("./routes/auditLogRoutes");
+const Principal = require('./models/Principal');
+const { isStrongPassword } = require('./utils/passwordPolicy');
+const principalDashboardRoutes = require('./routes/principalDashboardRoutes');
+
+
+const seedPrincipal = async () => {
+  const principalEmail = process.env.PRINCIPAL_EMAIL;
+  const principalPassword = process.env.PRINCIPAL_PASSWORD;
+  if (!principalEmail || !principalPassword) {
+    return;
+  }
+  if (!isStrongPassword(principalPassword)) {
+    console.warn('Principal seed password does not meet policy requirements.');
+    return;
+  }
+  const normalizedEmail = String(principalEmail).trim().toLowerCase();
+  try {
+    const existing = await Principal.findOne({
+      $or: [{ email: normalizedEmail }, { username: normalizedEmail }],
+    });
+    if (existing) {
+      existing.email = normalizedEmail;
+      existing.username = normalizedEmail;
+      existing.password = principalPassword;
+      await existing.save();
+      console.log(`Updated principal user: ${normalizedEmail}`);
+      return;
+    }
+
+    const principal = new Principal({
+      username: normalizedEmail,
+      email: normalizedEmail,
+      password: principalPassword,
+      name: 'Principal',
+    });
+    await principal.save();
+    console.log(`Seeded principal user: ${normalizedEmail}`);
+  } catch (err) {
+    console.error('Failed to seed principal user:', err.message);
+  }
+};
 
 const app = express();
 
@@ -146,7 +102,10 @@ app.use(express.json());
 // Mongo connect
 mongoose
   .connect(process.env.MONGODB_URL)
-  .then(() => console.log('MongoDB Connected'))
+  .then(async () => {
+    console.log('MongoDB Connected');
+    await seedPrincipal();
+  })
   .catch((err) => console.log(err));
 
 // Health
@@ -161,6 +120,8 @@ app.use('/api/admin/auth', adminAuthRoutes);
 app.use('/api/teacher/auth', teacherAuthRoutes);
 app.use('/api/student/auth', studentAuthRoutes);
 app.use('/api/parent/auth', parentAuthRoutes);
+app.use('/api/principal/auth', principalAuthRoutes);
+app.use('/api/principal', principalDashboardRoutes);
 app.use('/api/attendance', attendanceRoutes);
 app.use('/api/student', require('./routes/student'));
 app.use('/api/course', courseRouter);

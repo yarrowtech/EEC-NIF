@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { 
   School, Users, GraduationCap, BookOpen, TrendingUp,
   AlertTriangle, Calendar, DollarSign, UserCheck, FileText,
@@ -31,21 +31,56 @@ import NotificationCenter from './NotificationCenter';
 import QuickActions from './QuickActions';
 import Communications from './Communications';
 
+const API_BASE = import.meta.env.VITE_API_URL;
+
 const PrincipalDashboard = () => {
   const [activeView, setActiveView] = useState('overview');
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [overview, setOverview] = useState(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState('');
+
+  useEffect(() => {
+    const fetchOverview = async () => {
+      setIsLoading(true);
+      setLoadError('');
+      try {
+        const res = await fetch(`${API_BASE}/api/principal/overview`, {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+            authorization: `Bearer ${localStorage.getItem('token')}`
+          }
+        });
+        if (!res.ok) {
+          throw new Error('Failed to load principal overview');
+        }
+        const data = await res.json();
+        setOverview(data);
+      } catch (err) {
+        console.error('Principal overview error:', err);
+        setLoadError('Unable to load live dashboard data.');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchOverview();
+  }, []);
 
   // School data
   const schoolStats = {
-    totalStudents: 1247,
-    totalTeachers: 89,
+    totalStudents: overview?.stats?.totalStudents ?? 1247,
+    totalTeachers: overview?.stats?.totalTeachers ?? 89,
     totalStaff: 34,
-    totalClasses: 45,
-    activeParents: 1180,
+    totalClasses: overview?.stats?.totalClasses ?? 45,
+    activeParents: overview?.stats?.totalParents ?? 1180,
     graduationRate: 96.5,
-    attendanceRate: 94.2,
+    attendanceRate: overview?.attendance?.rate ?? 94.2,
     satisfactionScore: 4.7,
-    currentRevenue: 2.4,
+    currentRevenue: overview?.fees?.paidAmount
+      ? Number((overview.fees.paidAmount / 1_000_000).toFixed(2))
+      : 2.4,
     monthlyGrowth: 8.3,
     budgetUtilization: 78.5,
     infrastructureScore: 92
@@ -189,14 +224,19 @@ const PrincipalDashboard = () => {
   ];
 
   // Chart data (mock)
-  const attendanceTrend = [
-    { month: 'Jan', value: 92.4 },
-    { month: 'Feb', value: 93.1 },
-    { month: 'Mar', value: 94.2 },
-    { month: 'Apr', value: 94.8 },
-    { month: 'May', value: 95.3 },
-    { month: 'Jun', value: 94.7 }
-  ];
+  const attendanceTrend = overview?.attendance?.trend?.length
+    ? overview.attendance.trend.map((item) => ({
+        month: item.month,
+        value: item.rate
+      }))
+    : [
+        { month: 'Jan', value: 92.4 },
+        { month: 'Feb', value: 93.1 },
+        { month: 'Mar', value: 94.2 },
+        { month: 'Apr', value: 94.8 },
+        { month: 'May', value: 95.3 },
+        { month: 'Jun', value: 94.7 }
+      ];
 
   // ChartJS data for Attendance Trend
   const attendanceChartData = {
@@ -243,13 +283,18 @@ const PrincipalDashboard = () => {
     },
   };
 
-  const studentPerformance = [
-    { grade: 'A', students: 420 },
-    { grade: 'B', students: 380 },
-    { grade: 'C', students: 280 },
-    { grade: 'D', students: 120 },
-    { grade: 'F', students: 47 }
-  ];
+  const studentPerformance = overview?.performance?.gradeDistribution?.length
+    ? overview.performance.gradeDistribution.map((item) => ({
+        grade: item.grade,
+        students: item.count
+      }))
+    : [
+        { grade: 'A', students: 420 },
+        { grade: 'B', students: 380 },
+        { grade: 'C', students: 280 },
+        { grade: 'D', students: 120 },
+        { grade: 'F', students: 47 }
+      ];
 
   // ChartJS data for Student Performance Distribution
   const performanceChartData = {
@@ -400,6 +445,13 @@ const PrincipalDashboard = () => {
         
         {/* Main Dashboard Content */}
         <main className="p-6 bg-gray-50 min-h-screen">
+          {(isLoading || loadError) && (
+            <div className={`mb-4 rounded-lg border px-4 py-3 text-sm ${
+              loadError ? 'border-red-200 bg-red-50 text-red-700' : 'border-yellow-200 bg-yellow-50 text-yellow-800'
+            }`}>
+              {isLoading ? 'Loading live dashboard data...' : loadError}
+            </div>
+          )}
           {activeView === 'overview' ? (
             <div className="space-y-6">
               {/* Welcome Section */}

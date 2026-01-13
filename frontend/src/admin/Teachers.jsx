@@ -37,7 +37,7 @@ const Teachers = ({setShowAdminHeader}) => {
   const [newTeacher, setNewTeacher] = useState({
     name: '',
     email: '',
-    phone: '',
+    mobile: '',
     subject: '',
     department: '',
     experience: '',
@@ -52,9 +52,12 @@ const Teachers = ({setShowAdminHeader}) => {
 
   // Filter teachers based on search and status
   const filteredTeachers = teachers.filter(teacher => {
-    const matchesSearch = teacher.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         teacher.subject.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         teacher.email.toLowerCase().includes(searchTerm.toLowerCase());
+    const teacherName = (teacher.name || '').toLowerCase();
+    const teacherSubject = (teacher.subject || '').toLowerCase();
+    const teacherEmail = (teacher.email || '').toLowerCase();
+    const matchesSearch = teacherName.includes(searchTerm.toLowerCase()) ||
+                         teacherSubject.includes(searchTerm.toLowerCase()) ||
+                         teacherEmail.includes(searchTerm.toLowerCase());
     const matchesStatus = filterStatus === 'All' || teacher.status === filterStatus;
     return matchesSearch && matchesStatus;
   });
@@ -119,7 +122,20 @@ const Teachers = ({setShowAdminHeader}) => {
       return res.json();
     })
     .then(data => {
-      setTeachers(data)
+      const normalized = (Array.isArray(data) ? data : []).map((teacher, idx) => ({
+        ...teacher,
+        id: teacher._id || teacher.id || idx,
+        name: teacher.name || 'Unnamed Teacher',
+        email: teacher.email || '—',
+        mobile: teacher.mobile || '—',
+        subject: teacher.subject || '—',
+        department: teacher.department || '—',
+        qualification: teacher.qualification || '—',
+        joiningDate: teacher.joiningDate || '',
+        empId: teacher.empId ?? '—',
+        status: teacher.status || 'Active'
+      }));
+      setTeachers(normalized)
     })
     .catch(err => {
       console.error('Error fetching teachers:', err);
@@ -267,14 +283,14 @@ const Teachers = ({setShowAdminHeader}) => {
               <tbody className="bg-white">
                 {filteredTeachers.map((teacher) => (
                   <tr 
-                    key={teacher.id}
+                    key={teacher._id || teacher.id}
                     className="hover:bg-yellow-50 transition-colors border-b border-gray-100"
                   >
                     {/* Teacher Info */}
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-3">
                         <div className="w-12 h-12 rounded-full bg-yellow-200 flex items-center justify-center font-semibold text-yellow-700 flex-shrink-0">
-                          {teacher.name.split(' ').map(n => n[0]).join('')}
+                          {(teacher.name || 'NA').split(' ').map(n => n[0]).join('')}
                         </div>
                         <div className="min-w-0">
                           <div className="font-medium text-gray-900 truncate">{teacher.name}</div>
@@ -352,7 +368,7 @@ const Teachers = ({setShowAdminHeader}) => {
                         </div>
                         <div className="text-sm text-gray-600">{teacher.department}</div>
                         <div className="text-xs text-gray-500">
-                          Joined: {new Date(teacher.joiningDate).toLocaleDateString()}
+                          Joined: {teacher.joiningDate ? new Date(teacher.joiningDate).toLocaleDateString() : '—'}
                         </div>
                       </div>
                     </td>

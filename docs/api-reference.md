@@ -5,6 +5,8 @@ Base URL: http://localhost:5000
 ## Auth
 - POST /api/admin/auth/register
 - POST /api/admin/auth/login
+- POST /api/principal/auth/register
+- POST /api/principal/auth/login
 - POST /api/teacher/auth/register
 - POST /api/teacher/auth/login
 - POST /api/student/auth/register
@@ -91,6 +93,9 @@ Base URL: http://localhost:5000
 
 ## Reports (Admin)
 - GET /api/reports/summary
+
+## Principal
+- GET /api/principal/overview
 
 ## Notifications
 - POST /api/notifications

@@ -15,7 +15,8 @@ import {
   Settings,
   Receipt,
   UserSearch,
-  BarChart4
+  BarChart4,
+  Layers
 } from 'lucide-react';
 
 export const ADMIN_MENU_ITEMS = [
@@ -54,6 +55,11 @@ export const ADMIN_MENU_ITEMS = [
     icon: UserCheck, 
     label: 'Parents', 
     path: '/admin/parents' 
+  },
+  { 
+    icon: Layers, 
+    label: 'Academic Setup', 
+    path: '/admin/academics' 
   },
   { 
     icon: BookOpen, 

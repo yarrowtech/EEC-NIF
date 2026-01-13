@@ -37,13 +37,16 @@ const ParentsManagement = ({setShowAdminHeader}) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterGrade, setFilterGrade] = useState('All');
   const [parents, setParents] = useState([]);
+  const [isLoading, setIsLoading] = useState(false);
 
   // Filter parents based on search and grade
   const filteredParents = parents.filter(parent => {
+    const children = Array.isArray(parent.children) ? parent.children : [];
+    const grades = Array.isArray(parent.grades) ? parent.grades : [];
     const matchesSearch = parent.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          parent.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         parent.children.some(child => child.toLowerCase().includes(searchTerm.toLowerCase()));
-    const matchesGrade = filterGrade === 'All' || parent.grades.includes(filterGrade);
+                         children.some(child => child.toLowerCase().includes(searchTerm.toLowerCase()));
+    const matchesGrade = filterGrade === 'All' || grades.includes(filterGrade);
     return matchesSearch && matchesGrade;
   });
 
@@ -254,6 +257,52 @@ const ParentsManagement = ({setShowAdminHeader}) => {
       relationship: 'Mother'
     }
   ];
+
+  useEffect(() => {
+    setShowAdminHeader(false);
+    const fetchParents = async () => {
+      setIsLoading(true);
+      try {
+        const res = await fetch(`${import.meta.env.VITE_API_URL}/api/admin/users/get-parents`, {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+            authorization: `Bearer ${localStorage.getItem('token')}`
+          }
+        });
+        if (!res.ok) {
+          throw new Error('Failed to fetch parents');
+        }
+        const data = await res.json();
+        const normalized = (Array.isArray(data) ? data : []).map((parent, idx) => ({
+          id: parent._id || parent.id || idx,
+          name: parent.name || 'Unnamed Parent',
+          parentId: parent._id ? `PAR-${parent._id.slice(-4)}` : `PAR-${idx + 1}`,
+          email: parent.email || '—',
+          mobile: parent.mobile || '—',
+          children: Array.isArray(parent.children) ? parent.children : [],
+          grades: Array.isArray(parent.grade)
+            ? parent.grade
+            : Array.isArray(parent.grades)
+            ? parent.grades
+            : [],
+          occupation: parent.occupation || '—',
+          address: parent.address || '—',
+          joinDate: parent.createdAt ? new Date(parent.createdAt).toISOString().slice(0, 10) : '—',
+          emergencyContact: parent.emergencyContact || parent.mobile || '—',
+          relationship: parent.relationship || 'Parent'
+        }));
+        setParents(normalized.length ? normalized : staticParentsData);
+      } catch (err) {
+        console.error('Error fetching parents:', err);
+        setParents(staticParentsData);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchParents();
+  }, [setShowAdminHeader]);
 
   // making the admin header invisible
   useEffect(() => {
