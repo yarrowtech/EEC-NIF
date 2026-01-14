@@ -22,7 +22,7 @@ router.post('/register', adminAuth, async (req, res) => {
   try {
     const username = await generateUsername(name, 'parent');
     const password = generatePassword();
-    const resolvedSchoolId = req.admin?.schoolId || schoolId || null;
+    const resolvedSchoolId = req.schoolId || (req.isSuperAdmin ? schoolId : null);
     if (!resolvedSchoolId) {
       return res.status(400).json({ error: 'schoolId is required' });
     }

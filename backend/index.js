@@ -44,7 +44,12 @@ const principalDashboardRoutes = require('./routes/principalDashboardRoutes');
 const seedPrincipal = async () => {
   const principalEmail = process.env.PRINCIPAL_EMAIL;
   const principalPassword = process.env.PRINCIPAL_PASSWORD;
+  const principalSchoolId = process.env.PRINCIPAL_SCHOOL_ID;
   if (!principalEmail || !principalPassword) {
+    return;
+  }
+  if (!principalSchoolId || !mongoose.isValidObjectId(principalSchoolId)) {
+    console.warn('PRINCIPAL_SCHOOL_ID is missing or invalid; skipping principal seed.');
     return;
   }
   if (!isStrongPassword(principalPassword)) {
@@ -60,6 +65,7 @@ const seedPrincipal = async () => {
       existing.email = normalizedEmail;
       existing.username = normalizedEmail;
       existing.password = principalPassword;
+      existing.schoolId = principalSchoolId;
       await existing.save();
       console.log(`Updated principal user: ${normalizedEmail}`);
       return;
@@ -70,6 +76,7 @@ const seedPrincipal = async () => {
       email: normalizedEmail,
       password: principalPassword,
       name: 'Principal',
+      schoolId: principalSchoolId,
     });
     await principal.save();
     console.log(`Seeded principal user: ${normalizedEmail}`);

@@ -12,10 +12,13 @@ router.post('/', adminAuth, async (req, res) => {
     if (!name || !name.trim()) {
       return res.status(400).json({ error: 'School name is required' });
     }
+    if (!code || !String(code).trim()) {
+      return res.status(400).json({ error: 'School code is required' });
+    }
 
     const created = await School.create({
       name: name.trim(),
-      code: code ? String(code).trim() : undefined,
+      code: String(code).trim().toUpperCase(),
       address: address ? String(address).trim() : undefined,
       contactEmail: contactEmail ? String(contactEmail).trim() : undefined,
       contactPhone: contactPhone ? String(contactPhone).trim() : undefined,

@@ -4,6 +4,12 @@ const adminAuth = require('../middleware/adminAuth'); // Protect the route
 const StudentUser = require('../models/StudentUser');
 const TeacherUser = require('../models/TeacherUser');
 const ParentUser = require('../models/ParentUser');
+const {
+  getNextStudentSequence,
+  getNextEmployeeSequence,
+  buildStudentCode,
+  buildEmployeeCode,
+} = require('../utils/codeGenerator');
 
 const parseCsvLine = (line = '') => {
   const out = [];
@@ -49,6 +55,15 @@ const parseCsv = (csvText = '') => {
   return { headers, rows };
 };
 
+const resolveAdmissionYear = (value) => {
+  if (!value) return new Date().getFullYear();
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) {
+    return new Date().getFullYear();
+  }
+  return parsed.getFullYear();
+};
+
 // Utility to get the right model based on role
 const getModelByRole = (role) => {
   switch (role) {
@@ -71,11 +86,11 @@ router.post('/create-user', adminAuth, async (req, res) => {
     if (!isStrongPassword(password)) {
       return res.status(400).json({ error: passwordPolicyMessage });
     }
-    const resolvedSchoolId = req.admin?.schoolId || schoolId || null;
+    const resolvedSchoolId = req.schoolId || (req.isSuperAdmin ? schoolId : null);
     if (!resolvedSchoolId) {
       return res.status(400).json({ error: 'schoolId is required' });
     }
-    const newUser = new Model({
+    const payload = {
       username,
       password,
       name,
@@ -86,7 +101,17 @@ router.post('/create-user', adminAuth, async (req, res) => {
       state,
       pinCode,
       schoolId: resolvedSchoolId,
-    });
+    };
+    if (role === 'student') {
+      const admissionYear = resolveAdmissionYear(req.body?.admissionDate);
+      const { schoolCode, nextSequence } = await getNextStudentSequence(resolvedSchoolId, admissionYear);
+      payload.studentCode = buildStudentCode(schoolCode, admissionYear, nextSequence);
+    }
+    if (role === 'teacher') {
+      const { schoolCode, nextSequence } = await getNextEmployeeSequence(resolvedSchoolId);
+      payload.employeeCode = buildEmployeeCode(schoolCode, nextSequence);
+    }
+    const newUser = new Model(payload);
     await newUser.save();
     res.status(201).json({ message: `${role} user created successfully` });
   } catch (err) {
@@ -96,14 +121,14 @@ router.post('/create-user', adminAuth, async (req, res) => {
 
 // Bulk create users for a role (admin only)
 router.post('/bulk-create-users', adminAuth, async (req, res) => {
-  const { role, users } = req.body || {};
+  const { role, users, schoolId } = req.body || {};
   const Model = getModelByRole(role);
   if (!Model) return res.status(400).json({ error: 'Invalid user role' });
   if (!Array.isArray(users) || users.length === 0) {
     return res.status(400).json({ error: 'users array is required' });
   }
 
-  const resolvedSchoolId = req.admin?.schoolId || null;
+  const resolvedSchoolId = req.schoolId || (req.isSuperAdmin ? schoolId : null);
   if (!resolvedSchoolId) {
     return res.status(400).json({ error: 'schoolId is required' });
   }
@@ -113,6 +138,12 @@ router.post('/bulk-create-users', adminAuth, async (req, res) => {
     failed: 0,
     errors: [],
   };
+
+  const studentSequenceByYear = new Map();
+  let employeeSequenceState = null;
+  if (role === 'teacher') {
+    employeeSequenceState = await getNextEmployeeSequence(resolvedSchoolId);
+  }
 
   for (let i = 0; i < users.length; i += 1) {
     const user = users[i] || {};
@@ -135,6 +166,27 @@ router.post('/bulk-create-users', adminAuth, async (req, res) => {
       };
       delete payload._id;
       delete payload.id;
+      if (role === 'student') {
+        const admissionYear = resolveAdmissionYear(user.admissionDate);
+        if (!studentSequenceByYear.has(admissionYear)) {
+          const sequenceState = await getNextStudentSequence(resolvedSchoolId, admissionYear);
+          studentSequenceByYear.set(admissionYear, sequenceState);
+        }
+        const sequenceState = studentSequenceByYear.get(admissionYear);
+        payload.studentCode = buildStudentCode(
+          sequenceState.schoolCode,
+          admissionYear,
+          sequenceState.nextSequence
+        );
+        sequenceState.nextSequence += 1;
+      }
+      if (role === 'teacher' && employeeSequenceState) {
+        payload.employeeCode = buildEmployeeCode(
+          employeeSequenceState.schoolCode,
+          employeeSequenceState.nextSequence
+        );
+        employeeSequenceState.nextSequence += 1;
+      }
 
       const newUser = new Model(payload);
       await newUser.save();
@@ -150,14 +202,14 @@ router.post('/bulk-create-users', adminAuth, async (req, res) => {
 
 // Bulk import users from CSV (admin only)
 router.post('/bulk-import-csv', adminAuth, async (req, res) => {
-  const { role, csv } = req.body || {};
+  const { role, csv, schoolId } = req.body || {};
   const Model = getModelByRole(role);
   if (!Model) return res.status(400).json({ error: 'Invalid user role' });
   if (!csv || !String(csv).trim()) {
     return res.status(400).json({ error: 'csv is required' });
   }
 
-  const resolvedSchoolId = req.admin?.schoolId || null;
+  const resolvedSchoolId = req.schoolId || (req.isSuperAdmin ? schoolId : null);
   if (!resolvedSchoolId) {
     return res.status(400).json({ error: 'schoolId is required' });
   }
@@ -172,6 +224,12 @@ router.post('/bulk-import-csv', adminAuth, async (req, res) => {
     failed: 0,
     errors: [],
   };
+
+  const studentSequenceByYear = new Map();
+  let employeeSequenceState = null;
+  if (role === 'teacher') {
+    employeeSequenceState = await getNextEmployeeSequence(resolvedSchoolId);
+  }
 
   for (let i = 0; i < rows.length; i += 1) {
     const row = rows[i] || {};
@@ -193,6 +251,27 @@ router.post('/bulk-import-csv', adminAuth, async (req, res) => {
       };
       delete payload._id;
       delete payload.id;
+      if (role === 'student') {
+        const admissionYear = resolveAdmissionYear(row.admissionDate);
+        if (!studentSequenceByYear.has(admissionYear)) {
+          const sequenceState = await getNextStudentSequence(resolvedSchoolId, admissionYear);
+          studentSequenceByYear.set(admissionYear, sequenceState);
+        }
+        const sequenceState = studentSequenceByYear.get(admissionYear);
+        payload.studentCode = buildStudentCode(
+          sequenceState.schoolCode,
+          admissionYear,
+          sequenceState.nextSequence
+        );
+        sequenceState.nextSequence += 1;
+      }
+      if (role === 'teacher' && employeeSequenceState) {
+        payload.employeeCode = buildEmployeeCode(
+          employeeSequenceState.schoolCode,
+          employeeSequenceState.nextSequence
+        );
+        employeeSequenceState.nextSequence += 1;
+      }
       const newUser = new Model(payload);
       await newUser.save();
       results.created += 1;
@@ -207,7 +286,7 @@ router.post('/bulk-import-csv', adminAuth, async (req, res) => {
 
 router.get("/get-students", adminAuth, async (req, res) => {
   try {
-    const filter = req.admin?.schoolId ? { schoolId: req.admin.schoolId } : {};
+    const filter = req.schoolId ? { schoolId: req.schoolId } : {};
     const students = await StudentUser.find(filter);
     res.status(200).json(students);
   } catch (err) {
@@ -217,7 +296,7 @@ router.get("/get-students", adminAuth, async (req, res) => {
 
 router.get("/get-teachers", adminAuth, async (req, res) => {
   try {
-    const filter = req.admin?.schoolId ? { schoolId: req.admin.schoolId } : {};
+    const filter = req.schoolId ? { schoolId: req.schoolId } : {};
     const teachers = await TeacherUser.find(filter);
     res.status(200).json(teachers);
   } catch (err) {
@@ -227,7 +306,7 @@ router.get("/get-teachers", adminAuth, async (req, res) => {
 
 router.get("/get-parents", adminAuth, async (req, res) => {
   try {
-    const filter = req.admin?.schoolId ? { schoolId: req.admin.schoolId } : {};
+    const filter = req.schoolId ? { schoolId: req.schoolId } : {};
     const parents = await ParentUser.find(filter);
     res.status(200).json(parents);
   } catch (err) {
@@ -238,7 +317,7 @@ router.get("/get-parents", adminAuth, async (req, res) => {
 // Live dashboard statistics endpoint
 router.get("/dashboard-stats", adminAuth, async (req, res) => {
   try {
-    const filter = req.admin?.schoolId ? { schoolId: req.admin.schoolId } : {};
+    const filter = req.schoolId ? { schoolId: req.schoolId } : {};
     // Fetch counts from all user types
     const [studentCount, teacherCount, parentCount] = await Promise.all([
       StudentUser.countDocuments(filter),

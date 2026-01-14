@@ -10,10 +10,7 @@ const FeeInvoice = require('../models/FeeInvoice');
 
 const router = express.Router();
 
-const getSchoolFilter = (req) => {
-  const schoolId = req.schoolId || req.principal?.schoolId || null;
-  return schoolId ? { schoolId } : {};
-};
+const getSchoolFilter = (req) => ({ schoolId: req.schoolId });
 
 const buildAttendanceTrend = (students, monthsBack = 6) => {
   const now = new Date();

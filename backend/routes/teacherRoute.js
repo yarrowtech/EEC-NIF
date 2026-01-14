@@ -4,6 +4,7 @@ const TeacherUser = require('../models/TeacherUser');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const { generateUsername, generatePassword } = require('../utils/generator');
+const { generateEmployeeCode } = require('../utils/codeGenerator');
 const adminAuth = require('../middleware/adminAuth');
 const rateLimit = require('../middleware/rateLimit');
 const { isStrongPassword, passwordPolicyMessage } = require('../utils/passwordPolicy');
@@ -30,16 +31,18 @@ router.post('/register', adminAuth, async (req, res) => {
     const username = await generateUsername(name, "teacher")
     const password = generatePassword();
     const empId = await generateEmpId();
-    const resolvedSchoolId = req.admin?.schoolId || schoolId || null;
+    const resolvedSchoolId = req.schoolId || (req.isSuperAdmin ? schoolId : null);
     if (!resolvedSchoolId) {
       return res.status(400).json({ error: 'schoolId is required' });
     }
 
+    const employeeCode = await generateEmployeeCode(resolvedSchoolId);
     const user = new TeacherUser({
       username,
       password,
       empId,
       schoolId: resolvedSchoolId,
+      employeeCode,
       name,
       gender,
       mobile,
@@ -54,7 +57,7 @@ router.post('/register', adminAuth, async (req, res) => {
     });
 
     await user.save();
-    res.status(201).json({ message: 'Teacher registered successfully', username, password, empId });
+    res.status(201).json({ message: 'Teacher registered successfully', username, password, empId, employeeCode });
   } catch (err) {
     res.status(400).json({ error: err.message });
   }
@@ -68,6 +71,10 @@ router.post('/login', rateLimit({ windowMs: 60 * 1000, max: 10 }), async (req, r
     const user = await TeacherUser.findOne({ username });
     if (!user || !(await bcrypt.compare(password, user.password))) {
       return res.status(401).json({ error: 'Invalid credentials' });
+    }
+    if (!user.employeeCode && user.schoolId) {
+      user.employeeCode = await generateEmployeeCode(user.schoolId);
+      await user.save();
     }
 
     const token = jwt.sign(

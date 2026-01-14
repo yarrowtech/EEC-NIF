@@ -1,4 +1,5 @@
 const jwt = require('jsonwebtoken');
+const mongoose = require('mongoose');
 
 const principalAuth = (req, res, next) => {
   const authHeader = req.headers.authorization;
@@ -11,9 +12,12 @@ const principalAuth = (req, res, next) => {
     if (decoded.type !== 'principal') {
       return res.status(403).json({ error: 'Access denied' });
     }
+    if (!decoded.schoolId || !mongoose.isValidObjectId(decoded.schoolId)) {
+      return res.status(403).json({ error: 'School not assigned' });
+    }
     req.principal = decoded;
     req.userType = 'Principal';
-    req.schoolId = decoded.schoolId || null;
+    req.schoolId = decoded.schoolId;
     next();
   } catch (err) {
     res.status(401).json({ error: 'Invalid token' });
