@@ -1,7 +1,9 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { Bell, Search, Menu, CalendarDays } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 
 const Header = ({ sidebarOpen, setSidebarOpen, onOpenProfile }) => {
+  const navigate = useNavigate();
   const [notifications] = useState(3);
   const [showNotifications, setShowNotifications] = useState(false);
   const notificationList = [
@@ -25,6 +27,57 @@ const Header = ({ sidebarOpen, setSidebarOpen, onOpenProfile }) => {
     },
   ];
   const [profileOpen, setProfileOpen] = useState(false);
+  const [studentData, setStudentData] = useState({
+    name: "Student",
+    avatar: null,
+    grade: "",
+    section: ""
+  });
+
+  // Fetch student profile
+  useEffect(() => {
+    const fetchStudentProfile = async () => {
+      try {
+        const token = localStorage.getItem('token');
+        const userType = localStorage.getItem('userType');
+
+        console.log('Header - Token:', token ? 'exists' : 'missing', 'UserType:', userType);
+
+        if (!token || userType !== 'Student') return;
+
+        const url = `${import.meta.env.VITE_API_URL}/api/student/auth/profile`;
+        console.log('Header - Fetching from:', url);
+
+        const response = await fetch(url, {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        });
+
+        console.log('Header - Response status:', response.status);
+
+        if (response.ok) {
+          const data = await response.json();
+          console.log('Header - Profile data received:', data);
+          setStudentData({
+            name: data.name || "Student",
+            avatar: data.profilePic || null,
+            grade: data.grade || "",
+            section: data.section || ""
+          });
+        } else {
+          const errorText = await response.text();
+          console.error('Header - Profile fetch failed:', response.status, errorText);
+        }
+      } catch (error) {
+        console.error('Header - Failed to fetch student profile:', error);
+      }
+    };
+
+    fetchStudentProfile();
+  }, []);
+
   // Greeting and date
   const { greeting, dateLabel } = useMemo(() => {
     const now = new Date();
@@ -36,9 +89,10 @@ const Header = ({ sidebarOpen, setSidebarOpen, onOpenProfile }) => {
     return { greeting, dateLabel };
   }, []);
 
-  const studentData = {
-    name: "Koushik Bala",
-    avatar: "src/koushik-bala-pp.jpg"
+  const handleLogout = () => {
+    localStorage.removeItem('token');
+    localStorage.removeItem('userType');
+    navigate('/');
   };
 
   return (
@@ -154,7 +208,12 @@ const Header = ({ sidebarOpen, setSidebarOpen, onOpenProfile }) => {
                     </button>
                     <button className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">Settings</button>
                   </div>
-                  <button className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-gray-50 border-t">Logout</button>
+                  <button
+                    onClick={handleLogout}
+                    className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-gray-50 border-t"
+                  >
+                    Logout
+                  </button>
                 </div>
               )}
             </div>

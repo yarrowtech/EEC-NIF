@@ -59,6 +59,7 @@ const Students = ({ setShowAdminHeader, setShowAdminBreadcrumb }) => {
   const [deletingId, setDeletingId] = useState(null);
   const [credentialLoadingId, setCredentialLoadingId] = useState(null);
   const [credentialStatus, setCredentialStatus] = useState({});
+  const [isBulkGenerating, setIsBulkGenerating] = useState(false);
 
   const [newStudent, setNewStudent] = useState({
     // core
@@ -645,6 +646,250 @@ const Students = ({ setShowAdminHeader, setShowAdminBreadcrumb }) => {
     }
   };
 
+  const handleBulkCredentialGeneration = async () => {
+    // Get students without portal access
+    const studentsWithoutPortal = studentData.filter(
+      (student) => !student.studentPortalUser && student.status === "Active"
+    );
+
+    if (studentsWithoutPortal.length === 0) {
+      Swal.fire({
+        icon: "info",
+        title: "No Students Found",
+        text: "All active students already have portal credentials.",
+      });
+      return;
+    }
+
+    const result = await Swal.fire({
+      icon: "question",
+      title: "Generate Credentials for All Students",
+      html: `
+        <p>This will generate portal credentials for <strong>${studentsWithoutPortal.length}</strong> students.</p>
+        <p class="text-sm text-gray-600 mt-2">Credentials will be automatically generated and exported to CSV.</p>
+      `,
+      showCancelButton: true,
+      confirmButtonText: "Generate & Export",
+      confirmButtonColor: "#EAB308",
+      cancelButtonText: "Cancel",
+    });
+
+    if (!result.isConfirmed) return;
+
+    setIsBulkGenerating(true);
+
+    const credentialsList = [];
+    const errors = [];
+
+    // Show progress
+    Swal.fire({
+      title: "Generating Credentials",
+      html: `<div>Processing: <strong>0</strong> / ${studentsWithoutPortal.length}</div>`,
+      allowOutsideClick: false,
+      didOpen: () => {
+        Swal.showLoading();
+      },
+    });
+
+    for (let i = 0; i < studentsWithoutPortal.length; i++) {
+      const student = studentsWithoutPortal[i];
+
+      // Update progress
+      Swal.update({
+        html: `<div>Processing: <strong>${i + 1}</strong> / ${studentsWithoutPortal.length}</div>
+               <div class="text-sm text-gray-600 mt-2">${student.name}</div>`,
+      });
+
+      try {
+        // Generate credentials using the credential generator logic
+        const admissionYear = student.admissionDate
+          ? new Date(student.admissionDate).getFullYear()
+          : new Date().getFullYear();
+
+        const batchCodeValue = student.batchCode || "GEN";
+        const sanitizedBatch = batchCodeValue
+          .toString()
+          .replace(/[^a-zA-Z0-9]/g, "")
+          .toUpperCase();
+        const year = admissionYear.toString().slice(-2);
+        const random = Math.floor(Math.random() * 10000)
+          .toString()
+          .padStart(4, "0");
+        const username = `STU-${year}${sanitizedBatch}-${random}`;
+
+        // Generate password
+        const generatePassword = () => {
+          const uppercase = "ABCDEFGHJKLMNPQRSTUVWXYZ";
+          const lowercase = "abcdefghjkmnpqrstuvwxyz";
+          const numbers = "0123456789";
+          const symbols = "!@#$%&*?";
+          const allChars = `${uppercase}${lowercase}${numbers}${symbols}`;
+
+          let password = "";
+          password += uppercase[Math.floor(Math.random() * uppercase.length)];
+          password += lowercase[Math.floor(Math.random() * lowercase.length)];
+          password += numbers[Math.floor(Math.random() * numbers.length)];
+          password += symbols[Math.floor(Math.random() * symbols.length)];
+
+          while (password.length < 10) {
+            password += allChars[Math.floor(Math.random() * allChars.length)];
+          }
+
+          // Shuffle
+          return password
+            .split("")
+            .sort(() => Math.random() - 0.5)
+            .join("");
+        };
+
+        const password = generatePassword();
+
+        // Send to backend
+        const res = await fetch(`${API_BASE}/api/student/auth/register`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            authorization: `Bearer ${localStorage.getItem("token")}`,
+          },
+          body: JSON.stringify({
+            username,
+            password,
+            studentId: student._id,
+            nifId: student.serialNo,
+            name: student.name,
+            email: student.email,
+            mobile: student.mobile,
+            grade: student.grade,
+            section: student.section,
+            batchCode: student.batchCode,
+          }),
+        });
+
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          throw new Error(data.error || data.message || "Failed to generate credentials");
+        }
+
+        // Store credentials for CSV export
+        credentialsList.push({
+          serialNo: student.serialNo || "",
+          name: student.name,
+          batchCode: student.batchCode,
+          grade: student.grade,
+          section: student.section,
+          roll: student.roll,
+          mobile: student.mobile,
+          email: student.email,
+          username,
+          password,
+        });
+
+        setCredentialStatus((prev) => ({ ...prev, [student._id]: "active" }));
+      } catch (error) {
+        console.error(`Error generating credentials for ${student.name}:`, error);
+        errors.push({
+          student: student.name,
+          error: error.message,
+        });
+      }
+    }
+
+    setIsBulkGenerating(false);
+
+    // Export to CSV
+    if (credentialsList.length > 0) {
+      exportCredentialsToCSV(credentialsList);
+    }
+
+    // Refresh student data
+    await refreshStudents();
+
+    // Show results
+    const successCount = credentialsList.length;
+    const errorCount = errors.length;
+
+    let resultHtml = `<p><strong>${successCount}</strong> credentials generated successfully.</p>`;
+
+    if (errorCount > 0) {
+      resultHtml += `<p class="text-red-600 mt-2"><strong>${errorCount}</strong> failed.</p>`;
+      resultHtml += `<div class="text-left mt-3 max-h-40 overflow-y-auto text-sm">`;
+      errors.forEach((err) => {
+        resultHtml += `<div class="mb-1">• ${err.student}: ${err.error}</div>`;
+      });
+      resultHtml += `</div>`;
+    }
+
+    if (successCount > 0) {
+      resultHtml += `<p class="text-sm text-gray-600 mt-3">✓ Credentials exported to CSV file</p>`;
+    }
+
+    Swal.fire({
+      icon: successCount > 0 ? "success" : "error",
+      title: "Bulk Credential Generation Complete",
+      html: resultHtml,
+      confirmButtonColor: "#EAB308",
+    });
+  };
+
+  const exportCredentialsToCSV = (credentialsList) => {
+    // Create CSV header
+    const headers = [
+      "Serial No",
+      "Student Name",
+      "Batch Code",
+      "Grade",
+      "Section",
+      "Roll",
+      "Mobile",
+      "Email",
+      "Portal ID",
+      "Portal Password",
+    ];
+
+    // Create CSV rows
+    const rows = credentialsList.map((cred) => [
+      cred.serialNo,
+      cred.name,
+      cred.batchCode,
+      cred.grade,
+      cred.section,
+      cred.roll,
+      cred.mobile,
+      cred.email,
+      cred.username,
+      cred.password,
+    ]);
+
+    // Combine headers and rows
+    const csvContent = [headers, ...rows]
+      .map((row) =>
+        row
+          .map((cell) => {
+            const cellStr = String(cell || "");
+            // Escape quotes and wrap in quotes if contains comma, quote, or newline
+            if (cellStr.includes(",") || cellStr.includes('"') || cellStr.includes("\n")) {
+              return `"${cellStr.replace(/"/g, '""')}"`;
+            }
+            return cellStr;
+          })
+          .join(",")
+      )
+      .join("\n");
+
+    // Create blob and download
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const link = document.createElement("a");
+    const url = URL.createObjectURL(blob);
+    link.setAttribute("href", url);
+    link.setAttribute(
+      "download",
+      `student_credentials_${new Date().toISOString().split("T")[0]}.csv`
+    );
+    link.style.visibility = "hidden";
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
 
   const handleUnarchiveStudent = async (studentId) => {
     if (!studentId) return;
@@ -1095,8 +1340,16 @@ const Students = ({ setShowAdminHeader, setShowAdminBreadcrumb }) => {
               }}
             />
 
+            <button
+              onClick={handleBulkCredentialGeneration}
+              disabled={isBulkGenerating}
+              className="bg-emerald-600 text-white px-3 md:px-4 py-2 rounded-lg hover:bg-emerald-700 disabled:opacity-60 flex items-center gap-2 text-sm md:text-base flex-1 sm:flex-none justify-center"
+              title="Generate credentials for all students without portal access and export to CSV"
+            >
+              <FileDown size={16} />
+              {isBulkGenerating ? "Generating..." : "Generate All IDs"}
+            </button>
 
-            
             <button
               onClick={() => setShowAddForm(true)}
               className="bg-yellow-600 text-white px-3 md:px-4 py-2 rounded-lg hover:bg-yellow-700 flex items-center gap-2 text-sm md:text-base flex-1 sm:flex-none justify-center"

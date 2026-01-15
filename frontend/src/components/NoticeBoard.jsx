@@ -27,123 +27,73 @@ const NoticeBoard = () => {
   const [filterPriority, setFilterPriority] = useState('all');
   const [filterCategory, setFilterCategory] = useState('all');
   const [bookmarkedNotices, setBookmarkedNotices] = useState([]);
-  const [viewMode, setViewMode] = useState('grid'); // 'grid' or 'list'
-  const [notices, setNotices] = useState([
-    {
-      id: 1,
-      title: 'Important: Mid-Term Examination Schedule',
-      message: 'Mid-term examinations will begin from August 15th, 2024. Please check your individual timetables on the student portal. Make sure to bring all required materials and arrive 15 minutes before each exam.',
-      date: '2024-08-05',
-      priority: 'high',
-      category: 'academic',
-      author: 'Academic Office',
-      pinned: true,
-      views: 247,
-      attachments: ['exam_schedule.pdf']
-    },
-    {
-      id: 2,
-      title: 'Sports Day Event - August 22nd',
-      message: 'Annual Sports Day will be held on August 22nd at the main playground. Students can register for various events through the sports department. Parents are invited to attend.',
-      date: '2024-08-03',
-      priority: 'medium',
-      category: 'events',
-      author: 'Sports Department',
-      pinned: false,
-      views: 156,
-      attachments: []
-    },
-    {
-      id: 3,
-      title: 'Library Hours Extended',
-      message: 'Library hours have been extended during examination period. New timings: 7:00 AM to 9:00 PM on weekdays, 8:00 AM to 6:00 PM on weekends.',
-      date: '2024-08-02',
-      priority: 'medium',
-      category: 'academic',
-      author: 'Library Staff',
-      pinned: false,
-      views: 89,
-      attachments: []
-    },
-    {
-      id: 4,
-      title: 'New Cafeteria Menu',
-      message: 'Updated cafeteria menu is now available! We have added healthy options and regional cuisine. Special dietary requirements can be accommodated upon request.',
-      date: '2024-08-01',
-      priority: 'low',
-      category: 'general',
-      author: 'Cafeteria Management',
-      pinned: false,
-      views: 203,
-      attachments: ['new_menu.pdf']
-    },
-    {
-      id: 5,
-      title: 'Parent-Teacher Conference',
-      message: 'Parent-Teacher conferences are scheduled for August 18th and 19th. Please book your slots through the parent portal or contact the front office.',
-      date: '2024-07-30',
-      priority: 'high',
-      category: 'events',
-      author: 'Administration',
-      pinned: true,
-      views: 312,
-      attachments: ['conference_schedule.pdf']
-    },
-    {
-      id: 6,
-      title: 'Science Fair 2024',
-      message: 'Prepare your projects for the annual Science Fair! Submission deadline is August 25th. Judging will take place on August 28th. Exciting prizes await!',
-      date: '2024-07-28',
-      priority: 'medium',
-      category: 'academic',
-      author: 'Science Department',
-      pinned: false,
-      views: 134,
-      attachments: ['science_fair_guidelines.pdf']
-    },
-    {
-      id: 7,
-      title: 'Transport Route Changes',
-      message: 'Due to road construction on Main Street, Bus Route 3 will be temporarily modified. New pickup points and timings are attached. Please check your route.',
-      date: '2024-07-25',
-      priority: 'high',
-      category: 'transport',
-      author: 'Transport Department',
-      pinned: false,
-      views: 178,
-      attachments: ['route_changes.pdf']
-    },
-    {
-      id: 8,
-      title: 'Summer Reading Program Results',
-      message: 'Congratulations to all participants in our Summer Reading Program! Results and certificates are now available. Top performers will be recognized in the morning assembly.',
-      date: '2024-07-22',
-      priority: 'low',
-      category: 'academic',
-      author: 'English Department',
-      pinned: false,
-      views: 95,
-      attachments: ['reading_program_results.pdf']
-    }
-  ]);
-  const [showDetails, setShowDetails] = useState(null);
+  const [notices, setNotices] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [lastUpdated, setLastUpdated] = useState(null);
+
+  useEffect(() => {
+    const fetchNotices = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+        const token = localStorage.getItem('token');
+        const userType = localStorage.getItem('userType');
+
+        if (!token || userType !== 'Student') {
+          setLoading(false);
+          return;
+        }
+
+        const response = await fetch(`${import.meta.env.VITE_API_URL}/api/notifications/user`, {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        });
+
+        if (!response.ok) {
+          throw new Error('Unable to load notices at the moment.');
+        }
+
+        const data = await response.json();
+        setNotices(Array.isArray(data) ? data : []);
+        setLastUpdated(new Date());
+      } catch (err) {
+        console.error('Failed to fetch notices:', err);
+        setError(err.message);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchNotices();
+  }, []);
   
   // Filter notices based on search query and filters
   const filteredNotices = notices.filter(notice => {
-    const matchesSearch = notice.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                         notice.message.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                         notice.author.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesPriority = filterPriority === 'all' || notice.priority === filterPriority;
-    const matchesCategory = filterCategory === 'all' || notice.category === filterCategory;
+    const title = (notice.title || '').toLowerCase();
+    const message = (notice.message || '').toLowerCase();
+    const author = (notice.author || 'School Administration').toLowerCase();
+    const matchesSearch = title.includes(searchQuery.toLowerCase()) ||
+                         message.includes(searchQuery.toLowerCase()) ||
+                         author.includes(searchQuery.toLowerCase());
+
+    const priority = resolvePriority(notice);
+    const category = resolveCategory(notice);
+    const matchesPriority = filterPriority === 'all' || priority === filterPriority;
+    const matchesCategory = filterCategory === 'all' || category === filterCategory;
     
     return matchesSearch && matchesPriority && matchesCategory;
   });
   
   // Sort notices: pinned first, then by date
-  const sortedNotices = filteredNotices.sort((a, b) => {
-    if (a.pinned && !b.pinned) return -1;
-    if (!a.pinned && b.pinned) return 1;
-    return new Date(b.date) - new Date(a.date);
+  const sortedNotices = [...filteredNotices].sort((a, b) => {
+    const aPinned = Boolean(a.pinned);
+    const bPinned = Boolean(b.pinned);
+    if (aPinned && !bPinned) return -1;
+    if (!aPinned && bPinned) return 1;
+    return new Date(resolveDate(b) || 0) - new Date(resolveDate(a) || 0);
   });
   
   const toggleBookmark = (noticeId) => {
@@ -187,6 +137,12 @@ const NoticeBoard = () => {
     }
   };
 
+  const resolvePriority = (notice) => (notice?.priority || 'general').toLowerCase();
+  const resolveCategory = (notice) => (notice?.category || notice?.audience || 'general').toLowerCase();
+  const resolveDate = (notice) => notice?.date || notice?.createdAt || notice?.updatedAt || null;
+  const resolveAuthor = (notice) => notice?.author || notice?.createdByName || 'School Administration';
+  const resolveId = (notice) => notice?._id || notice?.id;
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-yellow-50 via-amber-50 to-purple-50 p-6">
       {/* Header */}
@@ -201,11 +157,21 @@ const NoticeBoard = () => {
           </div>
           <div className="text-right">
             <div className="bg-white/20 rounded-lg p-4">
-              <div className="text-3xl font-bold">{notices.length}</div>
+              <div className="text-3xl font-bold">{loading ? '...' : notices.length}</div>
               <div className="text-sm text-yellow-100">Total Notices</div>
             </div>
+            {lastUpdated && !loading && (
+              <p className="text-xs text-yellow-100 mt-2">Updated {lastUpdated.toLocaleDateString()}</p>
+            )}
           </div>
         </div>
+
+        {error && (
+          <div className="mt-4 bg-white/10 border border-red-200/30 text-white px-4 py-3 rounded-lg text-sm flex items-center gap-2">
+            <AlertCircle size={16} />
+            {error}
+          </div>
+        )}
       </div>
 
       {/* Search and Filter Bar */}
@@ -258,7 +224,7 @@ const NoticeBoard = () => {
           <div className="flex items-center justify-between">
             <div>
               <div className="text-2xl font-bold text-amber-900">
-                {notices.filter(n => n.priority === 'high').length}
+                {loading ? '—' : notices.filter(n => resolvePriority(n) === 'high').length}
               </div>
               <div className="text-sm text-amber-600">High Priority</div>
             </div>
@@ -272,7 +238,7 @@ const NoticeBoard = () => {
           <div className="flex items-center justify-between">
             <div>
               <div className="text-2xl font-bold text-amber-900">
-                {notices.filter(n => n.pinned).length}
+                {loading ? '—' : notices.filter(n => Boolean(n.pinned)).length}
               </div>
               <div className="text-sm text-amber-600">Pinned Notices</div>
             </div>
@@ -300,7 +266,7 @@ const NoticeBoard = () => {
           <div className="flex items-center justify-between">
             <div>
               <div className="text-2xl font-bold text-amber-900">
-                {notices.reduce((sum, notice) => sum + notice.views, 0)}
+                {loading ? '—' : notices.reduce((sum, notice) => sum + (Number(notice.views) || 0), 0)}
               </div>
               <div className="text-sm text-amber-600">Total Views</div>
             </div>
@@ -313,7 +279,13 @@ const NoticeBoard = () => {
 
       {/* Notices Grid */}
       <div className="space-y-6">
-        {sortedNotices.length === 0 ? (
+        {loading ? (
+          <div className="space-y-4">
+            {[...Array(3)].map((_, idx) => (
+              <div key={idx} className="h-40 bg-white rounded-xl shadow-lg border border-yellow-100 animate-pulse" />
+            ))}
+          </div>
+        ) : sortedNotices.length === 0 ? (
           <div className="bg-white rounded-xl p-12 text-center shadow-lg border border-yellow-100">
             <Bell className="w-16 h-16 mx-auto text-amber-300 mb-4" />
             <h3 className="text-xl font-semibold text-amber-900 mb-2">No notices found</h3>
@@ -321,14 +293,22 @@ const NoticeBoard = () => {
           </div>
         ) : (
           sortedNotices.map(notice => {
-            const PriorityIcon = getPriorityIcon(notice.priority);
-            const isBookmarked = bookmarkedNotices.includes(notice.id);
+            const noticeId = resolveId(notice);
+            const priority = resolvePriority(notice);
+            const category = resolveCategory(notice);
+            const displayDate = resolveDate(notice);
+            const author = resolveAuthor(notice);
+            const views = Number(notice.views) || 0;
+            const attachments = Array.isArray(notice.attachments) ? notice.attachments : [];
+            const PriorityIcon = getPriorityIcon(priority);
+            const isBookmarked = bookmarkedNotices.includes(noticeId);
+            const isPinned = Boolean(notice.pinned);
             
             return (
               <div
-                key={notice.id}
+                key={noticeId}
                 className={`bg-white rounded-xl shadow-lg border transition-all duration-200 hover:shadow-xl ${
-                  notice.pinned ? 'border-purple-200 ring-2 ring-purple-100' : 'border-yellow-100'
+                  isPinned ? 'border-purple-200 ring-2 ring-purple-100' : 'border-yellow-100'
                 } hover:border-amber-200`}
               >
                 <div className="p-6">
@@ -336,22 +316,22 @@ const NoticeBoard = () => {
                   <div className="flex items-start justify-between mb-4">
                     <div className="flex-1">
                       <div className="flex items-center gap-3 mb-2">
-                        {notice.pinned && (
+                        {isPinned && (
                           <div className="flex items-center gap-1 text-purple-600">
                             <Pin className="w-4 h-4" />
                             <span className="text-xs font-medium">Pinned</span>
                           </div>
                         )}
                         <div className={`flex items-center gap-1 px-2 py-1 rounded-full border text-xs font-medium ${
-                          getPriorityColor(notice.priority)
+                          getPriorityColor(priority)
                         }`}>
                           <PriorityIcon className="w-3 h-3" />
-                          {notice.priority.toUpperCase()}
+                          {priority.toUpperCase()}
                         </div>
                         <div className={`px-2 py-1 rounded-full border text-xs font-medium ${
-                          getCategoryColor(notice.category)
+                          getCategoryColor(category)
                         }`}>
-                          {notice.category.toUpperCase()}
+                          {category.toUpperCase()}
                         </div>
                       </div>
                       
@@ -364,10 +344,10 @@ const NoticeBoard = () => {
                       </p>
                       
                       {/* Attachments */}
-                      {notice.attachments && notice.attachments.length > 0 && (
+                      {attachments.length > 0 && (
                         <div className="mb-4">
                           <div className="flex flex-wrap gap-2">
-                            {notice.attachments.map((attachment, index) => (
+                            {attachments.map((attachment, index) => (
                               <div
                                 key={index}
                                 className="flex items-center gap-2 bg-yellow-50 border border-yellow-200 rounded-lg px-3 py-2 text-sm cursor-pointer hover:bg-yellow-100 transition-colors"
@@ -383,7 +363,7 @@ const NoticeBoard = () => {
                     
                     <div className="flex items-center gap-2 ml-4">
                       <button
-                        onClick={() => toggleBookmark(notice.id)}
+                        onClick={() => toggleBookmark(noticeId)}
                         className={`p-2 rounded-lg transition-colors ${
                           isBookmarked 
                             ? 'bg-amber-100 text-amber-600 hover:bg-amber-200' 
@@ -408,27 +388,27 @@ const NoticeBoard = () => {
                     <div className="flex items-center gap-4 text-sm text-amber-600">
                       <div className="flex items-center gap-1">
                         <User className="w-4 h-4" />
-                        <span>{notice.author}</span>
+                        <span>{author}</span>
                       </div>
                       
                       <div className="flex items-center gap-1">
                         <Calendar className="w-4 h-4" />
-                        <span>{new Date(notice.date).toLocaleDateString('en-US', {
+                        <span>{displayDate ? new Date(displayDate).toLocaleDateString('en-US', {
                           year: 'numeric',
                           month: 'short',
                           day: 'numeric'
-                        })}</span>
+                        }) : 'Date TBA'}</span>
                       </div>
                       
                       <div className="flex items-center gap-1">
                         <Eye className="w-4 h-4" />
-                        <span>{notice.views} views</span>
+                        <span>{views} views</span>
                       </div>
                     </div>
                     
                     <div className="flex items-center gap-2">
                       <button
-                        onClick={() => markAsRead(notice.id)}
+                        onClick={() => markAsRead(noticeId)}
                         className="px-4 py-2 bg-amber-100 text-amber-700 rounded-lg hover:bg-amber-200 transition-colors text-sm font-medium"
                       >
                         Mark as Read
@@ -442,14 +422,6 @@ const NoticeBoard = () => {
         )}
       </div>
       
-      {/* Load More Button */}
-      {sortedNotices.length > 0 && sortedNotices.length < notices.length && (
-        <div className="text-center mt-8">
-          <button className="px-8 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors font-medium">
-            Load More Notices
-          </button>
-        </div>
-      )}
     </div>
   );
 };

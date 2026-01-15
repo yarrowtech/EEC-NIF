@@ -2,6 +2,59 @@ import React, { useState, useEffect } from 'react';
 import { Sun, Moon, Cloud, Lightbulb, Target, Star, Zap, Heart, Trophy, BookOpen, Rocket, Play, Pause, ChevronLeft, ChevronRight } from 'lucide-react';
 
 const WelcomeCard = () => {
+  const [studentData, setStudentData] = useState({
+    name: "Student",
+    username: "",
+    grade: "",
+    section: "",
+    avatar: null
+  });
+
+  // Fetch student profile
+  useEffect(() => {
+    const fetchStudentProfile = async () => {
+      try {
+        const token = localStorage.getItem('token');
+        const userType = localStorage.getItem('userType');
+
+        console.log('WelcomeCard - Token:', token ? 'exists' : 'missing', 'UserType:', userType);
+
+        if (!token || userType !== 'Student') return;
+
+        const url = `${import.meta.env.VITE_API_URL}/api/student/auth/profile`;
+        console.log('WelcomeCard - Fetching from:', url);
+
+        const response = await fetch(url, {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        });
+
+        console.log('WelcomeCard - Response status:', response.status);
+
+        if (response.ok) {
+          const data = await response.json();
+          console.log('WelcomeCard - Profile data received:', data);
+          setStudentData({
+            name: data.name || "Student",
+            username: data.username || "",
+            grade: data.grade || "",
+            section: data.section || "",
+            avatar: data.profilePic || null
+          });
+        } else {
+          const errorText = await response.text();
+          console.error('WelcomeCard - Profile fetch failed:', response.status, errorText);
+        }
+      } catch (error) {
+        console.error('WelcomeCard - Failed to fetch student profile:', error);
+      }
+    };
+
+    fetchStudentProfile();
+  }, []);
+
   const getGreeting = () => {
     const hour = new Date().getHours();
     if (hour < 12) return { text: 'Good Morning', icon: Sun };
@@ -140,13 +193,6 @@ const WelcomeCard = () => {
   const tipToShow = quickTips[currentTip];
   const TipIcon = tipToShow.icon;
 
-  const studentData = {
-    name: "Student",
-    id: "STU001",
-    semester: "Fall 2024",
-    avatar: "src/koushik-bala-pp.jpg"
-  };
-
   return (
     <div className="bg-gradient-to-r from-yellow-400 via-amber-500 to-orange-500 rounded-2xl p-6 text-white relative overflow-hidden">
       {/* Background Pattern */}
@@ -178,7 +224,8 @@ const WelcomeCard = () => {
               </div>
               <h1 className="text-2xl font-bold mb-1">{studentData.name}!</h1>
               <p className="text-yellow-100 text-sm">
-                Student ID: {studentData.id} • {studentData.semester}
+                {studentData.username && `Student ID: ${studentData.username}`}
+                {studentData.grade && studentData.section && ` • ${studentData.grade} - Section ${studentData.section}`}
               </p>
             </div>
           </div>

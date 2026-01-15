@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Users, Calendar, CheckCircle, XCircle, Clock, TrendingUp, ChevronLeft, ChevronRight, Plus, X, Edit3, Trash2 } from 'lucide-react';
 
 const AttendanceView = () => {
@@ -7,33 +7,73 @@ const AttendanceView = () => {
   const [selectedDate, setSelectedDate] = useState(null);
   const [showEventModal, setShowEventModal] = useState(false);
   const [editingEvent, setEditingEvent] = useState(null);
-  
-  const attendanceStats = {
-    totalClasses: 45,
-    attended: 38,
-    absent: 4,
-    late: 3,
-    percentage: 84.4
-  };
-  
-  // Enhanced attendance data with more entries for calendar visualization
-  const [attendanceRecords, setAttendanceRecords] = useState([
-  { id: 1, date: "2025-06-25", course: "Mathematics", status: "present", time: "10:00 AM", description: "Algebra: Linear Equations" },
-  { id: 2, date: "2025-06-24", course: "English", status: "present", time: "2:00 PM", description: "Poetry Analysis - Robert Frost" },
-  { id: 3, date: "2025-06-23", course: "Science", status: "late", time: "11:00 AM", description: "Human Digestive System" },
-  { id: 4, date: "2025-06-22", course: "History", status: "present", time: "3:00 PM", description: "The Revolt of 1857" },
-  { id: 5, date: "2025-06-21", course: "Mathematics", status: "absent", time: "10:00 AM", description: "Geometry: Triangles and Angles" },
-  { id: 6, date: "2025-06-20", course: "English", status: "present", time: "2:00 PM", description: "Letter Writing Practice" },
-  { id: 7, date: "2025-06-19", course: "Science", status: "present", time: "11:00 AM", description: "States of Matter" },
-  { id: 8, date: "2025-06-18", course: "History", status: "present", time: "3:00 PM", description: "Indian Independence Movement" },
-  { id: 9, date: "2025-06-17", course: "Mathematics", status: "late", time: "10:00 AM", description: "Probability and Statistics" },
-  { id: 10, date: "2025-06-16", course: "English", status: "present", time: "2:00 PM", description: "Essay Writing Techniques" },
-  { id: 11, date: "2025-06-15", course: "Science", status: "present", time: "11:00 AM", description: "Electric Circuits" },
-  { id: 12, date: "2025-06-14", course: "History", status: "absent", time: "3:00 PM", description: "Mughal Empire" },
-  { id: 13, date: "2025-06-13", course: "Mathematics", status: "present", time: "10:00 AM", description: "Data Handling and Graphs" },
-  { id: 14, date: "2025-06-12", course: "English", status: "present", time: "2:00 PM", description: "Grammar: Tenses and Verbs" },
-  { id: 15, date: "2025-06-11", course: "Science", status: "late", time: "11:00 AM", description: "Water Cycle and Conservation" },
-]);
+  const [loading, setLoading] = useState(true);
+
+  const [attendanceStats, setAttendanceStats] = useState({
+    totalClasses: 0,
+    attended: 0,
+    absent: 0,
+    late: 0,
+    percentage: 0
+  });
+
+  const [attendanceRecords, setAttendanceRecords] = useState([]);
+
+  // Fetch real attendance data
+  useEffect(() => {
+    const fetchAttendance = async () => {
+      try {
+        const token = localStorage.getItem('token');
+        const userType = localStorage.getItem('userType');
+
+        if (!token || userType !== 'Student') {
+          setLoading(false);
+          return;
+        }
+
+        const response = await fetch(`${import.meta.env.VITE_API_URL}/api/student/auth/attendance`, {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          console.log('Attendance data received:', data);
+
+          // Update stats
+          setAttendanceStats({
+            totalClasses: data.summary.totalClasses,
+            attended: data.summary.presentDays,
+            absent: data.summary.absentDays,
+            late: data.summary.leaveDays,
+            percentage: data.summary.attendancePercentage
+          });
+
+          // Transform attendance data for the component
+          const records = data.attendance.map((record, index) => ({
+            id: index + 1,
+            date: new Date(record.date).toISOString().split('T')[0],
+            course: record.subject || 'General',
+            status: record.status || 'present',
+            time: record.time || 'N/A',
+            description: record.notes || ''
+          }));
+
+          setAttendanceRecords(records);
+        } else {
+          console.error('Failed to fetch attendance:', response.status);
+        }
+      } catch (error) {
+        console.error('Error fetching attendance:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchAttendance();
+  }, []);
   const [newRecord, setNewRecord] = useState({
     course: '',
     date: '',
