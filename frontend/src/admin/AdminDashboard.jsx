@@ -3,7 +3,15 @@ import AdminCongratulationsCard from './AdminCongratulationsCard';
 import { ADMIN_STATS, ADMIN_EMPLOYEE_DATA } from './adminConstants';
 import AdminAvatar from './Avatar';
 import AdminProgressBar from './ProgressBar';
-import { MoreHorizontal, Award, Users, GraduationCap, BookOpen, FileText } from 'lucide-react';
+import {
+  MoreHorizontal,
+  Award,
+  Users,
+  GraduationCap,
+  BookOpen,
+  FileText
+} from 'lucide-react';
+import CredentialGeneratorButton from './components/CredentialGeneratorButton';
 
 const AdminDashboard = () => {
   const statsCards = [
@@ -121,6 +129,11 @@ const AdminDashboard = () => {
         <div className="bg-gradient-to-br from-yellow-400 to-yellow-500 rounded-2xl p-6 text-white">
           <h3 className="text-xl font-bold mb-4">Quick Actions</h3>
           <div className="space-y-3">
+            <CredentialGeneratorButton
+              buttonText="Generate IDs & Passwords"
+              buttonClassName="w-full justify-start bg-white bg-opacity-20 hover:bg-opacity-30 text-white"
+              allowRoleSelection
+            />
             <button className="w-full bg-white bg-opacity-20 hover:bg-opacity-30 rounded-lg p-3 text-left transition-colors flex items-center gap-2">
               <FileText size={20} /> Generate Attendance Report
             </button>

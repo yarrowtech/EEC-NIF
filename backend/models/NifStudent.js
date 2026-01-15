@@ -55,7 +55,8 @@ const nifStudentSchema = new Schema(
     gender: {
       type: String,
       required: true,
-      enum: ["Male", "Female", "Other"],
+      enum: ["male", "female", "other"],
+      lowercase: true,
     },
     dob: {
       type: Date,
@@ -187,6 +188,18 @@ const nifStudentSchema = new Schema(
       type: String,
       enum: ["manual", "bulk"],
       default: "manual",
+    },
+    studentPortalUser: {
+      type: Schema.Types.ObjectId,
+      ref: "StudentUser",
+      default: null,
+    },
+    portalAccess: {
+      enabled: { type: Boolean, default: false },
+      username: { type: String, trim: true },
+      issuedAt: { type: Date },
+      issuedBy: { type: Schema.Types.ObjectId, ref: "Admin", default: null },
+      lastResetAt: { type: Date },
     },
   },
   {

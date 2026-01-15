@@ -28,6 +28,7 @@ import {
   DollarSign,
   Timer
 } from 'lucide-react';
+import CredentialGeneratorButton from './components/CredentialGeneratorButton';
 
 const Teachers = ({setShowAdminHeader}) => {
   const [searchTerm, setSearchTerm] = useState('');
@@ -217,7 +218,7 @@ const Teachers = ({setShowAdminHeader}) => {
 
 
           {/* Search and Filter */}
-          <div className="mb-6 flex gap-4">
+          <div className="mb-6 flex flex-wrap gap-4 items-center">
             <div className="flex-1 relative">
               <Search size={20} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
               <input
@@ -261,6 +262,13 @@ const Teachers = ({setShowAdminHeader}) => {
               <option value="free-now">Free Now</option>
               <option value="on-break">On Break</option>
             </select>
+            <CredentialGeneratorButton
+              buttonText="Generate Teacher ID"
+              defaultRole="Teacher"
+              allowRoleSelection={false}
+              size="sm"
+              buttonClassName="bg-indigo-600 hover:bg-indigo-700"
+            />
           </div>
         </div>
 

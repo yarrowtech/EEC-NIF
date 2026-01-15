@@ -32,6 +32,7 @@ import {
   UserCheck,
   Baby
 } from 'lucide-react';
+import CredentialGeneratorButton from '../components/CredentialGeneratorButton';
 
 const ParentsManagement = ({setShowAdminHeader}) => {
   const [searchTerm, setSearchTerm] = useState('');
@@ -373,7 +374,7 @@ const ParentsManagement = ({setShowAdminHeader}) => {
           </div>
 
           {/* Search and Filter */}
-          <div className="mb-6 flex gap-4">
+          <div className="mb-6 flex flex-wrap items-center gap-4">
             <div className="flex-1 relative">
               <Search size={20} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
               <input
@@ -413,6 +414,13 @@ const ParentsManagement = ({setShowAdminHeader}) => {
               <option value="pending">Pending Response</option>
               <option value="overdue">Overdue Contact</option>
             </select>
+            <CredentialGeneratorButton
+              buttonText="Generate Parent ID"
+              defaultRole="Parent"
+              allowRoleSelection={false}
+              size="sm"
+              buttonClassName="bg-green-600 hover:bg-green-700"
+            />
           </div>
         </div>
 

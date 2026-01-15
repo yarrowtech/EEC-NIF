@@ -32,6 +32,7 @@ import {
 } from "lucide-react";
 import Swal from "sweetalert2";
 import * as XLSX from "xlsx";
+import CredentialGeneratorButton from "./components/CredentialGeneratorButton";
 
 const API_BASE = import.meta.env.VITE_API_URL;
 
@@ -56,6 +57,8 @@ const Students = ({ setShowAdminHeader, setShowAdminBreadcrumb }) => {
   const [archiveActionLoading, setArchiveActionLoading] = useState(false);
   const [isArchiving, setIsArchiving] = useState(false);
   const [deletingId, setDeletingId] = useState(null);
+  const [credentialLoadingId, setCredentialLoadingId] = useState(null);
+  const [credentialStatus, setCredentialStatus] = useState({});
 
   const [newStudent, setNewStudent] = useState({
     // core
@@ -546,6 +549,102 @@ const Students = ({ setShowAdminHeader, setShowAdminBreadcrumb }) => {
     }
   };
 
+  const handleStudentCredentialProvision = async (student, credentials) => {
+    if (!student?._id) {
+      Swal.fire({
+        icon: "warning",
+        title: "Student not saved",
+        text: "Please save the student before generating credentials.",
+      });
+      return;
+    }
+
+    setCredentialLoadingId(student._id);
+    try {
+      const res = await fetch(`${API_BASE}/api/student/auth/register`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          authorization: `Bearer ${localStorage.getItem("token")}`,
+        },
+        body: JSON.stringify({
+          username: credentials.id,
+          password: credentials.password,
+          studentId: student._id,
+          nifId: student.serialNo,
+          name: student.name,
+          email: student.email,
+          mobile: student.mobile,
+          grade: student.grade,
+          section: student.section,
+          batchCode: student.batchCode,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(
+          data.error || data.message || res.statusText || "Failed to issue credentials"
+        );
+      }
+      setCredentialStatus((prev) => ({ ...prev, [student._id]: "active" }));
+      Swal.fire({
+        icon: "success",
+        title: "Credentials Issued Successfully",
+        html: `
+          <div class="text-left space-y-4">
+            <p class="text-gray-700 mb-4"><strong>${student.name}</strong> can now log in with these credentials:</p>
+
+            <div class="bg-yellow-50 border border-yellow-200 rounded-lg p-4 space-y-3">
+              <div>
+                <p class="text-xs font-semibold text-yellow-700 uppercase mb-1">Student ID</p>
+                <div class="flex items-center justify-between bg-white rounded px-3 py-2 border border-yellow-100">
+                  <code class="text-sm font-mono text-gray-800">${credentials.id}</code>
+                  <button
+                    onclick="navigator.clipboard.writeText('${credentials.id}')"
+                    class="text-xs bg-yellow-500 hover:bg-yellow-600 text-white px-2 py-1 rounded"
+                    title="Copy ID"
+                  >
+                    Copy
+                  </button>
+                </div>
+              </div>
+
+              <div>
+                <p class="text-xs font-semibold text-yellow-700 uppercase mb-1">Password</p>
+                <div class="flex items-center justify-between bg-white rounded px-3 py-2 border border-yellow-100">
+                  <code class="text-sm font-mono text-gray-800">${credentials.password}</code>
+                  <button
+                    onclick="navigator.clipboard.writeText('${credentials.password}')"
+                    class="text-xs bg-yellow-500 hover:bg-yellow-600 text-white px-2 py-1 rounded"
+                    title="Copy Password"
+                  >
+                    Copy
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <p class="text-xs text-gray-500 mt-3">⚠️ Please save these credentials securely. Share them with the student.</p>
+          </div>
+        `,
+        width: "600px",
+        showConfirmButton: true,
+        confirmButtonText: "Done",
+        confirmButtonColor: "#EAB308",
+      });
+    } catch (err) {
+      console.error(err);
+      setCredentialStatus((prev) => ({ ...prev, [student._id]: "error" }));
+      Swal.fire({
+        icon: "error",
+        title: "Credential Error",
+        text: err.message || "Unable to generate credentials",
+      });
+    } finally {
+      setCredentialLoadingId(null);
+    }
+  };
+
 
   const handleUnarchiveStudent = async (studentId) => {
     if (!studentId) return;
@@ -840,7 +939,7 @@ const Students = ({ setShowAdminHeader, setShowAdminBreadcrumb }) => {
           name: student.name,
           mobile: student.mobile,
           email: (student.email || "").toLowerCase(),
-          gender: student.gender,
+          gender: student.gender.toLowerCase(),
           dob,
           address: student.address || "",
           pincode: student.pincode || "",
@@ -1056,9 +1155,27 @@ const Students = ({ setShowAdminHeader, setShowAdminBreadcrumb }) => {
                 </tr>
               </thead>
               <tbody>
-                {paginatedStudents.map((student) => (
-                  <tr
-                    key={student._id || student.id}
+                {paginatedStudents.map((student) => {
+                  const studentKey = student._id || student.id;
+                  const admissionYear = student.admissionDate
+                    ? new Date(student.admissionDate).getFullYear()
+                    : undefined;
+                  const portalReady = credentialStatus[studentKey] === "active";
+                  const isCredentialLoading = credentialLoadingId === studentKey;
+                  const prefillValues = {
+                    batchCode:
+                      student.batchCode ||
+                      student.section ||
+                      student.grade ||
+                      "",
+                    referenceName: student.name || "",
+                  };
+                  if (admissionYear) {
+                    prefillValues.joiningYear = admissionYear;
+                  }
+                  return (
+                    <tr
+                      key={studentKey}
                     className="hover:bg-yellow-50 transition-all duration-200"
                   >
                     {/* Student Info */}
@@ -1122,7 +1239,27 @@ const Students = ({ setShowAdminHeader, setShowAdminBreadcrumb }) => {
                     
                     {/* Actions */}
                     <td className="border-b border-yellow-100 px-2 py-2">
-                      <div className="flex items-center gap-1 justify-center">
+                      <div className="flex items-center gap-1 justify-center flex-wrap">
+                        <CredentialGeneratorButton
+                          buttonText="Credentials"
+                          defaultRole="Student"
+                          allowRoleSelection={false}
+                          size="sm"
+                          buttonClassName="bg-emerald-600 hover:bg-emerald-700 px-3 py-1 text-xs"
+                          prefillValues={prefillValues}
+                          disabled={isCredentialLoading}
+                          onGenerate={({ id, password }) =>
+                            handleStudentCredentialProvision(student, {
+                              id,
+                              password,
+                            })
+                          }
+                        />
+                        {portalReady && (
+                          <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 text-[10px] font-semibold">
+                            Portal Ready
+                          </span>
+                        )}
                         <button
                           onClick={() => handleArchiveStudent(student)}
                           disabled={isArchiving}
@@ -1142,7 +1279,8 @@ const Students = ({ setShowAdminHeader, setShowAdminBreadcrumb }) => {
                       </div>
                     </td>
                   </tr>
-                ))}
+                );
+                })}
                 {filteredStudents.length === 0 && (
                   <tr>
                     <td
@@ -1366,9 +1504,9 @@ const Students = ({ setShowAdminHeader, setShowAdminBreadcrumb }) => {
                           className="w-full border border-gray-300 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-yellow-500 appearance-none bg-white"
                         >
                           <option value="">Select Gender</option>
-                          <option value="Male">Male</option>
-                          <option value="Female">Female</option>
-                          <option value="Other">Other</option>
+                          <option value="male">Male</option>
+                          <option value="female">Female</option>
+                          <option value="other">Other</option>
                         </select>
                         <div className="pointer-events-none absolute right-3 top-[45px]">
                           <ChevronDown className="w-4 h-4 text-gray-400" />

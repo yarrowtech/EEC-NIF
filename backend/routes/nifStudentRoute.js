@@ -91,6 +91,11 @@ router.post("/register", async (req, res, next) => {
       payload.email = payload.email.toLowerCase().trim();
     }
 
+    // Normalize gender to lowercase
+    if (payload.gender) {
+      payload.gender = payload.gender.toLowerCase().trim();
+    }
+
     // Unique roll / email check (if email provided)
     const orConditions = [{ roll: payload.roll }];
     if (payload.email) {
@@ -165,7 +170,7 @@ router.post("/bulk", async (req, res, next) => {
         // Required fields
         name: String(s.name).trim(),
         mobile: String(s.mobile).trim(),
-        gender: String(s.gender).trim(),
+        gender: String(s.gender).toLowerCase().trim(),
         batchCode: String(s.batchCode).trim(),
         admissionDate,
         roll: String(s.roll).trim(),
@@ -297,6 +302,11 @@ router.patch("/:id", async (req, res, next) => {
 
     if (updates.email) {
       updates.email = updates.email.toLowerCase().trim();
+    }
+
+    // Normalize gender to lowercase
+    if (updates.gender) {
+      updates.gender = updates.gender.toLowerCase().trim();
     }
 
     if (updates.roll || updates.email) {

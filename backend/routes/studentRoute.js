@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const StudentUser = require('../models/StudentUser');
+const NifStudent = require('../models/NifStudent');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const adminAuth = require('../middleware/adminAuth');
@@ -42,7 +43,11 @@ router.post('/register', adminAuth, async (req, res) => {
     email,
     address,
     pinCode,
-  } = req.body
+    username: requestedUsername,
+    password: requestedPassword,
+    studentId,
+    nifStudentId,
+  } = req.body;
 
   try {
     const username = await generateUsername(name, 'student');
@@ -74,6 +79,7 @@ router.post('/register', adminAuth, async (req, res) => {
     await user.save();
     res.status(201).json({ message: 'Student registered successfully', username, password, studentCode });
   } catch (err) {
+    console.error('Student register error:', err);
     res.status(400).json({ error: err.message });
   }
 });
