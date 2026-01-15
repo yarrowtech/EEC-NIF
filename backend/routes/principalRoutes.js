@@ -15,9 +15,8 @@ router.post('/register', async (req, res) => {
     if (!isStrongPassword(password)) {
       return res.status(400).json({ error: passwordPolicyMessage });
     }
-    if (!schoolId || !mongoose.isValidObjectId(schoolId)) {
-      return res.status(400).json({ error: 'Valid schoolId is required' });
-    }
+    const resolvedSchoolId =
+      schoolId && mongoose.isValidObjectId(schoolId) ? schoolId : null;
     const principalEmail = normalize(email || username);
     if (!principalEmail) {
       return res.status(400).json({ error: 'email or username is required' });
@@ -28,7 +27,7 @@ router.post('/register', async (req, res) => {
       email: principalEmail,
       password,
       name: name || 'Principal',
-      schoolId,
+      schoolId: resolvedSchoolId,
     });
 
     await principal.save();
@@ -50,9 +49,6 @@ router.post('/login', rateLimit({ windowMs: 60 * 1000, max: 10 }), async (req, r
     });
     if (!principal || !(await bcrypt.compare(password, principal.password))) {
       return res.status(401).json({ error: 'Invalid credentials' });
-    }
-    if (!principal.schoolId || !mongoose.isValidObjectId(principal.schoolId)) {
-      return res.status(403).json({ error: 'School not assigned' });
     }
 
     const token = jwt.sign(

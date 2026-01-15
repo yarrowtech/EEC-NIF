@@ -48,10 +48,10 @@ const seedPrincipal = async () => {
   if (!principalEmail || !principalPassword) {
     return;
   }
-  if (!principalSchoolId || !mongoose.isValidObjectId(principalSchoolId)) {
-    console.warn('PRINCIPAL_SCHOOL_ID is missing or invalid; skipping principal seed.');
-    return;
-  }
+  const resolvedSchoolId =
+    principalSchoolId && mongoose.isValidObjectId(principalSchoolId)
+      ? principalSchoolId
+      : null;
   if (!isStrongPassword(principalPassword)) {
     console.warn('Principal seed password does not meet policy requirements.');
     return;
@@ -65,9 +65,24 @@ const seedPrincipal = async () => {
       existing.email = normalizedEmail;
       existing.username = normalizedEmail;
       existing.password = principalPassword;
-      existing.schoolId = principalSchoolId;
+      if (resolvedSchoolId) {
+        existing.schoolId = resolvedSchoolId;
+      }
       await existing.save();
       console.log(`Updated principal user: ${normalizedEmail}`);
+      return;
+    }
+
+    const fallback = await Principal.findOne({});
+    if (fallback) {
+      fallback.email = normalizedEmail;
+      fallback.username = normalizedEmail;
+      fallback.password = principalPassword;
+      if (resolvedSchoolId) {
+        fallback.schoolId = resolvedSchoolId;
+      }
+      await fallback.save();
+      console.log(`Reassigned principal user to: ${normalizedEmail}`);
       return;
     }
 
@@ -76,7 +91,7 @@ const seedPrincipal = async () => {
       email: normalizedEmail,
       password: principalPassword,
       name: 'Principal',
-      schoolId: principalSchoolId,
+      schoolId: resolvedSchoolId,
     });
     await principal.save();
     console.log(`Seeded principal user: ${normalizedEmail}`);
