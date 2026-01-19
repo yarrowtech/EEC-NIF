@@ -113,11 +113,10 @@ const LoginForm = () => {
                 value={formData.username}
                 onChange={handleInputChange}
                 placeholder="Enter your username"
-                className={`w-full pl-10 pr-4 py-3 border rounded-xl shadow-sm transition-all duration-200 focus:ring-2 focus:ring-yellow-500 focus:border-transparent outline-none ${
-                  errors.username 
-                    ? 'border-red-300 bg-red-50' 
+                className={`w-full pl-10 pr-4 py-3 border rounded-xl shadow-sm transition-all duration-200 focus:ring-2 focus:ring-yellow-500 focus:border-transparent outline-none ${errors.username
+                    ? 'border-red-300 bg-red-50'
                     : 'border-gray-300 hover:border-gray-400 focus:bg-white'
-                }`}
+                  }`}
               />
             </div>
             {errors.username && (
@@ -144,19 +143,20 @@ const LoginForm = () => {
                 value={formData.password}
                 onChange={handleInputChange}
                 placeholder="Enter your password"
-                className={`w-full pl-10 pr-12 py-3 border rounded-xl shadow-sm transition-all duration-200 focus:ring-2 focus:ring-yellow-500 focus:border-transparent outline-none ${
-                  errors.password 
-                    ? 'border-red-300 bg-red-50' 
+                className={`w-full pl-10 pr-12 py-3 border rounded-xl shadow-sm transition-all duration-200 focus:ring-2 focus:ring-yellow-500 focus:border-transparent outline-none ${errors.password
+                    ? 'border-red-300 bg-red-50'
                     : 'border-gray-300 hover:border-gray-400 focus:bg-white'
-                }`}
+                  }`}
               />
-              <button
-                type="button"
-                className="absolute right-3 top-1 text-gray-400 hover:text-gray-600"
-                onClick={() => setShowPass(!showPass)}
-              >
-                {showPass ? <EyeOff size={20} /> : <Eye size={20} />}
-              </button>
+              <div className='flex justify-center items-center'>
+                <button
+                  type="button"
+                  className="absolute right-3 top-3.5 text-gray-400 hover:text-gray-600"
+                  onClick={() => setShowPass(!showPass)}
+                >
+                  {showPass ? <EyeOff size={20} /> : <Eye size={20} />}
+                </button>
+              </div>
             </div>
             {errors.password && (
               <p className="text-red-500 text-sm ">{errors.password}</p>
@@ -194,7 +194,7 @@ const LoginForm = () => {
             )}
           </button>
 
-          
+
         </form>
 
       </div>
