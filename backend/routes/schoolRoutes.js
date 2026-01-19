@@ -44,7 +44,121 @@ router.get('/', adminAuth, async (_req, res) => {
   }
 });
 
-// Get a single school (admin only)
+// Get pending registrations (admin only) - must be before /:id
+router.get('/registrations/pending', adminAuth, async (req, res) => {
+  try {
+    const schools = await School.find({
+      registrationStatus: 'pending'
+    })
+    .sort({ submittedAt: -1 })
+    .lean();
+
+    res.json(schools);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Get single registration details (admin only) - must be before /:id
+router.get('/registrations/:id', adminAuth, async (req, res) => {
+  try {
+    const { id } = req.params;
+    if (!mongoose.isValidObjectId(id)) {
+      return res.status(400).json({ error: 'Invalid school id' });
+    }
+
+    const school = await School.findById(id).lean();
+    if (!school) {
+      return res.status(404).json({ error: 'School not found' });
+    }
+
+    res.json(school);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Approve registration (admin only) - must be before /:id
+router.put('/registrations/:id/approve', adminAuth, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { adminNotes } = req.body;
+
+    if (!mongoose.isValidObjectId(id)) {
+      return res.status(400).json({ error: 'Invalid school id' });
+    }
+
+    const school = await School.findById(id);
+    if (!school) {
+      return res.status(404).json({ error: 'School not found' });
+    }
+
+    if (school.registrationStatus !== 'pending') {
+      return res.status(400).json({
+        error: `School registration has already been ${school.registrationStatus}`
+      });
+    }
+
+    school.registrationStatus = 'approved';
+    school.status = 'active';
+    school.reviewedAt = new Date();
+    school.reviewedBy = req.admin.id || req.admin._id;
+    school.adminNotes = adminNotes || undefined;
+
+    await school.save();
+
+    res.json({
+      message: 'School registration approved successfully',
+      school
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Reject registration (admin only) - must be before /:id
+router.put('/registrations/:id/reject', adminAuth, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { rejectionReason } = req.body;
+
+    if (!mongoose.isValidObjectId(id)) {
+      return res.status(400).json({ error: 'Invalid school id' });
+    }
+
+    if (!rejectionReason || !rejectionReason.trim()) {
+      return res.status(400).json({ error: 'Rejection reason is required' });
+    }
+
+    const school = await School.findById(id);
+    if (!school) {
+      return res.status(404).json({ error: 'School not found' });
+    }
+
+    if (school.registrationStatus !== 'pending') {
+      return res.status(400).json({
+        error: `School registration has already been ${school.registrationStatus}`
+      });
+    }
+
+    school.registrationStatus = 'rejected';
+    school.status = 'inactive';
+    school.reviewedAt = new Date();
+    school.reviewedBy = req.admin.id || req.admin._id;
+    school.rejectionReason = rejectionReason.trim();
+
+    await school.save();
+
+    res.json({
+      message: 'School registration rejected',
+      school
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Get a single school (admin only) - generic route, must be after specific routes
 router.get('/:id', adminAuth, async (req, res) => {
   try {
     const { id } = req.params;

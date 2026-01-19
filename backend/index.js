@@ -30,6 +30,7 @@ const nifCourseRoute = require("./routes/nifCourseRoute");
 const nifStudentArchiveRoutes = require("./routes/nifStudentArchiveRoutes");
 const uploadRoutes = require("./routes/uploadRoutes");
 const schoolRoutes = require("./routes/schoolRoutes");
+const schoolRegistrationRoutes = require("./routes/schoolRegistrationRoutes");
 const academicRoutes = require("./routes/academicRoutes");
 const feeRoutes = require("./routes/feeRoutes");
 const reportRoutes = require("./routes/reportRoutes");
@@ -165,6 +166,7 @@ const nifRoutes = require('./routes/nifRoutes');
 app.use('/api/nif', nifRoutes);
 
 app.use('/api/schools', schoolRoutes);
+app.use('/api/school-registration', schoolRegistrationRoutes);
 app.use('/api/academic', academicRoutes);
 app.use('/api/fees', feeRoutes);
 app.use('/api/reports', reportRoutes);
