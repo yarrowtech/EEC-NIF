@@ -20,11 +20,16 @@ import FeesCollection from './pages/FeesCollection';
 import FeesDashboard from './pages/FeesDashboard';
 import StudentFeeDetails from './pages/StudentFeeDetails';
 import HR from './pages/HR';
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { ADMIN_MENU_ITEMS } from './adminConstants';
+import SchoolsManagement from './pages/SchoolsManagement';
+import SchoolAdminsManagement from './pages/SchoolAdminsManagement';
+import PrincipalsManagement from './pages/PrincipalsManagement';
 
 const AdminApp = () => {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [activeMenuItem, setActiveMenuItem] = useState('Dashboard');
+  const [adminProfile, setAdminProfile] = useState(null);
 
   const handleMenuItemClick = (item) => {
     setActiveMenuItem(item);
@@ -34,17 +39,50 @@ const AdminApp = () => {
   const [showAdminHeader, setShowAdminHeader] = useState(true);
   const [showAdminBreadcrumb, setShowAdminBreadcrumb] = useState(true);
 
+  useEffect(() => {
+    const fetchProfile = async () => {
+      const token = localStorage.getItem('token');
+      if (!token) return;
+      try {
+        const res = await fetch(`${import.meta.env.VITE_API_URL}/api/admin/auth/profile`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            authorization: `Bearer ${token}`,
+          },
+        });
+        if (!res.ok) return;
+        const data = await res.json();
+        setAdminProfile(data);
+      } catch (err) {
+        console.error('Failed to load admin profile', err);
+      }
+    };
+
+    fetchProfile();
+  }, []);
+
+  const isSuperAdmin = adminProfile && !adminProfile.schoolId;
+
+  const menuItems = useMemo(() => {
+    if (isSuperAdmin) return ADMIN_MENU_ITEMS;
+    return ADMIN_MENU_ITEMS.filter((item) => item.scope !== 'super');
+  }, [isSuperAdmin]);
+
+  const adminUser = {
+    name: adminProfile?.name || 'Admin User',
+    role: isSuperAdmin ? 'SUPER ADMIN' : 'School Admin',
+    avatar: 'src/koushik-bala-pp.jpg',
+  };
+
   return (
     <AdminLayout
       activeMenuItem={activeMenuItem}
       onMenuItemClick={handleMenuItemClick}
       sidebarCollapsed={sidebarCollapsed}
       onToggleSidebar={() => {setSidebarCollapsed(!sidebarCollapsed)}}
-      adminUser={{
-        name: 'Admin User',
-        role: 'Administrator',
-        avatar: 'src/koushik-bala-pp.jpg',
-      }}
+      adminUser={adminUser}
+      menuItems={menuItems}
       showAdminHeader={showAdminHeader}
       showBreadcrumb={showAdminBreadcrumb}
     >
@@ -52,6 +90,24 @@ const AdminApp = () => {
         <Route path="dashboard" element={<Dashboard setShowAdminHeader={setShowAdminHeader} />} />
         <Route index element={<Dashboard setShowAdminHeader={setShowAdminHeader} />} />
         <Route path="analytics" element={<Analytics setShowAdminHeader={setShowAdminHeader} />} />
+        <Route
+          path="schools"
+          element={<SchoolsManagement setShowAdminHeader={setShowAdminHeader} isSuperAdmin={isSuperAdmin} />}
+        />
+        <Route
+          path="school-admins"
+          element={<SchoolAdminsManagement setShowAdminHeader={setShowAdminHeader} isSuperAdmin={isSuperAdmin} />}
+        />
+        <Route
+          path="principals"
+          element={
+            <PrincipalsManagement
+              setShowAdminHeader={setShowAdminHeader}
+              isSuperAdmin={isSuperAdmin}
+              adminSchoolId={adminProfile?.schoolId || null}
+            />
+          }
+        />
         <Route path="teachers" element={<Teachers setShowAdminHeader={setShowAdminHeader} />} />
         <Route path="staff" element={<Staff setShowAdminHeader={setShowAdminHeader} />} />
         <Route

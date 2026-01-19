@@ -13,6 +13,7 @@ const resolveSchoolId = (req, res) => {
 };
 
 router.get('/fetch', adminAuth, async (req, res) => {
+  // #swagger.tags = ['Feedback']
     try {
         const schoolId = resolveSchoolId(req, res);
         if (!schoolId) return;
@@ -25,6 +26,7 @@ router.get('/fetch', adminAuth, async (req, res) => {
 })
 
 router.post("/add", async (req, res) => {
+  // #swagger.tags = ['Feedback']
     const { role, name, schoolName, phone, consent, email, class: className, rating, feedback, schoolId } = req.body;
 
     if (!role || !name || !schoolName || !phone || !rating || !feedback) {

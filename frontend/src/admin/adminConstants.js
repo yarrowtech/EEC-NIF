@@ -16,7 +16,10 @@ import {
   Receipt,
   UserSearch,
   BarChart4,
-  Layers
+  Layers,
+  Building2,
+  Shield,
+  UserRound
 } from 'lucide-react';
 
 export const ADMIN_MENU_ITEMS = [
@@ -30,6 +33,23 @@ export const ADMIN_MENU_ITEMS = [
     icon: BarChart3, 
     label: 'Analytics', 
     path: '/admin/analytics' 
+  },
+  { 
+    icon: Building2, 
+    label: 'Schools', 
+    path: '/admin/schools',
+    scope: 'super'
+  },
+  { 
+    icon: Shield, 
+    label: 'School Admins', 
+    path: '/admin/school-admins',
+    scope: 'super'
+  },
+  { 
+    icon: UserRound, 
+    label: 'Principals', 
+    path: '/admin/principals'
   },
   { 
     icon: Users, 

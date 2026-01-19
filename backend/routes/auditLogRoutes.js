@@ -20,6 +20,7 @@ const resolveSchoolId = (req, res) => {
 
 // Create audit log entry (admin only)
 router.post('/', adminAuth, async (req, res) => {
+  // #swagger.tags = ['Audit Logs']
   try {
     const schoolId = resolveSchoolId(req, res);
     if (!schoolId) return;
@@ -44,6 +45,7 @@ router.post('/', adminAuth, async (req, res) => {
 
 // List audit logs (admin only)
 router.get('/', adminAuth, async (req, res) => {
+  // #swagger.tags = ['Audit Logs']
   try {
     const schoolId = resolveSchoolId(req, res);
     if (!schoolId) return;

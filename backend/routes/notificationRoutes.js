@@ -21,6 +21,7 @@ const resolveSchoolId = (req, res) => {
 
 // Admin creates a notification
 router.post('/', adminAuth, async (req, res) => {
+  // #swagger.tags = ['Notifications']
   try {
     const schoolId = resolveSchoolId(req, res);
     if (!schoolId) return;
@@ -47,6 +48,7 @@ router.post('/', adminAuth, async (req, res) => {
 
 // Admin list all notifications
 router.get('/', adminAuth, async (req, res) => {
+  // #swagger.tags = ['Notifications']
   try {
     const schoolId = resolveSchoolId(req, res);
     if (!schoolId) return;
@@ -57,14 +59,53 @@ router.get('/', adminAuth, async (req, res) => {
   }
 });
 
+// Admin update a notification
+router.patch('/:id', adminAuth, async (req, res) => {
+  // #swagger.tags = ['Notifications']
+  try {
+    const schoolId = resolveSchoolId(req, res);
+    if (!schoolId) return;
+    const { id } = req.params;
+    const updates = req.body || {};
+    const updated = await Notification.findOneAndUpdate(
+      { _id: id, schoolId },
+      updates,
+      { new: true, runValidators: true }
+    );
+    if (!updated) return res.status(404).json({ error: 'Not found' });
+    res.json(updated);
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+// Admin delete a notification
+router.delete('/:id', adminAuth, async (req, res) => {
+  // #swagger.tags = ['Notifications']
+  try {
+    const schoolId = resolveSchoolId(req, res);
+    if (!schoolId) return;
+    const { id } = req.params;
+    const deleted = await Notification.findOneAndDelete({ _id: id, schoolId });
+    if (!deleted) return res.status(404).json({ error: 'Not found' });
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // Any user fetch their notifications
 router.get('/user', authAnyUser, async (req, res) => {
+  // #swagger.tags = ['Notifications']
   try {
     const schoolId = req.schoolId;
     if (!schoolId) return res.status(400).json({ error: 'schoolId is required' });
     const userType = req.userType;
+    const normalizedAudience = userType
+      ? userType.charAt(0).toUpperCase() + userType.slice(1)
+      : 'unknown';
 
-    const filter = { schoolId, $or: [{ audience: 'All' }, { audience: userType }] };
+    const filter = { schoolId, $or: [{ audience: 'All' }, { audience: normalizedAudience }] };
     const items = await Notification.find(filter).sort({ createdAt: -1 }).lean();
     res.json(items);
   } catch (err) {

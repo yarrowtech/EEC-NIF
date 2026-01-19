@@ -23,6 +23,7 @@ const resolveSchoolId = (req, res) => {
 };
 
 router.get('/summary', adminAuth, async (req, res) => {
+  // #swagger.tags = ['Reports']
   try {
     const schoolId = resolveSchoolId(req, res);
     if (!schoolId) return;

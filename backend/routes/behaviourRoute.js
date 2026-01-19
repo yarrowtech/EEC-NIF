@@ -12,6 +12,7 @@ const resolveSchoolId = (req, res) => {
 };
 
 router.post('/submit', async (req, res) => {
+  // #swagger.tags = ['Behaviour']
     try {
         const { studentClass, subject, questionType, startTime, endTime, correct, incorrect } = req.body;
         const schoolId = resolveSchoolId(req, res);

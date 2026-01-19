@@ -17,6 +17,7 @@ const router = express.Router();
 
 
 router.get("/fetch", adminAuth, async (req, res) => {
+  // #swagger.tags = ['Subjects']
     try {
         const schoolId = resolveSchoolId(req, res);
         if (!schoolId) return;
@@ -28,6 +29,7 @@ router.get("/fetch", adminAuth, async (req, res) => {
 })
 
 router.post("/add", adminAuth, async (req, res) => {
+  // #swagger.tags = ['Subjects']
     try {
         const { subjectName, name, code, classId } = req.body;
         const schoolId = resolveSchoolId(req, res);

@@ -10,6 +10,7 @@ const upload = multer({ storage });
 
 // POST request to update student profile
 router.post('/profile/update', auth, upload.single('profilePic'), async (req, res) => {
+  // #swagger.tags = ['Student Profile']
   try {
     const updates = req.body;
     const schoolId = req.schoolId || req.user?.schoolId || null;
@@ -33,6 +34,7 @@ router.post('/profile/update', auth, upload.single('profilePic'), async (req, re
 });
 
 router.get('/profile', auth, async (req, res) => {
+  // #swagger.tags = ['Student Profile']
   try {
     const schoolId = req.schoolId || req.user?.schoolId || null;
     if (!schoolId) return res.status(400).json({ error: 'schoolId is required' });

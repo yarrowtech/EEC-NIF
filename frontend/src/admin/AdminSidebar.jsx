@@ -6,7 +6,9 @@ import { NavLink } from 'react-router-dom';
 const AdminSidebar = ({ 
   onMenuItemClick, 
   collapsed = false, 
-  onToggleSidebar 
+  onToggleSidebar,
+  menuItems = ADMIN_MENU_ITEMS,
+  adminUser
 }) => {
   const [expandedMenus, setExpandedMenus] = useState({});
 
@@ -53,7 +55,7 @@ const AdminSidebar = ({
 
         {/* Menu Items */}
         <nav className="flex-1 px-4 py-4 overflow-y-auto sidebar-scroll">
-          {ADMIN_MENU_ITEMS.map((item, index) => {
+          {menuItems.map((item, index) => {
             const Icon = item.icon;
             const isExpanded = expandedMenus[item.label];
             
@@ -137,12 +139,18 @@ const AdminSidebar = ({
         <div className="p-4 border-t border-gray-200 bg-gray-50 hover:bg-gradient-to-r hover:from-gray-50 hover:to-blue-50 transition-all duration-200 cursor-pointer group">
           <div className={`flex items-center ${collapsed ? 'justify-center space-x-0' : 'space-x-3'}`}>
             <div className="w-10 h-10 rounded-full bg-yellow-100 group-hover:bg-blue-100 flex items-center justify-center transition-all duration-200 group-hover:shadow-sm">
-              <span className="text-yellow-600 group-hover:text-blue-600 font-semibold transition-colors duration-200">A</span>
+              <span className="text-yellow-600 group-hover:text-blue-600 font-semibold transition-colors duration-200">
+                {adminUser?.name?.charAt(0) || 'A'}
+              </span>
             </div>
             {!collapsed && (
               <div className="opacity-100 transition-opacity duration-200">
-                <p className="text-sm font-medium text-gray-900 group-hover:text-blue-900 transition-colors duration-200">Admin User</p>
-                <p className="text-xs text-gray-500 group-hover:text-blue-600 transition-colors duration-200">administrator@eec.edu</p>
+                <p className="text-sm font-medium text-gray-900 group-hover:text-blue-900 transition-colors duration-200">
+                  {adminUser?.name || 'Admin User'}
+                </p>
+                <p className="text-xs text-gray-500 group-hover:text-blue-600 transition-colors duration-200">
+                  {adminUser?.role || 'Administrator'}
+                </p>
               </div>
             )}
           </div>

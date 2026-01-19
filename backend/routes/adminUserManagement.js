@@ -4,6 +4,7 @@ const adminAuth = require('../middleware/adminAuth'); // Protect the route
 const StudentUser = require('../models/StudentUser');
 const TeacherUser = require('../models/TeacherUser');
 const ParentUser = require('../models/ParentUser');
+const Principal = require('../models/Principal');
 const {
   getNextStudentSequence,
   getNextEmployeeSequence,
@@ -76,6 +77,7 @@ const getModelByRole = (role) => {
 
 // Admin creates a user (student/teacher/parent)
 router.post('/create-user', adminAuth, async (req, res) => {
+  // #swagger.tags = ['Admin Users']
   const { role, username, password, name, mobile, email, city, address, state, pinCode, schoolId } = req.body;
 
   const Model = getModelByRole(role);
@@ -121,6 +123,7 @@ router.post('/create-user', adminAuth, async (req, res) => {
 
 // Bulk create users for a role (admin only)
 router.post('/bulk-create-users', adminAuth, async (req, res) => {
+  // #swagger.tags = ['Admin Users']
   const { role, users, schoolId } = req.body || {};
   const Model = getModelByRole(role);
   if (!Model) return res.status(400).json({ error: 'Invalid user role' });
@@ -202,6 +205,7 @@ router.post('/bulk-create-users', adminAuth, async (req, res) => {
 
 // Bulk import users from CSV (admin only)
 router.post('/bulk-import-csv', adminAuth, async (req, res) => {
+  // #swagger.tags = ['Admin Users']
   const { role, csv, schoolId } = req.body || {};
   const Model = getModelByRole(role);
   if (!Model) return res.status(400).json({ error: 'Invalid user role' });
@@ -285,6 +289,7 @@ router.post('/bulk-import-csv', adminAuth, async (req, res) => {
 });
 
 router.get("/get-students", adminAuth, async (req, res) => {
+  // #swagger.tags = ['Admin Users']
   try {
     const filter = req.schoolId ? { schoolId: req.schoolId } : {};
     const students = await StudentUser.find(filter);
@@ -295,6 +300,7 @@ router.get("/get-students", adminAuth, async (req, res) => {
 });
 
 router.get("/get-teachers", adminAuth, async (req, res) => {
+  // #swagger.tags = ['Admin Users']
   try {
     const filter = req.schoolId ? { schoolId: req.schoolId } : {};
     const teachers = await TeacherUser.find(filter);
@@ -305,6 +311,7 @@ router.get("/get-teachers", adminAuth, async (req, res) => {
 });
 
 router.get("/get-parents", adminAuth, async (req, res) => {
+  // #swagger.tags = ['Admin Users']
   try {
     const filter = req.schoolId ? { schoolId: req.schoolId } : {};
     const parents = await ParentUser.find(filter);
@@ -314,8 +321,22 @@ router.get("/get-parents", adminAuth, async (req, res) => {
   }
 });
 
+router.get("/get-principals", adminAuth, async (req, res) => {
+  // #swagger.tags = ['Admin Users']
+  try {
+    const filter = req.schoolId ? { schoolId: req.schoolId } : {};
+    const principals = await Principal.find(filter)
+      .select('-password')
+      .populate('schoolId', 'name code');
+    res.status(200).json(principals);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // Live dashboard statistics endpoint
 router.get("/dashboard-stats", adminAuth, async (req, res) => {
+  // #swagger.tags = ['Admin Users']
   try {
     const filter = req.schoolId ? { schoolId: req.schoolId } : {};
     // Fetch counts from all user types

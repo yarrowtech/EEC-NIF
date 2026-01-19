@@ -5,8 +5,93 @@ const adminAuth = require('../middleware/adminAuth');
 
 const router = express.Router();
 
+const ensureSuperAdmin = (req, res, next) => {
+  if (!req.isSuperAdmin) {
+    return res.status(403).json({ error: 'Super admin access required' });
+  }
+  return next();
+};
+
+/**
+ * @openapi
+ * components:
+ *   schemas:
+ *     School:
+ *       type: object
+ *       properties:
+ *         _id:
+ *           type: string
+ *         name:
+ *           type: string
+ *         code:
+ *           type: string
+ *         address:
+ *           type: string
+ *         contactEmail:
+ *           type: string
+ *           format: email
+ *         contactPhone:
+ *           type: string
+ *         status:
+ *           type: string
+ *           enum: [active, inactive]
+ *         createdAt:
+ *           type: string
+ *           format: date-time
+ *         updatedAt:
+ *           type: string
+ *           format: date-time
+ *       required: [name, code]
+ * tags:
+ *   - name: Schools
+ *     description: School administration
+ */
+
+/**
+ * @openapi
+ * /api/schools:
+ *   post:
+ *     summary: Create school
+ *     tags: [Schools]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [name, code]
+ *             properties:
+ *               name:
+ *                 type: string
+ *               code:
+ *                 type: string
+ *               address:
+ *                 type: string
+ *               contactEmail:
+ *                 type: string
+ *                 format: email
+ *               contactPhone:
+ *                 type: string
+ *               status:
+ *                 type: string
+ *                 enum: [active, inactive]
+ *     responses:
+ *       201:
+ *         description: Created
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/School'
+ *       400:
+ *         description: Validation error
+ *       409:
+ *         description: School code already exists
+ */
 // Create school (admin only)
-router.post('/', adminAuth, async (req, res) => {
+router.post('/', adminAuth, ensureSuperAdmin, async (req, res) => {
+  // #swagger.tags = ['Schools']
   try {
     const { name, code, address, contactEmail, contactPhone, status } = req.body;
     if (!name || !name.trim()) {
@@ -34,8 +119,29 @@ router.post('/', adminAuth, async (req, res) => {
   }
 });
 
+/**
+ * @openapi
+ * /api/schools:
+ *   get:
+ *     summary: List schools
+ *     tags: [Schools]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: OK
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: array
+ *               items:
+ *                 $ref: '#/components/schemas/School'
+ *       500:
+ *         description: Server error
+ */
 // List schools (admin only)
-router.get('/', adminAuth, async (_req, res) => {
+router.get('/', adminAuth, ensureSuperAdmin, async (_req, res) => {
+  // #swagger.tags = ['Schools']
   try {
     const schools = await School.find().sort({ createdAt: -1 }).lean();
     res.json(schools);
@@ -44,8 +150,37 @@ router.get('/', adminAuth, async (_req, res) => {
   }
 });
 
+/**
+ * @openapi
+ * /api/schools/{id}:
+ *   get:
+ *     summary: Get school by id
+ *     tags: [Schools]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: OK
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/School'
+ *       400:
+ *         description: Invalid school id
+ *       404:
+ *         description: School not found
+ *       500:
+ *         description: Server error
+ */
 // Get a single school (admin only)
-router.get('/:id', adminAuth, async (req, res) => {
+router.get('/:id', adminAuth, ensureSuperAdmin, async (req, res) => {
+  // #swagger.tags = ['Schools']
   try {
     const { id } = req.params;
     if (!mongoose.isValidObjectId(id)) {

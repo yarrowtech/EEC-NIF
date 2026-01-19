@@ -459,6 +459,7 @@ const getFeeSummary = (record) => ({
 
 /* ========== 1) ADD NIF STUDENT + CREATE YEAR-1 FEE ========== */
 router.post('/students', adminAuth, async (req, res) => {
+  // #swagger.tags = ['NIF']
   try {
     const body = req.body || {};
     if (!body.name || !body.mobile || !body.courseId) {
@@ -498,6 +499,7 @@ router.post('/students', adminAuth, async (req, res) => {
 });
 
 router.delete('/students/:id', adminAuth, async (req, res) => {
+  // #swagger.tags = ['NIF']
   try {
     const { id } = req.params;
     if (!mongoose.isValidObjectId(id)) {
@@ -523,6 +525,7 @@ router.delete('/students/:id', adminAuth, async (req, res) => {
 
 /* ========== 2) BULK IMPORT STUDENTS ========== */
 router.post('/students/bulk', adminAuth, async (req, res) => {
+  // #swagger.tags = ['NIF']
   try {
     const rows = Array.isArray(req.body?.students) ? req.body.students : [];
     if (!rows.length) {
@@ -614,6 +617,7 @@ router.post('/students/bulk', adminAuth, async (req, res) => {
 
 /* ========== 3) LIST NIF STUDENTS (searchable) ========== */
 router.get('/students', adminAuth, async (req, res) => {
+  // #swagger.tags = ['NIF']
   try {
     await purgeNamelessStudents().catch((err) =>
       console.warn('Failed to purge nameless students', err)
@@ -676,6 +680,7 @@ router.get('/students', adminAuth, async (req, res) => {
 
 /* ========== 4) GET SINGLE STUDENT WITH FEES ========== */
 router.get('/students/:id', adminAuth, async (req, res) => {
+  // #swagger.tags = ['NIF']
   try {
     const { id } = req.params;
     if (!mongoose.isValidObjectId(id)) {
@@ -704,6 +709,7 @@ router.get('/students/:id', adminAuth, async (req, res) => {
 
 /* ========== 5) LIST FEE RECORDS (for Fees Collection UI) ========== */
 router.get('/fees', adminAuth, async (req, res) => {
+  // #swagger.tags = ['NIF']
   try {
     await purgeNamelessStudents().catch((err) =>
       console.warn('Failed to purge nameless students', err)
@@ -778,6 +784,7 @@ router.get('/fees', adminAuth, async (req, res) => {
 });
 
 router.get('/fees/dashboard-summary', adminAuth, async (req, res) => {
+  // #swagger.tags = ['NIF']
   try {
     const [feeRecords, students] = await Promise.all([
       NifFeeRecord.find()
@@ -896,6 +903,7 @@ router.get('/fees/dashboard-summary', adminAuth, async (req, res) => {
 
 /* ========== 6) FEE RECORD DETAILS ========== */
 router.get('/fees/details/:id', adminAuth, async (req, res) => {
+  // #swagger.tags = ['NIF']
   try {
     const { id } = req.params;
     if (!mongoose.isValidObjectId(id)) {
@@ -997,6 +1005,7 @@ router.get('/fees/details/:id', adminAuth, async (req, res) => {
 
 /* ========== 7) COLLECT FEES ========== */
 router.post('/fees/discount/:id', adminAuth, async (req, res) => {
+  // #swagger.tags = ['NIF']
   try {
     const { amount, note } = req.body || {};
     const record = await NifFeeRecord.findById(req.params.id);
@@ -1061,6 +1070,7 @@ router.post('/fees/discount/:id', adminAuth, async (req, res) => {
 });
 
 router.post('/fees/installments/pay/:id', adminAuth, async (req, res) => {
+  // #swagger.tags = ['NIF']
   try {
     const { installmentIndex, method } = req.body || {};
     const record = await NifFeeRecord.findById(req.params.id);
@@ -1125,6 +1135,7 @@ router.post('/fees/installments/pay/:id', adminAuth, async (req, res) => {
 
 // Mark a specific installment as paid (uses sequential allocation logic)
 router.post('/fees/installments/pay/:id', adminAuth, async (req, res) => {
+  // #swagger.tags = ['NIF']
   try {
     const { installmentIndex, method } = req.body;
     const record = await NifFeeRecord.findById(req.params.id);
@@ -1189,6 +1200,7 @@ router.post('/fees/installments/pay/:id', adminAuth, async (req, res) => {
 
 /* ========== 8) ARCHIVE STUDENT ========== */
 router.put('/students/:id/archive', adminAuth, async (req, res) => {
+  // #swagger.tags = ['NIF']
   try {
     const { id } = req.params;
     if (!mongoose.isValidObjectId(id)) {
@@ -1254,6 +1266,7 @@ router.put('/students/:id/archive', adminAuth, async (req, res) => {
 
 /* ========== 9) UNARCHIVE STUDENT ========== */
 router.patch('/students/:id/unarchive', adminAuth, async (req, res) => {
+  // #swagger.tags = ['NIF']
   try {
     const { id } = req.params;
     if (!mongoose.isValidObjectId(id)) {

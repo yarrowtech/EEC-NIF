@@ -10,6 +10,7 @@ const NifArchivedStudent = require("../models/NifArchivedStudent");
  * List archived students (for ArchivedStudents.jsx table)
  */
 router.get("/", adminAuth, async (req, res) => {
+  // #swagger.tags = ['NIF Student Archive']
   try {
     console.log("Fetching archived students...");
     const archived = await NifArchivedStudent.find()
@@ -29,6 +30,7 @@ router.get("/", adminAuth, async (req, res) => {
  * Download CSV of archived students
  */
 router.get("/export", adminAuth, async (req, res) => {
+  // #swagger.tags = ['NIF Student Archive']
   try {
     const archived = await NifArchivedStudent.find().sort({
       archivedAt: -1,
@@ -93,6 +95,7 @@ router.get("/export", adminAuth, async (req, res) => {
  * Restore a student from archive back to active (for future use)
  */
 router.put("/:id/restore", adminAuth, async (req, res) => {
+  // #swagger.tags = ['NIF Student Archive']
   try {
     // Implementation in future if you want restore feature
     return res.status(501).json({ message: "Restore not implemented yet" });

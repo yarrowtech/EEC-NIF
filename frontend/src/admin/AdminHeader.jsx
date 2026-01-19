@@ -114,7 +114,7 @@ const AdminHeader = ({ adminUser }) => {
                   <p className="text-sm font-medium text-gray-700">
                     {adminUser?.name || 'Admin User'}
                   </p>
-                  <p className="text-xs text-gray-500">Administrator</p>
+                  <p className="text-xs text-gray-500">{adminUser?.role || 'Administrator'}</p>
                 </div>
                 <ChevronDown size={16} className="text-gray-400" />
               </button>

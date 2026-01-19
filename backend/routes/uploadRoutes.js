@@ -11,6 +11,7 @@ const upload = multer({
 
 // POST /api/uploads/cloudinary/single   (field: "file")
 router.post("/cloudinary/single", upload.single("file"), async (req, res) => {
+  // #swagger.tags = ['Uploads']
   try {
     if (!req.file) return res.status(400).json({ message: "No file received" });
     const folder = (req.body.folder || "nif_students").trim();
@@ -42,6 +43,7 @@ router.post("/cloudinary/single", upload.single("file"), async (req, res) => {
 
 // POST /api/uploads/cloudinary/bulk     (field: "files")
 router.post("/cloudinary/bulk", upload.array("files", 25), async (req, res) => {
+  // #swagger.tags = ['Uploads']
   try {
     if (!req.files?.length) return res.status(400).json({ message: "No files received" });
 

@@ -15,6 +15,7 @@ const resolveSchoolId = (req, res) => {
 
 // Analyze student weakness and identify weak students
 router.post('/analyze-weakness/:studentId', adminAuth, async (req, res) => {
+  // #swagger.tags = ['AI Learning']
   try {
     const schoolId = resolveSchoolId(req, res);
     if (!schoolId) return;
@@ -64,6 +65,7 @@ router.post('/analyze-weakness/:studentId', adminAuth, async (req, res) => {
 
 // Get all weak students
 router.get('/weak-students', adminAuth, async (req, res) => {
+  // #swagger.tags = ['AI Learning']
   try {
     const schoolId = resolveSchoolId(req, res);
     if (!schoolId) return;
@@ -122,6 +124,7 @@ router.get('/weak-students', adminAuth, async (req, res) => {
 
 // Generate AI learning path for a student
 router.post('/generate-learning-path/:studentId', adminAuth, async (req, res) => {
+  // #swagger.tags = ['AI Learning']
   try {
     const schoolId = resolveSchoolId(req, res);
     if (!schoolId) return;
@@ -159,6 +162,7 @@ router.post('/generate-learning-path/:studentId', adminAuth, async (req, res) =>
 
 // Get learning path for a student
 router.get('/learning-path/:studentId/:subject', adminAuth, async (req, res) => {
+  // #swagger.tags = ['AI Learning']
   try {
     const schoolId = resolveSchoolId(req, res);
     if (!schoolId) return;
@@ -189,6 +193,7 @@ router.get('/learning-path/:studentId/:subject', adminAuth, async (req, res) => 
 
 // Update learning progress
 router.put('/update-progress/:studentId/:subject', adminAuth, async (req, res) => {
+  // #swagger.tags = ['AI Learning']
   try {
     const schoolId = resolveSchoolId(req, res);
     if (!schoolId) return;

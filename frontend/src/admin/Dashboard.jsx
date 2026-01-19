@@ -31,63 +31,6 @@ import {
   Legend
 } from 'recharts';
 
-// Derived attendance figures
-const totalStudentsCount = 1245;
-const presentPercentage = 85;
-const presentStudentsCount = Math.round(totalStudentsCount * (presentPercentage / 100));
-
-const totalTeachersCount = 82;
-const presentTeachersPercent = 92;
-const presentTeachersCount = Math.round(totalTeachersCount * (presentTeachersPercent / 100));
-
-// Key metrics for top cards
-const keyMetrics = [
-  {
-    label: 'Students Present',
-    value: presentStudentsCount,
-    total: totalStudentsCount,
-    percentage: presentPercentage,
-    icon: Users,
-    color: 'blue',
-    trend: '+5% from yesterday'
-  },
-  {
-    label: 'Teachers Present',
-    value: presentTeachersCount,
-    total: totalTeachersCount,
-    percentage: presentTeachersPercent,
-    icon: UserCheck,
-    color: 'green',
-    trend: '+2% from yesterday'
-  },
-  {
-    label: 'Staff Present',
-    value: 8,
-    total: 10,
-    percentage: 80,
-    icon: User,
-    color: 'purple',
-    trend: 'Same as yesterday'
-  },
-  {
-    label: 'Buses Available',
-    value: 6,
-    total: 8,
-    percentage: 75,
-    icon: Bus,
-    color: 'orange',
-    trend: '2 under maintenance'
-  },
-];
-
-// Stats overview
-const statsOverview = [
-  { label: 'Total Teachers', value: 82, icon: GraduationCap, change: '+2', color: 'blue' },
-  { label: 'Total Students', value: 1245, icon: Users, change: '+15', color: 'green' },
-  { label: 'Active Courses', value: 18, icon: BookOpen, change: '+3', color: 'purple' },
-  { label: 'Total Parents', value: 1100, icon: UsersRound, change: '+8', color: 'orange' },
-];
-
 // Quick actions
 const quickActions = [
   { title: 'Add Student', action: 'student', icon: Plus, color: 'blue' },
@@ -122,6 +65,9 @@ const recentActivity = [
 
 const Dashboard = ({ setShowAdminHeader }) => {
   const [selectedAction, setSelectedAction] = useState(null);
+  const [dashboardStats, setDashboardStats] = useState(null);
+  const [statsLoading, setStatsLoading] = useState(true);
+  const [statsError, setStatsError] = useState('');
 
   const handleActionClick = (action) => {
     setSelectedAction(action);
@@ -130,6 +76,29 @@ const Dashboard = ({ setShowAdminHeader }) => {
 
   useEffect(() => {
     setShowAdminHeader(true);
+  }, [setShowAdminHeader]);
+
+  useEffect(() => {
+    const fetchStats = async () => {
+      try {
+        const res = await fetch(`${import.meta.env.VITE_API_URL}/api/admin/users/dashboard-stats`, {
+          headers: {
+            authorization: `Bearer ${localStorage.getItem('token')}`,
+          },
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          throw new Error(data?.error || 'Failed to load dashboard stats');
+        }
+        setDashboardStats(data);
+      } catch (err) {
+        setStatsError(err.message || 'Failed to load dashboard stats');
+      } finally {
+        setStatsLoading(false);
+      }
+    };
+
+    fetchStats();
   }, []);
 
   const getColorClasses = (color) => {
@@ -170,6 +139,65 @@ const Dashboard = ({ setShowAdminHeader }) => {
     return colors[color] || colors.blue;
   };
 
+  const totalStudents = dashboardStats?.students?.total || 0;
+  const recentStudents = dashboardStats?.students?.recent || 0;
+  const totalTeachers = dashboardStats?.teachers?.total || 0;
+  const recentTeachers = dashboardStats?.teachers?.recent || 0;
+  const totalParents = dashboardStats?.parents?.total || 0;
+  const recentParents = dashboardStats?.parents?.recent || 0;
+  const totalUsers = dashboardStats?.totalUsers || 0;
+
+  const getPercent = (value, total) => {
+    if (!total) return 0;
+    return Math.round((value / total) * 100);
+  };
+
+  const keyMetrics = [
+    {
+      label: 'Students',
+      value: totalStudents,
+      total: totalStudents,
+      percentage: getPercent(recentStudents, totalStudents),
+      icon: Users,
+      color: 'blue',
+      trend: `${recentStudents} new in 30 days`
+    },
+    {
+      label: 'Teachers',
+      value: totalTeachers,
+      total: totalTeachers,
+      percentage: getPercent(recentTeachers, totalTeachers),
+      icon: UserCheck,
+      color: 'green',
+      trend: `${recentTeachers} new in 30 days`
+    },
+    {
+      label: 'Parents',
+      value: totalParents,
+      total: totalParents,
+      percentage: getPercent(recentParents, totalParents),
+      icon: UsersRound,
+      color: 'purple',
+      trend: `${recentParents} new in 30 days`
+    },
+    {
+      label: 'Total Users',
+      value: totalUsers,
+      total: totalUsers,
+      percentage: getPercent(dashboardStats?.recentTotal || 0, totalUsers),
+      icon: Users,
+      color: 'orange',
+      trend: `${dashboardStats?.recentTotal || 0} new in 30 days`
+    },
+  ];
+
+  const statsOverview = [
+    { label: 'Total Teachers', value: totalTeachers, icon: GraduationCap, change: `+${recentTeachers}`, color: 'blue' },
+    { label: 'Total Students', value: totalStudents, icon: Users, change: `+${recentStudents}`, color: 'green' },
+    { label: 'Total Parents', value: totalParents, icon: UsersRound, change: `+${recentParents}`, color: 'orange' },
+    { label: 'Total Users', value: totalUsers, icon: Users, change: `+${dashboardStats?.recentTotal || 0}`, color: 'purple' },
+  ];
+
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="mx-auto p-6 space-y-6">
@@ -177,8 +205,14 @@ const Dashboard = ({ setShowAdminHeader }) => {
         {/* Header */}
         <div className="mb-6">
           <h1 className="text-3xl font-bold text-gray-900 mb-2">Dashboard</h1>
-          <p className="text-gray-600">Welcome back! Here's what's happening today.</p>
+          <p className="text-gray-600">Welcome back! Here is what is happening today.</p>
         </div>
+
+        {statsError && (
+          <div className="bg-red-50 border border-red-200 text-red-700 rounded-xl p-4">
+            {statsError}
+          </div>
+        )}
 
         {/* Key Metrics - Attendance */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
@@ -205,7 +239,9 @@ const Dashboard = ({ setShowAdminHeader }) => {
                   <div className="w-full bg-gray-200 rounded-full h-2 mt-2">
                     <div className={`${colors.progress} h-2 rounded-full transition-all duration-300`} style={{ width: `${metric.percentage}%` }}></div>
                   </div>
-                  <p className="text-xs text-gray-500 mt-2">{metric.trend}</p>
+                  <p className="text-xs text-gray-500 mt-2">
+                    {statsLoading ? 'Loading...' : metric.trend}
+                  </p>
                 </div>
               </div>
             );
@@ -222,10 +258,12 @@ const Dashboard = ({ setShowAdminHeader }) => {
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-sm font-medium text-gray-600 mb-1">{stat.label}</p>
-                    <h3 className="text-2xl font-bold text-gray-900">{stat.value}</h3>
+                    <h3 className="text-2xl font-bold text-gray-900">
+                      {statsLoading ? '...' : stat.value}
+                    </h3>
                     <p className={`text-xs ${colors.text} font-medium mt-2 flex items-center gap-1`}>
                       <TrendingUp className="w-3 h-3" />
-                      {stat.change} this month
+                      {statsLoading ? 'Loading...' : `${stat.change} this month`}
                     </p>
                   </div>
                   <div className={`p-3 rounded-lg ${colors.bg}`}>

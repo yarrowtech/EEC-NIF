@@ -44,6 +44,7 @@ const buildAttendanceTrend = (students, monthsBack = 6) => {
 };
 
 router.get('/overview', principalAuth, async (req, res) => {
+  // #swagger.tags = ['Principal Dashboard']
   try {
     const schoolFilter = getSchoolFilter(req);
 

@@ -58,6 +58,7 @@ const sanitizeInstallments = (items) => {
    Used by CourseManagement.jsx to list courses
 ------------------------------------------------------ */
 router.get("/fetch", async (req, res, next) => {
+  // #swagger.tags = ['NIF Courses']
   try {
     const {
       q = "",
@@ -105,6 +106,7 @@ router.get("/fetch", async (req, res, next) => {
    Map: stream -> department, name -> title
 ------------------------------------------------------ */
 router.post("/add", /* authAdmin, */ async (req, res, next) => {
+  // #swagger.tags = ['NIF Courses']
   try {
     const body = req.body || {};
 
@@ -184,6 +186,7 @@ router.post("/add", /* authAdmin, */ async (req, res, next) => {
    GET /api/nif/course/:id
 ------------------------------------------------------ */
 router.get("/fee-structure", async (req, res, next) => {
+  // #swagger.tags = ['NIF Courses']
   try {
     const { programType, stream, courseId } = req.query || {};
 
@@ -240,6 +243,7 @@ router.get("/fee-structure", async (req, res, next) => {
    Body: { programType, stream, courseId?, components: [] }
 ------------------------------------------------------ */
 router.post("/fee-structure", async (req, res, next) => {
+  // #swagger.tags = ['NIF Courses']
   try {
     const { programType, stream, courseId, components } = req.body || {};
 
@@ -304,6 +308,7 @@ router.post("/fee-structure", async (req, res, next) => {
    GET /api/nif/course/:id
 ------------------------------------------------------ */
 router.get("/:id", async (req, res, next) => {
+  // #swagger.tags = ['NIF Courses']
   try {
     const { id } = req.params;
     if (!mongoose.isValidObjectId(id)) {
@@ -324,6 +329,7 @@ router.get("/:id", async (req, res, next) => {
    Allows editing from admin panel
 ------------------------------------------------------ */
 router.patch("/:id", /* authAdmin, */ async (req, res, next) => {
+  // #swagger.tags = ['NIF Courses']
   try {
     const { id } = req.params;
     if (!mongoose.isValidObjectId(id)) {
@@ -430,6 +436,7 @@ router.patch("/:id", /* authAdmin, */ async (req, res, next) => {
    DELETE /api/nif/course/:id
 ------------------------------------------------------ */
 router.delete("/:id", /* authAdmin, */ async (req, res, next) => {
+  // #swagger.tags = ['NIF Courses']
   try {
     const { id } = req.params;
     if (!mongoose.isValidObjectId(id)) {

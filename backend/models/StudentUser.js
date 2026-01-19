@@ -1,6 +1,14 @@
 const mongoose = require('mongoose'); 
 const bcrypt = require('bcryptjs');
 
+const hashPasswordIfNeeded = async (password) => {
+  if (!password || typeof password !== 'string') return password;
+  if (password.startsWith('$2a$') || password.startsWith('$2b$') || password.startsWith('$2y$')) {
+    return password;
+  }
+  return bcrypt.hash(password, 10);
+};
+
 const attendanceSchema = new mongoose.Schema({
   date: { type: Date, default: Date.now },
   status: { type: String, enum: ['present', 'absent'], required: true },
@@ -33,6 +41,19 @@ const studentUserSchema = new mongoose.Schema({
 studentUserSchema.pre('save', async function (next) {
   if (!this.isModified('password')) return next();
   this.password = await bcrypt.hash(this.password, 10);
+  next();
+});
+
+
+studentUserSchema.pre('findOneAndUpdate', async function (next) {
+  const update = this.getUpdate() || {};
+  const nextPassword = update.password || (update.$set && update.$set.password);
+  if (!nextPassword) return next();
+
+  const hashed = await hashPasswordIfNeeded(nextPassword);
+  if (update.password) update.password = hashed;
+  if (update.$set && update.$set.password) update.$set.password = hashed;
+  this.setUpdate(update);
   next();
 });
 

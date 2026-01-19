@@ -12,6 +12,7 @@ module.exports = function (req, res, next) {
       return res.status(403).json({ error: 'Forbidden - not a teacher' });
     }
     req.user = decoded;
+    req.teacher = decoded;
     req.userType = decoded.type === 'admin' ? 'Admin' : decoded.userType;
     req.schoolId = decoded.schoolId || null;
     next();

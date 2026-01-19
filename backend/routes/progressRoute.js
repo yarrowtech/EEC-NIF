@@ -4,6 +4,7 @@ const StudentProgress = require('../models/StudentProgress');
 const StudentUser = require('../models/StudentUser');
 const Assignment = require('../models/Assignment');
 const adminAuth = require('../middleware/adminAuth');
+const teacherAuth = require('../middleware/authTeacher');
 
 const resolveSchoolId = (req, res) => {
   const schoolId = req.schoolId || req.admin?.schoolId || null;
@@ -16,6 +17,7 @@ const resolveSchoolId = (req, res) => {
 
 // Get progress for all students
 router.get('/students', adminAuth, async (req, res) => {
+  // #swagger.tags = ['Progress']
   try {
     const schoolId = resolveSchoolId(req, res);
     if (!schoolId) return;
@@ -52,6 +54,7 @@ router.get('/students', adminAuth, async (req, res) => {
 
 // Get detailed progress for a specific student
 router.get('/student/:studentId', adminAuth, async (req, res) => {
+  // #swagger.tags = ['Progress']
   try {
     const schoolId = resolveSchoolId(req, res);
     if (!schoolId) return;
@@ -75,6 +78,7 @@ router.get('/student/:studentId', adminAuth, async (req, res) => {
 
 // Update student submission score and feedback
 router.put('/submission/:studentId/:assignmentId', adminAuth, async (req, res) => {
+  // #swagger.tags = ['Progress']
   try {
     const schoolId = resolveSchoolId(req, res);
     if (!schoolId) return;
@@ -118,8 +122,51 @@ router.put('/submission/:studentId/:assignmentId', adminAuth, async (req, res) =
   }
 });
 
+// Teacher grading endpoint (uses same logic as admin)
+router.put('/submission/grade/:studentId/:assignmentId', teacherAuth, async (req, res) => {
+  // #swagger.tags = ['Progress']
+  try {
+    const schoolId = resolveSchoolId(req, res);
+    if (!schoolId) return;
+    const { studentId, assignmentId } = req.params;
+    const { score, feedback, status } = req.body;
+
+    let progress = await StudentProgress.findOne({ studentId, schoolId });
+
+    if (!progress) {
+      progress = new StudentProgress({ studentId, schoolId, submissions: [] });
+    }
+
+    const submissionIndex = progress.submissions.findIndex(
+      sub => sub.assignmentId.toString() === assignmentId
+    );
+
+    if (submissionIndex >= 0) {
+      progress.submissions[submissionIndex].score = score;
+      progress.submissions[submissionIndex].feedback = feedback;
+      progress.submissions[submissionIndex].status = status || 'graded';
+    } else {
+      progress.submissions.push({
+        assignmentId,
+        score,
+        feedback,
+        status: status || 'graded'
+      });
+    }
+
+    await progress.save();
+    await recalculateProgressMetrics(studentId, schoolId);
+
+    res.status(200).json({ message: 'Submission graded successfully' });
+  } catch (error) {
+    console.error('Error grading submission:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 // Get class performance analytics
 router.get('/analytics', adminAuth, async (req, res) => {
+  // #swagger.tags = ['Progress']
   try {
     const schoolId = resolveSchoolId(req, res);
     if (!schoolId) return;

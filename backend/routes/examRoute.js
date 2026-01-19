@@ -1,6 +1,9 @@
 const express = require('express');
 const Exam = require('../models/Exam');
+const ExamResult = require('../models/ExamResult');
+const StudentUser = require('../models/StudentUser');
 const adminAuth = require('../middleware/adminAuth');
+const teacherAuth = require('../middleware/authTeacher');
 
 const resolveSchoolId = (req, res) => {
     const schoolId = req.schoolId || req.admin?.schoolId || null;
@@ -17,6 +20,7 @@ const router = express.Router();
 
 
 router.get("/fetch", adminAuth, async (req, res) => {
+  // #swagger.tags = ['Exams']
     try {
         const schoolId = resolveSchoolId(req, res);
         if (!schoolId) return;
@@ -28,6 +32,7 @@ router.get("/fetch", adminAuth, async (req, res) => {
 })
 
 router.post("/add", adminAuth, async (req, res) => {
+  // #swagger.tags = ['Exams']
     try {
         const { title, subject, instructor, venue, date, time, duration, marks, noOfStudents, status } = req.body;
         const schoolId = resolveSchoolId(req, res);
@@ -51,5 +56,84 @@ router.post("/add", adminAuth, async (req, res) => {
         res.status(400).json({error: err.message});
     }
 })
+
+// Create or update exam results (admin/teacher)
+router.post("/results", teacherAuth, async (req, res) => {
+  // #swagger.tags = ['Exams']
+    try {
+        const schoolId = req.schoolId || req.user?.schoolId || null;
+        if (!schoolId) return res.status(400).json({ error: 'schoolId is required' });
+        const { examId, studentId, marks, grade, remarks, status } = req.body || {};
+        if (!examId || !studentId) {
+            return res.status(400).json({ error: 'examId and studentId are required' });
+        }
+        const exam = await Exam.findOne({ _id: examId, schoolId }).lean();
+        if (!exam) {
+            return res.status(404).json({ error: 'Exam not found' });
+        }
+        const student = await StudentUser.findOne({ _id: studentId, schoolId }).lean();
+        if (!student) {
+            return res.status(404).json({ error: 'Student not found' });
+        }
+        const score = Number(marks);
+        if (!Number.isFinite(score) || score < 0) {
+            return res.status(400).json({ error: 'Valid marks are required' });
+        }
+
+        const result = await ExamResult.findOneAndUpdate(
+            { examId, studentId, schoolId },
+            {
+                schoolId,
+                examId,
+                studentId,
+                marks: score,
+                grade,
+                remarks,
+                status: status || 'pass',
+                createdBy: req.user?.id || req.admin?.id || null,
+            },
+            { new: true, upsert: true, runValidators: true }
+        );
+
+        res.status(201).json(result);
+    } catch (err) {
+        res.status(400).json({ error: err.message });
+    }
+});
+
+// List results for an exam (admin/teacher)
+router.get("/results", teacherAuth, async (req, res) => {
+  // #swagger.tags = ['Exams']
+    try {
+        const schoolId = req.schoolId || req.user?.schoolId || null;
+        if (!schoolId) return res.status(400).json({ error: 'schoolId is required' });
+        const { examId, studentId } = req.query || {};
+        const filter = { schoolId };
+        if (examId) filter.examId = examId;
+        if (studentId) filter.studentId = studentId;
+        const results = await ExamResult.find(filter)
+            .populate('studentId', 'name grade section roll')
+            .populate('examId', 'title subject date')
+            .lean();
+        res.json(results);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// Student fetch their results
+router.get("/results/me", require('../middleware/authStudent'), async (req, res) => {
+  // #swagger.tags = ['Exams']
+    try {
+        const schoolId = req.schoolId || req.user?.schoolId || null;
+        if (!schoolId) return res.status(400).json({ error: 'schoolId is required' });
+        const results = await ExamResult.find({ schoolId, studentId: req.user.id })
+            .populate('examId', 'title subject date')
+            .lean();
+        res.json(results);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
 
 module.exports = router;

@@ -4,6 +4,7 @@ const StudentUser = require('../models/StudentUser');
 
 // Get available courses for AI learning
 router.get('/courses/:studentId', async (req, res) => {
+  // #swagger.tags = ['Student AI Learning']
   try {
     const { studentId } = req.params;
     const student = await StudentUser.findById(studentId);
@@ -24,6 +25,7 @@ router.get('/courses/:studentId', async (req, res) => {
 
 // Generate AI content for a topic
 router.post('/generate-content', async (req, res) => {
+  // #swagger.tags = ['Student AI Learning']
   try {
     const { topic, subject, contentType, difficulty } = req.body;
 
@@ -61,6 +63,7 @@ router.post('/generate-content', async (req, res) => {
 
 // Get learning progress for a student
 router.get('/progress/:studentId', async (req, res) => {
+  // #swagger.tags = ['Student AI Learning']
   try {
     const { studentId } = req.params;
     
@@ -94,6 +97,7 @@ router.get('/progress/:studentId', async (req, res) => {
 
 // Save learning activity
 router.post('/activity', async (req, res) => {
+  // #swagger.tags = ['Student AI Learning']
   try {
     const { studentId, topic, subject, activityType, timeSpent, completed } = req.body;
     
@@ -122,6 +126,7 @@ router.post('/activity', async (req, res) => {
 
 // Get AI study recommendations
 router.get('/recommendations/:studentId', async (req, res) => {
+  // #swagger.tags = ['Student AI Learning']
   try {
     const { studentId } = req.params;
     

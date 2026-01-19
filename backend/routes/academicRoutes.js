@@ -24,6 +24,7 @@ const resolveSchoolId = (req, res) => {
 
 // Academic Years
 router.post('/years', adminAuth, async (req, res) => {
+  // #swagger.tags = ['Academics']
   try {
     const schoolId = resolveSchoolId(req, res);
     if (!schoolId) return;
@@ -46,6 +47,7 @@ router.post('/years', adminAuth, async (req, res) => {
 });
 
 router.get('/years', adminAuth, async (req, res) => {
+  // #swagger.tags = ['Academics']
   try {
     const schoolId = resolveSchoolId(req, res);
     if (!schoolId) return;
@@ -57,6 +59,7 @@ router.get('/years', adminAuth, async (req, res) => {
 });
 
 router.put('/years/:id', adminAuth, async (req, res) => {
+  // #swagger.tags = ['Academics']
   try {
     const { id } = req.params;
     if (!mongoose.isValidObjectId(id)) {
@@ -95,6 +98,7 @@ router.put('/years/:id', adminAuth, async (req, res) => {
 });
 
 router.delete('/years/:id', adminAuth, async (req, res) => {
+  // #swagger.tags = ['Academics']
   try {
     const { id } = req.params;
     if (!mongoose.isValidObjectId(id)) {
@@ -132,6 +136,7 @@ router.delete('/years/:id', adminAuth, async (req, res) => {
 
 // Classes
 router.post('/classes', adminAuth, async (req, res) => {
+  // #swagger.tags = ['Academics']
   try {
     const schoolId = resolveSchoolId(req, res);
     if (!schoolId) return;
@@ -156,6 +161,7 @@ router.post('/classes', adminAuth, async (req, res) => {
 });
 
 router.get('/classes', adminAuth, async (req, res) => {
+  // #swagger.tags = ['Academics']
   try {
     const schoolId = resolveSchoolId(req, res);
     if (!schoolId) return;
@@ -167,6 +173,7 @@ router.get('/classes', adminAuth, async (req, res) => {
 });
 
 router.put('/classes/:id', adminAuth, async (req, res) => {
+  // #swagger.tags = ['Academics']
   try {
     const { id } = req.params;
     if (!mongoose.isValidObjectId(id)) {
@@ -207,6 +214,7 @@ router.put('/classes/:id', adminAuth, async (req, res) => {
 });
 
 router.delete('/classes/:id', adminAuth, async (req, res) => {
+  // #swagger.tags = ['Academics']
   try {
     const { id } = req.params;
     const { cascade } = req.query;
@@ -257,6 +265,7 @@ router.delete('/classes/:id', adminAuth, async (req, res) => {
 
 // Sections
 router.post('/sections', adminAuth, async (req, res) => {
+  // #swagger.tags = ['Academics']
   try {
     const schoolId = resolveSchoolId(req, res);
     if (!schoolId) return;
@@ -280,6 +289,7 @@ router.post('/sections', adminAuth, async (req, res) => {
 });
 
 router.get('/sections', adminAuth, async (req, res) => {
+  // #swagger.tags = ['Academics']
   try {
     const schoolId = resolveSchoolId(req, res);
     if (!schoolId) return;
@@ -295,6 +305,7 @@ router.get('/sections', adminAuth, async (req, res) => {
 });
 
 router.put('/sections/:id', adminAuth, async (req, res) => {
+  // #swagger.tags = ['Academics']
   try {
     const { id } = req.params;
     if (!mongoose.isValidObjectId(id)) {
@@ -334,6 +345,7 @@ router.put('/sections/:id', adminAuth, async (req, res) => {
 });
 
 router.delete('/sections/:id', adminAuth, async (req, res) => {
+  // #swagger.tags = ['Academics']
   try {
     const { id } = req.params;
     if (!mongoose.isValidObjectId(id)) {
@@ -358,6 +370,7 @@ router.delete('/sections/:id', adminAuth, async (req, res) => {
 
 // Subjects
 router.post('/subjects', adminAuth, async (req, res) => {
+  // #swagger.tags = ['Academics']
   try {
     const schoolId = resolveSchoolId(req, res);
     if (!schoolId) return;
@@ -382,6 +395,7 @@ router.post('/subjects', adminAuth, async (req, res) => {
 });
 
 router.get('/subjects', adminAuth, async (req, res) => {
+  // #swagger.tags = ['Academics']
   try {
     const schoolId = resolveSchoolId(req, res);
     if (!schoolId) return;
@@ -397,6 +411,7 @@ router.get('/subjects', adminAuth, async (req, res) => {
 });
 
 router.put('/subjects/:id', adminAuth, async (req, res) => {
+  // #swagger.tags = ['Academics']
   try {
     const { id } = req.params;
     if (!mongoose.isValidObjectId(id)) {
@@ -437,6 +452,7 @@ router.put('/subjects/:id', adminAuth, async (req, res) => {
 });
 
 router.delete('/subjects/:id', adminAuth, async (req, res) => {
+  // #swagger.tags = ['Academics']
   try {
     const { id } = req.params;
     if (!mongoose.isValidObjectId(id)) {

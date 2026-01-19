@@ -38,6 +38,7 @@ const recomputeInvoiceStatus = (invoice) => {
 
 // Fee Structures
 router.post('/structures', adminAuth, async (req, res) => {
+  // #swagger.tags = ['Fees']
   try {
     const schoolId = resolveSchoolId(req, res);
     if (!schoolId) return;
@@ -66,6 +67,7 @@ router.post('/structures', adminAuth, async (req, res) => {
 });
 
 router.get('/structures', adminAuth, async (req, res) => {
+  // #swagger.tags = ['Fees']
   try {
     const schoolId = resolveSchoolId(req, res);
     if (!schoolId) return;
@@ -82,6 +84,7 @@ router.get('/structures', adminAuth, async (req, res) => {
 
 // Fee Invoices
 router.post('/invoices', adminAuth, async (req, res) => {
+  // #swagger.tags = ['Fees']
   try {
     const schoolId = resolveSchoolId(req, res);
     if (!schoolId) return;
@@ -128,6 +131,7 @@ router.post('/invoices', adminAuth, async (req, res) => {
 });
 
 router.get('/invoices', adminAuth, async (req, res) => {
+  // #swagger.tags = ['Fees']
   try {
     const schoolId = resolveSchoolId(req, res);
     if (!schoolId) return;
@@ -144,6 +148,7 @@ router.get('/invoices', adminAuth, async (req, res) => {
 
 // Payments
 router.post('/payments', adminAuth, async (req, res) => {
+  // #swagger.tags = ['Fees']
   try {
     const schoolId = resolveSchoolId(req, res);
     if (!schoolId) return;
@@ -182,6 +187,7 @@ router.post('/payments', adminAuth, async (req, res) => {
 });
 
 router.get('/payments', adminAuth, async (req, res) => {
+  // #swagger.tags = ['Fees']
   try {
     const schoolId = resolveSchoolId(req, res);
     if (!schoolId) return;

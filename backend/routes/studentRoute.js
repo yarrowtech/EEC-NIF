@@ -31,6 +31,7 @@ const authStudent = require('../middleware/authStudent');
 
 // Register Student
 router.post('/register', adminAuth, async (req, res) => {
+  // #swagger.tags = ['Students']
   const {
     name,
     schoolId,
@@ -163,6 +164,7 @@ router.post('/register', adminAuth, async (req, res) => {
 
 // Login Student
 router.post('/login', rateLimit({ windowMs: 60 * 1000, max: 10 }), async (req, res) => {
+  // #swagger.tags = ['Students']
   const { username, password } = req.body;
 
   try {
@@ -190,6 +192,7 @@ router.post('/login', rateLimit({ windowMs: 60 * 1000, max: 10 }), async (req, r
 
 // Test endpoint to check if any students exist
 router.get('/test/list', async (req, res) => {
+  // #swagger.tags = ['Students']
   try {
     const students = await StudentUser.find().select('username name grade section').limit(5).lean();
     res.json({
@@ -203,6 +206,7 @@ router.get('/test/list', async (req, res) => {
 
 // Get Student Profile
 router.get('/profile', authStudent, async (req, res) => {
+  // #swagger.tags = ['Students']
   try {
     console.log('📥 Profile request received');
     console.log('User ID from token:', req.user.id);
@@ -236,6 +240,7 @@ router.get('/profile', authStudent, async (req, res) => {
 
 // Get Student Dashboard Data (stats, courses, etc.)
 router.get('/dashboard', authStudent, async (req, res) => {
+  // #swagger.tags = ['Students']
   try {
     const student = await StudentUser.findById(req.user.id)
       .populate('nifStudent')
@@ -294,6 +299,7 @@ router.get('/dashboard', authStudent, async (req, res) => {
 
 // Get Student Attendance
 router.get('/attendance', authStudent, async (req, res) => {
+  // #swagger.tags = ['Students']
   try {
     const student = await StudentUser.findById(req.user.id)
       .select('attendance name grade section')
@@ -328,6 +334,7 @@ router.get('/attendance', authStudent, async (req, res) => {
 
 // Get Student Assignments
 router.get('/assignments', authStudent, async (req, res) => {
+  // #swagger.tags = ['Students']
   try {
     const student = await StudentUser.findById(req.user.id)
       .select('assignments name grade section')
@@ -348,6 +355,7 @@ router.get('/assignments', authStudent, async (req, res) => {
 
 // Get Student Results
 router.get('/results', authStudent, async (req, res) => {
+  // #swagger.tags = ['Students']
   try {
     const student = await StudentUser.findById(req.user.id)
       .select('results name grade section')
@@ -368,6 +376,7 @@ router.get('/results', authStudent, async (req, res) => {
 
 // Get Student Schedule/Routine
 router.get('/schedule', authStudent, async (req, res) => {
+  // #swagger.tags = ['Students']
   try {
     const student = await StudentUser.findById(req.user.id)
       .select('schedule grade section')

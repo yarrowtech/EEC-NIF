@@ -16,6 +16,7 @@ const resolveSchoolId = (req, res) => {
 
 // Create a new post (Teacher only)
 router.post('/posts', teacherAuth, async (req, res) => {
+  // #swagger.tags = ['Alcove']
   try {
     const schoolId = resolveSchoolId(req, res);
     if (!schoolId) return;
@@ -40,6 +41,7 @@ router.post('/posts', teacherAuth, async (req, res) => {
 
 // List posts with filters/search/pagination
 router.get('/posts', authAnyUser, async (req, res) => {
+  // #swagger.tags = ['Alcove']
   try {
     const schoolId = resolveSchoolId(req, res);
     if (!schoolId) return;
@@ -72,6 +74,7 @@ router.get('/posts', authAnyUser, async (req, res) => {
 
 // Get single post
 router.get('/posts/:id', authAnyUser, async (req, res) => {
+  // #swagger.tags = ['Alcove']
   try {
     const schoolId = resolveSchoolId(req, res);
     if (!schoolId) return;
@@ -85,6 +88,7 @@ router.get('/posts/:id', authAnyUser, async (req, res) => {
 
 // Update a post (Teacher only; no author check here for brevity)
 router.patch('/posts/:id', teacherAuth, async (req, res) => {
+  // #swagger.tags = ['Alcove']
   try {
     const schoolId = resolveSchoolId(req, res);
     if (!schoolId) return;
@@ -101,8 +105,24 @@ router.patch('/posts/:id', teacherAuth, async (req, res) => {
   }
 });
 
+// Delete a post (Teacher/admin)
+router.delete('/posts/:id', teacherAuth, async (req, res) => {
+  // #swagger.tags = ['Alcove']
+  try {
+    const schoolId = resolveSchoolId(req, res);
+    if (!schoolId) return;
+    const post = await AlcovePost.findOneAndDelete({ _id: req.params.id, schoolId });
+    if (!post) return res.status(404).json({ error: 'Not found' });
+    await AlcoveComment.deleteMany({ post: req.params.id, schoolId });
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
 // Comments: list
 router.get('/posts/:id/comments', authAnyUser, async (req, res) => {
+  // #swagger.tags = ['Alcove']
   try {
     const schoolId = resolveSchoolId(req, res);
     if (!schoolId) return;
@@ -115,6 +135,7 @@ router.get('/posts/:id/comments', authAnyUser, async (req, res) => {
 
 // Comments: create (any logged-in user)
 router.post('/posts/:id/comments', authAnyUser, async (req, res) => {
+  // #swagger.tags = ['Alcove']
   try {
     const schoolId = resolveSchoolId(req, res);
     if (!schoolId) return;
@@ -129,6 +150,29 @@ router.post('/posts/:id/comments', authAnyUser, async (req, res) => {
       authorName: authorName?.trim() || 'Anonymous',
     });
     res.status(201).json(comment);
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+// Comments: delete (author or admin/teacher)
+router.delete('/posts/:id/comments/:commentId', authAnyUser, async (req, res) => {
+  // #swagger.tags = ['Alcove']
+  try {
+    const schoolId = resolveSchoolId(req, res);
+    if (!schoolId) return;
+    const comment = await AlcoveComment.findOne({ _id: req.params.commentId, schoolId, post: req.params.id });
+    if (!comment) return res.status(404).json({ error: 'Not found' });
+
+    const isAdmin = req.userType === 'Admin';
+    const isTeacher = req.userType === 'teacher';
+    const isAuthor = comment.authorId && req.user?.id && comment.authorId === req.user.id;
+    if (!isAdmin && !isTeacher && !isAuthor) {
+      return res.status(403).json({ error: 'Forbidden' });
+    }
+
+    await comment.deleteOne();
+    res.json({ ok: true });
   } catch (err) {
     res.status(400).json({ error: err.message });
   }

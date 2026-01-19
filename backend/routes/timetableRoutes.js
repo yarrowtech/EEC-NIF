@@ -20,6 +20,7 @@ const resolveSchoolId = (req, res) => {
 
 // Create or update timetable (admin only)
 router.post('/', adminAuth, async (req, res) => {
+  // #swagger.tags = ['Timetable']
   try {
     const schoolId = resolveSchoolId(req, res);
     if (!schoolId) return;
@@ -56,6 +57,7 @@ router.post('/', adminAuth, async (req, res) => {
 
 // Get timetable
 router.get('/', adminAuth, async (req, res) => {
+  // #swagger.tags = ['Timetable']
   try {
     const schoolId = resolveSchoolId(req, res);
     if (!schoolId) return;

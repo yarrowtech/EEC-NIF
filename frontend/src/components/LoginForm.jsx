@@ -11,6 +11,7 @@ const LoginForm = () => {
     rememberMe: false
   });
   const [errors, setErrors] = useState({});
+  const [loginError, setLoginError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
 
@@ -23,6 +24,9 @@ const LoginForm = () => {
 
     if (errors[name]) {
       setErrors(prev => ({ ...prev, [name]: '' }));
+    }
+    if (loginError) {
+      setLoginError('');
     }
   };
 
@@ -44,6 +48,7 @@ const LoginForm = () => {
     e.preventDefault();
     if (!validateForm()) return;
     setIsLoading(true);
+    setLoginError('');
     try {
       let url = "";
       switch (userType) {
@@ -59,7 +64,8 @@ const LoginForm = () => {
         case "Principal":
           url = "/api/principal/auth/login";
           break;
-        case "Admin":
+        case "SuperAdmin":
+        case "SchoolAdmin":
           url = "/api/admin/auth/login";
           break;
         default:
@@ -75,12 +81,13 @@ const LoginForm = () => {
           password: formData.password
         })
       })
-      if (!res.ok) {
-        throw new Error('Login failed');
-      }
       const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data?.error || 'Login failed');
+      }
       localStorage.setItem('token', data.token);
-      localStorage.setItem('userType', userType);
+      const storedUserType = userType === 'SuperAdmin' || userType === 'SchoolAdmin' ? 'Admin' : userType;
+      localStorage.setItem('userType', storedUserType);
       switch (userType) {
         case "Student":
           navigate('/dashboard');
@@ -94,7 +101,8 @@ const LoginForm = () => {
         case "Principal":
           navigate('/principal');
           break;
-        case "Admin":
+        case "SuperAdmin":
+        case "SchoolAdmin":
           navigate('/admin/dashboard');
           break;
         default:
@@ -103,6 +111,7 @@ const LoginForm = () => {
       }
     } catch (error) {
       console.error('Login failed:', error);
+      setLoginError(error.message || 'Login failed. Please try again.');
     } finally {
       setIsLoading(false);
     }
@@ -123,6 +132,11 @@ const LoginForm = () => {
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-5">
+          {loginError && (
+            <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+              {loginError}
+            </div>
+          )}
           {/* User Type Dropdown */}
           <div className="space-y-2">
             <label className="block text-sm font-semibold text-gray-700">User Type</label>
@@ -136,7 +150,8 @@ const LoginForm = () => {
               <option value="Teacher">Teacher</option>
               <option value="Parent">Parent</option>
               <option value="Principal">Principal</option>
-              <option value="Admin">Admin</option>
+              <option value="SuperAdmin">Super Admin</option>
+              <option value="SchoolAdmin">School Admin</option>
             </select>
           </div>
 
@@ -150,7 +165,11 @@ const LoginForm = () => {
                 name="username"
                 value={formData.username}
                 onChange={handleInputChange}
-                placeholder="Enter your username"
+                placeholder={
+                  userType === 'Principal'
+                    ? 'Enter email or username'
+                    : 'Enter your username'
+                }
                 className={`w-full pl-10 pr-4 py-3 border rounded-xl shadow-sm transition-all duration-200 focus:ring-2 focus:ring-yellow-500 focus:border-transparent outline-none ${
                   errors.username 
                     ? 'border-red-300 bg-red-50' 

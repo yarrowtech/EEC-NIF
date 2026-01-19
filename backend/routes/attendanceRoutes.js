@@ -7,6 +7,7 @@ const adminAuth = require('../middleware/adminAuth');
 
 // === Student marks attendance ===
 router.post('/mark', authStudent, async (req, res) => {
+  // #swagger.tags = ['Attendance']
   try {
     const { status, subject } = req.body;
     const schoolId = req.schoolId || req.user?.schoolId || null;
@@ -34,6 +35,7 @@ router.post('/mark', authStudent, async (req, res) => {
 
 // === Teacher views all student attendance ===
 router.get('/all', authTeacher, async (req, res) => {
+  // #swagger.tags = ['Attendance']
   try {
     const schoolId = req.schoolId || req.user?.schoolId || null;
     if (!schoolId) return res.status(400).json({ error: 'schoolId is required' });
@@ -46,6 +48,7 @@ router.get('/all', authTeacher, async (req, res) => {
 
 // === Admin views all attendance ===
 router.get('/admin/all', adminAuth, async (req, res) => {
+  // #swagger.tags = ['Attendance']
   try {
     const schoolId = req.schoolId || req.admin?.schoolId || null;
     if (!schoolId) return res.status(400).json({ error: 'schoolId is required' });
