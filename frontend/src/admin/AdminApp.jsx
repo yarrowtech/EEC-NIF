@@ -20,11 +20,8 @@ import FeesCollection from './pages/FeesCollection';
 import FeesDashboard from './pages/FeesDashboard';
 import StudentFeeDetails from './pages/StudentFeeDetails';
 import HR from './pages/HR';
-import { useEffect, useMemo, useState } from 'react';
-import { ADMIN_MENU_ITEMS } from './adminConstants';
-import SchoolsManagement from './pages/SchoolsManagement';
-import SchoolAdminsManagement from './pages/SchoolAdminsManagement';
-import PrincipalsManagement from './pages/PrincipalsManagement';
+import SchoolRegistrations from './pages/SchoolRegistrations';
+import { useState } from 'react';
 
 const AdminApp = () => {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
@@ -134,6 +131,7 @@ const AdminApp = () => {
         <Route path="fees/dashboard" element={<FeesDashboard setShowAdminHeader={setShowAdminHeader} />} />
         <Route path="fees/student-details" element={<StudentFeeDetails setShowAdminHeader={setShowAdminHeader} />} />
         <Route path="hr" element={<HR setShowAdminHeader={setShowAdminHeader} />} />
+        <Route path="school-registrations" element={<SchoolRegistrations setShowAdminHeader={setShowAdminHeader} />} />
       </Routes>
     </AdminLayout>
   );

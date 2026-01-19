@@ -4,7 +4,6 @@ import { useNavigate, Link } from 'react-router-dom';
 
 const LoginForm = () => {
   const [showPass, setShowPass] = useState(false);
-  const [userType, setUserType] = useState('Student');
   const [formData, setFormData] = useState({
     username: '',
     password: '',
@@ -50,6 +49,7 @@ const LoginForm = () => {
     setIsLoading(true);
     setLoginError('');
     try {
+<<<<<<< HEAD
       let url = "";
       switch (userType) {
         case "Student":
@@ -108,6 +108,43 @@ const LoginForm = () => {
         default:
           navigate('/dashboard');
           break;
+=======
+      const loginOptions = [
+        { userType: 'Student', url: '/api/student/auth/login', redirect: '/dashboard' },
+        { userType: 'Teacher', url: '/api/teacher/auth/login', redirect: '/teachers' },
+        { userType: 'Parent', url: '/api/parent/auth/login', redirect: '/parents' },
+        { userType: 'Principal', url: '/api/principal/auth/login', redirect: '/principal' },
+        { userType: 'Admin', url: '/api/admin/auth/login', redirect: '/admin/dashboard' }
+      ];
+
+      let loggedIn = false;
+      for (const option of loginOptions) {
+        const res = await fetch(`${import.meta.env.VITE_API_URL}${option.url}`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            username: formData.username,
+            password: formData.password
+          })
+        });
+
+        if (!res.ok) {
+          continue;
+        }
+
+        const data = await res.json();
+        localStorage.setItem('token', data.token);
+        localStorage.setItem('userType', option.userType);
+        navigate(option.redirect);
+        loggedIn = true;
+        break;
+      }
+
+      if (!loggedIn) {
+        throw new Error('Login failed');
+>>>>>>> 692c283aa64992261a83dd41142ba8207a54b7f7
       }
     } catch (error) {
       console.error('Login failed:', error);
@@ -132,6 +169,7 @@ const LoginForm = () => {
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-5">
+<<<<<<< HEAD
           {loginError && (
             <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
               {loginError}
@@ -155,6 +193,8 @@ const LoginForm = () => {
             </select>
           </div>
 
+=======
+>>>>>>> 692c283aa64992261a83dd41142ba8207a54b7f7
           {/* Username Field */}
           <div className="space-y-2">
             <label className="block text-sm font-semibold text-gray-700">Username</label>
@@ -165,6 +205,7 @@ const LoginForm = () => {
                 name="username"
                 value={formData.username}
                 onChange={handleInputChange}
+<<<<<<< HEAD
                 placeholder={
                   userType === 'Principal'
                     ? 'Enter email or username'
@@ -173,8 +214,13 @@ const LoginForm = () => {
                 className={`w-full pl-10 pr-4 py-3 border rounded-xl shadow-sm transition-all duration-200 focus:ring-2 focus:ring-yellow-500 focus:border-transparent outline-none ${
                   errors.username 
                     ? 'border-red-300 bg-red-50' 
+=======
+                placeholder="Enter your username"
+                className={`w-full pl-10 pr-4 py-3 border rounded-xl shadow-sm transition-all duration-200 focus:ring-2 focus:ring-yellow-500 focus:border-transparent outline-none ${errors.username
+                    ? 'border-red-300 bg-red-50'
+>>>>>>> 692c283aa64992261a83dd41142ba8207a54b7f7
                     : 'border-gray-300 hover:border-gray-400 focus:bg-white'
-                }`}
+                  }`}
               />
             </div>
             {errors.username && (
@@ -201,19 +247,20 @@ const LoginForm = () => {
                 value={formData.password}
                 onChange={handleInputChange}
                 placeholder="Enter your password"
-                className={`w-full pl-10 pr-12 py-3 border rounded-xl shadow-sm transition-all duration-200 focus:ring-2 focus:ring-yellow-500 focus:border-transparent outline-none ${
-                  errors.password 
-                    ? 'border-red-300 bg-red-50' 
+                className={`w-full pl-10 pr-12 py-3 border rounded-xl shadow-sm transition-all duration-200 focus:ring-2 focus:ring-yellow-500 focus:border-transparent outline-none ${errors.password
+                    ? 'border-red-300 bg-red-50'
                     : 'border-gray-300 hover:border-gray-400 focus:bg-white'
-                }`}
+                  }`}
               />
-              <button
-                type="button"
-                className="absolute right-3 top-1 text-gray-400 hover:text-gray-600"
-                onClick={() => setShowPass(!showPass)}
-              >
-                {showPass ? <EyeOff size={20} /> : <Eye size={20} />}
-              </button>
+              <div className='flex justify-center items-center'>
+                <button
+                  type="button"
+                  className="absolute right-3 top-3.5 text-gray-400 hover:text-gray-600"
+                  onClick={() => setShowPass(!showPass)}
+                >
+                  {showPass ? <EyeOff size={20} /> : <Eye size={20} />}
+                </button>
+              </div>
             </div>
             {errors.password && (
               <p className="text-red-500 text-sm ">{errors.password}</p>
@@ -251,7 +298,7 @@ const LoginForm = () => {
             )}
           </button>
 
-          
+
         </form>
 
       </div>

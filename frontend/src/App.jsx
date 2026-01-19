@@ -14,6 +14,8 @@ import TeacherPortal from "./teachers/TeacherPortal";
 import FeedbackPage from "./pages/FeedbackPage";
 import FeedbackThankYou from "./pages/FeedbackThankYou";
 import MeetTheDeveloper from "./pages/MeetTheDeveloper";
+import SchoolRegistrationForm from "./components/SchoolRegistrationForm";
+import SchoolRegistrationSuccess from "./components/SchoolRegistrationSuccess";
 import FloatingGamesButton from "./components/FloatingGamesButton";
 import GamesPage from "./games/GamesPage";
 
@@ -246,6 +248,8 @@ function App() {
         />
         <Route path="/feedback" element={<FeedbackPage />} />
         <Route path="/feedback/thank-you" element={<FeedbackThankYou />} />
+        <Route path="/school-registration" element={<SchoolRegistrationForm />} />
+        <Route path="/school-registration/success" element={<SchoolRegistrationSuccess />} />
         <Route path="/meet-the-developer" element={<MeetTheDeveloper />} />
         <Route
           path="/dashboard/games"

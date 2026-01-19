@@ -8,8 +8,98 @@ const schoolSchema = new mongoose.Schema(
     contactEmail: { type: String, trim: true, lowercase: true },
     contactPhone: { type: String, trim: true },
     status: { type: String, enum: ['active', 'inactive'], default: 'active' },
+
+    // Registration fields
+    campusName: { type: String, trim: true }, // Kept for backward compatibility
+    campuses: [{
+      name: { type: String, required: true, trim: true },
+      address: { type: String, required: true, trim: true },
+      campusType: { type: String, enum: ['Main', 'Branch'], default: 'Branch' },
+      contactPerson: { type: String, trim: true },
+      contactPhone: { type: String, trim: true }
+    }],
+    officialEmail: { type: String, trim: true, lowercase: true },
+    contactPersonName: { type: String, trim: true },
+    schoolType: {
+      type: String,
+      enum: ['Public', 'Private', 'Charter', 'International'],
+      required: false
+    },
+    board: {
+      type: String,
+      enum: ['CBSE', 'ICSE', 'IB', 'IGCSE', 'State Board', 'NIOS', 'Other'],
+      required: false
+    },
+    boardOther: { type: String, trim: true }, // If board is 'Other'
+    academicYearStructure: {
+      type: String,
+      enum: ['Semester', 'Trimester', 'Quarter'],
+      required: false
+    },
+    estimatedUsers: {
+      type: String,
+      enum: ['<100', '100-500', '500-1000', '1000+'],
+      required: false
+    },
+    websiteURL: { type: String, trim: true },
+
+    // File storage (Cloudinary URLs)
+    logo: {
+      public_id: String,
+      secure_url: String,
+      originalName: String
+    },
+    verificationDocs: [{
+      public_id: String,
+      secure_url: String,
+      originalName: String,
+      uploadedAt: { type: Date, default: Date.now }
+    }],
+
+    // Registration status tracking
+    registrationStatus: {
+      type: String,
+      enum: ['pending', 'approved', 'rejected'],
+      default: 'pending'
+    },
+    submittedAt: { type: Date },
+    reviewedAt: { type: Date },
+    reviewedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'Admin' },
+    rejectionReason: { type: String },
+    adminNotes: { type: String },
   },
   { timestamps: true }
 );
+
+// Indexes for performance
+schoolSchema.index({ registrationStatus: 1, createdAt: -1 });
+schoolSchema.index({ officialEmail: 1 });
+
+// Auto-generate school code if not provided
+schoolSchema.pre('save', async function(next) {
+  if (!this.code) {
+    // Generate code: First 3 letters of name + 4 random digits
+    const prefix = this.name.substring(0, 3).toUpperCase().replace(/[^A-Z]/g, '');
+    let attempts = 0;
+
+    while (attempts < 10) {
+      const randomNum = Math.floor(1000 + Math.random() * 9000);
+      const generatedCode = `${prefix}${randomNum}`;
+
+      const exists = await this.constructor.findOne({ code: generatedCode });
+      if (!exists) {
+        this.code = generatedCode;
+        break;
+      }
+      attempts++;
+    }
+
+    // Fallback: timestamp-based
+    if (!this.code) {
+      this.code = `SCH${Date.now().toString().slice(-6)}`;
+    }
+  }
+  next();
+});
 
 module.exports = mongoose.model('School', schoolSchema);
