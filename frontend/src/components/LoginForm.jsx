@@ -4,7 +4,6 @@ import { useNavigate, Link } from 'react-router-dom';
 
 const LoginForm = () => {
   const [showPass, setShowPass] = useState(false);
-  const [userType, setUserType] = useState('Student');
   const [formData, setFormData] = useState({
     username: '',
     password: '',
@@ -45,61 +44,41 @@ const LoginForm = () => {
     if (!validateForm()) return;
     setIsLoading(true);
     try {
-      let url = "";
-      switch (userType) {
-        case "Student":
-          url = "/api/student/auth/login";
-          break;
-        case "Teacher":
-          url = "/api/teacher/auth/login";
-          break;
-        case "Parent":
-          url = "/api/parent/auth/login";
-          break;
-        case "Principal":
-          url = "/api/principal/auth/login";
-          break;
-        case "Admin":
-          url = "/api/admin/auth/login";
-          break;
-        default:
-          break;
+      const loginOptions = [
+        { userType: 'Student', url: '/api/student/auth/login', redirect: '/dashboard' },
+        { userType: 'Teacher', url: '/api/teacher/auth/login', redirect: '/teachers' },
+        { userType: 'Parent', url: '/api/parent/auth/login', redirect: '/parents' },
+        { userType: 'Principal', url: '/api/principal/auth/login', redirect: '/principal' },
+        { userType: 'Admin', url: '/api/admin/auth/login', redirect: '/admin/dashboard' }
+      ];
+
+      let loggedIn = false;
+      for (const option of loginOptions) {
+        const res = await fetch(`${import.meta.env.VITE_API_URL}${option.url}`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            username: formData.username,
+            password: formData.password
+          })
+        });
+
+        if (!res.ok) {
+          continue;
+        }
+
+        const data = await res.json();
+        localStorage.setItem('token', data.token);
+        localStorage.setItem('userType', option.userType);
+        navigate(option.redirect);
+        loggedIn = true;
+        break;
       }
-      const res = await fetch(`${import.meta.env.VITE_API_URL}${url}`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          username: formData.username,
-          password: formData.password
-        })
-      })
-      if (!res.ok) {
+
+      if (!loggedIn) {
         throw new Error('Login failed');
-      }
-      const data = await res.json();
-      localStorage.setItem('token', data.token);
-      localStorage.setItem('userType', userType);
-      switch (userType) {
-        case "Student":
-          navigate('/dashboard');
-          break;
-        case "Teacher":
-          navigate('/teachers');
-          break;
-        case "Parent":
-          navigate('/parents');
-          break;
-        case "Principal":
-          navigate('/principal');
-          break;
-        case "Admin":
-          navigate('/admin/dashboard');
-          break;
-        default:
-          navigate('/dashboard');
-          break;
       }
     } catch (error) {
       console.error('Login failed:', error);
@@ -123,23 +102,6 @@ const LoginForm = () => {
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-5">
-          {/* User Type Dropdown */}
-          <div className="space-y-2">
-            <label className="block text-sm font-semibold text-gray-700">User Type</label>
-            <select
-              name="userType"
-              value={userType}
-              onChange={e => setUserType(e.target.value)}
-              className="w-full pl-3 pr-4 py-3 border rounded-xl shadow-sm transition-all duration-200 focus:ring-2 focus:ring-yellow-500 focus:border-transparent outline-none border-gray-300 hover:border-gray-400 focus:bg-white"
-            >
-              <option value="Student">Student</option>
-              <option value="Teacher">Teacher</option>
-              <option value="Parent">Parent</option>
-              <option value="Principal">Principal</option>
-              <option value="Admin">Admin</option>
-            </select>
-          </div>
-
           {/* Username Field */}
           <div className="space-y-2">
             <label className="block text-sm font-semibold text-gray-700">Username</label>
