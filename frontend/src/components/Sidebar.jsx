@@ -30,6 +30,60 @@ const Sidebar = ({ activeView, isOpen, setIsOpen }) => {
   const navigate = useNavigate();
   const [openGroups, setOpenGroups] = useState({});
   const collapsed = !isOpen;
+  const [studentData, setStudentData] = useState({
+    name: "Student",
+    username: "",
+    grade: "",
+    section: ""
+  });
+
+  // Fetch student profile
+  useEffect(() => {
+    const fetchStudentProfile = async () => {
+      try {
+        const token = localStorage.getItem('token');
+        const userType = localStorage.getItem('userType');
+
+        console.log('Fetching profile - Token:', token ? 'exists' : 'missing');
+        console.log('User Type:', userType);
+
+        if (!token || userType !== 'Student') {
+          console.log('Skipping profile fetch - no token or not a student');
+          return;
+        }
+
+        const url = `${import.meta.env.VITE_API_URL}/api/student/auth/profile`;
+        console.log('Fetching from:', url);
+
+        const response = await fetch(url, {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        });
+
+        console.log('Response status:', response.status);
+
+        if (response.ok) {
+          const data = await response.json();
+          console.log('Profile data received:', data);
+          setStudentData({
+            name: data.name || "Student",
+            username: data.username || "",
+            grade: data.grade || "",
+            section: data.section || ""
+          });
+        } else {
+          const errorText = await response.text();
+          console.error('Profile fetch failed:', response.status, errorText);
+        }
+      } catch (error) {
+        console.error('Failed to fetch student profile:', error);
+      }
+    };
+
+    fetchStudentProfile();
+  }, []);
 
   // Helper function to navigate to a page
   const navigateToPage = (pageId) => {
@@ -167,8 +221,12 @@ const Sidebar = ({ activeView, isOpen, setIsOpen }) => {
                     <div className="absolute -top-1 -right-1 w-4 h-4 bg-green-400 rounded-full border-2 border-white animate-pulse" />
                   </div>
                   <div className="text-white">
-                    <div className="font-bold text-lg">Student Name</div>
-                    <div className="text-white/80 text-xs">Student Dashboard</div>
+                    <div className="font-bold text-lg">{studentData.name}</div>
+                    <div className="text-white/80 text-xs">
+                      {studentData.grade && studentData.section
+                        ? `${studentData.grade} - Section ${studentData.section}`
+                        : `${studentData.name}'s Portal`}
+                    </div>
                   </div>
                 </div>
                 

@@ -6,17 +6,21 @@ import {
 import { getPoints } from '../utils/points';
 
 const initialProfile = {
-  name: 'Koushik Bala',
-  email: 'koushik@example.com',
-  username: 'koushikb',
+  name: 'Student',
+  email: '',
+  username: '',
   password: '',
-  phone: '+91 98765 43210',
-  address: 'Park Street, Kolkata, India',
-  dob: '2000-01-01',
-  education: 'Masters of Science',
-  studentId: 'STU001',
-  semester: 'Spring 2025',
+  phone: '',
+  address: '',
+  dob: '',
+  education: '',
+  studentId: '',
+  semester: '',
   profilePic: '',
+  grade: '',
+  section: '',
+  roll: '',
+  mobile: '',
 };
 
 const ProfileUpdate = () => {
@@ -24,10 +28,76 @@ const ProfileUpdate = () => {
   const [preview, setPreview] = useState('');
   const [success, setSuccess] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [dataLoading, setDataLoading] = useState(true);
   const [errors, setErrors] = useState({});
   const [activeTab, setActiveTab] = useState('personal');
   const fileInputRef = useRef(null);
   const [points, setPoints] = useState(0);
+
+  // Fetch student profile data
+  useEffect(() => {
+    const fetchProfile = async () => {
+      try {
+        const token = localStorage.getItem('token');
+        const userType = localStorage.getItem('userType');
+
+        if (!token || userType !== 'Student') {
+          setDataLoading(false);
+          return;
+        }
+
+        const response = await fetch(`${import.meta.env.VITE_API_URL}/api/student/auth/profile`, {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          console.log('Profile data loaded:', data);
+
+          // Format date for input field
+          const formatDate = (dateStr) => {
+            if (!dateStr) return '';
+            const date = new Date(dateStr);
+            return date.toISOString().split('T')[0];
+          };
+
+          setProfile({
+            name: data.name || '',
+            email: data.email || '',
+            username: data.username || '',
+            password: '',
+            phone: data.mobile || '',
+            address: data.address || '',
+            dob: formatDate(data.dob),
+            education: data.grade || '',
+            studentId: data.username || '',
+            semester: data.nifStudent ? `${data.nifStudent.grade} - Section ${data.nifStudent.section}` : '',
+            profilePic: data.profilePic || '',
+            grade: data.grade || '',
+            section: data.section || '',
+            roll: data.roll || '',
+            mobile: data.mobile || '',
+          });
+
+          // Set preview if profile pic exists
+          if (data.profilePic) {
+            setPreview(data.profilePic);
+          }
+        } else {
+          console.error('Failed to fetch profile:', response.status);
+        }
+      } catch (error) {
+        console.error('Error fetching profile:', error);
+      } finally {
+        setDataLoading(false);
+      }
+    };
+
+    fetchProfile();
+  }, []);
 
   useEffect(() => {
     setPoints(getPoints());
@@ -146,6 +216,17 @@ const ProfileUpdate = () => {
         ? 'border-red-300 focus:border-red-500 focus:ring-red-200'
         : 'border-gray-300 hover:border-yellow-400 focus:border-yellow-500 focus:ring-yellow-100'
     } focus:ring-4 bg-white`;
+
+  if (dataLoading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-yellow-50 via-amber-50 to-orange-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-16 h-16 border-4 border-yellow-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+          <p className="text-gray-600 font-medium">Loading your profile...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-yellow-50 via-amber-50 to-orange-50">
@@ -328,23 +409,42 @@ const ProfileUpdate = () => {
                       )}
                     </div>
 
-                    {/* Semester Field */}
+                    {/* Grade & Section */}
                     <div>
                       <label className="block text-sm font-semibold text-gray-700 mb-2">
-                        Semester
+                        Grade & Section
                       </label>
                       <div className="relative">
-                        <Calendar className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+                        <BookOpen className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
                         <input
                           type="text"
                           name="semester"
                           value={profile.semester}
                           onChange={handleChange}
                           className={inputClasses('semester')}
-                          placeholder="e.g. Spring 2025"
+                          placeholder="Not assigned"
+                          readOnly
                         />
                       </div>
                     </div>
+
+                    {/* Roll Number */}
+                    {profile.roll && (
+                      <div>
+                        <label className="block text-sm font-semibold text-gray-700 mb-2">
+                          Roll Number
+                        </label>
+                        <div className="relative">
+                          <CreditCard className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+                          <input
+                            type="text"
+                            value={profile.roll}
+                            className={inputClasses('roll')}
+                            readOnly
+                          />
+                        </div>
+                      </div>
+                    )}
 
                     {/* Phone Field */}
                     <div>
@@ -405,26 +505,20 @@ const ProfileUpdate = () => {
                       </div>
                     </div>
 
-                    {/* Education Field */}
+                    {/* Current Grade */}
                     <div>
                       <label className="block text-sm font-semibold text-gray-700 mb-2">
-                        Education Level
+                        Current Grade
                       </label>
                       <div className="relative">
                         <BookOpen className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
-                        <select
+                        <input
+                          type="text"
                           name="education"
-                          value={profile.education}
-                          onChange={handleChange}
+                          value={profile.education || 'Not assigned'}
                           className={inputClasses('education')}
-                        >
-                          <option value="">Select education level</option>
-                          <option value="High School">High School</option>
-                          <option value="Bachelor's Degree">Bachelor's Degree</option>
-                          <option value="Master's Degree">Master's Degree</option>
-                          <option value="Doctorate">Doctorate</option>
-                          <option value="Other">Other</option>
-                        </select>
+                          readOnly
+                        />
                       </div>
                     </div>
                   </div>

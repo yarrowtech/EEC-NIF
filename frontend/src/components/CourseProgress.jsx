@@ -1,109 +1,130 @@
-import React from 'react';
-import { BookOpen, Clock, User, ChevronRight } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { BookOpen, Clock, User, ChevronRight, GraduationCap } from 'lucide-react';
 
 const CourseProgress = () => {
-  const courses = [
-    { 
-      id: 1, 
-      name: "Mathematics", 
-      progress: 85, 
-      totalLessons: 20, 
-      completedLessons: 17, 
-      instructor: "Dr. Romit Beed", 
-      nextClass: "Mon 10:00 AM",
-      color: "bg-yellow-500"
-    },
-    { 
-      id: 2, 
-      name: "Science", 
-      progress: 70, 
-      totalLessons: 15, 
-      completedLessons: 10, 
-      instructor: "Jyoti Ghosh Dastidar", 
-      nextClass: "Wed 2:00 PM",
-      color: "bg-blue-500"
-    },
-    { 
-      id: 3, 
-      name: "English Language", 
-      progress: 60, 
-      totalLessons: 18, 
-      completedLessons: 11, 
-      instructor: "Benedict Joseph", 
-      nextClass: "Fri 11:00 AM",
-      color: "bg-green-500"
-    },
-    { 
-      id: 4, 
-      name: "Computer Application", 
-      progress: 45, 
-      totalLessons: 12, 
-      completedLessons: 5, 
-      instructor: "Soumyojit Pal", 
-      nextClass: "Tue 3:00 PM",
-      color: "bg-purple-500"
-    }
-  ];
+  const [courseData, setCourseData] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchDashboardData = async () => {
+      try {
+        const token = localStorage.getItem('token');
+        const userType = localStorage.getItem('userType');
+
+        if (!token || userType !== 'Student') return;
+
+        const response = await fetch(`${import.meta.env.VITE_API_URL}/api/student/auth/dashboard`, {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          console.log('Course data received:', data.course);
+          setCourseData(data.course);
+        }
+      } catch (error) {
+        console.error('Failed to fetch course data:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchDashboardData();
+  }, []);
+
+  if (loading) {
+    return (
+      <div className="bg-white rounded-xl shadow-sm border border-purple-400 p-6">
+        <div className="animate-pulse space-y-4">
+          <div className="h-6 bg-gray-200 rounded w-1/3"></div>
+          <div className="h-20 bg-gray-200 rounded"></div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="bg-white rounded-xl shadow-sm border border-purple-400">
       <div className="p-6 border-b border-gray-100">
         <div className="flex items-center justify-between">
-          <h2 className="text-xl font-semibold text-gray-900">Course Progress</h2>
-          <button className="text-indigo-600 hover:text-indigo-700 text-sm font-medium flex items-center space-x-1">
-            <span>View All</span>
-            <ChevronRight size={16} />
-          </button>
+          <h2 className="text-xl font-semibold text-gray-900">Current Course</h2>
         </div>
       </div>
-      
+
       <div className="p-6">
-        <div className="space-y-6">
-          {courses.map((course) => (
-            <div key={course.id} className="group hover:bg-gray-50 rounded-lg p-4 transition-colors cursor-pointer">
+        {courseData ? (
+          <div className="space-y-6">
+            <div className="group hover:bg-gray-50 rounded-lg p-4 transition-colors">
               <div className="flex items-center justify-between mb-3">
                 <div className="flex items-center space-x-3">
-                  <div className={`w-10 h-10 rounded-lg ${course.color} flex items-center justify-center`}>
-                    <BookOpen size={20} className="text-white" />
+                  <div className="w-12 h-12 rounded-lg bg-gradient-to-br from-yellow-500 to-amber-500 flex items-center justify-center shadow-md">
+                    <GraduationCap size={24} className="text-white" />
                   </div>
                   <div>
-                    <h3 className="font-semibold text-gray-900 group-hover:text-indigo-600 transition-colors">
-                      {course.name}
+                    <h3 className="font-bold text-gray-900 text-lg">
+                      {courseData.name}
                     </h3>
-                    <div className="flex items-center space-x-4 text-sm text-gray-500">
+                    <div className="flex items-center space-x-4 text-sm text-gray-600 mt-1">
+                      <div className="flex items-center space-x-1">
+                        <BookOpen size={14} />
+                        <span>{courseData.grade}</span>
+                      </div>
                       <div className="flex items-center space-x-1">
                         <User size={14} />
-                        <span>{course.instructor}</span>
+                        <span>Section {courseData.section}</span>
                       </div>
-                      <div className="flex items-center space-x-1">
-                        <Clock size={14} />
-                        <span>{course.nextClass}</span>
-                      </div>
+                      {courseData.duration && (
+                        <div className="flex items-center space-x-1">
+                          <Clock size={14} />
+                          <span>{courseData.duration}</span>
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>
-                
+
                 <div className="text-right">
-                  <div className="text-lg font-semibold text-gray-900">{course.progress}%</div>
-                  <div className="text-sm text-gray-500">
-                    {course.completedLessons}/{course.totalLessons} lessons
+                  <div className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold ${
+                    courseData.status === 'Active'
+                      ? 'bg-green-100 text-green-800'
+                      : 'bg-gray-100 text-gray-800'
+                  }`}>
+                    {courseData.status || 'Active'}
                   </div>
+                  {courseData.batchCode && (
+                    <div className="text-sm text-gray-500 mt-1">
+                      Batch: {courseData.batchCode}
+                    </div>
+                  )}
                 </div>
               </div>
-              
-              <div className="w-full bg-gray-200 rounded-full h-2">
-                <div 
-                  className={`h-2 rounded-full transition-all duration-500 ${
-                    course.progress >= 80 ? 'bg-green-500' :
-                    course.progress >= 60 ? 'bg-yellow-500' :
-                    course.progress >= 40 ? 'bg-orange-500' : 'bg-red-500'
-                  }`}
-                  style={{ width: `${course.progress}%` }}
-                ></div>
+
+              <div className="mt-4 grid grid-cols-3 gap-4 pt-4 border-t border-gray-100">
+                <div className="text-center">
+                  <div className="text-2xl font-bold text-yellow-600">{courseData.grade}</div>
+                  <div className="text-xs text-gray-600 mt-1">Grade</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-2xl font-bold text-blue-600">{courseData.section}</div>
+                  <div className="text-xs text-gray-600 mt-1">Section</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-2xl font-bold text-green-600">{courseData.status === 'Active' ? '✓' : '○'}</div>
+                  <div className="text-xs text-gray-600 mt-1">Status</div>
+                </div>
               </div>
             </div>
-          ))}
-        </div>
+          </div>
+        ) : (
+          <div className="text-center py-8">
+            <GraduationCap size={48} className="mx-auto text-gray-300 mb-3" />
+            <p className="text-gray-600 font-medium">No Course Assigned</p>
+            <p className="text-sm text-gray-400 mt-1">Please contact your administrator</p>
+          </div>
+        )}
       </div>
     </div>
   );

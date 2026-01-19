@@ -1,74 +1,109 @@
-import React, { useState } from 'react';
-import { Calendar, ChevronLeft, ChevronRight, Clock, Plus, X, Edit3, Trash2 } from 'lucide-react';
+import React, { useEffect, useMemo, useState } from 'react';
+import { Calendar, ChevronLeft, ChevronRight, Clock, Plus, X, Edit3, Trash2, AlertCircle } from 'lucide-react';
+
+const statusStyles = {
+  present: { label: 'Present', color: 'bg-green-500' },
+  absent: { label: 'Absent', color: 'bg-red-500' },
+  late: { label: 'Late', color: 'bg-yellow-500' },
+  leave: { label: 'Leave', color: 'bg-yellow-500' }
+};
+
+const baseEventTypes = [
+  { value: 'quiz', label: 'Quiz', color: 'bg-red-500' },
+  { value: 'assignment', label: 'Assignment', color: 'bg-blue-500' },
+  { value: 'class', label: 'Class', color: 'bg-green-500' },
+  { value: 'meeting', label: 'Meeting', color: 'bg-purple-500' },
+  { value: 'exam', label: 'Exam', color: 'bg-orange-500' },
+  { value: 'project', label: 'Project', color: 'bg-indigo-500' }
+];
+
+const attendanceEventTypes = Object.entries(statusStyles).map(([value, meta]) => ({
+  value,
+  label: meta.label,
+  color: meta.color
+}));
+
+const eventTypes = [...baseEventTypes, ...attendanceEventTypes];
+
+const defaultEvent = {
+  title: '',
+  date: '',
+  time: '',
+  type: 'assignment',
+  description: '',
+  color: 'bg-blue-500'
+};
 
 const CalendarWidget = () => {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState(null);
   const [showEventModal, setShowEventModal] = useState(false);
   const [editingEvent, setEditingEvent] = useState(null);
-  const [events, setEvents] = useState([
-    {
-      id: 1,
-      title: "JavaScript Quiz",
-      date: "2025-06-15",
-      time: "10:00 AM",
-      type: "quiz",
-      color: "bg-red-500",
-      description: "Important quiz on ES6 features and async programming"
-    },
-    {
-      id: 2,
-      title: "React Assignment Due",
-      date: "2025-06-17",
-      time: "11:59 PM",
-      type: "assignment",
-      color: "bg-blue-500",
-      description: "Submit the React component library project"
-    },
-    {
-      id: 3,
-      title: "Database Lab",
-      date: "2025-06-18",
-      time: "2:00 PM",
-      type: "class",
-      color: "bg-green-500",
-      description: "Hands-on session with MongoDB and Node.js"
-    },
-    {
-      id: 4,
-      title: "Team Meeting",
-      date: "2025-06-20",
-      time: "9:00 AM",
-      type: "meeting",
-      color: "bg-purple-500",
-      description: "Weekly standup and project review"
-    }
-  ]);
-  
-  const [newEvent, setNewEvent] = useState({
-    title: '',
-    date: '',
-    time: '',
-    type: 'assignment',
-    description: '',
-    color: 'bg-blue-500'
-  });
+  const [events, setEvents] = useState([]);
+  const [newEvent, setNewEvent] = useState(defaultEvent);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [lastSynced, setLastSynced] = useState(null);
 
-  const monthNames = [
-    "January", "February", "March", "April", "May", "June",
-    "July", "August", "September", "October", "November", "December"
-  ];
-  
-  const daysOfWeek = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-  
-  const eventTypes = [
-    { value: 'quiz', label: 'Quiz', color: 'bg-red-500' },
-    { value: 'assignment', label: 'Assignment', color: 'bg-blue-500' },
-    { value: 'class', label: 'Class', color: 'bg-green-500' },
-    { value: 'meeting', label: 'Meeting', color: 'bg-purple-500' },
-    { value: 'exam', label: 'Exam', color: 'bg-orange-500' },
-    { value: 'project', label: 'Project', color: 'bg-indigo-500' }
-  ];
+  useEffect(() => {
+    const fetchAttendanceEvents = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+        const token = localStorage.getItem('token');
+        const userType = localStorage.getItem('userType');
+
+        if (!token || userType !== 'Student') {
+          setLoading(false);
+          return;
+        }
+
+        const response = await fetch(`${import.meta.env.VITE_API_URL}/api/student/auth/attendance`, {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        });
+
+        if (!response.ok) {
+          throw new Error('Unable to load attendance calendar.');
+        }
+
+        const data = await response.json();
+        const attendanceEvents = (data.attendance || []).map((record, index) => {
+          const style = statusStyles[record.status] || { color: 'bg-blue-500', label: 'Class' };
+          return {
+            id: record._id || `attendance-${index}`,
+            title: style.label,
+            date: new Date(record.date).toISOString().split('T')[0],
+            time: record.time || '',
+            type: record.status || 'class',
+            color: style.color,
+            description: record.subject ? record.subject : 'Attendance entry',
+            notes: record.notes,
+            readOnly: true
+          };
+        });
+
+        setEvents(attendanceEvents);
+        setLastSynced(new Date());
+      } catch (err) {
+        console.error('Failed to fetch attendance calendar:', err);
+        setError(err.message);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchAttendanceEvents();
+  }, []);
+
+  const monthNames = useMemo(() => ([
+    'January', 'February', 'March', 'April', 'May', 'June',
+    'July', 'August', 'September', 'October', 'November', 'December'
+  ]), []);
+
+  const daysOfWeek = useMemo(() => ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'], []);
 
   const getDaysInMonth = (date) => {
     const year = date.getFullYear();
@@ -76,28 +111,32 @@ const CalendarWidget = () => {
     const firstDay = new Date(year, month, 1);
     const startDate = new Date(firstDay);
     startDate.setDate(startDate.getDate() - firstDay.getDay());
-    
+
     const days = [];
-    const current = new Date(startDate);
-    
+    const cursor = new Date(startDate);
+
     for (let i = 0; i < 42; i++) {
       const dayEvents = events.filter(event => {
         const eventDate = new Date(event.date);
-        return eventDate.toDateString() === current.toDateString();
+        return eventDate.toDateString() === cursor.toDateString();
       });
-      
+
       days.push({
-        date: new Date(current),
-        isCurrentMonth: current.getMonth() === month,
-        isToday: current.toDateString() === new Date().toDateString(),
+        date: new Date(cursor),
+        isCurrentMonth: cursor.getMonth() === month,
+        isToday: cursor.toDateString() === new Date().toDateString(),
         events: dayEvents
       });
-      current.setDate(current.getDate() + 1);
+      cursor.setDate(cursor.getDate() + 1);
     }
-    
+
     return days;
   };
-  
+
+  const resolveEventColor = (type) => statusStyles[type]?.color
+    || eventTypes.find(eventType => eventType.value === type)?.color
+    || 'bg-blue-500';
+
   const navigateMonth = (direction) => {
     const newDate = new Date(currentDate);
     newDate.setMonth(newDate.getMonth() + direction);
@@ -114,52 +153,42 @@ const CalendarWidget = () => {
     setShowEventModal(true);
     setEditingEvent(null);
     setNewEvent({
-      title: '',
-      date: selectedDate ? selectedDate.toISOString().split('T')[0] : '',
-      time: '',
-      type: 'assignment',
-      description: '',
-      color: 'bg-blue-500'
+      ...defaultEvent,
+      date: selectedDate ? selectedDate.toISOString().split('T')[0] : ''
     });
   };
 
   const handleEditEvent = (event) => {
+    if (event.readOnly) return;
     setEditingEvent(event);
     setNewEvent({ ...event });
     setShowEventModal(true);
   };
 
   const handleDeleteEvent = (eventId) => {
-    setEvents(events.filter(event => event.id !== eventId));
+    const event = events.find(ev => ev.id === eventId);
+    if (event?.readOnly) return;
+    setEvents(events.filter(ev => ev.id !== eventId));
   };
 
   const handleSaveEvent = () => {
     if (!newEvent.title || !newEvent.date || !newEvent.time) return;
 
-    const eventTypeData = eventTypes.find(type => type.value === newEvent.type);
     const eventData = {
       ...newEvent,
-      color: eventTypeData.color,
-      id: editingEvent ? editingEvent.id : Date.now()
+      color: resolveEventColor(newEvent.type),
+      id: editingEvent ? editingEvent.id : Date.now(),
+      readOnly: false
     };
 
     if (editingEvent) {
-      setEvents(events.map(event => 
-        event.id === editingEvent.id ? eventData : event
-      ));
+      setEvents(events.map(event => (event.id === editingEvent.id ? eventData : event)));
     } else {
       setEvents([...events, eventData]);
     }
 
     setShowEventModal(false);
-    setNewEvent({
-      title: '',
-      date: '',
-      time: '',
-      type: 'assignment',
-      description: '',
-      color: 'bg-blue-500'
-    });
+    setNewEvent(defaultEvent);
   };
 
   const getUpcomingEvents = () => {
@@ -176,23 +205,35 @@ const CalendarWidget = () => {
   return (
     <div className="bg-gradient-to-br from-purple-50 to-purple-100 rounded-xl shadow-sm border border-purple-200 max-w-4xl mx-auto">
       <div className="p-6 border-b border-purple-200">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           <div className="flex items-center space-x-2">
             <Calendar className="text-purple-500" size={20} />
             <h2 className="text-lg font-semibold text-purple-900">Calendar</h2>
           </div>
-          <button
-            onClick={handleAddEvent}
-            className="flex items-center space-x-2 bg-purple-500 text-white px-4 py-2 rounded-lg hover:bg-purple-600 transition-colors"
-          >
-            <Plus size={16} />
-            <span>Add Event</span>
-          </button>
+          <div className="flex items-center gap-3">
+            {lastSynced && (
+              <span className="text-xs text-purple-800 bg-purple-100 px-2 py-1 rounded-full">
+                Synced {lastSynced.toLocaleDateString()}
+              </span>
+            )}
+            <button
+              onClick={handleAddEvent}
+              className="flex items-center space-x-2 bg-purple-500 text-white px-4 py-2 rounded-lg hover:bg-purple-600 transition-colors"
+            >
+              <Plus size={16} />
+              <span>Add Event</span>
+            </button>
+          </div>
         </div>
+        {error && (
+          <div className="mt-3 flex items-center text-sm text-red-600 bg-white border border-red-100 rounded-lg px-3 py-2">
+            <AlertCircle size={16} className="mr-2" />
+            {error}
+          </div>
+        )}
       </div>
-      
+
       <div className="p-6">
-        {/* Calendar Header */}
         <div className="flex items-center justify-between mb-4">
           <button
             onClick={() => navigateMonth(-1)}
@@ -200,11 +241,11 @@ const CalendarWidget = () => {
           >
             <ChevronLeft size={20} className="text-purple-700" />
           </button>
-          
+
           <h3 className="text-lg font-semibold text-purple-900">
             {monthNames[currentDate.getMonth()]} {currentDate.getFullYear()}
           </h3>
-          
+
           <button
             onClick={() => navigateMonth(1)}
             className="p-2 hover:bg-purple-100 rounded-lg transition-colors"
@@ -212,8 +253,7 @@ const CalendarWidget = () => {
             <ChevronRight size={20} className="text-purple-900" />
           </button>
         </div>
-        
-        {/* Days of Week */}
+
         <div className="grid grid-cols-7 gap-1 mb-2">
           {daysOfWeek.map((day) => (
             <div key={day} className="text-center text-xs font-medium text-purple-600 py-2">
@@ -221,12 +261,11 @@ const CalendarWidget = () => {
             </div>
           ))}
         </div>
-        
-        {/* Calendar Days */}
+
         <div className="grid grid-cols-7 gap-1 mb-6">
           {days.map((day, index) => (
             <button
-              key={index}
+              key={`${day.date.toISOString()}-${index}`}
               onClick={() => handleDateClick(day)}
               className={`
                 aspect-square flex flex-col items-center justify-center text-sm rounded-lg transition-colors relative p-1
@@ -247,7 +286,7 @@ const CalendarWidget = () => {
                 <div className="flex space-x-1 mt-1">
                   {day.events.slice(0, 2).map((event, i) => (
                     <div
-                      key={i}
+                      key={`${event.id}-${i}`}
                       className={`w-1.5 h-1.5 rounded-full ${event.color}`}
                       title={event.title}
                     />
@@ -260,36 +299,43 @@ const CalendarWidget = () => {
             </button>
           ))}
         </div>
-        
-        {/* Upcoming Events */}
+
         <div>
           <h4 className="text-sm font-semibold text-purple-900 mb-3 flex items-center space-x-2">
             <Clock size={16} className="text-purple-600" />
             <span>Upcoming Events</span>
           </h4>
-          
+
           <div className="space-y-3">
-            {upcomingEvents.length > 0 ? (
-              upcomingEvents.map((event) => (
-                <div key={event.id} className="flex items-start space-x-3 p-3 bg-purple-50/50 hover:bg-purple-100/50 transition-colors rounded-lg border border-purple-100 group">
-                  <div className={`w-3 h-3 rounded-full ${event.color} mt-1.5 flex-shrink-0`}></div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-purple-900 truncate">
-                      {event.title}
+            {loading && (
+              <div className="space-y-2">
+                {[...Array(3)].map((_, idx) => (
+                  <div key={idx} className="h-16 bg-white border border-purple-100 rounded-lg animate-pulse" />
+                ))}
+              </div>
+            )}
+            {!loading && upcomingEvents.length === 0 && !error && (
+              <p className="text-sm text-purple-500 text-center py-4">No upcoming classes or events recorded yet.</p>
+            )}
+
+            {!loading && upcomingEvents.map((event) => (
+              <div key={event.id} className="flex items-start space-x-3 p-3 bg-purple-50/50 hover:bg-purple-100/50 transition-colors rounded-lg border border-purple-100 group">
+                <div className={`w-3 h-3 rounded-full ${event.color} mt-1.5 flex-shrink-0`}></div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-purple-900 truncate">
+                    {event.title}
+                  </p>
+                  <p className="text-xs text-purple-600">
+                    {new Date(event.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                    {event.time && ` at ${event.time}`}
+                  </p>
+                  {event.description && (
+                    <p className="text-xs text-purple-500 mt-1 truncate">
+                      {event.description}{event.notes ? ` • ${event.notes}` : ''}
                     </p>
-                    <p className="text-xs text-purple-600">
-                      {new Date(event.date).toLocaleDateString('en-US', { 
-                        month: 'short', 
-                        day: 'numeric',
-                        year: 'numeric'
-                      })} at {event.time}
-                    </p>
-                    {event.description && (
-                      <p className="text-xs text-purple-500 mt-1 truncate">
-                        {event.description}
-                      </p>
-                    )}
-                  </div>
+                  )}
+                </div>
+                {!event.readOnly && (
                   <div className="flex space-x-1 opacity-0 group-hover:opacity-100 transition-opacity">
                     <button
                       onClick={() => handleEditEvent(event)}
@@ -304,16 +350,13 @@ const CalendarWidget = () => {
                       <Trash2 size={12} />
                     </button>
                   </div>
-                </div>
-              ))
-            ) : (
-              <p className="text-sm text-purple-500 text-center py-4">No upcoming events</p>
-            )}
+                )}
+              </div>
+            ))}
           </div>
         </div>
       </div>
 
-      {/* Event Modal */}
       {showEventModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-xl shadow-xl max-w-md w-full p-6">
@@ -400,18 +443,18 @@ const CalendarWidget = () => {
               </div>
             </div>
 
-            <div className="flex space-x-3 mt-6">
+            <div className="mt-6 flex justify-end space-x-3">
               <button
                 onClick={() => setShowEventModal(false)}
-                className="flex-1 px-4 py-2 text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+                className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
               >
                 Cancel
               </button>
               <button
                 onClick={handleSaveEvent}
-                className="flex-1 px-4 py-2 bg-purple-500 text-white rounded-lg hover:bg-purple-600 transition-colors"
+                className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors"
               >
-                {editingEvent ? 'Update Event' : 'Add Event'}
+                Save Event
               </button>
             </div>
           </div>
