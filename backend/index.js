@@ -5,6 +5,8 @@ const express = require('express');
 const mongoose = require('mongoose');
 const dotenv = require('dotenv');
 const cors = require('cors');
+const swaggerUi = require('swagger-ui-express');
+let swaggerDocument;
 
 dotenv.config();
 
@@ -121,6 +123,34 @@ app.use(
   })
 );
 app.use(express.json());
+
+try {
+  swaggerDocument = require('./swagger-output.json');
+} catch (err) {
+  swaggerDocument = {
+    openapi: '3.0.0',
+    info: {
+      title: 'Electronic Educare API',
+      version: '1.0.0',
+      description: 'Swagger output not generated yet. Run `npm run swagger:gen`.',
+    },
+    paths: {},
+  };
+}
+
+app.use(
+  '/api/docs',
+  swaggerUi.serve,
+  swaggerUi.setup(swaggerDocument, {
+    swaggerOptions: {
+      docExpansion: 'list',
+      tagsSorter: 'alpha',
+      operationsSorter: 'alpha',
+      persistAuthorization: true,
+      tryItOutEnabled: true,
+    },
+  })
+);
 
 // Mongo connect
 mongoose

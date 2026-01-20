@@ -11,6 +11,7 @@ router.post(
   '/',
   rateLimit({ windowMs: 15 * 60 * 1000, max: 3 }), // 3 requests per 15 minutes
   async (req, res) => {
+    // #swagger.tags = ['School Registration']
     try {
       const {
         name, campuses, officialEmail, contactPersonName, contactPhone,
