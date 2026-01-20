@@ -6,6 +6,9 @@ import Teachers from './Teachers';
 import Staff from './Staff';
 import Students from './Students';
 import Wellbeing from './pages/Wellbeing';
+import SchoolsManagement from './pages/SchoolsManagement';
+import SchoolAdminsManagement from './pages/SchoolAdminsManagement';
+import PrincipalsManagement from './pages/PrincipalsManagement';
 import Routines from './Routines';
 import LessonPlanPage from './pages/LessonPlan';
 import TeacherTimetable from './pages/TeacherTimetable';
@@ -22,7 +25,8 @@ import StudentFeeDetails from './pages/StudentFeeDetails';
 import HR from './pages/HR';
 import SchoolRegistrations from './pages/SchoolRegistrations';
 import SuperAdminDashboard from './pages/SuperAdminDashboard';
-import { useState } from 'react';
+import { useState, useEffect, useMemo } from 'react';
+import { ADMIN_MENU_ITEMS } from './adminConstants';
 
 const AdminApp = () => {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);

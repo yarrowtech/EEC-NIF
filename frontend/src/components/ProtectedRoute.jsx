@@ -22,7 +22,11 @@ const ProtectedRoute = ({ allowedRoles, children }) => {
     return children;
   }
 
-  if (Array.isArray(allowedRoles) && !allowedRoles.includes(userType)) {
+  if (
+    Array.isArray(allowedRoles) &&
+    !allowedRoles.includes(userType) &&
+    !(userType === "Admin" && allowedRoles.includes("SuperAdmin"))
+  ) {
     return <Navigate to={roleHome[userType] || "/"} replace />;
   }
 
