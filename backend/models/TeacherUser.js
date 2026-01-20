@@ -1,56 +1,3 @@
-<<<<<<< HEAD
-const mongoose = require('mongoose');
-const bcrypt = require('bcryptjs');
-
-const hashPasswordIfNeeded = async (password) => {
-  if (!password || typeof password !== 'string') return password;
-  if (password.startsWith('$2a$') || password.startsWith('$2b$') || password.startsWith('$2y$')) {
-    return password;
-  }
-  return bcrypt.hash(password, 10);
-};
-
-const teacherUserSchema = new mongoose.Schema({
-  username: { type: String, unique: true, required: true },
-  password: { type: String, required: true },
-  schoolId: { type: mongoose.Schema.Types.ObjectId, ref: 'School', default: null },
-  employeeCode: { type: String, unique: true, sparse: true },
-  empId: Number,
-  name: String,
-  email: String,
-  mobile: String,
-  subject: String,
-  department: String,
-  experience: String,
-  qualification: String,
-  joiningDate: String,
-  address: String,
-  gender: { type: String, enum: ["male", "female", "other"], default: "male" },
-  pinCode: String,
-  profilePic: { type: String, default: "" },
-}, { timestamps: true });
-
-teacherUserSchema.pre('save', async function (next) {
-  if (!this.isModified('password')) return next();
-  this.password = await bcrypt.hash(this.password, 10);
-  next();
-});
-
-
-teacherUserSchema.pre('findOneAndUpdate', async function (next) {
-  const update = this.getUpdate() || {};
-  const nextPassword = update.password || (update.$set && update.$set.password);
-  if (!nextPassword) return next();
-
-  const hashed = await hashPasswordIfNeeded(nextPassword);
-  if (update.password) update.password = hashed;
-  if (update.$set && update.$set.password) update.$set.password = hashed;
-  this.setUpdate(update);
-  next();
-});
-
-module.exports = mongoose.model('TeacherUser', teacherUserSchema);
-=======
 const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
 
@@ -81,4 +28,3 @@ teacherUserSchema.pre('save', async function (next) {
 });
 
 module.exports = mongoose.model('TeacherUser', teacherUserSchema);
->>>>>>> 692c283aa64992261a83dd41142ba8207a54b7f7

@@ -49,66 +49,6 @@ const LoginForm = () => {
     setIsLoading(true);
     setLoginError('');
     try {
-<<<<<<< HEAD
-      let url = "";
-      switch (userType) {
-        case "Student":
-          url = "/api/student/auth/login";
-          break;
-        case "Teacher":
-          url = "/api/teacher/auth/login";
-          break;
-        case "Parent":
-          url = "/api/parent/auth/login";
-          break;
-        case "Principal":
-          url = "/api/principal/auth/login";
-          break;
-        case "SuperAdmin":
-        case "SchoolAdmin":
-          url = "/api/admin/auth/login";
-          break;
-        default:
-          break;
-      }
-      const res = await fetch(`${import.meta.env.VITE_API_URL}${url}`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          username: formData.username,
-          password: formData.password
-        })
-      })
-      const data = await res.json();
-      if (!res.ok) {
-        throw new Error(data?.error || 'Login failed');
-      }
-      localStorage.setItem('token', data.token);
-      const storedUserType = userType === 'SuperAdmin' || userType === 'SchoolAdmin' ? 'Admin' : userType;
-      localStorage.setItem('userType', storedUserType);
-      switch (userType) {
-        case "Student":
-          navigate('/dashboard');
-          break;
-        case "Teacher":
-          navigate('/teachers');
-          break;
-        case "Parent":
-          navigate('/parents');
-          break;
-        case "Principal":
-          navigate('/principal');
-          break;
-        case "SuperAdmin":
-        case "SchoolAdmin":
-          navigate('/admin/dashboard');
-          break;
-        default:
-          navigate('/dashboard');
-          break;
-=======
       const loginOptions = [
         { userType: 'Student', url: '/api/student/auth/login', redirect: '/dashboard' },
         { userType: 'Teacher', url: '/api/teacher/auth/login', redirect: '/teachers' },
@@ -144,7 +84,6 @@ const LoginForm = () => {
 
       if (!loggedIn) {
         throw new Error('Login failed');
->>>>>>> 692c283aa64992261a83dd41142ba8207a54b7f7
       }
     } catch (error) {
       console.error('Login failed:', error);
@@ -169,32 +108,6 @@ const LoginForm = () => {
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-5">
-<<<<<<< HEAD
-          {loginError && (
-            <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-              {loginError}
-            </div>
-          )}
-          {/* User Type Dropdown */}
-          <div className="space-y-2">
-            <label className="block text-sm font-semibold text-gray-700">User Type</label>
-            <select
-              name="userType"
-              value={userType}
-              onChange={e => setUserType(e.target.value)}
-              className="w-full pl-3 pr-4 py-3 border rounded-xl shadow-sm transition-all duration-200 focus:ring-2 focus:ring-yellow-500 focus:border-transparent outline-none border-gray-300 hover:border-gray-400 focus:bg-white"
-            >
-              <option value="Student">Student</option>
-              <option value="Teacher">Teacher</option>
-              <option value="Parent">Parent</option>
-              <option value="Principal">Principal</option>
-              <option value="SuperAdmin">Super Admin</option>
-              <option value="SchoolAdmin">School Admin</option>
-            </select>
-          </div>
-
-=======
->>>>>>> 692c283aa64992261a83dd41142ba8207a54b7f7
           {/* Username Field */}
           <div className="space-y-2">
             <label className="block text-sm font-semibold text-gray-700">Username</label>
@@ -205,20 +118,9 @@ const LoginForm = () => {
                 name="username"
                 value={formData.username}
                 onChange={handleInputChange}
-<<<<<<< HEAD
-                placeholder={
-                  userType === 'Principal'
-                    ? 'Enter email or username'
-                    : 'Enter your username'
-                }
-                className={`w-full pl-10 pr-4 py-3 border rounded-xl shadow-sm transition-all duration-200 focus:ring-2 focus:ring-yellow-500 focus:border-transparent outline-none ${
-                  errors.username 
-                    ? 'border-red-300 bg-red-50' 
-=======
                 placeholder="Enter your username"
                 className={`w-full pl-10 pr-4 py-3 border rounded-xl shadow-sm transition-all duration-200 focus:ring-2 focus:ring-yellow-500 focus:border-transparent outline-none ${errors.username
                     ? 'border-red-300 bg-red-50'
->>>>>>> 692c283aa64992261a83dd41142ba8207a54b7f7
                     : 'border-gray-300 hover:border-gray-400 focus:bg-white'
                   }`}
               />

@@ -21,7 +21,11 @@ import FeesDashboard from './pages/FeesDashboard';
 import StudentFeeDetails from './pages/StudentFeeDetails';
 import HR from './pages/HR';
 import SchoolRegistrations from './pages/SchoolRegistrations';
-import { useState } from 'react';
+import SchoolsManagement from './pages/SchoolsManagement';
+import SchoolAdminsManagement from './pages/SchoolAdminsManagement';
+import PrincipalsManagement from './pages/PrincipalsManagement';
+import { useState, useEffect, useMemo } from 'react';
+import { ADMIN_MENU_ITEMS } from './adminConstants';
 
 const AdminApp = () => {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
