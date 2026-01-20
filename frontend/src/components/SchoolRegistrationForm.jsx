@@ -466,6 +466,7 @@ const SchoolRegistrationForm = () => {
       }
 
       toast.success('Registration submitted successfully!');
+      window.dispatchEvent(new Event('super-admin-refresh-requests'));
       navigate('/school-registration/success', {
         state: { schoolData: data.school }
       });

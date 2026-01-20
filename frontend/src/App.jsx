@@ -18,7 +18,7 @@ import SchoolRegistrationForm from "./components/SchoolRegistrationForm";
 import SchoolRegistrationSuccess from "./components/SchoolRegistrationSuccess";
 import FloatingGamesButton from "./components/FloatingGamesButton";
 import GamesPage from "./games/GamesPage";
-import SuperAdminApp from "./superAdmin/SuperAdminApp";
+import SuperAdminApp from "./Super Admin/SuperAdminApp";
 
 
 import ArchivedStudents from "./admin/ArchivedStudents";

@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Search, Filter, CheckCircle, XCircle, AlertCircle, RefreshCw } from 'lucide-react';
+import { Search, Filter, CheckCircle, XCircle, AlertCircle, RefreshCw, Loader2 } from 'lucide-react';
 
 const statusStyles = {
   pending: 'bg-amber-100 text-amber-700',
@@ -8,7 +8,7 @@ const statusStyles = {
   rejected: 'bg-rose-100 text-rose-600'
 };
 
-const Requests = ({ requests, onRequestAction }) => {
+const Requests = ({ requests, onRequestAction, loading = false, error = null, onRefresh }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
 
@@ -101,7 +101,29 @@ const Requests = ({ requests, onRequestAction }) => {
         </div>
       </div>
 
-      <div className="space-y-4">
+      {error && (
+        <div className="bg-rose-50 border border-rose-200 text-rose-700 text-sm rounded-xl p-4 flex items-center justify-between">
+          <span>{error}</span>
+          {onRefresh && (
+            <button
+              onClick={onRefresh}
+              className="px-3 py-1 rounded-lg bg-rose-600 text-white text-xs"
+            >
+              Retry
+            </button>
+          )}
+        </div>
+      )}
+
+      {loading && (
+        <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-8 text-center text-slate-500 flex flex-col items-center gap-3">
+          <Loader2 size={24} className="animate-spin text-amber-500" />
+          <p>Loading latest school registrations…</p>
+        </div>
+      )}
+
+      {!loading && (
+        <div className="space-y-4">
         {filteredRequests.map((request) => (
           <div key={request.id} className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
             <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
@@ -160,7 +182,8 @@ const Requests = ({ requests, onRequestAction }) => {
             No schools match the current filters.
           </div>
         )}
-      </div>
+        </div>
+      )}
     </div>
   );
 };

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import SuperAdminLayout from './SuperAdminLayout';
 import Overview from './pages/Overview';
@@ -19,6 +19,29 @@ import {
   initialActivityFeed
 } from './mockData';
 
+const API_BASE = import.meta.env.VITE_API_URL;
+
+const normalizeRegistration = (school = {}) => ({
+  id: school._id || school.id || `REQ-${Date.now()}`,
+  schoolName: school.name || 'New School',
+  board: school.boardOther || school.board || 'Not specified',
+  studentCount: school.estimatedUsers || 'Pending',
+  contactPerson: school.contactPersonName || school.contactPerson || 'Registrar',
+  contactEmail: school.officialEmail || school.contactEmail || 'N/A',
+  contactPhone: school.contactPhone,
+  submittedAt: school.submittedAt || school.createdAt || new Date().toISOString(),
+  status: school.registrationStatus || 'pending',
+  notes: school.adminNotes || school.rejectionReason || 'Awaiting review',
+  campuses: Array.isArray(school.campuses) ? school.campuses.length : school.campusCount || 0,
+  schoolType: school.schoolType,
+  academicYearStructure: school.academicYearStructure,
+  estimatedUsers: school.estimatedUsers,
+  address: school.address,
+  verificationDocs: school.verificationDocs,
+  logo: school.logo,
+  source: 'api'
+});
+
 const SuperAdminApp = () => {
   const [profile, setProfile] = useState({
     name: 'Platform Control',
@@ -28,6 +51,8 @@ const SuperAdminApp = () => {
   });
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [requests, setRequests] = useState(initialSchoolRequests);
+  const [requestLoading, setRequestLoading] = useState(false);
+  const [requestError, setRequestError] = useState(null);
   const [feedbackItems, setFeedbackItems] = useState(initialFeedback);
   const [issues, setIssues] = useState(initialIssues);
   const [tickets, setTickets] = useState(initialTickets);
@@ -76,6 +101,60 @@ const SuperAdminApp = () => {
       { label: 'Issues to resolve', value: openIssues, change: openIssues ? 'Prioritise today' : 'All clear' }
     ];
   }, [requests, tickets, issues]);
+  const fetchRequests = useCallback(async () => {
+    const token = localStorage.getItem('token');
+    if (!token || !API_BASE) {
+      setRequests(initialSchoolRequests);
+      return;
+    }
+    setRequestLoading(true);
+    setRequestError(null);
+    try {
+      const response = await fetch(`${API_BASE}/api/schools/registrations/pending`, {
+        headers: {
+          Authorization: `Bearer ${token}`
+        }
+      });
+      if (!response.ok) {
+        throw new Error('Unable to load school registrations');
+      }
+      const data = await response.json();
+      const normalized = Array.isArray(data) ? data.map(normalizeRegistration) : [];
+      setRequests(normalized);
+    } catch (error) {
+      console.error('Failed to fetch registrations', error);
+      setRequestError(error.message || 'Unable to load registrations');
+    } finally {
+      setRequestLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    setCredentials((prev) => {
+      const updated = { ...prev };
+      requests.forEach((request) => {
+        if (!updated[request.id]) {
+          updated[request.id] = {
+            password: '',
+            status: 'not_generated',
+            lastGenerated: null,
+            lastReset: null
+          };
+        }
+      });
+      return updated;
+    });
+  }, [requests]);
+
+  useEffect(() => {
+    fetchRequests();
+  }, [fetchRequests]);
+
+  useEffect(() => {
+    const handleRefresh = () => fetchRequests();
+    window.addEventListener('super-admin-refresh-requests', handleRefresh);
+    return () => window.removeEventListener('super-admin-refresh-requests', handleRefresh);
+  }, [fetchRequests]);
 
   const handleRequestUpdate = (requestId, status, note) => {
     setRequests((prev) =>
@@ -253,6 +332,9 @@ const SuperAdminApp = () => {
           <Requests
             requests={requests}
             onRequestAction={handleRequestUpdate}
+            loading={requestLoading}
+            error={requestError}
+            onRefresh={fetchRequests}
           />
         } />
         <Route path="feedback" element={
