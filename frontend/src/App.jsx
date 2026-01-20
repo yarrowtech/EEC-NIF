@@ -18,6 +18,7 @@ import SchoolRegistrationForm from "./components/SchoolRegistrationForm";
 import SchoolRegistrationSuccess from "./components/SchoolRegistrationSuccess";
 import FloatingGamesButton from "./components/FloatingGamesButton";
 import GamesPage from "./games/GamesPage";
+import SuperAdminApp from "./superAdmin/SuperAdminApp";
 
 
 import ArchivedStudents from "./admin/ArchivedStudents";
@@ -218,6 +219,14 @@ function App() {
           element={
             <ProtectedRoute allowedRoles={["Admin"]}>
               <AdminApp />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/super-admin/*"
+          element={
+            <ProtectedRoute allowedRoles={["SuperAdmin"]}>
+              <SuperAdminApp />
             </ProtectedRoute>
           }
         />

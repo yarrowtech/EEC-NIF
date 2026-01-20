@@ -7,6 +7,7 @@ const roleHome = {
   Parent: "/parents",
   Principal: "/principal",
   Admin: "/admin/dashboard",
+  SuperAdmin: "/super-admin/overview",
 };
 
 const ProtectedRoute = ({ allowedRoles, children }) => {

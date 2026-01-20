@@ -67,6 +67,61 @@ const schoolSchema = new mongoose.Schema(
     reviewedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'Admin' },
     rejectionReason: { type: String },
     adminNotes: { type: String },
+
+    // Subscription Management
+    subscriptionPlan: {
+      type: String,
+      enum: ['trial', 'basic', 'premium', 'enterprise'],
+      default: 'trial'
+    },
+    subscriptionStatus: {
+      type: String,
+      enum: ['active', 'suspended', 'expired', 'cancelled'],
+      default: 'active'
+    },
+    subscriptionStartDate: { type: Date },
+    subscriptionEndDate: { type: Date },
+
+    // Commercial tracking
+    commercialStatus: {
+      type: String,
+      enum: ['pending_review', 'verified', 'contacted', 'negotiating',
+             'payment_pending', 'paid', 'active', 'suspended'],
+      default: 'pending_review'
+    },
+    salesAssignedTo: { type: String },
+
+    // Payment tracking
+    paymentStatus: {
+      type: String,
+      enum: ['pending', 'partial', 'completed', 'failed'],
+      default: 'pending'
+    },
+    paymentAmount: { type: Number },
+    invoiceNumber: { type: String },
+
+    // Activation tracking
+    activatedAt: { type: Date },
+    activatedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'Admin' },
+
+    // Suspension tracking
+    suspendedAt: { type: Date },
+    suspendedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'Admin' },
+    suspensionReason: { type: String },
+
+    // Super Admin notes
+    superAdminNotes: { type: String },
+
+    // Feature flags
+    features: {
+      attendance: { type: Boolean, default: true },
+      examinations: { type: Boolean, default: true },
+      fees: { type: Boolean, default: true },
+      wellbeing: { type: Boolean, default: true },
+      alcove: { type: Boolean, default: true },
+      aiLearning: { type: Boolean, default: false },
+      analytics: { type: Boolean, default: false }
+    }
   },
   { timestamps: true }
 );
