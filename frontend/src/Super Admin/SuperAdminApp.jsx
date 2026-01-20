@@ -211,7 +211,41 @@ const SuperAdminApp = () => {
       .join('');
   };
 
-  const handleSchoolCredentialGenerate = (request) => {
+  const createSchoolAdminAccount = useCallback(async (request, code, password, status = 'active') => {
+    const token = localStorage.getItem('token');
+    if (!token || !API_BASE) {
+      return;
+    }
+    const payload = {
+      username: code,
+      password,
+      name: request.schoolName || request.name,
+      email: request.contactEmail || request.officialEmail || '',
+      avatar: request.logo || request.avatar || '',
+      schoolId: request.schoolId || request.id,
+      status
+    };
+    const response = await fetch(`${API_BASE}/api/admin/auth/school-admins`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`
+      },
+      body: JSON.stringify(payload)
+    });
+    if (!response.ok) {
+      let message = 'Unable to create school admin';
+      try {
+        const data = await response.json();
+        message = data?.error || message;
+      } catch (err) {
+        // ignore parse errors
+      }
+      throw new Error(message);
+    }
+  }, []);
+
+  const handleSchoolCredentialGenerate = async (request, status = 'active') => {
     if (!request?.id) return;
     const code = generateSchoolCode(request.schoolName || request.name);
     const password = generateSchoolPassword();
@@ -222,9 +256,15 @@ const SuperAdminApp = () => {
       schoolName: request.schoolName || request.name
     };
     setSchoolCredentials((prev) => ({ ...prev, [request.id]: entry }));
+    try {
+      await createSchoolAdminAccount(request, code, password, status);
+    } catch (error) {
+      console.error('Failed to create school admin', error);
+      setRequestError(error.message || 'Unable to create school admin');
+    }
   };
 
-  const handleRequestUpdate = (requestId, status, note) => {
+  const handleRequestUpdate = async (requestId, status, note) => {
     setRequests((prev) =>
       prev.map((request) =>
         request.id === requestId
@@ -237,6 +277,50 @@ const SuperAdminApp = () => {
           : request
       )
     );
+    const token = localStorage.getItem('token');
+    if (!token || !API_BASE) return;
+    if (status === 'approved' || status === 'rejected') {
+      try {
+        const endpoint =
+          status === 'approved'
+            ? `${API_BASE}/api/schools/registrations/${requestId}/approve`
+            : `${API_BASE}/api/schools/registrations/${requestId}/reject`;
+        const body =
+          status === 'approved'
+            ? { adminNotes: note || '' }
+            : { rejectionReason: note || 'Rejected by admin' };
+        const response = await fetch(endpoint, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`
+          },
+          body: JSON.stringify(body)
+        });
+        if (!response.ok) {
+          const data = await response.json().catch(() => ({}));
+          throw new Error(data?.error || 'Unable to update registration');
+        }
+      } catch (error) {
+        console.error('Failed to update registration', error);
+        setRequestError(error.message || 'Unable to update registration');
+      }
+    }
+    if (status === 'approved') {
+      const request = requests.find((item) => item.id === requestId);
+      if (!request) return;
+      const existingCredential = schoolCredentials[requestId];
+      if (existingCredential?.code && existingCredential?.password) {
+        try {
+          await createSchoolAdminAccount(request, existingCredential.code, existingCredential.password, 'active');
+        } catch (error) {
+          console.error('Failed to create school admin', error);
+          setRequestError(error.message || 'Unable to create school admin');
+        }
+        return;
+      }
+      await handleSchoolCredentialGenerate(request, 'active');
+    }
   };
 
   const handleFeedbackUpdate = (feedbackId, updates) => {

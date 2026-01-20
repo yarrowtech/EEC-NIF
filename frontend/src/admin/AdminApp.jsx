@@ -74,7 +74,7 @@ const AdminApp = () => {
   const adminUser = {
     name: adminProfile?.name || 'Admin User',
     role: isSuperAdmin ? 'SUPER ADMIN' : 'School Admin',
-    avatar: 'src/koushik-bala-pp.jpg',
+    avatar: adminProfile?.avatar || '',
   };
 
   return (

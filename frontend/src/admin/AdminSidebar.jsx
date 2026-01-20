@@ -33,11 +33,21 @@ const AdminSidebar = ({
         <div className={`${collapsed ? 'p-4' : 'p-4'} border-b border-gray-200 relative`}>
           <div className="flex items-center">
             <div className="flex items-center space-x-3">
-              <div className={`${collapsed ? 'w-8 h-8' : 'w-12 h-12'} bg-gradient-to-br from-blue-900 to-yellow-500 rounded-lg flex items-center justify-center shadow-md transition-all duration-300`}>
-                <span className="text-white text-xl font-bold">EEC</span>
+              <div className={`${collapsed ? 'w-8 h-8' : 'w-12 h-12'} bg-gradient-to-br from-blue-900 to-yellow-500 rounded-lg flex items-center justify-center shadow-md transition-all duration-300 overflow-hidden`}>
+                {adminUser?.avatar ? (
+                  <img
+                    src={adminUser.avatar}
+                    alt={adminUser?.name || 'School logo'}
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  <span className="text-white text-xl font-bold">EEC</span>
+                )}
               </div>
               {!collapsed && <div className="flex flex-col opacity-100 transition-opacity duration-300">
-                <span className="text-xl font-bold text-gray-800">Electronic Educare</span>
+                <span className="text-xl font-bold text-gray-800">
+                  {adminUser?.name || 'Electronic Educare'}
+                </span>
                 <span className="text-xs text-gray-500">Admin Portal</span>
               </div>}
             </div>
