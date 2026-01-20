@@ -40,9 +40,48 @@ const timetableRoutes = require("./routes/timetableRoutes");
 const notificationRoutes = require("./routes/notificationRoutes");
 const auditLogRoutes = require("./routes/auditLogRoutes");
 const Principal = require('./models/Principal');
+const Admin = require('./models/Admin');
 const { isStrongPassword } = require('./utils/passwordPolicy');
 const principalDashboardRoutes = require('./routes/principalDashboardRoutes');
 
+
+const seedSuperAdmin = async () => {
+  const username = process.env.SUPER_ADMIN_USERNAME;
+  const password = process.env.SUPER_ADMIN_PASSWORD;
+  const name = process.env.SUPER_ADMIN_NAME || 'Super Admin';
+  if (!username || !password) {
+    return;
+  }
+  if (!isStrongPassword(password)) {
+    console.warn('Super admin seed password does not meet policy requirements.');
+    return;
+  }
+  const normalizedUsername = String(username).trim();
+  if (!normalizedUsername) {
+    return;
+  }
+  try {
+    const existing = await Admin.findOne({ username: normalizedUsername });
+    if (existing) {
+      existing.password = password;
+      existing.name = name;
+      existing.schoolId = null;
+      await existing.save();
+      console.log(`Updated super admin user: ${normalizedUsername}`);
+      return;
+    }
+    const admin = new Admin({
+      username: normalizedUsername,
+      password,
+      name,
+      schoolId: null,
+    });
+    await admin.save();
+    console.log(`Seeded super admin user: ${normalizedUsername}`);
+  } catch (err) {
+    console.error('Failed to seed super admin user:', err.message);
+  }
+};
 
 const seedPrincipal = async () => {
   const principalEmail = process.env.PRINCIPAL_EMAIL;
@@ -157,6 +196,7 @@ mongoose
   .connect(process.env.MONGODB_URL)
   .then(async () => {
     console.log('MongoDB Connected');
+    await seedSuperAdmin();
     await seedPrincipal();
   })
   .catch((err) => console.log(err));

@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import SuperAdminLayout from './SuperAdminLayout';
 import Overview from './pages/Overview';
@@ -19,13 +19,13 @@ import {
   initialActivityFeed
 } from './mockData';
 
-const profile = {
-  name: 'Platform Control',
-  role: 'Super Administrator',
-  email: 'superadmin@eec.in'
-};
-
 const SuperAdminApp = () => {
+  const [profile, setProfile] = useState({
+    name: 'Platform Control',
+    role: 'Super Administrator',
+    email: 'superadmin@eec.in',
+    avatar: ''
+  });
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [requests, setRequests] = useState(initialSchoolRequests);
   const [feedbackItems, setFeedbackItems] = useState(initialFeedback);
@@ -200,6 +200,34 @@ const SuperAdminApp = () => {
       }
     }));
   };
+
+  useEffect(() => {
+    const fetchProfile = async () => {
+      const token = localStorage.getItem('token');
+      if (!token) return;
+      try {
+        const res = await fetch(`${import.meta.env.VITE_API_URL}/api/admin/auth/profile`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            authorization: `Bearer ${token}`
+          }
+        });
+        if (!res.ok) return;
+        const data = await res.json();
+        setProfile((prev) => ({
+          ...prev,
+          name: data.name || data.username || prev.name,
+          email: data.email || data.username || prev.email,
+          avatar: data.avatar || ''
+        }));
+      } catch (err) {
+        console.error('Failed to load super admin profile', err);
+      }
+    };
+
+    fetchProfile();
+  }, []);
 
   return (
     <SuperAdminLayout

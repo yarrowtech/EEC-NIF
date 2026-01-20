@@ -76,8 +76,33 @@ const LoginForm = () => {
 
         const data = await res.json();
         localStorage.setItem('token', data.token);
-        localStorage.setItem('userType', option.userType);
-        navigate(option.redirect);
+        if (option.userType === 'Admin') {
+          let resolvedUserType = option.userType;
+          let redirectTo = option.redirect;
+          try {
+            const profileRes = await fetch(`${import.meta.env.VITE_API_URL}/api/admin/auth/profile`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                authorization: `Bearer ${data.token}`,
+              },
+            });
+            if (profileRes.ok) {
+              const profile = await profileRes.json();
+              if (!profile.schoolId) {
+                resolvedUserType = 'SuperAdmin';
+                redirectTo = '/super-admin/overview';
+              }
+            }
+          } catch (profileError) {
+            console.error('Failed to load admin profile', profileError);
+          }
+          localStorage.setItem('userType', resolvedUserType);
+          navigate(redirectTo);
+        } else {
+          localStorage.setItem('userType', option.userType);
+          navigate(option.redirect);
+        }
         loggedIn = true;
         break;
       }

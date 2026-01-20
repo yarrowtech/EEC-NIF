@@ -1,4 +1,4 @@
-import { NavLink } from 'react-router-dom';
+import { NavLink, useNavigate } from 'react-router-dom';
 import { Shield, LayoutDashboard, Building2, MessageSquare, AlertTriangle, LifeBuoy, Menu, KeyRound, Activity, IdCard } from 'lucide-react';
 
 const navLinks = [
@@ -13,6 +13,18 @@ const navLinks = [
 ];
 
 const SuperAdminLayout = ({ children, sidebarCollapsed, onToggleSidebar, insights, profile }) => {
+  const navigate = useNavigate();
+
+  const handleLogout = () => {
+    localStorage.removeItem('token');
+    localStorage.removeItem('userType');
+    navigate('/');
+  };
+
+  const initials = profile?.name
+    ? profile.name.trim().charAt(0).toUpperCase()
+    : 'S';
+
   return (
     <div className="min-h-screen flex bg-slate-50">
       <aside
@@ -67,13 +79,38 @@ const SuperAdminLayout = ({ children, sidebarCollapsed, onToggleSidebar, insight
               <p className="text-xs uppercase text-slate-400 tracking-wide">Control Centre</p>
               <h1 className="text-2xl font-semibold text-slate-800">Super Admin Portal</h1>
             </div>
-            <button
-              onClick={onToggleSidebar}
-              className="p-2 rounded-lg border border-slate-200 hover:bg-slate-100 text-slate-600"
-              aria-label="Toggle sidebar"
-            >
-              <Menu size={18} />
-            </button>
+            <div className="flex items-center gap-4">
+              <button
+                onClick={onToggleSidebar}
+                className="p-2 rounded-lg border border-slate-200 hover:bg-slate-100 text-slate-600"
+                aria-label="Toggle sidebar"
+              >
+                <Menu size={18} />
+              </button>
+              <div className="flex items-center gap-3 rounded-full bg-slate-50 px-3 py-1.5 border border-slate-200">
+                {profile?.avatar ? (
+                  <img
+                    src={profile.avatar}
+                    alt={profile?.name || 'Super admin'}
+                    className="h-9 w-9 rounded-full object-cover border border-slate-200"
+                  />
+                ) : (
+                  <div className="h-9 w-9 rounded-full bg-amber-100 text-amber-700 font-semibold flex items-center justify-center border border-amber-200">
+                    {initials}
+                  </div>
+                )}
+                <div className="hidden sm:block">
+                  <p className="text-sm font-semibold text-slate-700">{profile?.name || 'Super Admin'}</p>
+                  <p className="text-xs text-slate-500">{profile?.role || 'Super Administrator'}</p>
+                </div>
+                <button
+                  onClick={handleLogout}
+                  className="text-xs font-semibold text-amber-700 hover:text-amber-800 px-3 py-1 rounded-full bg-red-100 border border-amber-200"
+                >
+                  Logout
+                </button>
+              </div>
+            </div>
           </div>
 
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
