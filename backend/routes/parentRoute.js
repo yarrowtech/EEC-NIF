@@ -10,6 +10,7 @@ const { isStrongPassword, passwordPolicyMessage } = require('../utils/passwordPo
 
 // Parent Registration
 router.post('/register', adminAuth, async (req, res) => {
+  // #swagger.tags = ['Parents']
   const {
     name,
     schoolId,
@@ -48,6 +49,7 @@ router.post('/register', adminAuth, async (req, res) => {
 
 // Parent Login
 router.post('/login', rateLimit({ windowMs: 60 * 1000, max: 10 }), async (req, res) => {
+  // #swagger.tags = ['Parents']
   const { username, password } = req.body;
 
   try {

@@ -18,7 +18,9 @@ const doc = {
   },
   servers: [{ url: serverUrl }],
   tags: [
+    { name: 'System', description: 'Service health and root endpoints.' },
     { name: 'Admin Auth', description: 'Admin authentication and profile.' },
+    { name: 'Super Admin', description: 'System-wide administration.' },
     { name: 'Admin Users', description: 'Admin user management and bulk tools.' },
     { name: 'Teachers', description: 'Teacher authentication and management.' },
     { name: 'Students', description: 'Student authentication and portal.' },

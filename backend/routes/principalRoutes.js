@@ -10,6 +10,7 @@ const { isStrongPassword, passwordPolicyMessage } = require('../utils/passwordPo
 const normalize = (value = '') => String(value).trim().toLowerCase();
 
 router.post('/register', async (req, res) => {
+  // #swagger.tags = ['Principals']
   const { username, email, password, name, schoolId } = req.body || {};
   try {
     if (!isStrongPassword(password)) {
@@ -38,6 +39,7 @@ router.post('/register', async (req, res) => {
 });
 
 router.post('/login', rateLimit({ windowMs: 60 * 1000, max: 10 }), async (req, res) => {
+  // #swagger.tags = ['Principals']
   const { username, email, password } = req.body || {};
   try {
     const identifier = normalize(username || email);

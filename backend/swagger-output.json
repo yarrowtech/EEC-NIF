@@ -12,8 +12,16 @@
   ],
   "tags": [
     {
+      "name": "System",
+      "description": "Service health and root endpoints."
+    },
+    {
       "name": "Admin Auth",
       "description": "Admin authentication and profile."
+    },
+    {
+      "name": "Super Admin",
+      "description": "System-wide administration."
     },
     {
       "name": "Admin Users",
@@ -147,6 +155,9 @@
   "paths": {
     "/": {
       "get": {
+        "tags": [
+          "System"
+        ],
         "description": "",
         "responses": {
           "200": {
@@ -157,6 +168,9 @@
     },
     "/health": {
       "get": {
+        "tags": [
+          "System"
+        ],
         "description": "",
         "responses": {
           "200": {
@@ -167,6 +181,9 @@
     },
     "/api/admin/users/create-user": {
       "post": {
+        "tags": [
+          "Admin Users"
+        ],
         "description": "",
         "parameters": [
           {
@@ -239,6 +256,9 @@
     },
     "/api/admin/users/bulk-create-users": {
       "post": {
+        "tags": [
+          "Admin Users"
+        ],
         "description": "",
         "parameters": [
           {
@@ -287,6 +307,9 @@
     },
     "/api/admin/users/bulk-import-csv": {
       "post": {
+        "tags": [
+          "Admin Users"
+        ],
         "description": "",
         "parameters": [
           {
@@ -335,6 +358,9 @@
     },
     "/api/admin/users/get-students": {
       "get": {
+        "tags": [
+          "Admin Users"
+        ],
         "description": "",
         "parameters": [
           {
@@ -363,6 +389,9 @@
     },
     "/api/admin/users/get-teachers": {
       "get": {
+        "tags": [
+          "Admin Users"
+        ],
         "description": "",
         "parameters": [
           {
@@ -391,6 +420,9 @@
     },
     "/api/admin/users/get-parents": {
       "get": {
+        "tags": [
+          "Admin Users"
+        ],
         "description": "",
         "parameters": [
           {
@@ -419,6 +451,9 @@
     },
     "/api/admin/users/dashboard-stats": {
       "get": {
+        "tags": [
+          "Admin Users"
+        ],
         "description": "",
         "parameters": [
           {
@@ -655,6 +690,9 @@
     },
     "/api/teacher/auth/register": {
       "post": {
+        "tags": [
+          "Teachers"
+        ],
         "description": "",
         "parameters": [
           {
@@ -730,6 +768,9 @@
     },
     "/api/teacher/auth/login": {
       "post": {
+        "tags": [
+          "Teachers"
+        ],
         "description": "",
         "responses": {
           "200": {
@@ -1118,6 +1159,9 @@
     },
     "/api/parent/auth/register": {
       "post": {
+        "tags": [
+          "Parents"
+        ],
         "description": "",
         "parameters": [
           {
@@ -1175,6 +1219,9 @@
     },
     "/api/parent/auth/login": {
       "post": {
+        "tags": [
+          "Parents"
+        ],
         "description": "",
         "responses": {
           "200": {
@@ -1208,6 +1255,9 @@
     },
     "/api/principal/auth/register": {
       "post": {
+        "tags": [
+          "Principals"
+        ],
         "description": "",
         "responses": {
           "201": {
@@ -1247,6 +1297,9 @@
     },
     "/api/principal/auth/login": {
       "post": {
+        "tags": [
+          "Principals"
+        ],
         "description": "",
         "responses": {
           "200": {
@@ -1283,6 +1336,9 @@
     },
     "/api/principal/overview": {
       "get": {
+        "tags": [
+          "Principal Dashboard"
+        ],
         "description": "",
         "parameters": [
           {
@@ -4537,6 +4593,9 @@
     },
     "/api/schools/": {
       "post": {
+        "tags": [
+          "Schools"
+        ],
         "description": "",
         "parameters": [
           {
@@ -4595,6 +4654,9 @@
         }
       },
       "get": {
+        "tags": [
+          "Schools"
+        ],
         "description": "",
         "parameters": [
           {
@@ -4623,6 +4685,9 @@
     },
     "/api/schools/registrations/pending": {
       "get": {
+        "tags": [
+          "School Registration"
+        ],
         "description": "",
         "parameters": [
           {
@@ -4649,8 +4714,56 @@
         }
       }
     },
+    "/api/schools/registrations/approve-all": {
+      "put": {
+        "tags": [
+          "School Registration"
+        ],
+        "description": "",
+        "parameters": [
+          {
+            "name": "authorization",
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          },
+          "500": {
+            "description": "Internal Server Error"
+          }
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "adminNotes": {
+                    "example": "any"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/schools/registrations/{id}": {
       "get": {
+        "tags": [
+          "School Registration"
+        ],
         "description": "",
         "parameters": [
           {
@@ -4693,6 +4806,9 @@
     },
     "/api/schools/registrations/{id}/approve": {
       "put": {
+        "tags": [
+          "School Registration"
+        ],
         "description": "",
         "parameters": [
           {
@@ -4749,6 +4865,9 @@
     },
     "/api/schools/registrations/{id}/reject": {
       "put": {
+        "tags": [
+          "School Registration"
+        ],
         "description": "",
         "parameters": [
           {
@@ -4805,6 +4924,9 @@
     },
     "/api/schools/{id}": {
       "get": {
+        "tags": [
+          "Schools"
+        ],
         "description": "",
         "parameters": [
           {
@@ -6393,6 +6515,491 @@
           },
           "400": {
             "description": "Bad Request"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          },
+          "500": {
+            "description": "Internal Server Error"
+          }
+        }
+      }
+    },
+    "/api/super-admin/overview": {
+      "get": {
+        "tags": [
+          "Super Admin"
+        ],
+        "description": "",
+        "parameters": [
+          {
+            "name": "authorization",
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          },
+          "500": {
+            "description": "Internal Server Error"
+          }
+        }
+      }
+    },
+    "/api/super-admin/schools": {
+      "get": {
+        "tags": [
+          "Super Admin"
+        ],
+        "description": "",
+        "parameters": [
+          {
+            "name": "status",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "registrationStatus",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "q",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          },
+          "500": {
+            "description": "Internal Server Error"
+          }
+        }
+      }
+    },
+    "/api/super-admin/schools/{id}": {
+      "get": {
+        "tags": [
+          "Super Admin"
+        ],
+        "description": "",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "400": {
+            "description": "Bad Request"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          },
+          "404": {
+            "description": "Not Found"
+          },
+          "500": {
+            "description": "Internal Server Error"
+          }
+        }
+      }
+    },
+    "/api/super-admin/schools/{id}/status": {
+      "patch": {
+        "tags": [
+          "Super Admin"
+        ],
+        "description": "",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "400": {
+            "description": "Bad Request"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          },
+          "404": {
+            "description": "Not Found"
+          },
+          "500": {
+            "description": "Internal Server Error"
+          }
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "status": {
+                    "example": "any"
+                  },
+                  "suspensionReason": {
+                    "example": "any"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/super-admin/schools/{id}/subscription": {
+      "patch": {
+        "tags": [
+          "Super Admin"
+        ],
+        "description": "",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "400": {
+            "description": "Bad Request"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          },
+          "404": {
+            "description": "Not Found"
+          },
+          "500": {
+            "description": "Internal Server Error"
+          }
+        }
+      }
+    },
+    "/api/super-admin/admins": {
+      "post": {
+        "tags": [
+          "Super Admin"
+        ],
+        "description": "",
+        "parameters": [
+          {
+            "name": "authorization",
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Created"
+          },
+          "400": {
+            "description": "Bad Request"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          },
+          "404": {
+            "description": "Not Found"
+          }
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "username": {
+                    "example": "any"
+                  },
+                  "password": {
+                    "example": "any"
+                  },
+                  "name": {
+                    "example": "any"
+                  },
+                  "schoolId": {
+                    "example": "any"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "Super Admin"
+        ],
+        "description": "",
+        "parameters": [
+          {
+            "name": "schoolId",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "scope",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          },
+          "500": {
+            "description": "Internal Server Error"
+          }
+        }
+      }
+    },
+    "/api/super-admin/admins/{id}": {
+      "patch": {
+        "tags": [
+          "Super Admin"
+        ],
+        "description": "",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "400": {
+            "description": "Bad Request"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          },
+          "404": {
+            "description": "Not Found"
+          }
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "example": "any"
+                  },
+                  "password": {
+                    "example": "any"
+                  },
+                  "schoolId": {
+                    "example": "any"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Super Admin"
+        ],
+        "description": "",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "400": {
+            "description": "Bad Request"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          },
+          "404": {
+            "description": "Not Found"
+          },
+          "500": {
+            "description": "Internal Server Error"
+          }
+        }
+      }
+    },
+    "/api/super-admin/audit-logs": {
+      "get": {
+        "tags": [
+          "Super Admin"
+        ],
+        "description": "",
+        "parameters": [
+          {
+            "name": "schoolId",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
           },
           "401": {
             "description": "Unauthorized"

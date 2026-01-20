@@ -39,6 +39,7 @@ const reportRoutes = require("./routes/reportRoutes");
 const timetableRoutes = require("./routes/timetableRoutes");
 const notificationRoutes = require("./routes/notificationRoutes");
 const auditLogRoutes = require("./routes/auditLogRoutes");
+const superAdminRoutes = require("./routes/superAdminRoutes");
 const Principal = require('./models/Principal');
 const Admin = require('./models/Admin');
 const { isStrongPassword } = require('./utils/passwordPolicy');
@@ -215,9 +216,13 @@ mongoose
 
 // Health
 app.get("/", (req, res) => {
+  // #swagger.tags = ['System']
   res.send("Welcome to the Electronic Educare API ..");
 });
-app.get("/health", (req, res) => res.json({ ok: true }));
+app.get("/health", (req, res) => {
+  // #swagger.tags = ['System']
+  res.json({ ok: true });
+});
 
 // Auth & core routes (unchanged)
 app.use('/api/admin/users', adminUserManagementRoutes);
@@ -255,6 +260,7 @@ app.use('/api/reports', reportRoutes);
 app.use('/api/timetable', timetableRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/audit-logs', auditLogRoutes);
+app.use('/api/super-admin', superAdminRoutes);
 
 
 app.use("/api/uploads", uploadRoutes);

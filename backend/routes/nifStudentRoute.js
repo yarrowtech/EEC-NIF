@@ -484,6 +484,7 @@ const REQUIRED = [
    GET /api/nif/students?q=...
 ==================================================== */
 router.get("/", async (req, res, next) => {
+  // #swagger.tags = ['NIF Students']
   try {
     const q = (req.query.q || "").trim();
 
@@ -512,6 +513,7 @@ router.get("/", async (req, res, next) => {
    POST /api/nif/students/register
 ==================================================== */
 router.post("/register", async (req, res, next) => {
+  // #swagger.tags = ['NIF Students']
   try {
     const payload = { ...(req.body || {}) };
 
@@ -576,6 +578,7 @@ router.post("/register", async (req, res, next) => {
    GET  /api/nif/students/csv-template  (optional)
 ==================================================== */
 router.post("/bulk", async (req, res, next) => {
+  // #swagger.tags = ['NIF Students']
   try {
     const items = Array.isArray(req.body?.students) ? req.body.students : [];
     if (!items.length) {
@@ -696,6 +699,7 @@ router.post("/bulk", async (req, res, next) => {
 });
 
 router.get("/csv-template", (_req, res) => {
+  // #swagger.tags = ['NIF Students']
   const headers = [
     "name",
     "roll",
@@ -721,6 +725,7 @@ router.get("/csv-template", (_req, res) => {
    DELETE /api/nif/students/:id
 ==================================================== */
 router.get("/:id", async (req, res, next) => {
+  // #swagger.tags = ['NIF Students']
   try {
     const { id } = req.params;
     if (!mongoose.isValidObjectId(id))
@@ -736,6 +741,7 @@ router.get("/:id", async (req, res, next) => {
 });
 
 router.patch("/:id", async (req, res, next) => {
+  // #swagger.tags = ['NIF Students']
   try {
     const { id } = req.params;
     if (!mongoose.isValidObjectId(id))
@@ -798,6 +804,7 @@ router.patch("/:id", async (req, res, next) => {
 });
 
 router.delete("/:id", async (req, res, next) => {
+  // #swagger.tags = ['NIF Students']
   try {
     const { id } = req.params;
     if (!mongoose.isValidObjectId(id))
@@ -818,6 +825,7 @@ router.delete("/:id", async (req, res, next) => {
    GET  /api/nif/students/:id/attendance
 ==================================================== */
 router.post("/:id/attendance", async (req, res, next) => {
+  // #swagger.tags = ['NIF Students']
   try {
     const { id } = req.params;
     if (!mongoose.isValidObjectId(id))
@@ -859,6 +867,7 @@ router.post("/:id/attendance", async (req, res, next) => {
 });
 
 router.get("/:id/attendance", async (req, res, next) => {
+  // #swagger.tags = ['NIF Students']
   try {
     const { id } = req.params;
     if (!mongoose.isValidObjectId(id))
