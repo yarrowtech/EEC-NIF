@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Search, Filter, CheckCircle, XCircle, AlertCircle, RefreshCw, Loader2 } from 'lucide-react';
+import { Search, Filter, CheckCircle, XCircle, AlertCircle, RefreshCw, Loader2, BadgeCheck, Copy } from 'lucide-react';
 
 const statusStyles = {
   pending: 'bg-amber-100 text-amber-700',
@@ -8,7 +8,15 @@ const statusStyles = {
   rejected: 'bg-rose-100 text-rose-600'
 };
 
-const Requests = ({ requests, onRequestAction, loading = false, error = null, onRefresh }) => {
+const Requests = ({
+  requests,
+  onRequestAction,
+  loading = false,
+  error = null,
+  onRefresh,
+  schoolCredentials = {},
+  onGenerateSchoolCredentials
+}) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
 
@@ -124,7 +132,9 @@ const Requests = ({ requests, onRequestAction, loading = false, error = null, on
 
       {!loading && (
         <div className="space-y-4">
-        {filteredRequests.map((request) => (
+        {filteredRequests.map((request) => {
+          const credential = schoolCredentials[request.id];
+          return (
           <div key={request.id} className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
             <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
               <div>
@@ -152,6 +162,53 @@ const Requests = ({ requests, onRequestAction, loading = false, error = null, on
               </div>
             </div>
 
+            <div className="mt-4 bg-slate-50 border border-slate-200 rounded-xl p-4 flex flex-col gap-3">
+              <div className="flex items-center gap-3">
+                <BadgeCheck className="text-amber-500" size={18} />
+                <div>
+                  <p className="text-xs uppercase text-slate-500">School ID</p>
+                  <p className="text-base font-semibold text-slate-800">
+                    {credential?.code || 'No ID generated yet'}
+                  </p>
+                  {credential?.generatedAt && (
+                    <p className="text-xs text-slate-500">
+                      Generated {new Date(credential.generatedAt).toLocaleString()}
+                    </p>
+                  )}
+                </div>
+              </div>
+              <div className="flex flex-wrap gap-3">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs uppercase text-slate-500">Password</span>
+                  <span className="font-mono text-sm text-slate-800">
+                    {credential?.password || 'Not generated'}
+                  </span>
+                  {credential?.password && (
+                    <button
+                      className="flex items-center gap-1 text-xs text-slate-500 border border-slate-300 rounded-lg px-2 py-1"
+                      onClick={() => navigator.clipboard.writeText(credential.password)}
+                    >
+                      <Copy size={12} /> Copy
+                    </button>
+                  )}
+                </div>
+                <button
+                  className="px-4 py-2 rounded-lg border border-slate-200 text-slate-600 text-sm"
+                  onClick={() => onGenerateSchoolCredentials?.(request)}
+                >
+                  {credential ? 'Regenerate credentials' : 'Generate ID & password'}
+                </button>
+                {credential?.code && (
+                  <button
+                    className="px-4 py-2 rounded-lg bg-slate-900 text-white text-sm flex items-center gap-1"
+                    onClick={() => navigator.clipboard.writeText(credential.code)}
+                  >
+                    <Copy size={14} /> Copy ID
+                  </button>
+                )}
+              </div>
+            </div>
+
             <div className="mt-4 flex flex-col gap-2 sm:flex-row">
               <button
                 className="flex items-center justify-center gap-2 px-4 py-2 rounded-lg border border-slate-200 text-slate-600 text-sm"
@@ -176,7 +233,7 @@ const Requests = ({ requests, onRequestAction, loading = false, error = null, on
               </button>
             </div>
           </div>
-        ))}
+        )})}
         {filteredRequests.length === 0 && (
           <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-10 text-center text-slate-500">
             No schools match the current filters.

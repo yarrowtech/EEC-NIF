@@ -20,6 +20,7 @@ import {
 } from './mockData';
 
 const API_BASE = import.meta.env.VITE_API_URL;
+const SCHOOL_CREDENTIAL_STORAGE_KEY = 'superAdminSchoolCredentials';
 
 const normalizeRegistration = (school = {}) => ({
   id: school._id || school.id || `REQ-${Date.now()}`,
@@ -59,6 +60,17 @@ const SuperAdminApp = () => {
   const [announcements, setAnnouncements] = useState(initialAnnouncements);
   const [complianceItems, setComplianceItems] = useState(initialComplianceItems);
   const [activityFeed, setActivityFeed] = useState(initialActivityFeed);
+  const [schoolCredentials, setSchoolCredentials] = useState(() => {
+    if (typeof window === 'undefined') return {};
+    try {
+      const raw = localStorage.getItem(SCHOOL_CREDENTIAL_STORAGE_KEY);
+      const parsed = raw ? JSON.parse(raw) : {};
+      return parsed && typeof parsed === 'object' ? parsed : {};
+    } catch (error) {
+      console.error('Failed to parse stored school credentials', error);
+      return {};
+    }
+  });
   const [credentials, setCredentials] = useState(() =>
     initialSchoolRequests.reduce((acc, school) => {
       acc[school.id] = {
@@ -101,6 +113,14 @@ const SuperAdminApp = () => {
       { label: 'Issues to resolve', value: openIssues, change: openIssues ? 'Prioritise today' : 'All clear' }
     ];
   }, [requests, tickets, issues]);
+  const persistSchoolCredentials = useCallback((next) => {
+    try {
+      localStorage.setItem(SCHOOL_CREDENTIAL_STORAGE_KEY, JSON.stringify(next));
+    } catch (error) {
+      console.error('Failed to persist school credentials', error);
+    }
+  }, []);
+
   const fetchRequests = useCallback(async () => {
     const token = localStorage.getItem('token');
     if (!token || !API_BASE) {
@@ -155,6 +175,54 @@ const SuperAdminApp = () => {
     window.addEventListener('super-admin-refresh-requests', handleRefresh);
     return () => window.removeEventListener('super-admin-refresh-requests', handleRefresh);
   }, [fetchRequests]);
+
+  useEffect(() => {
+    persistSchoolCredentials(schoolCredentials);
+  }, [schoolCredentials, persistSchoolCredentials]);
+
+  const generateSchoolCode = (name = '') => {
+    const cleaned = name
+      .toUpperCase()
+      .replace(/[^A-Z0-9]/g, '')
+      .slice(0, 3)
+      .padEnd(3, 'X');
+    const suffix = Math.floor(1000 + Math.random() * 9000);
+    return `EEC-${cleaned}-${suffix}`;
+  };
+
+  const generateSchoolPassword = () => {
+    const uppercase = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
+    const lowercase = 'abcdefghijkmnopqrstuvwxyz';
+    const digits = '23456789';
+    const symbols = '!@$%&*';
+    const pool = `${uppercase}${lowercase}${digits}${symbols}`;
+    let password = [
+      uppercase[Math.floor(Math.random() * uppercase.length)],
+      lowercase[Math.floor(Math.random() * lowercase.length)],
+      digits[Math.floor(Math.random() * digits.length)],
+      symbols[Math.floor(Math.random() * symbols.length)]
+    ].join('');
+    while (password.length < 12) {
+      password += pool[Math.floor(Math.random() * pool.length)];
+    }
+    return password
+      .split('')
+      .sort(() => Math.random() - 0.5)
+      .join('');
+  };
+
+  const handleSchoolCredentialGenerate = (request) => {
+    if (!request?.id) return;
+    const code = generateSchoolCode(request.schoolName || request.name);
+    const password = generateSchoolPassword();
+    const entry = {
+      code,
+      password,
+      generatedAt: new Date().toISOString(),
+      schoolName: request.schoolName || request.name
+    };
+    setSchoolCredentials((prev) => ({ ...prev, [request.id]: entry }));
+  };
 
   const handleRequestUpdate = (requestId, status, note) => {
     setRequests((prev) =>
@@ -335,6 +403,8 @@ const SuperAdminApp = () => {
             loading={requestLoading}
             error={requestError}
             onRefresh={fetchRequests}
+            schoolCredentials={schoolCredentials}
+            onGenerateSchoolCredentials={handleSchoolCredentialGenerate}
           />
         } />
         <Route path="feedback" element={
