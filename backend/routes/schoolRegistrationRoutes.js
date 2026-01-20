@@ -2,6 +2,7 @@ const express = require('express');
 const mongoose = require('mongoose');
 const School = require('../models/School');
 const rateLimit = require('../middleware/rateLimit');
+const { sendWebhook, WEBHOOK_EVENTS } = require('../utils/webhookSender');
 
 const router = express.Router();
 
@@ -153,6 +154,32 @@ router.post(
         registrationStatus: 'pending',
         submittedAt: new Date(),
         status: 'inactive' // Inactive until approved
+      });
+
+      // Send webhook to Super Admin Portal
+      sendWebhook(WEBHOOK_EVENTS.SCHOOL_REGISTERED, {
+        schoolId: school._id.toString(),
+        name: school.name,
+        campuses: school.campuses,
+        campusCount: school.campuses.length,
+        officialEmail: school.officialEmail,
+        contactPhone: school.contactPhone,
+        contactPersonName: school.contactPersonName,
+        schoolType: school.schoolType,
+        board: school.board,
+        boardOther: school.boardOther,
+        academicYearStructure: school.academicYearStructure,
+        estimatedUsers: school.estimatedUsers,
+        address: school.address,
+        websiteURL: school.websiteURL,
+        code: school.code,
+        logo: school.logo,
+        verificationDocs: school.verificationDocs,
+        registrationStatus: school.registrationStatus,
+        submittedAt: school.submittedAt
+      }).catch(err => {
+        // Log but don't fail registration if webhook fails
+        console.error('Webhook notification failed:', err);
       });
 
       // Return sanitized response (no sensitive internal fields)
