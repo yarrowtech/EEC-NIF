@@ -9,7 +9,8 @@ const navLinks = [
   { to: '/super-admin/tickets', label: 'Tickets', icon: LifeBuoy },
   { to: '/super-admin/credentials', label: 'Passwords', icon: KeyRound },
   { to: '/super-admin/id-pass', label: 'ID Pass', icon: IdCard },
-  { to: '/super-admin/operations', label: 'Operations', icon: Activity }
+  { to: '/super-admin/operations', label: 'Operations', icon: Activity },
+  { to: '/super-admin/active-schools', label: 'Active Schools', icon: Building2 }
 ];
 
 const SuperAdminLayout = ({ children, sidebarCollapsed, onToggleSidebar, insights, profile }) => {

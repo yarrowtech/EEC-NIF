@@ -9,6 +9,7 @@ import Tickets from './pages/Tickets';
 import Credentials from './pages/Credentials';
 import Operations from './pages/Operations';
 import IDPass from './pages/IDPass';
+import ActiveSchools from './pages/ActiveSchools';
 import {
   initialSchoolRequests,
   initialFeedback,
@@ -54,6 +55,11 @@ const SuperAdminApp = () => {
   const [requests, setRequests] = useState(initialSchoolRequests);
   const [requestLoading, setRequestLoading] = useState(false);
   const [requestError, setRequestError] = useState(null);
+  const [activeSchools, setActiveSchools] = useState([]);
+  const [activeSchoolsLoading, setActiveSchoolsLoading] = useState(false);
+  const [activeSchoolsError, setActiveSchoolsError] = useState(null);
+  const [schoolAdmins, setSchoolAdmins] = useState([]);
+  const [schoolAdminsError, setSchoolAdminsError] = useState(null);
   const [feedbackItems, setFeedbackItems] = useState(initialFeedback);
   const [issues, setIssues] = useState(initialIssues);
   const [tickets, setTickets] = useState(initialTickets);
@@ -102,17 +108,17 @@ const SuperAdminApp = () => {
 
   const insights = useMemo(() => {
     const pending = requests.filter((req) => req.status === 'pending').length;
-    const approved = requests.filter((req) => req.status === 'approved').length;
+    const activeCount = activeSchools.length;
     const openTickets = tickets.filter((ticket) => ticket.status !== 'resolved').length;
     const openIssues = issues.filter((issue) => issue.status !== 'resolved').length;
 
     return [
       { label: 'Pending approvals', value: pending, change: pending ? `+${pending} awaiting` : 'Up to date' },
-      { label: 'Active schools', value: approved, change: approved ? '+1 this week' : 'No activations' },
+      { label: 'Active schools', value: activeCount, change: `${activeCount} active` },
       { label: 'Open tickets', value: openTickets, change: 'SLA 4h' },
       { label: 'Issues to resolve', value: openIssues, change: openIssues ? 'Prioritise today' : 'All clear' }
     ];
-  }, [requests, tickets, issues]);
+  }, [requests, activeSchools.length, tickets, issues]);
   const persistSchoolCredentials = useCallback((next) => {
     try {
       localStorage.setItem(SCHOOL_CREDENTIAL_STORAGE_KEY, JSON.stringify(next));
@@ -149,6 +155,60 @@ const SuperAdminApp = () => {
     }
   }, []);
 
+  const fetchActiveSchools = useCallback(async () => {
+    const token = localStorage.getItem('token');
+    if (!token || !API_BASE) {
+      setActiveSchools([]);
+      return;
+    }
+    setActiveSchoolsLoading(true);
+    setActiveSchoolsError(null);
+    try {
+      const response = await fetch(`${API_BASE}/api/schools`, {
+        headers: {
+          Authorization: `Bearer ${token}`
+        }
+      });
+      if (!response.ok) {
+        throw new Error('Unable to load active schools');
+      }
+      const data = await response.json();
+      const active = Array.isArray(data)
+        ? data.filter((school) => school.status === 'active')
+        : [];
+      setActiveSchools(active);
+    } catch (error) {
+      console.error('Failed to load active schools', error);
+      setActiveSchoolsError(error.message || 'Unable to load active schools');
+    } finally {
+      setActiveSchoolsLoading(false);
+    }
+  }, []);
+
+  const fetchSchoolAdmins = useCallback(async () => {
+    const token = localStorage.getItem('token');
+    if (!token || !API_BASE) {
+      setSchoolAdmins([]);
+      return;
+    }
+    setSchoolAdminsError(null);
+    try {
+      const response = await fetch(`${API_BASE}/api/admin/auth/school-admins`, {
+        headers: {
+          Authorization: `Bearer ${token}`
+        }
+      });
+      if (!response.ok) {
+        throw new Error('Unable to load school admins');
+      }
+      const data = await response.json();
+      setSchoolAdmins(Array.isArray(data) ? data : []);
+    } catch (error) {
+      console.error('Failed to load school admins', error);
+      setSchoolAdminsError(error.message || 'Unable to load school admins');
+    }
+  }, []);
+
   useEffect(() => {
     setCredentials((prev) => {
       const updated = { ...prev };
@@ -169,6 +229,10 @@ const SuperAdminApp = () => {
   useEffect(() => {
     fetchRequests();
   }, [fetchRequests]);
+
+  useEffect(() => {
+    fetchActiveSchools();
+  }, [fetchActiveSchools]);
 
   useEffect(() => {
     const handleRefresh = () => fetchRequests();
@@ -527,6 +591,19 @@ const SuperAdminApp = () => {
           />
         } />
         <Route path="id-pass" element={<IDPass profile={profile} />} />
+        <Route
+          path="active-schools"
+          element={
+            <ActiveSchools
+              fetchActiveSchools={fetchActiveSchools}
+              fetchSchoolAdmins={fetchSchoolAdmins}
+              loading={activeSchoolsLoading}
+              error={activeSchoolsError || schoolAdminsError}
+              schools={activeSchools}
+              admins={schoolAdmins}
+            />
+          }
+        />
         <Route index element={<Navigate to="/super-admin/overview" replace />} />
         <Route path="*" element={<Navigate to="/super-admin/overview" replace />} />
       </Routes>
