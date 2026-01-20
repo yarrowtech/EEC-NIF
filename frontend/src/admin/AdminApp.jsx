@@ -64,7 +64,7 @@ const AdminApp = () => {
     fetchProfile();
   }, []);
 
-  const isSuperAdmin = adminProfile && !adminProfile.schoolId;
+  const isSuperAdmin = adminProfile?.role === 'super_admin';
 
   const menuItems = useMemo(() => {
     if (isSuperAdmin) return ADMIN_MENU_ITEMS;
