@@ -94,20 +94,20 @@ const LoginForm = () => {
   };
 
   return (
-    <div className="w-screen h-screen flex items-center justify-center bg-[url('/xavier.jpeg')] bg-no-repeat bg-cover bg-center">
-      <div className="bg-white/90  backdrop-blur-sm rounded-2xl shadow-2xl p-8 max-w-md w-full mx-auto space-y-6 border border-purple-600">
+    <div className="min-h-screen w-full flex items-center justify-center bg-[url('/xavier.jpeg')] bg-no-repeat bg-cover bg-center px-4 py-8 sm:px-6">
+      <div className="bg-white/90 backdrop-blur-sm rounded-2xl shadow-2xl p-6 sm:p-8 max-w-md w-full mx-auto space-y-6 border border-purple-600">
         {/* Header */}
         <div className="text-center space-y-2">
-          <div className="mx-auto w-16 h-16 bg-gradient-to-r from-yellow-400 to-amber-500 rounded-full flex items-center justify-center mb-4">
-            <Lock className="w-8 h-8 text-white" />
+          <div className="mx-auto w-14 h-14 sm:w-16 sm:h-16 bg-gradient-to-r from-yellow-400 to-amber-500 rounded-full flex items-center justify-center mb-4">
+            <Lock className="w-7 h-7 sm:w-8 sm:h-8 text-white" />
           </div>
-          <h4 className="text-3xl font-bold bg-gradient-to-r from-yellow-500 to-amber-600 bg-clip-text text-transparent">
+          <h4 className="text-2xl sm:text-3xl font-bold bg-gradient-to-r from-yellow-500 to-amber-600 bg-clip-text text-transparent">
             Welcome to EEC
           </h4>
-          <p className="text-gray-600">Please sign in to your account</p>
+          <p className="text-sm sm:text-base text-gray-600">Please sign in to your account</p>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-5">
+        <form onSubmit={handleSubmit} className="space-y-4 sm:space-y-5">
           {/* Username Field */}
           <div className="space-y-2">
             <label className="block text-sm font-semibold text-gray-700">Username</label>
@@ -119,7 +119,7 @@ const LoginForm = () => {
                 value={formData.username}
                 onChange={handleInputChange}
                 placeholder="Enter your username"
-                className={`w-full pl-10 pr-4 py-3 border rounded-xl shadow-sm transition-all duration-200 focus:ring-2 focus:ring-yellow-500 focus:border-transparent outline-none ${errors.username
+                className={`w-full pl-10 pr-4 py-2.5 sm:py-3 border rounded-xl shadow-sm transition-all duration-200 focus:ring-2 focus:ring-yellow-500 focus:border-transparent outline-none ${errors.username
                     ? 'border-red-300 bg-red-50'
                     : 'border-gray-300 hover:border-gray-400 focus:bg-white'
                   }`}
@@ -149,7 +149,7 @@ const LoginForm = () => {
                 value={formData.password}
                 onChange={handleInputChange}
                 placeholder="Enter your password"
-                className={`w-full pl-10 pr-12 py-3 border rounded-xl shadow-sm transition-all duration-200 focus:ring-2 focus:ring-yellow-500 focus:border-transparent outline-none ${errors.password
+                className={`w-full pl-10 pr-12 py-2.5 sm:py-3 border rounded-xl shadow-sm transition-all duration-200 focus:ring-2 focus:ring-yellow-500 focus:border-transparent outline-none ${errors.password
                     ? 'border-red-300 bg-red-50'
                     : 'border-gray-300 hover:border-gray-400 focus:bg-white'
                   }`}
@@ -157,7 +157,7 @@ const LoginForm = () => {
               <div className='flex justify-center items-center'>
                 <button
                   type="button"
-                  className="absolute right-3 top-3.5 text-gray-400 hover:text-gray-600"
+                  className="absolute right-3 top-3 text-gray-400 hover:text-gray-600"
                   onClick={() => setShowPass(!showPass)}
                 >
                   {showPass ? <EyeOff size={20} /> : <Eye size={20} />}
@@ -188,7 +188,7 @@ const LoginForm = () => {
           <button
             type="submit"
             disabled={isLoading}
-            className="w-full bg-gradient-to-r from-yellow-500 to-amber-500 text-white py-3 rounded-xl hover:from-yellow-600 hover:to-amber-600 transition-all font-semibold shadow-lg hover:shadow-xl disabled:opacity-50 flex items-center justify-center gap-2"
+            className="w-full bg-gradient-to-r from-yellow-500 to-amber-500 text-white py-2.5 sm:py-3 rounded-xl hover:from-yellow-600 hover:to-amber-600 transition-all font-semibold shadow-lg hover:shadow-xl disabled:opacity-50 flex items-center justify-center gap-2"
           >
             {isLoading ? (
               <>
