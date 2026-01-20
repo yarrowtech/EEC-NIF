@@ -52,6 +52,7 @@ router.post('/register', async (req, res) => {
           username,
           password,
           name,
+          role: 'admin',
           schoolId: resolved,
         });
         await admin.save();
@@ -64,7 +65,7 @@ router.post('/register', async (req, res) => {
     if (!isStrongPassword(password)) {
       return res.status(400).json({ error: passwordPolicyMessage });
     }
-    const admin = new Admin({ username, password, name, schoolId: null });
+    const admin = new Admin({ username, password, name, role: 'super_admin', schoolId: null });
     await admin.save();
     res.status(201).json({ message: 'Admin registered' });
   } catch (err) {
@@ -116,7 +117,7 @@ router.post('/school-admins', adminAuth, ensureSuperAdmin, async (req, res) => {
     const resolved = await resolveSchoolIdOrError(schoolId, res);
     if (!resolved) return;
 
-    const admin = new Admin({ username, password, name, schoolId: resolved });
+    const admin = new Admin({ username, password, name, role: 'admin', schoolId: resolved });
     await admin.save();
     const created = await Admin.findById(admin._id)
       .select('-password')

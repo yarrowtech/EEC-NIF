@@ -65,6 +65,7 @@ const seedSuperAdmin = async () => {
     if (existing) {
       existing.password = password;
       existing.name = name;
+      existing.role = 'super_admin';
       existing.schoolId = null;
       await existing.save();
       console.log(`Updated super admin user: ${normalizedUsername}`);
@@ -74,12 +75,22 @@ const seedSuperAdmin = async () => {
       username: normalizedUsername,
       password,
       name,
+      role: 'super_admin',
       schoolId: null,
     });
     await admin.save();
     console.log(`Seeded super admin user: ${normalizedUsername}`);
   } catch (err) {
     console.error('Failed to seed super admin user:', err.message);
+  }
+};
+
+const ensureAdminRoles = async () => {
+  try {
+    await Admin.updateMany({ role: { $exists: false }, schoolId: { $ne: null } }, { $set: { role: 'admin' } });
+    await Admin.updateMany({ role: { $exists: false }, schoolId: null }, { $set: { role: 'super_admin' } });
+  } catch (err) {
+    console.error('Failed to backfill admin roles:', err.message);
   }
 };
 
@@ -196,6 +207,7 @@ mongoose
   .connect(process.env.MONGODB_URL)
   .then(async () => {
     console.log('MongoDB Connected');
+    await ensureAdminRoles();
     await seedSuperAdmin();
     await seedPrincipal();
   })

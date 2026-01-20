@@ -14,6 +14,7 @@ const adminSchema = new mongoose.Schema({
   password: { type: String, required: true },
   name: String,
   avatar: String,
+  role: { type: String, enum: ['admin', 'super_admin'], default: 'admin' },
   schoolId: { type: mongoose.Schema.Types.ObjectId, ref: 'School', default: null },
 });
 

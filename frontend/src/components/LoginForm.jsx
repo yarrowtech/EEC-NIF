@@ -49,7 +49,6 @@ const LoginForm = () => {
     setIsLoading(true);
     setLoginError('');
     try {
-      const superAdminIds = new Set(['696f5f9e1ec744262079f435']);
       const loginOptions = [
         { userType: 'Student', url: '/api/student/auth/login', redirect: '/dashboard' },
         { userType: 'Teacher', url: '/api/teacher/auth/login', redirect: '/teachers' },
@@ -90,7 +89,7 @@ const LoginForm = () => {
             });
             if (profileRes.ok) {
               const profile = await profileRes.json();
-              if (profile?._id && superAdminIds.has(profile._id)) {
+              if (profile?.role === 'super_admin') {
                 resolvedUserType = 'SuperAdmin';
                 redirectTo = '/super-admin/overview';
               }
