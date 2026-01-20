@@ -96,11 +96,36 @@ const TeacherPortal = () => {
       )}
 
       {/* Sidebar */}
-      <div className={`
-        fixed top-0 left-0 h-screen w-64 bg-white shadow-lg z-40 overflow-y-auto
-        transform transition-transform duration-300 ease-in-out
-        ${sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
-      `}>
+      <style>{`
+        .sidebar-custom-scrollbar::-webkit-scrollbar {
+          width: 8px;
+        }
+        .sidebar-custom-scrollbar::-webkit-scrollbar-track {
+          background: #FEF9C3;
+          border-radius: 10px;
+          margin: 8px 0;
+        }
+        .sidebar-custom-scrollbar::-webkit-scrollbar-thumb {
+          background: #EAB308;
+          border-radius: 10px;
+          transition: background 0.3s ease;
+        }
+        .sidebar-custom-scrollbar::-webkit-scrollbar-thumb:hover {
+          background: #CA8A04;
+        }
+      `}</style>
+      <div
+        className={`
+          sidebar-custom-scrollbar
+          fixed top-0 left-0 h-screen w-64 bg-white shadow-lg z-40 overflow-y-auto
+          transform transition-transform duration-300 ease-in-out
+          ${sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
+        `}
+        style={{
+          scrollbarWidth: 'thin',
+          scrollbarColor: '#EAB308 #FEF9C3'
+        }}
+      >
         <div className="p-6">
           <div className="flex items-center space-x-3 mb-8">
             <div className="h-12 w-12 rounded-full bg-yellow-100 flex items-center justify-center">

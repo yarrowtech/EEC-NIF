@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
-import { 
-  Users, 
+import { Link, useNavigate } from 'react-router-dom';
+import {
+  Users,
   Activity,
   Calendar,
   FileText,
@@ -19,12 +19,14 @@ import {
   ChevronRight,
   Search,
   Filter,
-  AlertTriangle
+  AlertTriangle,
+  LogOut
 } from 'lucide-react';
 
 const TeacherDashboard = () => {
   const [currentDateTime, setCurrentDateTime] = useState(new Date());
   const [unreadNotifications] = useState(5);
+  const navigate = useNavigate();
 
   // Update time every second
   useEffect(() => {
@@ -34,6 +36,13 @@ const TeacherDashboard = () => {
 
     return () => clearInterval(timer);
   }, []);
+
+  // Handle logout
+  const handleLogout = () => {
+    localStorage.removeItem('token');
+    localStorage.removeItem('userType');
+    navigate('/');
+  };
 
   // Format date and time
   const formatDateTime = (date) => {
@@ -261,6 +270,15 @@ const TeacherDashboard = () => {
               </div>
               <span className="text-xs text-blue-100">{currentDateTime.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}</span>
             </div>
+            {/* Logout Button */}
+            <button
+              onClick={handleLogout}
+              className="bg-red-500 hover:bg-red-600 px-4 py-2 rounded-lg transition-colors flex items-center space-x-2"
+              title="Logout"
+            >
+              <LogOut className="w-5 h-5" />
+              <span className="hidden md:inline font-medium">Logout</span>
+            </button>
           </div>
         </div>
       </div>
