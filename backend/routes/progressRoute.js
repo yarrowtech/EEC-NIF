@@ -7,7 +7,7 @@ const adminAuth = require('../middleware/adminAuth');
 const teacherAuth = require('../middleware/authTeacher');
 
 const resolveSchoolId = (req, res) => {
-  const schoolId = req.schoolId || req.admin?.schoolId || null;
+  const schoolId = req.schoolId || req.admin?.schoolId || req.user?.schoolId || null;
   if (!schoolId) {
     res.status(400).json({ error: 'schoolId is required' });
     return null;
@@ -30,7 +30,7 @@ router.get('/students', adminAuth, async (req, res) => {
     const students = await StudentUser.find(studentFilter).select('name grade section roll');
     const studentIds = students.map(student => student._id);
 
-    let progressQuery = { studentId: { $in: studentIds } };
+    let progressQuery = { studentId: { $in: studentIds }, schoolId };
     
     const progressData = await StudentProgress.find(progressQuery)
       .populate('studentId', 'name grade section roll')

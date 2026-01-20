@@ -13,8 +13,8 @@ const ensureSuperAdmin = (req, res, next) => {
   return next();
 };
 
-// Create school (admin only)
-router.post('/', adminAuth, async (req, res) => {
+// Create school (super admin only)
+router.post('/', adminAuth, ensureSuperAdmin, async (req, res) => {
   // #swagger.tags = ['Schools']
   try {
     const { name, code, address, contactEmail, contactPhone, status } = req.body;
@@ -43,19 +43,25 @@ router.post('/', adminAuth, async (req, res) => {
   }
 });
 
-// List schools (admin only)
-router.get('/', adminAuth, async (_req, res) => {
+// List schools (admin only; scoped for school admins)
+router.get('/', adminAuth, async (req, res) => {
   // #swagger.tags = ['Schools']
   try {
-    const schools = await School.find().sort({ createdAt: -1 }).lean();
+    const filter = {};
+    if (!req.isSuperAdmin) {
+      filter._id = req.schoolId;
+    } else if (req.schoolId) {
+      filter._id = req.schoolId;
+    }
+    const schools = await School.find(filter).sort({ createdAt: -1 }).lean();
     res.json(schools);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
-// Get pending registrations (admin only) - must be before /:id
-router.get('/registrations/pending', adminAuth, async (req, res) => {
+// Get pending registrations (super admin only) - must be before /:id
+router.get('/registrations/pending', adminAuth, ensureSuperAdmin, async (req, res) => {
   // #swagger.tags = ['School Registration']
   try {
     const schools = await School.find({
@@ -111,8 +117,8 @@ router.put('/registrations/approve-all', adminAuth, ensureSuperAdmin, async (req
   }
 });
 
-// Get single registration details (admin only) - must be before /:id
-router.get('/registrations/:id', adminAuth, async (req, res) => {
+// Get single registration details (super admin only) - must be before /:id
+router.get('/registrations/:id', adminAuth, ensureSuperAdmin, async (req, res) => {
   // #swagger.tags = ['School Registration']
   try {
     const { id } = req.params;
@@ -131,8 +137,8 @@ router.get('/registrations/:id', adminAuth, async (req, res) => {
   }
 });
 
-// Approve registration (admin only) - must be before /:id
-router.put('/registrations/:id/approve', adminAuth, async (req, res) => {
+// Approve registration (super admin only) - must be before /:id
+router.put('/registrations/:id/approve', adminAuth, ensureSuperAdmin, async (req, res) => {
   // #swagger.tags = ['School Registration']
   try {
     const { id } = req.params;
@@ -170,8 +176,8 @@ router.put('/registrations/:id/approve', adminAuth, async (req, res) => {
   }
 });
 
-// Reject registration (admin only) - must be before /:id
-router.put('/registrations/:id/reject', adminAuth, async (req, res) => {
+// Reject registration (super admin only) - must be before /:id
+router.put('/registrations/:id/reject', adminAuth, ensureSuperAdmin, async (req, res) => {
   // #swagger.tags = ['School Registration']
   try {
     const { id } = req.params;
@@ -220,6 +226,9 @@ router.get('/:id', adminAuth, async (req, res) => {
     const { id } = req.params;
     if (!mongoose.isValidObjectId(id)) {
       return res.status(400).json({ error: 'Invalid school id' });
+    }
+    if (!req.isSuperAdmin && req.schoolId && String(req.schoolId) !== String(id)) {
+      return res.status(403).json({ error: 'Access denied' });
     }
     const school = await School.findById(id).lean();
     if (!school) {

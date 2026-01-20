@@ -1,13 +1,26 @@
 const express = require('express');
 const router = express.Router();
 const StudentUser = require('../models/StudentUser');
+const authStudent = require('../middleware/authStudent');
+
+const ensureStudentAccess = (req, res, studentId) => {
+  if (req.userType === 'Admin') return true;
+  if (req.user?.id && String(req.user.id) === String(studentId)) return true;
+  res.status(403).json({ error: 'Access denied' });
+  return false;
+};
 
 // Get available courses for AI learning
-router.get('/courses/:studentId', async (req, res) => {
+router.get('/courses/:studentId', authStudent, async (req, res) => {
   // #swagger.tags = ['Student AI Learning']
   try {
     const { studentId } = req.params;
-    const student = await StudentUser.findById(studentId);
+    if (!ensureStudentAccess(req, res, studentId)) return;
+    const schoolId = req.schoolId || req.user?.schoolId || null;
+    if (!schoolId) {
+      return res.status(400).json({ error: 'schoolId is required' });
+    }
+    const student = await StudentUser.findOne({ _id: studentId, schoolId });
     
     if (!student) {
       return res.status(404).json({ error: 'Student not found' });
@@ -62,10 +75,11 @@ router.post('/generate-content', async (req, res) => {
 });
 
 // Get learning progress for a student
-router.get('/progress/:studentId', async (req, res) => {
+router.get('/progress/:studentId', authStudent, async (req, res) => {
   // #swagger.tags = ['Student AI Learning']
   try {
     const { studentId } = req.params;
+    if (!ensureStudentAccess(req, res, studentId)) return;
     
     // Mock progress data - in real implementation, this would come from a progress tracking system
     const progress = {
@@ -96,10 +110,11 @@ router.get('/progress/:studentId', async (req, res) => {
 });
 
 // Save learning activity
-router.post('/activity', async (req, res) => {
+router.post('/activity', authStudent, async (req, res) => {
   // #swagger.tags = ['Student AI Learning']
   try {
     const { studentId, topic, subject, activityType, timeSpent, completed } = req.body;
+    if (!ensureStudentAccess(req, res, studentId)) return;
     
     // In real implementation, save to database
     const activity = {
@@ -125,10 +140,11 @@ router.post('/activity', async (req, res) => {
 });
 
 // Get AI study recommendations
-router.get('/recommendations/:studentId', async (req, res) => {
+router.get('/recommendations/:studentId', authStudent, async (req, res) => {
   // #swagger.tags = ['Student AI Learning']
   try {
     const { studentId } = req.params;
+    if (!ensureStudentAccess(req, res, studentId)) return;
     
     const recommendations = [
       {

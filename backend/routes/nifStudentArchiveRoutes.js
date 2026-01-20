@@ -5,11 +5,20 @@ const adminAuth = require("../middleware/adminAuth");
 
 const NifArchivedStudent = require("../models/NifArchivedStudent");
 
+const ensureSuperAdmin = (req, res, next) => {
+  if (!req.isSuperAdmin) {
+    return res.status(403).json({ message: "Super admin access required" });
+  }
+  return next();
+};
+
+router.use(adminAuth, ensureSuperAdmin);
+
 /**
  * GET /api/nif/students/archived
  * List archived students (for ArchivedStudents.jsx table)
  */
-router.get("/", adminAuth, async (req, res) => {
+router.get("/", async (req, res) => {
   // #swagger.tags = ['NIF Student Archive']
   try {
     console.log("Fetching archived students...");
@@ -29,7 +38,7 @@ router.get("/", adminAuth, async (req, res) => {
  * GET /api/nif/students/archived/export
  * Download CSV of archived students
  */
-router.get("/export", adminAuth, async (req, res) => {
+router.get("/export", async (req, res) => {
   // #swagger.tags = ['NIF Student Archive']
   try {
     const archived = await NifArchivedStudent.find().sort({
@@ -94,7 +103,7 @@ router.get("/export", adminAuth, async (req, res) => {
  * (Optional) PUT /api/nif/students/archived/:id/restore
  * Restore a student from archive back to active (for future use)
  */
-router.put("/:id/restore", adminAuth, async (req, res) => {
+router.put("/:id/restore", async (req, res) => {
   // #swagger.tags = ['NIF Student Archive']
   try {
     // Implementation in future if you want restore feature

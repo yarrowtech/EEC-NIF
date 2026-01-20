@@ -6,18 +6,21 @@ const mongoose = require('mongoose');
 const Principal = require('../models/Principal');
 const rateLimit = require('../middleware/rateLimit');
 const { isStrongPassword, passwordPolicyMessage } = require('../utils/passwordPolicy');
+const adminAuth = require('../middleware/adminAuth');
 
 const normalize = (value = '') => String(value).trim().toLowerCase();
 
-router.post('/register', async (req, res) => {
+router.post('/register', adminAuth, async (req, res) => {
   // #swagger.tags = ['Principals']
   const { username, email, password, name, schoolId } = req.body || {};
   try {
     if (!isStrongPassword(password)) {
       return res.status(400).json({ error: passwordPolicyMessage });
     }
-    const resolvedSchoolId =
-      schoolId && mongoose.isValidObjectId(schoolId) ? schoolId : null;
+    const resolvedSchoolId = req.schoolId || (req.isSuperAdmin ? schoolId : null);
+    if (!resolvedSchoolId || !mongoose.isValidObjectId(resolvedSchoolId)) {
+      return res.status(400).json({ error: 'Valid schoolId is required' });
+    }
     const principalEmail = normalize(email || username);
     if (!principalEmail) {
       return res.status(400).json({ error: 'email or username is required' });

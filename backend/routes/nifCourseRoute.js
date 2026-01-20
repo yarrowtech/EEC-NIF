@@ -4,7 +4,16 @@ const mongoose = require("mongoose");
 const router = express.Router();
 
 const NifCourse = require("../models/NifCourse");
-// const authAdmin = require("../middleware/authAdmin"); // enable later if needed
+const adminAuth = require("../middleware/adminAuth");
+
+const ensureSuperAdmin = (req, res, next) => {
+  if (!req.isSuperAdmin) {
+    return res.status(403).json({ message: "Super admin access required" });
+  }
+  return next();
+};
+
+router.use(adminAuth, ensureSuperAdmin);
 
 const PROGRAM_LABELS = {
   ADV_CERT: "Advance Certificate",

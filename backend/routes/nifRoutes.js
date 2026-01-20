@@ -9,6 +9,15 @@ const NifFeeRecord = require('../models/NifFeeRecord');
 const NifCourse = require('../models/NifCourse');
 const adminAuth = require('../middleware/adminAuth');
 
+const ensureSuperAdmin = (req, res, next) => {
+  if (!req.isSuperAdmin) {
+    return res.status(403).json({ error: 'Super admin access required' });
+  }
+  return next();
+};
+
+router.use(adminAuth, ensureSuperAdmin);
+
 const PROGRAM_LABELS = {
   ADV_CERT: 'Advance Certificate',
   B_VOC: 'B.Voc',

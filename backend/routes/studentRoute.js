@@ -191,12 +191,13 @@ router.post('/login', rateLimit({ windowMs: 60 * 1000, max: 10 }), async (req, r
 });
 
 // Test endpoint to check if any students exist
-router.get('/test/list', async (req, res) => {
+router.get('/test/list', adminAuth, async (req, res) => {
   // #swagger.tags = ['Students']
   try {
-    const students = await StudentUser.find().select('username name grade section').limit(5).lean();
+    const filter = req.schoolId ? { schoolId: req.schoolId } : {};
+    const students = await StudentUser.find(filter).select('username name grade section').limit(5).lean();
     res.json({
-      total: await StudentUser.countDocuments(),
+      total: await StudentUser.countDocuments(filter),
       sample: students
     });
   } catch (err) {
