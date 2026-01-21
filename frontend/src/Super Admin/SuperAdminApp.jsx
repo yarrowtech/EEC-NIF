@@ -101,6 +101,8 @@ const SuperAdminApp = () => {
   const [feedbackItems, setFeedbackItems] = useState(initialFeedback);
   const [issues, setIssues] = useState(initialIssues);
   const [tickets, setTickets] = useState(initialTickets);
+  const [ticketsLoading, setTicketsLoading] = useState(false);
+  const [ticketsError, setTicketsError] = useState(null);
   const [announcements, setAnnouncements] = useState(initialAnnouncements);
   const [complianceItems, setComplianceItems] = useState(initialComplianceItems);
   const [activityFeed, setActivityFeed] = useState(initialActivityFeed);
@@ -126,6 +128,27 @@ const SuperAdminApp = () => {
       return acc;
     }, {})
   );
+
+  const normalizeSupportTicket = useCallback((ticket) => {
+    if (!ticket) return null;
+    return {
+      id: ticket.id || ticket._id,
+      ticketNumber: ticket.ticketNumber,
+      schoolName: ticket.schoolName || 'Unknown school',
+      category: ticket.category || ticket.supportType,
+      subject: ticket.subject || ticket.message || 'Support request',
+      openedAt: ticket.createdAt || ticket.openedAt,
+      status: ticket.status || 'open',
+      owner: ticket.owner || 'Support Desk',
+      priority: ticket.priority || 'low',
+      supportType: ticket.supportType,
+      requestDetails: ticket.requestDetails || {},
+      resolutionNotes: ticket.resolutionNotes,
+      passwordReset: ticket.passwordReset,
+      contactEmail: ticket.contactEmail,
+      contactPhone: ticket.contactPhone
+    };
+  }, []);
 
   const generateSecurePassword = () => {
     const uppercase = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
@@ -264,6 +287,74 @@ const SuperAdminApp = () => {
     }
   }, []);
 
+  const fetchSupportTickets = useCallback(async () => {
+    const token = localStorage.getItem('token');
+    if (!token || !API_BASE) {
+      setTickets(initialTickets);
+      return;
+    }
+    setTicketsLoading(true);
+    setTicketsError(null);
+    try {
+      const response = await fetch(`${API_BASE}/api/support/requests`, {
+        headers: {
+          Authorization: `Bearer ${token}`
+        }
+      });
+      if (!response.ok) {
+        throw new Error('Failed to load support requests');
+      }
+      const data = await response.json();
+      setTickets(Array.isArray(data) ? data.map((ticket) => normalizeSupportTicket(ticket)) : []);
+    } catch (error) {
+      console.error('Failed to fetch support tickets', error);
+      setTicketsError(error.message || 'Unable to fetch support tickets');
+    } finally {
+      setTicketsLoading(false);
+    }
+  }, [normalizeSupportTicket]);
+
+  const handleTicketUpdate = useCallback(
+    async (ticketId, updates = {}) => {
+      setTickets((prev) =>
+        prev.map((ticket) =>
+          ticket.id === ticketId
+            ? {
+                ...ticket,
+                ...updates,
+                updatedAt: new Date().toISOString()
+              }
+            : ticket
+        )
+      );
+      const token = localStorage.getItem('token');
+      if (!token || !API_BASE) {
+        return;
+      }
+      try {
+        const response = await fetch(`${API_BASE}/api/support/requests/${ticketId}`, {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`
+          },
+          body: JSON.stringify(updates)
+        });
+        if (!response.ok) {
+          throw new Error('Failed to update ticket');
+        }
+        const data = await response.json();
+        setTickets((prev) =>
+          prev.map((ticket) => (ticket.id === ticketId ? normalizeSupportTicket(data) : ticket))
+        );
+      } catch (error) {
+        console.error('Failed to update ticket', error);
+        fetchSupportTickets();
+      }
+    },
+    [fetchSupportTickets, normalizeSupportTicket]
+  );
+
   useEffect(() => {
     setCredentials((prev) => {
       const updated = { ...prev };
@@ -284,6 +375,10 @@ const SuperAdminApp = () => {
   useEffect(() => {
     fetchRequests();
   }, [fetchRequests]);
+
+  useEffect(() => {
+    fetchSupportTickets();
+  }, [fetchSupportTickets]);
 
   useEffect(() => {
     fetchActiveSchools();
@@ -361,7 +456,7 @@ const SuperAdminApp = () => {
       try {
         const data = await response.json();
         message = data?.error || message;
-      } catch (err) {
+      } catch {
         // ignore parse errors
       }
       throw new Error(message);
@@ -546,20 +641,6 @@ const SuperAdminApp = () => {
     );
   };
 
-  const handleTicketUpdate = (ticketId, updates) => {
-    setTickets((prev) =>
-      prev.map((ticket) =>
-        ticket.id === ticketId
-          ? {
-              ...ticket,
-              ...updates,
-              updatedAt: new Date().toISOString()
-            }
-          : ticket
-      )
-    );
-  };
-
   const pushActivity = (entry) => {
     setActivityFeed((prev) => [
       {
@@ -702,6 +783,9 @@ const SuperAdminApp = () => {
           <Tickets
             tickets={tickets}
             onTicketUpdate={handleTicketUpdate}
+            loading={ticketsLoading}
+            error={ticketsError}
+            onRefresh={fetchSupportTickets}
           />
         } />
         <Route path="credentials" element={

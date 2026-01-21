@@ -25,6 +25,7 @@ import StudentFeeDetails from './pages/StudentFeeDetails';
 import HR from './pages/HR';
 import SchoolRegistrations from './pages/SchoolRegistrations';
 import SuperAdminDashboard from './pages/SuperAdminDashboard';
+import Support from './pages/Support';
 import { useState, useEffect, useMemo } from 'react';
 import { ADMIN_MENU_ITEMS } from './adminConstants';
 
@@ -138,6 +139,7 @@ const AdminApp = () => {
         <Route path="fees/dashboard" element={<FeesDashboard setShowAdminHeader={setShowAdminHeader} />} />
         <Route path="fees/student-details" element={<StudentFeeDetails setShowAdminHeader={setShowAdminHeader} />} />
         <Route path="hr" element={<HR setShowAdminHeader={setShowAdminHeader} />} />
+        <Route path="support" element={<Support setShowAdminHeader={setShowAdminHeader} />} />
         <Route path="school-registrations" element={<SchoolRegistrations setShowAdminHeader={setShowAdminHeader} />} />
       </Routes>
     </AdminLayout>

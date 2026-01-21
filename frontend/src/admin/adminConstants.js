@@ -19,7 +19,8 @@ import {
   Layers,
   Building2,
   Shield,
-  UserRound
+  UserRound,
+  LifeBuoy
 } from 'lucide-react';
 
 export const ADMIN_MENU_ITEMS = [
@@ -148,6 +149,11 @@ export const ADMIN_MENU_ITEMS = [
     icon: Briefcase, 
     label: 'HR', 
     path: '/admin/hr' 
+  },
+  { 
+    icon: LifeBuoy, 
+    label: 'Support', 
+    path: '/admin/support'
   }
 ];
 
