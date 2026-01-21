@@ -5,14 +5,18 @@ const adminAuth = require("../middleware/adminAuth");
 
 const NifArchivedStudent = require("../models/NifArchivedStudent");
 
-const ensureSuperAdmin = (req, res, next) => {
-  if (!req.isSuperAdmin) {
-    return res.status(403).json({ message: "Super admin access required" });
-  }
-  return next();
+const buildSchoolFilter = (req) => {
+  if (!req.schoolId) return {};
+  return {
+    $or: [
+      { schoolId: req.schoolId },
+      { schoolId: { $exists: false } },
+      { schoolId: null },
+    ],
+  };
 };
 
-router.use(adminAuth, ensureSuperAdmin);
+router.use(adminAuth);
 
 /**
  * GET /api/nif/students/archived
@@ -22,7 +26,7 @@ router.get("/", async (req, res) => {
   // #swagger.tags = ['NIF Student Archive']
   try {
     console.log("Fetching archived students...");
-    const archived = await NifArchivedStudent.find()
+    const archived = await NifArchivedStudent.find(buildSchoolFilter(req))
       .sort({ archivedAt: -1 })
       .lean();
 
@@ -41,7 +45,7 @@ router.get("/", async (req, res) => {
 router.get("/export", async (req, res) => {
   // #swagger.tags = ['NIF Student Archive']
   try {
-    const archived = await NifArchivedStudent.find().sort({
+    const archived = await NifArchivedStudent.find(buildSchoolFilter(req)).sort({
       archivedAt: -1,
     });
 

@@ -14,6 +14,7 @@ const feeSummarySchema = new Schema(
 const NifArchivedStudentSchema = new Schema(
   {
     originalStudentId: { type: Schema.Types.ObjectId, ref: "NifStudent" },
+    schoolId: { type: Schema.Types.ObjectId, ref: "School", index: true },
 
     // Student identity
     studentName: String,

@@ -6,14 +6,15 @@ const router = express.Router();
 const NifCourse = require("../models/NifCourse");
 const adminAuth = require("../middleware/adminAuth");
 
-const ensureSuperAdmin = (req, res, next) => {
+const ensureSuperAdmin = (req, res) => {
   if (!req.isSuperAdmin) {
-    return res.status(403).json({ message: "Super admin access required" });
+    res.status(403).json({ message: "Super admin access required" });
+    return false;
   }
-  return next();
+  return true;
 };
 
-router.use(adminAuth, ensureSuperAdmin);
+router.use(adminAuth);
 
 const PROGRAM_LABELS = {
   ADV_CERT: "Advance Certificate",
@@ -117,6 +118,9 @@ router.get("/fetch", async (req, res, next) => {
 router.post("/add", /* authAdmin, */ async (req, res, next) => {
   // #swagger.tags = ['NIF Courses']
   try {
+    if (!ensureSuperAdmin(req, res)) {
+      return;
+    }
     const body = req.body || {};
 
     const title = (body.name || "").trim();
@@ -254,6 +258,9 @@ router.get("/fee-structure", async (req, res, next) => {
 router.post("/fee-structure", async (req, res, next) => {
   // #swagger.tags = ['NIF Courses']
   try {
+    if (!ensureSuperAdmin(req, res)) {
+      return;
+    }
     const { programType, stream, courseId, components } = req.body || {};
 
     const normalizedProgram = normalizeProgramType(programType);
@@ -340,6 +347,9 @@ router.get("/:id", async (req, res, next) => {
 router.patch("/:id", /* authAdmin, */ async (req, res, next) => {
   // #swagger.tags = ['NIF Courses']
   try {
+    if (!ensureSuperAdmin(req, res)) {
+      return;
+    }
     const { id } = req.params;
     if (!mongoose.isValidObjectId(id)) {
       return res.status(400).json({ message: "Invalid id" });
@@ -447,6 +457,9 @@ router.patch("/:id", /* authAdmin, */ async (req, res, next) => {
 router.delete("/:id", /* authAdmin, */ async (req, res, next) => {
   // #swagger.tags = ['NIF Courses']
   try {
+    if (!ensureSuperAdmin(req, res)) {
+      return;
+    }
     const { id } = req.params;
     if (!mongoose.isValidObjectId(id)) {
       return res.status(400).json({ message: "Invalid id" });
