@@ -18,6 +18,10 @@ const adminSchema = new mongoose.Schema({
   role: { type: String, enum: ['admin', 'super_admin'], default: 'admin' },
   status: { type: String, enum: ['active', 'inactive'], default: 'active' },
   schoolId: { type: mongoose.Schema.Types.ObjectId, ref: 'School', default: null },
+  campusId: { type: String, default: null },
+  campusName: { type: String, default: null },
+  campusType: { type: String, default: null },
+  lastLoginAt: { type: Date, default: null },
 });
 
 adminSchema.pre('save', async function (next) {

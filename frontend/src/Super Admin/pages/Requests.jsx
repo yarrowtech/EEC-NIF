@@ -39,6 +39,30 @@ const Requests = ({
     onRequestAction(requestId, status, note);
   };
 
+  const resolveCampuses = (request) => {
+    if (!request) return [];
+    if (Array.isArray(request.campusList) && request.campusList.length > 0) {
+      return request.campusList;
+    }
+    if (Array.isArray(request.campuses) && request.campuses.length > 0) {
+      return request.campuses;
+    }
+    if (request.campusName) {
+      return [{ name: request.campusName, campusType: 'Main' }];
+    }
+    return [
+      {
+        name: request.schoolName || request.name || 'Main Campus',
+        campusType: 'Main'
+      }
+    ];
+  };
+
+  const campusKeyFor = (campus, index = 0) => {
+    const rawKey = campus?.id || campus?._id || campus?.campusId || campus?.name || `campus-${index}`;
+    return String(rawKey);
+  };
+
   return (
     <div className="space-y-6">
       <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6">
@@ -133,7 +157,8 @@ const Requests = ({
       {!loading && (
         <div className="space-y-4">
         {filteredRequests.map((request) => {
-          const credential = schoolCredentials[request.id];
+          const credentialBucket = schoolCredentials[request.id];
+          const campusList = resolveCampuses(request);
           return (
           <div key={request.id} className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
             <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
@@ -162,50 +187,77 @@ const Requests = ({
               </div>
             </div>
 
-            <div className="mt-4 bg-slate-50 border border-slate-200 rounded-xl p-4 flex flex-col gap-3">
-              <div className="flex items-center gap-3">
-                <BadgeCheck className="text-amber-500" size={18} />
-                <div>
-                  <p className="text-xs uppercase text-slate-500">School ID</p>
-                  <p className="text-base font-semibold text-slate-800">
-                    {credential?.code || 'No ID generated yet'}
-                  </p>
-                  {credential?.generatedAt && (
-                    <p className="text-xs text-slate-500">
-                      Generated {new Date(credential.generatedAt).toLocaleString()}
-                    </p>
-                  )}
-                </div>
+            <div className="mt-4 bg-slate-50 border border-slate-200 rounded-xl p-4 flex flex-col gap-4">
+              <div className="flex items-center gap-2 text-xs uppercase text-slate-500">
+                <BadgeCheck className="text-amber-500" size={16} />
+                Campus credentials
               </div>
-              <div className="flex flex-wrap gap-3">
-                <div className="flex items-center gap-2">
-                  <span className="text-xs uppercase text-slate-500">Password</span>
-                  <span className="font-mono text-sm text-slate-800">
-                    {credential?.password || 'Not generated'}
-                  </span>
-                  {credential?.password && (
-                    <button
-                      className="flex items-center gap-1 text-xs text-slate-500 border border-slate-300 rounded-lg px-2 py-1"
-                      onClick={() => navigator.clipboard.writeText(credential.password)}
-                    >
-                      <Copy size={12} /> Copy
-                    </button>
-                  )}
-                </div>
-                <button
-                  className="px-4 py-2 rounded-lg border border-slate-200 text-slate-600 text-sm"
-                  onClick={() => onGenerateSchoolCredentials?.(request)}
-                >
-                  {credential ? 'Regenerate credentials' : 'Generate ID & password'}
-                </button>
-                {credential?.code && (
-                  <button
-                    className="px-4 py-2 rounded-lg bg-slate-900 text-white text-sm flex items-center gap-1"
-                    onClick={() => navigator.clipboard.writeText(credential.code)}
-                  >
-                    <Copy size={14} /> Copy ID
-                  </button>
-                )}
+              <div className="space-y-3">
+                {campusList.map((campus, campusIndex) => {
+                  const campusKey = campusKeyFor(campus, campusIndex);
+                  const campusCredentials = credentialBucket?.campuses || {};
+                  const credential =
+                    campusCredentials[campusKey] ||
+                    campusCredentials.default ||
+                    (campusIndex === 0 && credentialBucket?.code ? credentialBucket : null);
+                  return (
+                    <div key={`${campusKey}-${campusIndex}`} className="rounded-xl border border-slate-200 bg-white p-4">
+                      <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                        <div>
+                          <p className="text-sm font-semibold text-slate-800">
+                            {campus?.name || `Campus ${campusIndex + 1}`}
+                          </p>
+                          <p className="text-xs text-slate-500">
+                            {campus?.campusType || 'Campus'}
+                          </p>
+                          {credential?.generatedAt && (
+                            <p className="text-xs text-slate-400">
+                              Generated {new Date(credential.generatedAt).toLocaleString()}
+                            </p>
+                          )}
+                        </div>
+                        <div className="flex flex-wrap items-center gap-3 text-sm">
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs uppercase text-slate-500">Username</span>
+                            <span className="font-mono text-sm text-slate-800">
+                              {credential?.code || 'Not generated'}
+                            </span>
+                            {credential?.code && (
+                              <button
+                                className="flex items-center gap-1 text-xs text-slate-500 border border-slate-300 rounded-lg px-2 py-1"
+                                onClick={() => navigator.clipboard.writeText(credential.code)}
+                              >
+                                <Copy size={12} /> Copy
+                              </button>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs uppercase text-slate-500">Password</span>
+                            <span className="font-mono text-sm text-slate-800">
+                              {credential?.password || 'Not generated'}
+                            </span>
+                            {credential?.password && (
+                              <button
+                                className="flex items-center gap-1 text-xs text-slate-500 border border-slate-300 rounded-lg px-2 py-1"
+                                onClick={() => navigator.clipboard.writeText(credential.password)}
+                              >
+                                <Copy size={12} /> Copy
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        <button
+                          className="px-4 py-2 rounded-lg border border-slate-200 text-slate-600 text-sm"
+                          onClick={() => onGenerateSchoolCredentials?.(request, campus, campusIndex)}
+                        >
+                          {credential ? 'Regenerate credentials' : 'Generate username & password'}
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             </div>
 

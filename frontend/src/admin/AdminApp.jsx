@@ -75,6 +75,8 @@ const AdminApp = () => {
     name: adminProfile?.name || 'Admin User',
     role: isSuperAdmin ? 'SUPER ADMIN' : 'School Admin',
     avatar: adminProfile?.avatar || '',
+    campusName: adminProfile?.campusName || '',
+    campusType: adminProfile?.campusType || ''
   };
 
   return (

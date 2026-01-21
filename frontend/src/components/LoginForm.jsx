@@ -4,13 +4,17 @@ import { useNavigate, Link } from 'react-router-dom';
 
 const LoginForm = () => {
   const [showPass, setShowPass] = useState(false);
+  const [resetMode, setResetMode] = useState(false);
   const [formData, setFormData] = useState({
     username: '',
     password: '',
+    newPassword: '',
+    confirmPassword: '',
     rememberMe: false
   });
   const [errors, setErrors] = useState({});
   const [loginError, setLoginError] = useState('');
+  const [resetNotice, setResetNotice] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
 
@@ -26,6 +30,9 @@ const LoginForm = () => {
     }
     if (loginError) {
       setLoginError('');
+    }
+    if (resetNotice) {
+      setResetNotice('');
     }
   };
 
@@ -43,12 +50,79 @@ const LoginForm = () => {
     return Object.keys(newErrors).length === 0;
   };
 
+  const validateReset = () => {
+    const newErrors = {};
+    if (!formData.username.trim()) {
+      newErrors.username = 'Username is required';
+    }
+    if (!formData.newPassword) {
+      newErrors.newPassword = 'New password is required';
+    } else if (formData.newPassword.length < 8) {
+      newErrors.newPassword = 'Password must be at least 8 characters';
+    } else if (!/[a-z]/.test(formData.newPassword)
+      || !/[A-Z]/.test(formData.newPassword)
+      || !/[0-9]/.test(formData.newPassword)) {
+      newErrors.newPassword = 'Include uppercase, lowercase, and a number';
+    }
+    if (!formData.confirmPassword) {
+      newErrors.confirmPassword = 'Confirm your password';
+    } else if (formData.newPassword !== formData.confirmPassword) {
+      newErrors.confirmPassword = 'Passwords do not match';
+    }
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!validateForm()) return;
+    if (resetMode) {
+      if (!validateReset()) return;
+    } else if (!validateForm()) {
+      return;
+    }
     setIsLoading(true);
     setLoginError('');
+    setResetNotice('');
     try {
+      if (resetMode) {
+        const resetRes = await fetch(`${import.meta.env.VITE_API_URL}/api/admin/auth/reset-first-password`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            username: formData.username,
+            newPassword: formData.newPassword
+          })
+        });
+
+        if (!resetRes.ok) {
+          const data = await resetRes.json().catch(() => ({}));
+          throw new Error(data?.error || 'Unable to reset password');
+        }
+
+        const loginRes = await fetch(`${import.meta.env.VITE_API_URL}/api/admin/auth/login`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            username: formData.username,
+            password: formData.newPassword
+          })
+        });
+
+        if (!loginRes.ok) {
+          throw new Error('Login failed after reset. Please sign in again.');
+        }
+
+        const loginData = await loginRes.json();
+        localStorage.setItem('token', loginData.token);
+        localStorage.setItem('userType', 'Admin');
+        navigate('/admin/dashboard');
+        return;
+      }
+
       const loginOptions = [
         { userType: 'Student', url: '/api/student/auth/login', redirect: '/dashboard' },
         { userType: 'Teacher', url: '/api/teacher/auth/login', redirect: '/teachers' },
@@ -71,10 +145,27 @@ const LoginForm = () => {
         });
 
         if (!res.ok) {
+          if (option.userType === 'Admin' && res.status === 403) {
+            const data = await res.json().catch(() => ({}));
+            throw new Error(data?.error || 'Account inactive. Contact EEC admin.');
+          }
           continue;
         }
 
         const data = await res.json();
+        if (option.userType === 'Admin' && data?.requiresPasswordReset) {
+          setResetMode(true);
+          setFormData((prev) => ({
+            ...prev,
+            username: data.username || prev.username,
+            password: '',
+            newPassword: '',
+            confirmPassword: ''
+          }));
+          setResetNotice('First login detected. Please reset your password.');
+          loggedIn = true;
+          break;
+        }
         localStorage.setItem('token', data.token);
         if (option.userType === 'Admin') {
           let resolvedUserType = option.userType;
@@ -129,10 +220,22 @@ const LoginForm = () => {
           <h4 className="text-2xl sm:text-3xl font-bold bg-gradient-to-r from-yellow-500 to-amber-600 bg-clip-text text-transparent">
             Welcome to EEC
           </h4>
-          <p className="text-sm sm:text-base text-gray-600">Please sign in to your account</p>
+          <p className="text-sm sm:text-base text-gray-600">
+            {resetMode ? 'Reset your password to continue' : 'Please sign in to your account'}
+          </p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4 sm:space-y-5">
+          {resetNotice && (
+            <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700">
+              {resetNotice}
+            </div>
+          )}
+          {loginError && (
+            <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+              {loginError}
+            </div>
+          )}
           {/* Username Field */}
           <div className="space-y-2">
             <label className="block text-sm font-semibold text-gray-700">Username</label>
@@ -156,6 +259,7 @@ const LoginForm = () => {
           </div>
 
           {/* Password Field */}
+          {!resetMode && (
           <div className="space-y-2">
             <div className="flex justify-between items-center">
               <label className="text-sm font-semibold text-gray-700">Password</label>
@@ -193,8 +297,65 @@ const LoginForm = () => {
               <p className="text-red-500 text-sm ">{errors.password}</p>
             )}
           </div>
+          )}
+
+          {resetMode && (
+            <>
+              <div className="space-y-2">
+                <label className="block text-sm font-semibold text-gray-700">New password</label>
+                <div className="relative">
+                  <Lock className="absolute left-3 top-3 w-5 h-5 text-gray-400" />
+                  <input
+                    type={showPass ? 'text' : 'password'}
+                    name="newPassword"
+                    value={formData.newPassword}
+                    onChange={handleInputChange}
+                    placeholder="Create a strong password"
+                    className={`w-full pl-10 pr-12 py-2.5 sm:py-3 border rounded-xl shadow-sm transition-all duration-200 focus:ring-2 focus:ring-yellow-500 focus:border-transparent outline-none ${errors.newPassword
+                        ? 'border-red-300 bg-red-50'
+                        : 'border-gray-300 hover:border-gray-400 focus:bg-white'
+                      }`}
+                  />
+                  <div className='flex justify-center items-center'>
+                    <button
+                      type="button"
+                      className="absolute right-3 top-3 text-gray-400 hover:text-gray-600"
+                      onClick={() => setShowPass(!showPass)}
+                    >
+                      {showPass ? <EyeOff size={20} /> : <Eye size={20} />}
+                    </button>
+                  </div>
+                </div>
+                {errors.newPassword && (
+                  <p className="text-red-500 text-sm ">{errors.newPassword}</p>
+                )}
+              </div>
+
+              <div className="space-y-2">
+                <label className="block text-sm font-semibold text-gray-700">Confirm password</label>
+                <div className="relative">
+                  <Lock className="absolute left-3 top-3 w-5 h-5 text-gray-400" />
+                  <input
+                    type={showPass ? 'text' : 'password'}
+                    name="confirmPassword"
+                    value={formData.confirmPassword}
+                    onChange={handleInputChange}
+                    placeholder="Re-enter your password"
+                    className={`w-full pl-10 pr-4 py-2.5 sm:py-3 border rounded-xl shadow-sm transition-all duration-200 focus:ring-2 focus:ring-yellow-500 focus:border-transparent outline-none ${errors.confirmPassword
+                        ? 'border-red-300 bg-red-50'
+                        : 'border-gray-300 hover:border-gray-400 focus:bg-white'
+                      }`}
+                  />
+                </div>
+                {errors.confirmPassword && (
+                  <p className="text-red-500 text-sm ">{errors.confirmPassword}</p>
+                )}
+              </div>
+            </>
+          )}
 
           {/* Remember Me */}
+          {!resetMode && (
           <div className="flex items-center">
             <input
               type="checkbox"
@@ -208,6 +369,7 @@ const LoginForm = () => {
               Remember me for 30 days
             </label>
           </div>
+          )}
 
           {/* Sign In Button */}
           <button
@@ -218,10 +380,10 @@ const LoginForm = () => {
             {isLoading ? (
               <>
                 <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
-                Signing in...
+                {resetMode ? 'Resetting...' : 'Signing in...'}
               </>
             ) : (
-              'Sign In'
+              resetMode ? 'Reset Password & Sign In' : 'Sign In'
             )}
           </button>
 

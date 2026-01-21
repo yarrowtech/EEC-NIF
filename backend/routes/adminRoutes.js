@@ -8,6 +8,7 @@ const School = require('../models/School');
 const adminAuth = require('../middleware/adminAuth');
 const rateLimit = require('../middleware/rateLimit');
 const { isStrongPassword, passwordPolicyMessage } = require('../utils/passwordPolicy');
+const { sendSchoolApprovalEmail } = require('../utils/mailer');
 
 const ensureSuperAdmin = (req, res, next) => {
   if (!req.isSuperAdmin) {
@@ -82,6 +83,20 @@ router.post('/login', rateLimit({ windowMs: 60 * 1000, max: 10 }), async (req, r
     if (!admin || !(await bcrypt.compare(password, admin.password))) {
       return res.status(401).json({ error: 'Invalid credentials' });
     }
+    if (admin.status === 'inactive') {
+      return res.status(403).json({ error: 'Account inactive. Contact EEC admin.' });
+    }
+    if (admin.role === 'admin') {
+      const school = await School.findById(admin.schoolId).select('status').lean();
+      if (!school || school.status === 'inactive') {
+        return res.status(403).json({ error: 'School inactive. Contact EEC admin.' });
+      }
+    }
+    if (admin.role === 'admin' && !admin.lastLoginAt) {
+      return res.json({ requiresPasswordReset: true, username: admin.username });
+    }
+    admin.lastLoginAt = new Date();
+    await admin.save();
     const token = jwt.sign(
       { id: admin._id, type: 'admin', schoolId: admin.schoolId || null },
       process.env.JWT_SECRET,
@@ -90,6 +105,82 @@ router.post('/login', rateLimit({ windowMs: 60 * 1000, max: 10 }), async (req, r
     res.json({ token });
   } catch (err) {
     res.status(400).json({ error: err.message });
+  }
+});
+
+router.post('/reset-first-password', rateLimit({ windowMs: 60 * 1000, max: 10 }), async (req, res) => {
+  // #swagger.tags = ['Admin Auth']
+  const { username, newPassword } = req.body || {};
+  try {
+    if (!username || !String(username).trim()) {
+      return res.status(400).json({ error: 'Username is required' });
+    }
+    if (!newPassword || !String(newPassword).trim()) {
+      return res.status(400).json({ error: 'New password is required' });
+    }
+    if (!isStrongPassword(newPassword)) {
+      return res.status(400).json({ error: passwordPolicyMessage });
+    }
+    const admin = await Admin.findOne({ username: String(username).trim() });
+    if (!admin || admin.role !== 'admin') {
+      return res.status(404).json({ error: 'Admin not found' });
+    }
+    if (admin.status === 'inactive') {
+      return res.status(403).json({ error: 'Account inactive. Contact EEC admin.' });
+    }
+    const school = await School.findById(admin.schoolId).select('status').lean();
+    if (!school || school.status === 'inactive') {
+      return res.status(403).json({ error: 'School inactive. Contact EEC admin.' });
+    }
+    if (admin.lastLoginAt) {
+      return res.status(400).json({ error: 'Password reset already completed' });
+    }
+    admin.password = String(newPassword);
+    admin.lastLoginAt = new Date();
+    await admin.save();
+    res.json({ message: 'Password reset successful' });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+router.post('/school-admins/notify-credentials', adminAuth, ensureSuperAdmin, async (req, res) => {
+  // #swagger.tags = ['Admin Auth']
+  const { schoolId, schoolName, contactEmail, campuses } = req.body || {};
+  try {
+    if (!schoolId || !mongoose.isValidObjectId(schoolId)) {
+      return res.status(400).json({ error: 'Valid schoolId is required' });
+    }
+    if (!Array.isArray(campuses) || campuses.length === 0) {
+      return res.status(400).json({ error: 'Campus credentials are required' });
+    }
+    const school = await School.findById(schoolId).select('name contactEmail').lean();
+    if (!school) {
+      return res.status(404).json({ error: 'School not found' });
+    }
+    const recipient = contactEmail || school.contactEmail;
+    if (!recipient) {
+      return res.status(400).json({ error: 'School contact email is required' });
+    }
+
+    const sanitizedCampuses = campuses.map((campus) => ({
+      campusName: campus.campusName || campus.name || 'Campus',
+      campusType: campus.campusType || 'Campus',
+      username: campus.username || campus.code || '',
+      password: campus.password || ''
+    }));
+
+    const loginUrl = process.env.APP_URL || process.env.FRONTEND_URL || 'http://localhost:5173';
+    await sendSchoolApprovalEmail({
+      to: recipient,
+      schoolName: schoolName || school.name,
+      campuses: sanitizedCampuses,
+      loginUrl
+    });
+
+    res.json({ message: 'Approval email sent' });
+  } catch (err) {
+    res.status(500).json({ error: err.message || 'Unable to send email' });
   }
 });
 
@@ -118,7 +209,7 @@ const resolveAvatarValue = (avatar) => {
 
 router.post('/school-admins', adminAuth, ensureSuperAdmin, async (req, res) => {
   // #swagger.tags = ['Admin Auth']
-  const { username, password, name, schoolId, email, avatar, status } = req.body;
+  const { username, password, name, schoolId, email, avatar, status, campusId, campusName, campusType } = req.body;
   try {
     if (!isStrongPassword(password)) {
       return res.status(400).json({ error: passwordPolicyMessage });
@@ -138,6 +229,15 @@ router.post('/school-admins', adminAuth, ensureSuperAdmin, async (req, res) => {
       existing.schoolId = resolved;
       existing.status = status || existing.status;
       existing.role = 'admin';
+      if (campusId !== undefined) {
+        existing.campusId = campusId;
+      }
+      if (campusName !== undefined) {
+        existing.campusName = campusName;
+      }
+      if (campusType !== undefined) {
+        existing.campusType = campusType;
+      }
       await existing.save();
       const updated = await Admin.findById(existing._id)
         .select('-password')
@@ -154,7 +254,10 @@ router.post('/school-admins', adminAuth, ensureSuperAdmin, async (req, res) => {
       avatar: normalizedAvatar,
       role: 'admin',
       status: status || 'active',
-      schoolId: resolved
+      schoolId: resolved,
+      campusId,
+      campusName,
+      campusType
     });
     await admin.save();
     const created = await Admin.findById(admin._id)

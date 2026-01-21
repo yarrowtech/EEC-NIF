@@ -9,7 +9,12 @@ export const initialSchoolRequests = [
     submittedAt: '2024-01-15T10:30:00Z',
     status: 'pending',
     notes: 'Verified documents, awaiting final approval.',
-    campuses: 3
+    campuses: 3,
+    campusList: [
+      { name: 'Delhi Public School - Main', campusType: 'Main' },
+      { name: 'Delhi Public School - North', campusType: 'Branch' },
+      { name: 'Delhi Public School - South', campusType: 'Branch' }
+    ]
   },
   {
     id: 'REQ-102',
@@ -33,7 +38,11 @@ export const initialSchoolRequests = [
     submittedAt: '2023-12-20T09:15:00Z',
     status: 'approved',
     notes: 'Onboarding complete, awaiting payment confirmation.',
-    campuses: 2
+    campuses: 2,
+    campusList: [
+      { name: 'Cambridge Academy - Main', campusType: 'Main' },
+      { name: 'Cambridge Academy - Whitefield', campusType: 'Branch' }
+    ]
   },
   {
     id: 'REQ-104',

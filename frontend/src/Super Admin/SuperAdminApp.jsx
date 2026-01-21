@@ -23,26 +23,64 @@ import {
 const API_BASE = import.meta.env.VITE_API_URL;
 const SCHOOL_CREDENTIAL_STORAGE_KEY = 'superAdminSchoolCredentials';
 
-const normalizeRegistration = (school = {}) => ({
-  id: school._id || school.id || `REQ-${Date.now()}`,
-  schoolName: school.name || 'New School',
-  board: school.boardOther || school.board || 'Not specified',
-  studentCount: school.estimatedUsers || 'Pending',
-  contactPerson: school.contactPersonName || school.contactPerson || 'Registrar',
-  contactEmail: school.officialEmail || school.contactEmail || 'N/A',
-  contactPhone: school.contactPhone,
-  submittedAt: school.submittedAt || school.createdAt || new Date().toISOString(),
-  status: school.registrationStatus || 'pending',
-  notes: school.adminNotes || school.rejectionReason || 'Awaiting review',
-  campuses: Array.isArray(school.campuses) ? school.campuses.length : school.campusCount || 0,
-  schoolType: school.schoolType,
-  academicYearStructure: school.academicYearStructure,
-  estimatedUsers: school.estimatedUsers,
-  address: school.address,
-  verificationDocs: school.verificationDocs,
-  logo: school.logo,
-  source: 'api'
-});
+const normalizeCampuses = (school = {}) => {
+  if (Array.isArray(school.campuses) && school.campuses.length > 0) {
+    return school.campuses;
+  }
+  if (school.campusName) {
+    return [{ name: school.campusName, campusType: 'Main' }];
+  }
+  return [];
+};
+
+const campusKeyFor = (campus = {}, index = 0) => {
+  const rawKey = campus.id || campus._id || campus.campusId || campus.name || `campus-${index}`;
+  return String(rawKey);
+};
+
+const normalizeStoredCredentials = (stored = {}) => {
+  if (!stored || typeof stored !== 'object') return {};
+  return Object.entries(stored).reduce((acc, [schoolId, entry]) => {
+    if (!entry || typeof entry !== 'object') {
+      return acc;
+    }
+    if (entry.campuses && typeof entry.campuses === 'object') {
+      acc[schoolId] = entry;
+      return acc;
+    }
+    if (entry.code || entry.password) {
+      acc[schoolId] = { campuses: { default: entry } };
+      return acc;
+    }
+    acc[schoolId] = entry;
+    return acc;
+  }, {});
+};
+
+const normalizeRegistration = (school = {}) => {
+  const campusList = normalizeCampuses(school);
+  return {
+    id: school._id || school.id || `REQ-${Date.now()}`,
+    schoolName: school.name || 'New School',
+    board: school.boardOther || school.board || 'Not specified',
+    studentCount: school.estimatedUsers || 'Pending',
+    contactPerson: school.contactPersonName || school.contactPerson || 'Registrar',
+    contactEmail: school.officialEmail || school.contactEmail || 'N/A',
+    contactPhone: school.contactPhone,
+    submittedAt: school.submittedAt || school.createdAt || new Date().toISOString(),
+    status: school.registrationStatus || 'pending',
+    notes: school.adminNotes || school.rejectionReason || 'Awaiting review',
+    campuses: campusList.length || school.campusCount || 0,
+    campusList,
+    schoolType: school.schoolType,
+    academicYearStructure: school.academicYearStructure,
+    estimatedUsers: school.estimatedUsers,
+    address: school.address,
+    verificationDocs: school.verificationDocs,
+    logo: school.logo,
+    source: 'api'
+  };
+};
 
 const SuperAdminApp = () => {
   const [profile, setProfile] = useState({
@@ -71,7 +109,7 @@ const SuperAdminApp = () => {
     try {
       const raw = localStorage.getItem(SCHOOL_CREDENTIAL_STORAGE_KEY);
       const parsed = raw ? JSON.parse(raw) : {};
-      return parsed && typeof parsed === 'object' ? parsed : {};
+      return normalizeStoredCredentials(parsed && typeof parsed === 'object' ? parsed : {});
     } catch (error) {
       console.error('Failed to parse stored school credentials', error);
       return {};
@@ -105,6 +143,25 @@ const SuperAdminApp = () => {
       .sort(() => Math.random() - 0.5)
       .join('');
   };
+
+  const resolveRequestCampuses = useCallback((request) => {
+    if (!request) return [];
+    if (Array.isArray(request.campusList) && request.campusList.length > 0) {
+      return request.campusList;
+    }
+    if (Array.isArray(request.campuses) && request.campuses.length > 0) {
+      return request.campuses;
+    }
+    if (request.campusName) {
+      return [{ name: request.campusName, campusType: 'Main' }];
+    }
+    return [
+      {
+        name: request.schoolName || request.name || 'Main Campus',
+        campusType: 'Main'
+      }
+    ];
+  }, []);
 
   const insights = useMemo(() => {
     const pending = requests.filter((req) => req.status === 'pending').length;
@@ -173,10 +230,8 @@ const SuperAdminApp = () => {
         throw new Error('Unable to load active schools');
       }
       const data = await response.json();
-      const active = Array.isArray(data)
-        ? data.filter((school) => school.status === 'active')
-        : [];
-      setActiveSchools(active);
+      const schools = Array.isArray(data) ? data : [];
+      setActiveSchools(schools);
     } catch (error) {
       console.error('Failed to load active schools', error);
       setActiveSchoolsError(error.message || 'Unable to load active schools');
@@ -275,11 +330,12 @@ const SuperAdminApp = () => {
       .join('');
   };
 
-  const createSchoolAdminAccount = useCallback(async (request, code, password, status = 'active') => {
+  const createSchoolAdminAccount = useCallback(async (request, code, password, status = 'active', campus = null) => {
     const token = localStorage.getItem('token');
     if (!token || !API_BASE) {
       return;
     }
+    const campusId = campus?.id || campus?._id || campus?.campusId;
     const payload = {
       username: code,
       password,
@@ -287,7 +343,10 @@ const SuperAdminApp = () => {
       email: request.contactEmail || request.officialEmail || '',
       avatar: request.logo || request.avatar || '',
       schoolId: request.schoolId || request.id,
-      status
+      status,
+      campusId,
+      campusName: campus?.name,
+      campusType: campus?.campusType
     };
     const response = await fetch(`${API_BASE}/api/admin/auth/school-admins`, {
       method: 'POST',
@@ -309,23 +368,40 @@ const SuperAdminApp = () => {
     }
   }, []);
 
-  const handleSchoolCredentialGenerate = async (request, status = 'active') => {
+  const handleSchoolCredentialGenerate = async (request, campus, campusIndex = 0, status = 'active') => {
     if (!request?.id) return;
-    const code = generateSchoolCode(request.schoolName || request.name);
+    const campusName = campus?.name || `Campus ${campusIndex + 1}`;
+    const campusKey = campusKeyFor(campus, campusIndex);
+    const code = generateSchoolCode(`${request.schoolName || request.name}-${campusName}`);
     const password = generateSchoolPassword();
     const entry = {
       code,
       password,
       generatedAt: new Date().toISOString(),
-      schoolName: request.schoolName || request.name
+      schoolName: request.schoolName || request.name,
+      campusName,
+      campusType: campus?.campusType || 'Campus',
+      campusId: campus?.id || campus?._id || campus?.campusId
     };
-    setSchoolCredentials((prev) => ({ ...prev, [request.id]: entry }));
+    setSchoolCredentials((prev) => {
+      const current = prev[request.id] && typeof prev[request.id] === 'object' ? prev[request.id] : {};
+      const nextCampuses = current.campuses && typeof current.campuses === 'object' ? { ...current.campuses } : {};
+      nextCampuses[campusKey] = entry;
+      return {
+        ...prev,
+        [request.id]: {
+          ...current,
+          campuses: nextCampuses
+        }
+      };
+    });
     try {
-      await createSchoolAdminAccount(request, code, password, status);
+      await createSchoolAdminAccount(request, code, password, status, campus);
     } catch (error) {
       console.error('Failed to create school admin', error);
       setRequestError(error.message || 'Unable to create school admin');
     }
+    return entry;
   };
 
   const handleRequestUpdate = async (requestId, status, note) => {
@@ -373,17 +449,72 @@ const SuperAdminApp = () => {
     if (status === 'approved') {
       const request = requests.find((item) => item.id === requestId);
       if (!request) return;
-      const existingCredential = schoolCredentials[requestId];
-      if (existingCredential?.code && existingCredential?.password) {
-        try {
-          await createSchoolAdminAccount(request, existingCredential.code, existingCredential.password, 'active');
-        } catch (error) {
-          console.error('Failed to create school admin', error);
-          setRequestError(error.message || 'Unable to create school admin');
+      const campusList = resolveRequestCampuses(request);
+      const credentialBucket = schoolCredentials[requestId] || {};
+      const campusCredentials =
+        credentialBucket.campuses && typeof credentialBucket.campuses === 'object'
+          ? credentialBucket.campuses
+          : {};
+      const approvalCredentials = [];
+
+      for (let i = 0; i < campusList.length; i += 1) {
+        const campus = campusList[i];
+        const campusKey = campusKeyFor(campus, i);
+        const existingCredential =
+          campusCredentials[campusKey] ||
+          campusCredentials.default ||
+          (i === 0 && credentialBucket?.code && credentialBucket?.password ? credentialBucket : null);
+
+        if (existingCredential?.code && existingCredential?.password) {
+          approvalCredentials.push({
+            code: existingCredential.code,
+            password: existingCredential.password,
+            campusName: existingCredential.campusName || campus?.name || `Campus ${i + 1}`,
+            campusType: existingCredential.campusType || campus?.campusType || 'Campus',
+            campusId: existingCredential.campusId || campus?.id || campus?._id || campus?.campusId
+          });
+          try {
+            await createSchoolAdminAccount(request, existingCredential.code, existingCredential.password, 'active', campus);
+            continue;
+          } catch (error) {
+            console.error('Failed to create school admin', error);
+            setRequestError(error.message || 'Unable to create school admin');
+          }
         }
-        return;
+
+        const generated = await handleSchoolCredentialGenerate(request, campus, i, 'active');
+        if (generated) {
+          approvalCredentials.push(generated);
+        }
       }
-      await handleSchoolCredentialGenerate(request, 'active');
+
+      if (approvalCredentials.length > 0) {
+        try {
+          const token = localStorage.getItem('token');
+          if (token && API_BASE) {
+            await fetch(`${API_BASE}/api/admin/auth/school-admins/notify-credentials`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                Authorization: `Bearer ${token}`
+              },
+              body: JSON.stringify({
+                schoolId: request.schoolId || request.id,
+                schoolName: request.schoolName || request.name,
+                contactEmail: request.contactEmail || request.officialEmail,
+                campuses: approvalCredentials.map((entry) => ({
+                  campusName: entry.campusName,
+                  campusType: entry.campusType,
+                  username: entry.code,
+                  password: entry.password
+                }))
+              })
+            });
+          }
+        } catch (error) {
+          console.error('Failed to send approval email', error);
+        }
+      }
     }
   };
 

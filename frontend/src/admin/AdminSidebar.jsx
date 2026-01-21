@@ -48,7 +48,11 @@ const AdminSidebar = ({
                 <span className="text-xl font-bold text-gray-800">
                   {adminUser?.name || 'Electronic Educare'}
                 </span>
-                <span className="text-xs text-gray-500">Admin Portal</span>
+                <span className="text-xs text-gray-500">
+                  {adminUser?.campusName
+                    ? `${adminUser.campusName}${adminUser.campusType ? ` - ${adminUser.campusType}` : ''}`
+                    : adminUser?.campusType || ''}
+                </span>
               </div>}
             </div>
             <button
