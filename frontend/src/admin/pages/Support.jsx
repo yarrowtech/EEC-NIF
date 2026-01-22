@@ -426,12 +426,12 @@ const Support = ({ setShowAdminHeader }) => {
               </div>
               <div className="grid sm:grid-cols-2 gap-3">
                 <div>
-                  <label className="text-sm text-slate-600 font-medium">Urgency</label>
+                  <label className="text-sm text-black font-medium">Urgency</label>
                   <select
                     name="urgency"
                     value={passwordResetForm.urgency}
                     onChange={handleInput(setPasswordResetForm)}
-                    className="mt-1 w-full rounded-xl border-slate-200 focus:border-blue-500 focus:ring-blue-500"
+                    className="mt-1 w-full rounded-xl border-xl border-slate-200 focus:border-blue-500 focus:ring-blue-500"
                   >
                     <option value="normal">Normal</option>
                     <option value="high">High - classes impacted</option>
@@ -439,12 +439,12 @@ const Support = ({ setShowAdminHeader }) => {
                   </select>
                 </div>
                 <div>
-                  <label className="text-sm text-slate-600 font-medium">Contact number</label>
+                  <label className="text-sm text-black font-medium">Contact number</label>
                   <input
                     name="contactNumber"
                     value={passwordResetForm.contactNumber || ''}
                     onChange={handleInput(setPasswordResetForm)}
-                    className="mt-1 w-full rounded-xl border-slate-200 focus:border-blue-500 focus:ring-blue-500"
+                    className="mt-1 w-full rounded-xl border border-slate-200 focus:border-blue-500 focus:ring-blue-500"
                     placeholder="+91 98765 43210"
                   />
                 </div>
@@ -552,7 +552,7 @@ const Support = ({ setShowAdminHeader }) => {
           </section>
         </div>
 
-        <section className="bg-white rounded-2xl shadow border border-slate-100 p-6 space-y-4">
+        <section className="bg-white rounded-2xl shadow border border-black p-6 space-y-4">
           <div className="flex items-center gap-3">
             <div className="bg-rose-50 text-rose-600 p-3 rounded-2xl">
               <AlertTriangle />
@@ -624,14 +624,14 @@ const Support = ({ setShowAdminHeader }) => {
               </div>
             </div>
             <div>
-              <label className="text-sm text-slate-600 font-medium">Describe the issue</label>
+              <label className="text-sm  text-slate-600 font-medium">Describe the issue</label>
               <textarea
                 name="description"
                 rows={5}
                 value={complaintForm.description}
                 onChange={handleInput(setComplaintForm)}
                 required
-                className="mt-1 w-full rounded-xl border-slate-200 focus:border-rose-500 focus:ring-rose-500"
+                className="mt-1 w-full rounded-xl border border-black focus:border-rose-500 focus:ring-rose-500"
                 placeholder="Include any evidence, attachments shared via email, and the expected resolution timeline."
               />
             </div>
