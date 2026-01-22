@@ -10,7 +10,17 @@ const FeeInvoice = require('../models/FeeInvoice');
 
 const router = express.Router();
 
-const getSchoolFilter = (req) => ({ schoolId: req.schoolId });
+const getSchoolFilter = (req) => {
+  const filter = { schoolId: req.schoolId };
+  if (req.campusId) {
+    filter.$or = [
+      { campusId: req.campusId },
+      { campusId: { $exists: false } },
+      { campusId: null },
+    ];
+  }
+  return filter;
+};
 
 const buildAttendanceTrend = (students, monthsBack = 6) => {
   const now = new Date();

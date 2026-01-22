@@ -98,7 +98,15 @@ router.post('/login', rateLimit({ windowMs: 60 * 1000, max: 10 }), async (req, r
     admin.lastLoginAt = new Date();
     await admin.save();
     const token = jwt.sign(
-      { id: admin._id, type: 'admin', schoolId: admin.schoolId || null },
+      {
+        id: admin._id,
+        type: 'admin',
+        username: admin.username,
+        schoolId: admin.schoolId || null,
+        campusId: admin.campusId || null,
+        campusName: admin.campusName || null,
+        campusType: admin.campusType || null,
+      },
       process.env.JWT_SECRET,
       { expiresIn: '1d' }
     );

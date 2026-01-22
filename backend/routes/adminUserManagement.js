@@ -1,14 +1,24 @@
 const express = require('express');
 const router = express.Router();
+const mongoose = require('mongoose');
 const adminAuth = require('../middleware/adminAuth'); // Protect the route
 const StudentUser = require('../models/StudentUser');
 const TeacherUser = require('../models/TeacherUser');
 const ParentUser = require('../models/ParentUser');
+const StaffUser = require('../models/StaffUser');
+const Principal = require('../models/Principal');
+const Admin = require('../models/Admin');
 const {
   getNextStudentSequence,
   getNextEmployeeSequence,
+  getNextTeacherSequence,
+  getNextTeacherSequenceByPrefix,
   buildStudentCode,
   buildEmployeeCode,
+  buildTeacherCode,
+  generateTeacherCode,
+  generateTeacherCodeForAdmin,
+  getTeacherPrefix,
 } = require('../utils/codeGenerator');
 
 const parseCsvLine = (line = '') => {
@@ -64,12 +74,74 @@ const resolveAdmissionYear = (value) => {
   return parsed.getFullYear();
 };
 
+const resolveCampusValue = (req, payloadCampusId) => {
+  if (req.campusId) {
+    return {
+      campusId: req.campusId,
+      campusName: req.admin?.campusName || null,
+      campusType: req.admin?.campusType || null,
+    };
+  }
+  if (req.isSuperAdmin) {
+    return {
+      campusId: payloadCampusId || null,
+      campusName: req.body?.campusName || null,
+      campusType: req.body?.campusType || null,
+    };
+  }
+  return { campusId: null, campusName: null, campusType: null };
+};
+
+const resolveAdminUsername = async (req) => {
+  if (req.admin?.username) return req.admin.username;
+  if (req.admin?.id) {
+    const adminUser = await Admin.findById(req.admin.id).select('username').lean();
+    return adminUser?.username || '';
+  }
+  return '';
+};
+
+const buildScopedFilter = (req) => {
+  const filter = {};
+  if (req.schoolId) {
+    filter.schoolId = req.schoolId;
+  }
+  if (req.campusId) {
+    filter.$or = [
+      { campusId: req.campusId },
+      { campusId: { $exists: false } },
+      { campusId: null },
+    ];
+  }
+  if (req.isSuperAdmin) {
+    if (req.query?.schoolId) {
+      filter.schoolId = req.query.schoolId;
+    }
+    if (req.query?.campusId) {
+      filter.campusId = req.query.campusId;
+      delete filter.$or;
+    }
+  }
+  return filter;
+};
+
+const buildScopedIdFilter = (req, id) => {
+  if (!mongoose.isValidObjectId(id)) {
+    return null;
+  }
+  const filter = buildScopedFilter(req);
+  filter._id = id;
+  return filter;
+};
+
 // Utility to get the right model based on role
 const getModelByRole = (role) => {
   switch (role) {
     case 'student': return StudentUser;
     case 'teacher': return TeacherUser;
     case 'parent': return ParentUser;
+    case 'staff': return StaffUser;
+    case 'principal': return Principal;
     default: return null;
   }
 };
@@ -91,6 +163,10 @@ router.post('/create-user', adminAuth, async (req, res) => {
     if (!resolvedSchoolId) {
       return res.status(400).json({ error: 'schoolId is required' });
     }
+    if (role === 'principal' && !email) {
+      return res.status(400).json({ error: 'email is required for principal' });
+    }
+    const campusContext = resolveCampusValue(req, req.body?.campusId);
     const payload = {
       username,
       password,
@@ -102,6 +178,9 @@ router.post('/create-user', adminAuth, async (req, res) => {
       state,
       pinCode,
       schoolId: resolvedSchoolId,
+      campusId: campusContext.campusId,
+      campusName: campusContext.campusName,
+      campusType: campusContext.campusType,
     };
     if (role === 'student') {
       const admissionYear = resolveAdmissionYear(req.body?.admissionDate);
@@ -109,6 +188,14 @@ router.post('/create-user', adminAuth, async (req, res) => {
       payload.studentCode = buildStudentCode(schoolCode, admissionYear, nextSequence);
     }
     if (role === 'teacher') {
+      const adminUsername =
+        req.body?.teacherAdminUsername ||
+        req.body?.adminUsername ||
+        (await resolveAdminUsername(req));
+      payload.employeeCode = await generateTeacherCodeForAdmin(resolvedSchoolId, adminUsername);
+      payload.username = payload.employeeCode;
+    }
+    if (role === 'staff') {
       const { schoolCode, nextSequence } = await getNextEmployeeSequence(resolvedSchoolId);
       payload.employeeCode = buildEmployeeCode(schoolCode, nextSequence);
     }
@@ -134,6 +221,7 @@ router.post('/bulk-create-users', adminAuth, async (req, res) => {
   if (!resolvedSchoolId) {
     return res.status(400).json({ error: 'schoolId is required' });
   }
+  const campusContext = resolveCampusValue(req, req.body?.campusId);
 
   const results = {
     created: 0,
@@ -143,15 +231,33 @@ router.post('/bulk-create-users', adminAuth, async (req, res) => {
 
   const studentSequenceByYear = new Map();
   let employeeSequenceState = null;
-  if (role === 'teacher') {
+  let teacherSequenceState = null;
+  if (role === 'staff') {
     employeeSequenceState = await getNextEmployeeSequence(resolvedSchoolId);
+  }
+  if (role === 'teacher') {
+    const adminUsername =
+      req.body?.teacherAdminUsername ||
+      req.body?.adminUsername ||
+      (await resolveAdminUsername(req));
+    const teacherPrefix = await getTeacherPrefix({ adminUsername, schoolId: resolvedSchoolId });
+    const seqState = await getNextTeacherSequenceByPrefix(resolvedSchoolId, teacherPrefix);
+    teacherSequenceState = {
+      schoolCode: teacherPrefix,
+      nextSequence: seqState.nextSequence,
+    };
   }
 
   for (let i = 0; i < users.length; i += 1) {
     const user = users[i] || {};
-    if (!user.username || !user.password) {
+    if (!user.password || (!user.username && role !== 'teacher')) {
       results.failed += 1;
       results.errors.push({ index: i, error: 'username and password are required' });
+      continue;
+    }
+    if (role === 'principal' && !user.email) {
+      results.failed += 1;
+      results.errors.push({ index: i, error: 'email is required for principal' });
       continue;
     }
 
@@ -165,6 +271,9 @@ router.post('/bulk-create-users', adminAuth, async (req, res) => {
       const payload = {
         ...user,
         schoolId: resolvedSchoolId,
+        campusId: campusContext.campusId,
+        campusName: campusContext.campusName,
+        campusType: campusContext.campusType,
       };
       delete payload._id;
       delete payload.id;
@@ -182,7 +291,15 @@ router.post('/bulk-create-users', adminAuth, async (req, res) => {
         );
         sequenceState.nextSequence += 1;
       }
-      if (role === 'teacher' && employeeSequenceState) {
+      if (role === 'teacher' && teacherSequenceState) {
+        payload.employeeCode = buildTeacherCode(
+          teacherSequenceState.schoolCode,
+          teacherSequenceState.nextSequence
+        );
+        teacherSequenceState.nextSequence += 1;
+        payload.username = payload.employeeCode;
+      }
+      if (role === 'staff' && employeeSequenceState) {
         payload.employeeCode = buildEmployeeCode(
           employeeSequenceState.schoolCode,
           employeeSequenceState.nextSequence
@@ -216,6 +333,7 @@ router.post('/bulk-import-csv', adminAuth, async (req, res) => {
   if (!resolvedSchoolId) {
     return res.status(400).json({ error: 'schoolId is required' });
   }
+  const campusContext = resolveCampusValue(req, req.body?.campusId);
 
   const { rows } = parseCsv(csv);
   if (!rows.length) {
@@ -230,15 +348,33 @@ router.post('/bulk-import-csv', adminAuth, async (req, res) => {
 
   const studentSequenceByYear = new Map();
   let employeeSequenceState = null;
-  if (role === 'teacher') {
+  let teacherSequenceState = null;
+  if (role === 'staff') {
     employeeSequenceState = await getNextEmployeeSequence(resolvedSchoolId);
+  }
+  if (role === 'teacher') {
+    const adminUsername =
+      req.body?.teacherAdminUsername ||
+      req.body?.adminUsername ||
+      (await resolveAdminUsername(req));
+    const teacherPrefix = await getTeacherPrefix({ adminUsername, schoolId: resolvedSchoolId });
+    const seqState = await getNextTeacherSequenceByPrefix(resolvedSchoolId, teacherPrefix);
+    teacherSequenceState = {
+      schoolCode: teacherPrefix,
+      nextSequence: seqState.nextSequence,
+    };
   }
 
   for (let i = 0; i < rows.length; i += 1) {
     const row = rows[i] || {};
-    if (!row.username || !row.password) {
+    if (!row.password || (!row.username && role !== 'teacher')) {
       results.failed += 1;
       results.errors.push({ index: i, error: 'username and password are required' });
+      continue;
+    }
+    if (role === 'principal' && !row.email) {
+      results.failed += 1;
+      results.errors.push({ index: i, error: 'email is required for principal' });
       continue;
     }
     try {
@@ -251,6 +387,9 @@ router.post('/bulk-import-csv', adminAuth, async (req, res) => {
       const payload = {
         ...row,
         schoolId: resolvedSchoolId,
+        campusId: campusContext.campusId,
+        campusName: campusContext.campusName,
+        campusType: campusContext.campusType,
       };
       delete payload._id;
       delete payload.id;
@@ -268,7 +407,15 @@ router.post('/bulk-import-csv', adminAuth, async (req, res) => {
         );
         sequenceState.nextSequence += 1;
       }
-      if (role === 'teacher' && employeeSequenceState) {
+      if (role === 'teacher' && teacherSequenceState) {
+        payload.employeeCode = buildTeacherCode(
+          teacherSequenceState.schoolCode,
+          teacherSequenceState.nextSequence
+        );
+        teacherSequenceState.nextSequence += 1;
+        payload.username = payload.employeeCode;
+      }
+      if (role === 'staff' && employeeSequenceState) {
         payload.employeeCode = buildEmployeeCode(
           employeeSequenceState.schoolCode,
           employeeSequenceState.nextSequence
@@ -290,7 +437,7 @@ router.post('/bulk-import-csv', adminAuth, async (req, res) => {
 router.get("/get-students", adminAuth, async (req, res) => {
   // #swagger.tags = ['Admin Users']
   try {
-    const filter = req.schoolId ? { schoolId: req.schoolId } : {};
+    const filter = buildScopedFilter(req);
     const students = await StudentUser.find(filter);
     res.status(200).json(students);
   } catch (err) {
@@ -301,7 +448,7 @@ router.get("/get-students", adminAuth, async (req, res) => {
 router.get("/get-teachers", adminAuth, async (req, res) => {
   // #swagger.tags = ['Admin Users']
   try {
-    const filter = req.schoolId ? { schoolId: req.schoolId } : {};
+    const filter = buildScopedFilter(req);
     const teachers = await TeacherUser.find(filter);
     res.status(200).json(teachers);
   } catch (err) {
@@ -312,9 +459,148 @@ router.get("/get-teachers", adminAuth, async (req, res) => {
 router.get("/get-parents", adminAuth, async (req, res) => {
   // #swagger.tags = ['Admin Users']
   try {
-    const filter = req.schoolId ? { schoolId: req.schoolId } : {};
+    const filter = buildScopedFilter(req);
     const parents = await ParentUser.find(filter);
     res.status(200).json(parents);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.get("/get-staff", adminAuth, async (req, res) => {
+  // #swagger.tags = ['Admin Users']
+  try {
+    const filter = buildScopedFilter(req);
+    const staff = await StaffUser.find(filter);
+    res.status(200).json(staff);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.get("/get-principals", adminAuth, async (req, res) => {
+  // #swagger.tags = ['Admin Users']
+  try {
+    const filter = buildScopedFilter(req);
+    const principals = await Principal.find(filter);
+    res.status(200).json(principals);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+const sanitizeUpdatePayload = (req) => {
+  const payload = { ...req.body };
+  delete payload._id;
+  delete payload.id;
+  if (!req.isSuperAdmin) {
+    if (req.schoolId) {
+      payload.schoolId = req.schoolId;
+    }
+    if (req.campusId) {
+      payload.campusId = req.campusId;
+      payload.campusName = req.admin?.campusName || payload.campusName;
+      payload.campusType = req.admin?.campusType || payload.campusType;
+    }
+  }
+  return payload;
+};
+
+const updateByScope = async (Model, req, res) => {
+  const filter = buildScopedIdFilter(req, req.params.id);
+  if (!filter) {
+    return res.status(400).json({ error: 'Invalid id' });
+  }
+  const payload = sanitizeUpdatePayload(req);
+  const updated = await Model.findOneAndUpdate(filter, payload, {
+    new: true,
+    runValidators: true,
+  });
+  if (!updated) {
+    return res.status(404).json({ error: 'Record not found' });
+  }
+  return res.json(updated);
+};
+
+const deleteByScope = async (Model, req, res) => {
+  const filter = buildScopedIdFilter(req, req.params.id);
+  if (!filter) {
+    return res.status(400).json({ error: 'Invalid id' });
+  }
+  const removed = await Model.findOneAndDelete(filter);
+  if (!removed) {
+    return res.status(404).json({ error: 'Record not found' });
+  }
+  return res.json({ message: 'Deleted successfully' });
+};
+
+router.put('/teachers/:id', adminAuth, async (req, res) => {
+  // #swagger.tags = ['Admin Users']
+  try {
+    await updateByScope(TeacherUser, req, res);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.delete('/teachers/:id', adminAuth, async (req, res) => {
+  // #swagger.tags = ['Admin Users']
+  try {
+    await deleteByScope(TeacherUser, req, res);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.put('/students/:id', adminAuth, async (req, res) => {
+  // #swagger.tags = ['Admin Users']
+  try {
+    await updateByScope(StudentUser, req, res);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.delete('/students/:id', adminAuth, async (req, res) => {
+  // #swagger.tags = ['Admin Users']
+  try {
+    await deleteByScope(StudentUser, req, res);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.put('/staff/:id', adminAuth, async (req, res) => {
+  // #swagger.tags = ['Admin Users']
+  try {
+    await updateByScope(StaffUser, req, res);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.delete('/staff/:id', adminAuth, async (req, res) => {
+  // #swagger.tags = ['Admin Users']
+  try {
+    await deleteByScope(StaffUser, req, res);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.put('/principals/:id', adminAuth, async (req, res) => {
+  // #swagger.tags = ['Admin Users']
+  try {
+    await updateByScope(Principal, req, res);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.delete('/principals/:id', adminAuth, async (req, res) => {
+  // #swagger.tags = ['Admin Users']
+  try {
+    await deleteByScope(Principal, req, res);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -324,25 +610,29 @@ router.get("/get-parents", adminAuth, async (req, res) => {
 router.get("/dashboard-stats", adminAuth, async (req, res) => {
   // #swagger.tags = ['Admin Users']
   try {
-    const filter = req.schoolId ? { schoolId: req.schoolId } : {};
+    const filter = buildScopedFilter(req);
     // Fetch counts from all user types
-    const [studentCount, teacherCount, parentCount] = await Promise.all([
+    const [studentCount, teacherCount, parentCount, staffCount, principalCount] = await Promise.all([
       StudentUser.countDocuments(filter),
       TeacherUser.countDocuments(filter),
-      ParentUser.countDocuments(filter)
+      ParentUser.countDocuments(filter),
+      StaffUser.countDocuments(filter),
+      Principal.countDocuments(filter)
     ]);
 
     // Calculate additional stats
-    const totalUsers = studentCount + teacherCount + parentCount;
+    const totalUsers = studentCount + teacherCount + parentCount + staffCount + principalCount;
 
     // Get recent registrations (last 30 days)
     const thirtyDaysAgo = new Date();
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
-    const [recentStudents, recentTeachers, recentParents] = await Promise.all([
+    const [recentStudents, recentTeachers, recentParents, recentStaff, recentPrincipals] = await Promise.all([
       StudentUser.countDocuments({ ...filter, createdAt: { $gte: thirtyDaysAgo } }),
       TeacherUser.countDocuments({ ...filter, createdAt: { $gte: thirtyDaysAgo } }),
-      ParentUser.countDocuments({ ...filter, createdAt: { $gte: thirtyDaysAgo } })
+      ParentUser.countDocuments({ ...filter, createdAt: { $gte: thirtyDaysAgo } }),
+      StaffUser.countDocuments({ ...filter, createdAt: { $gte: thirtyDaysAgo } }),
+      Principal.countDocuments({ ...filter, createdAt: { $gte: thirtyDaysAgo } })
     ]);
 
     res.status(200).json({
@@ -358,8 +648,16 @@ router.get("/dashboard-stats", adminAuth, async (req, res) => {
         total: parentCount,
         recent: recentParents
       },
+      staff: {
+        total: staffCount,
+        recent: recentStaff
+      },
+      principals: {
+        total: principalCount,
+        recent: recentPrincipals
+      },
       totalUsers,
-      recentTotal: recentStudents + recentTeachers + recentParents,
+      recentTotal: recentStudents + recentTeachers + recentParents + recentStaff + recentPrincipals,
       timestamp: new Date().toISOString()
     });
   } catch (err) {

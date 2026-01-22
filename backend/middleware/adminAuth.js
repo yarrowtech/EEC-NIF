@@ -7,6 +7,13 @@ const extractSchoolId = (req) => {
   return headerId || queryId || bodyId || null;
 };
 
+const extractCampusId = (req) => {
+  const headerId = req.headers['x-campus-id'] || req.headers['x-campusid'];
+  const queryId = req.query?.campusId;
+  const bodyId = req.body?.campusId;
+  return headerId || queryId || bodyId || null;
+};
+
 const adminAuth = (req, res, next) => {
   const authHeader = req.headers.authorization;
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
@@ -19,12 +26,15 @@ const adminAuth = (req, res, next) => {
       return res.status(403).json({ error: 'Access denied' });
     }
     const tokenSchoolId = decoded.schoolId || null;
+    const tokenCampusId = decoded.campusId || null;
     const isSuperAdmin = !tokenSchoolId;
     const effectiveSchoolId = tokenSchoolId || (isSuperAdmin ? extractSchoolId(req) : null);
+    const effectiveCampusId = tokenCampusId || (isSuperAdmin ? extractCampusId(req) : null);
     req.admin = decoded;
     req.userType = 'Admin';
     req.isSuperAdmin = isSuperAdmin;
     req.schoolId = effectiveSchoolId;
+    req.campusId = effectiveCampusId;
     next();
   } catch (err) {
     res.status(401).json({ error: 'Invalid token' });

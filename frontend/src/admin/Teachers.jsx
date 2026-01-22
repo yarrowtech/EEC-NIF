@@ -26,7 +26,8 @@ import {
   BarChart3,
   Activity,
   DollarSign,
-  Timer
+  Timer,
+  XCircle
 } from 'lucide-react';
 import CredentialGeneratorButton from './components/CredentialGeneratorButton';
 
@@ -35,6 +36,7 @@ const Teachers = ({setShowAdminHeader}) => {
   const [filterStatus, setFilterStatus] = useState('All');
   const [teachers, setTeachers] = useState([]);
   const [showAddForm, setShowAddForm] = useState(false);
+  const [submitStatus, setSubmitStatus] = useState(null);
   const [newTeacher, setNewTeacher] = useState({
     name: '',
     email: '',
@@ -46,7 +48,10 @@ const Teachers = ({setShowAdminHeader}) => {
     students: '',
     rating: '',
     status: 'Active',
-    joinDate: '',
+    joiningDate: '',
+    gender: '',
+    address: '',
+    pinCode: '',
     location: '',
     avatar: ''
   });
@@ -106,40 +111,40 @@ const Teachers = ({setShowAdminHeader}) => {
     };
   };
 
-  // making the admin header invisible
-  useEffect(() => {
-    setShowAdminHeader(false)
-
-    fetch(`${import.meta.env.VITE_API_URL}/api/admin/users/get-teachers`, {
+  const fetchTeachers = async () => {
+    const res = await fetch(`${import.meta.env.VITE_API_URL}/api/admin/users/get-teachers`, {
       method: 'GET',
       headers: {
         'Content-Type': 'application/json',
         'authorization': `Bearer ${localStorage.getItem('token')}`
       }
-    }).then(res => {
-      if (!res.ok) {
-        throw new Error('Failed to fetch teachers');
-      }
-      return res.json();
-    })
-    .then(data => {
-      const normalized = (Array.isArray(data) ? data : []).map((teacher, idx) => ({
-        ...teacher,
-        id: teacher._id || teacher.id || idx,
-        name: teacher.name || 'Unnamed Teacher',
-        email: teacher.email || '—',
-        mobile: teacher.mobile || '—',
-        subject: teacher.subject || '—',
-        department: teacher.department || '—',
-        qualification: teacher.qualification || '—',
-        joiningDate: teacher.joiningDate || '',
-        empId: teacher.empId ?? '—',
-        status: teacher.status || 'Active'
-      }));
-      setTeachers(normalized)
-    })
-    .catch(err => {
-      console.error('Error fetching teachers:', err);
+    });
+    if (!res.ok) {
+      throw new Error('Failed to fetch teachers');
+    }
+    const data = await res.json();
+    const normalized = (Array.isArray(data) ? data : []).map((teacher, idx) => ({
+      ...teacher,
+      id: teacher._id || teacher.id || idx,
+      name: teacher.name || 'Unnamed Teacher',
+      email: teacher.email || '-',
+      mobile: teacher.mobile || '-',
+      subject: teacher.subject || '-',
+      department: teacher.department || '-',
+      qualification: teacher.qualification || '-',
+      joiningDate: teacher.joiningDate || teacher.joinDate || '',
+      empId: teacher.employeeCode || teacher.empId || '-',
+      status: teacher.status || 'Active'
+    }));
+    setTeachers(normalized);
+  };
+
+  // making the admin header invisible
+  useEffect(() => {
+    setShowAdminHeader(false)
+
+    fetchTeachers().catch(err => {
+      console.error("Error fetching teachers:", err);
     });
   }, [setShowAdminHeader])
 
@@ -152,6 +157,7 @@ const Teachers = ({setShowAdminHeader}) => {
     e.preventDefault();
     // Here you would send newTeacher to backend or update state
     try {
+      setSubmitStatus(null);
       const res = await fetch(`${import.meta.env.VITE_API_URL}/api/teacher/auth/register`,{
           method: 'POST',
           headers: {
@@ -163,10 +169,16 @@ const Teachers = ({setShowAdminHeader}) => {
         const data = await res.json();
         if (!res.ok) { 
           console.error('Registration failed:', data);
-          throw new Error('Registration failed');
+          throw new Error(data?.error || 'Registration failed');
         }
-      console.log('New teacher added:', data);
+      setSubmitStatus({
+        type: 'success',
+        message: data?.emailSent
+          ? 'Teacher added and credentials emailed.'
+          : 'Teacher added. Email not sent.'
+      });
       setShowAddForm(false);
+      await fetchTeachers();
       // Optionally reset form
       setNewTeacher({
         name: '', email: '', mobile: '', subject: '', department: '', experience: '', qualification: '', joiningDate: '', address: '', pinCode: '', gender: ''
@@ -174,6 +186,7 @@ const Teachers = ({setShowAdminHeader}) => {
     }
     catch (error) {
       console.error('Error adding teacher:', error);
+      setSubmitStatus({ type: 'error', message: error.message || 'Unable to add teacher' });
     }
   };
 
@@ -213,9 +226,29 @@ const Teachers = ({setShowAdminHeader}) => {
                   <span className="text-xs text-gray-500">Due Evaluations</span>
                 </div>
               </div>
-            </div>        
+            </div>
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => setShowAddForm(true)}
+                className="flex items-center gap-2 bg-yellow-600 text-white px-4 py-2 rounded-lg hover:bg-yellow-700 transition-colors"
+              >
+                <Plus size={18} />
+                Add Teacher
+              </button>
+            </div>
           </div>
 
+          {submitStatus && (
+            <div
+              className={`mb-4 rounded-lg border px-4 py-3 text-sm ${
+                submitStatus.type === 'success'
+                  ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
+                  : 'border-red-200 bg-red-50 text-red-700'
+              }`}
+            >
+              {submitStatus.message}
+            </div>
+          )}
 
           {/* Search and Filter */}
           <div className="mb-6 flex flex-wrap gap-4 items-center">
@@ -271,6 +304,161 @@ const Teachers = ({setShowAdminHeader}) => {
             />
           </div>
         </div>
+
+        {showAddForm && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
+            <div className="w-full max-w-3xl rounded-2xl bg-white shadow-2xl border border-yellow-100">
+              <div className="flex items-center justify-between px-6 py-4 border-b border-yellow-100">
+                <div>
+                  <h2 className="text-xl font-semibold text-yellow-700">Add New Teacher</h2>
+                  <p className="text-sm text-gray-500">Create teacher profile and send login credentials</p>
+                </div>
+                <button
+                  onClick={() => setShowAddForm(false)}
+                  className="text-gray-500 hover:text-gray-700"
+                >
+                  <XCircle size={20} />
+                </button>
+              </div>
+              <form onSubmit={handleAddTeacherSubmit} className="px-6 py-5 space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-sm font-medium text-gray-700">Full Name</label>
+                    <input
+                      type="text"
+                      name="name"
+                      value={newTeacher.name}
+                      onChange={handleAddTeacherChange}
+                      className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 focus:border-yellow-500 focus:ring-2 focus:ring-yellow-200"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-gray-700">Email</label>
+                    <input
+                      type="email"
+                      name="email"
+                      value={newTeacher.email}
+                      onChange={handleAddTeacherChange}
+                      className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 focus:border-yellow-500 focus:ring-2 focus:ring-yellow-200"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-gray-700">Contact Number</label>
+                    <input
+                      type="tel"
+                      name="mobile"
+                      value={newTeacher.mobile}
+                      onChange={handleAddTeacherChange}
+                      className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 focus:border-yellow-500 focus:ring-2 focus:ring-yellow-200"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-gray-700">Gender</label>
+                    <select
+                      name="gender"
+                      value={newTeacher.gender}
+                      onChange={handleAddTeacherChange}
+                      className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 focus:border-yellow-500 focus:ring-2 focus:ring-yellow-200"
+                    >
+                      <option value="">Select</option>
+                      <option value="male">Male</option>
+                      <option value="female">Female</option>
+                      <option value="other">Other</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-gray-700">Qualification</label>
+                    <input
+                      type="text"
+                      name="qualification"
+                      value={newTeacher.qualification}
+                      onChange={handleAddTeacherChange}
+                      className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 focus:border-yellow-500 focus:ring-2 focus:ring-yellow-200"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-gray-700">Subject</label>
+                    <input
+                      type="text"
+                      name="subject"
+                      value={newTeacher.subject}
+                      onChange={handleAddTeacherChange}
+                      className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 focus:border-yellow-500 focus:ring-2 focus:ring-yellow-200"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-gray-700">Department</label>
+                    <input
+                      type="text"
+                      name="department"
+                      value={newTeacher.department}
+                      onChange={handleAddTeacherChange}
+                      className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 focus:border-yellow-500 focus:ring-2 focus:ring-yellow-200"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-gray-700">Experience (years)</label>
+                    <input
+                      type="text"
+                      name="experience"
+                      value={newTeacher.experience}
+                      onChange={handleAddTeacherChange}
+                      className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 focus:border-yellow-500 focus:ring-2 focus:ring-yellow-200"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-gray-700">Joining Date</label>
+                    <input
+                      type="date"
+                      name="joiningDate"
+                      value={newTeacher.joiningDate}
+                      onChange={handleAddTeacherChange}
+                      className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 focus:border-yellow-500 focus:ring-2 focus:ring-yellow-200"
+                    />
+                  </div>
+                  <div className="md:col-span-2">
+                    <label className="text-sm font-medium text-gray-700">Address</label>
+                    <input
+                      type="text"
+                      name="address"
+                      value={newTeacher.address}
+                      onChange={handleAddTeacherChange}
+                      className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 focus:border-yellow-500 focus:ring-2 focus:ring-yellow-200"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-gray-700">Pin Code</label>
+                    <input
+                      type="text"
+                      name="pinCode"
+                      value={newTeacher.pinCode}
+                      onChange={handleAddTeacherChange}
+                      className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 focus:border-yellow-500 focus:ring-2 focus:ring-yellow-200"
+                    />
+                  </div>
+                </div>
+                <div className="flex items-center justify-end gap-3 pt-4 border-t border-yellow-100">
+                  <button
+                    type="button"
+                    onClick={() => setShowAddForm(false)}
+                    className="px-4 py-2 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-5 py-2 rounded-lg bg-yellow-600 text-white hover:bg-yellow-700"
+                  >
+                    Save & Send Credentials
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
 
         {/* Scrollable Table Container */}
         <div className="flex-1 overflow-hidden">
@@ -376,7 +564,7 @@ const Teachers = ({setShowAdminHeader}) => {
                         </div>
                         <div className="text-sm text-gray-600">{teacher.department}</div>
                         <div className="text-xs text-gray-500">
-                          Joined: {teacher.joiningDate ? new Date(teacher.joiningDate).toLocaleDateString() : '—'}
+                          Joined: {teacher.joiningDate ? new Date(teacher.joiningDate).toLocaleDateString() : '-'}
                         </div>
                       </div>
                     </td>
@@ -517,3 +705,4 @@ const Teachers = ({setShowAdminHeader}) => {
 };
 
 export default Teachers
+

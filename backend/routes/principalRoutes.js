@@ -12,7 +12,7 @@ const normalize = (value = '') => String(value).trim().toLowerCase();
 
 router.post('/register', adminAuth, async (req, res) => {
   // #swagger.tags = ['Principals']
-  const { username, email, password, name, schoolId } = req.body || {};
+  const { username, email, password, name, schoolId, campusId, campusName, campusType } = req.body || {};
   try {
     if (!isStrongPassword(password)) {
       return res.status(400).json({ error: passwordPolicyMessage });
@@ -32,6 +32,9 @@ router.post('/register', adminAuth, async (req, res) => {
       password,
       name: name || 'Principal',
       schoolId: resolvedSchoolId,
+      campusId: req.campusId || (req.isSuperAdmin ? campusId : null),
+      campusName: req.isSuperAdmin ? campusName : req.campusId ? req.admin?.campusName : campusName,
+      campusType: req.isSuperAdmin ? campusType : req.campusId ? req.admin?.campusType : campusType,
     });
 
     await principal.save();
@@ -57,7 +60,14 @@ router.post('/login', rateLimit({ windowMs: 60 * 1000, max: 10 }), async (req, r
     }
 
     const token = jwt.sign(
-      { id: principal._id, type: 'principal', schoolId: principal.schoolId || null },
+      {
+        id: principal._id,
+        type: 'principal',
+        schoolId: principal.schoolId || null,
+        campusId: principal.campusId || null,
+        campusName: principal.campusName || null,
+        campusType: principal.campusType || null,
+      },
       process.env.JWT_SECRET,
       { expiresIn: '1d' }
     );

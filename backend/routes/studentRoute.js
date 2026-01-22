@@ -72,6 +72,7 @@ router.post('/register', adminAuth, async (req, res) => {
     }
 
     const resolvedSchoolId = req.admin?.schoolId || schoolId || existingPortalUser?.schoolId || null;
+    const resolvedCampusId = req.campusId || req.admin?.campusId || req.body?.campusId || existingPortalUser?.campusId || null;
 
     // Use requested credentials or generate new ones
     let username = (requestedUsername || '').trim();
@@ -110,6 +111,9 @@ router.post('/register', adminAuth, async (req, res) => {
       username,
       password,
       schoolId: resolvedSchoolId,
+      campusId: resolvedCampusId,
+      campusName: req.isSuperAdmin ? req.body?.campusName : req.admin?.campusName,
+      campusType: req.isSuperAdmin ? req.body?.campusType : req.admin?.campusType,
       nifStudent: targetNifId,
       name: resolvedName,
       grade: resolvedGrade,
@@ -179,7 +183,12 @@ router.post('/login', rateLimit({ windowMs: 60 * 1000, max: 10 }), async (req, r
     }
 
     const token = jwt.sign(
-      { id: user._id, userType: 'student', schoolId: user.schoolId || null },
+      {
+        id: user._id,
+        userType: 'student',
+        schoolId: user.schoolId || null,
+        campusId: user.campusId || null,
+      },
       process.env.JWT_SECRET,
       { expiresIn: '1d' }
     );

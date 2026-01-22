@@ -138,6 +138,103 @@ const sendSchoolApprovalEmail = async ({ to, schoolName, campuses, loginUrl }) =
   });
 };
 
+const buildTeacherCredentialsEmail = ({ schoolName, teacherName, username, password, employeeCode, loginUrl }) => {
+  const safeSchool = escapeHtml(schoolName || 'Your School');
+  const safeName = escapeHtml(teacherName || 'Teacher');
+  const safeUsername = escapeHtml(username || '');
+  const safePassword = escapeHtml(password || '');
+  const safeCode = escapeHtml(employeeCode || '');
+  const safeLoginUrl = loginUrl ? escapeHtml(loginUrl) : '';
+
+  const loginSection = safeLoginUrl
+    ? `<a href="${safeLoginUrl}" style="display:inline-block;background:#0f172a;color:#ffffff;padding:12px 18px;border-radius:8px;text-decoration:none;font-weight:600;">Go to Teacher Login</a>`
+    : '';
+
+  return {
+    subject: `Your EEC Teacher Login - ${safeSchool}`,
+    html: `
+      <div style="margin:0;padding:0;background:#f8fafc;font-family:Arial,sans-serif;color:#0f172a;">
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="padding:24px 0;">
+          <tr>
+            <td align="center">
+              <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:16px;overflow:hidden;border:1px solid #e2e8f0;">
+                <tr>
+                  <td style="background:linear-gradient(120deg,#0f172a,#1d4ed8);padding:28px 32px;color:#ffffff;">
+                    <div style="font-size:14px;letter-spacing:2px;text-transform:uppercase;color:#fde68a;">EEC Platform</div>
+                    <div style="font-size:24px;font-weight:700;margin-top:6px;">Welcome, ${safeName}</div>
+                    <div style="font-size:14px;margin-top:8px;color:#e2e8f0;">Your teacher login has been created for ${safeSchool}.</div>
+                  </td>
+                </tr>
+                <tr>
+                  <td style="padding:24px 32px;">
+                    <p style="margin:0 0 16px;color:#334155;font-size:14px;">
+                      Please use the credentials below to sign in. For security, reset your password after first login.
+                    </p>
+                    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;border:1px solid #e2e8f0;border-radius:12px;overflow:hidden;">
+                      <tbody style="font-size:13px;color:#0f172a;">
+                        <tr>
+                          <td style="padding:12px 10px;border-bottom:1px solid #e5e7eb;font-weight:600;">Teacher ID</td>
+                          <td style="padding:12px 10px;border-bottom:1px solid #e5e7eb;font-family:Courier,monospace;">${safeCode}</td>
+                        </tr>
+                        <tr>
+                          <td style="padding:12px 10px;border-bottom:1px solid #e5e7eb;font-weight:600;">Username</td>
+                          <td style="padding:12px 10px;border-bottom:1px solid #e5e7eb;font-family:Courier,monospace;">${safeUsername}</td>
+                        </tr>
+                        <tr>
+                          <td style="padding:12px 10px;border-bottom:1px solid #e5e7eb;font-weight:600;">Password</td>
+                          <td style="padding:12px 10px;border-bottom:1px solid #e5e7eb;font-family:Courier,monospace;">${safePassword}</td>
+                        </tr>
+                      </tbody>
+                    </table>
+                    <div style="margin-top:20px;">
+                      ${loginSection}
+                    </div>
+                    <p style="margin:20px 0 0;font-size:12px;color:#64748b;">
+                      If you were not expecting this email, please contact your school administrator.
+                    </p>
+                  </td>
+                </tr>
+                <tr>
+                  <td style="padding:16px 32px;background:#f8fafc;color:#94a3b8;font-size:12px;">
+                    EEC Platform - Secure Education Management
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+        </table>
+      </div>
+    `,
+    text: [
+      `Welcome, ${teacherName || 'Teacher'}`,
+      `School: ${schoolName || 'Your School'}`,
+      '',
+      `Teacher ID: ${employeeCode || ''}`,
+      `Username: ${username || ''}`,
+      `Password: ${password || ''}`,
+      '',
+      loginUrl ? `Login: ${loginUrl}` : '',
+      'Please reset your password after first login.'
+    ].filter(Boolean).join('\n')
+  };
+};
+
+const sendTeacherCredentialsEmail = async ({ to, schoolName, teacherName, username, password, employeeCode, loginUrl }) => {
+  const transporter = getTransporter();
+  const fromName = process.env.SMTP_FROM_NAME || 'EEC Platform';
+  const fromEmail = process.env.SMTP_FROM_EMAIL || process.env.SMTP_USER;
+  const payload = buildTeacherCredentialsEmail({ schoolName, teacherName, username, password, employeeCode, loginUrl });
+
+  return transporter.sendMail({
+    from: `${fromName} <${fromEmail}>`,
+    to,
+    subject: payload.subject,
+    html: payload.html,
+    text: payload.text
+  });
+};
+
 module.exports = {
-  sendSchoolApprovalEmail
+  sendSchoolApprovalEmail,
+  sendTeacherCredentialsEmail
 };

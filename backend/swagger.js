@@ -23,6 +23,7 @@ const doc = {
     { name: 'Super Admin', description: 'System-wide administration.' },
     { name: 'Admin Users', description: 'Admin user management and bulk tools.' },
     { name: 'Teachers', description: 'Teacher authentication and management.' },
+    { name: 'Staff', description: 'Staff authentication and management.' },
     { name: 'Students', description: 'Student authentication and portal.' },
     { name: 'Student Profile', description: 'Student profile uploads and data.' },
     { name: 'Parents', description: 'Parent authentication and child links.' },

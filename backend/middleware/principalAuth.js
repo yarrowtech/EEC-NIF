@@ -18,6 +18,7 @@ const principalAuth = (req, res, next) => {
     req.principal = decoded;
     req.userType = 'Principal';
     req.schoolId = decoded.schoolId;
+    req.campusId = decoded.campusId || null;
     next();
   } catch (err) {
     res.status(401).json({ error: 'Invalid token' });

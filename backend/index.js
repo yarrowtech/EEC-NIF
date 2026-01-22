@@ -12,6 +12,7 @@ dotenv.config();
 
 const adminAuthRoutes = require('./routes/adminRoutes');
 const teacherAuthRoutes = require('./routes/teacherRoute');
+const staffAuthRoutes = require('./routes/staffRoutes');
 const studentAuthRoutes = require('./routes/studentRoute');
 const parentAuthRoutes = require('./routes/parentRoute');
 const principalAuthRoutes = require('./routes/principalRoutes');
@@ -199,9 +200,15 @@ app.use(
       operationsSorter: 'alpha',
       persistAuthorization: true,
       tryItOutEnabled: true,
+      displayRequestDuration: true,
     },
+    customSiteTitle: 'Electronic Educare API Docs',
+    customCss: '.swagger-ui .topbar { background-color: #0f172a; }',
   })
 );
+app.get('/api/docs.json', (_req, res) => {
+  res.json(swaggerDocument);
+});
 
 // Mongo connect
 mongoose
@@ -228,6 +235,7 @@ app.get("/health", (req, res) => {
 app.use('/api/admin/users', adminUserManagementRoutes);
 app.use('/api/admin/auth', adminAuthRoutes);
 app.use('/api/teacher/auth', teacherAuthRoutes);
+app.use('/api/staff/auth', staffAuthRoutes);
 app.use('/api/student/auth', studentAuthRoutes);
 app.use('/api/parent/auth', parentAuthRoutes);
 app.use('/api/principal/auth', principalAuthRoutes);
