@@ -37,6 +37,8 @@ const Teachers = ({setShowAdminHeader}) => {
   const [teachers, setTeachers] = useState([]);
   const [showAddForm, setShowAddForm] = useState(false);
   const [submitStatus, setSubmitStatus] = useState(null);
+  const [credentialLoadingId, setCredentialLoadingId] = useState(null);
+  const [credentialView, setCredentialView] = useState(null);
   const [newTeacher, setNewTeacher] = useState({
     name: '',
     email: '',
@@ -177,6 +179,14 @@ const Teachers = ({setShowAdminHeader}) => {
           ? 'Teacher added and credentials emailed.'
           : 'Teacher added. Email not sent.'
       });
+      if (data?.username && data?.password) {
+        setCredentialView({
+          name: newTeacher.name,
+          username: data.username,
+          employeeCode: data.employeeCode || data.username,
+          password: data.password
+        });
+      }
       setShowAddForm(false);
       await fetchTeachers();
       // Optionally reset form
@@ -187,6 +197,48 @@ const Teachers = ({setShowAdminHeader}) => {
     catch (error) {
       console.error('Error adding teacher:', error);
       setSubmitStatus({ type: 'error', message: error.message || 'Unable to add teacher' });
+    }
+  };
+
+  const handleViewCredentials = async (teacher) => {
+    const teacherId = teacher?._id || teacher?.id;
+    if (!teacherId) return;
+    const confirmReset = window.confirm(
+      `This will reset ${teacher.name || 'the teacher'}'s password and generate a new one. Continue?`
+    );
+    if (!confirmReset) return;
+    setCredentialLoadingId(teacherId);
+    try {
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/admin/users/teachers/${teacherId}/credentials`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'authorization': `Bearer ${localStorage.getItem('token')}`
+        }
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data?.error || 'Unable to generate credentials');
+      }
+      setCredentialView({
+        name: teacher.name,
+        username: data.username,
+        employeeCode: data.employeeCode || data.username,
+        password: data.password
+      });
+    } catch (error) {
+      setSubmitStatus({ type: 'error', message: error.message || 'Unable to generate credentials' });
+    } finally {
+      setCredentialLoadingId(null);
+    }
+  };
+
+  const copyCredential = async (value) => {
+    if (!value) return;
+    try {
+      await navigator.clipboard.writeText(value);
+    } catch (err) {
+      console.error('Failed to copy credential:', err);
     }
   };
 
@@ -460,6 +512,70 @@ const Teachers = ({setShowAdminHeader}) => {
           </div>
         )}
 
+        {credentialView && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
+            <div className="w-full max-w-lg rounded-2xl bg-white shadow-2xl border border-yellow-100">
+              <div className="flex items-center justify-between px-6 py-4 border-b border-yellow-100">
+                <div>
+                  <h2 className="text-lg font-semibold text-yellow-700">Teacher Login Credentials</h2>
+                  <p className="text-sm text-gray-500">Share these credentials securely</p>
+                </div>
+                <button
+                  onClick={() => setCredentialView(null)}
+                  className="text-gray-500 hover:text-gray-700"
+                >
+                  <XCircle size={20} />
+                </button>
+              </div>
+              <div className="px-6 py-5 space-y-4">
+                <div>
+                  <p className="text-sm text-gray-600">Teacher</p>
+                  <p className="text-base font-semibold text-gray-900">{credentialView.name || 'Teacher'}</p>
+                </div>
+                <div className="space-y-3">
+                  <div>
+                    <p className="text-xs font-semibold text-yellow-700 uppercase">Login ID</p>
+                    <div className="mt-1 flex items-center justify-between rounded-lg border border-yellow-100 bg-yellow-50 px-3 py-2">
+                      <code className="text-sm font-mono text-gray-800">
+                        {credentialView.employeeCode || credentialView.username}
+                      </code>
+                      <button
+                        onClick={() => copyCredential(credentialView.employeeCode || credentialView.username)}
+                        className="text-xs bg-yellow-500 hover:bg-yellow-600 text-white px-2 py-1 rounded"
+                        title="Copy ID"
+                      >
+                        Copy
+                      </button>
+                    </div>
+                  </div>
+                  <div>
+                    <p className="text-xs font-semibold text-yellow-700 uppercase">Password</p>
+                    <div className="mt-1 flex items-center justify-between rounded-lg border border-yellow-100 bg-yellow-50 px-3 py-2">
+                      <code className="text-sm font-mono text-gray-800">{credentialView.password}</code>
+                      <button
+                        onClick={() => copyCredential(credentialView.password)}
+                        className="text-xs bg-yellow-500 hover:bg-yellow-600 text-white px-2 py-1 rounded"
+                        title="Copy Password"
+                      >
+                        Copy
+                      </button>
+                    </div>
+                  </div>
+                </div>
+                <p className="text-xs text-gray-500">Please ask the teacher to reset the password after first login.</p>
+              </div>
+              <div className="px-6 py-4 border-t border-yellow-100 flex justify-end">
+                <button
+                  onClick={() => setCredentialView(null)}
+                  className="px-4 py-2 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Scrollable Table Container */}
         <div className="flex-1 overflow-hidden">
           <div className="h-full overflow-y-auto">
@@ -490,7 +606,7 @@ const Teachers = ({setShowAdminHeader}) => {
                         </div>
                         <div className="min-w-0">
                           <div className="font-medium text-gray-900 truncate">{teacher.name}</div>
-                          <div className="text-xs text-gray-500 font-mono">ID: {teacher.empId}</div>
+                          <div className="text-xs text-gray-500 font-mono">Login ID: {teacher.empId}</div>
                           <div className="flex items-center gap-3 mt-1">
                             <a href={`mailto:${teacher.email}`} className="text-sm text-gray-500 hover:text-yellow-600 flex items-center gap-1 truncate">
                               <Mail size={12} className="flex-shrink-0" />
@@ -642,6 +758,14 @@ const Teachers = ({setShowAdminHeader}) => {
                     {/* Enhanced Actions */}
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-1">
+                        <button 
+                          className="text-yellow-700 hover:text-yellow-800 p-1 hover:bg-yellow-50 rounded" 
+                          title="View Login Credentials (resets password)"
+                          onClick={() => handleViewCredentials(teacher)}
+                          disabled={credentialLoadingId === (teacher._id || teacher.id)}
+                        >
+                          <Eye size={14} />
+                        </button>
                         <button 
                           className="text-blue-600 hover:text-blue-800 p-1 hover:bg-blue-50 rounded" 
                           title="View Performance Analytics"

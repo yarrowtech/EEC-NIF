@@ -5,6 +5,7 @@ import { useNavigate, Link } from 'react-router-dom';
 const LoginForm = () => {
   const [showPass, setShowPass] = useState(false);
   const [resetMode, setResetMode] = useState(false);
+  const [resetUserType, setResetUserType] = useState('');
   const [formData, setFormData] = useState({
     username: '',
     password: '',
@@ -85,7 +86,14 @@ const LoginForm = () => {
     setResetNotice('');
     try {
       if (resetMode) {
-        const resetRes = await fetch(`${import.meta.env.VITE_API_URL}/api/admin/auth/reset-first-password`, {
+        const isTeacherReset = resetUserType === 'Teacher';
+        const resetEndpoint = isTeacherReset
+          ? '/api/teacher/auth/reset-first-password'
+          : '/api/admin/auth/reset-first-password';
+        const loginEndpoint = isTeacherReset ? '/api/teacher/auth/login' : '/api/admin/auth/login';
+        const loginRedirect = isTeacherReset ? '/teachers' : '/admin/dashboard';
+
+        const resetRes = await fetch(`${import.meta.env.VITE_API_URL}${resetEndpoint}`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json'
@@ -101,7 +109,7 @@ const LoginForm = () => {
           throw new Error(data?.error || 'Unable to reset password');
         }
 
-        const loginRes = await fetch(`${import.meta.env.VITE_API_URL}/api/admin/auth/login`, {
+        const loginRes = await fetch(`${import.meta.env.VITE_API_URL}${loginEndpoint}`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json'
@@ -118,8 +126,14 @@ const LoginForm = () => {
 
         const loginData = await loginRes.json();
         localStorage.setItem('token', loginData.token);
+        if (isTeacherReset) {
+          localStorage.setItem('userType', 'Teacher');
+          navigate(loginRedirect);
+          return;
+        }
+
         localStorage.setItem('userType', 'Admin');
-        navigate('/admin/dashboard');
+        navigate(loginRedirect);
         return;
       }
 
@@ -153,8 +167,9 @@ const LoginForm = () => {
         }
 
         const data = await res.json();
-        if (option.userType === 'Admin' && data?.requiresPasswordReset) {
+        if ((option.userType === 'Admin' || option.userType === 'Teacher') && data?.requiresPasswordReset) {
           setResetMode(true);
+          setResetUserType(option.userType);
           setFormData((prev) => ({
             ...prev,
             username: data.username || prev.username,

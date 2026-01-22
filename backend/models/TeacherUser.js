@@ -30,6 +30,7 @@ const teacherUserSchema = new mongoose.Schema({
   gender: { type: String, enum: ["male", "female", "other"], default: "male" },
   pinCode: String,
   profilePic: { type: String, default: "" },
+  lastLoginAt: { type: Date, default: null },
 }, { timestamps: true });
 
 teacherUserSchema.pre('save', async function (next) {

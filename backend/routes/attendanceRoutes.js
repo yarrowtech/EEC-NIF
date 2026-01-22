@@ -39,7 +39,11 @@ router.get('/all', authTeacher, async (req, res) => {
   try {
     const schoolId = req.schoolId || req.user?.schoolId || null;
     if (!schoolId) return res.status(400).json({ error: 'schoolId is required' });
-    const students = await StudentUser.find({ schoolId }, 'name email attendance');
+    const filter = { schoolId };
+    if (req.campusId) {
+      filter.campusId = req.campusId;
+    }
+    const students = await StudentUser.find(filter, 'name email attendance');
     res.json(students);
   } catch (err) {
     res.status(500).json({ error: err.message });

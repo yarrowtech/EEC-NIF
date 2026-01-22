@@ -5,6 +5,7 @@ const adminAuth = require('../middleware/adminAuth');
 const authStudent = require('../middleware/authStudent');
 const authTeacher = require('../middleware/authTeacher');
 const StudentProgress = require('../models/StudentProgress');
+const StudentUser = require('../models/StudentUser');
 
 const resolveSchoolId = (req, res) => {
     const schoolId = req.schoolId || req.admin?.schoolId || null;
@@ -20,7 +21,15 @@ router.get("/fetch", adminAuth, async (req, res) => {
     try {
         const schoolId = resolveSchoolId(req, res);
         if (!schoolId) return;
-        const assignments = await Assignment.find({ schoolId });
+        const filter = { schoolId };
+        if (req.campusId) {
+            filter.$or = [
+                { campusId: req.campusId },
+                { campusId: { $exists: false } },
+                { campusId: null }
+            ];
+        }
+        const assignments = await Assignment.find(filter);
         res.status(200).json(assignments);
     } catch(err) {
         res.status(500).json({ error: "Internal server error" });
@@ -34,6 +43,7 @@ router.post("/add", adminAuth, async (req, res) => {
         if (!schoolId) return;
         const assignment = new Assignment({
             schoolId,
+            campusId: req.campusId || null,
             title,
             subject,
             class: className,
@@ -101,7 +111,15 @@ router.get("/submissions", authTeacher, async (req, res) => {
         const { assignmentId, studentId } = req.query || {};
 
         const filter = { schoolId };
-        if (studentId) filter.studentId = studentId;
+        if (studentId) {
+            filter.studentId = studentId;
+        } else if (req.campusId) {
+            const campusStudents = await StudentUser.find({ schoolId, campusId: req.campusId })
+                .select('_id')
+                .lean();
+            const campusIds = campusStudents.map((student) => student._id);
+            filter.studentId = { $in: campusIds };
+        }
 
         const progressDocs = await StudentProgress.find(filter)
             .populate('studentId', 'name grade section roll')

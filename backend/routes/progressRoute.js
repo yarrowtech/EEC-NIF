@@ -131,6 +131,17 @@ router.put('/submission/grade/:studentId/:assignmentId', teacherAuth, async (req
     const { studentId, assignmentId } = req.params;
     const { score, feedback, status } = req.body;
 
+    if (req.campusId) {
+      const campusStudent = await StudentUser.findOne({
+        _id: studentId,
+        schoolId,
+        campusId: req.campusId,
+      }).select('_id');
+      if (!campusStudent) {
+        return res.status(403).json({ error: 'Student not in your campus' });
+      }
+    }
+
     let progress = await StudentProgress.findOne({ studentId, schoolId });
 
     if (!progress) {

@@ -12,6 +12,7 @@ dotenv.config();
 
 const adminAuthRoutes = require('./routes/adminRoutes');
 const teacherAuthRoutes = require('./routes/teacherRoute');
+const teacherDashboardRoutes = require('./routes/teacherDashboardRoutes');
 const staffAuthRoutes = require('./routes/staffRoutes');
 const studentAuthRoutes = require('./routes/studentRoute');
 const parentAuthRoutes = require('./routes/parentRoute');
@@ -236,6 +237,7 @@ app.get("/health", (req, res) => {
 app.use('/api/admin/users', adminUserManagementRoutes);
 app.use('/api/admin/auth', adminAuthRoutes);
 app.use('/api/teacher/auth', teacherAuthRoutes);
+app.use('/api/teacher/dashboard', teacherDashboardRoutes);
 app.use('/api/staff/auth', staffAuthRoutes);
 app.use('/api/student/auth', studentAuthRoutes);
 app.use('/api/parent/auth', parentAuthRoutes);

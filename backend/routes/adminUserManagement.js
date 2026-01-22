@@ -8,6 +8,7 @@ const ParentUser = require('../models/ParentUser');
 const StaffUser = require('../models/StaffUser');
 const Principal = require('../models/Principal');
 const Admin = require('../models/Admin');
+const { generatePassword } = require('../utils/generator');
 const {
   getNextStudentSequence,
   getNextEmployeeSequence,
@@ -538,6 +539,32 @@ router.put('/teachers/:id', adminAuth, async (req, res) => {
   // #swagger.tags = ['Admin Users']
   try {
     await updateByScope(TeacherUser, req, res);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post('/teachers/:id/credentials', adminAuth, async (req, res) => {
+  // #swagger.tags = ['Admin Users']
+  try {
+    const filter = buildScopedIdFilter(req, req.params.id);
+    if (!filter) {
+      return res.status(400).json({ error: 'Invalid id' });
+    }
+    const teacher = await TeacherUser.findOne(filter);
+    if (!teacher) {
+      return res.status(404).json({ error: 'Teacher not found' });
+    }
+    const password = generatePassword();
+    teacher.password = password;
+    teacher.lastLoginAt = null;
+    await teacher.save();
+    res.json({
+      teacherId: teacher._id,
+      username: teacher.username,
+      employeeCode: teacher.employeeCode,
+      password
+    });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

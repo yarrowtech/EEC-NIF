@@ -26,6 +26,9 @@ import {
 const TeacherDashboard = () => {
   const [currentDateTime, setCurrentDateTime] = useState(new Date());
   const [unreadNotifications] = useState(5);
+  const [dashboardData, setDashboardData] = useState(null);
+  const [dashboardError, setDashboardError] = useState('');
+  const [dashboardLoading, setDashboardLoading] = useState(true);
   const navigate = useNavigate();
 
   // Update time every second
@@ -43,6 +46,45 @@ const TeacherDashboard = () => {
     localStorage.removeItem('userType');
     navigate('/');
   };
+
+  const timeAgo = (timestamp) => {
+    if (!timestamp) return 'Just now';
+    const diffMs = Date.now() - new Date(timestamp).getTime();
+    if (Number.isNaN(diffMs)) return 'Just now';
+    const diffMinutes = Math.floor(diffMs / (1000 * 60));
+    if (diffMinutes < 1) return 'Just now';
+    if (diffMinutes < 60) return `${diffMinutes} minutes ago`;
+    const diffHours = Math.floor(diffMinutes / 60);
+    if (diffHours < 24) return `${diffHours} hours ago`;
+    const diffDays = Math.floor(diffHours / 24);
+    return `${diffDays} days ago`;
+  };
+
+  useEffect(() => {
+    const fetchDashboard = async () => {
+      setDashboardLoading(true);
+      setDashboardError('');
+      try {
+        const res = await fetch(`${import.meta.env.VITE_API_URL}/api/teacher/dashboard`, {
+          headers: {
+            'Content-Type': 'application/json',
+            authorization: `Bearer ${localStorage.getItem('token')}`,
+          },
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          throw new Error(data?.error || 'Unable to load dashboard data');
+        }
+        setDashboardData(data);
+      } catch (error) {
+        setDashboardError(error.message || 'Unable to load dashboard data');
+      } finally {
+        setDashboardLoading(false);
+      }
+    };
+
+    fetchDashboard();
+  }, []);
 
   // Format date and time
   const formatDateTime = (date) => {
@@ -63,129 +105,62 @@ const TeacherDashboard = () => {
 
   const { dateStr, timeStr } = formatDateTime(currentDateTime);
 
-  // Quick Stats Data
+  const stats = dashboardData?.stats || {};
   const quickStats = [
     { 
       label: 'Total Students', 
-      value: '184', 
+      value: stats.totalStudents ?? 0, 
       icon: Users, 
       color: 'blue',
-      change: '+12 this month',
-      trend: 'up'
+      change: 'Campus total',
+      trend: 'neutral'
     },
     { 
       label: 'Attendance Today', 
-      value: '94.2%', 
+      value: `${stats.attendanceRate ?? 0}%`, 
       icon: Activity, 
       color: 'green',
-      change: '+2.5% from yesterday',
-      trend: 'up'
+      change: 'Marked today',
+      trend: 'neutral'
     },
     { 
       label: 'Pending Evaluations', 
-      value: '23', 
+      value: stats.pendingEvaluations ?? 0, 
       icon: FileText, 
       color: 'orange',
-      change: '5 urgent',
+      change: 'Submissions pending',
       trend: 'neutral'
     },
     { 
       label: 'Upcoming Events', 
-      value: '7', 
+      value: stats.upcomingEvents ?? 0, 
       icon: Calendar, 
       color: 'purple',
-      change: '2 today',
+      change: 'Scheduled today',
       trend: 'neutral'
     }
   ];
 
-  // Recent Activities Data
-  const recentActivities = [
-    {
-      id: 1,
-      type: 'assignment',
-      message: '12 new submissions for Mathematics Assignment',
-      time: '15 minutes ago',
-      icon: FileText,
-      color: 'blue'
-    },
-    {
-      id: 2,
-      type: 'meeting',
-      message: 'Parent-Teacher meeting scheduled with Sarah\'s parents',
-      time: '45 minutes ago',
-      icon: Calendar,
-      color: 'purple'
-    },
-    {
-      id: 3,
-      type: 'attendance',
-      message: 'Attendance marked for Grade 10-B (92% present)',
-      time: '2 hours ago',
-      icon: ClipboardCheck,
-      color: 'green'
-    },
-    {
-      id: 4,
-      type: 'announcement',
-      message: 'School holiday announced for next Friday',
-      time: '3 hours ago',
-      icon: Bell,
-      color: 'yellow'
-    },
-    {
-      id: 5,
-      type: 'performance',
-      message: 'Emma Johnson scored 98% in Physics test',
-      time: '5 hours ago',
-      icon: Award,
-      color: 'green'
-    }
-  ];
+  const activityIconMap = {
+    assignment: { icon: FileText, color: 'blue' },
+    meeting: { icon: Calendar, color: 'purple' },
+    attendance: { icon: ClipboardCheck, color: 'green' },
+    announcement: { icon: Bell, color: 'yellow' },
+    performance: { icon: Award, color: 'green' },
+  };
 
-  // Upcoming Classes Data
-  const upcomingClasses = [
-    {
-      id: 1,
-      subject: 'Mathematics',
-      class: 'Grade 10-A',
-      time: '09:00 - 09:45',
-      room: 'Room 302',
-      status: 'upcoming'
-    },
-    {
-      id: 2,
-      subject: 'Physics',
-      class: 'Grade 11-B',
-      time: '10:00 - 10:45',
-      room: 'Lab 101',
-      status: 'upcoming'
-    },
-    {
-      id: 3,
-      subject: 'Mathematics',
-      class: 'Grade 9-C',
-      time: '11:30 - 12:15',
-      room: 'Room 302',
-      status: 'upcoming'
-    },
-    {
-      id: 4,
-      subject: 'Consultation',
-      class: 'Grade 12-A',
-      time: '14:00 - 14:30',
-      room: 'Staff Room',
-      status: 'upcoming'
-    }
-  ];
+  const recentActivities = (dashboardData?.recentActivities || []).map((activity) => {
+    const config = activityIconMap[activity.type] || activityIconMap.assignment;
+    return {
+      ...activity,
+      icon: config.icon,
+      color: config.color,
+      time: timeAgo(activity.time),
+    };
+  });
 
-  // Performance Metrics Data
-  const performanceMetrics = [
-    { subject: 'Mathematics', average: 87, trend: 'up' },
-    { subject: 'Physics', average: 92, trend: 'up' },
-    { subject: 'Chemistry', average: 78, trend: 'down' },
-    { subject: 'Biology', average: 85, trend: 'neutral' }
-  ];
+  const upcomingClasses = dashboardData?.upcomingClasses || [];
+  const performanceMetrics = dashboardData?.performanceMetrics || [];
 
   // Quick Actions Data
   const quickActions = [
@@ -234,12 +209,8 @@ const TeacherDashboard = () => {
   ];
 
   // Student Performance Data
-  const topStudents = [
-    { name: 'Emma Johnson', grade: '10-A', score: 98, improvement: '+5%' },
-    { name: 'Michael Brown', grade: '11-B', score: 96, improvement: '+3%' },
-    { name: 'Sophia Williams', grade: '9-C', score: 94, improvement: '+7%' },
-    { name: 'James Wilson', grade: '12-A', score: 92, improvement: '+2%' }
-  ];
+  const topStudents = dashboardData?.topStudents || [];
+  const upcomingDeadlines = dashboardData?.upcomingDeadlines || [];
 
   return (
     <div className="min-h-screen bg-gray-50 p-6">
@@ -247,7 +218,9 @@ const TeacherDashboard = () => {
       <div className="bg-gradient-to-r from-blue-600 to-blue-700 rounded-2xl p-6 mb-6 text-white shadow-lg">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
-            <h1 className="text-3xl font-bold mb-2">Good Morning, Dr. Roomit Beed</h1>
+            <h1 className="text-3xl font-bold mb-2">
+              Good Morning, {dashboardData?.teacher?.name || 'Teacher'}
+            </h1>
             <p className="text-blue-100">Here's your teaching overview for {dateStr}</p>
           </div>
           <div className="flex items-center space-x-3">
@@ -282,6 +255,18 @@ const TeacherDashboard = () => {
           </div>
         </div>
       </div>
+
+      {dashboardError && (
+        <div className="mb-6 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          {dashboardError}
+        </div>
+      )}
+
+      {dashboardLoading && (
+        <div className="mb-6 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-700">
+          Loading campus dashboard data...
+        </div>
+      )}
 
       {/* Quick Stats Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
@@ -514,32 +499,25 @@ const TeacherDashboard = () => {
         </div>
         <div className="p-4">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="p-4 bg-red-50 rounded-lg border border-red-200">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-sm font-medium text-red-800">Urgent</span>
-                <span className="text-xs text-red-600 bg-red-100 px-2 py-1 rounded-full">Tomorrow</span>
+            {upcomingDeadlines.length === 0 && (
+              <div className="col-span-full text-sm text-gray-500">
+                No upcoming deadlines available for this campus.
               </div>
-              <h3 className="font-medium text-red-900">Physics Project Submission</h3>
-              <p className="text-sm text-red-700 mt-1">Grade 11-B • 24 submissions pending</p>
-            </div>
-            
-            <div className="p-4 bg-orange-50 rounded-lg border border-orange-200">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-sm font-medium text-orange-800">Upcoming</span>
-                <span className="text-xs text-orange-600 bg-orange-100 px-2 py-1 rounded-full">2 days</span>
+            )}
+            {upcomingDeadlines.map((item, idx) => (
+              <div key={`${item.title}-${idx}`} className="p-4 bg-blue-50 rounded-lg border border-blue-200">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-sm font-medium text-blue-800">Upcoming</span>
+                  <span className="text-xs text-blue-600 bg-blue-100 px-2 py-1 rounded-full">
+                    {item.dueDate ? new Date(item.dueDate).toLocaleDateString() : 'TBA'}
+                  </span>
+                </div>
+                <h3 className="font-medium text-blue-900">{item.title}</h3>
+                <p className="text-sm text-blue-700 mt-1">
+                  {item.class || '-'} {item.subject ? ` - ${item.subject}` : ''}
+                </p>
               </div>
-              <h3 className="font-medium text-orange-900">Math Quiz Papers</h3>
-              <p className="text-sm text-orange-700 mt-1">Grade 10-A • Evaluation needed</p>
-            </div>
-            
-            <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-sm font-medium text-blue-800">Planning</span>
-                <span className="text-xs text-blue-600 bg-blue-100 px-2 py-1 rounded-full">5 days</span>
-              </div>
-              <h3 className="font-medium text-blue-900">Term Exam Preparation</h3>
-              <p className="text-sm text-blue-700 mt-1">Syllabus completion required</p>
-            </div>
+            ))}
           </div>
         </div>
       </div>

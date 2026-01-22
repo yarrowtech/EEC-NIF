@@ -15,6 +15,9 @@ module.exports = function (req, res, next) {
     req.teacher = decoded;
     req.userType = decoded.type === 'admin' ? 'Admin' : decoded.userType;
     req.schoolId = decoded.schoolId || null;
+    req.campusId = decoded.campusId || null;
+    req.campusName = decoded.campusName || null;
+    req.campusType = decoded.campusType || null;
     next();
   } catch {
     res.status(401).json({ error: 'Invalid token' });
