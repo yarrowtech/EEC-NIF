@@ -48,11 +48,6 @@ export const ADMIN_MENU_ITEMS = [
     scope: 'super'
   },
   { 
-    icon: UserRound, 
-    label: 'Principals', 
-    path: '/admin/principals'
-  },
-  { 
     icon: Users, 
     label: 'Teachers', 
     path: '/admin/teachers' 

@@ -8,7 +8,6 @@ import Students from './Students';
 import Wellbeing from './pages/Wellbeing';
 import SchoolsManagement from './pages/SchoolsManagement';
 import SchoolAdminsManagement from './pages/SchoolAdminsManagement';
-import PrincipalsManagement from './pages/PrincipalsManagement';
 import Routines from './Routines';
 import LessonPlanPage from './pages/LessonPlan';
 import TeacherTimetable from './pages/TeacherTimetable';
@@ -102,16 +101,6 @@ const AdminApp = () => {
         <Route
           path="school-admins"
           element={<SchoolAdminsManagement setShowAdminHeader={setShowAdminHeader} isSuperAdmin={isSuperAdmin} />}
-        />
-        <Route
-          path="principals"
-          element={
-            <PrincipalsManagement
-              setShowAdminHeader={setShowAdminHeader}
-              isSuperAdmin={isSuperAdmin}
-              adminSchoolId={adminProfile?.schoolId || null}
-            />
-          }
         />
         <Route path="teachers" element={<Teachers setShowAdminHeader={setShowAdminHeader} />} />
         <Route path="staff" element={<Staff setShowAdminHeader={setShowAdminHeader} />} />

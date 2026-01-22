@@ -1,14 +1,19 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   AlertTriangle,
+  CheckCircle,
   ClipboardList,
+  Clock,
   Headphones,
   LifeBuoy,
   Loader2,
   Mail,
   MessageCircle,
+  NotebookPen,
   RefreshCcw,
-  Send
+  Send,
+  TrendingUp,
+  Users
 } from 'lucide-react';
 
 const SUPPORT_QUEUE_KEY = 'adminSupportRequests';
@@ -57,6 +62,63 @@ const Support = ({ setShowAdminHeader }) => {
   const [recentRequests, setRecentRequests] = useState([]);
   const [loadingRecent, setLoadingRecent] = useState(false);
   const [recentError, setRecentError] = useState(null);
+  const openTicketCount = useMemo(
+    () => recentRequests.filter((request) => request.status !== 'resolved').length,
+    [recentRequests]
+  );
+  const supportHighlights = useMemo(
+    () => [
+      {
+        icon: Clock,
+        label: 'Avg. first response',
+        value: '42 min',
+        helper: 'Last 30 days',
+        accent: 'bg-blue-50 text-blue-600'
+      },
+      {
+        icon: TrendingUp,
+        label: 'Resolution rate',
+        value: '97%',
+        helper: '+3% vs last week',
+        accent: 'bg-emerald-50 text-emerald-600'
+      },
+      {
+        icon: Users,
+        label: 'Open tickets',
+        value: openTicketCount,
+        helper: 'Awaiting action',
+        accent: 'bg-amber-50 text-amber-600'
+      },
+      {
+        icon: ClipboardList,
+        label: 'Queued offline',
+        value: queuedRequests.length,
+        helper: 'Auto-sync when online',
+        accent: 'bg-slate-100 text-slate-600'
+      }
+    ],
+    [openTicketCount, queuedRequests.length]
+  );
+  const supportPlaybook = useMemo(
+    () => [
+      {
+        title: 'Share context up front',
+        description: 'Attach ticket IDs, affected modules, and screenshots. It removes back-and-forths.',
+        checklist: ['Mention the latest action taken', 'Include grade/campus info when relevant']
+      },
+      {
+        title: 'Prefer portal requests',
+        description: 'Support routing is automatic here, so you skip the manual triage that happens on calls.',
+        checklist: ['Use the urgency dropdown honestly', 'Tag the right topic so SMEs jump in faster']
+      },
+      {
+        title: 'Track the follow-up rhythm',
+        description: 'Tickets update every 4 hours. Add a note only if the situation has changed.',
+        checklist: ['Check “Recent requests” before calling', 'Escalate only if SLA is breached']
+      }
+    ],
+    []
+  );
 
   useEffect(() => {
     setShowAdminHeader(true);
@@ -211,7 +273,7 @@ const Support = ({ setShowAdminHeader }) => {
   return (
     <div className="min-h-screen bg-slate-50 p-6">
       <div className="max-w-6xl mx-auto space-y-6">
-        <div className="bg-white rounded-2xl shadow-lg border border-slate-100 p-6 sm:p-8">
+        <div className="bg-white rounded-2xl shadow-lg border border-black p-6 sm:p-8">
           <div className="flex flex-col md:flex-row md:items-center gap-4">
             <div className="flex-1">
               <p className="text-sm uppercase tracking-widest font-semibold text-orange-500">Need assistance?</p>
@@ -248,6 +310,20 @@ const Support = ({ setShowAdminHeader }) => {
               </div>
             </div>
           </div>
+        </div>
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          {supportHighlights.map((item) => (
+            <div key={item.label} className="bg-white rounded-2xl border border-slate-500 p-4 shadow-sm flex gap-3">
+              <div className={`${item.accent} rounded-2xl p-3`}>
+                <item.icon className="h-5 w-5" />
+              </div>
+              <div>
+                <p className="text-xs uppercase tracking-wide text-slate-700 font-semibold">{item.label}</p>
+                <p className="text-2xl font-semibold text-slate-900 mt-1">{item.value}</p>
+                <p className="text-xs text-slate-700 mt-1">{item.helper}</p>
+              </div>
+            </div>
+          ))}
         </div>
 
         {statusBanner && (
@@ -292,7 +368,7 @@ const Support = ({ setShowAdminHeader }) => {
         )}
 
         <div className="grid gap-6 lg:grid-cols-2">
-          <section className="bg-white rounded-2xl shadow border border-slate-100 p-6 space-y-4">
+          <section className="bg-white rounded-2xl shadow border border-black p-6 space-y-4">
             <div className="flex items-center gap-3">
               <div className="bg-blue-50 text-blue-600 p-3 rounded-2xl">
                 <RefreshCcw />
@@ -310,19 +386,19 @@ const Support = ({ setShowAdminHeader }) => {
               }}
             >
               <div>
-                <label className="text-sm text-slate-600 font-medium">Staff name</label>
+                <label className="text-sm text-black font-medium">Staff name</label>
                 <input
                   name="staffName"
                   value={passwordResetForm.staffName}
                   onChange={handleInput(setPasswordResetForm)}
                   required
-                  className="mt-1 w-full rounded-xl border-slate-200 focus:border-blue-500 focus:ring-blue-500"
+                  className="mt-1 w-full rounded-xl border-black focus:border-blue-500 focus:ring-blue-500"
                   placeholder="Eg. Priya Raman"
                 />
               </div>
               <div className="grid sm:grid-cols-2 gap-3">
                 <div>
-                  <label className="text-sm text-slate-600 font-medium">Official email</label>
+                  <label className="text-sm text-black font-medium">Official email</label>
                   <input
                     type="email"
                     name="email"
@@ -334,7 +410,7 @@ const Support = ({ setShowAdminHeader }) => {
                   />
                 </div>
                 <div>
-                  <label className="text-sm text-slate-600 font-medium">Role</label>
+                  <label className="text-sm text-black font-medium">Role</label>
                   <select
                     name="role"
                     value={passwordResetForm.role}
@@ -380,8 +456,8 @@ const Support = ({ setShowAdminHeader }) => {
                   value={passwordResetForm.details}
                   onChange={handleInput(setPasswordResetForm)}
                   rows={3}
-                  className="mt-1 w-full rounded-xl border-slate-200 focus:border-blue-500 focus:ring-blue-500"
-                  placeholder="Add context such as login screen, screenshots shared, etc."
+                  className="mt-1 w-full rounded-xxl border rounded-xl border-black focus:border-blue-500 focus:ring-blue-500"
+                  placeholder="  Add context such as login screen, screenshots shared, etc."
                 />
               </div>
               <button
@@ -395,7 +471,7 @@ const Support = ({ setShowAdminHeader }) => {
             </form>
           </section>
 
-          <section className="bg-white rounded-2xl shadow border border-slate-100 p-6 space-y-4">
+          <section className="bg-white rounded-2xl shadow border border-black p-6 space-y-4">
             <div className="flex items-center gap-3">
               <div className="bg-violet-50 text-violet-600 p-3 rounded-2xl">
                 <MessageCircle />
@@ -465,13 +541,14 @@ const Support = ({ setShowAdminHeader }) => {
               </div>
               <button
                 type="submit"
-                className="w-full inline-flex items-center justify-center gap-2 rounded-xl bg-violet-600 text-white py-3 font-semibold hover:bg-violet-700 disabled:opacity-70 disabled:cursor-wait"
+                className="w-full inline-flex items-center justify-center rounded-xl bg-violet-600 text-white py-3 font-semibold hover:bg-violet-700 disabled:opacity-70 disabled:cursor-wait"
                 disabled={submitting === 'feedback'}
               >
                 {submitting === 'feedback' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
                 Send feedback
               </button>
             </form>
+            
           </section>
         </div>
 
@@ -567,6 +644,35 @@ const Support = ({ setShowAdminHeader }) => {
               Submit complaint
             </button>
           </form>
+        </section>
+
+        <section className="bg-white rounded-2xl shadow border border-slate-100 p-6 space-y-5">
+          <div className="flex items-center gap-3">
+            <div className="p-3 rounded-2xl bg-slate-100 text-slate-700">
+              <NotebookPen />
+            </div>
+            <div>
+              <p className="text-xs uppercase tracking-widest text-slate-400 font-semibold">Better requests</p>
+              <h2 className="text-xl font-semibold text-slate-900">Support playbook</h2>
+              <p className="text-sm text-slate-500">Tiny reminders that keep responses fast and actionable.</p>
+            </div>
+          </div>
+          <div className="grid gap-4 md:grid-cols-3">
+            {supportPlaybook.map((tip) => (
+              <div key={tip.title} className="rounded-2xl border border-slate-100 bg-slate-50/60 p-4">
+                <p className="text-sm font-semibold text-slate-900">{tip.title}</p>
+                <p className="text-sm text-slate-600 mt-2">{tip.description}</p>
+                <ul className="mt-3 space-y-2">
+                  {tip.checklist.map((item) => (
+                    <li key={item} className="flex items-start gap-2 text-sm text-slate-600">
+                      <CheckCircle className="h-4 w-4 text-emerald-500 mt-0.5" />
+                      <span>{item}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ))}
+          </div>
         </section>
 
         <section className="bg-slate-900 text-white rounded-2xl p-6 md:p-8 grid gap-6 md:grid-cols-2 items-center">
