@@ -39,7 +39,7 @@ const LoginForm = () => {
   const validateForm = () => {
     const newErrors = {};
     if (!formData.username.trim()) {
-      newErrors.username = 'Username is required';
+      newErrors.username = 'User ID is required';
     }
     if (!formData.password) {
       newErrors.password = 'Password is required';
@@ -238,7 +238,7 @@ const LoginForm = () => {
           )}
           {/* Username Field */}
           <div className="space-y-2">
-            <label className="block text-sm font-semibold text-gray-700">Username</label>
+            <label className="block text-sm font-semibold text-gray-700">User ID</label>
             <div className="relative">
               <User className="absolute left-3 top-3 w-5 h-5 text-gray-400" />
               <input
@@ -246,7 +246,7 @@ const LoginForm = () => {
                 name="username"
                 value={formData.username}
                 onChange={handleInputChange}
-                placeholder="Enter your username"
+                placeholder="Enter your User ID"
                 className={`w-full pl-10 pr-4 py-2.5 sm:py-3 border rounded-xl shadow-sm transition-all duration-200 focus:ring-2 focus:ring-yellow-500 focus:border-transparent outline-none ${errors.username
                     ? 'border-red-300 bg-red-50'
                     : 'border-gray-300 hover:border-gray-400 focus:bg-white'
