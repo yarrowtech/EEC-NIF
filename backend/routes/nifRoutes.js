@@ -9,14 +9,7 @@ const NifFeeRecord = require('../models/NifFeeRecord');
 const NifCourse = require('../models/NifCourse');
 const adminAuth = require('../middleware/adminAuth');
 
-const ensureSuperAdmin = (req, res, next) => {
-  if (!req.isSuperAdmin) {
-    return res.status(403).json({ error: 'Super admin access required' });
-  }
-  return next();
-};
-
-router.use(adminAuth, ensureSuperAdmin);
+router.use(adminAuth);
 
 const PROGRAM_LABELS = {
   ADV_CERT: 'Advance Certificate',
@@ -240,6 +233,58 @@ const PROGRAM_INSTALLMENTS = {
   ],
 };
 
+const isObjectEmpty = (obj = {}) => Object.keys(obj).length === 0;
+
+const buildSchoolClause = (req) => {
+  if (!req.schoolId) return null;
+  return {
+    $or: [
+      { schoolId: req.schoolId },
+      { schoolId: null },
+      { schoolId: { $exists: false } },
+    ],
+  };
+};
+
+const withSchoolScope = (filter = {}, req) => {
+  const clause = buildSchoolClause(req);
+  if (!clause) return filter;
+  if (isObjectEmpty(filter)) return clause;
+  return { $and: [filter, clause] };
+};
+
+const resolveSchoolIdForWrite = (req, res) => {
+  if (!req.isSuperAdmin) {
+    if (!req.schoolId) {
+      res.status(403).json({ message: 'School context required' });
+      return null;
+    }
+    return req.schoolId;
+  }
+
+  const candidate =
+    req.schoolId || req.body?.schoolId || req.query?.schoolId || null;
+
+  if (!candidate) {
+    res.status(400).json({ message: 'schoolId is required for this operation' });
+    return null;
+  }
+
+  if (!mongoose.isValidObjectId(candidate)) {
+    res.status(400).json({ message: 'Invalid schoolId' });
+    return null;
+  }
+
+  return candidate;
+};
+
+const matchesSchoolScope = (doc, req) => {
+  if (!doc) return false;
+  if (!req.schoolId) return true;
+  if (!doc.schoolId) return true;
+  return String(doc.schoolId) === String(req.schoolId);
+};
+
 const inferProgramTypeFromText = (text = '') => {
   const lower = text.toLowerCase();
   if (lower.includes('b.des') || lower.includes('b des') || lower.includes('4 year')) {
@@ -311,7 +356,8 @@ const deriveProgramMeta = (body = {}, courseDoc = {}) => {
   };
 };
 
-const purgeNamelessStudents = async () => {
+const purgeNamelessStudents = async (req) => {
+  if (!req?.isSuperAdmin) return 0;
   const namelessQuery = {
     $or: [
       { name: { $exists: false } },
@@ -330,7 +376,8 @@ const purgeNamelessStudents = async () => {
   return ids.length;
 };
 
-const purgeOrphanFeeRecords = async () => {
+const purgeOrphanFeeRecords = async (req) => {
+  if (!req?.isSuperAdmin) return 0;
   const validStudentIds = await NifStudent.find()
     .distinct('_id')
     .catch(() => []);
@@ -348,10 +395,11 @@ const purgeOrphanFeeRecords = async () => {
   return result.deletedCount || 0;
 };
 
-const buildStudentDoc = (body, courseDoc) => {
+const buildStudentDoc = (body, courseDoc, schoolId) => {
   const meta = deriveProgramMeta(body, courseDoc);
 
   const studentDoc = {
+    schoolId,
     name: sanitizeString(body.name),
     guardianName: sanitizeString(body.guardianName),
     guardianEmail: sanitizeString(body.guardianEmail)?.toLowerCase(),
@@ -438,6 +486,7 @@ const ensureFeeRecordForStudent = async (student) => {
 
   const record = await NifFeeRecord.create({
     student: student._id,
+    schoolId: student.schoolId || null,
     programType,
     programLabel,
     courseId: student.courseId || courseDoc?._id,
@@ -486,7 +535,12 @@ router.post('/students', adminAuth, async (req, res) => {
       return res.status(404).json({ message: 'Course not found' });
     }
 
-    const { studentDoc, programMeta } = buildStudentDoc(body, course);
+    const schoolId = resolveSchoolIdForWrite(req, res);
+    if (!schoolId) {
+      return;
+    }
+
+    const { studentDoc, programMeta } = buildStudentDoc(body, course, schoolId);
     const student = await NifStudent.create(studentDoc);
 
     await NifFeeRecord.createForStudentYear(student, 1, {
@@ -519,6 +573,9 @@ router.delete('/students/:id', adminAuth, async (req, res) => {
     if (!student) {
       return res.status(404).json({ message: 'Student not found' });
     }
+    if (!matchesSchoolScope(student, req)) {
+      return res.status(403).json({ message: 'Access denied' });
+    }
 
     await Promise.all([
       NifFeeRecord.deleteMany({ student: id }),
@@ -539,6 +596,11 @@ router.post('/students/bulk', adminAuth, async (req, res) => {
     const rows = Array.isArray(req.body?.students) ? req.body.students : [];
     if (!rows.length) {
       return res.status(400).json({ message: 'students array required' });
+    }
+
+    const schoolId = resolveSchoolIdForWrite(req, res);
+    if (!schoolId) {
+      return;
     }
 
     console.log('NIF Routes - Bulk import received:', rows.length, 'students');
@@ -591,7 +653,8 @@ router.post('/students/bulk', adminAuth, async (req, res) => {
       try {
         const { studentDoc, programMeta } = buildStudentDoc(
           { ...row, courseId: course._id },
-          course
+          course,
+          schoolId
         );
         const student = await NifStudent.create(studentDoc);
 
@@ -628,10 +691,10 @@ router.post('/students/bulk', adminAuth, async (req, res) => {
 router.get('/students', adminAuth, async (req, res) => {
   // #swagger.tags = ['NIF']
   try {
-    await purgeNamelessStudents().catch((err) =>
+    await purgeNamelessStudents(req).catch((err) =>
       console.warn('Failed to purge nameless students', err)
     );
-    await purgeOrphanFeeRecords().catch((err) =>
+    await purgeOrphanFeeRecords(req).catch((err) =>
       console.warn('Failed to purge orphan fee records', err)
     );
     const q = sanitizeString(req.query.q);
@@ -645,7 +708,7 @@ router.get('/students', adminAuth, async (req, res) => {
       ];
     }
 
-    const students = await NifStudent.find(filter)
+    const students = await NifStudent.find(withSchoolScope(filter, req))
       .sort({ createdAt: -1 })
       .lean();
     const ids = students.map((s) => s._id);
@@ -700,6 +763,9 @@ router.get('/students/:id', adminAuth, async (req, res) => {
     if (!student) {
       return res.status(404).json({ message: 'Student not found' });
     }
+    if (!matchesSchoolScope(student, req)) {
+      return res.status(403).json({ message: 'Access denied' });
+    }
 
     const feeRecords = await NifFeeRecord.find({ student: id })
       .sort({ yearNumber: 1 })
@@ -720,15 +786,16 @@ router.get('/students/:id', adminAuth, async (req, res) => {
 router.get('/fees', adminAuth, async (req, res) => {
   // #swagger.tags = ['NIF']
   try {
-    await purgeNamelessStudents().catch((err) =>
+    await purgeNamelessStudents(req).catch((err) =>
       console.warn('Failed to purge nameless students', err)
     );
-    await purgeOrphanFeeRecords().catch((err) =>
+    await purgeOrphanFeeRecords(req).catch((err) =>
       console.warn('Failed to purge orphan fee records', err)
     );
-    const allStudents = await NifStudent.find().lean();
+    const scopedStudentFilter = withSchoolScope({}, req);
+    const allStudents = await NifStudent.find(scopedStudentFilter).lean();
     const studentsWithRecords = await NifFeeRecord.find(
-      {},
+      withSchoolScope({}, req),
       { student: 1 }
     ).lean();
     const withRecordSet = new Set(
@@ -762,7 +829,7 @@ router.get('/fees', adminAuth, async (req, res) => {
       filter.yearNumber = yearNumber;
     }
 
-    const records = await NifFeeRecord.find(filter)
+    const records = await NifFeeRecord.find(withSchoolScope(filter, req))
       .populate('student')
       .sort({ createdAt: -1 })
       .lean();
@@ -795,11 +862,14 @@ router.get('/fees', adminAuth, async (req, res) => {
 router.get('/fees/dashboard-summary', adminAuth, async (req, res) => {
   // #swagger.tags = ['NIF']
   try {
+    const scopedRecordFilter = withSchoolScope({}, req);
     const [feeRecords, students] = await Promise.all([
-      NifFeeRecord.find()
+      NifFeeRecord.find(scopedRecordFilter)
         .populate('student', 'name course grade section programLabel')
         .lean(),
-      NifStudent.find().select('course grade programLabel').lean(),
+      NifStudent.find(withSchoolScope({}, req))
+        .select('course grade programLabel')
+        .lean(),
     ]);
 
     const totalOutstanding = feeRecords.reduce(
@@ -924,6 +994,9 @@ router.get('/fees/details/:id', adminAuth, async (req, res) => {
     if (!record) {
       return res.status(404).json({ message: 'Fee record not found' });
     }
+    if (!matchesSchoolScope(record, req)) {
+      return res.status(403).json({ message: 'Access denied' });
+    }
 
     let installments = record.installmentsSnapshot || [];
     if (!installments.length) {
@@ -1021,6 +1094,12 @@ router.post('/fees/discount/:id', adminAuth, async (req, res) => {
     if (!record) {
       return res.status(404).json({ message: 'Fee record not found' });
     }
+    if (!matchesSchoolScope(record, req)) {
+      return res.status(403).json({ message: 'Access denied' });
+    }
+    if (!matchesSchoolScope(record, req)) {
+      return res.status(403).json({ message: 'Access denied' });
+    }
 
     if (amount === undefined || amount === null) {
       return res.status(400).json({ message: 'Discount amount is required' });
@@ -1085,6 +1164,9 @@ router.post('/fees/installments/pay/:id', adminAuth, async (req, res) => {
     const record = await NifFeeRecord.findById(req.params.id);
     if (!record) {
       return res.status(404).json({ message: 'Fee record not found' });
+    }
+    if (!matchesSchoolScope(record, req)) {
+      return res.status(403).json({ message: 'Access denied' });
     }
 
     if (
@@ -1220,6 +1302,9 @@ router.put('/students/:id/archive', adminAuth, async (req, res) => {
     if (!student) {
       return res.status(404).json({ message: 'Student not found' });
     }
+    if (!matchesSchoolScope(student, req)) {
+      return res.status(403).json({ message: 'Access denied' });
+    }
 
     // Get fee record for the student
     const feeRecord = await NifFeeRecord.findOne({ student: id }).lean();
@@ -1229,6 +1314,7 @@ router.put('/students/:id/archive', adminAuth, async (req, res) => {
     // Create archived student record
     const archivedStudent = await NifArchivedStudent.create({
       originalStudentId: student._id,
+      schoolId: student.schoolId || null,
       studentName: student.name,
       email: student.email,
       mobile: student.mobile,
@@ -1288,9 +1374,13 @@ router.patch('/students/:id/unarchive', adminAuth, async (req, res) => {
     if (!archivedStudent) {
       return res.status(404).json({ message: 'Archived student not found' });
     }
+    if (!matchesSchoolScope(archivedStudent, req)) {
+      return res.status(403).json({ message: 'Access denied' });
+    }
 
     // Restore student from snapshot
     const studentData = {
+      schoolId: archivedStudent.schoolId || req.schoolId || null,
       name: archivedStudent.studentName,
       email: archivedStudent.email,
       mobile: archivedStudent.mobile,
@@ -1324,6 +1414,8 @@ router.patch('/students/:id/unarchive', adminAuth, async (req, res) => {
         };
         delete feeRecord._id;
         delete feeRecord.id;
+        feeRecord.schoolId =
+          restoredStudent.schoolId || feeRecord.schoolId || null;
         
         await NifFeeRecord.create(feeRecord);
       }

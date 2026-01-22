@@ -13,6 +13,8 @@ const getTransporter = () => {
   if (!SMTP_USER || !SMTP_PASS) {
     throw new Error('SMTP credentials are missing');
   }
+  const user = String(SMTP_USER).trim();
+  const pass = String(SMTP_PASS).replace(/\s+/g, '');
   const host = SMTP_HOST || 'smtp.gmail.com';
   const port = Number(SMTP_PORT) || 465;
   const secure = typeof SMTP_SECURE === 'string'
@@ -24,8 +26,8 @@ const getTransporter = () => {
     port,
     secure,
     auth: {
-      user: SMTP_USER,
-      pass: SMTP_PASS
+      user,
+      pass
     }
   });
 };

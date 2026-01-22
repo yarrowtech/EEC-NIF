@@ -36,6 +36,13 @@ const feeSummarySchema = new Schema(
 ============================================ */
 const nifStudentSchema = new Schema(
   {
+    /* -------- Tenant scope -------- */
+    schoolId: {
+      type: Schema.Types.ObjectId,
+      ref: "School",
+      index: true,
+    },
+
     /* -------- Core identity -------- */
     name: {
       type: String,
@@ -209,5 +216,6 @@ const nifStudentSchema = new Schema(
 
 nifStudentSchema.index({ roll: 1 }, { unique: false, sparse: true });
 nifStudentSchema.index({ email: 1 }, { unique: false, sparse: true });
+nifStudentSchema.index({ schoolId: 1, createdAt: -1 });
 
 module.exports = mongoose.model("NifStudent", nifStudentSchema);
