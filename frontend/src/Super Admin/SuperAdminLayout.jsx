@@ -126,7 +126,7 @@ const SuperAdminLayout = ({ children, sidebarCollapsed, onToggleSidebar, insight
       )}
 
       <div className="flex-1 flex flex-col min-w-0">
-        <header className="bg-white border-b border-slate-200 px-4 sm:px-6 py-4 flex flex-col gap-4 sticky top-0 z-20">
+        <header className="bg-white border-b border-slate-200 px-4 sm:px-6 py-4 flex flex-col gap-4">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="flex items-center gap-3">
               <button

@@ -12,8 +12,6 @@ import IDPass from './pages/IDPass';
 import ActiveSchools from './pages/ActiveSchools';
 import {
   initialSchoolRequests,
-  initialFeedback,
-  initialIssues,
   initialTickets,
   initialAnnouncements,
   initialComplianceItems,
@@ -98,8 +96,12 @@ const SuperAdminApp = () => {
   const [activeSchoolsError, setActiveSchoolsError] = useState(null);
   const [schoolAdmins, setSchoolAdmins] = useState([]);
   const [schoolAdminsError, setSchoolAdminsError] = useState(null);
-  const [feedbackItems, setFeedbackItems] = useState(initialFeedback);
-  const [issues, setIssues] = useState(initialIssues);
+  const [feedbackItems, setFeedbackItems] = useState([]);
+  const [feedbackLoading, setFeedbackLoading] = useState(false);
+  const [feedbackError, setFeedbackError] = useState(null);
+  const [issues, setIssues] = useState([]);
+  const [issuesLoading, setIssuesLoading] = useState(false);
+  const [issuesError, setIssuesError] = useState(null);
   const [tickets, setTickets] = useState(initialTickets);
   const [ticketsLoading, setTicketsLoading] = useState(false);
   const [ticketsError, setTicketsError] = useState(null);
@@ -314,6 +316,60 @@ const SuperAdminApp = () => {
     }
   }, [normalizeSupportTicket]);
 
+  const fetchFeedback = useCallback(async () => {
+    const token = localStorage.getItem('token');
+    if (!token || !API_BASE) {
+      setFeedbackItems([]);
+      return;
+    }
+    setFeedbackLoading(true);
+    setFeedbackError(null);
+    try {
+      const response = await fetch(`${API_BASE}/api/feedback/fetch`, {
+        headers: {
+          Authorization: `Bearer ${token}`
+        }
+      });
+      if (!response.ok) {
+        throw new Error('Failed to load feedback');
+      }
+      const data = await response.json();
+      setFeedbackItems(Array.isArray(data) ? data : []);
+    } catch (error) {
+      console.error('Failed to fetch feedback', error);
+      setFeedbackError(error.message || 'Unable to fetch feedback');
+    } finally {
+      setFeedbackLoading(false);
+    }
+  }, []);
+
+  const fetchIssues = useCallback(async () => {
+    const token = localStorage.getItem('token');
+    if (!token || !API_BASE) {
+      setIssues([]);
+      return;
+    }
+    setIssuesLoading(true);
+    setIssuesError(null);
+    try {
+      const response = await fetch(`${API_BASE}/api/issues`, {
+        headers: {
+          Authorization: `Bearer ${token}`
+        }
+      });
+      if (!response.ok) {
+        throw new Error('Failed to load issues');
+      }
+      const data = await response.json();
+      setIssues(Array.isArray(data) ? data : []);
+    } catch (error) {
+      console.error('Failed to fetch issues', error);
+      setIssuesError(error.message || 'Unable to fetch issues');
+    } finally {
+      setIssuesLoading(false);
+    }
+  }, []);
+
   const handleTicketUpdate = useCallback(
     async (ticketId, updates = {}) => {
       setTickets((prev) =>
@@ -383,6 +439,14 @@ const SuperAdminApp = () => {
   useEffect(() => {
     fetchActiveSchools();
   }, [fetchActiveSchools]);
+
+  useEffect(() => {
+    fetchFeedback();
+  }, [fetchFeedback]);
+
+  useEffect(() => {
+    fetchIssues();
+  }, [fetchIssues]);
 
   useEffect(() => {
     const handleRefresh = () => fetchRequests();
