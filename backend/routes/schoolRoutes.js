@@ -10,7 +10,7 @@ const ensureSuperAdmin = (req, res, next) => {
   if (!req.isSuperAdmin) {
     return res.status(403).json({ error: 'Super admin access required' });
   }
-  return next();
+   return next();
 };
 
 // Create school (super admin only)

@@ -141,12 +141,21 @@ const TeacherDashboard = () => {
     }
   ];
 
+  const colorClasses = {
+    blue: { bg: 'bg-blue-100', text: 'text-blue-600' },
+    green: { bg: 'bg-green-100', text: 'text-green-600' },
+    orange: { bg: 'bg-orange-100', text: 'text-orange-600' },
+    purple: { bg: 'bg-purple-100', text: 'text-purple-600' },
+    yellow: { bg: 'bg-yellow-100', text: 'text-yellow-600' },
+    red: { bg: 'bg-red-100', text: 'text-red-600' }
+  };
+
   const activityIconMap = {
     assignment: { icon: FileText, color: 'blue' },
     meeting: { icon: Calendar, color: 'purple' },
     attendance: { icon: ClipboardCheck, color: 'green' },
     announcement: { icon: Bell, color: 'yellow' },
-    performance: { icon: Award, color: 'green' },
+    performance: { icon: Award, color: 'green' }
   };
 
   const recentActivities = (dashboardData?.recentActivities || []).map((activity) => {
@@ -272,11 +281,12 @@ const TeacherDashboard = () => {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
         {quickStats.map((stat, index) => {
           const IconComponent = stat.icon;
+          const statColors = colorClasses[stat.color] || colorClasses.blue;
           return (
             <div key={index} className="bg-white rounded-xl shadow-sm p-6 border border-gray-100 hover:shadow-md transition-shadow">
               <div className="flex items-center justify-between mb-4">
-                <div className={`p-3 rounded-xl bg-${stat.color}-100`}>
-                  <IconComponent className={`w-6 h-6 text-${stat.color}-600`} />
+                <div className={`p-3 rounded-xl ${statColors.bg}`}>
+                  <IconComponent className={`w-6 h-6 ${statColors.text}`} />
                 </div>
                 {stat.trend === 'up' && <TrendingUp className="w-5 h-5 text-green-500" />}
               </div>
@@ -303,11 +313,16 @@ const TeacherDashboard = () => {
           </div>
           <div className="p-4">
             <div className="space-y-4">
+              {upcomingClasses.length === 0 && (
+                <div className="rounded-lg border border-dashed border-gray-200 bg-gray-50 px-4 py-6 text-center text-sm text-gray-500">
+                  No classes scheduled for today.
+                </div>
+              )}
               {upcomingClasses.map((classItem) => (
                 <div key={classItem.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors">
                   <div className="flex-1">
                     <h3 className="font-medium text-gray-800">{classItem.subject}</h3>
-                    <p className="text-sm text-gray-500">{classItem.class} • {classItem.room}</p>
+                    <p className="text-sm text-gray-500">{classItem.class} - {classItem.room}</p>
                   </div>
                   <div className="text-right">
                     <p className="font-medium text-gray-800">{classItem.time}</p>
@@ -338,12 +353,18 @@ const TeacherDashboard = () => {
           </div>
           <div className="p-4">
             <div className="space-y-4">
+              {recentActivities.length === 0 && (
+                <div className="rounded-lg border border-dashed border-gray-200 bg-gray-50 px-4 py-6 text-center text-sm text-gray-500">
+                  No recent activity yet.
+                </div>
+              )}
               {recentActivities.map((activity) => {
                 const IconComponent = activity.icon;
+                const activityColors = colorClasses[activity.color] || colorClasses.blue;
                 return (
                   <div key={activity.id} className="flex items-start space-x-4 p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors">
-                    <div className={`p-2 rounded-lg bg-${activity.color}-100`}>
-                      <IconComponent className={`w-5 h-5 text-${activity.color}-600`} />
+                    <div className={`p-2 rounded-lg ${activityColors.bg}`}>
+                      <IconComponent className={`w-5 h-5 ${activityColors.text}`} />
                     </div>
                     <div className="flex-1">
                       <p className="text-sm text-gray-800 font-medium">{activity.message}</p>
@@ -373,10 +394,11 @@ const TeacherDashboard = () => {
             <div className="grid grid-cols-2 gap-4">
               {quickActions.map((action) => {
                 const IconComponent = action.icon;
+                const actionColors = colorClasses[action.color] || colorClasses.blue;
                 const ButtonContent = () => (
                   <>
-                    <div className={`p-3 rounded-xl bg-${action.color}-100 mb-3 group-hover:scale-110 transition-transform`}>
-                      <IconComponent className={`w-6 h-6 text-${action.color}-600`} />
+                    <div className={`p-3 rounded-xl ${actionColors.bg} mb-3 group-hover:scale-110 transition-transform`}>
+                      <IconComponent className={`w-6 h-6 ${actionColors.text}`} />
                     </div>
                     <span className="text-sm font-medium text-gray-800 text-center">{action.label}</span>
                     <span className="text-xs text-gray-500 mt-1">{action.description}</span>
@@ -441,6 +463,11 @@ const TeacherDashboard = () => {
               <div>
                 <h3 className="text-sm font-medium text-gray-700 mb-4">Subject Averages</h3>
                 <div className="space-y-4">
+                  {performanceMetrics.length === 0 && (
+                    <div className="rounded-lg border border-dashed border-gray-200 bg-gray-50 px-4 py-6 text-center text-sm text-gray-500">
+                      Performance data will appear once assessments are graded.
+                    </div>
+                  )}
                   {performanceMetrics.map((subject, index) => (
                     <div key={index} className="flex items-center justify-between">
                       <span className="text-sm text-gray-600">{subject.subject}</span>
@@ -467,6 +494,11 @@ const TeacherDashboard = () => {
               <div>
                 <h3 className="text-sm font-medium text-gray-700 mb-4">Top Students</h3>
                 <div className="space-y-3">
+                  {topStudents.length === 0 && (
+                    <div className="rounded-lg border border-dashed border-gray-200 bg-gray-50 px-4 py-6 text-center text-sm text-gray-500">
+                      Top students will appear after grading.
+                    </div>
+                  )}
                   {topStudents.map((student, index) => (
                     <div key={index} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
                       <div>
