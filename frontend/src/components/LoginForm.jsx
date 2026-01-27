@@ -2,6 +2,8 @@ import React, { useState } from 'react';
 import { Eye, EyeOff, Lock, User } from 'lucide-react';
 import { useNavigate, Link } from 'react-router-dom';
 
+const API_BASE = (import.meta.env.VITE_API_URL || 'http://localhost:5000').replace(/\/$/, '');
+
 const LoginForm = () => {
   const [showPass, setShowPass] = useState(false);
   const [resetMode, setResetMode] = useState(false);
@@ -76,6 +78,7 @@ const LoginForm = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    const sanitizedUsername = formData.username.trim();
     if (resetMode) {
       if (!validateReset()) return;
     } else if (!validateForm()) {
@@ -93,13 +96,13 @@ const LoginForm = () => {
         const loginEndpoint = isTeacherReset ? '/api/teacher/auth/login' : '/api/admin/auth/login';
         const loginRedirect = isTeacherReset ? '/teachers' : '/admin/dashboard';
 
-        const resetRes = await fetch(`${import.meta.env.VITE_API_URL}${resetEndpoint}`, {
+        const resetRes = await fetch(`${API_BASE}${resetEndpoint}`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json'
           },
           body: JSON.stringify({
-            username: formData.username,
+            username: sanitizedUsername,
             newPassword: formData.newPassword
           })
         });
@@ -109,13 +112,13 @@ const LoginForm = () => {
           throw new Error(data?.error || 'Unable to reset password');
         }
 
-        const loginRes = await fetch(`${import.meta.env.VITE_API_URL}${loginEndpoint}`, {
+        const loginRes = await fetch(`${API_BASE}${loginEndpoint}`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json'
           },
           body: JSON.stringify({
-            username: formData.username,
+            username: sanitizedUsername,
             password: formData.newPassword
           })
         });
@@ -146,14 +149,15 @@ const LoginForm = () => {
       ];
 
       let loggedIn = false;
+      let lastErrorMessage = '';
       for (const option of loginOptions) {
-        const res = await fetch(`${import.meta.env.VITE_API_URL}${option.url}`, {
+        const res = await fetch(`${API_BASE}${option.url}`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json'
           },
           body: JSON.stringify({
-            username: formData.username,
+            username: sanitizedUsername,
             password: formData.password
           })
         });
@@ -162,6 +166,10 @@ const LoginForm = () => {
           if (option.userType === 'Admin' && res.status === 403) {
             const data = await res.json().catch(() => ({}));
             throw new Error(data?.error || 'Account inactive. Contact EEC admin.');
+          }
+          const data = await res.json().catch(() => ({}));
+          if (data?.error || data?.message) {
+            lastErrorMessage = data.error || data.message;
           }
           continue;
         }
@@ -186,7 +194,7 @@ const LoginForm = () => {
           let resolvedUserType = option.userType;
           let redirectTo = option.redirect;
           try {
-            const profileRes = await fetch(`${import.meta.env.VITE_API_URL}/api/admin/auth/profile`, {
+            const profileRes = await fetch(`${API_BASE}/api/admin/auth/profile`, {
               method: 'POST',
               headers: {
                 'Content-Type': 'application/json',
@@ -214,7 +222,7 @@ const LoginForm = () => {
       }
 
       if (!loggedIn) {
-        throw new Error('Login failed');
+        throw new Error(lastErrorMessage || 'Invalid credentials. Please check your User ID and password.');
       }
     } catch (error) {
       console.error('Login failed:', error);
