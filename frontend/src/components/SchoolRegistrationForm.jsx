@@ -484,94 +484,94 @@ const SchoolRegistrationForm = () => {
     switch (currentStep) {
       case 1:
         return (
-          <div className="space-y-6">
-            <h2 className="text-2xl font-bold text-gray-800 mb-6">School Information</h2>
+          <div className="space-y-4 sm:space-y-6">
+            <h2 className="text-xl sm:text-2xl font-bold text-gray-800 mb-4 sm:mb-6">School Information</h2>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1.5 sm:mb-2">
                 School Name <span className="text-red-500">*</span>
               </label>
               <div className="relative">
-                <GraduationCap className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
+                <GraduationCap className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={18} />
                 <input
                   type="text"
                   name="name"
                   value={formData.name}
                   onChange={handleInputChange}
-                  className={`w-full pl-10 pr-4 py-3 border ${errors.name ? 'border-red-500' : 'border-gray-300'} rounded-xl focus:ring-2 focus:ring-amber-500 focus:border-transparent`}
+                  className={`w-full pl-9 sm:pl-10 pr-3 sm:pr-4 py-2.5 sm:py-3 text-sm sm:text-base border ${errors.name ? 'border-red-500' : 'border-gray-300'} rounded-lg sm:rounded-xl focus:ring-2 focus:ring-amber-500 focus:border-transparent`}
                   placeholder="Enter school name"
                 />
               </div>
               {errors.name && (
-                <p className="mt-1 text-sm text-red-500 flex items-center gap-1">
-                  <AlertCircle size={14} /> {errors.name}
+                <p className="mt-1 text-xs sm:text-sm text-red-500 flex items-center gap-1">
+                  <AlertCircle size={12} className="sm:w-3.5 sm:h-3.5" /> {errors.name}
                 </p>
               )}
             </div>
 
             {/* Campus Management */}
             <div>
-              <div className="flex items-center justify-between mb-4">
-                <label className="block text-sm font-medium text-gray-700">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-0 mb-3 sm:mb-4">
+                <label className="block text-xs sm:text-sm font-medium text-gray-700">
                   Campus Details <span className="text-red-500">*</span>
-                  <span className="text-gray-500 text-xs ml-2">({formData.campuses.length} campus{formData.campuses.length !== 1 ? 'es' : ''})</span>
+                  <span className="text-gray-500 text-xs ml-1 sm:ml-2">({formData.campuses.length} campus{formData.campuses.length !== 1 ? 'es' : ''})</span>
                 </label>
                 <button
                   type="button"
                   onClick={addCampus}
-                  className="flex items-center gap-2 px-4 py-2 bg-amber-100 text-amber-700 rounded-lg hover:bg-amber-200 transition-colors text-sm font-medium"
+                  className="flex items-center justify-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2 bg-amber-100 text-amber-700 rounded-lg hover:bg-amber-200 transition-colors text-xs sm:text-sm font-medium"
                 >
-                  <Plus size={16} />
+                  <Plus size={14} className="sm:w-4 sm:h-4" />
                   Add Campus
                 </button>
               </div>
 
-              <div className="space-y-4">
+              <div className="space-y-3 sm:space-y-4">
                 {formData.campuses.map((campus, index) => (
-                  <div key={index} className="p-4 bg-gray-50 rounded-xl border-2 border-gray-200 space-y-4">
-                    <div className="flex items-center justify-between mb-2">
-                      <h4 className="font-semibold text-gray-700">Campus {index + 1}</h4>
+                  <div key={index} className="p-3 sm:p-4 bg-gray-50 rounded-lg sm:rounded-xl border-2 border-gray-200 space-y-3 sm:space-y-4">
+                    <div className="flex items-center justify-between mb-1 sm:mb-2">
+                      <h4 className="font-semibold text-gray-700 text-sm sm:text-base">Campus {index + 1}</h4>
                       {formData.campuses.length > 1 && (
                         <button
                           type="button"
                           onClick={() => removeCampus(index)}
-                          className="text-red-500 hover:text-red-700 p-2 hover:bg-red-50 rounded-lg transition-colors"
+                          className="text-red-500 hover:text-red-700 p-1.5 sm:p-2 hover:bg-red-50 rounded-lg transition-colors"
                         >
-                          <Trash2 size={18} />
+                          <Trash2 size={16} className="sm:w-[18px] sm:h-[18px]" />
                         </button>
                       )}
                     </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                       {/* Campus Name */}
                       <div>
-                        <label className="block text-xs font-medium text-gray-600 mb-1">
+                        <label className="block text-[11px] sm:text-xs font-medium text-gray-600 mb-1">
                           Campus Name <span className="text-red-500">*</span>
                         </label>
                         <div className="relative">
-                          <Building2 className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={18} />
+                          <Building2 className="absolute left-2.5 sm:left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={16} />
                           <input
                             type="text"
                             value={campus.name}
                             onChange={(e) => handleCampusChange(index, 'name', e.target.value)}
-                            className={`w-full pl-9 pr-3 py-2 border ${errors[`campus_${index}_name`] ? 'border-red-500' : 'border-gray-300'} rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent text-sm`}
+                            className={`w-full pl-8 sm:pl-9 pr-2.5 sm:pr-3 py-2 border ${errors[`campus_${index}_name`] ? 'border-red-500' : 'border-gray-300'} rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent text-xs sm:text-sm`}
                             placeholder="e.g., Main Campus"
                           />
                         </div>
                         {errors[`campus_${index}_name`] && (
-                          <p className="mt-1 text-xs text-red-500">{errors[`campus_${index}_name`]}</p>
+                          <p className="mt-1 text-[10px] sm:text-xs text-red-500">{errors[`campus_${index}_name`]}</p>
                         )}
                       </div>
 
                       {/* Campus Type */}
                       <div>
-                        <label className="block text-xs font-medium text-gray-600 mb-1">
+                        <label className="block text-[11px] sm:text-xs font-medium text-gray-600 mb-1">
                           Campus Type
                         </label>
                         <select
                           value={campus.campusType}
                           onChange={(e) => handleCampusChange(index, 'campusType', e.target.value)}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent text-sm"
+                          className="w-full px-2.5 sm:px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent text-xs sm:text-sm"
                         >
                           {campusTypes.map(type => (
                             <option key={type} value={type}>{type}</option>
@@ -582,37 +582,37 @@ const SchoolRegistrationForm = () => {
 
                     {/* Campus Address */}
                     <div>
-                      <label className="block text-xs font-medium text-gray-600 mb-1">
+                      <label className="block text-[11px] sm:text-xs font-medium text-gray-600 mb-1">
                         Campus Address <span className="text-red-500">*</span>
                       </label>
                       <div className="relative">
-                        <MapPin className="absolute left-3 top-3 text-gray-400" size={18} />
+                        <MapPin className="absolute left-2.5 sm:left-3 top-2.5 sm:top-3 text-gray-400" size={16} />
                         <textarea
                           value={campus.address}
                           onChange={(e) => handleCampusChange(index, 'address', e.target.value)}
                           rows="2"
-                          className={`w-full pl-9 pr-3 py-2 border ${errors[`campus_${index}_address`] ? 'border-red-500' : 'border-gray-300'} rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent text-sm`}
+                          className={`w-full pl-8 sm:pl-9 pr-2.5 sm:pr-3 py-2 border ${errors[`campus_${index}_address`] ? 'border-red-500' : 'border-gray-300'} rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent text-xs sm:text-sm`}
                           placeholder="Enter complete campus address"
                         />
                       </div>
                       {errors[`campus_${index}_address`] && (
-                        <p className="mt-1 text-xs text-red-500">{errors[`campus_${index}_address`]}</p>
+                        <p className="mt-1 text-[10px] sm:text-xs text-red-500">{errors[`campus_${index}_address`]}</p>
                       )}
                     </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                       {/* Campus Contact Person (Optional) */}
                       <div>
-                        <label className="block text-xs font-medium text-gray-600 mb-1">
+                        <label className="block text-[11px] sm:text-xs font-medium text-gray-600 mb-1">
                           Contact Person <span className="text-gray-500">(Optional)</span>
                         </label>
                         <div className="relative">
-                          <User className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={18} />
+                          <User className="absolute left-2.5 sm:left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={16} />
                           <input
                             type="text"
                             value={campus.contactPerson}
                             onChange={(e) => handleCampusChange(index, 'contactPerson', e.target.value)}
-                            className="w-full pl-9 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent text-sm"
+                            className="w-full pl-8 sm:pl-9 pr-2.5 sm:pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent text-xs sm:text-sm"
                             placeholder="Campus contact"
                           />
                         </div>
@@ -620,21 +620,21 @@ const SchoolRegistrationForm = () => {
 
                       {/* Campus Contact Phone (Optional) */}
                       <div>
-                        <label className="block text-xs font-medium text-gray-600 mb-1">
+                        <label className="block text-[11px] sm:text-xs font-medium text-gray-600 mb-1">
                           Contact Phone <span className="text-gray-500">(Optional)</span>
                         </label>
                         <div className="relative">
-                          <Phone className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={18} />
+                          <Phone className="absolute left-2.5 sm:left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={16} />
                           <input
                             type="tel"
                             value={campus.contactPhone}
                             onChange={(e) => handleCampusChange(index, 'contactPhone', e.target.value)}
-                            className={`w-full pl-9 pr-3 py-2 border ${errors[`campus_${index}_contactPhone`] ? 'border-red-500' : 'border-gray-300'} rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent text-sm`}
+                            className={`w-full pl-8 sm:pl-9 pr-2.5 sm:pr-3 py-2 border ${errors[`campus_${index}_contactPhone`] ? 'border-red-500' : 'border-gray-300'} rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent text-xs sm:text-sm`}
                             placeholder="Campus phone"
                           />
                         </div>
                         {errors[`campus_${index}_contactPhone`] && (
-                          <p className="mt-1 text-xs text-red-500">{errors[`campus_${index}_contactPhone`]}</p>
+                          <p className="mt-1 text-[10px] sm:text-xs text-red-500">{errors[`campus_${index}_contactPhone`]}</p>
                         )}
                       </div>
                     </div>
@@ -650,16 +650,16 @@ const SchoolRegistrationForm = () => {
             </div>
 
             {/* School Type and Board - Side by Side */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1.5 sm:mb-2">
                   School Type <span className="text-red-500">*</span>
                 </label>
                 <select
                   name="schoolType"
                   value={formData.schoolType}
                   onChange={handleInputChange}
-                  className={`w-full px-4 py-3 border ${errors.schoolType ? 'border-red-500' : 'border-gray-300'} rounded-xl focus:ring-2 focus:ring-amber-500 focus:border-transparent`}
+                  className={`w-full px-3 sm:px-4 py-2.5 sm:py-3 text-sm sm:text-base border ${errors.schoolType ? 'border-red-500' : 'border-gray-300'} rounded-lg sm:rounded-xl focus:ring-2 focus:ring-amber-500 focus:border-transparent`}
                 >
                   <option value="">Select school type</option>
                   {schoolTypes.map(type => (
@@ -667,21 +667,21 @@ const SchoolRegistrationForm = () => {
                   ))}
                 </select>
                 {errors.schoolType && (
-                  <p className="mt-1 text-sm text-red-500 flex items-center gap-1">
-                    <AlertCircle size={14} /> {errors.schoolType}
+                  <p className="mt-1 text-xs sm:text-sm text-red-500 flex items-center gap-1">
+                    <AlertCircle size={12} className="sm:w-3.5 sm:h-3.5" /> {errors.schoolType}
                   </p>
                 )}
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1.5 sm:mb-2">
                   School Board/Affiliation <span className="text-red-500">*</span>
                 </label>
                 <select
                   name="board"
                   value={formData.board}
                   onChange={handleInputChange}
-                  className={`w-full px-4 py-3 border ${errors.board ? 'border-red-500' : 'border-gray-300'} rounded-xl focus:ring-2 focus:ring-amber-500 focus:border-transparent`}
+                  className={`w-full px-3 sm:px-4 py-2.5 sm:py-3 text-sm sm:text-base border ${errors.board ? 'border-red-500' : 'border-gray-300'} rounded-lg sm:rounded-xl focus:ring-2 focus:ring-amber-500 focus:border-transparent`}
                 >
                   <option value="">Select board/affiliation</option>
                   {boards.map(board => (
@@ -689,8 +689,8 @@ const SchoolRegistrationForm = () => {
                   ))}
                 </select>
                 {errors.board && (
-                  <p className="mt-1 text-sm text-red-500 flex items-center gap-1">
-                    <AlertCircle size={14} /> {errors.board}
+                  <p className="mt-1 text-xs sm:text-sm text-red-500 flex items-center gap-1">
+                    <AlertCircle size={12} className="sm:w-3.5 sm:h-3.5" /> {errors.board}
                   </p>
                 )}
               </div>
@@ -698,7 +698,7 @@ const SchoolRegistrationForm = () => {
 
             {formData.board === 'Other' && (
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1.5 sm:mb-2">
                   Specify Board Name <span className="text-red-500">*</span>
                 </label>
                 <input
@@ -706,26 +706,26 @@ const SchoolRegistrationForm = () => {
                   name="boardOther"
                   value={formData.boardOther}
                   onChange={handleInputChange}
-                  className={`w-full px-4 py-3 border ${errors.boardOther ? 'border-red-500' : 'border-gray-300'} rounded-xl focus:ring-2 focus:ring-amber-500 focus:border-transparent`}
+                  className={`w-full px-3 sm:px-4 py-2.5 sm:py-3 text-sm sm:text-base border ${errors.boardOther ? 'border-red-500' : 'border-gray-300'} rounded-lg sm:rounded-xl focus:ring-2 focus:ring-amber-500 focus:border-transparent`}
                   placeholder="Enter board/affiliation name"
                 />
                 {errors.boardOther && (
-                  <p className="mt-1 text-sm text-red-500 flex items-center gap-1">
-                    <AlertCircle size={14} /> {errors.boardOther}
+                  <p className="mt-1 text-xs sm:text-sm text-red-500 flex items-center gap-1">
+                    <AlertCircle size={12} className="sm:w-3.5 sm:h-3.5" /> {errors.boardOther}
                   </p>
                 )}
               </div>
             )}
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1.5 sm:mb-2">
                 Academic Year Structure <span className="text-red-500">*</span>
               </label>
               <select
                 name="academicYearStructure"
                 value={formData.academicYearStructure}
                 onChange={handleInputChange}
-                className={`w-full px-4 py-3 border ${errors.academicYearStructure ? 'border-red-500' : 'border-gray-300'} rounded-xl focus:ring-2 focus:ring-amber-500 focus:border-transparent`}
+                className={`w-full px-3 sm:px-4 py-2.5 sm:py-3 text-sm sm:text-base border ${errors.academicYearStructure ? 'border-red-500' : 'border-gray-300'} rounded-lg sm:rounded-xl focus:ring-2 focus:ring-amber-500 focus:border-transparent`}
               >
                 <option value="">Select academic structure</option>
                 {academicStructures.map(structure => (
@@ -733,8 +733,8 @@ const SchoolRegistrationForm = () => {
                 ))}
               </select>
               {errors.academicYearStructure && (
-                <p className="mt-1 text-sm text-red-500 flex items-center gap-1">
-                  <AlertCircle size={14} /> {errors.academicYearStructure}
+                <p className="mt-1 text-xs sm:text-sm text-red-500 flex items-center gap-1">
+                  <AlertCircle size={12} className="sm:w-3.5 sm:h-3.5" /> {errors.academicYearStructure}
                 </p>
               )}
             </div>
@@ -743,93 +743,93 @@ const SchoolRegistrationForm = () => {
 
       case 2:
         return (
-          <div className="space-y-6">
-            <h2 className="text-2xl font-bold text-gray-800 mb-6">Contact Details</h2>
+          <div className="space-y-4 sm:space-y-6">
+            <h2 className="text-xl sm:text-2xl font-bold text-gray-800 mb-4 sm:mb-6">Contact Details</h2>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1.5 sm:mb-2">
                 Contact Person's Name <span className="text-red-500">*</span>
               </label>
               <div className="relative">
-                <User className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
+                <User className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={18} />
                 <input
                   type="text"
                   name="contactPersonName"
                   value={formData.contactPersonName}
                   onChange={handleInputChange}
-                  className={`w-full pl-10 pr-4 py-3 border ${errors.contactPersonName ? 'border-red-500' : 'border-gray-300'} rounded-xl focus:ring-2 focus:ring-amber-500 focus:border-transparent`}
+                  className={`w-full pl-9 sm:pl-10 pr-3 sm:pr-4 py-2.5 sm:py-3 text-sm sm:text-base border ${errors.contactPersonName ? 'border-red-500' : 'border-gray-300'} rounded-lg sm:rounded-xl focus:ring-2 focus:ring-amber-500 focus:border-transparent`}
                   placeholder="Enter contact person's name"
                 />
               </div>
               {errors.contactPersonName && (
-                <p className="mt-1 text-sm text-red-500 flex items-center gap-1">
-                  <AlertCircle size={14} /> {errors.contactPersonName}
+                <p className="mt-1 text-xs sm:text-sm text-red-500 flex items-center gap-1">
+                  <AlertCircle size={12} className="sm:w-3.5 sm:h-3.5" /> {errors.contactPersonName}
                 </p>
               )}
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1.5 sm:mb-2">
                 Contact Phone Number <span className="text-red-500">*</span>
               </label>
               <div className="relative">
-                <Phone className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
+                <Phone className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={18} />
                 <input
                   type="tel"
                   name="contactPhone"
                   value={formData.contactPhone}
                   onChange={handleInputChange}
-                  className={`w-full pl-10 pr-4 py-3 border ${errors.contactPhone ? 'border-red-500' : 'border-gray-300'} rounded-xl focus:ring-2 focus:ring-amber-500 focus:border-transparent`}
+                  className={`w-full pl-9 sm:pl-10 pr-3 sm:pr-4 py-2.5 sm:py-3 text-sm sm:text-base border ${errors.contactPhone ? 'border-red-500' : 'border-gray-300'} rounded-lg sm:rounded-xl focus:ring-2 focus:ring-amber-500 focus:border-transparent`}
                   placeholder="Enter phone number"
                 />
               </div>
               {errors.contactPhone && (
-                <p className="mt-1 text-sm text-red-500 flex items-center gap-1">
-                  <AlertCircle size={14} /> {errors.contactPhone}
+                <p className="mt-1 text-xs sm:text-sm text-red-500 flex items-center gap-1">
+                  <AlertCircle size={12} className="sm:w-3.5 sm:h-3.5" /> {errors.contactPhone}
                 </p>
               )}
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1.5 sm:mb-2">
                 Official School Email <span className="text-red-500">*</span>
               </label>
               <div className="relative">
-                <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
+                <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={18} />
                 <input
                   type="email"
                   name="officialEmail"
                   value={formData.officialEmail}
                   onChange={handleInputChange}
-                  className={`w-full pl-10 pr-4 py-3 border ${errors.officialEmail ? 'border-red-500' : 'border-gray-300'} rounded-xl focus:ring-2 focus:ring-amber-500 focus:border-transparent`}
+                  className={`w-full pl-9 sm:pl-10 pr-3 sm:pr-4 py-2.5 sm:py-3 text-sm sm:text-base border ${errors.officialEmail ? 'border-red-500' : 'border-gray-300'} rounded-lg sm:rounded-xl focus:ring-2 focus:ring-amber-500 focus:border-transparent`}
                   placeholder="school@example.com"
                 />
               </div>
               {errors.officialEmail && (
-                <p className="mt-1 text-sm text-red-500 flex items-center gap-1">
-                  <AlertCircle size={14} /> {errors.officialEmail}
+                <p className="mt-1 text-xs sm:text-sm text-red-500 flex items-center gap-1">
+                  <AlertCircle size={12} className="sm:w-3.5 sm:h-3.5" /> {errors.officialEmail}
                 </p>
               )}
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1.5 sm:mb-2">
                 School Address <span className="text-red-500">*</span>
               </label>
               <div className="relative">
-                <MapPin className="absolute left-3 top-3 text-gray-400" size={20} />
+                <MapPin className="absolute left-3 top-3 text-gray-400" size={18} />
                 <textarea
                   name="address"
                   value={formData.address}
                   onChange={handleInputChange}
                   rows="3"
-                  className={`w-full pl-10 pr-4 py-3 border ${errors.address ? 'border-red-500' : 'border-gray-300'} rounded-xl focus:ring-2 focus:ring-amber-500 focus:border-transparent`}
+                  className={`w-full pl-9 sm:pl-10 pr-3 sm:pr-4 py-2.5 sm:py-3 text-sm sm:text-base border ${errors.address ? 'border-red-500' : 'border-gray-300'} rounded-lg sm:rounded-xl focus:ring-2 focus:ring-amber-500 focus:border-transparent`}
                   placeholder="Enter complete school address"
                 />
               </div>
               {errors.address && (
-                <p className="mt-1 text-sm text-red-500 flex items-center gap-1">
-                  <AlertCircle size={14} /> {errors.address}
+                <p className="mt-1 text-xs sm:text-sm text-red-500 flex items-center gap-1">
+                  <AlertCircle size={12} className="sm:w-3.5 sm:h-3.5" /> {errors.address}
                 </p>
               )}
             </div>
@@ -838,40 +838,40 @@ const SchoolRegistrationForm = () => {
 
       case 3:
         return (
-          <div className="space-y-6">
-            <h2 className="text-2xl font-bold text-gray-800 mb-6">Additional Information</h2>
+          <div className="space-y-4 sm:space-y-6">
+            <h2 className="text-xl sm:text-2xl font-bold text-gray-800 mb-4 sm:mb-6">Additional Information</h2>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1.5 sm:mb-2">
                 Website URL <span className="text-gray-500">(Optional)</span>
               </label>
               <div className="relative">
-                <Globe className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
+                <Globe className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={18} />
                 <input
                   type="url"
                   name="websiteURL"
                   value={formData.websiteURL}
                   onChange={handleInputChange}
-                  className={`w-full pl-10 pr-4 py-3 border ${errors.websiteURL ? 'border-red-500' : 'border-gray-300'} rounded-xl focus:ring-2 focus:ring-amber-500 focus:border-transparent`}
+                  className={`w-full pl-9 sm:pl-10 pr-3 sm:pr-4 py-2.5 sm:py-3 text-sm sm:text-base border ${errors.websiteURL ? 'border-red-500' : 'border-gray-300'} rounded-lg sm:rounded-xl focus:ring-2 focus:ring-amber-500 focus:border-transparent`}
                   placeholder="https://www.example.com"
                 />
               </div>
               {errors.websiteURL && (
-                <p className="mt-1 text-sm text-red-500 flex items-center gap-1">
-                  <AlertCircle size={14} /> {errors.websiteURL}
+                <p className="mt-1 text-xs sm:text-sm text-red-500 flex items-center gap-1">
+                  <AlertCircle size={12} className="sm:w-3.5 sm:h-3.5" /> {errors.websiteURL}
                 </p>
               )}
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1.5 sm:mb-2">
                 Estimated Number of Users <span className="text-red-500">*</span>
               </label>
               <select
                 name="estimatedUsers"
                 value={formData.estimatedUsers}
                 onChange={handleInputChange}
-                className={`w-full px-4 py-3 border ${errors.estimatedUsers ? 'border-red-500' : 'border-gray-300'} rounded-xl focus:ring-2 focus:ring-amber-500 focus:border-transparent`}
+                className={`w-full px-3 sm:px-4 py-2.5 sm:py-3 text-sm sm:text-base border ${errors.estimatedUsers ? 'border-red-500' : 'border-gray-300'} rounded-lg sm:rounded-xl focus:ring-2 focus:ring-amber-500 focus:border-transparent`}
               >
                 <option value="">Select estimated users</option>
                 {userRanges.map(range => (
@@ -879,8 +879,8 @@ const SchoolRegistrationForm = () => {
                 ))}
               </select>
               {errors.estimatedUsers && (
-                <p className="mt-1 text-sm text-red-500 flex items-center gap-1">
-                  <AlertCircle size={14} /> {errors.estimatedUsers}
+                <p className="mt-1 text-xs sm:text-sm text-red-500 flex items-center gap-1">
+                  <AlertCircle size={12} className="sm:w-3.5 sm:h-3.5" /> {errors.estimatedUsers}
                 </p>
               )}
             </div>
@@ -889,22 +889,22 @@ const SchoolRegistrationForm = () => {
 
       case 4:
         return (
-          <div className="space-y-6">
-            <h2 className="text-2xl font-bold text-gray-800 mb-6">File Uploads</h2>
+          <div className="space-y-4 sm:space-y-6">
+            <h2 className="text-xl sm:text-2xl font-bold text-gray-800 mb-4 sm:mb-6">File Uploads</h2>
 
             {/* Logo Upload */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1.5 sm:mb-2">
                 School Logo <span className="text-red-500">*</span>
-                <span className="text-gray-500 text-xs ml-2">(Max 5MB, JPG/PNG/WebP)</span>
+                <span className="text-gray-500 text-[10px] sm:text-xs ml-1 sm:ml-2">(Max 5MB, JPG/PNG/WebP)</span>
               </label>
 
               {logoPreview ? (
-                <div className="flex items-center gap-4 p-4 bg-gray-50 rounded-xl border border-gray-200">
-                  <img src={logoPreview} alt="Logo preview" className="w-20 h-20 object-cover rounded-lg" />
-                  <div className="flex-1">
-                    <p className="text-sm font-medium text-gray-700">{formData.logo.originalName}</p>
-                    <p className="text-xs text-gray-500">Logo uploaded successfully</p>
+                <div className="flex items-center gap-3 sm:gap-4 p-3 sm:p-4 bg-gray-50 rounded-lg sm:rounded-xl border border-gray-200">
+                  <img src={logoPreview} alt="Logo preview" className="w-16 h-16 sm:w-20 sm:h-20 object-cover rounded-lg flex-shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs sm:text-sm font-medium text-gray-700 truncate">{formData.logo.originalName}</p>
+                    <p className="text-[10px] sm:text-xs text-gray-500">Logo uploaded successfully</p>
                   </div>
                   <button
                     type="button"
@@ -912,9 +912,9 @@ const SchoolRegistrationForm = () => {
                       setFormData(prev => ({ ...prev, logo: null }));
                       setLogoPreview(null);
                     }}
-                    className="text-red-500 hover:text-red-700"
+                    className="text-red-500 hover:text-red-700 flex-shrink-0"
                   >
-                    <X size={20} />
+                    <X size={18} className="sm:w-5 sm:h-5" />
                   </button>
                 </div>
               ) : (
@@ -929,31 +929,31 @@ const SchoolRegistrationForm = () => {
                   />
                   <label
                     htmlFor="logo-upload"
-                    className={`flex flex-col items-center justify-center w-full h-32 border-2 border-dashed ${errors.logo ? 'border-red-500' : 'border-gray-300'} rounded-xl cursor-pointer hover:border-amber-500 transition-colors ${isUploadingLogo ? 'opacity-50 cursor-not-allowed' : ''}`}
+                    className={`flex flex-col items-center justify-center w-full h-28 sm:h-32 border-2 border-dashed ${errors.logo ? 'border-red-500' : 'border-gray-300'} rounded-lg sm:rounded-xl cursor-pointer hover:border-amber-500 transition-colors ${isUploadingLogo ? 'opacity-50 cursor-not-allowed' : ''}`}
                   >
                     {isUploadingLogo ? (
-                      <Loader2 className="w-8 h-8 text-amber-500 animate-spin" />
+                      <Loader2 className="w-7 h-7 sm:w-8 sm:h-8 text-amber-500 animate-spin" />
                     ) : (
                       <>
-                        <Upload className="w-8 h-8 text-gray-400 mb-2" />
-                        <p className="text-sm text-gray-600">Click to upload logo</p>
+                        <Upload className="w-7 h-7 sm:w-8 sm:h-8 text-gray-400 mb-1.5 sm:mb-2" />
+                        <p className="text-xs sm:text-sm text-gray-600">Click to upload logo</p>
                       </>
                     )}
                   </label>
                 </div>
               )}
               {errors.logo && (
-                <p className="mt-1 text-sm text-red-500 flex items-center gap-1">
-                  <AlertCircle size={14} /> {errors.logo}
+                <p className="mt-1 text-xs sm:text-sm text-red-500 flex items-center gap-1">
+                  <AlertCircle size={12} className="sm:w-3.5 sm:h-3.5" /> {errors.logo}
                 </p>
               )}
             </div>
 
             {/* Verification Documents Upload */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1.5 sm:mb-2">
                 Verification Documents <span className="text-red-500">*</span>
-                <span className="text-gray-500 text-xs ml-2">(Max 5 files, 10MB each, PDF/JPG/PNG)</span>
+                <span className="text-gray-500 text-[10px] sm:text-xs ml-1 sm:ml-2">(Max 5 files, 10MB each, PDF/JPG/PNG)</span>
               </label>
 
               <div className="relative">
@@ -968,15 +968,15 @@ const SchoolRegistrationForm = () => {
                 />
                 <label
                   htmlFor="docs-upload"
-                  className={`flex flex-col items-center justify-center w-full h-32 border-2 border-dashed ${errors.verificationDocs ? 'border-red-500' : 'border-gray-300'} rounded-xl cursor-pointer hover:border-amber-500 transition-colors ${isUploadingDocs || formData.verificationDocs.length >= 5 ? 'opacity-50 cursor-not-allowed' : ''}`}
+                  className={`flex flex-col items-center justify-center w-full h-28 sm:h-32 border-2 border-dashed ${errors.verificationDocs ? 'border-red-500' : 'border-gray-300'} rounded-lg sm:rounded-xl cursor-pointer hover:border-amber-500 transition-colors ${isUploadingDocs || formData.verificationDocs.length >= 5 ? 'opacity-50 cursor-not-allowed' : ''}`}
                 >
                   {isUploadingDocs ? (
-                    <Loader2 className="w-8 h-8 text-amber-500 animate-spin" />
+                    <Loader2 className="w-7 h-7 sm:w-8 sm:h-8 text-amber-500 animate-spin" />
                   ) : (
                     <>
-                      <FileText className="w-8 h-8 text-gray-400 mb-2" />
-                      <p className="text-sm text-gray-600">Click to upload documents</p>
-                      <p className="text-xs text-gray-500 mt-1">
+                      <FileText className="w-7 h-7 sm:w-8 sm:h-8 text-gray-400 mb-1.5 sm:mb-2" />
+                      <p className="text-xs sm:text-sm text-gray-600">Click to upload documents</p>
+                      <p className="text-[10px] sm:text-xs text-gray-500 mt-1">
                         {formData.verificationDocs.length} / 5 uploaded
                       </p>
                     </>
@@ -985,19 +985,19 @@ const SchoolRegistrationForm = () => {
               </div>
 
               {docsPreview.length > 0 && (
-                <div className="mt-4 space-y-2">
+                <div className="mt-3 sm:mt-4 space-y-2">
                   {docsPreview.map((doc, index) => (
-                    <div key={index} className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg border border-gray-200">
-                      <FileText className="text-gray-400" size={20} />
-                      <div className="flex-1">
-                        <p className="text-sm font-medium text-gray-700">{doc.name}</p>
+                    <div key={index} className="flex items-center gap-2 sm:gap-3 p-2.5 sm:p-3 bg-gray-50 rounded-lg border border-gray-200">
+                      <FileText className="text-gray-400 flex-shrink-0" size={18} />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs sm:text-sm font-medium text-gray-700 truncate">{doc.name}</p>
                       </div>
                       <button
                         type="button"
                         onClick={() => removeDocument(index)}
-                        className="text-red-500 hover:text-red-700"
+                        className="text-red-500 hover:text-red-700 flex-shrink-0"
                       >
-                        <X size={18} />
+                        <X size={16} className="sm:w-[18px] sm:h-[18px]" />
                       </button>
                     </div>
                   ))}
@@ -1005,8 +1005,8 @@ const SchoolRegistrationForm = () => {
               )}
 
               {errors.verificationDocs && (
-                <p className="mt-1 text-sm text-red-500 flex items-center gap-1">
-                  <AlertCircle size={14} /> {errors.verificationDocs}
+                <p className="mt-1 text-xs sm:text-sm text-red-500 flex items-center gap-1">
+                  <AlertCircle size={12} className="sm:w-3.5 sm:h-3.5" /> {errors.verificationDocs}
                 </p>
               )}
             </div>
@@ -1019,31 +1019,31 @@ const SchoolRegistrationForm = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-yellow-50 via-amber-50 to-orange-50 py-12 px-4">
+    <div className="min-h-screen bg-gradient-to-br from-yellow-50 via-amber-50 to-orange-50 py-6 sm:py-8 lg:py-12 px-3 sm:px-4 lg:px-6">
       <div className="max-w-3xl mx-auto">
         {/* Header */}
-        <div className="text-center mb-8">
-          <h1 className="text-4xl font-bold text-gray-800 mb-2">School Registration</h1>
-          <p className="text-gray-600">Register your school to get started with our platform</p>
+        <div className="text-center mb-6 sm:mb-8">
+          <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-gray-800 mb-2">School Registration</h1>
+          <p className="text-sm sm:text-base text-gray-600 px-2">Register your school to get started with our platform</p>
         </div>
 
         {/* Progress Indicator */}
-        <div className="mb-8">
-          <div className="flex items-center justify-between mb-2">
+        <div className="mb-6 sm:mb-8 px-2">
+          <div className="flex items-center justify-between mb-2 sm:mb-3">
             {[1, 2, 3, 4].map((step) => (
-              <div key={step} className="flex items-center">
+              <div key={step} className="flex items-center flex-1 last:flex-initial">
                 <div
-                  className={`w-10 h-10 rounded-full flex items-center justify-center font-semibold ${
+                  className={`w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center font-semibold text-sm sm:text-base flex-shrink-0 ${
                     step <= currentStep
                       ? 'bg-amber-500 text-white'
                       : 'bg-gray-200 text-gray-600'
                   }`}
                 >
-                  {step < currentStep ? <Check size={20} /> : step}
+                  {step < currentStep ? <Check size={16} className="sm:w-5 sm:h-5" /> : step}
                 </div>
                 {step < 4 && (
                   <div
-                    className={`h-1 w-16 md:w-32 mx-2 ${
+                    className={`h-0.5 sm:h-1 flex-1 mx-1 sm:mx-2 ${
                       step < currentStep ? 'bg-amber-500' : 'bg-gray-200'
                     }`}
                   />
@@ -1051,29 +1051,29 @@ const SchoolRegistrationForm = () => {
               </div>
             ))}
           </div>
-          <div className="flex justify-between text-xs text-gray-600 px-2">
-            <span>School Info</span>
-            <span>Contact</span>
-            <span>Details</span>
-            <span>Files</span>
+          <div className="flex justify-between text-[10px] sm:text-xs text-gray-600 px-0 sm:px-1">
+            <span className="text-center w-1/4">School Info</span>
+            <span className="text-center w-1/4">Contact</span>
+            <span className="text-center w-1/4">Details</span>
+            <span className="text-center w-1/4">Files</span>
           </div>
         </div>
 
         {/* Form Card */}
-        <div className="bg-white rounded-2xl shadow-2xl p-8">
+        <div className="bg-white rounded-xl sm:rounded-2xl shadow-2xl p-4 sm:p-6 lg:p-8">
           <form onSubmit={handleSubmit}>
             {renderStepContent()}
 
             {/* Navigation Buttons */}
-            <div className="flex justify-between mt-8 pt-6 border-t border-gray-200">
+            <div className="flex justify-between mt-6 sm:mt-8 pt-4 sm:pt-6 border-t border-gray-200">
               {currentStep > 1 ? (
                 <button
                   type="button"
                   onClick={handlePrevious}
-                  className="flex items-center gap-2 px-6 py-3 bg-gray-200 text-gray-700 rounded-xl hover:bg-gray-300 transition-colors"
+                  className="flex items-center gap-1.5 sm:gap-2 px-4 sm:px-6 py-2.5 sm:py-3 bg-gray-200 text-gray-700 rounded-lg sm:rounded-xl hover:bg-gray-300 transition-colors text-sm sm:text-base font-medium"
                 >
-                  <ChevronLeft size={20} />
-                  Previous
+                  <ChevronLeft size={18} className="sm:w-5 sm:h-5" />
+                  <span className="hidden xs:inline">Previous</span>
                 </button>
               ) : (
                 <div />
@@ -1083,26 +1083,28 @@ const SchoolRegistrationForm = () => {
                 <button
                   type="button"
                   onClick={handleNext}
-                  className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-amber-500 to-orange-500 text-white rounded-xl hover:from-amber-600 hover:to-orange-600 transition-colors ml-auto"
+                  className="flex items-center gap-1.5 sm:gap-2 px-4 sm:px-6 py-2.5 sm:py-3 bg-gradient-to-r from-amber-500 to-orange-500 text-white rounded-lg sm:rounded-xl hover:from-amber-600 hover:to-orange-600 transition-colors ml-auto text-sm sm:text-base font-medium"
                 >
                   Next
-                  <ChevronRight size={20} />
+                  <ChevronRight size={18} className="sm:w-5 sm:h-5" />
                 </button>
               ) : (
                 <button
                   type="submit"
                   disabled={isSubmitting}
-                  className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-amber-500 to-orange-500 text-white rounded-xl hover:from-amber-600 hover:to-orange-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed ml-auto"
+                  className="flex items-center gap-1.5 sm:gap-2 px-4 sm:px-6 py-2.5 sm:py-3 bg-gradient-to-r from-amber-500 to-orange-500 text-white rounded-lg sm:rounded-xl hover:from-amber-600 hover:to-orange-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed ml-auto text-sm sm:text-base font-medium"
                 >
                   {isSubmitting ? (
                     <>
-                      <Loader2 className="animate-spin" size={20} />
-                      Submitting...
+                      <Loader2 className="animate-spin" size={18} />
+                      <span className="hidden xs:inline">Submitting...</span>
+                      <span className="xs:hidden">Sending...</span>
                     </>
                   ) : (
                     <>
-                      Submit Registration
-                      <Check size={20} />
+                      <span className="hidden xs:inline">Submit Registration</span>
+                      <span className="xs:hidden">Submit</span>
+                      <Check size={18} className="sm:w-5 sm:h-5" />
                     </>
                   )}
                 </button>

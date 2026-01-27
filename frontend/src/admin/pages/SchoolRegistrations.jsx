@@ -125,6 +125,7 @@ const SchoolRegistrations = ({ setShowAdminHeader }) => {
         console.error('Rejection error:', error);
         toast.error('Failed to reject registration');
       }
+
     }
   };
 
@@ -167,23 +168,23 @@ const SchoolRegistrations = ({ setShowAdminHeader }) => {
   };
 
   return (
-    <div className="p-6 bg-gray-50 min-h-screen">
+    <div className="p-4 sm:p-6 lg:p-8 bg-gray-50 min-h-screen">
       {/* Header */}
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-800 mb-2">School Registrations</h1>
-        <p className="text-gray-600">Review and manage pending school registrations</p>
+      <div className="mb-6 sm:mb-8">
+        <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-gray-800 mb-2">School Registrations</h1>
+        <p className="text-sm sm:text-base text-gray-600">Review and manage pending school registrations</p>
       </div>
 
       {/* Search Bar */}
       <div className="mb-6">
-        <div className="relative max-w-md">
+        <div className="relative w-full sm:max-w-md">
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
           <input
             type="text"
             placeholder="Search by name, email, or code..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+            className="w-full pl-10 pr-4 py-2.5 sm:py-3 text-sm sm:text-base border border-gray-300 rounded-xl focus:ring-2 focus:ring-amber-500 focus:border-transparent"
           />
         </div>
       </div>
@@ -191,65 +192,65 @@ const SchoolRegistrations = ({ setShowAdminHeader }) => {
       {/* Loading State */}
       {loading ? (
         <div className="flex items-center justify-center h-64">
-          <Loader2 className="w-12 h-12 text-amber-500 animate-spin" />
+          <Loader2 className="w-10 h-10 sm:w-12 sm:h-12 text-amber-500 animate-spin" />
         </div>
       ) : filteredRegistrations.length === 0 ? (
-        <div className="bg-white rounded-xl shadow-md p-12 text-center">
-          <Clock className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-          <h3 className="text-xl font-semibold text-gray-800 mb-2">No Pending Registrations</h3>
-          <p className="text-gray-600">There are no pending school registrations at the moment.</p>
+        <div className="bg-white rounded-xl shadow-md p-8 sm:p-12 text-center">
+          <Clock className="w-12 h-12 sm:w-16 sm:h-16 text-gray-300 mx-auto mb-4" />
+          <h3 className="text-lg sm:text-xl font-semibold text-gray-800 mb-2">No Pending Registrations</h3>
+          <p className="text-sm sm:text-base text-gray-600">There are no pending school registrations at the moment.</p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
           {filteredRegistrations.map((school) => (
-            <div key={school._id} className="bg-white rounded-xl shadow-md hover:shadow-lg transition-shadow p-6">
+            <div key={school._id} className="bg-white rounded-xl shadow-md hover:shadow-lg transition-shadow p-4 sm:p-6">
               {/* School Logo */}
               {school.logo?.secure_url && (
-                <div className="flex justify-center mb-4">
+                <div className="flex justify-center mb-3 sm:mb-4">
                   <img
                     src={school.logo.secure_url}
                     alt={school.name}
-                    className="w-20 h-20 object-cover rounded-lg"
+                    className="w-16 h-16 sm:w-20 sm:h-20 object-cover rounded-lg"
                   />
                 </div>
               )}
 
               {/* School Info */}
-              <h3 className="text-lg font-bold text-gray-800 mb-1">{school.name}</h3>
-              <p className="text-sm text-gray-600 mb-1">
+              <h3 className="text-base sm:text-lg font-bold text-gray-800 mb-1 line-clamp-2">{school.name}</h3>
+              <p className="text-xs sm:text-sm text-gray-600 mb-1">
                 {school.campuses && school.campuses.length > 0
                   ? `${school.campuses.length} Campus${school.campuses.length !== 1 ? 'es' : ''}`
                   : school.campusName}
               </p>
               {school.campuses && school.campuses.length > 0 && (
-                <p className="text-xs text-gray-500 mb-3">
+                <p className="text-xs text-gray-500 mb-3 line-clamp-2">
                   {school.campuses.map(c => c.name).join(', ')}
                 </p>
               )}
 
               {/* Details */}
-              <div className="space-y-2 mb-4 text-sm">
-                <div className="flex items-center gap-2 text-gray-600">
-                  <Mail size={16} className="text-amber-500" />
+              <div className="space-y-2 mb-4 text-xs sm:text-sm">
+                <div className="flex items-center gap-2 text-gray-600 min-w-0">
+                  <Mail size={14} className="text-amber-500 flex-shrink-0 sm:w-4 sm:h-4" />
                   <span className="truncate">{school.officialEmail}</span>
                 </div>
-                <div className="flex items-center gap-2 text-gray-600">
-                  <Phone size={16} className="text-amber-500" />
-                  <span>{school.contactPhone}</span>
+                <div className="flex items-center gap-2 text-gray-600 min-w-0">
+                  <Phone size={14} className="text-amber-500 flex-shrink-0 sm:w-4 sm:h-4" />
+                  <span className="truncate">{school.contactPhone}</span>
                 </div>
-                <div className="flex items-center gap-2 text-gray-600">
-                  <Building2 size={16} className="text-amber-500" />
-                  <span>{school.schoolType}</span>
+                <div className="flex items-center gap-2 text-gray-600 min-w-0">
+                  <Building2 size={14} className="text-amber-500 flex-shrink-0 sm:w-4 sm:h-4" />
+                  <span className="truncate">{school.schoolType}</span>
                 </div>
                 {school.board && (
-                  <div className="flex items-center gap-2 text-gray-600">
-                    <GraduationCap size={16} className="text-amber-500" />
-                    <span>{school.board === 'Other' ? school.boardOther : school.board}</span>
+                  <div className="flex items-center gap-2 text-gray-600 min-w-0">
+                    <GraduationCap size={14} className="text-amber-500 flex-shrink-0 sm:w-4 sm:h-4" />
+                    <span className="truncate">{school.board === 'Other' ? school.boardOther : school.board}</span>
                   </div>
                 )}
-                <div className="flex items-center gap-2 text-gray-600">
-                  <Calendar size={16} className="text-amber-500" />
-                  <span>{new Date(school.submittedAt).toLocaleDateString()}</span>
+                <div className="flex items-center gap-2 text-gray-600 min-w-0">
+                  <Calendar size={14} className="text-amber-500 flex-shrink-0 sm:w-4 sm:h-4" />
+                  <span className="truncate">{new Date(school.submittedAt).toLocaleDateString()}</span>
                 </div>
               </div>
 
@@ -262,22 +263,24 @@ const SchoolRegistrations = ({ setShowAdminHeader }) => {
               <div className="flex gap-2">
                 <button
                   onClick={() => handleViewDetails(school)}
-                  className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 transition-colors text-sm font-medium"
+                  className="flex-1 flex items-center justify-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2 bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 transition-colors text-xs sm:text-sm font-medium"
                 >
-                  <Eye size={16} />
-                  View
+                  <Eye size={14} className="sm:w-4 sm:h-4" />
+                  <span className="hidden xs:inline">View</span>
                 </button>
                 <button
                   onClick={() => handleApprove(school._id, school.name)}
-                  className="flex items-center justify-center px-4 py-2 bg-green-100 text-green-700 rounded-lg hover:bg-green-200 transition-colors"
+                  className="flex items-center justify-center px-3 sm:px-4 py-2 bg-green-100 text-green-700 rounded-lg hover:bg-green-200 transition-colors"
+                  title="Approve"
                 >
-                  <CheckCircle size={18} />
+                  <CheckCircle size={16} className="sm:w-[18px] sm:h-[18px]" />
                 </button>
                 <button
                   onClick={() => handleReject(school._id, school.name)}
-                  className="flex items-center justify-center px-4 py-2 bg-red-100 text-red-700 rounded-lg hover:bg-red-200 transition-colors"
+                  className="flex items-center justify-center px-3 sm:px-4 py-2 bg-red-100 text-red-700 rounded-lg hover:bg-red-200 transition-colors"
+                  title="Reject"
                 >
-                  <XCircle size={18} />
+                  <XCircle size={16} className="sm:w-[18px] sm:h-[18px]" />
                 </button>
               </div>
             </div>
@@ -287,13 +290,13 @@ const SchoolRegistrations = ({ setShowAdminHeader }) => {
 
       {/* Details Modal */}
       {showModal && selectedSchool && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-2 sm:p-4 z-50">
+          <div className="bg-white rounded-xl sm:rounded-2xl shadow-2xl max-w-4xl w-full max-h-[95vh] sm:max-h-[90vh] overflow-y-auto">
             {/* Modal Header */}
-            <div className="sticky top-0 bg-gradient-to-r from-amber-500 to-orange-500 text-white p-6 rounded-t-2xl flex justify-between items-center">
-              <div>
-                <h2 className="text-2xl font-bold">{selectedSchool.name}</h2>
-                <p className="text-amber-100">
+            <div className="sticky top-0 bg-gradient-to-r from-amber-500 to-orange-500 text-white p-4 sm:p-6 rounded-t-xl sm:rounded-t-2xl flex justify-between items-start gap-3">
+              <div className="flex-1 min-w-0">
+                <h2 className="text-lg sm:text-xl lg:text-2xl font-bold line-clamp-2">{selectedSchool.name}</h2>
+                <p className="text-amber-100 text-xs sm:text-sm mt-1">
                   {selectedSchool.campuses && selectedSchool.campuses.length > 0
                     ? `${selectedSchool.campuses.length} Campus${selectedSchool.campuses.length !== 1 ? 'es' : ''}`
                     : selectedSchool.campusName}
@@ -301,29 +304,29 @@ const SchoolRegistrations = ({ setShowAdminHeader }) => {
               </div>
               <button
                 onClick={() => setShowModal(false)}
-                className="text-white hover:bg-white hover:bg-opacity-20 rounded-lg p-2 transition-colors"
+                className="text-white hover:bg-white hover:bg-opacity-20 rounded-lg p-1.5 sm:p-2 transition-colors flex-shrink-0"
               >
-                <X size={24} />
+                <X size={20} className="sm:w-6 sm:h-6" />
               </button>
             </div>
 
             {/* Modal Content */}
-            <div className="p-6 space-y-6">
+            <div className="p-4 sm:p-6 space-y-4 sm:space-y-6">
               {/* Logo */}
               {selectedSchool.logo?.secure_url && (
                 <div className="flex justify-center">
                   <img
                     src={selectedSchool.logo.secure_url}
                     alt={selectedSchool.name}
-                    className="w-32 h-32 object-cover rounded-xl shadow-md"
+                    className="w-24 h-24 sm:w-32 sm:h-32 object-cover rounded-xl shadow-md"
                   />
                 </div>
               )}
 
               {/* Basic Information */}
               <div>
-                <h3 className="text-lg font-bold text-gray-800 mb-4">Basic Information</h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <h3 className="text-base sm:text-lg font-bold text-gray-800 mb-3 sm:mb-4">Basic Information</h3>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                   <InfoItem icon={<Building2 />} label="School Code" value={selectedSchool.code} />
                   <InfoItem icon={<Building2 />} label="School Type" value={selectedSchool.schoolType} />
                   {selectedSchool.board && (
@@ -341,38 +344,38 @@ const SchoolRegistrations = ({ setShowAdminHeader }) => {
               {/* Campus Information */}
               {selectedSchool.campuses && selectedSchool.campuses.length > 0 && (
                 <div>
-                  <h3 className="text-lg font-bold text-gray-800 mb-4">Campus Information</h3>
-                  <div className="space-y-4">
+                  <h3 className="text-base sm:text-lg font-bold text-gray-800 mb-3 sm:mb-4">Campus Information</h3>
+                  <div className="space-y-3 sm:space-y-4">
                     {selectedSchool.campuses.map((campus, index) => (
-                      <div key={index} className="p-4 bg-gray-50 rounded-lg border border-gray-200">
-                        <div className="flex items-center gap-2 mb-3">
-                          <Building2 className="text-amber-500" size={20} />
-                          <h4 className="font-semibold text-gray-800">{campus.name}</h4>
-                          <span className={`ml-auto px-2 py-1 text-xs font-medium rounded ${campus.campusType === 'Main' ? 'bg-amber-100 text-amber-800' : 'bg-blue-100 text-blue-800'}`}>
+                      <div key={index} className="p-3 sm:p-4 bg-gray-50 rounded-lg border border-gray-200">
+                        <div className="flex items-start sm:items-center gap-2 mb-3 flex-wrap">
+                          <Building2 className="text-amber-500 flex-shrink-0 mt-0.5 sm:mt-0" size={18} />
+                          <h4 className="font-semibold text-gray-800 text-sm sm:text-base flex-1 min-w-0">{campus.name}</h4>
+                          <span className={`px-2 py-0.5 text-xs font-medium rounded ${campus.campusType === 'Main' ? 'bg-amber-100 text-amber-800' : 'bg-blue-100 text-blue-800'}`}>
                             {campus.campusType}
                           </span>
                         </div>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs sm:text-sm">
                           <div className="flex items-start gap-2">
-                            <MapPin className="text-gray-400 flex-shrink-0 mt-0.5" size={16} />
-                            <div>
+                            <MapPin className="text-gray-400 flex-shrink-0 mt-0.5" size={14} />
+                            <div className="min-w-0 flex-1">
                               <p className="text-xs font-medium text-gray-500">Address</p>
-                              <p className="text-gray-700">{campus.address}</p>
+                              <p className="text-gray-700 break-words">{campus.address}</p>
                             </div>
                           </div>
                           {campus.contactPerson && (
                             <div className="flex items-start gap-2">
-                              <User className="text-gray-400 flex-shrink-0 mt-0.5" size={16} />
-                              <div>
+                              <User className="text-gray-400 flex-shrink-0 mt-0.5" size={14} />
+                              <div className="min-w-0 flex-1">
                                 <p className="text-xs font-medium text-gray-500">Contact Person</p>
-                                <p className="text-gray-700">{campus.contactPerson}</p>
+                                <p className="text-gray-700 break-words">{campus.contactPerson}</p>
                               </div>
                             </div>
                           )}
                           {campus.contactPhone && (
                             <div className="flex items-start gap-2">
-                              <Phone className="text-gray-400 flex-shrink-0 mt-0.5" size={16} />
-                              <div>
+                              <Phone className="text-gray-400 flex-shrink-0 mt-0.5" size={14} />
+                              <div className="min-w-0 flex-1">
                                 <p className="text-xs font-medium text-gray-500">Contact Phone</p>
                                 <p className="text-gray-700">{campus.contactPhone}</p>
                               </div>
@@ -387,8 +390,8 @@ const SchoolRegistrations = ({ setShowAdminHeader }) => {
 
               {/* Contact Information */}
               <div>
-                <h3 className="text-lg font-bold text-gray-800 mb-4">Primary Contact Information</h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <h3 className="text-base sm:text-lg font-bold text-gray-800 mb-3 sm:mb-4">Primary Contact Information</h3>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                   <InfoItem icon={<User />} label="Contact Person" value={selectedSchool.contactPersonName} />
                   <InfoItem icon={<Phone />} label="Phone" value={selectedSchool.contactPhone} />
                   <InfoItem icon={<Mail />} label="Email" value={selectedSchool.officialEmail} />
@@ -400,16 +403,16 @@ const SchoolRegistrations = ({ setShowAdminHeader }) => {
 
               {/* Main Address */}
               <div>
-                <h3 className="text-lg font-bold text-gray-800 mb-4">Main School Address</h3>
-                <div className="flex items-start gap-3 p-4 bg-gray-50 rounded-lg">
-                  <MapPin className="text-amber-500 flex-shrink-0 mt-1" size={20} />
-                  <p className="text-gray-700">{selectedSchool.address}</p>
+                <h3 className="text-base sm:text-lg font-bold text-gray-800 mb-3 sm:mb-4">Main School Address</h3>
+                <div className="flex items-start gap-2 sm:gap-3 p-3 sm:p-4 bg-gray-50 rounded-lg">
+                  <MapPin className="text-amber-500 flex-shrink-0 mt-0.5 sm:mt-1" size={18} className="sm:w-5 sm:h-5" />
+                  <p className="text-gray-700 text-sm sm:text-base break-words">{selectedSchool.address}</p>
                 </div>
               </div>
 
               {/* Verification Documents */}
               <div>
-                <h3 className="text-lg font-bold text-gray-800 mb-4">Verification Documents</h3>
+                <h3 className="text-base sm:text-lg font-bold text-gray-800 mb-3 sm:mb-4">Verification Documents</h3>
                 <div className="space-y-2">
                   {selectedSchool.verificationDocs?.map((doc, index) => (
                     <a
@@ -417,11 +420,11 @@ const SchoolRegistrations = ({ setShowAdminHeader }) => {
                       href={doc.secure_url}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="flex items-center gap-3 p-3 bg-gray-50 hover:bg-gray-100 rounded-lg transition-colors"
+                      className="flex items-center gap-2 sm:gap-3 p-2.5 sm:p-3 bg-gray-50 hover:bg-gray-100 rounded-lg transition-colors"
                     >
-                      <FileText className="text-gray-400" size={20} />
-                      <span className="text-sm text-gray-700 flex-1">{doc.originalName}</span>
-                      <Eye className="text-blue-500" size={18} />
+                      <FileText className="text-gray-400 flex-shrink-0" size={18} className="sm:w-5 sm:h-5" />
+                      <span className="text-xs sm:text-sm text-gray-700 flex-1 truncate">{doc.originalName}</span>
+                      <Eye className="text-blue-500 flex-shrink-0" size={16} className="sm:w-[18px] sm:h-[18px]" />
                     </a>
                   ))}
                 </div>
@@ -429,17 +432,17 @@ const SchoolRegistrations = ({ setShowAdminHeader }) => {
 
               {/* Submission Details */}
               <div>
-                <h3 className="text-lg font-bold text-gray-800 mb-4">Submission Details</h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <h3 className="text-base sm:text-lg font-bold text-gray-800 mb-3 sm:mb-4">Submission Details</h3>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                   <InfoItem
                     icon={<Calendar />}
                     label="Submitted At"
                     value={new Date(selectedSchool.submittedAt).toLocaleString()}
                   />
-                  <div className="flex items-start gap-3">
-                    <Clock className="text-gray-400 mt-1" size={20} />
+                  <div className="flex items-start gap-2 sm:gap-3">
+                    <Clock className="text-gray-400 mt-0.5 sm:mt-1 flex-shrink-0" size={18} className="sm:w-5 sm:h-5" />
                     <div>
-                      <p className="text-sm font-medium text-gray-500">Status</p>
+                      <p className="text-xs sm:text-sm font-medium text-gray-500">Status</p>
                       <div className="mt-1">
                         <StatusBadge status={selectedSchool.registrationStatus} />
                       </div>
@@ -449,19 +452,19 @@ const SchoolRegistrations = ({ setShowAdminHeader }) => {
               </div>
 
               {/* Action Buttons */}
-              <div className="flex gap-4 pt-6 border-t border-gray-200">
+              <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 pt-4 sm:pt-6 border-t border-gray-200">
                 <button
                   onClick={() => handleApprove(selectedSchool._id, selectedSchool.name)}
-                  className="flex-1 flex items-center justify-center gap-2 px-6 py-3 bg-green-500 text-white rounded-xl hover:bg-green-600 transition-colors font-semibold"
+                  className="flex-1 flex items-center justify-center gap-2 px-4 sm:px-6 py-2.5 sm:py-3 bg-green-500 text-white rounded-lg sm:rounded-xl hover:bg-green-600 transition-colors font-semibold text-sm sm:text-base"
                 >
-                  <CheckCircle size={20} />
+                  <CheckCircle size={18} className="sm:w-5 sm:h-5" />
                   Approve
                 </button>
                 <button
                   onClick={() => handleReject(selectedSchool._id, selectedSchool.name)}
-                  className="flex-1 flex items-center justify-center gap-2 px-6 py-3 bg-red-500 text-white rounded-xl hover:bg-red-600 transition-colors font-semibold"
+                  className="flex-1 flex items-center justify-center gap-2 px-4 sm:px-6 py-2.5 sm:py-3 bg-red-500 text-white rounded-lg sm:rounded-xl hover:bg-red-600 transition-colors font-semibold text-sm sm:text-base"
                 >
-                  <XCircle size={20} />
+                  <XCircle size={18} className="sm:w-5 sm:h-5" />
                   Reject
                 </button>
               </div>
@@ -475,11 +478,11 @@ const SchoolRegistrations = ({ setShowAdminHeader }) => {
 
 // Helper component for displaying information items
 const InfoItem = ({ icon, label, value }) => (
-  <div className="flex items-start gap-3">
-    <div className="text-gray-400 mt-1">{React.cloneElement(icon, { size: 20 })}</div>
-    <div>
-      <p className="text-sm font-medium text-gray-500">{label}</p>
-      <p className="text-gray-800">{value}</p>
+  <div className="flex items-start gap-2 sm:gap-3">
+    <div className="text-gray-400 mt-0.5 sm:mt-1 flex-shrink-0">{React.cloneElement(icon, { size: 18, className: 'sm:w-5 sm:h-5' })}</div>
+    <div className="min-w-0 flex-1">
+      <p className="text-xs sm:text-sm font-medium text-gray-500">{label}</p>
+      <p className="text-sm sm:text-base text-gray-800 break-words">{value}</p>
     </div>
   </div>
 );
