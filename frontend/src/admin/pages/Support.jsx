@@ -534,9 +534,9 @@ const Support = ({ setShowAdminHeader }) => {
                   name="message"
                   value={feedbackForm.message}
                   onChange={handleInput(setFeedbackForm)}
-                  rows={4}
-                  className="mt-1 w-full rounded-xl border-slate-200 focus:border-violet-500 focus:ring-violet-500"
-                  placeholder="Be as descriptive as possible helps our product team to prioritise."
+                  rows={6}
+                  className="mt-1 w-full rounded-xl border border-black focus:border-violet-500 focus:ring-violet-500"
+                  placeholder=" Be as descriptive as possible helps our product team to prioritise."
                 />
               </div>
               <button
@@ -632,7 +632,7 @@ const Support = ({ setShowAdminHeader }) => {
                 onChange={handleInput(setComplaintForm)}
                 required
                 className="mt-1 w-full rounded-xl border border-black focus:border-rose-500 focus:ring-rose-500"
-                placeholder="Include any evidence, attachments shared via email, and the expected resolution timeline."
+                placeholder="  Include any evidence, attachments shared via email, and the expected resolution timeline."
               />
             </div>
             <button
@@ -646,7 +646,7 @@ const Support = ({ setShowAdminHeader }) => {
           </form>
         </section>
 
-        <section className="bg-white rounded-2xl shadow border border-slate-100 p-6 space-y-5">
+        <section className="bg-white rounded-2xl shadow border border-black p-6 space-y-5">
           <div className="flex items-center gap-3">
             <div className="p-3 rounded-2xl bg-slate-100 text-slate-700">
               <NotebookPen />
@@ -709,7 +709,7 @@ const Support = ({ setShowAdminHeader }) => {
           </div>
         </section>
 
-        <section className="bg-white rounded-2xl shadow border border-slate-100 p-6">
+        <section className="bg-white rounded-2xl shadow-2xl border border-black p-6">
           <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-4">
             <div>
               <p className="text-xs uppercase tracking-widest font-semibold text-slate-400">Live history</p>
