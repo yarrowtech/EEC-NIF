@@ -27,6 +27,9 @@ import SuperAdminDashboard from './pages/SuperAdminDashboard';
 import Support from './pages/Support';
 import { useState, useEffect, useMemo } from 'react';
 import { ADMIN_MENU_ITEMS } from './adminConstants';
+import { ensureAdminFetchScope, syncScopeFromProfile } from './utils/adminScope';
+
+ensureAdminFetchScope();
 
 const AdminApp = () => {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
@@ -56,6 +59,7 @@ const AdminApp = () => {
         if (!res.ok) return;
         const data = await res.json();
         setAdminProfile(data);
+        syncScopeFromProfile(data);
       } catch (err) {
         console.error('Failed to load admin profile', err);
       }
@@ -63,6 +67,12 @@ const AdminApp = () => {
 
     fetchProfile();
   }, []);
+
+  useEffect(() => {
+    if (adminProfile) {
+      syncScopeFromProfile(adminProfile);
+    }
+  }, [adminProfile]);
 
   const isSuperAdmin = adminProfile?.role === 'super_admin';
 

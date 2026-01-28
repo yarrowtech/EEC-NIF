@@ -1,39 +1,9 @@
-import React, { useState, useEffect } from 'react';
-import { BookOpen, Clock, User, ChevronRight, GraduationCap } from 'lucide-react';
+import React from 'react';
+import { BookOpen, Clock, User, GraduationCap } from 'lucide-react';
+import { useStudentDashboard } from './StudentDashboardContext';
 
 const CourseProgress = () => {
-  const [courseData, setCourseData] = useState(null);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    const fetchDashboardData = async () => {
-      try {
-        const token = localStorage.getItem('token');
-        const userType = localStorage.getItem('userType');
-
-        if (!token || userType !== 'Student') return;
-
-        const response = await fetch(`${import.meta.env.VITE_API_URL}/api/student/auth/dashboard`, {
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json'
-          }
-        });
-
-        if (response.ok) {
-          const data = await response.json();
-          console.log('Course data received:', data.course);
-          setCourseData(data.course);
-        }
-      } catch (error) {
-        console.error('Failed to fetch course data:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchDashboardData();
-  }, []);
+  const { course, loading, error } = useStudentDashboard();
 
   if (loading) {
     return (
@@ -42,6 +12,14 @@ const CourseProgress = () => {
           <div className="h-6 bg-gray-200 rounded w-1/3"></div>
           <div className="h-20 bg-gray-200 rounded"></div>
         </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="bg-white rounded-xl shadow-sm border border-red-200 p-6">
+        <p className="text-sm text-red-600">{error}</p>
       </div>
     );
   }
@@ -55,7 +33,7 @@ const CourseProgress = () => {
       </div>
 
       <div className="p-6">
-        {courseData ? (
+        {course ? (
           <div className="space-y-6">
             <div className="group hover:bg-gray-50 rounded-lg p-4 transition-colors">
               <div className="flex items-center justify-between mb-3">
@@ -64,22 +42,20 @@ const CourseProgress = () => {
                     <GraduationCap size={24} className="text-white" />
                   </div>
                   <div>
-                    <h3 className="font-bold text-gray-900 text-lg">
-                      {courseData.name}
-                    </h3>
+                    <h3 className="font-bold text-gray-900 text-lg">{course.name}</h3>
                     <div className="flex items-center space-x-4 text-sm text-gray-600 mt-1">
                       <div className="flex items-center space-x-1">
                         <BookOpen size={14} />
-                        <span>{courseData.grade}</span>
+                        <span>{course.grade}</span>
                       </div>
                       <div className="flex items-center space-x-1">
                         <User size={14} />
-                        <span>Section {courseData.section}</span>
+                        <span>Section {course.section}</span>
                       </div>
-                      {courseData.duration && (
+                      {course.duration && (
                         <div className="flex items-center space-x-1">
                           <Clock size={14} />
-                          <span>{courseData.duration}</span>
+                          <span>{course.duration}</span>
                         </div>
                       )}
                     </div>
@@ -87,32 +63,34 @@ const CourseProgress = () => {
                 </div>
 
                 <div className="text-right">
-                  <div className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold ${
-                    courseData.status === 'Active'
-                      ? 'bg-green-100 text-green-800'
-                      : 'bg-gray-100 text-gray-800'
-                  }`}>
-                    {courseData.status || 'Active'}
+                  <div
+                    className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold ${
+                      course.status === 'Active'
+                        ? 'bg-green-100 text-green-800'
+                        : 'bg-gray-100 text-gray-800'
+                    }`}
+                  >
+                    {course.status || 'Active'}
                   </div>
-                  {courseData.batchCode && (
-                    <div className="text-sm text-gray-500 mt-1">
-                      Batch: {courseData.batchCode}
-                    </div>
+                  {course.batchCode && (
+                    <div className="text-sm text-gray-500 mt-1">Batch: {course.batchCode}</div>
                   )}
                 </div>
               </div>
 
               <div className="mt-4 grid grid-cols-3 gap-4 pt-4 border-t border-gray-100">
                 <div className="text-center">
-                  <div className="text-2xl font-bold text-yellow-600">{courseData.grade}</div>
+                  <div className="text-2xl font-bold text-yellow-600">{course.grade}</div>
                   <div className="text-xs text-gray-600 mt-1">Grade</div>
                 </div>
                 <div className="text-center">
-                  <div className="text-2xl font-bold text-blue-600">{courseData.section}</div>
+                  <div className="text-2xl font-bold text-blue-600">{course.section}</div>
                   <div className="text-xs text-gray-600 mt-1">Section</div>
                 </div>
                 <div className="text-center">
-                  <div className="text-2xl font-bold text-green-600">{courseData.status === 'Active' ? '✓' : '○'}</div>
+                  <div className="text-2xl font-bold text-green-600">
+                    {course.status === 'Active' ? '✓' : '○'}
+                  </div>
                   <div className="text-xs text-gray-600 mt-1">Status</div>
                 </div>
               </div>

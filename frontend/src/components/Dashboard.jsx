@@ -18,6 +18,7 @@ import ExcuseLetter from './ExcuseLetter';
 import AILearningDashboard from './AILearningDashboard';
 import AcademicAlcove from './AcademicAlcove';
 import StudentWellbeing from './StudentWellbeing';
+import { StudentDashboardProvider } from './StudentDashboardContext';
 
 const Dashboard = () => {
   const location = useLocation();
@@ -85,27 +86,29 @@ const Dashboard = () => {
   };
 
   return (
-    <div className="min-h-screen w-full bg-gray-50 flex relative overflow-hidden">
-      <Sidebar 
-        activeView={activeView}
-        isOpen={sidebarOpen}
-        setIsOpen={setSidebarOpen}
-      />
-      <div 
-        className={`flex-1 flex flex-col h-screen transition-all duration-300 ${
-          sidebarOpen ? '' : ''
-        } ${(activeView === 'chat' || activeView === 'excuse-letter') ? 'overflow-hidden' : 'overflow-y-auto custom-scrollbar'}`}
-      >
-        <Header 
-          sidebarOpen={sidebarOpen}
-          setSidebarOpen={setSidebarOpen}
-          onOpenProfile={() => navigate('/dashboard/profile')}
+    <StudentDashboardProvider>
+      <div className="min-h-screen w-full bg-gray-50 flex relative overflow-hidden">
+        <Sidebar 
+          activeView={activeView}
+          isOpen={sidebarOpen}
+          setIsOpen={setSidebarOpen}
         />
-        <main className={`flex-1 min-h-0 ${(activeView === 'chat' || activeView === 'excuse-letter') ? 'p-0' : 'p-2 sm:p-4 md:p-6'} w-full flex flex-col`}>
-          {renderContent()}
-        </main>
+        <div 
+          className={`flex-1 flex flex-col h-screen transition-all duration-300 ${
+            sidebarOpen ? '' : ''
+          } ${(activeView === 'chat' || activeView === 'excuse-letter') ? 'overflow-hidden' : 'overflow-y-auto custom-scrollbar'}`}
+        >
+          <Header 
+            sidebarOpen={sidebarOpen}
+            setSidebarOpen={setSidebarOpen}
+            onOpenProfile={() => navigate('/dashboard/profile')}
+          />
+          <main className={`flex-1 min-h-0 ${(activeView === 'chat' || activeView === 'excuse-letter') ? 'p-0' : 'p-2 sm:p-4 md:p-6'} w-full flex flex-col`}>
+            {renderContent()}
+          </main>
+        </div>
       </div>
-    </div>
+    </StudentDashboardProvider>
   );
 };
 

@@ -1,5 +1,6 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import { Award, Lock, Star, RefreshCcw, AlertCircle } from 'lucide-react';
+import React, { useMemo } from 'react';
+import { Award, Lock, Star, AlertCircle } from 'lucide-react';
+import { useStudentDashboard } from './StudentDashboardContext';
 
 const milestoneDefinitions = [
   {
@@ -55,57 +56,18 @@ const milestoneDefinitions = [
 ];
 
 const AchievementCard = () => {
-  const [achievements, setAchievements] = useState({ earned: [], upcoming: [] });
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-  const [lastUpdated, setLastUpdated] = useState(null);
-
-  useEffect(() => {
-    const fetchDashboard = async () => {
-      try {
-        setLoading(true);
-        setError(null);
-        const token = localStorage.getItem('token');
-        const userType = localStorage.getItem('userType');
-
-        if (!token || userType !== 'Student') {
-          setLoading(false);
-          setAchievements({ earned: [], upcoming: [] });
-          return;
-        }
-
-        const response = await fetch(`${import.meta.env.VITE_API_URL}/api/student/auth/dashboard`, {
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json'
-          }
-        });
-
-        if (!response.ok) {
-          throw new Error('Unable to load dashboard achievements');
-        }
-
-        const data = await response.json();
-        const streak = calculateAttendanceStreak(data.recentAttendance || []);
-        const computed = buildAchievements(data.stats || {}, streak);
-
-        setAchievements({
-          earned: computed.filter(item => item.earned),
-          upcoming: computed.filter(item => !item.earned)
-        });
-        setLastUpdated(new Date());
-      } catch (err) {
-        console.error('Failed to load achievements:', err);
-        setError(err.message);
-      } finally {
-        setLoading(false);
-      }
+  const { stats, recentAttendance, loading, error } = useStudentDashboard();
+  const computedAchievements = useMemo(() => {
+    if (!stats) return { earned: [], upcoming: [] };
+    const streak = calculateAttendanceStreak(recentAttendance || []);
+    const computed = buildAchievements(stats, streak);
+    return {
+      earned: computed.filter((item) => item.earned),
+      upcoming: computed.filter((item) => !item.earned),
     };
+  }, [stats, recentAttendance]);
 
-    fetchDashboard();
-  }, []);
-
-  const earnedCount = achievements.earned.length;
+  const earnedCount = computedAchievements.earned.length;
   const totalMilestones = useMemo(() => milestoneDefinitions.length, []);
 
   if (loading) {
@@ -144,14 +106,8 @@ const AchievementCard = () => {
             <h2 className="text-xl font-semibold text-gray-900">Achievements</h2>
           </div>
           <div className="text-sm text-gray-500 flex items-center space-x-2">
-            <span>{earnedCount} of {totalMilestones} earned</span>
-            {lastUpdated && (
-              <span className="inline-flex items-center text-xs text-gray-400">
-                <RefreshCcw size={12} className="mr-1" />
-                Updated {lastUpdated.toLocaleDateString()}
-              </span>
-            )}
-          </div>
+        <span>{earnedCount} of {totalMilestones} earned</span>
+      </div>
         </div>
       </div>
       
@@ -163,12 +119,12 @@ const AchievementCard = () => {
             <span>Recent Achievements</span>
           </h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {achievements.earned.length === 0 && (
+            {computedAchievements.earned.length === 0 && (
               <div className="col-span-full text-sm text-gray-500">
                 No milestones unlocked yet. Keep progressing!
               </div>
             )}
-            {achievements.earned.slice(0, 4).map((achievement) => (
+            {computedAchievements.earned.slice(0, 4).map((achievement) => (
               <div key={achievement.id} className="bg-gradient-to-r from-yellow-50 to-orange-50 border border-yellow-200 rounded-lg p-4 relative overflow-hidden">
                 <div className="absolute top-2 right-2">
                   <div className="w-6 h-6 bg-yellow-500 rounded-full flex items-center justify-center">
@@ -202,12 +158,12 @@ const AchievementCard = () => {
             <span>Upcoming Achievements</span>
           </h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {achievements.upcoming.length === 0 && (
+            {computedAchievements.upcoming.length === 0 && (
               <div className="col-span-full text-sm text-gray-500">
                 You're all caught up. New goals will appear here soon.
               </div>
             )}
-            {achievements.upcoming.map((achievement) => (
+            {computedAchievements.upcoming.map((achievement) => (
               <div key={achievement.id} className="bg-gray-50 border border-gray-200 rounded-lg p-4 relative overflow-hidden">
                 <div className="absolute top-2 right-2">
                   <div className="w-6 h-6 bg-gray-300 rounded-full flex items-center justify-center">

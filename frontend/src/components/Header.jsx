@@ -1,6 +1,7 @@
-import React, { useMemo, useState, useEffect } from 'react';
-import { Bell, Search, Menu, CalendarDays } from 'lucide-react';
+import React, { useMemo, useState } from 'react';
+import { Bell, Search, Menu, CalendarDays, School } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { useStudentDashboard } from './StudentDashboardContext';
 
 const Header = ({ sidebarOpen, setSidebarOpen, onOpenProfile }) => {
   const navigate = useNavigate();
@@ -27,56 +28,16 @@ const Header = ({ sidebarOpen, setSidebarOpen, onOpenProfile }) => {
     },
   ];
   const [profileOpen, setProfileOpen] = useState(false);
-  const [studentData, setStudentData] = useState({
-    name: "Student",
-    avatar: null,
-    grade: "",
-    section: ""
-  });
-
-  // Fetch student profile
-  useEffect(() => {
-    const fetchStudentProfile = async () => {
-      try {
-        const token = localStorage.getItem('token');
-        const userType = localStorage.getItem('userType');
-
-        console.log('Header - Token:', token ? 'exists' : 'missing', 'UserType:', userType);
-
-        if (!token || userType !== 'Student') return;
-
-        const url = `${import.meta.env.VITE_API_URL}/api/student/auth/profile`;
-        console.log('Header - Fetching from:', url);
-
-        const response = await fetch(url, {
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json'
-          }
-        });
-
-        console.log('Header - Response status:', response.status);
-
-        if (response.ok) {
-          const data = await response.json();
-          console.log('Header - Profile data received:', data);
-          setStudentData({
-            name: data.name || "Student",
-            avatar: data.profilePic || null,
-            grade: data.grade || "",
-            section: data.section || ""
-          });
-        } else {
-          const errorText = await response.text();
-          console.error('Header - Profile fetch failed:', response.status, errorText);
-        }
-      } catch (error) {
-        console.error('Header - Failed to fetch student profile:', error);
-      }
-    };
-
-    fetchStudentProfile();
-  }, []);
+  const { profile, loading } = useStudentDashboard();
+  const studentData = profile || {
+    name: 'Student',
+    grade: '',
+    section: '',
+    roll: '',
+    schoolName: '',
+    schoolLogo: null,
+    profilePic: null,
+  };
 
   // Greeting and date
   const { greeting, dateLabel } = useMemo(() => {
@@ -109,10 +70,18 @@ const Header = ({ sidebarOpen, setSidebarOpen, onOpenProfile }) => {
               <Menu size={22} className="text-gray-700" />
             </button>
             <div className="hidden xs:block">
-              <div className="text-sm sm:text-base font-semibold text-gray-900 truncate">{greeting}, {studentData.name.split(' ')[0]}</div>
+                <div className="text-sm sm:text-base font-semibold text-gray-900 truncate">
+                  {greeting}, {studentData.name?.split(' ')[0] || 'Student'}
+                </div>
               <div className="flex items-center gap-1 text-xs text-gray-500">
                 <CalendarDays size={14} />
                 <span>{dateLabel}</span>
+              </div>
+              <div className="text-[11px] text-gray-500 mt-0.5">
+                {studentData.grade
+                  ? `Class ${studentData.grade}${studentData.section ? ` • Section ${studentData.section}` : ''}`
+                  : 'Class not assigned'}
+                {studentData.roll ? ` • Roll ${studentData.roll}` : ''}
               </div>
             </div>
           </div>
@@ -137,6 +106,32 @@ const Header = ({ sidebarOpen, setSidebarOpen, onOpenProfile }) => {
 
           {/* Right: Notifications + Profile */}
           <div className="flex items-center gap-2 sm:gap-3">
+            {(studentData.schoolName || studentData.schoolLogo) && (
+              <div className="hidden lg:flex items-center gap-2 bg-white/70 backdrop-blur px-3 py-2 rounded-xl border border-gray-200">
+                <div className="w-9 h-9 rounded-full bg-gray-100 border border-gray-200 flex items-center justify-center overflow-hidden">
+                  {studentData.schoolLogo ? (
+                    studentData.schoolLogo ? (
+                      <img
+                        src={studentData.schoolLogo}
+                        alt="School Logo"
+                        className="w-full h-full object-cover"
+                        onError={(e) => { e.target.style.display = 'none'; }}
+                      />
+                    ) : (
+                      <PlaceholderSchoolIcon />
+                    )
+                  ) : (
+                    <div className="text-gray-500 text-xs font-semibold">
+                      {(studentData.schoolName || 'School').slice(0, 2).toUpperCase()}
+                    </div>
+                  )}
+                </div>
+                <div className="leading-tight">
+                  <p className="text-[11px] uppercase text-gray-400 tracking-wide">School</p>
+                  <p className="text-sm font-semibold text-gray-800">{studentData.schoolName || 'Not assigned'}</p>
+                </div>
+              </div>
+            )}
             <div className="relative">
               <button
                 className="p-2 rounded-lg hover:bg-gray-100 transition-colors relative"
@@ -178,7 +173,7 @@ const Header = ({ sidebarOpen, setSidebarOpen, onOpenProfile }) => {
                 aria-label="Open profile menu"
               >
                 <img
-                  src={studentData.avatar}
+                  src={studentData.profilePic || studentData.avatar}
                   alt="Profile"
                   className="w-9 h-9 rounded-full border-2 border-gray-200"
                   onError={(e) => {
@@ -186,14 +181,16 @@ const Header = ({ sidebarOpen, setSidebarOpen, onOpenProfile }) => {
                   }}
                 />
                 <div className="hidden sm:block text-left">
-                  <div className="text-sm font-semibold text-gray-900 leading-tight">{studentData.name}</div>
+                  <div className="text-sm font-semibold text-gray-900 leading-tight">
+                    {studentData.name || 'Student'}
+                  </div>
                   <div className="text-[11px] text-gray-500 -mt-0.5">Student</div>
                 </div>
               </button>
               {profileOpen && (
                 <div className="absolute right-0 mt-2 w-48 bg-white border border-gray-200 rounded-xl shadow-xl z-50 overflow-hidden">
                   <div className="px-4 py-3 border-b">
-                    <div className="text-sm font-semibold text-gray-900">{studentData.name}</div>
+                    <div className="text-sm font-semibold text-gray-900">{studentData.name || 'Student'}</div>
                     <div className="text-xs text-gray-500">Student</div>
                   </div>
                   <div className="py-1">

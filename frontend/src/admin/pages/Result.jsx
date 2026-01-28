@@ -1,6 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { ChevronDown, Download, FileText } from 'lucide-react';
 import { jsPDF } from 'jspdf';
+const API_BASE = import.meta.env.VITE_API_URL;
 
 const Result = ({ setShowAdminHeader }) => {
   useEffect(() => {
@@ -9,32 +10,137 @@ const Result = ({ setShowAdminHeader }) => {
   
   const [selectedClass, setSelectedClass] = useState('');
   const [selectedSection, setSelectedSection] = useState('');
+  const [rawResults, setRawResults] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
 
-  const classes = Array.from({ length: 12 }, (_, i) => `Class ${i + 1}`);
-  const sections = ['A', 'B', 'C', 'D'];
+  useEffect(() => {
+    let isMounted = true;
+    const controller = new AbortController();
 
-  const mockStudentResults = {
-    'Class 1': {
-      'A': [
-        { id: 1, name: 'Aarav Sharma', rollNo: '001', subjects: { English: 85, Math: 92, Science: 78, History: 88 } },
-        { id: 2, name: 'Priya Verma', rollNo: '002', subjects: { English: 90, Math: 87, Science: 82, History: 91 } },
-        { id: 3, name: 'Rohan Patel', rollNo: '003', subjects: { English: 75, Math: 83, Science: 79, History: 84 } }
-      ],
-      'B': [
-        { id: 4, name: 'Sneha Singh', rollNo: '004', subjects: { English: 88, Math: 85, Science: 91, History: 86 } },
-        { id: 5, name: 'Vikram Rao', rollNo: '005', subjects: { English: 82, Math: 89, Science: 77, History: 83 } }
-      ]
-    },
-    'Class 2': {
-      'A': [
-        { id: 6, name: 'Kavya Nair', rollNo: '006', subjects: { English: 93, Math: 88, Science: 85, History: 90 } },
-        { id: 7, name: 'Aditya Joshi', rollNo: '007', subjects: { English: 79, Math: 91, Science: 83, History: 87 } }
-      ],
-      'B': [
-        { id: 8, name: 'Isha Mehra', rollNo: '008', subjects: { English: 87, Math: 84, Science: 89, History: 85 } }
-      ]
+    const fetchResults = async () => {
+      setError('');
+      setLoading(true);
+      try {
+        const res = await fetch(`${API_BASE}/api/exam/results/admin`, {
+          headers: {
+            'Content-Type': 'application/json',
+            authorization: `Bearer ${localStorage.getItem('token')}`,
+          },
+          signal: controller.signal,
+        });
+        const data = await res.json().catch(() => []);
+        if (!res.ok) {
+          throw new Error(data?.error || 'Failed to load results');
+        }
+        if (isMounted) {
+          setRawResults(Array.isArray(data) ? data : []);
+        }
+      } catch (err) {
+        if (err.name === 'AbortError') return;
+        if (isMounted) {
+          setError(err.message || 'Failed to load results');
+          setRawResults([]);
+        }
+      } finally {
+        if (isMounted) {
+          setLoading(false);
+        }
+      }
+    };
+
+    fetchResults();
+
+    return () => {
+      isMounted = false;
+      controller.abort();
+    };
+  }, []);
+
+  const structuredResults = useMemo(() => {
+    const classMap = new Map();
+    rawResults.forEach((record) => {
+      const student = record.studentId || {};
+      const exam = record.examId || {};
+      const classKey = student.grade || 'Unassigned';
+      const sectionKey = student.section || 'General';
+
+      if (!classMap.has(classKey)) {
+        classMap.set(classKey, new Map());
+      }
+      const sectionMap = classMap.get(classKey);
+      if (!sectionMap.has(sectionKey)) {
+        sectionMap.set(sectionKey, new Map());
+      }
+      const studentsMap = sectionMap.get(sectionKey);
+
+      const studentKey =
+        student._id?.toString() || `${classKey}-${sectionKey}-${student.name || record._id}`;
+      if (!studentsMap.has(studentKey)) {
+        studentsMap.set(studentKey, {
+          id: studentKey,
+          name: student.name || 'Unnamed Student',
+          rollNo: student.roll || '—',
+          grade: student.grade || classKey,
+          section: student.section || sectionKey,
+          schoolName: student.schoolId?.name || '',
+          subjects: {},
+        });
+      }
+      const entry = studentsMap.get(studentKey);
+      const subjectName = exam.subject || exam.title || record.subject || 'Subject';
+      const marks = Number.isFinite(Number(record.marks)) ? Number(record.marks) : 0;
+      entry.subjects[subjectName] = marks;
+    });
+
+    const normalized = {};
+    classMap.forEach((sectionMap, classKey) => {
+      normalized[classKey] = {};
+      sectionMap.forEach((studentsMap, sectionKey) => {
+        normalized[classKey][sectionKey] = Array.from(studentsMap.values());
+      });
+    });
+    return normalized;
+  }, [rawResults]);
+
+  const classes = useMemo(
+    () => Object.keys(structuredResults).sort((a, b) => a.localeCompare(b, undefined, { numeric: true })),
+    [structuredResults]
+  );
+
+  const sections = useMemo(() => {
+    if (!selectedClass || !structuredResults[selectedClass]) return [];
+    return Object.keys(structuredResults[selectedClass]);
+  }, [structuredResults, selectedClass]);
+
+  useEffect(() => {
+    if (!classes.length) {
+      if (selectedClass) setSelectedClass('');
+      return;
     }
-  };
+    if (!selectedClass || !classes.includes(selectedClass)) {
+      setSelectedClass(classes[0]);
+    }
+  }, [classes, selectedClass]);
+
+  useEffect(() => {
+    if (!selectedClass) {
+      if (selectedSection) setSelectedSection('');
+      return;
+    }
+    if (!sections.length) {
+      if (selectedSection) setSelectedSection('');
+      return;
+    }
+    if (!selectedSection || !sections.includes(selectedSection)) {
+      setSelectedSection(sections[0]);
+    }
+  }, [sections, selectedClass, selectedSection]);
+
+  const studentsForSelection = useMemo(() => {
+    if (!selectedClass || !selectedSection) return [];
+    return structuredResults[selectedClass]?.[selectedSection] || [];
+  }, [structuredResults, selectedClass, selectedSection]);
 
   const generateReportCard = async (student) => {
     const doc = new jsPDF();
@@ -91,7 +197,10 @@ const Result = ({ setShowAdminHeader }) => {
     doc.setFontSize(14);
     doc.setFont('helvetica', 'bold');
     doc.setTextColor(220, 20, 60);
-    doc.text('ELECTRONIC EDUCARE', pageWidth/2, currentY + 12, { align: 'center' });
+    const classLabel = student.grade || selectedClass || 'Class';
+    const sectionLabel = student.section || selectedSection || 'Section';
+    const schoolTitle = (student.schoolName || 'Electronic Educare').toUpperCase();
+    doc.text(schoolTitle, pageWidth/2, currentY + 12, { align: 'center' });
     
     doc.setFontSize(7);
     doc.setFont('helvetica', 'normal');
@@ -120,7 +229,7 @@ const Result = ({ setShowAdminHeader }) => {
     doc.setFontSize(8);
     doc.setFont('helvetica', 'bold');
     doc.text('class', 15, currentY + 6);
-    doc.text(selectedClass.split(' ')[1] || 'I', 18, currentY + 10);
+    doc.text(classLabel, 18, currentY + 10);
     
     currentY += 15;
     
@@ -146,13 +255,13 @@ const Result = ({ setShowAdminHeader }) => {
     
     // Right column details
     doc.text("Class:", 110, currentY);
-    doc.text(selectedClass, 125, currentY);
+    doc.text(classLabel, 125, currentY);
     
     doc.text("Section:", 110, currentY + 5);
-    doc.text(selectedSection, 125, currentY + 5);
+    doc.text(sectionLabel, 125, currentY + 5);
     
     doc.text("Roll No.:", 110, currentY + 10);
-    doc.text(student.rollNo, 125, currentY + 10);
+    doc.text(student.rollNo || '—', 125, currentY + 10);
     
     doc.text("House:", 110, currentY + 15);
     doc.text('Blue House', 125, currentY + 15);
@@ -384,12 +493,7 @@ const Result = ({ setShowAdminHeader }) => {
     doc.line(pageWidth - 65, signatureY, pageWidth - 15, signatureY);
     doc.text("Principal Signature", pageWidth - 45, signatureY + 8);
     
-    doc.save(`${student.name}_Report_Card_${selectedClass}_Section_${selectedSection}_2024-25.pdf`);
-  };
-
-  const filteredStudents = () => {
-    if (!selectedClass || !selectedSection) return [];
-    return mockStudentResults[selectedClass]?.[selectedSection] || [];
+    doc.save(`${student.name}_Report_Card_${classLabel}_Section_${sectionLabel}_${new Date().getFullYear()}.pdf`);
   };
 
   return (
@@ -437,6 +541,17 @@ const Result = ({ setShowAdminHeader }) => {
             </div>
           </div>
         </div>
+
+        {error && (
+          <div className="mb-6 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+            {error}
+          </div>
+        )}
+        {loading && (
+          <div className="mb-6 rounded-lg border border-yellow-200 bg-yellow-50 px-4 py-3 text-sm text-yellow-800">
+            Loading exam results...
+          </div>
+        )}
       </div>
 
       {selectedClass && selectedSection && (
@@ -472,9 +587,10 @@ const Result = ({ setShowAdminHeader }) => {
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
-                {filteredStudents().map((student) => {
-                  const totalMarks = Object.values(student.subjects).reduce((sum, marks) => sum + marks, 0);
-                  const percentage = ((totalMarks / (Object.keys(student.subjects).length * 100)) * 100).toFixed(1);
+                {studentsForSelection.map((student) => {
+                  const subjectCount = Math.max(Object.keys(student.subjects || {}).length, 1);
+                  const totalMarks = Object.values(student.subjects || {}).reduce((sum, marks) => sum + marks, 0);
+                  const percentage = ((totalMarks / (subjectCount * 100)) * 100).toFixed(1);
                   
                   return (
                     <tr key={student.id} className="hover:bg-gray-50">
@@ -482,11 +598,14 @@ const Result = ({ setShowAdminHeader }) => {
                         {student.rollNo}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        {student.name}
+                        <div className="font-semibold text-gray-900">{student.name}</div>
+                        {student.schoolName && (
+                          <div className="text-xs text-gray-500">{student.schoolName}</div>
+                        )}
                       </td>
                       <td className="px-6 py-4 text-sm text-gray-900">
                         <div className="space-y-1">
-                          {Object.entries(student.subjects).map(([subject, marks]) => (
+                          {Object.entries(student.subjects || {}).map(([subject, marks]) => (
                             <div key={subject} className="flex justify-between items-center bg-gray-50 px-2 py-1 rounded">
                               <span className="font-medium">{subject}:</span>
                               <span className="text-blue-600 font-semibold">{marks}/100</span>
@@ -495,7 +614,7 @@ const Result = ({ setShowAdminHeader }) => {
                         </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-gray-900">
-                        {totalMarks}/{Object.keys(student.subjects).length * 100}
+                        {totalMarks}/{subjectCount * 100}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                         <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
@@ -524,7 +643,7 @@ const Result = ({ setShowAdminHeader }) => {
             </table>
           </div>
 
-          {filteredStudents().length === 0 && (
+          {studentsForSelection.length === 0 && !loading && (
             <div className="text-center py-8">
               <FileText className="mx-auto h-12 w-12 text-gray-400" />
               <h3 className="mt-2 text-sm font-medium text-gray-900">No results found</h3>
@@ -536,7 +655,7 @@ const Result = ({ setShowAdminHeader }) => {
         </div>
       )}
 
-      {(!selectedClass || !selectedSection) && (
+      {!loading && (!selectedClass || !selectedSection) && (
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-12">
           <div className="text-center">
             <FileText className="mx-auto h-12 w-12 text-gray-400" />

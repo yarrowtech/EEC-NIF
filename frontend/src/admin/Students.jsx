@@ -580,6 +580,8 @@ const Students = ({ setShowAdminHeader, setShowAdminBreadcrumb }) => {
           data.error || data.message || res.statusText || "Failed to issue credentials"
         );
       }
+      const loginId = data.studentCode || data.username || credentials.id;
+      const loginPassword = data.password || credentials.password;
       setCredentialStatus((prev) => ({ ...prev, [student._id]: "active" }));
       Swal.fire({
         icon: "success",
@@ -592,9 +594,9 @@ const Students = ({ setShowAdminHeader, setShowAdminBreadcrumb }) => {
               <div>
                 <p class="text-xs font-semibold text-yellow-700 uppercase mb-1">Student ID</p>
                 <div class="flex items-center justify-between bg-white rounded px-3 py-2 border border-yellow-100">
-                  <code class="text-sm font-mono text-gray-800">${credentials.id}</code>
+                  <code class="text-sm font-mono text-gray-800">${loginId}</code>
                   <button
-                    onclick="navigator.clipboard.writeText('${credentials.id}')"
+                    onclick="navigator.clipboard.writeText('${loginId}')"
                     class="text-xs bg-yellow-500 hover:bg-yellow-600 text-white px-2 py-1 rounded"
                     title="Copy ID"
                   >
@@ -606,9 +608,9 @@ const Students = ({ setShowAdminHeader, setShowAdminBreadcrumb }) => {
               <div>
                 <p class="text-xs font-semibold text-yellow-700 uppercase mb-1">Password</p>
                 <div class="flex items-center justify-between bg-white rounded px-3 py-2 border border-yellow-100">
-                  <code class="text-sm font-mono text-gray-800">${credentials.password}</code>
+                  <code class="text-sm font-mono text-gray-800">${loginPassword}</code>
                   <button
-                    onclick="navigator.clipboard.writeText('${credentials.password}')"
+                    onclick="navigator.clipboard.writeText('${loginPassword}')"
                     class="text-xs bg-yellow-500 hover:bg-yellow-600 text-white px-2 py-1 rounded"
                     title="Copy Password"
                   >
@@ -758,10 +760,12 @@ const Students = ({ setShowAdminHeader, setShowAdminBreadcrumb }) => {
           }),
         });
 
+        const data = await res.json().catch(() => ({}));
         if (!res.ok) {
-          const data = await res.json().catch(() => ({}));
           throw new Error(data.error || data.message || "Failed to generate credentials");
         }
+        const loginId = data.studentCode || data.username || username;
+        const loginPassword = data.password || password;
 
         // Store credentials for CSV export
         credentialsList.push({
@@ -773,8 +777,8 @@ const Students = ({ setShowAdminHeader, setShowAdminBreadcrumb }) => {
           roll: student.roll,
           mobile: student.mobile,
           email: student.email,
-          username,
-          password,
+          username: loginId,
+          password: loginPassword,
         });
 
         setCredentialStatus((prev) => ({ ...prev, [student._id]: "active" }));

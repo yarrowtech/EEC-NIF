@@ -23,6 +23,7 @@ const studentUserSchema = new mongoose.Schema({
   campusName: { type: String, default: null },
   campusType: { type: String, default: null },
   studentCode: { type: String, unique: true, sparse: true },
+  nifStudent: { type: mongoose.Schema.Types.ObjectId, ref: 'NifStudent', default: null },
   name: String,
   grade: String,
   section: String,

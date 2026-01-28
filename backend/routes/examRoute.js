@@ -121,6 +121,45 @@ router.get("/results", teacherAuth, async (req, res) => {
     }
 });
 
+// Admin view of results with enriched student/exam info
+router.get("/results/admin", adminAuth, async (req, res) => {
+  // #swagger.tags = ['Exams']
+  try {
+    const schoolId = resolveSchoolId(req, res);
+    if (!schoolId) return;
+
+    const { studentId, examId, grade, section, subject } = req.query || {};
+    const filter = { schoolId };
+    if (studentId) filter.studentId = studentId;
+    if (examId) filter.examId = examId;
+
+    const results = await ExamResult.find(filter)
+      .populate({
+        path: 'studentId',
+        select: 'name grade section roll studentCode schoolId',
+        populate: { path: 'schoolId', select: 'name code' },
+      })
+      .populate('examId', 'title subject date')
+      .sort({ createdAt: -1 })
+      .lean();
+
+    const filtered = results.filter((result) => {
+      const matchesClass = grade ? result.studentId?.grade === grade : true;
+      const matchesSection = section ? result.studentId?.section === section : true;
+      const resultSubject = result.examId?.subject || result.examId?.title || null;
+      const matchesSubject = subject
+        ? resultSubject && resultSubject.toLowerCase() === subject.toLowerCase()
+        : true;
+      return matchesClass && matchesSection && matchesSubject;
+    });
+
+    res.json(filtered);
+  } catch (err) {
+    console.error('Admin results fetch error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // Student fetch their results
 router.get("/results/me", require('../middleware/authStudent'), async (req, res) => {
   // #swagger.tags = ['Exams']

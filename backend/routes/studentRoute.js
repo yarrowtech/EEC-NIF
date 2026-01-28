@@ -5,8 +5,28 @@ const NifStudent = require('../models/NifStudent');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const adminAuth = require('../middleware/adminAuth');
-const { generateUsername, generatePassword } = require('../utils/generator');
+const { generatePassword } = require('../utils/generator');
 const { generateStudentCode } = require('../utils/codeGenerator');
+const extractPopulatedDoc = (doc) => {
+  if (doc && typeof doc.toJSON === 'function') {
+    return doc.toJSON();
+  }
+  if (doc && typeof doc.toObject === 'function') {
+    return doc.toObject();
+  }
+  return doc || null;
+};
+
+const extractSchoolInfo = (school = null) => {
+  const payload = extractPopulatedDoc(school);
+  if (!payload || typeof payload !== 'object') return null;
+  return {
+    id: payload._id || payload.id || null,
+    name: payload.name || '',
+    code: payload.code || '',
+    logo: payload.logo?.secure_url || payload.logo?.url || null,
+  };
+};
 
 const resolveAdmissionYear = (value) => {
   if (!value) return new Date().getFullYear();
@@ -45,7 +65,6 @@ router.post('/register', adminAuth, async (req, res) => {
     email,
     address,
     pinCode,
-    username: requestedUsername,
     password: requestedPassword,
     studentId,
     nifStudentId,
@@ -74,21 +93,17 @@ router.post('/register', adminAuth, async (req, res) => {
     const resolvedSchoolId = req.admin?.schoolId || schoolId || existingPortalUser?.schoolId || null;
     const resolvedCampusId = req.campusId || req.admin?.campusId || req.body?.campusId || existingPortalUser?.campusId || null;
 
-    // Use requested credentials or generate new ones
-    let username = (requestedUsername || '').trim();
-    if (username) {
-      const query = { username };
-      if (existingPortalUser?._id) {
-        query._id = { $ne: existingPortalUser._id };
-      }
-      const usernameConflict = await StudentUser.findOne(query);
-      if (usernameConflict) {
-        return res.status(409).json({ error: 'Username already exists. Please choose another.' });
-      }
-    } else {
-      username = await generateUsername(name || nifStudentDoc?.name || 'Student', 'student');
+    if (!resolvedSchoolId) {
+      return res.status(400).json({ error: 'schoolId is required to generate student ID' });
     }
 
+    const resolvedAdmissionDate =
+      resolveAdmissionDate(admissionDate || nifStudentDoc?.admissionDate) || undefined;
+    const admissionYear = resolveAdmissionYear(
+      resolvedAdmissionDate || admissionDate || nifStudentDoc?.admissionDate
+    );
+
+    // Use requested password or generate new one
     let password = requestedPassword;
     if (password) {
       if (!isStrongPassword(password)) {
@@ -107,8 +122,13 @@ router.post('/register', adminAuth, async (req, res) => {
     const resolvedEmail = email || nifStudentDoc?.email || '';
     const resolvedBatchCode = batchCode || nifStudentDoc?.batchCode || '';
 
+    let studentCode = existingPortalUser?.studentCode;
+    if (!studentCode) {
+      studentCode = await generateStudentCode(resolvedSchoolId, admissionYear);
+    }
+
     const payload = {
-      username,
+      username: studentCode,
       password,
       schoolId: resolvedSchoolId,
       campusId: resolvedCampusId,
@@ -121,11 +141,13 @@ router.post('/register', adminAuth, async (req, res) => {
       roll: resolvedRoll,
       gender: resolvedGender,
       dob: dob || nifStudentDoc?.dob,
+      admissionDate: resolvedAdmissionDate,
       mobile: resolvedMobile,
       email: resolvedEmail,
       address: address || nifStudentDoc?.address || '',
       pinCode: pinCode || nifStudentDoc?.pincode || '',
       batchCode: resolvedBatchCode,
+      studentCode,
     };
 
     let studentUser;
@@ -146,7 +168,7 @@ router.post('/register', adminAuth, async (req, res) => {
       nifStudentDoc.studentPortalUser = studentUser._id;
       nifStudentDoc.portalAccess = {
         enabled: true,
-        username: username,
+        username: payload.username,
         issuedAt: new Date(),
         issuedBy: req.admin?._id || null,
       };
@@ -155,7 +177,8 @@ router.post('/register', adminAuth, async (req, res) => {
 
     res.status(201).json({
       message: existingPortalUser ? 'Student credentials updated successfully' : 'Student registered successfully',
-      username,
+      username: payload.username,
+      studentCode,
       password,
       userId: studentUser._id,
       nifStudentId: nifStudentDoc?._id || null,
@@ -169,10 +192,16 @@ router.post('/register', adminAuth, async (req, res) => {
 // Login Student
 router.post('/login', rateLimit({ windowMs: 60 * 1000, max: 10 }), async (req, res) => {
   // #swagger.tags = ['Students']
-  const { username, password } = req.body;
+  const { username, password, studentId, id } = req.body;
+  const identifier = (username || studentId || id || '').trim();
 
   try {
-    const user = await StudentUser.findOne({ username });
+    if (!identifier || !password) {
+      return res.status(400).json({ error: 'Student ID and password are required' });
+    }
+    const user = await StudentUser.findOne({
+      $or: [{ username: identifier }, { studentCode: identifier }],
+    });
     if (!user || !(await bcrypt.compare(password, user.password))) {
       return res.status(401).json({ error: 'Invalid credentials' });
     }
@@ -225,6 +254,7 @@ router.get('/profile', authStudent, async (req, res) => {
     const student = await StudentUser.findById(req.user.id)
       .select('-password')
       .populate('nifStudent', 'serialNo batchCode course grade section courseId duration status admissionDate')
+      .populate('schoolId', 'name code logo')
       .lean();
 
     console.log('Student found:', student ? 'YES' : 'NO');
@@ -240,8 +270,16 @@ router.get('/profile', authStudent, async (req, res) => {
       return res.status(404).json({ error: 'Student not found' });
     }
 
+    const schoolInfo = extractSchoolInfo(student.schoolId);
+    const response = {
+      ...student,
+      schoolId: schoolInfo?.id || student.schoolId || null,
+      schoolInfo,
+      schoolName: schoolInfo?.name || '',
+      schoolLogo: schoolInfo?.logo || null,
+    };
     console.log('✅ Sending profile data to frontend');
-    res.json(student);
+    res.json(response);
   } catch (err) {
     console.error('❌ Get profile error:', err);
     res.status(400).json({ error: err.message });
@@ -254,6 +292,7 @@ router.get('/dashboard', authStudent, async (req, res) => {
   try {
     const student = await StudentUser.findById(req.user.id)
       .populate('nifStudent')
+      .populate('schoolId', 'name code logo')
       .lean();
 
     if (!student) {
@@ -275,6 +314,8 @@ router.get('/dashboard', authStudent, async (req, res) => {
       status: student.nifStudent.status || 'Active'
     } : null;
 
+    const schoolInfo = extractSchoolInfo(student.schoolId);
+
     const dashboardData = {
       profile: {
         name: student.name,
@@ -285,6 +326,9 @@ router.get('/dashboard', authStudent, async (req, res) => {
         section: student.section,
         roll: student.roll,
         profilePic: student.profilePic,
+        school: schoolInfo,
+        schoolName: schoolInfo?.name || '',
+        schoolLogo: schoolInfo?.logo || null,
       },
       stats: {
         attendancePercentage,
@@ -298,6 +342,7 @@ router.get('/dashboard', authStudent, async (req, res) => {
       },
       course: courseInfo,
       recentAttendance: student.attendance?.slice(-10) || [],
+      school: schoolInfo,
     };
 
     res.json(dashboardData);

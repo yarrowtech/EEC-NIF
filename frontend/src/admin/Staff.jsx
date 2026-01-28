@@ -34,10 +34,40 @@ import {
   AlertTriangle
 } from 'lucide-react';
 
-const Staff = ({setShowAdminHeader}) => {
+const normalizeAttendance = (value) => {
+  if (!value) return 'Unknown';
+  const normalized = String(value).toLowerCase();
+  if (normalized === 'present') return 'Present';
+  if (normalized === 'absent') return 'Absent';
+  return value;
+};
+
+const normalizePaymentStatus = (value) => {
+  if (!value) return 'Pending';
+  const normalized = String(value).toLowerCase();
+  if (normalized === 'paid') return 'Paid';
+  if (normalized === 'due') return 'Due';
+  if (normalized === 'pending') return 'Pending';
+  return value;
+};
+
+const getInitials = (name = '') => {
+  const parts = name
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((part) => part[0]?.toUpperCase())
+    .filter(Boolean);
+  if (parts.length === 0) return 'S';
+  return parts.slice(0, 2).join('');
+};
+
+const Staff = ({ setShowAdminHeader }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState('All');
   const [staff, setStaff] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
   const [showAddForm, setShowAddForm] = useState(false);
   const [newStaffMember, setNewStaffMember] = useState({
     name: '',
@@ -107,266 +137,55 @@ const Staff = ({setShowAdminHeader}) => {
     };
   };
 
-  // Static sample data for demonstration
-  const staticStaffData = [
-    {
-      id: 1,
-      name: 'Priya Sharma',
-      empId: 'EMP001',
-      email: 'priya.sharma@eec.edu',
-      mobile: '+91-98765-43210',
-      position: 'Administrative Manager',
-      department: 'Administration',
-      qualification: 'MBA in Management',
-      experience: 8,
-      joiningDate: '2016-03-15',
-      status: 'Active',
-      salary: 650000,
-      attendanceToday: 'Present',
-      lastSalaryDate: '2024-01-01',
-      paymentStatus: 'Paid',
-      nextPaymentDue: '2024-02-01',
-      address: '15/2, MG Road, Bengaluru, Karnataka 560001'
-    },
-    {
-      id: 2,
-      name: 'Rajesh Kumar',
-      empId: 'EMP002',
-      email: 'rajesh.kumar@eec.edu',
-      mobile: '+91-98765-43211',
-      position: 'IT Support Specialist',
-      department: 'IT Support',
-      qualification: 'BE Computer Science',
-      experience: 5,
-      joiningDate: '2019-06-20',
-      status: 'Active',
-      salary: 520000,
-      attendanceToday: 'Present',
-      lastSalaryDate: '2024-01-01',
-      paymentStatus: 'Paid',
-      nextPaymentDue: '2024-02-01',
-      address: '42, Sector 14, Gurgaon, Haryana 122001'
-    },
-    {
-      id: 3,
-      name: 'Anita Patel',
-      empId: 'EMP003',
-      email: 'anita.patel@eec.edu',
-      mobile: '+91-98765-43212',
-      position: 'HR Coordinator',
-      department: 'Human Resources',
-      qualification: 'MA Human Resources',
-      experience: 6,
-      joiningDate: '2018-01-10',
-      status: 'Active',
-      salary: 580000,
-      attendanceToday: 'Absent',
-      lastSalaryDate: '2024-01-01',
-      paymentStatus: 'Due',
-      nextPaymentDue: '2024-01-30',
-      address: '78, Koregaon Park, Pune, Maharashtra 411001'
-    },
-    {
-      id: 4,
-      name: 'Suresh Gupta',
-      empId: 'EMP004',
-      email: 'suresh.gupta@eec.edu',
-      mobile: '+91-98765-43213',
-      position: 'Finance Officer',
-      department: 'Finance',
-      qualification: 'CA, B.Com Accounting',
-      experience: 10,
-      joiningDate: '2014-09-01',
-      status: 'Active',
-      salary: 720000,
-      attendanceToday: 'Present',
-      lastSalaryDate: '2024-01-01',
-      paymentStatus: 'Paid',
-      nextPaymentDue: '2024-02-01',
-      address: '23, CP Tank, Mumbai, Maharashtra 400004'
-    },
-    {
-      id: 5,
-      name: 'Kavita Singh',
-      empId: 'EMP005',
-      email: 'kavita.singh@eec.edu',
-      mobile: '+91-98765-43214',
-      position: 'Library Assistant',
-      department: 'Library',
-      qualification: 'MLIS',
-      experience: 4,
-      joiningDate: '2020-08-15',
-      status: 'Active',
-      salary: 420000,
-      attendanceToday: 'Present',
-      lastSalaryDate: '2024-01-01',
-      paymentStatus: 'Paid',
-      nextPaymentDue: '2024-02-01',
-      address: '56, Lajpat Nagar, New Delhi 110024'
-    },
-    {
-      id: 6,
-      name: 'Ravi Krishnan',
-      empId: 'EMP006',
-      email: 'ravi.krishnan@eec.edu',
-      mobile: '+91-98765-43215',
-      position: 'Security Supervisor',
-      department: 'Security',
-      qualification: 'Security Management Certificate',
-      experience: 12,
-      joiningDate: '2012-04-20',
-      status: 'Active',
-      salary: 480000,
-      attendanceToday: 'Present',
-      lastSalaryDate: '2024-01-01',
-      paymentStatus: 'Due',
-      nextPaymentDue: '2024-01-28',
-      address: '89, T Nagar, Chennai, Tamil Nadu 600017'
-    },
-    {
-      id: 7,
-      name: 'Meera Nair',
-      empId: 'EMP007',
-      email: 'meera.nair@eec.edu',
-      mobile: '+91-98765-43216',
-      position: 'Maintenance Coordinator',
-      department: 'Maintenance',
-      qualification: 'Facilities Management Certificate',
-      experience: 7,
-      joiningDate: '2017-11-30',
-      status: 'Active',
-      salary: 450000,
-      attendanceToday: 'Absent',
-      lastSalaryDate: '2024-01-01',
-      paymentStatus: 'Paid',
-      nextPaymentDue: '2024-02-01',
-      address: '12, Marine Drive, Kochi, Kerala 682031'
-    },
-    {
-      id: 8,
-      name: 'Arjun Reddy',
-      empId: 'EMP008',
-      email: 'arjun.reddy@eec.edu',
-      mobile: '+91-98765-43217',
-      position: 'Cafeteria Manager',
-      department: 'Cafeteria',
-      qualification: 'Food Service Management',
-      experience: 9,
-      joiningDate: '2015-02-14',
-      status: 'Active',
-      salary: 500000,
-      attendanceToday: 'Present',
-      lastSalaryDate: '2024-01-01',
-      paymentStatus: 'Paid',
-      nextPaymentDue: '2024-02-01',
-      address: '34, Jubilee Hills, Hyderabad, Telangana 500033'
-    },
-    {
-      id: 9,
-      name: 'Deepika Joshi',
-      empId: 'EMP009',
-      email: 'deepika.joshi@eec.edu',
-      mobile: '+91-98765-43218',
-      position: 'Executive Assistant',
-      department: 'Administration',
-      qualification: 'BA Business Administration',
-      experience: 6,
-      joiningDate: '2018-07-25',
-      status: 'On Leave',
-      salary: 470000,
-      attendanceToday: 'Absent',
-      lastSalaryDate: '2023-12-01',
-      paymentStatus: 'Due',
-      nextPaymentDue: '2024-01-25',
-      address: '67, Aundh, Pune, Maharashtra 411007'
-    },
-    {
-      id: 10,
-      name: 'Kevin Brown',
-      empId: 'EMP010',
-      email: 'kevin.brown@eec.edu',
-      mobile: '+1-555-0110',
-      position: 'Network Administrator',
-      department: 'IT Support',
-      qualification: 'MS Information Systems',
-      experience: 8,
-      joiningDate: '2016-12-05',
-      status: 'Active',
-      salary: 68000,
-      attendanceToday: 'Present',
-      lastSalaryDate: '2024-01-01',
-      paymentStatus: 'Paid',
-      nextPaymentDue: '2024-02-01'
-    },
-    {
-      id: 11,
-      name: 'Sneha Agarwal',
-      empId: 'EMP011',
-      email: 'sneha.agarwal@eec.edu',
-      mobile: '+91-98765-43220',
-      position: 'Accounts Payable Clerk',
-      department: 'Finance',
-      qualification: 'B.Com Accounting',
-      experience: 3,
-      joiningDate: '2021-05-10',
-      status: 'Active',
-      salary: 380000,
-      attendanceToday: 'Present',
-      lastSalaryDate: '2024-01-01',
-      paymentStatus: 'Due',
-      nextPaymentDue: '2024-01-31',
-      address: '45, Civil Lines, Jaipur, Rajasthan 302006'
-    },
-    {
-      id: 12,
-      name: 'Ramesh Yadav',
-      empId: 'EMP012',
-      email: 'ramesh.yadav@eec.edu',
-      mobile: '+91-98765-43221',
-      position: 'Groundskeeper',
-      department: 'Maintenance',
-      qualification: 'Landscaping Certificate',
-      experience: 5,
-      joiningDate: '2019-03-20',
-      status: 'Active',
-      salary: 350000,
-      attendanceToday: 'Present',
-      lastSalaryDate: '2024-01-01',
-      paymentStatus: 'Paid',
-      nextPaymentDue: '2024-02-01',
-      address: '128, Gomti Nagar, Lucknow, Uttar Pradesh 226010'
+  const fetchStaff = async () => {
+    setError('');
+    setLoading(true);
+    try {
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/admin/users/get-staff`, {
+        headers: {
+          'Content-Type': 'application/json',
+          authorization: `Bearer ${localStorage.getItem('token')}`,
+        },
+      });
+      const data = await res.json().catch(() => []);
+      if (!res.ok) {
+        throw new Error(data?.error || 'Failed to fetch staff');
+      }
+      const normalized = (Array.isArray(data) ? data : []).map((member, idx) => ({
+        id: member._id || member.id || idx,
+        name: member.name || 'Unnamed Staff',
+        empId: member.employeeCode || member.empId || member.staffCode || `EMP-${idx + 1}`,
+        email: member.email || '-',
+        mobile: member.mobile || member.phone || '-',
+        position: member.position || member.role || member.designation || 'Staff',
+        department: member.department || 'General',
+        qualification: member.qualification || '-',
+        experience: Number(member.experience || 0),
+        joiningDate: member.joiningDate || member.joinDate || member.createdAt || '',
+        status: member.status || 'Active',
+        salary: member.salary ?? member.ctc ?? null,
+        attendanceToday: normalizeAttendance(member.attendanceToday),
+        lastSalaryDate: member.lastSalaryDate || null,
+        paymentStatus: normalizePaymentStatus(member.paymentStatus),
+        nextPaymentDue: member.nextPaymentDue || null,
+        address: member.address || '',
+        avatar: member.avatar || '',
+      }));
+      setStaff(normalized);
+    } catch (err) {
+      console.error('Error fetching staff:', err);
+      setError(err.message || 'Failed to fetch staff');
+      setStaff([]);
+    } finally {
+      setLoading(false);
     }
-  ];
+  };
 
   // making the admin header invisible
   useEffect(() => {
-    setShowAdminHeader(false)
-
-    // Set static data instead of API call for demonstration
-    setStaff(staticStaffData);
-
-    // Uncomment below for actual API integration
-    /*
-    fetch(`${import.meta.env.VITE_API_URL}/api/admin/users/get-staff`, {
-      method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-        'authorization': `Bearer ${localStorage.getItem('token')}`
-      }
-    }).then(res => {
-      if (!res.ok) {
-        throw new Error('Failed to fetch staff');
-      }
-      return res.json();
-    })
-    .then(data => {
-      setStaff(data)
-    })
-    .catch(err => {
-      console.error('Error fetching staff:', err);
-    });
-    */
-  }, [setShowAdminHeader])
+    setShowAdminHeader(false);
+    fetchStaff();
+  }, [setShowAdminHeader]);
 
   const handleAddStaffChange = (e) => {
     const { name, value } = e.target;
@@ -396,6 +215,7 @@ const Staff = ({setShowAdminHeader}) => {
       setNewStaffMember({
         name: '', email: '', mobile: '', position: '', department: '', experience: '', qualification: '', joiningDate: '', address: '', pinCode: '', gender: '', salary: ''
       });
+      fetchStaff();
     }
     catch (error) {
       console.error('Error adding staff member:', error);
@@ -500,11 +320,21 @@ const Staff = ({setShowAdminHeader}) => {
 
         {/* Scrollable Table Container */}
         <div className="flex-1 overflow-hidden">
-          <div className="h-full overflow-y-auto">
-            <table className="w-full border-collapse">
-              <thead className="sticky top-0 bg-blue-50 z-10">
-                <tr>
-                  <th className="border-b border-blue-100 px-6 py-3 text-left text-sm font-semibold text-blue-800">Staff Member</th>
+          {error && (
+            <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+              {error}
+            </div>
+          )}
+          {loading ? (
+            <div className="flex h-full items-center justify-center text-gray-500">
+              Loading staff records...
+            </div>
+          ) : (
+            <div className="h-full overflow-y-auto">
+              <table className="w-full border-collapse">
+                <thead className="sticky top-0 bg-blue-50 z-10">
+                  <tr>
+                    <th className="border-b border-blue-100 px-6 py-3 text-left text-sm font-semibold text-blue-800">Staff Member</th>
                   <th className="border-b border-blue-100 px-6 py-3 text-left text-sm font-semibold text-blue-800">Attendance</th>
                   <th className="border-b border-blue-100 px-6 py-3 text-left text-sm font-semibold text-blue-800">Payment Status</th>
                   <th className="border-b border-blue-100 px-6 py-3 text-left text-sm font-semibold text-blue-800">Performance</th>
@@ -515,17 +345,17 @@ const Staff = ({setShowAdminHeader}) => {
                   <th className="border-b border-blue-100 px-6 py-3 text-left text-sm font-semibold text-blue-800">Actions</th>
                 </tr>
               </thead>
-              <tbody className="bg-white">
-                {filteredStaff.map((staffMember) => (
-                  <tr 
-                    key={staffMember.id}
-                    className="hover:bg-blue-50 transition-colors border-b border-gray-100"
-                  >
+                <tbody className="bg-white">
+                  {filteredStaff.map((staffMember) => (
+                    <tr 
+                      key={staffMember.id}
+                      className="hover:bg-blue-50 transition-colors border-b border-gray-100"
+                    >
                     {/* Staff Info */}
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-3">
                         <div className="w-12 h-12 rounded-full bg-blue-200 flex items-center justify-center font-semibold text-blue-700 flex-shrink-0">
-                          {staffMember.name.split(' ').map(n => n[0]).join('')}
+                          {getInitials(staffMember.name)}
                         </div>
                         <div className="min-w-0">
                           <div className="font-medium text-gray-900 truncate">{staffMember.name}</div>
@@ -763,11 +593,12 @@ const Staff = ({setShowAdminHeader}) => {
                         </button>
                       </div>
                     </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
 
         {/* Fixed Footer Section */}

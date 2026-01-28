@@ -1,59 +1,19 @@
 import React, { useState, useEffect } from 'react';
-import { Sun, Moon, Cloud, Lightbulb, Target, Star, Zap, Heart, Trophy, BookOpen, Rocket, Play, Pause, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Sun, Moon, Cloud, Lightbulb, Target, Star, Zap, Heart, Trophy, BookOpen, Rocket, Play, Pause, ChevronLeft, ChevronRight, School } from 'lucide-react';
+import { useStudentDashboard } from './StudentDashboardContext';
 
 const WelcomeCard = () => {
-  const [studentData, setStudentData] = useState({
-    name: "Student",
-    username: "",
-    grade: "",
-    section: "",
-    avatar: null
-  });
-
-  // Fetch student profile
-  useEffect(() => {
-    const fetchStudentProfile = async () => {
-      try {
-        const token = localStorage.getItem('token');
-        const userType = localStorage.getItem('userType');
-
-        console.log('WelcomeCard - Token:', token ? 'exists' : 'missing', 'UserType:', userType);
-
-        if (!token || userType !== 'Student') return;
-
-        const url = `${import.meta.env.VITE_API_URL}/api/student/auth/profile`;
-        console.log('WelcomeCard - Fetching from:', url);
-
-        const response = await fetch(url, {
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json'
-          }
-        });
-
-        console.log('WelcomeCard - Response status:', response.status);
-
-        if (response.ok) {
-          const data = await response.json();
-          console.log('WelcomeCard - Profile data received:', data);
-          setStudentData({
-            name: data.name || "Student",
-            username: data.username || "",
-            grade: data.grade || "",
-            section: data.section || "",
-            avatar: data.profilePic || null
-          });
-        } else {
-          const errorText = await response.text();
-          console.error('WelcomeCard - Profile fetch failed:', response.status, errorText);
-        }
-      } catch (error) {
-        console.error('WelcomeCard - Failed to fetch student profile:', error);
-      }
-    };
-
-    fetchStudentProfile();
-  }, []);
+  const { profile, loading } = useStudentDashboard();
+  const studentData = profile || {
+    name: 'Student',
+    username: '',
+    grade: '',
+    section: '',
+    roll: '',
+    schoolName: '',
+    schoolLogo: null,
+    profilePic: null,
+  };
 
   const getGreeting = () => {
     const hour = new Date().getHours();
@@ -193,6 +153,16 @@ const WelcomeCard = () => {
   const tipToShow = quickTips[currentTip];
   const TipIcon = tipToShow.icon;
 
+  if (loading) {
+    return (
+      <div className="bg-gradient-to-r from-yellow-200 via-amber-200 to-orange-200 rounded-2xl p-6 text-white animate-pulse">
+        <div className="h-6 bg-white/40 rounded w-1/3 mb-4"></div>
+        <div className="h-16 bg-white/20 rounded mb-4"></div>
+        <div className="h-24 bg-white/30 rounded"></div>
+      </div>
+    );
+  }
+
   return (
     <div className="bg-gradient-to-r from-yellow-400 via-amber-500 to-orange-500 rounded-2xl p-6 text-white relative overflow-hidden">
       {/* Background Pattern */}
@@ -203,11 +173,11 @@ const WelcomeCard = () => {
       </div>
 
       <div className="relative z-10">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <div className="flex items-center space-x-4">
             <div className="relative">
               <img
-                src={studentData.avatar}
+                src={studentData.profilePic}
                 alt="Profile"
                 className="w-16 h-16 rounded-full border-4 border-white/20 shadow-lg"
                 onError={(e) => {
@@ -227,18 +197,55 @@ const WelcomeCard = () => {
                 {studentData.username && `Student ID: ${studentData.username}`}
                 {studentData.grade && studentData.section && ` • ${studentData.grade} - Section ${studentData.section}`}
               </p>
+              <div className="mt-3 flex flex-wrap gap-3 text-xs text-white/80">
+                {studentData.grade && (
+                  <div className="px-3 py-1 rounded-full bg-white/20 border border-white/30">
+                    Class {studentData.grade}{studentData.section ? ` • Section ${studentData.section}` : ''}
+                  </div>
+                )}
+                {studentData.roll && (
+                  <div className="px-3 py-1 rounded-full bg-white/20 border border-white/30">
+                    Roll No: {studentData.roll}
+                  </div>
+                )}
+              </div>
             </div>
           </div>
 
-          <div className="text-right">
-            <p className="text-yellow-100 text-sm mb-2">Today's Date</p>
-            <p className="text-xl font-semibold">
-              {new Date().toLocaleDateString('en-US', { 
-                weekday: 'short', 
-                month: 'short', 
-                day: 'numeric' 
-              })}
-            </p>
+          <div className="flex flex-col gap-3 items-start md:items-end">
+            {(studentData.schoolLogo || studentData.schoolName) && (
+              <div className="flex items-center gap-3 bg-white/10 border border-white/20 rounded-xl px-4 py-2 shadow-sm backdrop-blur-sm">
+                <div className="w-10 h-10 rounded-full bg-white/30 flex items-center justify-center overflow-hidden border border-white/30">
+                  {studentData.schoolLogo ? (
+                    <img
+                      src={studentData.schoolLogo}
+                      alt="School Logo"
+                      className="w-full h-full object-cover"
+                      onError={(e) => { e.target.style.display = 'none'; }}
+                    />
+                  ) : (
+                    <div className="text-white/80">
+                      <School size={18} />
+                    </div>
+                  )}
+                </div>
+                <div className="text-sm text-white">
+                  <p className="text-xs uppercase tracking-wide text-white/70">School</p>
+                  <p className="font-semibold">{studentData.schoolName || 'Not assigned'}</p>
+                </div>
+              </div>
+            )}
+
+            <div className="text-right">
+              <p className="text-yellow-100 text-sm mb-1">Today's Date</p>
+              <p className="text-xl font-semibold">
+                {new Date().toLocaleDateString('en-US', { 
+                  weekday: 'short', 
+                  month: 'short', 
+                  day: 'numeric' 
+                })}
+              </p>
+            </div>
           </div>
         </div>
 
