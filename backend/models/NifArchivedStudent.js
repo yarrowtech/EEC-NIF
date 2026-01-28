@@ -15,6 +15,7 @@ const NifArchivedStudentSchema = new Schema(
   {
     originalStudentId: { type: Schema.Types.ObjectId, ref: "NifStudent" },
     schoolId: { type: Schema.Types.ObjectId, ref: "School", index: true },
+    campusId: { type: String, index: true, default: null },
 
     // Student identity
     studentName: String,

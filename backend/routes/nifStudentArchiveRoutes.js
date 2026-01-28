@@ -16,6 +16,33 @@ const buildSchoolFilter = (req) => {
   };
 };
 
+const buildCampusFilter = (req) => {
+  if (!req.campusId) return {};
+  return {
+    $or: [
+      { campusId: req.campusId },
+      { campusId: { $exists: false } },
+      { campusId: null },
+    ],
+  };
+};
+
+const buildSchoolAndCampusFilter = (req) => {
+  const schoolFilter = buildSchoolAndCampusFilter(req);
+  const campusFilter = buildCampusFilter(req);
+
+  if (Object.keys(schoolFilter).length === 0 && Object.keys(campusFilter).length === 0) {
+    return {};
+  }
+
+  const clauses = [];
+  if (Object.keys(schoolFilter).length > 0) clauses.push(schoolFilter);
+  if (Object.keys(campusFilter).length > 0) clauses.push(campusFilter);
+
+  if (clauses.length === 1) return clauses[0];
+  return { $and: clauses };
+};
+
 router.use(adminAuth);
 
 /**
@@ -26,7 +53,7 @@ router.get("/", async (req, res) => {
   // #swagger.tags = ['NIF Student Archive']
   try {
     console.log("Fetching archived students...");
-    const archived = await NifArchivedStudent.find(buildSchoolFilter(req))
+    const archived = await NifArchivedStudent.find(buildSchoolAndCampusFilter(req))
       .sort({ archivedAt: -1 })
       .lean();
 
@@ -45,7 +72,7 @@ router.get("/", async (req, res) => {
 router.get("/export", async (req, res) => {
   // #swagger.tags = ['NIF Student Archive']
   try {
-    const archived = await NifArchivedStudent.find(buildSchoolFilter(req)).sort({
+    const archived = await NifArchivedStudent.find(buildSchoolAndCampusFilter(req)).sort({
       archivedAt: -1,
     });
 

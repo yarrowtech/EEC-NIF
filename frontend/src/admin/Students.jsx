@@ -50,8 +50,6 @@ const Students = ({ setShowAdminHeader, setShowAdminBreadcrumb }) => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
   const fileInputRef = useRef(null);
-  const [courseOptions, setCourseOptions] = useState([]);
-  const [coursesLoading, setCoursesLoading] = useState(false);
   const [archivedStudents, setArchivedStudents] = useState([]);
   const [showArchiveModal, setShowArchiveModal] = useState(false);
   const [archiveActionLoading, setArchiveActionLoading] = useState(false);
@@ -69,33 +67,68 @@ const Students = ({ setShowAdminHeader, setShowAdminBreadcrumb }) => {
     gender: "",
     dob: "",
     address: "",
+    permanentAddress: "",
     pincode: "",
     status: "Active",
+
+    // Personal Details Extended
+    birthPlace: "",
+    nationality: "Indian",
+    religion: "",
+    caste: "",
+    category: "",
+    photograph: "",
+
+    // Guardian/Parent Info
     guardianName: "",
     guardianEmail: "",
     guardianPhone: "",
+    fatherName: "",
+    fatherOccupation: "",
+    fatherPhone: "",
+    motherName: "",
+    motherOccupation: "",
+    motherPhone: "",
 
-    // academic / nif
+    // Emergency Contact
+    emergencyContactName: "",
+    emergencyContactPhone: "",
+    emergencyContactRelation: "",
+
+    // Academic History
+    previousSchoolName: "",
+    previousClass: "",
+    previousPercentage: "",
+    transferCertificateNo: "",
+    transferCertificateDate: "",
+    reasonForLeaving: "",
+
+    // Medical Info
+    bloodGroup: "",
+    knownHealthIssues: "",
+    allergies: "",
+    immunizationStatus: "",
+    learningDisabilities: "",
+
+    // Documents
+    aadharNumber: "",
+    birthCertificateNo: "",
+
+    // Office Use
+    applicationId: "",
+    applicationDate: "",
+    approvalStatus: "Pending",
+    remarks: "",
+
+    // academic
     serialNo: "",
-    batchCode: "",
+    academicYear: "",
     admissionDate: "",
+    admissionNumber: "",
     roll: "",
-    grade: "",
+    class: "",
     section: "",
-    course: "",
-    courseId: "",
-    duration: "",
-    formNo: "",
-    enrollmentNo: "",
   });
-
-  const selectedCourse = useMemo(
-    () =>
-      courseOptions.find((course) => course._id === newStudent.courseId) ||
-      null,
-    [courseOptions, newStudent.courseId]
-  );
-  const selectedCourseInstallments = selectedCourse?.installments || [];
 
   const [currentPage, setCurrentPage] = useState(1);
 
@@ -249,27 +282,6 @@ const Students = ({ setShowAdminHeader, setShowAdminBreadcrumb }) => {
     }
   };
 
-  const fetchCourses = async () => {
-    setCoursesLoading(true);
-    try {
-      const res = await fetch(`${API_BASE}/api/nif/course/fetch`, {
-        method: "GET",
-        headers: {
-          "Content-Type": "application/json",
-          authorization: `Bearer ${localStorage.getItem("token")}`,
-        },
-      });
-      if (res.ok) {
-        const data = await res.json();
-        setCourseOptions(data || []);
-      }
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setCoursesLoading(false);
-    }
-  };
-
   // Fetch archived students from backend
   const refreshArchivedStudents = async () => {
     try {
@@ -305,7 +317,6 @@ const Students = ({ setShowAdminHeader, setShowAdminBreadcrumb }) => {
     setShowAdminHeader?.(true);
     setShowAdminBreadcrumb?.(false);
     refreshStudents().catch(console.error);
-    fetchCourses().catch(console.error);
     refreshArchivedStudents().catch(console.error);
 
     return () => {
@@ -442,36 +453,22 @@ const Students = ({ setShowAdminHeader, setShowAdminBreadcrumb }) => {
     setNewStudent((prev) => ({ ...prev, [name]: value }));
   };
 
-  const handleCourseSelect = (e) => {
-    const { value } = e.target;
-    const course = courseOptions.find((c) => c._id === value);
-    setNewStudent((prev) => ({
-      ...prev,
-      courseId: value,
-      course: course?.title || "",
-      grade: course?.programLabel || prev.grade,
-      duration: course?.duration || prev.duration,
-    }));
-  };
-
   const handleAddStudentSubmit = async (e) => {
     e.preventDefault();
     const requiredFields = [
       "name",
       "mobile",
       "gender",
-      "batchCode",
       "admissionDate",
       "roll",
+      "class",
       "section",
     ];
 
     const missing = requiredFields.filter(
       (f) => !newStudent[f] || String(newStudent[f]).trim() === ""
     );
-    if (!newStudent.courseId) {
-      missing.push("course");
-    }
+
     if (missing.length) {
       alert(`Please fill required fields: ${missing.join(", ")}`);
       return;
@@ -481,10 +478,6 @@ const Students = ({ setShowAdminHeader, setShowAdminBreadcrumb }) => {
     try {
       const payload = {
         ...newStudent,
-        courseId: newStudent.courseId,
-        course: selectedCourse?.title || newStudent.course,
-        grade: selectedCourse?.programLabel || newStudent.grade,
-        duration: selectedCourse?.duration || newStudent.duration,
         // convert serialNo to number if provided
         serialNo: newStudent.serialNo
           ? Number(newStudent.serialNo)
@@ -1314,7 +1307,7 @@ const Students = ({ setShowAdminHeader, setShowAdminBreadcrumb }) => {
         <div className="flex flex-col sm:flex-row sm:flex-wrap gap-3 sm:justify-between sm:items-center mb-4 md:mb-6 flex-shrink-0">
           <div>
             <h1 className="text-xl md:text-2xl lg:text-3xl font-bold text-yellow-700">
-              Student Management (NIF)
+              Student Management
             </h1>
             <p className="text-gray-600 mt-1 md:mt-2 text-sm md:text-base">
               Manage Students
@@ -1826,62 +1819,548 @@ const Students = ({ setShowAdminHeader, setShowAdminBreadcrumb }) => {
 
                     <div className="space-y-2">
                       <label className="text-sm font-medium text-gray-700">
-                        Address
+                        Present Address
                       </label>
                       <textarea
                         name="address"
                         value={newStudent.address}
                         onChange={handleAddStudentChange}
-                        rows={3}
+                        rows={2}
                         className="w-full border border-gray-300 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-yellow-500 resize-none"
-                        placeholder="Enter complete residential address..."
+                        placeholder="Enter complete present address..."
                       />
+                    </div>
+
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium text-gray-700">
+                        Permanent Address
+                      </label>
+                      <textarea
+                        name="permanentAddress"
+                        value={newStudent.permanentAddress}
+                        onChange={handleAddStudentChange}
+                        rows={2}
+                        className="w-full border border-gray-300 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-yellow-500 resize-none"
+                        placeholder="Enter complete permanent address..."
+                      />
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                      <div className="space-y-2">
+                        <label className="text-sm font-medium text-gray-700">
+                          Birth Place
+                        </label>
+                        <input
+                          type="text"
+                          name="birthPlace"
+                          value={newStudent.birthPlace}
+                          onChange={handleAddStudentChange}
+                          className="w-full border border-gray-300 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-yellow-500"
+                          placeholder="City/Town of birth"
+                        />
+                      </div>
+
+                      <div className="space-y-2">
+                        <label className="text-sm font-medium text-gray-700">
+                          Nationality
+                        </label>
+                        <input
+                          type="text"
+                          name="nationality"
+                          value={newStudent.nationality}
+                          onChange={handleAddStudentChange}
+                          className="w-full border border-gray-300 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-yellow-500"
+                          placeholder="Nationality"
+                        />
+                      </div>
+
+                      <div className="space-y-2">
+                        <label className="text-sm font-medium text-gray-700">
+                          Religion
+                        </label>
+                        <input
+                          type="text"
+                          name="religion"
+                          value={newStudent.religion}
+                          onChange={handleAddStudentChange}
+                          className="w-full border border-gray-300 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-yellow-500"
+                          placeholder="Religion"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <div className="space-y-2">
+                        <label className="text-sm font-medium text-gray-700">
+                          Caste
+                        </label>
+                        <input
+                          type="text"
+                          name="caste"
+                          value={newStudent.caste}
+                          onChange={handleAddStudentChange}
+                          className="w-full border border-gray-300 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-yellow-500"
+                          placeholder="Caste"
+                        />
+                      </div>
+
+                      <div className="space-y-2 relative">
+                        <label className="text-sm font-medium text-gray-700">
+                          Category
+                        </label>
+                        <select
+                          name="category"
+                          value={newStudent.category}
+                          onChange={handleAddStudentChange}
+                          className="w-full border border-gray-300 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-yellow-500 appearance-none bg-white"
+                        >
+                          <option value="">Select Category</option>
+                          <option value="General">General</option>
+                          <option value="OBC">OBC</option>
+                          <option value="SC">SC</option>
+                          <option value="ST">ST</option>
+                          <option value="EWS">EWS</option>
+                          <option value="Other">Other</option>
+                        </select>
+                        <div className="pointer-events-none absolute right-3 top-[45px]">
+                          <ChevronDown className="w-4 h-4 text-gray-400" />
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium text-gray-700">
+                        Student Photograph
+                      </label>
+                      <div className="flex items-center gap-4">
+                        <div className="flex-1">
+                          <input
+                            type="file"
+                            accept="image/*"
+                            onChange={(e) => {
+                              const file = e.target.files[0];
+                              if (file) {
+                                // For now, just store the file name
+                                // In production, you'd upload to Cloudinary/S3 here
+                                setNewStudent(prev => ({
+                                  ...prev,
+                                  photograph: file.name
+                                }));
+                              }
+                            }}
+                            className="w-full border border-gray-300 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-yellow-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-yellow-50 file:text-yellow-700 hover:file:bg-yellow-100"
+                          />
+                        </div>
+                        {newStudent.photograph && (
+                          <div className="text-sm text-green-600 flex items-center gap-1">
+                            <CheckCircle className="w-4 h-4" />
+                            Uploaded
+                          </div>
+                        )}
+                      </div>
+                      <p className="text-xs text-gray-500">
+                        Upload a recent passport-size photograph (Max 2MB, JPG/PNG)
+                      </p>
                     </div>
                   </div>
 
-                  {/* Academic & NIF Details */}
+                  {/* Parent/Guardian Extended Information */}
+                  <div className="space-y-6 pt-6 border-t border-gray-200">
+                    <div className="flex items-center gap-3">
+                      <div className="w-6 h-6 rounded-full bg-purple-100 flex items-center justify-center">
+                        <Users className="w-3 h-3 text-purple-600" />
+                      </div>
+                      <h3 className="text-lg font-semibold text-gray-900">
+                        Parent/Guardian Details
+                      </h3>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                      <div className="space-y-2">
+                        <label className="text-sm font-medium text-gray-700">
+                          Father's Name
+                        </label>
+                        <input
+                          type="text"
+                          name="fatherName"
+                          value={newStudent.fatherName}
+                          onChange={handleAddStudentChange}
+                          className="w-full border border-gray-300 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-yellow-500"
+                          placeholder="Father's full name"
+                        />
+                      </div>
+
+                      <div className="space-y-2">
+                        <label className="text-sm font-medium text-gray-700">
+                          Father's Occupation
+                        </label>
+                        <input
+                          type="text"
+                          name="fatherOccupation"
+                          value={newStudent.fatherOccupation}
+                          onChange={handleAddStudentChange}
+                          className="w-full border border-gray-300 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-yellow-500"
+                          placeholder="Occupation"
+                        />
+                      </div>
+
+                      <div className="space-y-2">
+                        <label className="text-sm font-medium text-gray-700">
+                          Father's Phone
+                        </label>
+                        <input
+                          type="tel"
+                          name="fatherPhone"
+                          value={newStudent.fatherPhone}
+                          onChange={handleAddStudentChange}
+                          className="w-full border border-gray-300 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-yellow-500"
+                          placeholder="+91 90000 00000"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                      <div className="space-y-2">
+                        <label className="text-sm font-medium text-gray-700">
+                          Mother's Name
+                        </label>
+                        <input
+                          type="text"
+                          name="motherName"
+                          value={newStudent.motherName}
+                          onChange={handleAddStudentChange}
+                          className="w-full border border-gray-300 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-yellow-500"
+                          placeholder="Mother's full name"
+                        />
+                      </div>
+
+                      <div className="space-y-2">
+                        <label className="text-sm font-medium text-gray-700">
+                          Mother's Occupation
+                        </label>
+                        <input
+                          type="text"
+                          name="motherOccupation"
+                          value={newStudent.motherOccupation}
+                          onChange={handleAddStudentChange}
+                          className="w-full border border-gray-300 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-yellow-500"
+                          placeholder="Occupation"
+                        />
+                      </div>
+
+                      <div className="space-y-2">
+                        <label className="text-sm font-medium text-gray-700">
+                          Mother's Phone
+                        </label>
+                        <input
+                          type="tel"
+                          name="motherPhone"
+                          value={newStudent.motherPhone}
+                          onChange={handleAddStudentChange}
+                          className="w-full border border-gray-300 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-yellow-500"
+                          placeholder="+91 90000 00000"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6 pt-4 border-t border-gray-100">
+                      <div className="space-y-2">
+                        <label className="text-sm font-medium text-gray-700">
+                          Emergency Contact Name
+                        </label>
+                        <input
+                          type="text"
+                          name="emergencyContactName"
+                          value={newStudent.emergencyContactName}
+                          onChange={handleAddStudentChange}
+                          className="w-full border border-gray-300 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-yellow-500"
+                          placeholder="Emergency contact person"
+                        />
+                      </div>
+
+                      <div className="space-y-2">
+                        <label className="text-sm font-medium text-gray-700">
+                          Emergency Contact Phone
+                        </label>
+                        <input
+                          type="tel"
+                          name="emergencyContactPhone"
+                          value={newStudent.emergencyContactPhone}
+                          onChange={handleAddStudentChange}
+                          className="w-full border border-gray-300 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-yellow-500"
+                          placeholder="+91 90000 00000"
+                        />
+                      </div>
+
+                      <div className="space-y-2">
+                        <label className="text-sm font-medium text-gray-700">
+                          Relation
+                        </label>
+                        <input
+                          type="text"
+                          name="emergencyContactRelation"
+                          value={newStudent.emergencyContactRelation}
+                          onChange={handleAddStudentChange}
+                          className="w-full border border-gray-300 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-yellow-500"
+                          placeholder="Relation to student"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Academic History */}
+                  <div className="space-y-6 pt-6 border-t border-gray-200">
+                    <div className="flex items-center gap-3">
+                      <div className="w-6 h-6 rounded-full bg-green-100 flex items-center justify-center">
+                        <BookOpen className="w-3 h-3 text-green-600" />
+                      </div>
+                      <h3 className="text-lg font-semibold text-gray-900">
+                        Previous Academic History
+                      </h3>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <div className="space-y-2">
+                        <label className="text-sm font-medium text-gray-700">
+                          Previous School Name
+                        </label>
+                        <input
+                          type="text"
+                          name="previousSchoolName"
+                          value={newStudent.previousSchoolName}
+                          onChange={handleAddStudentChange}
+                          className="w-full border border-gray-300 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-yellow-500"
+                          placeholder="Name of previous school"
+                        />
+                      </div>
+
+                      <div className="space-y-2">
+                        <label className="text-sm font-medium text-gray-700">
+                          Class Last Attended
+                        </label>
+                        <input
+                          type="text"
+                          name="previousClass"
+                          value={newStudent.previousClass}
+                          onChange={handleAddStudentChange}
+                          className="w-full border border-gray-300 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-yellow-500"
+                          placeholder="e.g., Class 10"
+                        />
+                      </div>
+
+                      <div className="space-y-2">
+                        <label className="text-sm font-medium text-gray-700">
+                          Percentage Obtained
+                        </label>
+                        <input
+                          type="number"
+                          name="previousPercentage"
+                          value={newStudent.previousPercentage}
+                          onChange={handleAddStudentChange}
+                          min="0"
+                          max="100"
+                          step="0.01"
+                          className="w-full border border-gray-300 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-yellow-500"
+                          placeholder="Percentage"
+                        />
+                      </div>
+
+                      <div className="space-y-2">
+                        <label className="text-sm font-medium text-gray-700">
+                          Transfer Certificate No.
+                        </label>
+                        <input
+                          type="text"
+                          name="transferCertificateNo"
+                          value={newStudent.transferCertificateNo}
+                          onChange={handleAddStudentChange}
+                          className="w-full border border-gray-300 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-yellow-500"
+                          placeholder="TC Number"
+                        />
+                      </div>
+
+                      <div className="space-y-2">
+                        <label className="text-sm font-medium text-gray-700">
+                          TC Date
+                        </label>
+                        <input
+                          type="date"
+                          name="transferCertificateDate"
+                          value={newStudent.transferCertificateDate}
+                          onChange={handleAddStudentChange}
+                          className="w-full border border-gray-300 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-yellow-500"
+                        />
+                      </div>
+
+                      <div className="space-y-2">
+                        <label className="text-sm font-medium text-gray-700">
+                          Reason for Leaving
+                        </label>
+                        <input
+                          type="text"
+                          name="reasonForLeaving"
+                          value={newStudent.reasonForLeaving}
+                          onChange={handleAddStudentChange}
+                          className="w-full border border-gray-300 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-yellow-500"
+                          placeholder="Reason for leaving previous school"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Medical Information */}
+                  <div className="space-y-6 pt-6 border-t border-gray-200">
+                    <div className="flex items-center gap-3">
+                      <div className="w-6 h-6 rounded-full bg-red-100 flex items-center justify-center">
+                        <Heart className="w-3 h-3 text-red-600" />
+                      </div>
+                      <h3 className="text-lg font-semibold text-gray-900">
+                        Medical Information
+                      </h3>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                      <div className="space-y-2 relative">
+                        <label className="text-sm font-medium text-gray-700">
+                          Blood Group
+                        </label>
+                        <select
+                          name="bloodGroup"
+                          value={newStudent.bloodGroup}
+                          onChange={handleAddStudentChange}
+                          className="w-full border border-gray-300 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-yellow-500 appearance-none bg-white"
+                        >
+                          <option value="">Select Blood Group</option>
+                          <option value="A+">A+</option>
+                          <option value="A-">A-</option>
+                          <option value="B+">B+</option>
+                          <option value="B-">B-</option>
+                          <option value="AB+">AB+</option>
+                          <option value="AB-">AB-</option>
+                          <option value="O+">O+</option>
+                          <option value="O-">O-</option>
+                          <option value="Unknown">Unknown</option>
+                        </select>
+                        <div className="pointer-events-none absolute right-3 top-[45px]">
+                          <ChevronDown className="w-4 h-4 text-gray-400" />
+                        </div>
+                      </div>
+
+                      <div className="space-y-2 md:col-span-2">
+                        <label className="text-sm font-medium text-gray-700">
+                          Known Health Issues
+                        </label>
+                        <input
+                          type="text"
+                          name="knownHealthIssues"
+                          value={newStudent.knownHealthIssues}
+                          onChange={handleAddStudentChange}
+                          className="w-full border border-gray-300 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-yellow-500"
+                          placeholder="Any known health conditions"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                      <div className="space-y-2">
+                        <label className="text-sm font-medium text-gray-700">
+                          Allergies
+                        </label>
+                        <input
+                          type="text"
+                          name="allergies"
+                          value={newStudent.allergies}
+                          onChange={handleAddStudentChange}
+                          className="w-full border border-gray-300 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-yellow-500"
+                          placeholder="Any allergies"
+                        />
+                      </div>
+
+                      <div className="space-y-2">
+                        <label className="text-sm font-medium text-gray-700">
+                          Immunization Status
+                        </label>
+                        <input
+                          type="text"
+                          name="immunizationStatus"
+                          value={newStudent.immunizationStatus}
+                          onChange={handleAddStudentChange}
+                          className="w-full border border-gray-300 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-yellow-500"
+                          placeholder="Immunization completed/pending"
+                        />
+                      </div>
+
+                      <div className="space-y-2">
+                        <label className="text-sm font-medium text-gray-700">
+                          Learning Disabilities
+                        </label>
+                        <input
+                          type="text"
+                          name="learningDisabilities"
+                          value={newStudent.learningDisabilities}
+                          onChange={handleAddStudentChange}
+                          className="w-full border border-gray-300 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-yellow-500"
+                          placeholder="Any learning disabilities (if applicable)"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Documents */}
+                  <div className="space-y-6 pt-6 border-t border-gray-200">
+                    <div className="flex items-center gap-3">
+                      <div className="w-6 h-6 rounded-full bg-indigo-100 flex items-center justify-center">
+                        <FileDown className="w-3 h-3 text-indigo-600" />
+                      </div>
+                      <h3 className="text-lg font-semibold text-gray-900">
+                        Document Information
+                      </h3>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <div className="space-y-2">
+                        <label className="text-sm font-medium text-gray-700">
+                          Aadhar Number
+                        </label>
+                        <input
+                          type="text"
+                          name="aadharNumber"
+                          value={newStudent.aadharNumber}
+                          onChange={handleAddStudentChange}
+                          maxLength="12"
+                          className="w-full border border-gray-300 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-yellow-500"
+                          placeholder="12-digit Aadhar number"
+                        />
+                      </div>
+
+                      <div className="space-y-2">
+                        <label className="text-sm font-medium text-gray-700">
+                          Birth Certificate No.
+                        </label>
+                        <input
+                          type="text"
+                          name="birthCertificateNo"
+                          value={newStudent.birthCertificateNo}
+                          onChange={handleAddStudentChange}
+                          className="w-full border border-gray-300 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-yellow-500"
+                          placeholder="Birth certificate number"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Admission & Academic Details */}
                   <div className="space-y-6 pt-6 border-t border-gray-200">
                     <div className="flex items-center gap-3">
                       <div className="w-6 h-6 rounded-full bg-blue-100 flex items-center justify-center">
                         <BookOpen className="w-3 h-3 text-blue-600" />
                       </div>
                       <h3 className="text-lg font-semibold text-gray-900">
-                        Academic & NIF Details
+                        Admission & Academic Details
                       </h3>
                     </div>
 
-                    {/* Row 1: Serial, Batch, Admission Date */}
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                      <div className="space-y-2">
-                        <label className="text-sm font-medium text-gray-700">
-                          Serial No (optional)
-                        </label>
-                        <input
-                          type="number"
-                          name="serialNo"
-                          value={newStudent.serialNo}
-                          onChange={handleAddStudentChange}
-                          className="w-full border border-gray-300 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-yellow-500"
-                          placeholder="Srl No"
-                        />
-                      </div>
-
-                      <div className="space-y-2">
-                        <label className="flex items-center text-sm font-medium text-gray-700">
-                          Batch Code
-                          <span className="text-red-500 ml-1">*</span>
-                        </label>
-                        <input
-                          type="text"
-                          name="batchCode"
-                          value={newStudent.batchCode}
-                          onChange={handleAddStudentChange}
-                          required
-                          className="w-full border border-gray-300 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-yellow-500"
-                          placeholder="e.g. 1124B02"
-                        />
-                      </div>
-
                       <div className="space-y-2">
                         <label className="flex items-center text-sm font-medium text-gray-700">
                           Date of Admission
@@ -1901,134 +2380,68 @@ const Students = ({ setShowAdminHeader, setShowAdminBreadcrumb }) => {
                           </div>
                         </div>
                       </div>
-                    </div>
-
-                    {/* Row 2: Program, Course, Duration */}
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-4">
-                      <div className="space-y-2 relative">
-                        <label className="flex items-center text-sm font-medium text-gray-700">
-                          Program
-                          <span className="text-red-500 ml-1">*</span>
-                        </label>
-                        <select
-                          name="grade"
-                          value={newStudent.grade}
-                          onChange={handleAddStudentChange}
-                          required
-                          className="w-full border border-gray-300 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-yellow-500 appearance-none bg-white"
-                        >
-                          <option value="">Select Program</option>
-                          <optgroup label="Fashion Design">
-                            <option value="Fashion Design - 1 year Certificate Program">
-                              1 year Certificate Program
-                            </option>
-                            <option value="Fashion Design - 2 year Advanced Certificate">
-                              2 year Advanced Certificate
-                            </option>
-                            <option value="Fashion Design - 3 year B Voc Program">
-                              3 year B Voc Program
-                            </option>
-                            <option value="Fashion Design - 4 year B Des Program">
-                              4 year B Des Program
-                            </option>
-                            <option value="Fashion Design - 2 Year M Voc program">
-                              2 Year M Voc program
-                            </option>
-                          </optgroup>
-                          <optgroup label="Interior Design">
-                            <option value="Interior Design - 1 year Certificate Program">
-                              1 year Certificate Program
-                            </option>
-                            <option value="Interior Design - 2 year Advanced Certificate">
-                              2 year Advanced Certificate
-                            </option>
-                            <option value="Interior Design - 3 year B Voc Program">
-                              3 year B Voc Program
-                            </option>
-                            <option value="Interior Design - 4 year B Des Program">
-                              4 year B Des Program
-                            </option>
-                            <option value="Interior Design - 2 Year M Voc program">
-                              2 Year M Voc program
-                            </option>
-                          </optgroup>
-                        </select>
-                        <div className="pointer-events-none absolute right-3 top-[45px]">
-                          <ChevronDown className="w-4 h-4 text-gray-400" />
-                        </div>
-                      </div>
 
                       <div className="space-y-2">
-                        <label className="flex items-center text-sm font-medium text-gray-700">
-                          Course & Fees
-                          <span className="text-red-500 ml-1">*</span>
+                        <label className="text-sm font-medium text-gray-700">
+                          Admission Number
                         </label>
-                        <div className="relative">
-                          <select
-                            name="courseId"
-                            value={newStudent.courseId}
-                            onChange={handleCourseSelect}
-                            required
-                            className="w-full border border-gray-300 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-yellow-500 appearance-none bg-white"
-                          >
-                            <option value="">
-                              {coursesLoading
-                                ? "Loading courses..."
-                                : "Select course"}
-                            </option>
-                            {courseOptions.map((course) => (
-                              <option key={course._id} value={course._id}>
-                                {course.title} ({course.department})
-                              </option>
-                            ))}
-                          </select>
-                          <div className="pointer-events-none absolute right-3 top-[45px]">
-                            <ChevronDown className="w-4 h-4 text-gray-400" />
-                          </div>
-                        </div>
-                        {selectedCourse && (
-                          <p className="text-xs text-gray-500">
-                            Program: {selectedCourse.programLabel} • Total Fee: ₹
-                            {selectedCourse.fees?.toLocaleString()}
-                          </p>
-                        )}
+                        <input
+                          type="text"
+                          name="admissionNumber"
+                          value={newStudent.admissionNumber}
+                          onChange={handleAddStudentChange}
+                          className="w-full border border-gray-300 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-yellow-500"
+                          placeholder="e.g., ADM/2024/001"
+                        />
                       </div>
 
                       <div className="space-y-2">
                         <label className="text-sm font-medium text-gray-700">
-                          Duration
+                          Academic Year
                         </label>
                         <input
                           type="text"
-                          name="duration"
-                          value={newStudent.duration}
+                          name="academicYear"
+                          value={newStudent.academicYear}
                           onChange={handleAddStudentChange}
                           className="w-full border border-gray-300 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-yellow-500"
-                          placeholder="e.g. 2 Years"
+                          placeholder="e.g., 2024-25"
                         />
                       </div>
                     </div>
 
-                    {/* Row 3: Roll, Section, Form No, Enrollment No */}
-                    <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mt-4">
-                      <div className="space-y-2">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                      <div className="space-y-2 relative">
                         <label className="flex items-center text-sm font-medium text-gray-700">
-                          Roll Number
+                          Class
                           <span className="text-red-500 ml-1">*</span>
                         </label>
-                        <div className="relative">
-                          <input
-                            type="text"
-                            name="roll"
-                            value={newStudent.roll}
-                            onChange={handleAddStudentChange}
-                            required
-                            className="w-full border border-gray-300 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-yellow-500"
-                            placeholder="Enter roll number"
-                          />
-                          <div className="absolute right-3 top-1/2 -translate-y-1/2">
-                            <Hash className="w-4 h-4 text-gray-400" />
-                          </div>
+                        <select
+                          name="class"
+                          value={newStudent.class}
+                          onChange={handleAddStudentChange}
+                          required
+                          className="w-full border border-gray-300 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-yellow-500 appearance-none bg-white"
+                        >
+                          <option value="">Select Class</option>
+                          <option value="Nursery">Nursery</option>
+                          <option value="LKG">LKG</option>
+                          <option value="UKG">UKG</option>
+                          <option value="1">Class 1</option>
+                          <option value="2">Class 2</option>
+                          <option value="3">Class 3</option>
+                          <option value="4">Class 4</option>
+                          <option value="5">Class 5</option>
+                          <option value="6">Class 6</option>
+                          <option value="7">Class 7</option>
+                          <option value="8">Class 8</option>
+                          <option value="9">Class 9</option>
+                          <option value="10">Class 10</option>
+                          <option value="11">Class 11</option>
+                          <option value="12">Class 12</option>
+                        </select>
+                        <div className="pointer-events-none absolute right-3 top-[45px]">
+                          <ChevronDown className="w-4 h-4 text-gray-400" />
                         </div>
                       </div>
 
@@ -2049,6 +2462,7 @@ const Students = ({ setShowAdminHeader, setShowAdminBreadcrumb }) => {
                           <option value="B">Section B</option>
                           <option value="C">Section C</option>
                           <option value="D">Section D</option>
+                          <option value="E">Section E</option>
                         </select>
                         <div className="pointer-events-none absolute right-3 top-[45px]">
                           <ChevronDown className="w-4 h-4 text-gray-400" />
@@ -2056,79 +2470,134 @@ const Students = ({ setShowAdminHeader, setShowAdminBreadcrumb }) => {
                       </div>
 
                       <div className="space-y-2">
+                        <label className="flex items-center text-sm font-medium text-gray-700">
+                          Roll Number
+                          <span className="text-red-500 ml-1">*</span>
+                        </label>
+                        <div className="relative">
+                          <input
+                            type="text"
+                            name="roll"
+                            value={newStudent.roll}
+                            onChange={handleAddStudentChange}
+                            required
+                            className="w-full border border-gray-300 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-yellow-500"
+                            placeholder="Enter roll number"
+                          />
+                          <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                            <Hash className="w-4 h-4 text-gray-400" />
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <div className="space-y-2">
                         <label className="text-sm font-medium text-gray-700">
-                          Form No
+                          Serial No
                         </label>
                         <input
-                          type="text"
-                          name="formNo"
-                          value={newStudent.formNo}
+                          type="number"
+                          name="serialNo"
+                          value={newStudent.serialNo}
                           onChange={handleAddStudentChange}
                           className="w-full border border-gray-300 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-yellow-500"
-                          placeholder="Enter form number"
+                          placeholder="Serial number (optional)"
                         />
                       </div>
 
                       <div className="space-y-2">
                         <label className="text-sm font-medium text-gray-700">
-                          Enrollment No
+                          Status
+                        </label>
+                        <select
+                          name="status"
+                          value={newStudent.status}
+                          onChange={handleAddStudentChange}
+                          className="w-full border border-gray-300 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-yellow-500 appearance-none bg-white"
+                        >
+                          <option value="Active">Active</option>
+                          <option value="Inactive">Inactive</option>
+                          <option value="Alumni">Alumni</option>
+                          <option value="Dropped">Dropped</option>
+                        </select>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Office Use */}
+                  <div className="space-y-6 pt-6 border-t border-gray-200">
+                    <div className="flex items-center gap-3">
+                      <div className="w-6 h-6 rounded-full bg-gray-100 flex items-center justify-center">
+                        <AlertCircle className="w-3 h-3 text-gray-600" />
+                      </div>
+                      <h3 className="text-lg font-semibold text-gray-900">
+                        Office Use Only
+                      </h3>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                      <div className="space-y-2">
+                        <label className="text-sm font-medium text-gray-700">
+                          Application ID
                         </label>
                         <input
                           type="text"
-                          name="enrollmentNo"
-                          value={newStudent.enrollmentNo}
+                          name="applicationId"
+                          value={newStudent.applicationId}
                           onChange={handleAddStudentChange}
                           className="w-full border border-gray-300 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-yellow-500"
-                          placeholder="Enter enrollment no"
+                          placeholder="Auto-generated"
                         />
+                      </div>
+
+                      <div className="space-y-2">
+                        <label className="text-sm font-medium text-gray-700">
+                          Application Date
+                        </label>
+                        <input
+                          type="date"
+                          name="applicationDate"
+                          value={newStudent.applicationDate}
+                          onChange={handleAddStudentChange}
+                          className="w-full border border-gray-300 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-yellow-500"
+                        />
+                      </div>
+
+                      <div className="space-y-2 relative">
+                        <label className="text-sm font-medium text-gray-700">
+                          Approval Status
+                        </label>
+                        <select
+                          name="approvalStatus"
+                          value={newStudent.approvalStatus}
+                          onChange={handleAddStudentChange}
+                          className="w-full border border-gray-300 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-yellow-500 appearance-none bg-white"
+                        >
+                          <option value="Pending">Pending</option>
+                          <option value="Under Review">Under Review</option>
+                          <option value="Approved">Approved</option>
+                          <option value="Rejected">Rejected</option>
+                        </select>
+                        <div className="pointer-events-none absolute right-3 top-[45px]">
+                          <ChevronDown className="w-4 h-4 text-gray-400" />
+                        </div>
                       </div>
                     </div>
 
-                    {selectedCourse && (
-                      <div className="mt-6 bg-yellow-50 border border-yellow-200 rounded-2xl p-6">
-                        <div className="flex justify-between items-center mb-4">
-                          <div>
-                            <h4 className="text-lg font-semibold text-yellow-800">
-                              Course Fee Snapshot
-                            </h4>
-                            <p className="text-sm text-yellow-700">
-                              Total Fee: ₹{selectedCourse.fees?.toLocaleString()} •{" "}
-                              {selectedCourse.installments?.length || 0} Installments
-                            </p>
-                          </div>
-                          <div className="px-3 py-1 bg-white/70 rounded-full text-xs text-yellow-800 border border-yellow-200">
-                            {selectedCourse.programLabel}
-                          </div>
-                        </div>
-
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                          {selectedCourseInstallments.slice(0, 6).map((inst, idx) => (
-                            <div
-                              key={`${inst.label}-${idx}`}
-                              className="bg-white rounded-xl p-3 shadow-sm border border-yellow-100"
-                            >
-                              <p className="text-sm font-medium text-gray-700">
-                                {inst.label}
-                              </p>
-                              <div className="flex justify-between items-center mt-1">
-                                <span className="text-xs text-gray-500">
-                                  {inst.dueMonth || "Scheduled"}
-                                </span>
-                                <span className="text-sm font-semibold text-gray-900">
-                                  ₹{inst.amount?.toLocaleString()}
-                                </span>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                        {selectedCourseInstallments.length > 6 && (
-                          <p className="text-xs text-gray-500 mt-2">
-                            Showing first 6 installments. Full schedule included in course
-                            record.
-                          </p>
-                        )}
-                      </div>
-                    )}
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium text-gray-700">
+                        Remarks
+                      </label>
+                      <textarea
+                        name="remarks"
+                        value={newStudent.remarks}
+                        onChange={handleAddStudentChange}
+                        rows={2}
+                        className="w-full border border-gray-300 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-yellow-500 resize-none"
+                        placeholder="Additional remarks or notes..."
+                      />
+                    </div>
                   </div>
 
                   {/* Actions */}

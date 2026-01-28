@@ -48,15 +48,43 @@ router.get("/", async (req, res, next) => {
   try {
     const q = (req.query.q || "").trim();
 
-    const filter = q
-      ? {
-          $or: [
-            { name: { $regex: q, $options: "i" } },
-            { roll: { $regex: q, $options: "i" } },
-            { email: { $regex: q, $options: "i" } },
-          ],
-        }
-      : {};
+    // Build filter clauses
+    const clauses = [];
+
+    // Search filter
+    if (q) {
+      clauses.push({
+        $or: [
+          { name: { $regex: q, $options: "i" } },
+          { roll: { $regex: q, $options: "i" } },
+          { email: { $regex: q, $options: "i" } },
+        ],
+      });
+    }
+
+    // School filter (allow null/missing for backward compatibility)
+    if (req.schoolId) {
+      clauses.push({
+        $or: [
+          { schoolId: req.schoolId },
+          { schoolId: null },
+          { schoolId: { $exists: false } },
+        ],
+      });
+    }
+
+    // Campus filter (allow null/missing for backward compatibility)
+    if (req.campusId) {
+      clauses.push({
+        $or: [
+          { campusId: req.campusId },
+          { campusId: null },
+          { campusId: { $exists: false } },
+        ],
+      });
+    }
+
+    const filter = clauses.length > 1 ? { $and: clauses } : clauses.length === 1 ? clauses[0] : {};
 
     const students = await NifStudent.find(filter)
       .sort({ createdAt: -1 })
@@ -105,6 +133,14 @@ router.post("/register", async (req, res, next) => {
     // Normalize gender to lowercase
     if (payload.gender) {
       payload.gender = payload.gender.toLowerCase().trim();
+    }
+
+    // Add schoolId and campusId from request context
+    if (req.schoolId) {
+      payload.schoolId = req.schoolId;
+    }
+    if (req.campusId) {
+      payload.campusId = req.campusId;
     }
 
     // Unique roll / email check (if email provided)
@@ -179,6 +215,10 @@ router.post("/bulk", async (req, res, next) => {
       }
 
       const doc = {
+        // School and campus context
+        schoolId: req.schoolId || null,
+        campusId: req.campusId || null,
+
         // Required fields
         name: String(s.name).trim(),
         mobile: String(s.mobile).trim(),

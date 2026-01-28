@@ -77,6 +77,11 @@ const NifFeeRecordSchema = new mongoose.Schema(
       ref: 'School',
       index: true,
     },
+    campusId: {
+      type: String,
+      index: true,
+      default: null,
+    },
 
     programType: {
       type: String,
@@ -149,6 +154,7 @@ NifFeeRecordSchema.statics.createForStudentYear = async function (
   return this.create({
     student: student._id,
     schoolId: student.schoolId || options.schoolId || null,
+    campusId: student.campusId || options.campusId || null,
     programType: options.programType || student.programType,
     programLabel: options.programLabel || student.programLabel,
     courseId: options.courseId || student.courseId,

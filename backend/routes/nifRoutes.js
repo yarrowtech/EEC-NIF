@@ -246,13 +246,6 @@ const buildSchoolClause = (req) => {
   };
 };
 
-const withSchoolScope = (filter = {}, req) => {
-  const clause = buildSchoolClause(req);
-  if (!clause) return filter;
-  if (isObjectEmpty(filter)) return clause;
-  return { $and: [filter, clause] };
-};
-
 const resolveSchoolIdForWrite = (req, res) => {
   if (!req.isSuperAdmin) {
     if (!req.schoolId) {
@@ -283,6 +276,63 @@ const matchesSchoolScope = (doc, req) => {
   if (!req.schoolId) return true;
   if (!doc.schoolId) return true;
   return String(doc.schoolId) === String(req.schoolId);
+};
+
+const buildCampusClause = (req) => {
+  // Only apply campus filter if admin has a campusId AND we want strict filtering
+  // For now, we're lenient to allow existing students without campusId to be visible
+  if (!req.campusId) return null;
+
+  // If admin has a campusId, show students from that campus OR students without campusId (backward compatibility)
+  return {
+    $or: [
+      { campusId: req.campusId },
+      { campusId: null },
+      { campusId: { $exists: false } },
+    ],
+  };
+};
+
+const withSchoolAndCampusScope = (filter = {}, req) => {
+  const schoolClause = buildSchoolClause(req);
+  const campusClause = buildCampusClause(req);
+
+  if (!schoolClause && !campusClause) return filter;
+
+  const clauses = [];
+  if (schoolClause) clauses.push(schoolClause);
+  if (campusClause) clauses.push(campusClause);
+
+  // Combine clauses
+  let combined;
+  if (clauses.length === 0) {
+    combined = filter;
+  } else if (clauses.length === 1) {
+    combined = isObjectEmpty(filter) ? clauses[0] : { $and: [filter, clauses[0]] };
+  } else {
+    // When combining school and campus, use $and
+    combined = isObjectEmpty(filter) ? { $and: clauses } : { $and: [filter, ...clauses] };
+  }
+
+  return combined;
+};
+
+const resolveCampusIdForWrite = (req, res) => {
+  const candidate =
+    req.campusId || req.body?.campusId || req.query?.campusId || req.headers['x-campus-id'] || null;
+
+  if (!candidate) {
+    return null;
+  }
+
+  return candidate;
+};
+
+const matchesCampusScope = (doc, req) => {
+  if (!doc) return false;
+  if (!req.campusId) return true;
+  if (!doc.campusId) return true;
+  return String(doc.campusId) === String(req.campusId);
 };
 
 const inferProgramTypeFromText = (text = '') => {
@@ -395,11 +445,12 @@ const purgeOrphanFeeRecords = async (req) => {
   return result.deletedCount || 0;
 };
 
-const buildStudentDoc = (body, courseDoc, schoolId) => {
+const buildStudentDoc = (body, courseDoc, schoolId, campusId = null) => {
   const meta = deriveProgramMeta(body, courseDoc);
 
   const studentDoc = {
     schoolId,
+    campusId,
     name: sanitizeString(body.name),
     guardianName: sanitizeString(body.guardianName),
     guardianEmail: sanitizeString(body.guardianEmail)?.toLowerCase(),
@@ -520,19 +571,10 @@ router.post('/students', adminAuth, async (req, res) => {
   // #swagger.tags = ['NIF']
   try {
     const body = req.body || {};
-    if (!body.name || !body.mobile || !body.courseId) {
+    if (!body.name || !body.mobile || !body.class) {
       return res.status(400).json({
-        message: 'name, mobile and courseId are required',
+        message: 'name, mobile and class are required',
       });
-    }
-
-    if (!mongoose.isValidObjectId(body.courseId)) {
-      return res.status(400).json({ message: 'Invalid courseId' });
-    }
-
-    const course = await NifCourse.findById(body.courseId).lean();
-    if (!course) {
-      return res.status(404).json({ message: 'Course not found' });
     }
 
     const schoolId = resolveSchoolIdForWrite(req, res);
@@ -540,23 +582,90 @@ router.post('/students', adminAuth, async (req, res) => {
       return;
     }
 
-    const { studentDoc, programMeta } = buildStudentDoc(body, course, schoolId);
-    const student = await NifStudent.create(studentDoc);
+    const campusId = resolveCampusIdForWrite(req, res);
 
-    await NifFeeRecord.createForStudentYear(student, 1, {
-      totalFee: programMeta.totalFee,
-      stream: programMeta.stream,
-      courseId: course._id,
-      courseName: programMeta.courseName,
-      programLabel: student.programLabel || programMeta.programLabel,
-      programType: programMeta.programType,
-      academicYear: student.academicYear,
-      installments: programMeta.installments,
-    });
+    // Build student document directly without course dependency
+    const studentDoc = {
+      schoolId,
+      campusId,
+      name: sanitizeString(body.name),
+      email: sanitizeString(body.email)?.toLowerCase(),
+      mobile: sanitizeString(body.mobile),
+      gender: sanitizeString(body.gender) || 'other',
+      dob: parseDate(body.dob),
+
+      // Address
+      address: sanitizeString(body.address) || '',
+      permanentAddress: sanitizeString(body.permanentAddress) || '',
+      pincode: sanitizeString(body.pincode) || '',
+
+      // Extended Personal
+      birthPlace: sanitizeString(body.birthPlace),
+      nationality: sanitizeString(body.nationality) || 'Indian',
+      religion: sanitizeString(body.religion),
+      caste: sanitizeString(body.caste),
+      category: sanitizeString(body.category),
+      photograph: sanitizeString(body.photograph),
+
+      // Guardian/Parent
+      guardianName: sanitizeString(body.guardianName),
+      guardianEmail: sanitizeString(body.guardianEmail)?.toLowerCase(),
+      guardianPhone: sanitizeString(body.guardianPhone),
+      fatherName: sanitizeString(body.fatherName),
+      fatherOccupation: sanitizeString(body.fatherOccupation),
+      fatherPhone: sanitizeString(body.fatherPhone),
+      motherName: sanitizeString(body.motherName),
+      motherOccupation: sanitizeString(body.motherOccupation),
+      motherPhone: sanitizeString(body.motherPhone),
+
+      // Emergency Contact
+      emergencyContactName: sanitizeString(body.emergencyContactName),
+      emergencyContactPhone: sanitizeString(body.emergencyContactPhone),
+      emergencyContactRelation: sanitizeString(body.emergencyContactRelation),
+
+      // Academic History
+      previousSchoolName: sanitizeString(body.previousSchoolName),
+      previousClass: sanitizeString(body.previousClass),
+      previousPercentage: parseNumber(body.previousPercentage),
+      transferCertificateNo: sanitizeString(body.transferCertificateNo),
+      transferCertificateDate: parseDate(body.transferCertificateDate),
+      reasonForLeaving: sanitizeString(body.reasonForLeaving),
+
+      // Medical
+      bloodGroup: sanitizeString(body.bloodGroup),
+      knownHealthIssues: sanitizeString(body.knownHealthIssues),
+      allergies: sanitizeString(body.allergies),
+      immunizationStatus: sanitizeString(body.immunizationStatus),
+      learningDisabilities: sanitizeString(body.learningDisabilities),
+
+      // Documents
+      aadharNumber: sanitizeString(body.aadharNumber),
+      birthCertificateNo: sanitizeString(body.birthCertificateNo),
+
+      // Office Use
+      applicationId: sanitizeString(body.applicationId),
+      applicationDate: parseDate(body.applicationDate),
+      approvalStatus: sanitizeString(body.approvalStatus) || 'Pending',
+      remarks: sanitizeString(body.remarks),
+
+      // Academic Details
+      serialNo: parseNumber(body.serialNo),
+      academicYear: sanitizeString(body.academicYear),
+      admissionDate: parseDate(body.admissionDate) || new Date(),
+      admissionNumber: sanitizeString(body.admissionNumber),
+      roll: sanitizeString(body.roll),
+      class: sanitizeString(body.class),
+      section: sanitizeString(body.section),
+
+      status: sanitizeString(body.status) || 'Active',
+      source: 'manual',
+    };
+
+    const student = await NifStudent.create(studentDoc);
 
     res.status(201).json(student.toJSON());
   } catch (err) {
-    console.error('NIF student create error:', err);
+    console.error('Student create error:', err);
     res.status(400).json({ message: err.message });
   }
 });
@@ -573,7 +682,7 @@ router.delete('/students/:id', adminAuth, async (req, res) => {
     if (!student) {
       return res.status(404).json({ message: 'Student not found' });
     }
-    if (!matchesSchoolScope(student, req)) {
+    if (!matchesSchoolScope(student, req) || !matchesCampusScope(student, req)) {
       return res.status(403).json({ message: 'Access denied' });
     }
 
@@ -602,6 +711,8 @@ router.post('/students/bulk', adminAuth, async (req, res) => {
     if (!schoolId) {
       return;
     }
+
+    const campusId = resolveCampusIdForWrite(req, res);
 
     console.log('NIF Routes - Bulk import received:', rows.length, 'students');
     console.log('First student:', JSON.stringify(rows[0], null, 2));
@@ -654,7 +765,8 @@ router.post('/students/bulk', adminAuth, async (req, res) => {
         const { studentDoc, programMeta } = buildStudentDoc(
           { ...row, courseId: course._id },
           course,
-          schoolId
+          schoolId,
+          campusId
         );
         const student = await NifStudent.create(studentDoc);
 
@@ -708,7 +820,7 @@ router.get('/students', adminAuth, async (req, res) => {
       ];
     }
 
-    const students = await NifStudent.find(withSchoolScope(filter, req))
+    const students = await NifStudent.find(withSchoolAndCampusScope(filter, req))
       .sort({ createdAt: -1 })
       .lean();
     const ids = students.map((s) => s._id);
@@ -763,7 +875,7 @@ router.get('/students/:id', adminAuth, async (req, res) => {
     if (!student) {
       return res.status(404).json({ message: 'Student not found' });
     }
-    if (!matchesSchoolScope(student, req)) {
+    if (!matchesSchoolScope(student, req) || !matchesCampusScope(student, req)) {
       return res.status(403).json({ message: 'Access denied' });
     }
 
@@ -792,10 +904,10 @@ router.get('/fees', adminAuth, async (req, res) => {
     await purgeOrphanFeeRecords(req).catch((err) =>
       console.warn('Failed to purge orphan fee records', err)
     );
-    const scopedStudentFilter = withSchoolScope({}, req);
+    const scopedStudentFilter = withSchoolAndCampusScope({}, req);
     const allStudents = await NifStudent.find(scopedStudentFilter).lean();
     const studentsWithRecords = await NifFeeRecord.find(
-      withSchoolScope({}, req),
+      withSchoolAndCampusScope({}, req),
       { student: 1 }
     ).lean();
     const withRecordSet = new Set(
@@ -829,7 +941,7 @@ router.get('/fees', adminAuth, async (req, res) => {
       filter.yearNumber = yearNumber;
     }
 
-    const records = await NifFeeRecord.find(withSchoolScope(filter, req))
+    const records = await NifFeeRecord.find(withSchoolAndCampusScope(filter, req))
       .populate('student')
       .sort({ createdAt: -1 })
       .lean();
@@ -862,12 +974,12 @@ router.get('/fees', adminAuth, async (req, res) => {
 router.get('/fees/dashboard-summary', adminAuth, async (req, res) => {
   // #swagger.tags = ['NIF']
   try {
-    const scopedRecordFilter = withSchoolScope({}, req);
+    const scopedRecordFilter = withSchoolAndCampusScope({}, req);
     const [feeRecords, students] = await Promise.all([
       NifFeeRecord.find(scopedRecordFilter)
         .populate('student', 'name course grade section programLabel')
         .lean(),
-      NifStudent.find(withSchoolScope({}, req))
+      NifStudent.find(withSchoolAndCampusScope({}, req))
         .select('course grade programLabel')
         .lean(),
     ]);
@@ -1302,7 +1414,7 @@ router.put('/students/:id/archive', adminAuth, async (req, res) => {
     if (!student) {
       return res.status(404).json({ message: 'Student not found' });
     }
-    if (!matchesSchoolScope(student, req)) {
+    if (!matchesSchoolScope(student, req) || !matchesCampusScope(student, req)) {
       return res.status(403).json({ message: 'Access denied' });
     }
 
@@ -1315,6 +1427,7 @@ router.put('/students/:id/archive', adminAuth, async (req, res) => {
     const archivedStudent = await NifArchivedStudent.create({
       originalStudentId: student._id,
       schoolId: student.schoolId || null,
+      campusId: student.campusId || null,
       studentName: student.name,
       email: student.email,
       mobile: student.mobile,
@@ -1374,13 +1487,14 @@ router.patch('/students/:id/unarchive', adminAuth, async (req, res) => {
     if (!archivedStudent) {
       return res.status(404).json({ message: 'Archived student not found' });
     }
-    if (!matchesSchoolScope(archivedStudent, req)) {
+    if (!matchesSchoolScope(archivedStudent, req) || !matchesCampusScope(archivedStudent, req)) {
       return res.status(403).json({ message: 'Access denied' });
     }
 
     // Restore student from snapshot
     const studentData = {
       schoolId: archivedStudent.schoolId || req.schoolId || null,
+      campusId: archivedStudent.campusId || req.campusId || null,
       name: archivedStudent.studentName,
       email: archivedStudent.email,
       mobile: archivedStudent.mobile,
@@ -1416,7 +1530,9 @@ router.patch('/students/:id/unarchive', adminAuth, async (req, res) => {
         delete feeRecord.id;
         feeRecord.schoolId =
           restoredStudent.schoolId || feeRecord.schoolId || null;
-        
+        feeRecord.campusId =
+          restoredStudent.campusId || feeRecord.campusId || null;
+
         await NifFeeRecord.create(feeRecord);
       }
     } else {

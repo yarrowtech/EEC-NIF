@@ -42,6 +42,11 @@ const nifStudentSchema = new Schema(
       ref: "School",
       index: true,
     },
+    campusId: {
+      type: String,
+      index: true,
+      default: null,
+    },
 
     /* -------- Core identity -------- */
     name: {
@@ -90,36 +95,211 @@ const nifStudentSchema = new Schema(
       trim: true,
       default: "",
     },
+    permanentAddress: {
+      type: String,
+      trim: true,
+      default: "",
+    },
     pincode: {
       type: String,
       trim: true,
       default: "",
     },
 
-    /* -------- Academic / NIF Details -------- */
-    serialNo: {
-      type: Number, // Srl No from sheet
+    /* -------- Personal Details (Extended) -------- */
+    birthPlace: {
+      type: String,
+      trim: true,
     },
-    batchCode: {
-      type: String, // Batch code like "FD-2024-01"
-      required: true,
+    nationality: {
+      type: String,
+      trim: true,
+      default: "Indian",
+    },
+    religion: {
+      type: String,
+      trim: true,
+    },
+    caste: {
+      type: String,
+      trim: true,
+    },
+    category: {
+      type: String,
+      enum: ["General", "OBC", "SC", "ST", "EWS", "Other"],
+      trim: true,
+    },
+    photograph: {
+      type: String, // URL to uploaded photo
+      trim: true,
+    },
+
+    /* -------- Emergency Contact -------- */
+    emergencyContactName: {
+      type: String,
+      trim: true,
+    },
+    emergencyContactPhone: {
+      type: String,
+      trim: true,
+    },
+    emergencyContactRelation: {
+      type: String,
+      trim: true,
+    },
+
+    /* -------- Parent/Guardian Details (Extended) -------- */
+    fatherName: {
+      type: String,
+      trim: true,
+    },
+    fatherOccupation: {
+      type: String,
+      trim: true,
+    },
+    fatherPhone: {
+      type: String,
+      trim: true,
+    },
+    motherName: {
+      type: String,
+      trim: true,
+    },
+    motherOccupation: {
+      type: String,
+      trim: true,
+    },
+    motherPhone: {
+      type: String,
+      trim: true,
+    },
+
+    /* -------- Academic History -------- */
+    previousSchoolName: {
+      type: String,
+      trim: true,
+    },
+    previousClass: {
+      type: String,
+      trim: true,
+    },
+    previousPercentage: {
+      type: Number,
+      min: 0,
+      max: 100,
+    },
+    transferCertificateNo: {
+      type: String,
+      trim: true,
+    },
+    transferCertificateDate: {
+      type: Date,
+    },
+    reasonForLeaving: {
+      type: String,
+      trim: true,
+    },
+
+    /* -------- Medical Information -------- */
+    bloodGroup: {
+      type: String,
+      enum: ["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-", "Unknown"],
+      default: "Unknown",
+    },
+    knownHealthIssues: {
+      type: String,
+      trim: true,
+    },
+    allergies: {
+      type: String,
+      trim: true,
+    },
+    immunizationStatus: {
+      type: String,
+      trim: true,
+    },
+    learningDisabilities: {
+      type: String,
+      trim: true,
+    },
+
+    /* -------- Documents -------- */
+    aadharNumber: {
+      type: String,
+      trim: true,
+    },
+    birthCertificateNo: {
+      type: String,
+      trim: true,
+    },
+    documents: {
+      aadharCard: { type: String, trim: true }, // URL
+      birthCertificate: { type: String, trim: true }, // URL
+      transferCertificate: { type: String, trim: true }, // URL
+      photograph: { type: String, trim: true }, // URL
+      other: [{ name: String, url: String }],
+    },
+
+    /* -------- Declarations -------- */
+    parentDeclaration: {
+      agreed: { type: Boolean, default: false },
+      agreedAt: { type: Date },
+      agreedBy: { type: String, trim: true }, // Name of parent/guardian
+    },
+
+    /* -------- Office Use -------- */
+    applicationId: {
+      type: String,
+      trim: true,
+      unique: true,
+      sparse: true,
+    },
+    applicationDate: {
+      type: Date,
+    },
+    approvalStatus: {
+      type: String,
+      enum: ["Pending", "Approved", "Rejected", "Under Review"],
+      default: "Pending",
+    },
+    approvedBy: {
+      type: Schema.Types.ObjectId,
+      ref: "Admin",
+    },
+    approvedAt: {
+      type: Date,
+    },
+    remarks: {
+      type: String,
+      trim: true,
+    },
+
+    /* -------- Academic Details -------- */
+    serialNo: {
+      type: Number, // Serial number
+    },
+    academicYear: {
+      type: String, // e.g. "2024-25"
       trim: true,
     },
     admissionDate: {
       type: Date, // Date of admission
       required: true,
     },
-    academicYear: {
-      type: String, // e.g. "2024-25"
+    admissionNumber: {
+      type: String, // Admission/Registration number
       trim: true,
+      unique: true,
+      sparse: true,
     },
     roll: {
       type: String,
       required: true,
       trim: true,
     },
-    grade: {
-      type: String, // You are using grade as program label (FD, ADV CERT etc.)
+    class: {
+      type: String, // Class/Grade (e.g., "1", "2", "10", "11 Science")
+      required: true,
       trim: true,
     },
     section: {
@@ -128,9 +308,13 @@ const nifStudentSchema = new Schema(
       trim: true,
     },
 
+    /* -------- Optional NIF/Program Fields (for institutions that use them) -------- */
+    batchCode: {
+      type: String, // Optional batch code
+      trim: true,
+    },
     course: {
-      type: String, // human readable course/program name
-      required: true,
+      type: String, // Optional course/program name
       trim: true,
     },
     courseId: {
@@ -149,23 +333,23 @@ const nifStudentSchema = new Schema(
       type: String,
       trim: true,
     },
-
-    /* -------- Program / stream mapping -------- */
     stream: { type: String, trim: true },
     programType: {
       type: String,
       enum: ["ADV_CERT", "B_VOC", "M_VOC", "B_DES"],
     },
     programLabel: { type: String, trim: true },
+    grade: {
+      type: String, // Alternative to 'class' field
+      trim: true,
+    },
 
-    /* -------- Fee configuration -------- */
+    /* -------- Fee Information -------- */
     totalFee: { type: Number, min: 0 },
     feeInstallments: {
       type: [feeInstallmentSchema],
       default: [],
     },
-
-    /* -------- Fee summary (for dashboard display) -------- */
     feeSummary: {
       type: feeSummarySchema,
       default: () => ({}),
@@ -216,6 +400,6 @@ const nifStudentSchema = new Schema(
 
 nifStudentSchema.index({ roll: 1 }, { unique: false, sparse: true });
 nifStudentSchema.index({ email: 1 }, { unique: false, sparse: true });
-nifStudentSchema.index({ schoolId: 1, createdAt: -1 });
+nifStudentSchema.index({ schoolId: 1, campusId: 1, createdAt: -1 });
 
 module.exports = mongoose.model("NifStudent", nifStudentSchema);
