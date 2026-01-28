@@ -2,6 +2,9 @@ const express = require('express');
 const router = express.Router();
 const StudentUser = require('../models/StudentUser');
 const NifStudent = require('../models/NifStudent');
+const Class = require('../models/Class');
+const Section = require('../models/Section');
+const Timetable = require('../models/Timetable');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const adminAuth = require('../middleware/adminAuth');
@@ -26,6 +29,26 @@ const extractSchoolInfo = (school = null) => {
     code: payload.code || '',
     logo: payload.logo?.secure_url || payload.logo?.url || null,
   };
+};
+
+const resolvePhotoValue = (value) => {
+  if (!value) return null;
+  if (typeof value === 'string') return value;
+  if (typeof value === 'object') {
+    return value.secure_url || value.url || value.path || null;
+  }
+  return null;
+};
+
+const resolveProfilePhoto = (studentDoc) => {
+  const direct = resolvePhotoValue(studentDoc?.profilePic);
+  if (direct) return direct;
+  const nif = extractPopulatedDoc(studentDoc?.nifStudent);
+  if (!nif || typeof nif !== 'object') return null;
+  const photo =
+    resolvePhotoValue(nif.photograph) ||
+    resolvePhotoValue(nif.documents?.photograph);
+  return photo;
 };
 
 const resolveAdmissionYear = (value) => {
@@ -127,6 +150,10 @@ router.post('/register', adminAuth, async (req, res) => {
       studentCode = await generateStudentCode(resolvedSchoolId, admissionYear);
     }
 
+    const nifPhoto =
+      resolvePhotoValue(nifStudentDoc?.photograph) ||
+      resolvePhotoValue(nifStudentDoc?.documents?.photograph);
+
     const payload = {
       username: studentCode,
       password,
@@ -149,6 +176,9 @@ router.post('/register', adminAuth, async (req, res) => {
       batchCode: resolvedBatchCode,
       studentCode,
     };
+    if (!payload.profilePic && nifPhoto) {
+      payload.profilePic = nifPhoto;
+    }
 
     let studentUser;
     if (existingPortalUser) {
@@ -253,7 +283,7 @@ router.get('/profile', authStudent, async (req, res) => {
 
     const student = await StudentUser.findById(req.user.id)
       .select('-password')
-      .populate('nifStudent', 'serialNo batchCode course grade section courseId duration status admissionDate')
+      .populate('nifStudent', 'serialNo batchCode course grade section courseId duration status admissionDate photograph documents')
       .populate('schoolId', 'name code logo')
       .lean();
 
@@ -277,6 +307,8 @@ router.get('/profile', authStudent, async (req, res) => {
       schoolInfo,
       schoolName: schoolInfo?.name || '',
       schoolLogo: schoolInfo?.logo || null,
+      profilePic: resolveProfilePhoto(student),
+      avatar: resolveProfilePhoto(student),
     };
     console.log('✅ Sending profile data to frontend');
     res.json(response);
@@ -291,7 +323,7 @@ router.get('/dashboard', authStudent, async (req, res) => {
   // #swagger.tags = ['Students']
   try {
     const student = await StudentUser.findById(req.user.id)
-      .populate('nifStudent')
+      .populate('nifStudent', 'course grade section batchCode duration status photograph documents serialNo')
       .populate('schoolId', 'name code logo')
       .lean();
 
@@ -325,7 +357,8 @@ router.get('/dashboard', authStudent, async (req, res) => {
         grade: student.grade,
         section: student.section,
         roll: student.roll,
-        profilePic: student.profilePic,
+        profilePic: resolveProfilePhoto(student),
+        avatar: resolveProfilePhoto(student),
         school: schoolInfo,
         schoolName: schoolInfo?.name || '',
         schoolLogo: schoolInfo?.logo || null,
@@ -434,19 +467,79 @@ router.get('/schedule', authStudent, async (req, res) => {
   // #swagger.tags = ['Students']
   try {
     const student = await StudentUser.findById(req.user.id)
-      .select('schedule grade section')
+      .select('grade section schoolId')
       .lean();
 
     if (!student) {
       return res.status(404).json({ error: 'Student not found' });
     }
 
+    // If student doesn't have grade or section, return empty schedule
+    if (!student.grade || !student.section) {
+      return res.json({ schedule: [] });
+    }
+
+    // Find Class by name matching grade
+    const classDoc = await Class.findOne({
+      schoolId: student.schoolId,
+      name: student.grade
+    }).lean();
+
+    if (!classDoc) {
+      return res.json({ schedule: [] });
+    }
+
+    // Find Section by name matching section
+    const sectionDoc = await Section.findOne({
+      schoolId: student.schoolId,
+      classId: classDoc._id,
+      name: student.section
+    }).lean();
+
+    if (!sectionDoc) {
+      return res.json({ schedule: [] });
+    }
+
+    // Get timetable for this class/section
+    const timetable = await Timetable.findOne({
+      schoolId: student.schoolId,
+      classId: classDoc._id,
+      sectionId: sectionDoc._id
+    })
+      .populate('entries.subjectId', 'name')
+      .populate('entries.teacherId', 'name')
+      .lean();
+
+    if (!timetable || !timetable.entries) {
+      return res.json({ schedule: [] });
+    }
+
+    // Transform timetable entries to schedule format grouped by day
+    const scheduleByDay = {};
+    timetable.entries.forEach(entry => {
+      if (!scheduleByDay[entry.dayOfWeek]) {
+        scheduleByDay[entry.dayOfWeek] = [];
+      }
+      scheduleByDay[entry.dayOfWeek].push({
+        time: `${entry.startTime} - ${entry.endTime}`,
+        subject: entry.subjectId?.name || 'Unknown',
+        teacher: entry.teacherId?.name || 'TBA',
+        room: entry.room || '',
+        period: entry.period
+      });
+    });
+
+    // Sort periods within each day
+    Object.keys(scheduleByDay).forEach(day => {
+      scheduleByDay[day].sort((a, b) => a.period - b.period);
+    });
+
     res.json({
-      schedule: student.schedule || []
+      schedule: scheduleByDay
     });
   } catch (err) {
     console.error('Schedule error:', err);
-    res.status(400).json({ error: err.message });
+    res.status(500).json({ error: err.message });
   }
 });
 

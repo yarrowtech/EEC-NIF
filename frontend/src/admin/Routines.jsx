@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import jsPDF from 'jspdf';
-import { Plus, Edit2, Trash2, Clock, Calendar, LayoutGrid, ChevronLeft, ChevronRight, Grid, List, User } from 'lucide-react';
+import { Plus, Edit2, Trash2, Clock, Calendar, LayoutGrid, ChevronLeft, ChevronRight, Grid, List, User, Loader2, AlertCircle } from 'lucide-react';
+import { timetableApi, academicApi, transformTimetablesToRoutines, convertTo24Hour, convertTo12Hour } from './utils/timetableApi';
 
 // Weekly builder for static routines
 const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
@@ -31,33 +32,25 @@ const TEACHERS = {
   Computer: 'Ms. Nidhi Kapoor',
 };
 
-const buildRoutineData = () => {
-  const list = [];
-  const classes = [
-    { cls: 'X', sections: ['A', 'B'] },
-    { cls: 'IX', sections: ['A', 'B'] },
-    { cls: 'XI', sections: ['A', 'B'] },
-  ];
-  let id = 1;
-  classes.forEach(({ cls, sections }) => {
-    sections.forEach((sec, sIdx) => {
-      DAYS.forEach((day, dIdx) => {
-        const schedule = TIMES.map((t, i) => {
-          if (t.includes('10:15')) return { time: t, subject: 'Break', teacher: '-' };
-          const subj = SUBJECTS[cls][(i + dIdx + sIdx) % SUBJECTS[cls].length];
-          return { time: t, subject: subj, teacher: TEACHERS[subj] || '-' };
-        });
-        list.push({ id: id++, class: cls, section: sec, day, schedule });
-      });
-    });
-  });
-  return list;
-};
-
-const routineData = buildRoutineData();
-
 const Routines = ({setShowAdminHeader}) => {
-  const [routines, setRoutines] = useState(routineData);
+  // Data state
+  const [routines, setRoutines] = useState([]);
+  const [classes, setClasses] = useState([]);
+  const [sections, setSections] = useState([]);
+  const [subjects, setSubjects] = useState([]);
+  const [teachers, setTeachers] = useState([]);
+
+  // UI state
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [saving, setSaving] = useState(false);
+
+  // Toast state
+  const [toast, setToast] = useState({ show: false, message: '', type: 'success' });
+
+  // Conflict state
+  const [conflicts, setConflicts] = useState([]);
+  const [showConflictModal, setShowConflictModal] = useState(false);
   const [selectedClass, setSelectedClass] = useState('');
   const [selectedSection, setSelectedSection] = useState('');
   const [selectedDay, setSelectedDay] = useState('Monday');
@@ -71,16 +64,188 @@ const Routines = ({setShowAdminHeader}) => {
     schedule: [], // [{time, subject, teacher, isBreak}]
   });
 
-  const filteredRoutines = routines.filter(routine => 
+  const filteredRoutines = routines.filter(routine =>
     (!selectedClass || routine.class === selectedClass) &&
     (!selectedSection || routine.section === selectedSection) &&
     (viewMode === 'weekly' || !selectedDay || routine.day === selectedDay)
   );
 
+  // Toast notification helpers
+  const showSuccessToast = (message) => {
+    setToast({ show: true, message, type: 'success' });
+    setTimeout(() => setToast({ show: false, message: '', type: 'success' }), 3000);
+  };
+
+  const showErrorToast = (message) => {
+    setToast({ show: true, message, type: 'error' });
+    setTimeout(() => setToast({ show: false, message: '', type: 'error' }), 5000);
+  };
+
+  // Load initial data from API
+  const loadInitialData = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+
+      // Fetch data one by one to identify which endpoint fails
+      console.log('Fetching timetables...');
+      const timetablesData = await timetableApi.getAll().catch(err => {
+        console.error('Timetables API failed:', err);
+        return [];
+      });
+
+      console.log('Fetching classes...');
+      const classesData = await academicApi.getClasses().catch(err => {
+        console.error('Classes API failed:', err);
+        return [];
+      });
+
+      console.log('Fetching sections...');
+      const sectionsData = await academicApi.getSections().catch(err => {
+        console.error('Sections API failed:', err);
+        return [];
+      });
+
+      console.log('Fetching subjects...');
+      const subjectsData = await academicApi.getSubjects().catch(err => {
+        console.error('Subjects API failed:', err);
+        return [];
+      });
+
+      console.log('Fetching teachers...');
+      const teachersData = await academicApi.getTeachers().catch(err => {
+        console.error('Teachers API failed:', err);
+        return [];
+      });
+
+      console.log('Data fetched:', {
+        timetables: timetablesData,
+        classes: classesData,
+        sections: sectionsData,
+        subjects: subjectsData,
+        teachers: teachersData
+      });
+
+      // Transform timetables to routine format
+      const transformed = transformTimetablesToRoutines(timetablesData);
+      console.log('Transformed routines:', transformed);
+
+      setRoutines(transformed);
+      setClasses(classesData);
+      setSections(sectionsData);
+      setSubjects(subjectsData);
+      setTeachers(teachersData);
+
+      console.log('State updated with data');
+
+      // If no timetables exist, show info message
+      if (transformed.length === 0) {
+        console.log('No routines found in database');
+      }
+    } catch (err) {
+      console.error('Error loading data:', err);
+      setError(err.message || 'Failed to load routines');
+      showErrorToast(err.message || 'Failed to load routines');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   // making the admin header invisible
-    useEffect(() => {
-      setShowAdminHeader(false)
-    }, [])
+  useEffect(() => {
+    setShowAdminHeader(false);
+  }, []);
+
+  // Load data on mount
+  useEffect(() => {
+    loadInitialData();
+  }, []);
+
+  // Delete handler
+  const handleDelete = async (routine) => {
+    if (!window.confirm(`Are you sure you want to delete the routine for ${routine.class}-${routine.section} on ${routine.day}?`)) {
+      return;
+    }
+
+    try {
+      await timetableApi.delete(routine.timetableId);
+      showSuccessToast('Routine deleted successfully!');
+      await loadInitialData();
+    } catch (err) {
+      console.error('Error deleting routine:', err);
+      showErrorToast(err.message || 'Failed to delete routine');
+    }
+  };
+
+  // Save/Update handler
+  const handleSave = async () => {
+    try {
+      setSaving(true);
+      setConflicts([]);
+
+      // Find class and section IDs
+      const classDoc = classes.find(c => c.name === form.class);
+      const sectionDoc = sections.find(s => s.name === form.section && s.classId === classDoc?._id);
+
+      if (!classDoc) {
+        showErrorToast('Selected class not found');
+        return;
+      }
+
+      // Transform form data to timetable format
+      const entries = form.schedule
+        .filter(period => !period.isBreak)
+        .map((period, index) => {
+          const [startTime, endTime] = period.time.split(' - ').map(t => t.trim());
+          const subject = subjects.find(s => s.name === period.subject);
+          const teacher = teachers.find(t => t.name === period.teacher);
+
+          return {
+            dayOfWeek: form.day,
+            period: index + 1,
+            subjectId: subject?._id || null,
+            teacherId: teacher?._id || null,
+            startTime: convertTo24Hour(startTime),
+            endTime: convertTo24Hour(endTime),
+            room: period.room || ''
+          };
+        });
+
+      const timetableData = {
+        classId: classDoc._id,
+        sectionId: sectionDoc?._id || null,
+        entries
+      };
+
+      // Validate conflicts
+      const conflictResult = await timetableApi.validateConflicts({
+        ...timetableData,
+        excludeTimetableId: editingRoutine?.timetableId
+      });
+
+      if (conflictResult.hasConflicts) {
+        setConflicts(conflictResult.conflicts);
+        setShowConflictModal(true);
+        setSaving(false);
+        return;
+      }
+
+      // Save timetable
+      await timetableApi.save(timetableData);
+
+      showSuccessToast('Routine saved successfully!');
+      setIsModalOpen(false);
+      setEditingRoutine(null);
+
+      // Reload data
+      await loadInitialData();
+    } catch (err) {
+      console.error('Error saving routine:', err);
+      showErrorToast(err.message || 'Failed to save routine');
+    } finally {
+      setSaving(false);
+    }
+  };
 
   // Build weekly grid for selected class/section
   const weeklyGrid = useMemo(() => {
@@ -171,8 +336,52 @@ const Routines = ({setShowAdminHeader}) => {
 
   return (
     <div className="min-h-screen bg-gray-50 p-6">
-      {/* Header inspired by RoutineView */}
-      <div className="bg-white rounded-xl shadow-sm border border-purple-400 p-6 mb-6">
+      {/* Toast Notification */}
+      {toast.show && (
+        <div className={`fixed top-4 right-4 z-50 px-6 py-3 rounded-lg shadow-lg flex items-center space-x-2 ${
+          toast.type === 'success' ? 'bg-green-500 text-white' : 'bg-red-500 text-white'
+        }`}>
+          {toast.type === 'success' ? (
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+            </svg>
+          ) : (
+            <AlertCircle size={20} />
+          )}
+          <span>{toast.message}</span>
+        </div>
+      )}
+
+      {/* Loading State */}
+      {loading && (
+        <div className="flex flex-col items-center justify-center h-64">
+          <Loader2 className="animate-spin text-indigo-500 mb-4" size={48} />
+          <p className="text-gray-600">Loading routines...</p>
+        </div>
+      )}
+
+      {/* Error State */}
+      {!loading && error && (
+        <div className="bg-red-50 border border-red-200 rounded-lg p-6">
+          <div className="flex items-center space-x-3 mb-3">
+            <AlertCircle className="text-red-500" size={24} />
+            <h3 className="text-lg font-semibold text-red-800">Error Loading Routines</h3>
+          </div>
+          <p className="text-red-700 mb-4">{error}</p>
+          <button
+            onClick={loadInitialData}
+            className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg transition-colors"
+          >
+            Retry
+          </button>
+        </div>
+      )}
+
+      {/* Main Content - Only show if not loading and no error */}
+      {!loading && !error && (
+        <>
+          {/* Header inspired by RoutineView */}
+          <div className="bg-white rounded-xl shadow-sm border border-purple-400 p-6 mb-6">
         <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
           <div className="flex items-center space-x-3">
             <div className="p-3 bg-indigo-100 rounded-lg">
@@ -204,14 +413,14 @@ const Routines = ({setShowAdminHeader}) => {
             </button>
             <button
               onClick={() => {
-                const defClass = selectedClass || 'X';
-                const defSection = selectedSection || 'A';
+                const defClass = selectedClass || (classes.length > 0 ? classes[0].name : '');
+                const defSection = selectedSection || (sections.length > 0 ? sections[0].name : '');
                 const defDay = selectedDay || 'Monday';
                 const schedule = TIMES.map((t) => ({
                   time: t,
                   isBreak: t.includes('10:15'),
-                  subject: t.includes('10:15') ? 'Break' : SUBJECTS[defClass][0],
-                  teacher: t.includes('10:15') ? '-' : (TEACHERS[SUBJECTS[defClass][0]] || '-')
+                  subject: t.includes('10:15') ? 'Break' : '',
+                  teacher: t.includes('10:15') ? '-' : ''
                 }));
                 setForm({ class: defClass, section: defSection, day: defDay, schedule });
                 setEditingRoutine(null);
@@ -233,25 +442,32 @@ const Routines = ({setShowAdminHeader}) => {
 
             {/* Class and Section Filters */}
             <div className="flex items-center space-x-3">
-              <select 
+              <select
                 className="border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
                 value={selectedClass}
                 onChange={(e) => setSelectedClass(e.target.value)}
               >
                 <option value="">All Classes</option>
-                <option value="X">Class X</option>
-                <option value="IX">Class IX</option>
-                <option value="XI">Class XI</option>
+                {classes.map((cls) => (
+                  <option key={cls._id} value={cls.name}>{cls.name}</option>
+                ))}
               </select>
-              
-              <select 
+
+              <select
                 className="border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
                 value={selectedSection}
                 onChange={(e) => setSelectedSection(e.target.value)}
               >
                 <option value="">All Sections</option>
-                <option value="A">Section A</option>
-                <option value="B">Section B</option>
+                {sections
+                  .filter(s => {
+                    if (!selectedClass) return true;
+                    const classDoc = classes.find(c => c.name === selectedClass);
+                    return classDoc && s.classId === classDoc._id;
+                  })
+                  .map((sec) => (
+                    <option key={sec._id} value={sec.name}>{sec.name}</option>
+                  ))}
               </select>
             </div>
             
@@ -511,7 +727,10 @@ const Routines = ({setShowAdminHeader}) => {
                       >
                         <Edit2 size={16} />
                       </button>
-                      <button className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors">
+                      <button
+                        className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                        onClick={() => handleDelete(routine)}
+                      >
                         <Trash2 size={16} />
                       </button>
                     </div>
@@ -578,21 +797,71 @@ const Routines = ({setShowAdminHeader}) => {
         )}
 
         {/* No Data State */}
-        {((viewMode === 'daily' && filteredRoutines.length === 0) || 
-          (viewMode === 'weekly' && (!selectedClass || !selectedSection))) && (
+        {routines.length === 0 && (
           <div className="bg-white rounded-xl shadow-sm border border-purple-400 p-12">
             <div className="text-center">
               <div className="w-16 h-16 bg-purple-100 rounded-full flex items-center justify-center mx-auto mb-4">
                 <Calendar className="text-purple-500" size={24} />
               </div>
               <h3 className="text-lg font-medium text-gray-900 mb-2">
-                {viewMode === 'weekly' ? 'Select Class and Section' : 'No routines found'}
+                No routines created yet
+              </h3>
+              <p className="text-gray-500 mb-6">
+                Get started by creating your first class routine. You can add schedules for different classes, sections, and days.
+              </p>
+              <button
+                onClick={() => {
+                  const defClass = classes.length > 0 ? classes[0].name : '';
+                  const defSection = sections.length > 0 ? sections[0].name : '';
+                  const defDay = 'Monday';
+                  const schedule = TIMES.map((t) => ({
+                    time: t,
+                    isBreak: t.includes('10:15'),
+                    subject: t.includes('10:15') ? 'Break' : '',
+                    teacher: t.includes('10:15') ? '-' : ''
+                  }));
+                  setForm({ class: defClass, section: defSection, day: defDay, schedule });
+                  setEditingRoutine(null);
+                  setIsModalOpen(true);
+                }}
+                className="bg-indigo-500 hover:bg-indigo-600 text-white px-6 py-3 rounded-lg inline-flex items-center space-x-2"
+              >
+                <Plus size={20} />
+                <span>Create First Routine</span>
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Weekly View - No Selection State */}
+        {routines.length > 0 && viewMode === 'weekly' && (!selectedClass || !selectedSection) && (
+          <div className="bg-white rounded-xl shadow-sm border border-purple-400 p-12">
+            <div className="text-center">
+              <div className="w-16 h-16 bg-purple-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                <Calendar className="text-purple-500" size={24} />
+              </div>
+              <h3 className="text-lg font-medium text-gray-900 mb-2">
+                Select Class and Section
               </h3>
               <p className="text-gray-500">
-                {viewMode === 'weekly' 
-                  ? 'Please select both class and section to view the weekly schedule'
-                  : 'Try adjusting your filters or create a new routine'
-                }
+                Please select both class and section from the filters above to view the weekly schedule
+              </p>
+            </div>
+          </div>
+        )}
+
+        {/* Daily View - No Results State */}
+        {routines.length > 0 && viewMode === 'daily' && filteredRoutines.length === 0 && (
+          <div className="bg-white rounded-xl shadow-sm border border-purple-400 p-12">
+            <div className="text-center">
+              <div className="w-16 h-16 bg-purple-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                <Calendar className="text-purple-500" size={24} />
+              </div>
+              <h3 className="text-lg font-medium text-gray-900 mb-2">
+                No routines for selected filters
+              </h3>
+              <p className="text-gray-500">
+                Try adjusting your filters or create a new routine for this class/section/day
               </p>
             </div>
           </div>
@@ -621,31 +890,33 @@ const Routines = ({setShowAdminHeader}) => {
                     value={form.class}
                     onChange={(e) => {
                       const cls = e.target.value;
-                      const newSchedule = form.schedule.map((row) => row.isBreak ? row : {
-                        ...row,
-                        subject: SUBJECTS[cls][0],
-                        teacher: TEACHERS[SUBJECTS[cls][0]] || '-',
-                      });
-                      setForm((f) => ({ ...f, class: cls, schedule: newSchedule }));
+                      setForm((f) => ({ ...f, class: cls }));
                     }}
                     className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
                   >
-                    {Object.keys(SUBJECTS).map((cls) => (
-                      <option key={cls} value={cls}>Class {cls}</option>
+                    <option value="">Select Class</option>
+                    {classes.map((cls) => (
+                      <option key={cls._id} value={cls.name}>{cls.name}</option>
                     ))}
                   </select>
                 </div>
                 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">Section</label>
-                  <select 
-                    value={form.section} 
-                    onChange={(e) => setForm((f) => ({ ...f, section: e.target.value }))} 
+                  <select
+                    value={form.section}
+                    onChange={(e) => setForm((f) => ({ ...f, section: e.target.value }))}
                     className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
                   >
-                    {['A','B','C'].map((s) => (
-                      <option key={s} value={s}>Section {s}</option>
-                    ))}
+                    <option value="">Select Section</option>
+                    {sections
+                      .filter(s => {
+                        const classDoc = classes.find(c => c.name === form.class);
+                        return !classDoc || s.classId === classDoc._id;
+                      })
+                      .map((s) => (
+                        <option key={s._id} value={s.name}>{s.name}</option>
+                      ))}
                   </select>
                 </div>
                 
@@ -686,7 +957,7 @@ const Routines = ({setShowAdminHeader}) => {
                               const next = [...form.schedule];
                               next[idx] = isBreak
                                 ? { ...row, isBreak: true, subject: 'Break', teacher: '-' }
-                                : { ...row, isBreak: false, subject: SUBJECTS[form.class][0], teacher: TEACHERS[SUBJECTS[form.class][0]] || '-' };
+                                : { ...row, isBreak: false, subject: '', teacher: '' };
                               setForm((f) => ({ ...f, schedule: next }));
                             }}
                             className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
@@ -701,13 +972,14 @@ const Routines = ({setShowAdminHeader}) => {
                               onChange={(e) => {
                                 const subj = e.target.value;
                                 const next = [...form.schedule];
-                                next[idx] = { ...row, subject: subj, teacher: TEACHERS[subj] || '-' };
+                                next[idx] = { ...row, subject: subj };
                                 setForm((f) => ({ ...f, schedule: next }));
                               }}
                               className="w-full border border-gray-300 rounded-lg px-2 py-1 text-sm"
                             >
-                              {SUBJECTS[form.class].map((s) => (
-                                <option key={s} value={s}>{s}</option>
+                              <option value="">Select Subject</option>
+                              {subjects.map((s) => (
+                                <option key={s._id} value={s.name}>{s.name}</option>
                               ))}
                             </select>
                           )}
@@ -716,7 +988,7 @@ const Routines = ({setShowAdminHeader}) => {
                           {row.isBreak ? (
                             <span className="text-gray-500 italic">-</span>
                           ) : (
-                            <input
+                            <select
                               value={row.teacher}
                               onChange={(e) => {
                                 const next = [...form.schedule];
@@ -724,7 +996,12 @@ const Routines = ({setShowAdminHeader}) => {
                                 setForm((f) => ({ ...f, schedule: next }));
                               }}
                               className="w-full border border-gray-300 rounded-lg px-2 py-1 text-sm"
-                            />
+                            >
+                              <option value="">Select Teacher</option>
+                              {teachers.map((t) => (
+                                <option key={t._id} value={t.name}>{t.name}</option>
+                              ))}
+                            </select>
                           )}
                         </td>
                       </tr>
@@ -741,39 +1018,68 @@ const Routines = ({setShowAdminHeader}) => {
                   Cancel
                 </button>
                 <button
-                  className="px-4 py-2 bg-indigo-500 hover:bg-indigo-600 text-white rounded-lg transition-colors"
-                  onClick={() => {
-                    const normalized = {
-                      id: editingRoutine?.id ?? (routines.reduce((m, r) => Math.max(m, r.id), 0) + 1),
-                      class: form.class,
-                      section: form.section,
-                      day: form.day,
-                      schedule: form.schedule.map((r) => r.isBreak ? { time: r.time, subject: 'Break', teacher: '-' } : { time: r.time, subject: r.subject, teacher: r.teacher }),
-                    };
-                    setRoutines((prev) => {
-                      const idx = prev.findIndex((r) => r.id === editingRoutine?.id);
-                      if (idx >= 0) {
-                        const next = [...prev];
-                        next[idx] = normalized;
-                        return next;
-                      }
-                      const existingIdx = prev.findIndex((r) => r.class === normalized.class && r.section === normalized.section && r.day === normalized.day);
-                      if (existingIdx >= 0) {
-                        const next = [...prev];
-                        next[existingIdx] = { ...normalized, id: prev[existingIdx].id };
-                        return next;
-                      }
-                      return [...prev, normalized];
-                    });
-                    setIsModalOpen(false);
-                  }}
+                  className="px-4 py-2 bg-indigo-500 hover:bg-indigo-600 text-white rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2"
+                  onClick={handleSave}
+                  disabled={saving}
                 >
-                  Save Routine
+                  {saving && <Loader2 className="animate-spin" size={16} />}
+                  <span>{saving ? 'Saving...' : 'Save Routine'}</span>
                 </button>
               </div>
             </div>
           </div>
         )}
+
+        {/* Conflict Modal */}
+        {showConflictModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <div className="absolute inset-0 bg-black/50" onClick={() => setShowConflictModal(false)} />
+            <div className="relative bg-white w-full max-w-2xl rounded-xl shadow-lg border border-red-400 p-6">
+              <div className="flex items-center justify-between mb-6">
+                <div className="flex items-center space-x-3">
+                  <div className="p-2 bg-red-100 rounded-lg">
+                    <AlertCircle className="text-red-600" size={24} />
+                  </div>
+                  <h3 className="text-xl font-semibold text-gray-900">Schedule Conflicts Detected</h3>
+                </div>
+                <button
+                  className="text-gray-500 hover:text-gray-700 p-2 hover:bg-gray-100 rounded-lg transition-colors"
+                  onClick={() => setShowConflictModal(false)}
+                >
+                  ✕
+                </button>
+              </div>
+
+              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-4">
+                <p className="text-yellow-800 mb-3">
+                  The following conflicts were found. Please resolve them before saving:
+                </p>
+                <ul className="space-y-2">
+                  {conflicts.map((conflict, index) => (
+                    <li key={index} className="flex items-start space-x-2 text-sm">
+                      <span className="text-yellow-600 mt-0.5">•</span>
+                      <span className="text-yellow-900">{conflict.message}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+
+              <div className="flex items-center justify-end space-x-3">
+                <button
+                  className="px-4 py-2 bg-gray-500 hover:bg-gray-600 text-white rounded-lg transition-colors"
+                  onClick={() => {
+                    setShowConflictModal(false);
+                    setConflicts([]);
+                  }}
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+        </>
+      )}
     </div>
   );
 };
