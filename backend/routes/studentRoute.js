@@ -323,7 +323,7 @@ router.get('/dashboard', authStudent, async (req, res) => {
   // #swagger.tags = ['Students']
   try {
     const student = await StudentUser.findById(req.user.id)
-      .populate('nifStudent', 'course grade section batchCode duration status photograph documents serialNo')
+      .populate('nifStudent', 'course grade class section roll batchCode duration status photograph documents serialNo')
       .populate('schoolId', 'name code logo')
       .lean();
 
@@ -331,19 +331,26 @@ router.get('/dashboard', authStudent, async (req, res) => {
       return res.status(404).json({ error: 'Student not found' });
     }
 
+    const nifStudentData = extractPopulatedDoc(student.nifStudent);
+
     // Calculate stats
     const totalAttendance = student.attendance?.length || 0;
     const presentDays = student.attendance?.filter(a => a.status === 'present').length || 0;
     const attendancePercentage = totalAttendance > 0 ? Math.round((presentDays / totalAttendance) * 100) : 0;
 
+    const resolvedGrade = nifStudentData?.class || nifStudentData?.grade || student.grade || '';
+    const resolvedSection = nifStudentData?.section || student.section || '';
+    const resolvedRoll = nifStudentData?.roll || student.roll || '';
+
     // Get course info from nifStudent
-    const courseInfo = student.nifStudent ? {
-      name: student.nifStudent.course || 'Not Assigned',
-      grade: student.nifStudent.grade || student.grade || 'N/A',
-      section: student.nifStudent.section || student.section || 'N/A',
-      batchCode: student.nifStudent.batchCode || 'N/A',
-      duration: student.nifStudent.duration || 'N/A',
-      status: student.nifStudent.status || 'Active'
+    const courseInfo = nifStudentData ? {
+      name: nifStudentData.course || 'Not Assigned',
+      grade: resolvedGrade || 'N/A',
+      section: resolvedSection || 'N/A',
+      roll: resolvedRoll || '',
+      batchCode: nifStudentData.batchCode || 'N/A',
+      duration: nifStudentData.duration || 'N/A',
+      status: nifStudentData.status || 'Active'
     } : null;
 
     const schoolInfo = extractSchoolInfo(student.schoolId);
@@ -354,9 +361,12 @@ router.get('/dashboard', authStudent, async (req, res) => {
         username: student.username,
         email: student.email,
         mobile: student.mobile,
-        grade: student.grade,
-        section: student.section,
-        roll: student.roll,
+        grade: resolvedGrade,
+        section: resolvedSection,
+        roll: resolvedRoll,
+        className: resolvedGrade,
+        sectionName: resolvedSection,
+        rollNumber: resolvedRoll,
         profilePic: resolveProfilePhoto(student),
         avatar: resolveProfilePhoto(student),
         school: schoolInfo,

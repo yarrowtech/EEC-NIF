@@ -31,6 +31,7 @@ const ExaminationManagement = ({setShowAdminHeader}) => {
   const [formData, setFormData] = useState({
     title: '',
     subject: '',
+    term: 'Term 1',
     date: '',
     time: '',
     endDate: '',
@@ -567,7 +568,7 @@ const ExaminationManagement = ({setShowAdminHeader}) => {
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div>
                         <div className="text-sm font-medium text-gray-900">{exam.title}</div>
-                        <div className="text-sm text-gray-500">{exam.subject}</div>
+                        <div className="text-sm text-gray-500">{exam.subject} {exam.term && <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800">{exam.term}</span>}</div>
                         <div className="text-sm text-gray-500">Instructor: {exam.instructor}</div>
                       </div>
                     </td>
@@ -918,12 +919,23 @@ const ExaminationManagement = ({setShowAdminHeader}) => {
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-sm text-gray-700 mb-1">Instructor</label>
-                    <input name="instructor" value={formData.instructor} onChange={e => setFormData({...formData, instructor: e.target.value})} required placeholder="Prof. Priya Verma" className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-500 focus:border-transparent" />
+                    <label className="block text-sm text-gray-700 mb-1">Term / Type</label>
+                    <select name="term" value={formData.term} onChange={e => setFormData({...formData, term: e.target.value})} required className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-500 focus:border-transparent">
+                      <option value="Term 1">Term 1</option>
+                      <option value="Term 2">Term 2</option>
+                      <option value="Term 3">Term 3</option>
+                      <option value="Class Test">Class Test</option>
+                    </select>
                   </div>
                   <div>
                     <label className="block text-sm text-gray-700 mb-1">Venue</label>
                     <input name="venue" value={formData.venue} onChange={e => setFormData({...formData, venue: e.target.value})} required placeholder="Hall A" className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-500 focus:border-transparent" />
+                  </div>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-sm text-gray-700 mb-1">Instructor</label>
+                    <input name="instructor" value={formData.instructor} onChange={e => setFormData({...formData, instructor: e.target.value})} required placeholder="Prof. Priya Verma" className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-500 focus:border-transparent" />
                   </div>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-3">

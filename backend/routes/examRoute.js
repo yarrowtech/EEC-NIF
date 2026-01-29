@@ -1,9 +1,18 @@
 const express = require('express');
+const multer = require('multer');
+const csv = require('csv-parser');
+const fs = require('fs');
 const Exam = require('../models/Exam');
 const ExamResult = require('../models/ExamResult');
 const StudentUser = require('../models/StudentUser');
+const TeacherUser = require('../models/TeacherUser');
+const ParentUser = require('../models/ParentUser');
+const Notification = require('../models/Notification');
 const adminAuth = require('../middleware/adminAuth');
 const teacherAuth = require('../middleware/authTeacher');
+
+// Configure multer for CSV upload
+const upload = multer({ dest: 'uploads/' });
 
 const resolveSchoolId = (req, res) => {
     const schoolId = req.schoolId || req.admin?.schoolId || null;
@@ -34,13 +43,14 @@ router.get("/fetch", adminAuth, async (req, res) => {
 router.post("/add", adminAuth, async (req, res) => {
   // #swagger.tags = ['Exams']
     try {
-        const { title, subject, instructor, venue, date, time, duration, marks, noOfStudents, status } = req.body;
+        const { title, subject, term, instructor, venue, date, time, duration, marks, noOfStudents, status } = req.body;
         const schoolId = resolveSchoolId(req, res);
         if (!schoolId) return;
         const exam = new Exam({
             schoolId,
             title,
             subject,
+            term: term || 'Term 1',
             instructor,
             venue,
             date,
@@ -58,10 +68,30 @@ router.post("/add", adminAuth, async (req, res) => {
 })
 
 // Create or update exam results (admin/teacher)
-router.post("/results", teacherAuth, async (req, res) => {
+// Combined middleware to accept both admin and teacher
+const adminOrTeacherAuth = async (req, res, next) => {
+    // Try admin auth first
+    const adminToken = req.headers.authorization?.split(' ')[1];
+    if (adminToken) {
+        try {
+            const decoded = require('jsonwebtoken').verify(adminToken, process.env.JWT_SECRET);
+            if (decoded.role === 'admin') {
+                req.admin = decoded;
+                req.schoolId = decoded.schoolId;
+                return next();
+            }
+        } catch (err) {
+            // Token invalid or not admin, try teacher auth
+        }
+    }
+    // Fall back to teacher auth
+    return teacherAuth(req, res, next);
+};
+
+router.post("/results", adminOrTeacherAuth, async (req, res) => {
   // #swagger.tags = ['Exams']
     try {
-        const schoolId = req.schoolId || req.user?.schoolId || null;
+        const schoolId = req.schoolId || req.user?.schoolId || req.admin?.schoolId || null;
         if (!schoolId) return res.status(400).json({ error: 'schoolId is required' });
         const { examId, studentId, marks, grade, remarks, status } = req.body || {};
         if (!examId || !studentId) {
@@ -171,6 +201,192 @@ router.get("/results/me", require('../middleware/authStudent'), async (req, res)
             .lean();
         res.json(results);
     } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// Bulk upload results via CSV
+router.post("/results/bulk-upload", adminAuth, upload.single('file'), async (req, res) => {
+  // #swagger.tags = ['Exams']
+    const filePath = req.file?.path;
+
+    try {
+        const schoolId = resolveSchoolId(req, res);
+        if (!schoolId) return;
+
+        if (!filePath) {
+            return res.status(400).json({ error: 'CSV file is required' });
+        }
+
+        const results = [];
+        const errors = [];
+
+        // Read and parse CSV
+        await new Promise((resolve, reject) => {
+            fs.createReadStream(filePath)
+                .pipe(csv())
+                .on('data', (row) => {
+                    results.push(row);
+                })
+                .on('end', resolve)
+                .on('error', reject);
+        });
+
+        let successCount = 0;
+        let errorCount = 0;
+
+        // Process each row
+        for (let i = 0; i < results.length; i++) {
+            const row = results[i];
+            try {
+                const { examId, studentId, marks, grade, remarks, status } = row;
+
+                if (!examId || !studentId || !marks) {
+                    errors.push(`Row ${i + 2}: Missing required fields (examId, studentId, marks)`);
+                    errorCount++;
+                    continue;
+                }
+
+                // Verify exam exists
+                const exam = await Exam.findOne({ _id: examId, schoolId }).lean();
+                if (!exam) {
+                    errors.push(`Row ${i + 2}: Exam not found`);
+                    errorCount++;
+                    continue;
+                }
+
+                // Verify student exists
+                const student = await StudentUser.findOne({ _id: studentId, schoolId }).lean();
+                if (!student) {
+                    errors.push(`Row ${i + 2}: Student not found`);
+                    errorCount++;
+                    continue;
+                }
+
+                const score = Number(marks);
+                if (!Number.isFinite(score) || score < 0) {
+                    errors.push(`Row ${i + 2}: Invalid marks value`);
+                    errorCount++;
+                    continue;
+                }
+
+                // Upsert result
+                await ExamResult.findOneAndUpdate(
+                    { examId, studentId, schoolId },
+                    {
+                        schoolId,
+                        examId,
+                        studentId,
+                        marks: score,
+                        grade: grade || '',
+                        remarks: remarks || '',
+                        status: status || 'pass',
+                        createdBy: req.admin?.id || null,
+                    },
+                    { new: true, upsert: true, runValidators: true }
+                );
+
+                successCount++;
+            } catch (err) {
+                errors.push(`Row ${i + 2}: ${err.message}`);
+                errorCount++;
+            }
+        }
+
+        // Clean up uploaded file
+        fs.unlinkSync(filePath);
+
+        res.status(200).json({
+            success: true,
+            count: successCount,
+            errors: errorCount > 0 ? errors : undefined,
+            message: `Successfully uploaded ${successCount} results${errorCount > 0 ? `, ${errorCount} failed` : ''}`
+        });
+    } catch (err) {
+        // Clean up file on error
+        if (filePath && fs.existsSync(filePath)) {
+            fs.unlinkSync(filePath);
+        }
+        console.error('Bulk upload error:', err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// Publish results for a specific class/section
+router.post("/results/publish", adminAuth, async (req, res) => {
+  // #swagger.tags = ['Exams']
+    try {
+        const schoolId = resolveSchoolId(req, res);
+        if (!schoolId) return;
+
+        const { grade, section } = req.body || {};
+        if (!grade) {
+            return res.status(400).json({ error: 'grade (class) is required' });
+        }
+
+        // Find all students in this class/section
+        const studentFilter = { schoolId, grade };
+        if (section) studentFilter.section = section;
+
+        const students = await StudentUser.find(studentFilter).select('_id grade section').lean();
+
+        if (students.length === 0) {
+            return res.status(404).json({ error: 'No students found for this class/section' });
+        }
+
+        const studentIds = students.map(s => s._id);
+
+        // Find all teachers who teach this class (teachers with same grade in subject or department field)
+        // Note: This is a simplified approach. You might need to adjust based on your teacher-class assignment logic
+        const teachers = await TeacherUser.find({ schoolId }).select('_id name email').lean();
+
+        // Find all parents of these students
+        const parents = await ParentUser.find({
+            schoolId,
+            childrenIds: { $in: studentIds }
+        }).select('_id name email').lean();
+
+        // Create notification message
+        const sectionText = section ? ` Section ${section}` : '';
+        const notificationTitle = `Results Published - ${grade}${sectionText}`;
+        const notificationMessage = `The examination results for ${grade}${sectionText} have been published. Please check your results.`;
+
+        // Create notifications for students
+        await Notification.create({
+            schoolId,
+            title: notificationTitle,
+            message: notificationMessage,
+            audience: 'Student',
+            createdBy: req.admin?.id || null,
+        });
+
+        // Create notifications for teachers
+        await Notification.create({
+            schoolId,
+            title: notificationTitle,
+            message: `The examination results for ${grade}${sectionText} have been published.`,
+            audience: 'Teacher',
+            createdBy: req.admin?.id || null,
+        });
+
+        // Create notifications for parents
+        await Notification.create({
+            schoolId,
+            title: notificationTitle,
+            message: `The examination results for ${grade}${sectionText} have been published. Please check your child's results.`,
+            audience: 'Parent',
+            createdBy: req.admin?.id || null,
+        });
+
+        res.status(200).json({
+            success: true,
+            message: `Results published successfully for ${grade}${sectionText}`,
+            studentsNotified: students.length,
+            teachersNotified: teachers.length,
+            parentsNotified: parents.length
+        });
+    } catch (err) {
+        console.error('Publish results error:', err);
         res.status(500).json({ error: err.message });
     }
 });

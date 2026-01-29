@@ -10,10 +10,16 @@ const WelcomeCard = () => {
     grade: '',
     section: '',
     roll: '',
+    className: '',
+    sectionName: '',
+    rollNumber: '',
     schoolName: '',
     schoolLogo: null,
     profilePic: null,
   };
+  const displayClass = studentData.className || studentData.grade;
+  const displaySection = studentData.sectionName || studentData.section;
+  const displayRoll = studentData.rollNumber || studentData.roll;
 
   const getGreeting = () => {
     const hour = new Date().getHours();
@@ -195,17 +201,17 @@ const WelcomeCard = () => {
               <h1 className="text-2xl font-bold mb-1">{studentData.name}!</h1>
               <p className="text-yellow-100 text-sm">
                 {studentData.username && `Student ID: ${studentData.username}`}
-                {studentData.grade && studentData.section && ` • ${studentData.grade} - Section ${studentData.section}`}
+                {displayClass && displaySection && ` • ${displayClass} - Section ${displaySection}`}
               </p>
               <div className="mt-3 flex flex-wrap gap-3 text-xs text-white/80">
-                {studentData.grade && (
+                {displayClass && (
                   <div className="px-3 py-1 rounded-full bg-white/20 border border-white/30">
-                    Class {studentData.grade}{studentData.section ? ` • Section ${studentData.section}` : ''}
+                    Class {displayClass}{displaySection ? ` • Section ${displaySection}` : ''}
                   </div>
                 )}
-                {studentData.roll && (
+                {displayRoll && (
                   <div className="px-3 py-1 rounded-full bg-white/20 border border-white/30">
-                    Roll No: {studentData.roll}
+                    Roll No: {displayRoll}
                   </div>
                 )}
               </div>

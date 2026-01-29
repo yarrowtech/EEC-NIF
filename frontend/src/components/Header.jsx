@@ -34,10 +34,16 @@ const Header = ({ sidebarOpen, setSidebarOpen, onOpenProfile }) => {
     grade: '',
     section: '',
     roll: '',
+    className: '',
+    sectionName: '',
+    rollNumber: '',
     schoolName: '',
     schoolLogo: null,
     profilePic: null,
   };
+  const displayClass = studentData.className || studentData.grade;
+  const displaySection = studentData.sectionName || studentData.section;
+  const displayRoll = studentData.rollNumber || studentData.roll;
 
   // Greeting and date
   const { greeting, dateLabel } = useMemo(() => {
@@ -78,10 +84,10 @@ const Header = ({ sidebarOpen, setSidebarOpen, onOpenProfile }) => {
                 <span>{dateLabel}</span>
               </div>
               <div className="text-[11px] text-gray-500 mt-0.5">
-                {studentData.grade
-                  ? `Class ${studentData.grade}${studentData.section ? ` • Section ${studentData.section}` : ''}`
+                {displayClass
+                  ? `Class ${displayClass}${displaySection ? ` • Section ${displaySection}` : ''}`
                   : 'Class not assigned'}
-                {studentData.roll ? ` • Roll ${studentData.roll}` : ''}
+                {displayRoll ? ` • Roll ${displayRoll}` : ''}
               </div>
             </div>
           </div>
