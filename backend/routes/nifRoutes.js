@@ -670,6 +670,108 @@ router.post('/students', adminAuth, async (req, res) => {
   }
 });
 
+/* ========== UPDATE STUDENT ========== */
+router.put('/students/:id', adminAuth, async (req, res) => {
+  // #swagger.tags = ['NIF']
+  try {
+    const { id } = req.params;
+    if (!mongoose.isValidObjectId(id)) {
+      return res.status(400).json({ message: 'Invalid student id' });
+    }
+
+    const student = await NifStudent.findById(id);
+    if (!student) {
+      return res.status(404).json({ message: 'Student not found' });
+    }
+
+    if (!matchesSchoolScope(student, req) || !matchesCampusScope(student, req)) {
+      return res.status(403).json({ message: 'Access denied' });
+    }
+
+    const updateData = {};
+
+    // Core fields
+    if (req.body.name !== undefined) updateData.name = sanitizeString(req.body.name);
+    if (req.body.email !== undefined) updateData.email = sanitizeString(req.body.email);
+    if (req.body.mobile !== undefined) updateData.mobile = sanitizeString(req.body.mobile);
+    if (req.body.gender !== undefined) updateData.gender = sanitizeString(req.body.gender);
+    if (req.body.dob !== undefined) updateData.dob = parseDate(req.body.dob);
+    if (req.body.address !== undefined) updateData.address = sanitizeString(req.body.address);
+    if (req.body.permanentAddress !== undefined) updateData.permanentAddress = sanitizeString(req.body.permanentAddress);
+    if (req.body.pincode !== undefined) updateData.pincode = sanitizeString(req.body.pincode);
+    if (req.body.status !== undefined) updateData.status = sanitizeString(req.body.status);
+
+    // Personal Details Extended
+    if (req.body.birthPlace !== undefined) updateData.birthPlace = sanitizeString(req.body.birthPlace);
+    if (req.body.nationality !== undefined) updateData.nationality = sanitizeString(req.body.nationality);
+    if (req.body.religion !== undefined) updateData.religion = sanitizeString(req.body.religion);
+    if (req.body.caste !== undefined) updateData.caste = sanitizeString(req.body.caste);
+    if (req.body.category !== undefined) updateData.category = sanitizeString(req.body.category);
+    if (req.body.photograph !== undefined) updateData.photograph = sanitizeString(req.body.photograph);
+
+    // Guardian/Parent Info
+    if (req.body.guardianName !== undefined) updateData.guardianName = sanitizeString(req.body.guardianName);
+    if (req.body.guardianEmail !== undefined) updateData.guardianEmail = sanitizeString(req.body.guardianEmail);
+    if (req.body.guardianPhone !== undefined) updateData.guardianPhone = sanitizeString(req.body.guardianPhone);
+    if (req.body.fatherName !== undefined) updateData.fatherName = sanitizeString(req.body.fatherName);
+    if (req.body.fatherOccupation !== undefined) updateData.fatherOccupation = sanitizeString(req.body.fatherOccupation);
+    if (req.body.fatherPhone !== undefined) updateData.fatherPhone = sanitizeString(req.body.fatherPhone);
+    if (req.body.motherName !== undefined) updateData.motherName = sanitizeString(req.body.motherName);
+    if (req.body.motherOccupation !== undefined) updateData.motherOccupation = sanitizeString(req.body.motherOccupation);
+    if (req.body.motherPhone !== undefined) updateData.motherPhone = sanitizeString(req.body.motherPhone);
+
+    // Emergency Contact
+    if (req.body.emergencyContactName !== undefined) updateData.emergencyContactName = sanitizeString(req.body.emergencyContactName);
+    if (req.body.emergencyContactPhone !== undefined) updateData.emergencyContactPhone = sanitizeString(req.body.emergencyContactPhone);
+    if (req.body.emergencyContactRelation !== undefined) updateData.emergencyContactRelation = sanitizeString(req.body.emergencyContactRelation);
+
+    // Academic History
+    if (req.body.previousSchoolName !== undefined) updateData.previousSchoolName = sanitizeString(req.body.previousSchoolName);
+    if (req.body.previousClass !== undefined) updateData.previousClass = sanitizeString(req.body.previousClass);
+    if (req.body.previousPercentage !== undefined) updateData.previousPercentage = sanitizeString(req.body.previousPercentage);
+    if (req.body.transferCertificateNo !== undefined) updateData.transferCertificateNo = sanitizeString(req.body.transferCertificateNo);
+    if (req.body.transferCertificateDate !== undefined) updateData.transferCertificateDate = parseDate(req.body.transferCertificateDate);
+    if (req.body.reasonForLeaving !== undefined) updateData.reasonForLeaving = sanitizeString(req.body.reasonForLeaving);
+
+    // Medical Info
+    if (req.body.bloodGroup !== undefined) updateData.bloodGroup = sanitizeString(req.body.bloodGroup);
+    if (req.body.knownHealthIssues !== undefined) updateData.knownHealthIssues = sanitizeString(req.body.knownHealthIssues);
+    if (req.body.allergies !== undefined) updateData.allergies = sanitizeString(req.body.allergies);
+    if (req.body.immunizationStatus !== undefined) updateData.immunizationStatus = sanitizeString(req.body.immunizationStatus);
+    if (req.body.learningDisabilities !== undefined) updateData.learningDisabilities = sanitizeString(req.body.learningDisabilities);
+
+    // Documents
+    if (req.body.aadharNumber !== undefined) updateData.aadharNumber = sanitizeString(req.body.aadharNumber);
+    if (req.body.birthCertificateNo !== undefined) updateData.birthCertificateNo = sanitizeString(req.body.birthCertificateNo);
+
+    // Office Use
+    if (req.body.applicationId !== undefined) updateData.applicationId = sanitizeString(req.body.applicationId);
+    if (req.body.applicationDate !== undefined) updateData.applicationDate = parseDate(req.body.applicationDate);
+    if (req.body.approvalStatus !== undefined) updateData.approvalStatus = sanitizeString(req.body.approvalStatus);
+    if (req.body.remarks !== undefined) updateData.remarks = sanitizeString(req.body.remarks);
+
+    // Academic fields
+    if (req.body.serialNo !== undefined) updateData.serialNo = parseNumber(req.body.serialNo);
+    if (req.body.academicYear !== undefined) updateData.academicYear = sanitizeString(req.body.academicYear);
+    if (req.body.admissionDate !== undefined) updateData.admissionDate = parseDate(req.body.admissionDate);
+    if (req.body.admissionNumber !== undefined) updateData.admissionNumber = sanitizeString(req.body.admissionNumber);
+    if (req.body.roll !== undefined) updateData.roll = sanitizeString(req.body.roll);
+    if (req.body.class !== undefined) updateData.class = sanitizeString(req.body.class);
+    if (req.body.section !== undefined) updateData.section = sanitizeString(req.body.section);
+
+    // Update the student
+    Object.keys(updateData).forEach(key => {
+      student[key] = updateData[key];
+    });
+
+    await student.save();
+    res.json(student.toJSON());
+  } catch (err) {
+    console.error('Student update error:', err);
+    res.status(400).json({ message: err.message });
+  }
+});
+
 router.delete('/students/:id', adminAuth, async (req, res) => {
   // #swagger.tags = ['NIF']
   try {

@@ -5,6 +5,8 @@ const NifStudent = require('../models/NifStudent');
 const Class = require('../models/Class');
 const Section = require('../models/Section');
 const Timetable = require('../models/Timetable');
+const ExamResult = require('../models/ExamResult');
+const Exam = require('../models/Exam');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const adminAuth = require('../middleware/adminAuth');
@@ -456,15 +458,40 @@ router.get('/results', authStudent, async (req, res) => {
   // #swagger.tags = ['Students']
   try {
     const student = await StudentUser.findById(req.user.id)
-      .select('results name grade section')
+      .select('name grade section schoolId')
       .lean();
 
     if (!student) {
       return res.status(404).json({ error: 'Student not found' });
     }
 
+    // Fetch exam results from ExamResult collection
+    const examResults = await ExamResult.find({
+      studentId: req.user.id,
+      schoolId: student.schoolId
+    })
+      .populate('examId', 'title subject date term marks')
+      .sort({ createdAt: -1 })
+      .lean();
+
+    // Transform to match frontend expectations
+    const formattedResults = examResults.map(result => ({
+      _id: result._id,
+      examName: result.examId?.title || 'Exam',
+      subject: result.examId?.subject || '',
+      date: result.examId?.date || null,
+      type: result.examId?.term || 'general',
+      obtainedMarks: result.marks || 0,
+      totalMarks: result.examId?.marks || 100,
+      percentage: result.examId?.marks ? (result.marks / result.examId.marks) * 100 : 0,
+      grade: result.grade || '',
+      status: result.status || 'pass',
+      remarks: result.remarks || '',
+      subjects: [] // Can be expanded if needed
+    }));
+
     res.json({
-      results: student.results || []
+      results: formattedResults
     });
   } catch (err) {
     console.error('Results error:', err);

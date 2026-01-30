@@ -48,6 +48,9 @@ const Students = ({ setShowAdminHeader, setShowAdminBreadcrumb }) => {
   const [selectedStudent, setSelectedStudent] = useState(null);
   const [wellbeingData, setWellbeingData] = useState({});
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showDetailModal, setShowDetailModal] = useState(false);
+  const [editingStudent, setEditingStudent] = useState(null);
+  const [isUpdating, setIsUpdating] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
   const fileInputRef = useRef(null);
   const [archivedStudents, setArchivedStudents] = useState([]);
@@ -888,6 +891,54 @@ const Students = ({ setShowAdminHeader, setShowAdminBreadcrumb }) => {
     document.body.removeChild(link);
   };
 
+  const handleUpdateStudent = async (e) => {
+    e.preventDefault();
+    if (!editingStudent || !editingStudent._id) return;
+
+    setIsUpdating(true);
+    try {
+      const res = await fetch(
+        `${API_BASE}/api/nif/students/${editingStudent._id}`,
+        {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+            authorization: `Bearer ${localStorage.getItem("token")}`,
+          },
+          body: JSON.stringify(editingStudent),
+        }
+      );
+
+      if (res.ok) {
+        const updatedStudent = await res.json();
+        setStudentData((prev) =>
+          prev.map((s) =>
+            s._id === updatedStudent._id ? updatedStudent : s
+          )
+        );
+        setShowDetailModal(false);
+        setEditingStudent(null);
+        Swal.fire({
+          title: "Success!",
+          text: "Student details updated successfully",
+          icon: "success",
+          timer: 2000,
+        });
+      } else {
+        const error = await res.json().catch(() => ({}));
+        throw new Error(error.message || "Failed to update student");
+      }
+    } catch (err) {
+      Swal.fire({
+        title: "Error",
+        text: err.message || "Failed to update student",
+        icon: "error",
+      });
+    } finally {
+      setIsUpdating(false);
+    }
+  };
+
   const handleUnarchiveStudent = async (studentId) => {
     if (!studentId) return;
     if (!window.confirm("Restore this student from archive?")) return;
@@ -1429,13 +1480,19 @@ const Students = ({ setShowAdminHeader, setShowAdminBreadcrumb }) => {
                     className="hover:bg-yellow-50 transition-all duration-200"
                   >
                     {/* Student Info */}
-                    <td className="border-b border-yellow-100 px-2 py-2">
+                    <td
+                      className="border-b border-yellow-100 px-2 py-2 cursor-pointer"
+                      onClick={() => {
+                        setEditingStudent({ ...student });
+                        setShowDetailModal(true);
+                      }}
+                    >
                       <div className="flex items-center gap-2">
                         <div className="w-6 h-6 rounded-full bg-yellow-200 flex items-center justify-center text-xs flex-shrink-0">
                           {student.name?.charAt(0) || "?"}
                         </div>
                         <div className="min-w-0 flex-1">
-                          <div className="font-medium text-gray-900 text-xs truncate">
+                          <div className="font-medium text-gray-900 text-xs truncate hover:text-yellow-600">
                             {student.name}
                           </div>
                           <div className="text-xs text-gray-500 truncate">
@@ -2633,6 +2690,534 @@ const Students = ({ setShowAdminHeader, setShowAdminBreadcrumb }) => {
             </div>
           </div>
         )}
+        {showDetailModal && editingStudent && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 overflow-y-auto">
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-5xl my-8 border border-gray-200">
+              <div className="px-6 py-4 border-b border-gray-200 bg-gradient-to-r from-yellow-50 to-amber-50">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-4">
+                    <div className="w-16 h-16 rounded-full bg-gradient-to-br from-yellow-400 to-amber-500 flex items-center justify-center text-white text-2xl font-bold shadow-lg">
+                      {editingStudent.name?.charAt(0) || "?"}
+                    </div>
+                    <div>
+                      <h3 className="text-2xl font-bold text-gray-900">
+                        {editingStudent.name}
+                      </h3>
+                      <p className="text-sm text-gray-600">
+                        Roll: {editingStudent.roll} | {editingStudent.class} - {editingStudent.section}
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => {
+                      setShowDetailModal(false);
+                      setEditingStudent(null);
+                    }}
+                    className="text-gray-500 hover:text-gray-700 p-2 rounded-lg hover:bg-white/50 transition"
+                  >
+                    <X size={24} />
+                  </button>
+                </div>
+              </div>
+
+              <form onSubmit={handleUpdateStudent} className="overflow-y-auto max-h-[70vh]">
+                <div className="p-6 space-y-6">
+                  {/* Personal Information */}
+                  <div className="bg-gray-50 rounded-xl p-4">
+                    <h4 className="text-lg font-semibold text-gray-800 mb-4 flex items-center gap-2">
+                      <Users size={20} className="text-yellow-600" />
+                      Personal Information
+                    </h4>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Full Name <span className="text-red-500">*</span>
+                        </label>
+                        <input
+                          type="text"
+                          value={editingStudent.name || ""}
+                          onChange={(e) =>
+                            setEditingStudent({ ...editingStudent, name: e.target.value })
+                          }
+                          className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-yellow-500 focus:outline-none"
+                          required
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Email
+                        </label>
+                        <input
+                          type="email"
+                          value={editingStudent.email || ""}
+                          onChange={(e) =>
+                            setEditingStudent({ ...editingStudent, email: e.target.value })
+                          }
+                          className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-yellow-500 focus:outline-none"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Mobile <span className="text-red-500">*</span>
+                        </label>
+                        <input
+                          type="tel"
+                          value={editingStudent.mobile || ""}
+                          onChange={(e) =>
+                            setEditingStudent({ ...editingStudent, mobile: e.target.value })
+                          }
+                          className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-yellow-500 focus:outline-none"
+                          required
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Gender <span className="text-red-500">*</span>
+                        </label>
+                        <select
+                          value={editingStudent.gender || ""}
+                          onChange={(e) =>
+                            setEditingStudent({ ...editingStudent, gender: e.target.value })
+                          }
+                          className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-yellow-500 focus:outline-none"
+                          required
+                        >
+                          <option value="">Select</option>
+                          <option value="Male">Male</option>
+                          <option value="Female">Female</option>
+                          <option value="Other">Other</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Date of Birth
+                        </label>
+                        <input
+                          type="date"
+                          value={editingStudent.dob?.split("T")[0] || ""}
+                          onChange={(e) =>
+                            setEditingStudent({ ...editingStudent, dob: e.target.value })
+                          }
+                          className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-yellow-500 focus:outline-none"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Blood Group
+                        </label>
+                        <select
+                          value={editingStudent.bloodGroup || ""}
+                          onChange={(e) =>
+                            setEditingStudent({ ...editingStudent, bloodGroup: e.target.value })
+                          }
+                          className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-yellow-500 focus:outline-none"
+                        >
+                          <option value="">Select</option>
+                          <option value="A+">A+</option>
+                          <option value="A-">A-</option>
+                          <option value="B+">B+</option>
+                          <option value="B-">B-</option>
+                          <option value="AB+">AB+</option>
+                          <option value="AB-">AB-</option>
+                          <option value="O+">O+</option>
+                          <option value="O-">O-</option>
+                        </select>
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Current Address
+                        </label>
+                        <textarea
+                          value={editingStudent.address || ""}
+                          onChange={(e) =>
+                            setEditingStudent({ ...editingStudent, address: e.target.value })
+                          }
+                          rows={2}
+                          className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-yellow-500 focus:outline-none resize-none"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Permanent Address
+                        </label>
+                        <textarea
+                          value={editingStudent.permanentAddress || ""}
+                          onChange={(e) =>
+                            setEditingStudent({ ...editingStudent, permanentAddress: e.target.value })
+                          }
+                          rows={2}
+                          className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-yellow-500 focus:outline-none resize-none"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Academic Information */}
+                  <div className="bg-blue-50 rounded-xl p-4">
+                    <h4 className="text-lg font-semibold text-gray-800 mb-4 flex items-center gap-2">
+                      <BookOpen size={20} className="text-blue-600" />
+                      Academic Information
+                    </h4>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Admission Number
+                        </label>
+                        <input
+                          type="text"
+                          value={editingStudent.admissionNumber || ""}
+                          onChange={(e) =>
+                            setEditingStudent({ ...editingStudent, admissionNumber: e.target.value })
+                          }
+                          className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Roll Number <span className="text-red-500">*</span>
+                        </label>
+                        <input
+                          type="text"
+                          value={editingStudent.roll || ""}
+                          onChange={(e) =>
+                            setEditingStudent({ ...editingStudent, roll: e.target.value })
+                          }
+                          className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                          required
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Class <span className="text-red-500">*</span>
+                        </label>
+                        <input
+                          type="text"
+                          value={editingStudent.class || ""}
+                          onChange={(e) =>
+                            setEditingStudent({ ...editingStudent, class: e.target.value })
+                          }
+                          className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                          required
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Section <span className="text-red-500">*</span>
+                        </label>
+                        <input
+                          type="text"
+                          value={editingStudent.section || ""}
+                          onChange={(e) =>
+                            setEditingStudent({ ...editingStudent, section: e.target.value })
+                          }
+                          className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                          required
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Admission Date
+                        </label>
+                        <input
+                          type="date"
+                          value={editingStudent.admissionDate?.split("T")[0] || ""}
+                          onChange={(e) =>
+                            setEditingStudent({ ...editingStudent, admissionDate: e.target.value })
+                          }
+                          className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Academic Year
+                        </label>
+                        <input
+                          type="text"
+                          value={editingStudent.academicYear || ""}
+                          onChange={(e) =>
+                            setEditingStudent({ ...editingStudent, academicYear: e.target.value })
+                          }
+                          className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Guardian Information */}
+                  <div className="bg-green-50 rounded-xl p-4">
+                    <h4 className="text-lg font-semibold text-gray-800 mb-4 flex items-center gap-2">
+                      <Phone size={20} className="text-green-600" />
+                      Guardian / Parent Information
+                    </h4>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Father's Name
+                        </label>
+                        <input
+                          type="text"
+                          value={editingStudent.fatherName || ""}
+                          onChange={(e) =>
+                            setEditingStudent({ ...editingStudent, fatherName: e.target.value })
+                          }
+                          className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-green-500 focus:outline-none"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Father's Phone
+                        </label>
+                        <input
+                          type="tel"
+                          value={editingStudent.fatherPhone || ""}
+                          onChange={(e) =>
+                            setEditingStudent({ ...editingStudent, fatherPhone: e.target.value })
+                          }
+                          className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-green-500 focus:outline-none"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Father's Occupation
+                        </label>
+                        <input
+                          type="text"
+                          value={editingStudent.fatherOccupation || ""}
+                          onChange={(e) =>
+                            setEditingStudent({ ...editingStudent, fatherOccupation: e.target.value })
+                          }
+                          className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-green-500 focus:outline-none"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Mother's Name
+                        </label>
+                        <input
+                          type="text"
+                          value={editingStudent.motherName || ""}
+                          onChange={(e) =>
+                            setEditingStudent({ ...editingStudent, motherName: e.target.value })
+                          }
+                          className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-green-500 focus:outline-none"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Mother's Phone
+                        </label>
+                        <input
+                          type="tel"
+                          value={editingStudent.motherPhone || ""}
+                          onChange={(e) =>
+                            setEditingStudent({ ...editingStudent, motherPhone: e.target.value })
+                          }
+                          className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-green-500 focus:outline-none"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Mother's Occupation
+                        </label>
+                        <input
+                          type="text"
+                          value={editingStudent.motherOccupation || ""}
+                          onChange={(e) =>
+                            setEditingStudent({ ...editingStudent, motherOccupation: e.target.value })
+                          }
+                          className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-green-500 focus:outline-none"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Guardian Name
+                        </label>
+                        <input
+                          type="text"
+                          value={editingStudent.guardianName || ""}
+                          onChange={(e) =>
+                            setEditingStudent({ ...editingStudent, guardianName: e.target.value })
+                          }
+                          className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-green-500 focus:outline-none"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Guardian Phone
+                        </label>
+                        <input
+                          type="tel"
+                          value={editingStudent.guardianPhone || ""}
+                          onChange={(e) =>
+                            setEditingStudent({ ...editingStudent, guardianPhone: e.target.value })
+                          }
+                          className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-green-500 focus:outline-none"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Guardian Email
+                        </label>
+                        <input
+                          type="email"
+                          value={editingStudent.guardianEmail || ""}
+                          onChange={(e) =>
+                            setEditingStudent({ ...editingStudent, guardianEmail: e.target.value })
+                          }
+                          className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-green-500 focus:outline-none"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Medical Information */}
+                  <div className="bg-red-50 rounded-xl p-4">
+                    <h4 className="text-lg font-semibold text-gray-800 mb-4 flex items-center gap-2">
+                      <Heart size={20} className="text-red-600" />
+                      Medical Information
+                    </h4>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Known Health Issues
+                        </label>
+                        <textarea
+                          value={editingStudent.knownHealthIssues || ""}
+                          onChange={(e) =>
+                            setEditingStudent({ ...editingStudent, knownHealthIssues: e.target.value })
+                          }
+                          rows={2}
+                          className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-red-500 focus:outline-none resize-none"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Allergies
+                        </label>
+                        <textarea
+                          value={editingStudent.allergies || ""}
+                          onChange={(e) =>
+                            setEditingStudent({ ...editingStudent, allergies: e.target.value })
+                          }
+                          rows={2}
+                          className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-red-500 focus:outline-none resize-none"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Additional Information */}
+                  <div className="bg-purple-50 rounded-xl p-4">
+                    <h4 className="text-lg font-semibold text-gray-800 mb-4">
+                      Additional Information
+                    </h4>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Nationality
+                        </label>
+                        <input
+                          type="text"
+                          value={editingStudent.nationality || ""}
+                          onChange={(e) =>
+                            setEditingStudent({ ...editingStudent, nationality: e.target.value })
+                          }
+                          className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-purple-500 focus:outline-none"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Religion
+                        </label>
+                        <input
+                          type="text"
+                          value={editingStudent.religion || ""}
+                          onChange={(e) =>
+                            setEditingStudent({ ...editingStudent, religion: e.target.value })
+                          }
+                          className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-purple-500 focus:outline-none"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Category
+                        </label>
+                        <input
+                          type="text"
+                          value={editingStudent.category || ""}
+                          onChange={(e) =>
+                            setEditingStudent({ ...editingStudent, category: e.target.value })
+                          }
+                          className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-purple-500 focus:outline-none"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Aadhar Number
+                        </label>
+                        <input
+                          type="text"
+                          value={editingStudent.aadharNumber || ""}
+                          onChange={(e) =>
+                            setEditingStudent({ ...editingStudent, aadharNumber: e.target.value })
+                          }
+                          className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-purple-500 focus:outline-none"
+                        />
+                      </div>
+                    </div>
+                    <div className="mt-4">
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Remarks
+                      </label>
+                      <textarea
+                        value={editingStudent.remarks || ""}
+                        onChange={(e) =>
+                          setEditingStudent({ ...editingStudent, remarks: e.target.value })
+                        }
+                        rows={2}
+                        className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-purple-500 focus:outline-none resize-none"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Action Buttons */}
+                <div className="px-6 py-4 border-t border-gray-200 bg-gray-50 flex justify-end gap-3">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowDetailModal(false);
+                      setEditingStudent(null);
+                    }}
+                    className="px-6 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-100 transition"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={isUpdating}
+                    className="px-6 py-2 bg-gradient-to-r from-yellow-500 to-amber-500 text-white rounded-lg hover:from-yellow-600 hover:to-amber-600 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 transition"
+                  >
+                    {isUpdating ? (
+                      <>
+                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                        Updating...
+                      </>
+                    ) : (
+                      <>
+                        <Edit2 size={16} />
+                        Update Student
+                      </>
+                    )}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
         {showArchiveModal && (
           <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
             <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[80vh] overflow-hidden border border-gray-200">

@@ -33,8 +33,8 @@ router.get("/fetch", adminAuth, async (req, res) => {
     try {
         const schoolId = resolveSchoolId(req, res);
         if (!schoolId) return;
-        const subjects = await Exam.find({ schoolId })
-        res.status(200).json(subjects);
+        const exams = await Exam.find({ schoolId }).lean();
+        res.status(200).json(exams);
     } catch(err) {
         res.status(400).json({error: err.message});
     }
@@ -46,7 +46,7 @@ router.post("/add", adminAuth, async (req, res) => {
         const { title, subject, term, instructor, venue, date, time, duration, marks, noOfStudents, status } = req.body;
         const schoolId = resolveSchoolId(req, res);
         if (!schoolId) return;
-        const exam = new Exam({
+        const exam = await Exam.create({
             schoolId,
             title,
             subject,
@@ -60,8 +60,7 @@ router.post("/add", adminAuth, async (req, res) => {
             noOfStudents,
             status
         });
-        await exam.save();
-        res.status(201).json({message: "Exam added successfully"});
+        res.status(201).json({message: "Exam added successfully", exam});
     } catch(err) {
         res.status(400).json({error: err.message});
     }
@@ -75,9 +74,10 @@ const adminOrTeacherAuth = async (req, res, next) => {
     if (adminToken) {
         try {
             const decoded = require('jsonwebtoken').verify(adminToken, process.env.JWT_SECRET);
-            if (decoded.role === 'admin') {
+            if (decoded.type === 'admin') {
                 req.admin = decoded;
                 req.schoolId = decoded.schoolId;
+                req.userType = 'Admin';
                 return next();
             }
         } catch (err) {
