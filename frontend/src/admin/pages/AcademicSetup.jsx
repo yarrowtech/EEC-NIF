@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { BookOpen, Calendar, Layers, Plus, Edit3, Trash2, X, ChevronUp, ChevronDown, ChevronsUpDown, Download, FileSpreadsheet } from "lucide-react";
+import { BookOpen, Calendar, Layers, Plus, Edit3, Trash2, X, ChevronUp, ChevronDown, ChevronsUpDown, Download, FileSpreadsheet, Upload } from "lucide-react";
 import Swal from "sweetalert2";
 import toast from "react-hot-toast";
 import * as XLSX from 'xlsx';
@@ -700,6 +700,513 @@ const AcademicSetup = ({ setShowAdminHeader }) => {
     { label: 'Class', accessor: (s) => classes.find(c => c._id === s.classId)?.name || 'All classes', width: 20 },
   ];
 
+  // Bulk import handlers
+  const downloadYearTemplate = () => {
+    const template = [
+      { Name: '2024-2025', 'Start Date': '2024-04-01', 'End Date': '2025-03-31', Active: 'Yes' },
+      { Name: '2025-2026', 'Start Date': '2025-04-01', 'End Date': '2026-03-31', Active: 'No' },
+    ];
+    const ws = XLSX.utils.json_to_sheet(template);
+    ws['!cols'] = [{ wch: 20 }, { wch: 15 }, { wch: 15 }, { wch: 10 }];
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Years Template');
+    XLSX.writeFile(wb, 'academic_years_template.xlsx');
+    toast.success('Template downloaded');
+  };
+
+  const downloadClassTemplate = () => {
+    const template = [
+      { Name: 'Grade 1', 'Academic Year': '2024-2025', Order: 1 },
+      { Name: 'Grade 2', 'Academic Year': '2024-2025', Order: 2 },
+      { Name: 'Grade 3', 'Academic Year': '', Order: 3 },
+    ];
+    const ws = XLSX.utils.json_to_sheet(template);
+    ws['!cols'] = [{ wch: 20 }, { wch: 20 }, { wch: 10 }];
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Classes Template');
+    XLSX.writeFile(wb, 'classes_template.xlsx');
+    toast.success('Template downloaded');
+  };
+
+  const downloadSectionTemplate = () => {
+    const template = [
+      { Name: 'A', 'Class Name': 'Grade 1' },
+      { Name: 'B', 'Class Name': 'Grade 1' },
+      { Name: 'A', 'Class Name': 'Grade 2' },
+    ];
+    const ws = XLSX.utils.json_to_sheet(template);
+    ws['!cols'] = [{ wch: 20 }, { wch: 20 }];
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Sections Template');
+    XLSX.writeFile(wb, 'sections_template.xlsx');
+    toast.success('Template downloaded');
+  };
+
+  const downloadSubjectTemplate = () => {
+    const template = [
+      { Name: 'Mathematics', Code: 'MATH101', 'Class Name': 'Grade 1' },
+      { Name: 'English', Code: 'ENG101', 'Class Name': 'Grade 1' },
+      { Name: 'Physical Education', Code: 'PE101', 'Class Name': '' },
+    ];
+    const ws = XLSX.utils.json_to_sheet(template);
+    ws['!cols'] = [{ wch: 25 }, { wch: 15 }, { wch: 20 }];
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Subjects Template');
+    XLSX.writeFile(wb, 'subjects_template.xlsx');
+    toast.success('Template downloaded');
+  };
+
+  const handleYearImport = async (event) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    try {
+      const data = await file.arrayBuffer();
+      const workbook = XLSX.read(data);
+      const worksheet = workbook.Sheets[workbook.SheetNames[0]];
+      const jsonData = XLSX.utils.sheet_to_json(worksheet);
+
+      if (jsonData.length === 0) {
+        toast.error('File is empty');
+        return;
+      }
+
+      let successCount = 0;
+      let failCount = 0;
+      const errors = [];
+
+      Swal.fire({
+        title: 'Importing...',
+        html: `Imported: <b>0</b> / ${jsonData.length}`,
+        allowOutsideClick: false,
+        didOpen: () => Swal.showLoading(),
+      });
+
+      for (let i = 0; i < jsonData.length; i++) {
+        const row = jsonData[i];
+        try {
+          const yearName = row['Name'] || row['name'];
+          const startDate = row['Start Date'] || row['startDate'] || '';
+          const endDate = row['End Date'] || row['endDate'] || '';
+          const active = row['Active'] || row['active'] || '';
+
+          if (!yearName?.trim()) {
+            errors.push(`Row ${i + 1}: Year name is required`);
+            failCount++;
+            continue;
+          }
+
+          const isActive = String(active).toLowerCase() === 'yes' || String(active).toLowerCase() === 'true';
+
+          const res = await fetch(`${API_BASE}/api/academic/years`, {
+            method: 'POST',
+            headers: authHeaders,
+            body: JSON.stringify({
+              name: String(yearName).trim(),
+              startDate: startDate || undefined,
+              endDate: endDate || undefined,
+              isActive,
+            }),
+          });
+
+          if (res.ok) {
+            successCount++;
+          } else {
+            const errData = await res.json().catch(() => ({}));
+            errors.push(`Row ${i + 1}: ${errData.error || 'Failed to create'}`);
+            failCount++;
+          }
+
+          Swal.update({
+            html: `Imported: <b>${successCount}</b> / ${jsonData.length}${
+              failCount > 0 ? ` (${failCount} failed)` : ''
+            }`,
+          });
+        } catch (err) {
+          errors.push(`Row ${i + 1}: ${err.message}`);
+          failCount++;
+        }
+      }
+
+      await fetchYears();
+      event.target.value = '';
+
+      if (errors.length > 0) {
+        Swal.fire({
+          title: 'Import Completed with Errors',
+          html: `
+            <p>Successfully imported: <b>${successCount}</b></p>
+            <p>Failed: <b>${failCount}</b></p>
+            <div style="max-height: 200px; overflow-y: auto; text-align: left; margin-top: 10px;">
+              <p><b>Errors:</b></p>
+              <ul style="font-size: 12px;">
+                ${errors.map(e => `<li>${e}</li>`).join('')}
+              </ul>
+            </div>
+          `,
+          icon: successCount > 0 ? 'warning' : 'error',
+        });
+      } else {
+        Swal.fire({
+          title: 'Import Successful',
+          text: `Successfully imported ${successCount} academic year(s)`,
+          icon: 'success',
+          timer: 2000,
+        });
+      }
+    } catch (err) {
+      console.error(err);
+      Swal.fire({
+        title: 'Import Failed',
+        text: err.message || 'Failed to read file',
+        icon: 'error',
+      });
+    }
+  };
+
+  const handleClassImport = async (event) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    try {
+      const data = await file.arrayBuffer();
+      const workbook = XLSX.read(data);
+      const worksheet = workbook.Sheets[workbook.SheetNames[0]];
+      const jsonData = XLSX.utils.sheet_to_json(worksheet);
+
+      if (jsonData.length === 0) {
+        toast.error('File is empty');
+        return;
+      }
+
+      let successCount = 0;
+      let failCount = 0;
+      const errors = [];
+
+      Swal.fire({
+        title: 'Importing...',
+        html: `Imported: <b>0</b> / ${jsonData.length}`,
+        allowOutsideClick: false,
+        didOpen: () => Swal.showLoading(),
+      });
+
+      for (let i = 0; i < jsonData.length; i++) {
+        const row = jsonData[i];
+        try {
+          const className = row['Name'] || row['name'] || row['Class Name'];
+          const yearName = row['Academic Year'] || row['academicYear'] || '';
+          const order = row['Order'] || row['order'] || 0;
+
+          if (!className?.trim()) {
+            errors.push(`Row ${i + 1}: Class name is required`);
+            failCount++;
+            continue;
+          }
+
+          let academicYearId = '';
+          if (yearName) {
+            const year = years.find(y => y.name.toLowerCase() === yearName.toLowerCase());
+            if (year) {
+              academicYearId = year._id;
+            }
+          }
+
+          const res = await fetch(`${API_BASE}/api/academic/classes`, {
+            method: 'POST',
+            headers: authHeaders,
+            body: JSON.stringify({
+              name: String(className).trim(),
+              academicYearId: academicYearId || undefined,
+              order: Number(order) || 0,
+            }),
+          });
+
+          if (res.ok) {
+            successCount++;
+          } else {
+            const errData = await res.json().catch(() => ({}));
+            errors.push(`Row ${i + 1}: ${errData.error || 'Failed to create'}`);
+            failCount++;
+          }
+
+          Swal.update({
+            html: `Imported: <b>${successCount}</b> / ${jsonData.length}${
+              failCount > 0 ? ` (${failCount} failed)` : ''
+            }`,
+          });
+        } catch (err) {
+          errors.push(`Row ${i + 1}: ${err.message}`);
+          failCount++;
+        }
+      }
+
+      await fetchClasses();
+      event.target.value = '';
+
+      if (errors.length > 0) {
+        Swal.fire({
+          title: 'Import Completed with Errors',
+          html: `
+            <p>Successfully imported: <b>${successCount}</b></p>
+            <p>Failed: <b>${failCount}</b></p>
+            <div style="max-height: 200px; overflow-y: auto; text-align: left; margin-top: 10px;">
+              <p><b>Errors:</b></p>
+              <ul style="font-size: 12px;">
+                ${errors.map(e => `<li>${e}</li>`).join('')}
+              </ul>
+            </div>
+          `,
+          icon: successCount > 0 ? 'warning' : 'error',
+        });
+      } else {
+        Swal.fire({
+          title: 'Import Successful',
+          text: `Successfully imported ${successCount} class(es)`,
+          icon: 'success',
+          timer: 2000,
+        });
+      }
+    } catch (err) {
+      console.error(err);
+      Swal.fire({
+        title: 'Import Failed',
+        text: err.message || 'Failed to read file',
+        icon: 'error',
+      });
+    }
+  };
+
+  const handleSectionImport = async (event) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    try {
+      const data = await file.arrayBuffer();
+      const workbook = XLSX.read(data);
+      const worksheet = workbook.Sheets[workbook.SheetNames[0]];
+      const jsonData = XLSX.utils.sheet_to_json(worksheet);
+
+      if (jsonData.length === 0) {
+        toast.error('File is empty');
+        return;
+      }
+
+      let successCount = 0;
+      let failCount = 0;
+      const errors = [];
+
+      Swal.fire({
+        title: 'Importing...',
+        html: `Imported: <b>0</b> / ${jsonData.length}`,
+        allowOutsideClick: false,
+        didOpen: () => Swal.showLoading(),
+      });
+
+      for (let i = 0; i < jsonData.length; i++) {
+        const row = jsonData[i];
+        try {
+          const sectionName = row['Name'] || row['name'] || row['Section Name'];
+          const className = row['Class Name'] || row['className'] || row['Class'];
+
+          if (!sectionName?.trim()) {
+            errors.push(`Row ${i + 1}: Section name is required`);
+            failCount++;
+            continue;
+          }
+
+          if (!className?.trim()) {
+            errors.push(`Row ${i + 1}: Class name is required`);
+            failCount++;
+            continue;
+          }
+
+          const classObj = classes.find(c => c.name.toLowerCase() === String(className).toLowerCase().trim());
+          if (!classObj) {
+            errors.push(`Row ${i + 1}: Class "${className}" not found`);
+            failCount++;
+            continue;
+          }
+
+          const res = await fetch(`${API_BASE}/api/academic/sections`, {
+            method: 'POST',
+            headers: authHeaders,
+            body: JSON.stringify({
+              name: String(sectionName).trim(),
+              classId: classObj._id,
+            }),
+          });
+
+          if (res.ok) {
+            successCount++;
+          } else {
+            const errData = await res.json().catch(() => ({}));
+            errors.push(`Row ${i + 1}: ${errData.error || 'Failed to create'}`);
+            failCount++;
+          }
+
+          Swal.update({
+            html: `Imported: <b>${successCount}</b> / ${jsonData.length}${
+              failCount > 0 ? ` (${failCount} failed)` : ''
+            }`,
+          });
+        } catch (err) {
+          errors.push(`Row ${i + 1}: ${err.message}`);
+          failCount++;
+        }
+      }
+
+      await fetchSections();
+      event.target.value = '';
+
+      if (errors.length > 0) {
+        Swal.fire({
+          title: 'Import Completed with Errors',
+          html: `
+            <p>Successfully imported: <b>${successCount}</b></p>
+            <p>Failed: <b>${failCount}</b></p>
+            <div style="max-height: 200px; overflow-y: auto; text-align: left; margin-top: 10px;">
+              <p><b>Errors:</b></p>
+              <ul style="font-size: 12px;">
+                ${errors.map(e => `<li>${e}</li>`).join('')}
+              </ul>
+            </div>
+          `,
+          icon: successCount > 0 ? 'warning' : 'error',
+        });
+      } else {
+        Swal.fire({
+          title: 'Import Successful',
+          text: `Successfully imported ${successCount} section(s)`,
+          icon: 'success',
+          timer: 2000,
+        });
+      }
+    } catch (err) {
+      console.error(err);
+      Swal.fire({
+        title: 'Import Failed',
+        text: err.message || 'Failed to read file',
+        icon: 'error',
+      });
+    }
+  };
+
+  const handleSubjectImport = async (event) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    try {
+      const data = await file.arrayBuffer();
+      const workbook = XLSX.read(data);
+      const worksheet = workbook.Sheets[workbook.SheetNames[0]];
+      const jsonData = XLSX.utils.sheet_to_json(worksheet);
+
+      if (jsonData.length === 0) {
+        toast.error('File is empty');
+        return;
+      }
+
+      let successCount = 0;
+      let failCount = 0;
+      const errors = [];
+
+      Swal.fire({
+        title: 'Importing...',
+        html: `Imported: <b>0</b> / ${jsonData.length}`,
+        allowOutsideClick: false,
+        didOpen: () => Swal.showLoading(),
+      });
+
+      for (let i = 0; i < jsonData.length; i++) {
+        const row = jsonData[i];
+        try {
+          const subjectName = row['Name'] || row['name'] || row['Subject Name'];
+          const subjectCode = row['Code'] || row['code'] || '';
+          const className = row['Class Name'] || row['className'] || row['Class'] || '';
+
+          if (!subjectName?.trim()) {
+            errors.push(`Row ${i + 1}: Subject name is required`);
+            failCount++;
+            continue;
+          }
+
+          let classId = '';
+          if (className?.trim()) {
+            const classObj = classes.find(c => c.name.toLowerCase() === String(className).toLowerCase().trim());
+            if (classObj) {
+              classId = classObj._id;
+            } else {
+              errors.push(`Row ${i + 1}: Class "${className}" not found`);
+              failCount++;
+              continue;
+            }
+          }
+
+          const res = await fetch(`${API_BASE}/api/academic/subjects`, {
+            method: 'POST',
+            headers: authHeaders,
+            body: JSON.stringify({
+              name: String(subjectName).trim(),
+              code: subjectCode ? String(subjectCode).trim() : undefined,
+              classId: classId || undefined,
+            }),
+          });
+
+          if (res.ok) {
+            successCount++;
+          } else {
+            const errData = await res.json().catch(() => ({}));
+            errors.push(`Row ${i + 1}: ${errData.error || 'Failed to create'}`);
+            failCount++;
+          }
+
+          Swal.update({
+            html: `Imported: <b>${successCount}</b> / ${jsonData.length}${
+              failCount > 0 ? ` (${failCount} failed)` : ''
+            }`,
+          });
+        } catch (err) {
+          errors.push(`Row ${i + 1}: ${err.message}`);
+          failCount++;
+        }
+      }
+
+      await fetchSubjects();
+      event.target.value = '';
+
+      if (errors.length > 0) {
+        Swal.fire({
+          title: 'Import Completed with Errors',
+          html: `
+            <p>Successfully imported: <b>${successCount}</b></p>
+            <p>Failed: <b>${failCount}</b></p>
+            <div style="max-height: 200px; overflow-y: auto; text-align: left; margin-top: 10px;">
+              <p><b>Errors:</b></p>
+              <ul style="font-size: 12px;">
+                ${errors.map(e => `<li>${e}</li>`).join('')}
+              </ul>
+            </div>
+          `,
+          icon: successCount > 0 ? 'warning' : 'error',
+        });
+      } else {
+        Swal.fire({
+          title: 'Import Successful',
+          text: `Successfully imported ${successCount} subject(s)`,
+          icon: 'success',
+          timer: 2000,
+        });
+      }
+    } catch (err) {
+      console.error(err);
+      Swal.fire({
+        title: 'Import Failed',
+        text: err.message || 'Failed to read file',
+        icon: 'error',
+      });
+    }
+  };
+
   const tabButton = (key, label, Icon) => (
     <button
       type="button"
@@ -969,8 +1476,8 @@ const AcademicSetup = ({ setShowAdminHeader }) => {
             <div className="bg-white rounded-xl border border-gray-200 p-6">
               <h2 className="text-xl font-semibold text-gray-800 mb-4">Academic Years</h2>
 
-              {/* Export Buttons */}
-              <div className="flex gap-2 mb-4">
+              {/* Export & Import Buttons */}
+              <div className="flex flex-wrap gap-2 mb-4">
                 <button
                   onClick={() => exportToCSV(sortedAndFilteredYears, 'academic_years', yearColumns)}
                   className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 flex items-center gap-2 text-sm"
@@ -984,6 +1491,23 @@ const AcademicSetup = ({ setShowAdminHeader }) => {
                 >
                   <FileSpreadsheet className="w-4 h-4" />
                   Export Excel
+                </button>
+                <label className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 flex items-center gap-2 text-sm cursor-pointer">
+                  <Upload className="w-4 h-4" />
+                  Import Excel
+                  <input
+                    type="file"
+                    accept=".xlsx,.xls,.csv"
+                    onChange={handleYearImport}
+                    className="hidden"
+                  />
+                </label>
+                <button
+                  onClick={downloadYearTemplate}
+                  className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 flex items-center gap-2 text-sm"
+                >
+                  <Download className="w-4 h-4" />
+                  Template
                 </button>
               </div>
 
@@ -1180,7 +1704,7 @@ const AcademicSetup = ({ setShowAdminHeader }) => {
             <div className="bg-white rounded-xl border border-gray-200 p-6">
               <h2 className="text-xl font-semibold text-gray-800 mb-4">Classes</h2>
 
-              <div className="flex gap-2 mb-4">
+              <div className="flex flex-wrap gap-2 mb-4">
                 <button
                   onClick={() => exportToCSV(sortedAndFilteredClasses, 'classes', classColumns)}
                   className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 flex items-center gap-2 text-sm"
@@ -1194,6 +1718,23 @@ const AcademicSetup = ({ setShowAdminHeader }) => {
                 >
                   <FileSpreadsheet className="w-4 h-4" />
                   Export Excel
+                </button>
+                <label className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 flex items-center gap-2 text-sm cursor-pointer">
+                  <Upload className="w-4 h-4" />
+                  Import Excel
+                  <input
+                    type="file"
+                    accept=".xlsx,.xls,.csv"
+                    onChange={handleClassImport}
+                    className="hidden"
+                  />
+                </label>
+                <button
+                  onClick={downloadClassTemplate}
+                  className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 flex items-center gap-2 text-sm"
+                >
+                  <Download className="w-4 h-4" />
+                  Template
                 </button>
               </div>
 
@@ -1363,6 +1904,26 @@ const AcademicSetup = ({ setShowAdminHeader }) => {
             <div className="bg-white rounded-xl border border-gray-200 p-6">
               <h2 className="text-xl font-semibold text-gray-800 mb-4">Sections</h2>
 
+              <div className="flex flex-wrap gap-2 mb-4">
+                <label className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 flex items-center gap-2 text-sm cursor-pointer">
+                  <Upload className="w-4 h-4" />
+                  Import Excel
+                  <input
+                    type="file"
+                    accept=".xlsx,.xls,.csv"
+                    onChange={handleSectionImport}
+                    className="hidden"
+                  />
+                </label>
+                <button
+                  onClick={downloadSectionTemplate}
+                  className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 flex items-center gap-2 text-sm"
+                >
+                  <Download className="w-4 h-4" />
+                  Template
+                </button>
+              </div>
+
               <SearchInput
                 value={searchSection}
                 onChange={setSearchSection}
@@ -1465,6 +2026,26 @@ const AcademicSetup = ({ setShowAdminHeader }) => {
 
             <div className="bg-white rounded-xl border border-gray-200 p-6">
               <h2 className="text-xl font-semibold text-gray-800 mb-4">Subjects</h2>
+
+              <div className="flex flex-wrap gap-2 mb-4">
+                <label className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 flex items-center gap-2 text-sm cursor-pointer">
+                  <Upload className="w-4 h-4" />
+                  Import Excel
+                  <input
+                    type="file"
+                    accept=".xlsx,.xls,.csv"
+                    onChange={handleSubjectImport}
+                    className="hidden"
+                  />
+                </label>
+                <button
+                  onClick={downloadSubjectTemplate}
+                  className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 flex items-center gap-2 text-sm"
+                >
+                  <Download className="w-4 h-4" />
+                  Template
+                </button>
+              </div>
 
               <SearchInput
                 value={searchSubject}
