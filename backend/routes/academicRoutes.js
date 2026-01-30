@@ -22,6 +22,16 @@ const resolveSchoolId = (req, res) => {
   return schoolId;
 };
 
+const resolveCampusId = (req) => req.campusId || null;
+
+const buildCampusFilter = (schoolId, campusId) => {
+  const filter = { schoolId };
+  if (campusId) {
+    filter.campusId = campusId;
+  }
+  return filter;
+};
+
 // Academic Years
 router.post('/years', adminAuth, async (req, res) => {
   // #swagger.tags = ['Academics']
@@ -118,6 +128,7 @@ router.delete('/years/:id', adminAuth, async (req, res) => {
     const dependentClasses = await ClassModel.countDocuments({
       schoolId,
       academicYearId: id,
+      ...(campusId ? { campusId } : {}),
     });
 
     if (dependentClasses > 0) {
@@ -140,6 +151,7 @@ router.post('/classes', adminAuth, async (req, res) => {
   try {
     const schoolId = resolveSchoolId(req, res);
     if (!schoolId) return;
+    const campusId = resolveCampusId(req);
     const { name, academicYearId, order } = req.body || {};
     if (!name || !String(name).trim()) {
       return res.status(400).json({ error: 'Class name is required' });
@@ -147,9 +159,16 @@ router.post('/classes', adminAuth, async (req, res) => {
     if (academicYearId && !mongoose.isValidObjectId(academicYearId)) {
       return res.status(400).json({ error: 'Invalid academicYearId' });
     }
+    if (academicYearId) {
+      const yearExists = await AcademicYear.findOne({ _id: academicYearId, schoolId }).lean();
+      if (!yearExists) {
+        return res.status(404).json({ error: 'Academic year not found for this school' });
+      }
+    }
 
     const created = await ClassModel.create({
       schoolId,
+      campusId: campusId || null,
       name: String(name).trim(),
       academicYearId: academicYearId || undefined,
       order: Number.isFinite(Number(order)) ? Number(order) : 0,
@@ -165,7 +184,9 @@ router.get('/classes', adminAuth, async (req, res) => {
   try {
     const schoolId = resolveSchoolId(req, res);
     if (!schoolId) return;
-    const items = await ClassModel.find({ schoolId }).sort({ order: 1, name: 1 }).lean();
+    const items = await ClassModel.find(buildCampusFilter(schoolId, resolveCampusId(req)))
+      .sort({ order: 1, name: 1 })
+      .lean();
     res.json(items);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -190,9 +211,17 @@ router.put('/classes/:id', adminAuth, async (req, res) => {
     if (academicYearId && !mongoose.isValidObjectId(academicYearId)) {
       return res.status(400).json({ error: 'Invalid academicYearId' });
     }
+    if (academicYearId) {
+      const yearExists = await AcademicYear.findOne({ _id: academicYearId, schoolId }).lean();
+      if (!yearExists) {
+        return res.status(404).json({ error: 'Academic year not found for this school' });
+      }
+    }
 
     // Verify ownership
-    const existing = await ClassModel.findOne({ _id: id, schoolId }).lean();
+    const existing = await ClassModel.findOne(buildCampusFilter(schoolId, campusId))
+      .where({ _id: id })
+      .lean();
     if (!existing) {
       return res.status(404).json({ error: 'Class not found' });
     }
@@ -203,6 +232,7 @@ router.put('/classes/:id', adminAuth, async (req, res) => {
         name: String(name).trim(),
         academicYearId: academicYearId || undefined,
         order: Number.isFinite(Number(order)) ? Number(order) : 0,
+        ...(campusId ? { campusId } : {}),
       },
       { new: true, runValidators: true }
     ).lean();
@@ -225,16 +255,27 @@ router.delete('/classes/:id', adminAuth, async (req, res) => {
 
     const schoolId = resolveSchoolId(req, res);
     if (!schoolId) return;
+    const campusId = resolveCampusId(req);
 
     // Verify ownership
-    const existing = await ClassModel.findOne({ _id: id, schoolId }).lean();
+    const existing = await ClassModel.findOne(buildCampusFilter(schoolId, campusId))
+      .where({ _id: id })
+      .lean();
     if (!existing) {
       return res.status(404).json({ error: 'Class not found' });
     }
 
     // Count dependent records
-    const dependentSections = await Section.countDocuments({ schoolId, classId: id });
-    const dependentSubjects = await Subject.countDocuments({ schoolId, classId: id });
+    const dependentSections = await Section.countDocuments({
+      schoolId,
+      classId: id,
+      ...(campusId ? { campusId } : {}),
+    });
+    const dependentSubjects = await Subject.countDocuments({
+      schoolId,
+      classId: id,
+      ...(campusId ? { campusId } : {}),
+    });
 
     if ((dependentSections > 0 || dependentSubjects > 0) && cascade !== 'true') {
       return res.status(409).json({
@@ -247,8 +288,16 @@ router.delete('/classes/:id', adminAuth, async (req, res) => {
 
     // Perform cascading delete if requested
     if (cascade === 'true') {
-      await Section.deleteMany({ schoolId, classId: id });
-      await Subject.deleteMany({ schoolId, classId: id });
+      await Section.deleteMany({
+        schoolId,
+        classId: id,
+        ...(campusId ? { campusId } : {}),
+      });
+      await Subject.deleteMany({
+        schoolId,
+        classId: id,
+        ...(campusId ? { campusId } : {}),
+      });
     }
 
     await ClassModel.findByIdAndDelete(id);
@@ -269,6 +318,7 @@ router.post('/sections', adminAuth, async (req, res) => {
   try {
     const schoolId = resolveSchoolId(req, res);
     if (!schoolId) return;
+    const campusId = resolveCampusId(req);
     const { name, classId } = req.body || {};
     if (!name || !String(name).trim()) {
       return res.status(400).json({ error: 'Section name is required' });
@@ -276,9 +326,16 @@ router.post('/sections', adminAuth, async (req, res) => {
     if (!classId || !mongoose.isValidObjectId(classId)) {
       return res.status(400).json({ error: 'Valid classId is required' });
     }
+    const classDoc = await ClassModel.findOne(buildCampusFilter(schoolId, campusId))
+      .where({ _id: classId })
+      .lean();
+    if (!classDoc) {
+      return res.status(404).json({ error: 'Class not found for this school' });
+    }
 
     const created = await Section.create({
       schoolId,
+      campusId: campusId || null,
       classId,
       name: String(name).trim(),
     });
@@ -293,7 +350,7 @@ router.get('/sections', adminAuth, async (req, res) => {
   try {
     const schoolId = resolveSchoolId(req, res);
     if (!schoolId) return;
-    const filter = { schoolId };
+    const filter = buildCampusFilter(schoolId, resolveCampusId(req));
     if (req.query.classId && mongoose.isValidObjectId(req.query.classId)) {
       filter.classId = req.query.classId;
     }
@@ -322,9 +379,17 @@ router.put('/sections/:id', adminAuth, async (req, res) => {
     if (!classId || !mongoose.isValidObjectId(classId)) {
       return res.status(400).json({ error: 'Valid classId is required' });
     }
+    const classDoc = await ClassModel.findOne(buildCampusFilter(schoolId, campusId))
+      .where({ _id: classId })
+      .lean();
+    if (!classDoc) {
+      return res.status(404).json({ error: 'Class not found for this school' });
+    }
 
     // Verify ownership
-    const existing = await Section.findOne({ _id: id, schoolId }).lean();
+    const existing = await Section.findOne(buildCampusFilter(schoolId, campusId))
+      .where({ _id: id })
+      .lean();
     if (!existing) {
       return res.status(404).json({ error: 'Section not found' });
     }
@@ -334,6 +399,7 @@ router.put('/sections/:id', adminAuth, async (req, res) => {
       {
         name: String(name).trim(),
         classId,
+        ...(campusId ? { campusId } : {}),
       },
       { new: true, runValidators: true }
     ).lean();
@@ -354,9 +420,12 @@ router.delete('/sections/:id', adminAuth, async (req, res) => {
 
     const schoolId = resolveSchoolId(req, res);
     if (!schoolId) return;
+    const campusId = resolveCampusId(req);
 
     // Verify ownership
-    const existing = await Section.findOne({ _id: id, schoolId }).lean();
+    const existing = await Section.findOne(buildCampusFilter(schoolId, campusId))
+      .where({ _id: id })
+      .lean();
     if (!existing) {
       return res.status(404).json({ error: 'Section not found' });
     }
@@ -374,6 +443,7 @@ router.post('/subjects', adminAuth, async (req, res) => {
   try {
     const schoolId = resolveSchoolId(req, res);
     if (!schoolId) return;
+    const campusId = resolveCampusId(req);
     const { name, code, classId } = req.body || {};
     if (!name || !String(name).trim()) {
       return res.status(400).json({ error: 'Subject name is required' });
@@ -381,9 +451,18 @@ router.post('/subjects', adminAuth, async (req, res) => {
     if (classId && !mongoose.isValidObjectId(classId)) {
       return res.status(400).json({ error: 'Invalid classId' });
     }
+    if (classId) {
+      const classDoc = await ClassModel.findOne(buildCampusFilter(schoolId, campusId))
+        .where({ _id: classId })
+        .lean();
+      if (!classDoc) {
+        return res.status(404).json({ error: 'Class not found for this school' });
+      }
+    }
 
     const created = await Subject.create({
       schoolId,
+      campusId: campusId || null,
       classId: classId || undefined,
       name: String(name).trim(),
       code: code ? String(code).trim() : undefined,
@@ -399,7 +478,7 @@ router.get('/subjects', adminAuth, async (req, res) => {
   try {
     const schoolId = resolveSchoolId(req, res);
     if (!schoolId) return;
-    const filter = { schoolId };
+    const filter = buildCampusFilter(schoolId, resolveCampusId(req));
     if (req.query.classId && mongoose.isValidObjectId(req.query.classId)) {
       filter.classId = req.query.classId;
     }
@@ -428,9 +507,19 @@ router.put('/subjects/:id', adminAuth, async (req, res) => {
     if (classId && !mongoose.isValidObjectId(classId)) {
       return res.status(400).json({ error: 'Invalid classId' });
     }
+    if (classId) {
+      const classDoc = await ClassModel.findOne(buildCampusFilter(schoolId, campusId))
+        .where({ _id: classId })
+        .lean();
+      if (!classDoc) {
+        return res.status(404).json({ error: 'Class not found for this school' });
+      }
+    }
 
     // Verify ownership
-    const existing = await Subject.findOne({ _id: id, schoolId }).lean();
+    const existing = await Subject.findOne(buildCampusFilter(schoolId, campusId))
+      .where({ _id: id })
+      .lean();
     if (!existing) {
       return res.status(404).json({ error: 'Subject not found' });
     }
@@ -441,6 +530,7 @@ router.put('/subjects/:id', adminAuth, async (req, res) => {
         name: String(name).trim(),
         code: code ? String(code).trim() : undefined,
         classId: classId || undefined,
+        ...(campusId ? { campusId } : {}),
       },
       { new: true, runValidators: true }
     ).lean();
@@ -461,9 +551,12 @@ router.delete('/subjects/:id', adminAuth, async (req, res) => {
 
     const schoolId = resolveSchoolId(req, res);
     if (!schoolId) return;
+    const campusId = resolveCampusId(req);
 
     // Verify ownership
-    const existing = await Subject.findOne({ _id: id, schoolId }).lean();
+    const existing = await Subject.findOne(buildCampusFilter(schoolId, campusId))
+      .where({ _id: id })
+      .lean();
     if (!existing) {
       return res.status(404).json({ error: 'Subject not found' });
     }

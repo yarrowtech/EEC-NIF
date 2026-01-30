@@ -2,6 +2,7 @@ const mongoose = require('mongoose');
 
 const examSchema = new mongoose.Schema({
     schoolId: { type: mongoose.Schema.Types.ObjectId, ref: 'School', required: true },
+    campusId: { type: String, default: null, index: true },
     title: String,
     subject: String,
     term: {

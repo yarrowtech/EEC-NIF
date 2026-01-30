@@ -1,4 +1,5 @@
-const API_BASE = '/api';
+const API_HOST = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '');
+const API_BASE = API_HOST ? `${API_HOST}/api` : '/api';
 
 // Helper to get token from localStorage
 const getToken = () => {
@@ -83,6 +84,21 @@ export const timetableApi = {
     }
   },
 
+  // Create or update timetable entries for a single day
+  saveDay: async (data) => {
+    try {
+      const res = await fetch(`${API_BASE}/timetable/day`, {
+        method: 'POST',
+        headers: createHeaders(true),
+        body: JSON.stringify(data)
+      });
+      return handleResponse(res);
+    } catch (error) {
+      console.error('Error saving timetable day:', error);
+      throw error;
+    }
+  },
+
   // Delete timetable
   delete: async (id) => {
     try {
@@ -93,6 +109,21 @@ export const timetableApi = {
       return handleResponse(res);
     } catch (error) {
       console.error('Error deleting timetable:', error);
+      throw error;
+    }
+  },
+
+  // Delete timetable entries for a single day
+  deleteDay: async (data) => {
+    try {
+      const res = await fetch(`${API_BASE}/timetable/day`, {
+        method: 'DELETE',
+        headers: createHeaders(true),
+        body: JSON.stringify(data)
+      });
+      return handleResponse(res);
+    } catch (error) {
+      console.error('Error deleting timetable day:', error);
       throw error;
     }
   },
@@ -234,7 +265,9 @@ export const transformTimetablesToRoutines = (timetables) => {
       byDay[entry.dayOfWeek].push({
         time: `${convertTo12Hour(entry.startTime)} - ${convertTo12Hour(entry.endTime)}`,
         subject: entry.subjectId?.name || 'Unknown',
+        subjectId: entry.subjectId?._id || entry.subjectId || null,
         teacher: entry.teacherId?.name || '-',
+        teacherId: entry.teacherId?._id || entry.teacherId || null,
         room: entry.room || '',
         period: entry.period
       });

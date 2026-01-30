@@ -32,6 +32,39 @@ const TEACHERS = {
   Computer: 'Ms. Nidhi Kapoor',
 };
 
+const getId = (value) => (value && typeof value === 'object' ? value._id : value);
+
+const buildScheduleForDay = (existingSchedule = []) => {
+  const byTime = new Map(existingSchedule.map((entry) => [entry.time, entry]));
+  return TIMES.map((time) => {
+    const match = byTime.get(time);
+    if (match) {
+      const isBreak = match.subject === 'Break';
+      return {
+        time,
+        isBreak,
+        subject: isBreak ? 'Break' : (match.subject || ''),
+        teacher: isBreak ? '-' : (match.teacher || ''),
+        subjectId: match.subjectId || null,
+        teacherId: match.teacherId || null,
+        room: match.room || '',
+      };
+    }
+    const isBreak = time.includes('10:15');
+    return {
+      time,
+      isBreak,
+      subject: isBreak ? 'Break' : '',
+      teacher: isBreak ? '-' : '',
+      subjectId: null,
+      teacherId: null,
+      room: '',
+    };
+  });
+};
+
+const isBreakSlot = (time) => time.includes('10:15');
+
 const Routines = ({setShowAdminHeader}) => {
   // Data state
   const [routines, setRoutines] = useState([]);
@@ -44,6 +77,7 @@ const Routines = ({setShowAdminHeader}) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [saving, setSaving] = useState(false);
+  const [draftSaving, setDraftSaving] = useState(false);
 
   // Toast state
   const [toast, setToast] = useState({ show: false, message: '', type: 'success' });
@@ -63,6 +97,9 @@ const Routines = ({setShowAdminHeader}) => {
     day: 'Monday',
     schedule: [], // [{time, subject, teacher, isBreak}]
   });
+  const [blockDraft, setBlockDraft] = useState({ subject: '', teacher: '', room: '' });
+  const [paletteBlocks, setPaletteBlocks] = useState([]);
+  const [weeklyDraft, setWeeklyDraft] = useState({});
 
   const filteredRoutines = routines.filter(routine =>
     (!selectedClass || routine.class === selectedClass) &&
@@ -161,6 +198,260 @@ const Routines = ({setShowAdminHeader}) => {
     loadInitialData();
   }, []);
 
+  const getClassDoc = () => classes.find(c => c.name === selectedClass);
+  const getSectionDoc = (classDoc) =>
+    sections.find(s => s.name === selectedSection && getId(s.classId) === classDoc?._id);
+
+  const getRoutineForDay = (day) =>
+    routines.find(r => r.class === selectedClass && r.section === selectedSection && r.day === day);
+
+  const getBaseCell = (day, time) => {
+    const routine = getRoutineForDay(day);
+    return routine?.schedule.find(p => p.time === time) || null;
+  };
+
+  const getCellBlock = (day, time) => {
+    const draft = weeklyDraft[day]?.[time];
+    if (draft === null) return null;
+    if (draft) return draft;
+    const base = getBaseCell(day, time);
+    if (!base || base.subject === 'Break') return null;
+    return {
+      subject: base.subject,
+      teacher: base.teacher,
+      subjectId: base.subjectId || null,
+      teacherId: base.teacherId || null,
+      room: base.room || '',
+    };
+  };
+
+  const buildDayScheduleMap = (day, overrides = {}) => {
+    const scheduleMap = {};
+    const routine = getRoutineForDay(day);
+    routine?.schedule.forEach((p) => {
+      if (p.subject === 'Break') return;
+      scheduleMap[p.time] = {
+        subject: p.subject,
+        teacher: p.teacher,
+        subjectId: p.subjectId || null,
+        teacherId: p.teacherId || null,
+        room: p.room || '',
+      };
+    });
+    const draftForDay = { ...(weeklyDraft[day] || {}), ...overrides };
+    Object.keys(draftForDay).forEach((time) => {
+      if (draftForDay[time] === null) {
+        delete scheduleMap[time];
+      } else if (draftForDay[time]) {
+        scheduleMap[time] = draftForDay[time];
+      }
+    });
+    return scheduleMap;
+  };
+
+  const buildEntriesFromScheduleMap = (day, scheduleMap) => {
+    return TIMES.map((time, index) => {
+      if (isBreakSlot(time)) return null;
+      const slot = scheduleMap[time];
+      if (!slot) return null;
+      const [startTime, endTime] = time.split(' - ').map(t => t.trim());
+      const subject = slot.subjectId
+        ? subjects.find(s => String(s._id) === String(slot.subjectId))
+        : subjects.find(s => s.name === slot.subject);
+      const teacher = slot.teacherId
+        ? teachers.find(t => String(t._id) === String(slot.teacherId))
+        : teachers.find(t => t.name === slot.teacher);
+      return {
+        dayOfWeek: day,
+        period: index + 1,
+        subjectId: subject?._id || slot.subjectId || null,
+        teacherId: teacher?._id || slot.teacherId || null,
+        startTime: convertTo24Hour(startTime),
+        endTime: convertTo24Hour(endTime),
+        room: slot.room || ''
+      };
+    }).filter(Boolean);
+  };
+
+  const validateDayConflicts = async (day, scheduleMap) => {
+    const classDoc = getClassDoc();
+    const sectionDoc = getSectionDoc(classDoc);
+    if (!classDoc) {
+      showErrorToast('Select class and section first');
+      return false;
+    }
+    const entries = buildEntriesFromScheduleMap(day, scheduleMap);
+    if (entries.length === 0) {
+      showErrorToast('Please add at least one class period');
+      return false;
+    }
+    if (entries.some((entry) => !entry.subjectId || !entry.teacherId)) {
+      showErrorToast('Invalid subject or teacher selection');
+      return false;
+    }
+    const routine = getRoutineForDay(day);
+    const conflictResult = await timetableApi.validateConflicts({
+      classId: classDoc._id,
+      sectionId: sectionDoc?._id || null,
+      entries,
+      excludeTimetableId: routine?.timetableId
+    });
+    if (conflictResult.hasConflicts) {
+      setConflicts(conflictResult.conflicts);
+      setShowConflictModal(true);
+      return false;
+    }
+    return true;
+  };
+
+  const handleDropOnCell = async (day, time, payload) => {
+    if (!selectedClass || !selectedSection) {
+      showErrorToast('Select class and section first');
+      return;
+    }
+    if (isBreakSlot(time)) {
+      showErrorToast('Break slots are locked');
+      return;
+    }
+
+    let block = null;
+    let source = null;
+    if (payload.type === 'palette') {
+      block = payload.block;
+    } else if (payload.type === 'cell') {
+      source = payload;
+      block = getCellBlock(payload.day, payload.time);
+    }
+
+    if (!block || !block.subject || !block.teacher) {
+      showErrorToast('Select subject and teacher first');
+      return;
+    }
+
+    if (source && source.day === day && source.time === time) {
+      return;
+    }
+
+    const overrides = { [time]: block };
+    if (source) {
+      overrides[source.time] = null;
+    }
+    const scheduleMap = buildDayScheduleMap(day, overrides);
+    const ok = await validateDayConflicts(day, scheduleMap);
+    if (!ok) return;
+
+    setWeeklyDraft((prev) => ({
+      ...prev,
+      [day]: {
+        ...(prev[day] || {}),
+        ...overrides,
+      },
+    }));
+  };
+
+  const handleDragStart = (event, payload) => {
+    event.dataTransfer.setData('application/json', JSON.stringify(payload));
+    event.dataTransfer.setData('text/plain', JSON.stringify(payload));
+    event.dataTransfer.effectAllowed = 'move';
+  };
+
+  const handleClearCell = (day, time) => {
+    if (isBreakSlot(time)) return;
+    setWeeklyDraft((prev) => ({
+      ...prev,
+      [day]: {
+        ...(prev[day] || {}),
+        [time]: null,
+      },
+    }));
+  };
+
+  const handleSaveDay = async (day, options = {}) => {
+    const { silent = false } = options;
+    const classDoc = getClassDoc();
+    const sectionDoc = getSectionDoc(classDoc);
+    if (!classDoc) {
+      if (!silent) showErrorToast('Select class and section first');
+      return;
+    }
+
+    const scheduleMap = buildDayScheduleMap(day);
+    const entries = buildEntriesFromScheduleMap(day, scheduleMap);
+    if (entries.length === 0) {
+      if (!silent) showErrorToast('Please add at least one class period');
+      return;
+    }
+
+    const ok = await validateDayConflicts(day, scheduleMap);
+    if (!ok) return;
+
+    if (!silent) setDraftSaving(true);
+    try {
+      await timetableApi.saveDay({
+        classId: classDoc._id,
+        sectionId: sectionDoc?._id || null,
+        dayOfWeek: day,
+        entries,
+      });
+      setWeeklyDraft((prev) => {
+        const next = { ...prev };
+        delete next[day];
+        return next;
+      });
+      if (!silent) showSuccessToast(`Saved ${day} routine`);
+      await loadInitialData();
+    } catch (err) {
+      if (!silent) showErrorToast(err.message || 'Failed to save routine');
+    } finally {
+      if (!silent) setDraftSaving(false);
+    }
+  };
+
+  const handleSaveWeek = async () => {
+    if (!selectedClass || !selectedSection) {
+      showErrorToast('Select class and section first');
+      return;
+    }
+    const daysToSave = Object.keys(weeklyDraft);
+    if (daysToSave.length === 0) {
+      showErrorToast('No changes to save');
+      return;
+    }
+    setDraftSaving(true);
+    try {
+      for (const day of daysToSave) {
+        await handleSaveDay(day, { silent: true });
+      }
+      showSuccessToast('Saved weekly routine');
+      await loadInitialData();
+    } finally {
+      setDraftSaving(false);
+    }
+  };
+
+  const handleAddBlock = () => {
+    if (!blockDraft.subject || !blockDraft.teacher) {
+      showErrorToast('Select subject and teacher first');
+      return;
+    }
+    const subject = subjects.find((s) => s.name === blockDraft.subject);
+    const teacher = teachers.find((t) => t.name === blockDraft.teacher);
+    const nextBlock = {
+      id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      subject: blockDraft.subject,
+      teacher: blockDraft.teacher,
+      subjectId: subject?._id || null,
+      teacherId: teacher?._id || null,
+      room: blockDraft.room || '',
+    };
+    setPaletteBlocks((prev) => [...prev, nextBlock]);
+    setBlockDraft({ subject: '', teacher: '', room: '' });
+  };
+
+  const handleRemoveBlock = (id) => {
+    setPaletteBlocks((prev) => prev.filter((block) => block.id !== id));
+  };
+
   // Delete handler
   const handleDelete = async (routine) => {
     if (!window.confirm(`Are you sure you want to delete the routine for ${routine.class}-${routine.section} on ${routine.day}?`)) {
@@ -168,7 +459,11 @@ const Routines = ({setShowAdminHeader}) => {
     }
 
     try {
-      await timetableApi.delete(routine.timetableId);
+      await timetableApi.deleteDay({
+        classId: routine.classId,
+        sectionId: routine.sectionId,
+        dayOfWeek: routine.day
+      });
       showSuccessToast('Routine deleted successfully!');
       await loadInitialData();
     } catch (err) {
@@ -185,7 +480,7 @@ const Routines = ({setShowAdminHeader}) => {
 
       // Find class and section IDs
       const classDoc = classes.find(c => c.name === form.class);
-      const sectionDoc = sections.find(s => s.name === form.section && s.classId === classDoc?._id);
+      const sectionDoc = sections.find(s => s.name === form.section && getId(s.classId) === classDoc?._id);
 
       if (!classDoc) {
         showErrorToast('Selected class not found');
@@ -193,8 +488,17 @@ const Routines = ({setShowAdminHeader}) => {
       }
 
       // Transform form data to timetable format
+      const incompleteRows = form.schedule.filter(
+        (period) => !period.isBreak && (!period.subject || !period.teacher)
+      );
+      if (incompleteRows.length > 0) {
+        showErrorToast('Please select subject and teacher for all class periods');
+        return;
+      }
+
       const entries = form.schedule
         .filter(period => !period.isBreak)
+        .filter(period => period.subject && period.time)
         .map((period, index) => {
           const [startTime, endTime] = period.time.split(' - ').map(t => t.trim());
           const subject = subjects.find(s => s.name === period.subject);
@@ -211,9 +515,15 @@ const Routines = ({setShowAdminHeader}) => {
           };
         });
 
+      if (entries.length === 0) {
+        showErrorToast('Please add at least one class period before saving');
+        return;
+      }
+
       const timetableData = {
         classId: classDoc._id,
         sectionId: sectionDoc?._id || null,
+        dayOfWeek: form.day,
         entries
       };
 
@@ -231,7 +541,7 @@ const Routines = ({setShowAdminHeader}) => {
       }
 
       // Save timetable
-      await timetableApi.save(timetableData);
+      await timetableApi.saveDay(timetableData);
 
       showSuccessToast('Routine saved successfully!');
       setIsModalOpen(false);
@@ -416,12 +726,7 @@ const Routines = ({setShowAdminHeader}) => {
                 const defClass = selectedClass || (classes.length > 0 ? classes[0].name : '');
                 const defSection = selectedSection || (sections.length > 0 ? sections[0].name : '');
                 const defDay = selectedDay || 'Monday';
-                const schedule = TIMES.map((t) => ({
-                  time: t,
-                  isBreak: t.includes('10:15'),
-                  subject: t.includes('10:15') ? 'Break' : '',
-                  teacher: t.includes('10:15') ? '-' : ''
-                }));
+                const schedule = buildScheduleForDay();
                 setForm({ class: defClass, section: defSection, day: defDay, schedule });
                 setEditingRoutine(null);
                 setIsModalOpen(true);
@@ -459,12 +764,12 @@ const Routines = ({setShowAdminHeader}) => {
                 onChange={(e) => setSelectedSection(e.target.value)}
               >
                 <option value="">All Sections</option>
-                {sections
-                  .filter(s => {
-                    if (!selectedClass) return true;
-                    const classDoc = classes.find(c => c.name === selectedClass);
-                    return classDoc && s.classId === classDoc._id;
-                  })
+                    {sections
+                      .filter(s => {
+                        if (!selectedClass) return true;
+                        const classDoc = classes.find(c => c.name === selectedClass);
+                        return classDoc && getId(s.classId) === classDoc._id;
+                      })
                   .map((sec) => (
                     <option key={sec._id} value={sec.name}>{sec.name}</option>
                   ))}
@@ -522,9 +827,124 @@ const Routines = ({setShowAdminHeader}) => {
         {viewMode === 'weekly' && weeklyGrid && (
           <div className="bg-white rounded-xl shadow-sm border border-purple-400 overflow-hidden mb-6">
             <div className="p-6 border-b border-gray-100">
-              <h2 className="text-xl font-semibold text-gray-900">
-                Class {selectedClass} - Section {selectedSection} Weekly Overview
-              </h2>
+              <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+                <div>
+                  <h2 className="text-xl font-semibold text-gray-900">
+                    Class {selectedClass} - Section {selectedSection} Weekly Overview
+                  </h2>
+                  <p className="text-sm text-gray-500 mt-1">
+                    Drag blocks into cells. Break slots are locked.
+                  </p>
+                </div>
+                <div className="flex items-center gap-3">
+                  <div className="text-xs text-gray-500">
+                    Draft days: {Object.keys(weeklyDraft).length}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <select
+                      value={selectedDay}
+                      onChange={(e) => setSelectedDay(e.target.value)}
+                      className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                    >
+                      {DAYS.map((day) => (
+                        <option key={day} value={day}>{day}</option>
+                      ))}
+                    </select>
+                    <button
+                      onClick={() => handleSaveDay(selectedDay)}
+                      disabled={draftSaving}
+                      className="px-3 py-2 rounded-lg border border-gray-300 text-sm hover:bg-gray-50 disabled:opacity-50"
+                    >
+                      Save Day
+                    </button>
+                    <button
+                      onClick={handleSaveWeek}
+                      disabled={draftSaving}
+                      className="px-3 py-2 rounded-lg bg-indigo-500 text-white text-sm hover:bg-indigo-600 disabled:opacity-50"
+                    >
+                      Save Week
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="p-6 border-b border-gray-100 bg-gray-50">
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <div className="bg-white rounded-lg border border-gray-200 p-4">
+                  <h3 className="text-sm font-semibold text-gray-900 mb-3">Period Builder</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                    <select
+                      value={blockDraft.subject}
+                      onChange={(e) => setBlockDraft((prev) => ({ ...prev, subject: e.target.value }))}
+                      className="border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                    >
+                      <option value="">Select Subject</option>
+                      {subjects.map((subject) => (
+                        <option key={subject._id} value={subject.name}>{subject.name}</option>
+                      ))}
+                    </select>
+                    <select
+                      value={blockDraft.teacher}
+                      onChange={(e) => setBlockDraft((prev) => ({ ...prev, teacher: e.target.value }))}
+                      className="border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                    >
+                      <option value="">Select Teacher</option>
+                      {teachers.map((teacher) => (
+                        <option key={teacher._id} value={teacher.name}>{teacher.name}</option>
+                      ))}
+                    </select>
+                    <input
+                      value={blockDraft.room}
+                      onChange={(e) => setBlockDraft((prev) => ({ ...prev, room: e.target.value }))}
+                      placeholder="Room (optional)"
+                      className="border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                    />
+                  </div>
+                  <div className="flex items-center gap-2 mt-4">
+                    <button
+                      onClick={handleAddBlock}
+                      className="px-3 py-2 bg-indigo-500 text-white rounded-lg text-sm hover:bg-indigo-600"
+                    >
+                      Add Block
+                    </button>
+                    <button
+                      onClick={() => setPaletteBlocks([])}
+                      className="px-3 py-2 border border-gray-300 rounded-lg text-sm hover:bg-gray-50"
+                    >
+                      Clear Palette
+                    </button>
+                  </div>
+                </div>
+
+                <div className="bg-white rounded-lg border border-gray-200 p-4">
+                  <h3 className="text-sm font-semibold text-gray-900 mb-3">Drag Blocks</h3>
+                  {paletteBlocks.length === 0 ? (
+                    <div className="text-sm text-gray-500">No blocks yet. Add one from the builder.</div>
+                  ) : (
+                    <div className="flex flex-wrap gap-2">
+                      {paletteBlocks.map((block) => (
+                        <div
+                          key={block.id}
+                          draggable
+                          onDragStart={(e) => handleDragStart(e, { type: 'palette', block })}
+                          className="px-3 py-2 rounded-lg bg-indigo-50 border border-indigo-200 text-xs cursor-move"
+                        >
+                          <div className="font-medium text-indigo-800 truncate">{block.subject}</div>
+                          <div className="text-indigo-600 truncate">{block.teacher}</div>
+                          {block.room && <div className="text-indigo-500 truncate">{block.room}</div>}
+                          <button
+                            onClick={() => handleRemoveBlock(block.id)}
+                            className="mt-2 text-[10px] text-red-500 hover:text-red-600"
+                          >
+                            Remove
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
             </div>
             
             <div className="overflow-x-auto">
@@ -558,27 +978,54 @@ const Routines = ({setShowAdminHeader}) => {
                         </div>
                       </div>
                       {DAYS.map((day) => {
-                        const routine = routines.find(r => r.class === selectedClass && r.section === selectedSection && r.day === day);
-                        const period = routine?.schedule.find(p => p.time === time);
+                        const basePeriod = getBaseCell(day, time);
+                        const block = getCellBlock(day, time);
+                        const isBreak = basePeriod?.subject === 'Break' || isBreakSlot(time);
                         
                         return (
-                          <div key={day} className="relative p-2 border-r border-gray-100 last:border-r-0">
-                            {period ? (
-                              <div className={`h-full p-3 rounded-lg text-white text-xs overflow-hidden ${
-                                period.subject === 'Break' ? 'bg-gray-400' :
-                                period.subject.includes('Mathematics') ? 'bg-blue-500' :
-                                period.subject.includes('Physics') ? 'bg-purple-500' :
-                                period.subject.includes('Chemistry') ? 'bg-orange-500' :
-                                period.subject.includes('Biology') ? 'bg-green-500' :
-                                period.subject.includes('English') ? 'bg-pink-500' :
-                                period.subject.includes('Science') ? 'bg-green-500' :
-                                period.subject.includes('Social') ? 'bg-yellow-500' :
-                                period.subject.includes('Hindi') ? 'bg-red-500' :
-                                period.subject.includes('Computer') ? 'bg-indigo-500' :
-                                'bg-gray-500'
-                              }`}>
-                                <div className="font-medium truncate">{period.subject}</div>
-                                <div className="text-xs opacity-90 truncate mt-1">{period.teacher}</div>
+                          <div
+                            key={day}
+                            className="relative p-2 border-r border-gray-100 last:border-r-0"
+                            onDragOver={(e) => e.preventDefault()}
+                            onDrop={(e) => {
+                              e.preventDefault();
+                              const raw =
+                                e.dataTransfer.getData('application/json') ||
+                                e.dataTransfer.getData('text/plain') ||
+                                '{}';
+                              let payload = {};
+                              try {
+                                payload = JSON.parse(raw);
+                              } catch (err) {
+                                payload = {};
+                              }
+                              handleDropOnCell(day, time, payload);
+                            }}
+                          >
+                            {isBreak ? (
+                              <div className="h-full p-3 rounded-lg bg-gray-200 text-gray-700 text-xs flex items-center justify-center border border-gray-300">
+                                Break
+                              </div>
+                            ) : block ? (
+                              <div
+                                className="h-full p-3 rounded-lg text-white text-xs overflow-hidden bg-indigo-500 cursor-move"
+                                draggable
+                                onDragStart={(e) => handleDragStart(e, { type: 'cell', day, time })}
+                              >
+                                <div className="flex items-start justify-between gap-2">
+                                  <div className="min-w-0">
+                                    <div className="font-medium truncate">{block.subject}</div>
+                                    <div className="text-xs opacity-90 truncate mt-1">{block.teacher}</div>
+                                    {block.room && <div className="text-[10px] opacity-80 truncate">{block.room}</div>}
+                                  </div>
+                                  <button
+                                    onClick={() => handleClearCell(day, time)}
+                                    className="text-white/80 hover:text-white text-xs"
+                                    title="Clear"
+                                  >
+                                    x
+                                  </button>
+                                </div>
                               </div>
                             ) : (
                               <div className="h-full border border-dashed border-gray-200 rounded-lg flex items-center justify-center text-gray-400 hover:border-indigo-300 hover:bg-indigo-50 transition-colors cursor-pointer">
@@ -714,12 +1161,7 @@ const Routines = ({setShowAdminHeader}) => {
                       <button
                         className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
                         onClick={() => {
-                          const schedule = routine.schedule.map((p) => ({
-                            time: p.time,
-                            isBreak: p.subject === 'Break',
-                            subject: p.subject,
-                            teacher: p.teacher,
-                          }));
+                          const schedule = buildScheduleForDay(routine.schedule);
                           setForm({ class: routine.class, section: routine.section, day: routine.day, schedule });
                           setEditingRoutine(routine);
                           setIsModalOpen(true);
@@ -814,12 +1256,7 @@ const Routines = ({setShowAdminHeader}) => {
                   const defClass = classes.length > 0 ? classes[0].name : '';
                   const defSection = sections.length > 0 ? sections[0].name : '';
                   const defDay = 'Monday';
-                  const schedule = TIMES.map((t) => ({
-                    time: t,
-                    isBreak: t.includes('10:15'),
-                    subject: t.includes('10:15') ? 'Break' : '',
-                    teacher: t.includes('10:15') ? '-' : ''
-                  }));
+                  const schedule = buildScheduleForDay();
                   setForm({ class: defClass, section: defSection, day: defDay, schedule });
                   setEditingRoutine(null);
                   setIsModalOpen(true);
@@ -879,7 +1316,7 @@ const Routines = ({setShowAdminHeader}) => {
                   className="text-gray-500 hover:text-gray-700 p-2 hover:bg-gray-100 rounded-lg transition-colors" 
                   onClick={() => setIsModalOpen(false)}
                 >
-                  ✕
+                  x
                 </button>
               </div>
               
@@ -912,7 +1349,7 @@ const Routines = ({setShowAdminHeader}) => {
                     {sections
                       .filter(s => {
                         const classDoc = classes.find(c => c.name === form.class);
-                        return !classDoc || s.classId === classDoc._id;
+                        return !classDoc || getId(s.classId) === classDoc._id;
                       })
                       .map((s) => (
                         <option key={s._id} value={s.name}>{s.name}</option>
@@ -1046,7 +1483,7 @@ const Routines = ({setShowAdminHeader}) => {
                   className="text-gray-500 hover:text-gray-700 p-2 hover:bg-gray-100 rounded-lg transition-colors"
                   onClick={() => setShowConflictModal(false)}
                 >
-                  ✕
+                  x
                 </button>
               </div>
 

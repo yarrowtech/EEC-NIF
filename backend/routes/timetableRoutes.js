@@ -2,6 +2,10 @@ const express = require('express');
 const mongoose = require('mongoose');
 const adminAuth = require('../middleware/adminAuth');
 const Timetable = require('../models/Timetable');
+const ClassModel = require('../models/Class');
+const Section = require('../models/Section');
+const Subject = require('../models/Subject');
+const TeacherUser = require('../models/TeacherUser');
 
 const router = express.Router();
 
@@ -18,12 +22,89 @@ const resolveSchoolId = (req, res) => {
   return schoolId;
 };
 
+const resolveCampusId = (req) => req.campusId || null;
+
+const buildCampusFilter = (schoolId, campusId) => {
+  const filter = { schoolId };
+  if (campusId) {
+    filter.campusId = campusId;
+  }
+  return filter;
+};
+
+const resolveSectionId = (sectionId) => {
+  if (!sectionId) return null;
+  return mongoose.isValidObjectId(sectionId) ? sectionId : null;
+};
+
+const resolveDayOfWeek = (value) => {
+  if (!value || typeof value !== 'string') return '';
+  return value.trim();
+};
+
+const ensureClassExists = async (schoolId, campusId, classId) => {
+  const classDoc = await ClassModel.findOne(buildCampusFilter(schoolId, campusId))
+    .where({ _id: classId })
+    .lean();
+  return classDoc;
+};
+
+const ensureSectionExists = async (schoolId, campusId, classId, sectionId) => {
+  if (!sectionId) return null;
+  const sectionDoc = await Section.findOne(buildCampusFilter(schoolId, campusId))
+    .where({ _id: sectionId, classId })
+    .lean();
+  return sectionDoc;
+};
+
+const extractIds = (entries, key) => {
+  if (!Array.isArray(entries)) return [];
+  return entries
+    .map((entry) => entry?.[key])
+    .filter((id) => id && mongoose.isValidObjectId(id))
+    .map((id) => String(id));
+};
+
+const ensureSubjectsExist = async (schoolId, campusId, classId, entries) => {
+  const subjectIds = [...new Set(extractIds(entries, 'subjectId'))];
+  if (subjectIds.length === 0) return true;
+  const subjects = await Subject.find({
+    _id: { $in: subjectIds },
+    ...buildCampusFilter(schoolId, campusId),
+  })
+    .select('_id classId')
+    .lean();
+  if (subjects.length !== subjectIds.length) return false;
+  if (classId) {
+    const subjectClassIds = subjects
+      .map((s) => (s.classId ? String(s.classId) : null))
+      .filter(Boolean);
+    if (subjectClassIds.some((id) => id !== String(classId))) {
+      return false;
+    }
+  }
+  return true;
+};
+
+const ensureTeachersExist = async (schoolId, campusId, entries) => {
+  const teacherIds = [...new Set(extractIds(entries, 'teacherId'))];
+  if (teacherIds.length === 0) return true;
+  const teachers = await TeacherUser.find({
+    _id: { $in: teacherIds },
+    ...buildCampusFilter(schoolId, campusId),
+  })
+    .select('_id')
+    .lean();
+  return teachers.length === teacherIds.length;
+};
+
 // Create or update timetable (admin only)
 router.post('/', adminAuth, async (req, res) => {
   // #swagger.tags = ['Timetable']
   try {
     const schoolId = resolveSchoolId(req, res);
     if (!schoolId) return;
+    const campusId = resolveCampusId(req);
     const { classId, sectionId, academicYearId, entries } = req.body || {};
     if (!classId || !mongoose.isValidObjectId(classId)) {
       return res.status(400).json({ error: 'Valid classId is required' });
@@ -34,17 +115,34 @@ router.post('/', adminAuth, async (req, res) => {
     if (academicYearId && !mongoose.isValidObjectId(academicYearId)) {
       return res.status(400).json({ error: 'Invalid academicYearId' });
     }
+    const classDoc = await ensureClassExists(schoolId, campusId, classId);
+    if (!classDoc) {
+      return res.status(404).json({ error: 'Class not found for this school' });
+    }
+    if (sectionId) {
+      const sectionDoc = await ensureSectionExists(schoolId, campusId, classId, sectionId);
+      if (!sectionDoc) {
+        return res.status(404).json({ error: 'Section not found for this class' });
+      }
+    }
+    if (!(await ensureSubjectsExist(schoolId, campusId, classId, entries))) {
+      return res.status(400).json({ error: 'Invalid subject selection' });
+    }
+    if (!(await ensureTeachersExist(schoolId, campusId, entries))) {
+      return res.status(400).json({ error: 'Invalid teacher selection' });
+    }
 
     const payload = {
       schoolId,
+      campusId: campusId || null,
       classId,
-      sectionId: sectionId || undefined,
+      sectionId: resolveSectionId(sectionId) || undefined,
       academicYearId: academicYearId || undefined,
       entries: Array.isArray(entries) ? entries : [],
     };
 
     const updated = await Timetable.findOneAndUpdate(
-      { schoolId, classId, sectionId: sectionId || null },
+      { ...buildCampusFilter(schoolId, campusId), classId, sectionId: resolveSectionId(sectionId) },
       payload,
       { new: true, upsert: true }
     );
@@ -55,22 +153,142 @@ router.post('/', adminAuth, async (req, res) => {
   }
 });
 
+// Create or update timetable entries for a single day
+router.post('/day', adminAuth, async (req, res) => {
+  // #swagger.tags = ['Timetable']
+  try {
+    const schoolId = resolveSchoolId(req, res);
+    if (!schoolId) return;
+    const campusId = resolveCampusId(req);
+    const { classId, sectionId, dayOfWeek, entries } = req.body || {};
+
+    if (!classId || !mongoose.isValidObjectId(classId)) {
+      return res.status(400).json({ error: 'Valid classId is required' });
+    }
+
+    const normalizedDay = resolveDayOfWeek(dayOfWeek);
+    if (!normalizedDay) {
+      return res.status(400).json({ error: 'dayOfWeek is required' });
+    }
+
+    if (!Array.isArray(entries)) {
+      return res.status(400).json({ error: 'entries must be an array' });
+    }
+    if (entries.length === 0) {
+      return res.status(400).json({ error: 'entries cannot be empty for day update' });
+    }
+    const classDoc = await ensureClassExists(schoolId, campusId, classId);
+    if (!classDoc) {
+      return res.status(404).json({ error: 'Class not found for this school' });
+    }
+    if (sectionId) {
+      const sectionDoc = await ensureSectionExists(schoolId, campusId, classId, sectionId);
+      if (!sectionDoc) {
+        return res.status(404).json({ error: 'Section not found for this class' });
+      }
+    }
+    if (!(await ensureSubjectsExist(schoolId, campusId, classId, entries))) {
+      return res.status(400).json({ error: 'Invalid subject selection' });
+    }
+    if (!(await ensureTeachersExist(schoolId, campusId, entries))) {
+      return res.status(400).json({ error: 'Invalid teacher selection' });
+    }
+
+    const normalizedSectionId = resolveSectionId(sectionId);
+    const dayEntries = entries.map((entry) => ({
+      ...entry,
+      dayOfWeek: normalizedDay,
+    }));
+
+    const existing = await Timetable.findOne({
+      ...buildCampusFilter(schoolId, campusId),
+      classId,
+      sectionId: normalizedSectionId,
+    });
+
+    if (!existing) {
+      const created = await Timetable.create({
+        schoolId,
+        campusId: campusId || null,
+        classId,
+        sectionId: normalizedSectionId || undefined,
+        entries: dayEntries,
+      });
+      return res.json(created);
+    }
+
+    const remainingEntries = (existing.entries || []).filter(
+      (entry) => entry.dayOfWeek !== normalizedDay
+    );
+    existing.entries = [...remainingEntries, ...dayEntries];
+    await existing.save();
+
+    res.json(existing);
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+// Delete timetable entries for a single day
+router.delete('/day', adminAuth, async (req, res) => {
+  // #swagger.tags = ['Timetable']
+  try {
+    const schoolId = resolveSchoolId(req, res);
+    if (!schoolId) return;
+    const campusId = resolveCampusId(req);
+
+    const { classId, sectionId, dayOfWeek } = req.body || {};
+    if (!classId || !mongoose.isValidObjectId(classId)) {
+      return res.status(400).json({ error: 'Valid classId is required' });
+    }
+
+    const normalizedDay = resolveDayOfWeek(dayOfWeek);
+    if (!normalizedDay) {
+      return res.status(400).json({ error: 'dayOfWeek is required' });
+    }
+
+    const normalizedSectionId = resolveSectionId(sectionId);
+    const existing = await Timetable.findOne({
+      ...buildCampusFilter(schoolId, campusId),
+      classId,
+      sectionId: normalizedSectionId,
+    });
+
+    if (!existing) {
+      return res.status(404).json({ error: 'Timetable not found' });
+    }
+
+    const remainingEntries = (existing.entries || []).filter(
+      (entry) => entry.dayOfWeek !== normalizedDay
+    );
+
+    if (remainingEntries.length === 0) {
+      await Timetable.findByIdAndDelete(existing._id);
+      return res.json({ message: 'Day removed and timetable deleted', deleted: true });
+    }
+
+    existing.entries = remainingEntries;
+    await existing.save();
+
+    res.json({ message: 'Day removed', deleted: false, timetable: existing });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // Get timetable
 router.get('/', adminAuth, async (req, res) => {
   // #swagger.tags = ['Timetable']
   try {
     const schoolId = resolveSchoolId(req, res);
     if (!schoolId) return;
+    const campusId = resolveCampusId(req);
     const { classId, sectionId } = req.query || {};
     if (!classId || !mongoose.isValidObjectId(classId)) {
       return res.status(400).json({ error: 'Valid classId is required' });
     }
-    const filter = { schoolId, classId };
-    if (sectionId && mongoose.isValidObjectId(sectionId)) {
-      filter.sectionId = sectionId;
-    } else {
-      filter.sectionId = null;
-    }
+    const filter = { ...buildCampusFilter(schoolId, campusId), classId };
+    filter.sectionId = resolveSectionId(sectionId);
 
     const timetable = await Timetable.findOne(filter).lean();
     if (!timetable) {
@@ -88,8 +306,9 @@ router.get('/all', adminAuth, async (req, res) => {
   try {
     const schoolId = resolveSchoolId(req, res);
     if (!schoolId) return;
+    const campusId = resolveCampusId(req);
 
-    const timetables = await Timetable.find({ schoolId })
+    const timetables = await Timetable.find(buildCampusFilter(schoolId, campusId))
       .populate('classId', 'name')
       .populate('sectionId', 'name')
       .populate('entries.subjectId', 'name')
@@ -115,7 +334,7 @@ router.get('/teacher/:teacherId', adminAuth, async (req, res) => {
     }
 
     const timetables = await Timetable.find({
-      schoolId,
+      ...buildCampusFilter(schoolId, campusId),
       'entries.teacherId': teacherId
     })
       .populate('classId', 'name')
@@ -144,7 +363,7 @@ router.delete('/:id', adminAuth, async (req, res) => {
 
     const deleted = await Timetable.findOneAndDelete({
       _id: id,
-      schoolId
+      ...buildCampusFilter(schoolId, campusId),
     });
 
     if (!deleted) {
@@ -173,6 +392,22 @@ router.post('/validate-conflicts', adminAuth, async (req, res) => {
     if (!Array.isArray(entries)) {
       return res.status(400).json({ error: 'entries must be an array' });
     }
+    const classDoc = await ensureClassExists(schoolId, campusId, classId);
+    if (!classDoc) {
+      return res.status(404).json({ error: 'Class not found for this school' });
+    }
+    if (sectionId) {
+      const sectionDoc = await ensureSectionExists(schoolId, campusId, classId, sectionId);
+      if (!sectionDoc) {
+        return res.status(404).json({ error: 'Section not found for this class' });
+      }
+    }
+    if (!(await ensureSubjectsExist(schoolId, campusId, classId, entries))) {
+      return res.status(400).json({ error: 'Invalid subject selection' });
+    }
+    if (!(await ensureTeachersExist(schoolId, campusId, entries))) {
+      return res.status(400).json({ error: 'Invalid teacher selection' });
+    }
 
     // Helper function to check if two time ranges overlap
     const timesOverlap = (start1, end1, start2, end2) => {
@@ -180,7 +415,7 @@ router.post('/validate-conflicts', adminAuth, async (req, res) => {
     };
 
     // Fetch all existing timetables for this school (excluding current if editing)
-    const filter = { schoolId };
+    const filter = buildCampusFilter(schoolId, campusId);
     if (excludeTimetableId && mongoose.isValidObjectId(excludeTimetableId)) {
       filter._id = { $ne: excludeTimetableId };
     }

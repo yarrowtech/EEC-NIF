@@ -1,60 +1,124 @@
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import jsPDF from 'jspdf';
 import { Calendar, Clock, Filter, Download, Plus, Edit3, Trash2, Search, MapPin, Users } from 'lucide-react';
+import { academicApi, timetableApi, convertTo12Hour } from '../utils/timetableApi';
 
 const ClassRoutine = () => {
   const [selectedClass, setSelectedClass] = useState('all');
   const [selectedSection, setSelectedSection] = useState('all');
+  const [classes, setClasses] = useState([]);
+  const [sections, setSections] = useState([]);
+  const [timetables, setTimetables] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
-  const timeSlots = [
-    '08:00 - 09:00',
-    '09:00 - 10:00',
-    '10:30 - 11:30',
-    '11:30 - 12:30',
-    '13:30 - 14:30',
-    '14:30 - 15:30'
+  const DEFAULT_TIME_SLOTS = [
+    { key: '08:00-08:45', label: '8:00 AM - 8:45 AM' },
+    { key: '08:45-09:30', label: '8:45 AM - 9:30 AM' },
+    { key: '09:30-10:15', label: '9:30 AM - 10:15 AM' },
+    { key: '10:15-10:45', label: '10:15 AM - 10:45 AM' },
+    { key: '10:45-11:30', label: '10:45 AM - 11:30 AM' },
+    { key: '11:30-12:15', label: '11:30 AM - 12:15 PM' },
   ];
 
-  const weekDays = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
+  const weekDays = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
-  // Sample routine data
-  const routineData = {
-    'Monday': {
-      '08:00 - 09:00': { subject: 'Mathematics', teacher: 'Dr. Sarah Johnson', room: 'Room 101', class: 'Grade 10A' },
-      '09:00 - 10:00': { subject: 'Physics', teacher: 'Prof. Michael Chen', room: 'Lab 201', class: 'Grade 10A' },
-      '10:30 - 11:30': { subject: 'English', teacher: 'Ms. Emily Davis', room: 'Room 205', class: 'Grade 10A' },
-      '11:30 - 12:30': { subject: 'Chemistry', teacher: 'Dr. James Wilson', room: 'Lab 301', class: 'Grade 10A' },
-      '13:30 - 14:30': { subject: 'Biology', teacher: 'Dr. Lisa Brown', room: 'Room 105', class: 'Grade 10A' }
-    },
-    'Tuesday': {
-      '08:00 - 09:00': { subject: 'Physics', teacher: 'Prof. Michael Chen', room: 'Lab 201', class: 'Grade 10A' },
-      '09:00 - 10:00': { subject: 'Mathematics', teacher: 'Dr. Sarah Johnson', room: 'Room 101', class: 'Grade 10A' },
-      '10:30 - 11:30': { subject: 'Chemistry', teacher: 'Dr. James Wilson', room: 'Lab 301', class: 'Grade 10A' },
-      '11:30 - 12:30': { subject: 'English', teacher: 'Ms. Emily Davis', room: 'Room 205', class: 'Grade 10A' },
-      '13:30 - 14:30': { subject: 'Biology', teacher: 'Dr. Lisa Brown', room: 'Room 105', class: 'Grade 10A' }
-    },
-    'Wednesday': {
-      '08:00 - 09:00': { subject: 'English', teacher: 'Ms. Emily Davis', room: 'Room 205', class: 'Grade 10A' },
-      '09:00 - 10:00': { subject: 'Physics', teacher: 'Prof. Michael Chen', room: 'Lab 201', class: 'Grade 10A' },
-      '10:30 - 11:30': { subject: 'Mathematics', teacher: 'Dr. Sarah Johnson', room: 'Room 101', class: 'Grade 10A' },
-      '11:30 - 12:30': { subject: 'Biology', teacher: 'Dr. Lisa Brown', room: 'Room 105', class: 'Grade 10A' },
-      '13:30 - 14:30': { subject: 'Chemistry', teacher: 'Dr. James Wilson', room: 'Lab 301', class: 'Grade 10A' }
-    },
-    'Thursday': {
-      '08:00 - 09:00': { subject: 'Chemistry', teacher: 'Dr. James Wilson', room: 'Lab 301', class: 'Grade 10A' },
-      '09:00 - 10:00': { subject: 'Biology', teacher: 'Dr. Lisa Brown', room: 'Room 105', class: 'Grade 10A' },
-      '10:30 - 11:30': { subject: 'Physics', teacher: 'Prof. Michael Chen', room: 'Lab 201', class: 'Grade 10A' },
-      '11:30 - 12:30': { subject: 'Mathematics', teacher: 'Dr. Sarah Johnson', room: 'Room 101', class: 'Grade 10A' },
-      '13:30 - 14:30': { subject: 'English', teacher: 'Ms. Emily Davis', room: 'Room 205', class: 'Grade 10A' }
-    },
-    'Friday': {
-      '08:00 - 09:00': { subject: 'Biology', teacher: 'Dr. Lisa Brown', room: 'Room 105', class: 'Grade 10A' },
-      '09:00 - 10:00': { subject: 'English', teacher: 'Ms. Emily Davis', room: 'Room 205', class: 'Grade 10A' },
-      '10:30 - 11:30': { subject: 'Chemistry', teacher: 'Dr. James Wilson', room: 'Lab 301', class: 'Grade 10A' },
-      '11:30 - 12:30': { subject: 'Physics', teacher: 'Prof. Michael Chen', room: 'Lab 201', class: 'Grade 10A' },
-      '13:30 - 14:30': { subject: 'Mathematics', teacher: 'Dr. Sarah Johnson', room: 'Room 101', class: 'Grade 10A' }
+  const getId = (value) => (value && typeof value === 'object' ? value._id : value);
+  const timeToMinutes = (value) => {
+    if (!value) return 0;
+    const [h, m] = value.split(':').map(Number);
+    return (h * 60) + (m || 0);
+  };
+
+  const timeSlots = useMemo(() => {
+    const slots = new Map();
+    timetables.forEach((tt) => {
+      (tt.entries || []).forEach((entry) => {
+        if (!entry.startTime || !entry.endTime) return;
+        const key = `${entry.startTime}-${entry.endTime}`;
+        if (!slots.has(key)) {
+          slots.set(key, {
+            key,
+            startTime: entry.startTime,
+            endTime: entry.endTime,
+            label: `${convertTo12Hour(entry.startTime)} - ${convertTo12Hour(entry.endTime)}`,
+          });
+        }
+      });
+    });
+
+    if (slots.size === 0) return DEFAULT_TIME_SLOTS;
+
+    return Array.from(slots.values()).sort((a, b) => {
+      const startDiff = timeToMinutes(a.startTime) - timeToMinutes(b.startTime);
+      if (startDiff !== 0) return startDiff;
+      return timeToMinutes(a.endTime) - timeToMinutes(b.endTime);
+    });
+  }, [timetables]);
+
+  const routineData = useMemo(() => {
+    const data = {};
+    weekDays.forEach((day) => {
+      data[day] = {};
+    });
+
+    timetables.forEach((tt) => {
+      const className = tt.classId?.name || '';
+      const sectionName = tt.sectionId?.name || '';
+      const classId = getId(tt.classId);
+      const sectionId = getId(tt.sectionId);
+
+      (tt.entries || []).forEach((entry) => {
+        if (!entry.dayOfWeek || !entry.startTime || !entry.endTime) return;
+        const day = entry.dayOfWeek;
+        if (!data[day]) data[day] = {};
+        const key = `${entry.startTime}-${entry.endTime}`;
+        if (!data[day][key]) data[day][key] = [];
+        data[day][key].push({
+          subject: entry.subjectId?.name || 'Unknown',
+          teacher: entry.teacherId?.name || 'TBA',
+          room: entry.room || '',
+          className,
+          sectionName,
+          classId,
+          sectionId,
+        });
+      });
+    });
+
+    return data;
+  }, [timetables]);
+
+  const filterEntries = (entries) => {
+    return (entries || []).filter((entry) => {
+      const classOk = selectedClass === 'all' || String(entry.classId) === String(selectedClass);
+      const sectionOk = selectedSection === 'all' || String(entry.sectionId) === String(selectedSection);
+      return classOk && sectionOk;
+    });
+  };
+
+  const loadData = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const [timetablesData, classesData, sectionsData] = await Promise.all([
+        timetableApi.getAll().catch(() => []),
+        academicApi.getClasses().catch(() => []),
+        academicApi.getSections().catch(() => []),
+      ]);
+      setTimetables(Array.isArray(timetablesData) ? timetablesData : []);
+      setClasses(Array.isArray(classesData) ? classesData : []);
+      setSections(Array.isArray(sectionsData) ? sectionsData : []);
+    } catch (err) {
+      setError(err.message || 'Failed to load routine data');
+    } finally {
+      setLoading(false);
     }
   };
+
+  useEffect(() => {
+    loadData();
+  }, []);
 
   const getSubjectColor = (subject) => {
     const colors = {
@@ -82,9 +146,15 @@ const ClassRoutine = () => {
     pdf.setFontSize(12);
     pdf.setFont(undefined, 'normal');
     
+    const selectedClassLabel = selectedClass === 'all'
+      ? 'All Classes'
+      : (classes.find((cls) => String(cls._id) === String(selectedClass))?.name || 'Class');
+    const selectedSectionLabel = selectedSection === 'all'
+      ? 'All Sections'
+      : (sections.find((sec) => String(sec._id) === String(selectedSection))?.name || 'Section');
     const filterInfo = [];
-    if (selectedClass !== 'all') filterInfo.push(`Class: ${selectedClass}`);
-    if (selectedSection !== 'all') filterInfo.push(`Section: ${selectedSection}`);
+    if (selectedClass !== 'all') filterInfo.push(`Class: ${selectedClassLabel}`);
+    if (selectedSection !== 'all') filterInfo.push(`Section: ${selectedSectionLabel}`);
     
     if (filterInfo.length > 0) {
       pdf.text(`Filter: ${filterInfo.join(', ')}`, pageWidth / 2, yPosition, { align: 'center' });
@@ -127,22 +197,17 @@ const ClassRoutine = () => {
       }
       
       xPosition = 20;
-      pdf.text(slot, xPosition, yPosition);
+      pdf.text(slot.label, xPosition, yPosition);
       xPosition += 45;
       
       weekDays.forEach(day => {
-        const classData = routineData[day]?.[slot];
+        const entries = filterEntries(routineData[day]?.[slot.key]);
+        const classData = entries[0];
         if (classData) {
-          // Filter based on selected class/section if needed
-          const shouldShow = (selectedClass === 'all' || classData.class.includes(selectedClass)) &&
-                           (selectedSection === 'all' || classData.class.includes(selectedSection));
-          
-          if (shouldShow) {
-            const text = `${classData.subject}\n${classData.teacher}\n${classData.room}`;
-            pdf.text(text.split('\n')[0], xPosition, yPosition - 2);
-            pdf.text(text.split('\n')[1], xPosition, yPosition + 2);
-            pdf.text(text.split('\n')[2], xPosition, yPosition + 6);
-          }
+          const text = `${classData.subject}\n${classData.teacher}\n${classData.room}`;
+          pdf.text(text.split('\n')[0], xPosition, yPosition - 2);
+          pdf.text(text.split('\n')[1], xPosition, yPosition + 2);
+          pdf.text(text.split('\n')[2], xPosition, yPosition + 6);
         }
         xPosition += 45;
       });
@@ -166,24 +231,19 @@ const ClassRoutine = () => {
     const subjectSchedule = {};
     weekDays.forEach(day => {
       timeSlots.forEach(slot => {
-        const classData = routineData[day]?.[slot];
-        if (classData) {
-          const shouldShow = (selectedClass === 'all' || classData.class.includes(selectedClass)) &&
-                           (selectedSection === 'all' || classData.class.includes(selectedSection));
-          
-          if (shouldShow) {
-            if (!subjectSchedule[classData.subject]) {
-              subjectSchedule[classData.subject] = [];
-            }
-            subjectSchedule[classData.subject].push({
-              day,
-              time: slot,
-              teacher: classData.teacher,
-              room: classData.room,
-              class: classData.class
-            });
+        const entries = filterEntries(routineData[day]?.[slot.key]);
+        entries.forEach((classData) => {
+          if (!subjectSchedule[classData.subject]) {
+            subjectSchedule[classData.subject] = [];
           }
-        }
+          subjectSchedule[classData.subject].push({
+            day,
+            time: slot.label,
+            teacher: classData.teacher,
+            room: classData.room,
+            class: `${classData.className}${classData.sectionName ? `-${classData.sectionName}` : ''}`,
+          });
+        });
       });
     });
 
@@ -214,7 +274,9 @@ const ClassRoutine = () => {
     pdf.setFont(undefined, 'italic');
     pdf.text('Generated by School Management System - Class Routine Module', pageWidth / 2, pdf.internal.pageSize.height - 10, { align: 'center' });
 
-    const classSuffix = selectedClass !== 'all' ? selectedClass.replace(/ /g, '-') : 'all-classes';
+    const classSuffix = selectedClass !== 'all'
+      ? selectedClassLabel.replace(/ /g, '-')
+      : 'all-classes';
     pdf.save(`class-routine-${classSuffix}-${currentDate.replace(/\//g, '-')}.pdf`);
   };
 
@@ -251,9 +313,9 @@ const ClassRoutine = () => {
                 className="border border-gray-200 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-yellow-500"
               >
                 <option value="all">All Classes</option>
-                <option value="10">Grade 10</option>
-                <option value="11">Grade 11</option>
-                <option value="12">Grade 12</option>
+                {classes.map((cls) => (
+                  <option key={cls._id} value={cls._id}>{cls.name}</option>
+                ))}
               </select>
 
               <select
@@ -262,9 +324,11 @@ const ClassRoutine = () => {
                 className="border border-gray-200 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-yellow-500"
               >
                 <option value="all">All Sections</option>
-                <option value="A">Section A</option>
-                <option value="B">Section B</option>
-                <option value="C">Section C</option>
+                {sections
+                  .filter((sec) => selectedClass === 'all' || String(sec.classId) === String(selectedClass))
+                  .map((sec) => (
+                    <option key={sec._id} value={sec._id}>{sec.name}</option>
+                  ))}
               </select>
             </div>
 
@@ -287,69 +351,84 @@ const ClassRoutine = () => {
         {/* Scrollable Content Area */}
         <div className="flex-1 overflow-hidden">
           <div className="h-full overflow-auto">
-            <table className="min-w-full border-collapse table-fixed">
-              <thead className="bg-yellow-50">
-                <tr>
-                  <th className="sticky top-0 left-0 z-20 bg-yellow-50 px-6 py-4 text-left text-sm font-medium text-yellow-800 w-32">Time</th>
-                  {weekDays.map(day => (
-                    <th key={day} className="sticky top-0 z-10 px-4 py-4 text-left text-sm font-medium text-yellow-800 min-w-[250px]">
-                      {day}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-200">
-                {timeSlots.map(timeSlot => (
-                  <tr key={timeSlot} className="hover:bg-yellow-50/50">
-                    <td className="sticky left-0 z-10 bg-yellow-50 px-6 py-4 text-sm font-medium text-gray-900">
-                      <div className="flex items-center space-x-2">
-                        <Clock className="w-4 h-4 text-gray-400" />
-                        <span>{timeSlot}</span>
-                      </div>
-                    </td>
-                    {weekDays.map(day => {
-                      const classData = routineData[day]?.[timeSlot];
-                      return (
-                        <td key={`${day}-${timeSlot}`} className="px-4 py-4">
-                          {classData ? (
-                            <div className={`p-3 rounded-lg border ${getSubjectColor(classData.subject)} group hover:shadow-md transition-all cursor-pointer`}>
-                              <div className="flex items-start justify-between">
-                                <div className="flex-1">
-                                  <h4 className="font-semibold text-sm mb-1">{classData.subject}</h4>
-                                  <div className="space-y-1">
-                                    <div className="flex items-center space-x-1 text-xs">
-                                      <Users className="w-3 h-3" />
-                                      <span>{classData.teacher}</span>
-                                    </div>
-                                    <div className="flex items-center space-x-1 text-xs">
-                                      <MapPin className="w-3 h-3" />
-                                      <span>{classData.room}</span>
+            {loading && (
+              <div className="p-6 text-sm text-gray-600">Loading routines...</div>
+            )}
+            {!loading && error && (
+              <div className="p-6 text-sm text-red-600">{error}</div>
+            )}
+            {!loading && !error && (
+              <table className="min-w-full border-collapse table-fixed">
+                <thead className="bg-yellow-50">
+                  <tr>
+                    <th className="sticky top-0 left-0 z-20 bg-yellow-50 px-6 py-4 text-left text-sm font-medium text-yellow-800 w-32">Time</th>
+                    {weekDays.map(day => (
+                      <th key={day} className="sticky top-0 z-10 px-4 py-4 text-left text-sm font-medium text-yellow-800 min-w-[250px]">
+                        {day}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-200">
+                  {timeSlots.map((slot) => (
+                    <tr key={slot.key} className="hover:bg-yellow-50/50">
+                      <td className="sticky left-0 z-10 bg-yellow-50 px-6 py-4 text-sm font-medium text-gray-900">
+                        <div className="flex items-center space-x-2">
+                          <Clock className="w-4 h-4 text-gray-400" />
+                          <span>{slot.label}</span>
+                        </div>
+                      </td>
+                      {weekDays.map(day => {
+                        const entries = filterEntries(routineData[day]?.[slot.key]);
+                        const classData = entries[0];
+                        const extraCount = entries.length > 1 ? entries.length - 1 : 0;
+                        return (
+                          <td key={`${day}-${slot.key}`} className="px-4 py-4">
+                            {classData ? (
+                              <div className={`p-3 rounded-lg border ${getSubjectColor(classData.subject)} group hover:shadow-md transition-all cursor-pointer`}>
+                                <div className="flex items-start justify-between">
+                                  <div className="flex-1">
+                                    <h4 className="font-semibold text-sm mb-1">{classData.subject}</h4>
+                                    <div className="space-y-1">
+                                      <div className="flex items-center space-x-1 text-xs">
+                                        <Users className="w-3 h-3" />
+                                        <span>{classData.teacher}</span>
+                                      </div>
+                                      <div className="flex items-center space-x-1 text-xs">
+                                        <MapPin className="w-3 h-3" />
+                                        <span>{classData.room}</span>
+                                      </div>
+                                      {extraCount > 0 && (
+                                        <div className="text-[10px] text-gray-600">
+                                          +{extraCount} more
+                                        </div>
+                                      )}
                                     </div>
                                   </div>
-                                </div>
-                                <div className="opacity-0 group-hover:opacity-100 transition-opacity flex space-x-1">
-                                  <button className="p-1 hover:bg-white hover:bg-opacity-50 rounded">
-                                    <Edit3 className="w-3 h-3" />
-                                  </button>
-                                  <button className="p-1 hover:bg-white hover:bg-opacity-50 rounded">
-                                    <Trash2 className="w-3 h-3" />
-                                  </button>
+                                  <div className="opacity-0 group-hover:opacity-100 transition-opacity flex space-x-1">
+                                    <button className="p-1 hover:bg-white hover:bg-opacity-50 rounded">
+                                      <Edit3 className="w-3 h-3" />
+                                    </button>
+                                    <button className="p-1 hover:bg-white hover:bg-opacity-50 rounded">
+                                      <Trash2 className="w-3 h-3" />
+                                    </button>
+                                  </div>
                                 </div>
                               </div>
-                            </div>
-                          ) : (
-                            <div className="p-3 border-2 border-dashed border-gray-200 rounded-lg text-center text-gray-400 hover:border-yellow-300 hover:text-yellow-500 transition-colors cursor-pointer">
-                              <Plus className="w-4 h-4 mx-auto mb-1" />
-                              <span className="text-xs">Add Class</span>
-                            </div>
-                          )}
-                        </td>
-                      );
-                    })}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+                            ) : (
+                              <div className="p-3 border-2 border-dashed border-gray-200 rounded-lg text-center text-gray-400 hover:border-yellow-300 hover:text-yellow-500 transition-colors cursor-pointer">
+                                <Plus className="w-4 h-4 mx-auto mb-1" />
+                                <span className="text-xs">Add Class</span>
+                              </div>
+                            )}
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
           </div>
         </div>
       </div>

@@ -24,8 +24,12 @@ router.post('/register', adminAuth, async (req, res) => {
     const username = await generateUsername(name, 'parent');
     const password = generatePassword();
     const resolvedSchoolId = req.schoolId || (req.isSuperAdmin ? schoolId : null);
+    const resolvedCampusId = req.campusId || (req.isSuperAdmin ? req.body?.campusId : null);
     if (!resolvedSchoolId) {
       return res.status(400).json({ error: 'schoolId is required' });
+    }
+    if (!resolvedCampusId) {
+      return res.status(400).json({ error: 'campusId is required' });
     }
     const allChild = children.split(',').map(child => child.trim());
     const allGrade = grade.split(',').map(g => g.trim());
@@ -33,6 +37,7 @@ router.post('/register', adminAuth, async (req, res) => {
       username,
       password,
       schoolId: resolvedSchoolId,
+      campusId: resolvedCampusId,
       name,
       mobile,
       email,
@@ -57,9 +62,12 @@ router.post('/login', rateLimit({ windowMs: 60 * 1000, max: 10 }), async (req, r
     if (!user || !(await bcrypt.compare(password, user.password))) {
       return res.status(401).json({ error: 'Invalid credentials' });
     }
+    if (!user.campusId) {
+      return res.status(400).json({ error: 'campusId is required for this account' });
+    }
 
     const token = jwt.sign(
-      { id: user._id, userType: 'parent', schoolId: user.schoolId || null },
+      { id: user._id, userType: 'parent', schoolId: user.schoolId || null, campusId: user.campusId || null },
       process.env.JWT_SECRET,
       { expiresIn: '1d' }
     );

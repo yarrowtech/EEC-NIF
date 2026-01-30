@@ -25,6 +25,7 @@ router.post('/', adminAuth, async (req, res) => {
   try {
     const schoolId = resolveSchoolId(req, res);
     if (!schoolId) return;
+    const campusId = req.campusId || null;
     const { title, message, audience, classId, sectionId } = req.body || {};
     if (!title || !String(title).trim() || !message || !String(message).trim()) {
       return res.status(400).json({ error: 'title and message are required' });
@@ -32,6 +33,7 @@ router.post('/', adminAuth, async (req, res) => {
 
     const created = await Notification.create({
       schoolId,
+      campusId: campusId || null,
       title: String(title).trim(),
       message: String(message).trim(),
       audience: audience || 'All',
@@ -52,7 +54,13 @@ router.get('/', adminAuth, async (req, res) => {
   try {
     const schoolId = resolveSchoolId(req, res);
     if (!schoolId) return;
-    const items = await Notification.find({ schoolId }).sort({ createdAt: -1 }).lean();
+    const campusId = req.campusId || null;
+    const items = await Notification.find({
+      schoolId,
+      ...(campusId ? { campusId } : {}),
+    })
+      .sort({ createdAt: -1 })
+      .lean();
     res.json(items);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -65,10 +73,11 @@ router.patch('/:id', adminAuth, async (req, res) => {
   try {
     const schoolId = resolveSchoolId(req, res);
     if (!schoolId) return;
+    const campusId = req.campusId || null;
     const { id } = req.params;
     const updates = req.body || {};
     const updated = await Notification.findOneAndUpdate(
-      { _id: id, schoolId },
+      { _id: id, schoolId, ...(campusId ? { campusId } : {}) },
       updates,
       { new: true, runValidators: true }
     );
@@ -85,8 +94,9 @@ router.delete('/:id', adminAuth, async (req, res) => {
   try {
     const schoolId = resolveSchoolId(req, res);
     if (!schoolId) return;
+    const campusId = req.campusId || null;
     const { id } = req.params;
-    const deleted = await Notification.findOneAndDelete({ _id: id, schoolId });
+    const deleted = await Notification.findOneAndDelete({ _id: id, schoolId, ...(campusId ? { campusId } : {}) });
     if (!deleted) return res.status(404).json({ error: 'Not found' });
     res.json({ ok: true });
   } catch (err) {
@@ -100,12 +110,17 @@ router.get('/user', authAnyUser, async (req, res) => {
   try {
     const schoolId = req.schoolId;
     if (!schoolId) return res.status(400).json({ error: 'schoolId is required' });
+    const campusId = req.campusId || null;
     const userType = req.userType;
     const normalizedAudience = userType
       ? userType.charAt(0).toUpperCase() + userType.slice(1)
       : 'unknown';
 
-    const filter = { schoolId, $or: [{ audience: 'All' }, { audience: normalizedAudience }] };
+    const filter = {
+      schoolId,
+      ...(campusId ? { campusId } : {}),
+      $or: [{ audience: 'All' }, { audience: normalizedAudience }],
+    };
     const items = await Notification.find(filter).sort({ createdAt: -1 }).lean();
     res.json(items);
   } catch (err) {

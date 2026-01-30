@@ -1,9 +1,12 @@
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Calendar, Clock, Users, MapPin, Filter, Download, Plus, Edit3, Trash2, X, ChevronLeft, ChevronRight, User, BookOpen, Grid, List } from 'lucide-react';
 import jsPDF from 'jspdf';
+import { academicApi, timetableApi, convertTo12Hour } from '../utils/timetableApi';
 
 const TeacherTimetable = ({ setShowAdminHeader }) => {
-  setShowAdminHeader(true);
+  useEffect(() => {
+    setShowAdminHeader(true);
+  }, [setShowAdminHeader]);
   
   const [currentView, setCurrentView] = useState('week');
   const [selectedTeacher, setSelectedTeacher] = useState('all');
@@ -11,70 +14,111 @@ const TeacherTimetable = ({ setShowAdminHeader }) => {
   const [currentWeek, setCurrentWeek] = useState(new Date());
   const [modalOpen, setModalOpen] = useState(false);
   const [modalTeacher, setModalTeacher] = useState(null);
+  const [teachers, setTeachers] = useState([]);
+  const [timetables, setTimetables] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
-  // Sample data
-  const teachers = [
-  { id: 1, name: 'Dr. Rakesh Sharma', subject: 'Mathematics' },
-  { id: 2, name: 'Prof. Priya Verma', subject: 'Physics' },
-  { id: 3, name: 'Ms. Anjali Mehra', subject: 'English Literature' },
-  { id: 4, name: 'Mr. Arjun Singh', subject: 'Chemistry' },
-  { id: 5, name: 'Dr. Kavita Rao', subject: 'Biology' }
+  const DEFAULT_TIME_SLOTS = [
+    { key: '08:00-08:45', label: '8:00 AM - 8:45 AM' },
+    { key: '08:45-09:30', label: '8:45 AM - 9:30 AM' },
+    { key: '09:30-10:15', label: '9:30 AM - 10:15 AM' },
+    { key: '10:15-10:45', label: '10:15 AM - 10:45 AM' },
+    { key: '10:45-11:30', label: '10:45 AM - 11:30 AM' },
+    { key: '11:30-12:15', label: '11:30 AM - 12:15 PM' },
   ];
 
-  const timeSlots = [
-    '08:00 - 09:00',
-    '09:00 - 10:00',
-    '10:30 - 11:30',
-    '11:30 - 12:30',
-    '13:30 - 14:30',
-    '14:30 - 15:30',
-    '15:30 - 16:30'
-  ];
+  const weekDays = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
-  const weekDays = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
+  const timeToMinutes = (value) => {
+    if (!value) return 0;
+    const [h, m] = value.split(':').map(Number);
+    return (h * 60) + (m || 0);
+  };
 
-  const timetableData = {
-    'Monday': {
-  '08:00 - 09:00': { teacher: 'Dr. Rakesh Sharma', subject: 'Advanced Mathematics', class: 'Class 12A', room: 'Room 101' },
-  '09:00 - 10:00': { teacher: 'Prof. Priya Verma', subject: 'Physics Lab', class: 'Class 11B', room: 'Lab 201' },
-  '10:30 - 11:30': { teacher: 'Ms. Anjali Mehra', subject: 'English Literature', class: 'Class 10A', room: 'Room 205' },
-  '11:30 - 12:30': { teacher: 'Dr. Rakesh Sharma', subject: 'Calculus', class: 'Class 12B', room: 'Room 101' },
-  '13:30 - 14:30': { teacher: 'Mr. Arjun Singh', subject: 'Organic Chemistry', class: 'Class 11A', room: 'Lab 301' },
-  '14:30 - 15:30': { teacher: 'Dr. Kavita Rao', subject: 'Biology', class: 'Class 10B', room: 'Room 105' }
-    },
-    'Tuesday': {
-  '08:00 - 09:00': { teacher: 'Prof. Priya Verma', subject: 'Quantum Physics', class: 'Class 12A', room: 'Room 202' },
-  '09:00 - 10:00': { teacher: 'Ms. Anjali Mehra', subject: 'Creative Writing', class: 'Class 11A', room: 'Room 205' },
-  '10:30 - 11:30': { teacher: 'Dr. Kavita Rao', subject: 'Molecular Biology', class: 'Class 12B', room: 'Lab 105' },
-  '11:30 - 12:30': { teacher: 'Mr. Arjun Singh', subject: 'Chemical Analysis', class: 'Class 11B', room: 'Lab 301' },
-  '13:30 - 14:30': { teacher: 'Dr. Rakesh Sharma', subject: 'Statistics', class: 'Class 10A', room: 'Room 101' },
-  '15:30 - 16:30': { teacher: 'Prof. Priya Verma', subject: 'Physics Tutorial', class: 'Class 10B', room: 'Room 202' }
-    },
-    'Wednesday': {
-  '08:00 - 09:00': { teacher: 'Ms. Anjali Mehra', subject: 'Shakespeare Studies', class: 'Class 12A', room: 'Room 205' },
-  '09:00 - 10:00': { teacher: 'Dr. Kavita Rao', subject: 'Genetics Lab', class: 'Class 11A', room: 'Lab 105' },
-  '10:30 - 11:30': { teacher: 'Mr. Arjun Singh', subject: 'Inorganic Chemistry', class: 'Class 12B', room: 'Room 301' },
-  '11:30 - 12:30': { teacher: 'Dr. Rakesh Sharma', subject: 'Trigonometry', class: 'Class 11B', room: 'Room 101' },
-  '13:30 - 14:30': { teacher: 'Prof. Priya Verma', subject: 'Mechanics', class: 'Class 10A', room: 'Room 202' },
-  '14:30 - 15:30': { teacher: 'Ms. Anjali Mehra', subject: 'Poetry Analysis', class: 'Class 10B', room: 'Room 205' }
-    },
-    'Thursday': {
-  '08:00 - 09:00': { teacher: 'Dr. Kavita Rao', subject: 'Ecology', class: 'Class 12A', room: 'Room 105' },
-  '09:00 - 10:00': { teacher: 'Mr. Arjun Singh', subject: 'Analytical Chemistry', class: 'Class 12B', room: 'Lab 301' },
-  '10:30 - 11:30': { teacher: 'Dr. Rakesh Sharma', subject: 'Geometry', class: 'Class 10A', room: 'Room 101' },
-  '11:30 - 12:30': { teacher: 'Prof. Priya Verma', subject: 'Thermodynamics', class: 'Class 11A', room: 'Room 202' },
-  '13:30 - 14:30': { teacher: 'Ms. Anjali Mehra', subject: 'Grammar & Composition', class: 'Class 11B', room: 'Room 205' },
-  '15:30 - 16:30': { teacher: 'Dr. Kavita Rao', subject: 'Biology Lab', class: 'Class 10B', room: 'Lab 105' }
-    },
-    'Friday': {
-  '08:00 - 09:00': { teacher: 'Mr. Arjun Singh', subject: 'Physical Chemistry', class: 'Class 12A', room: 'Lab 301' },
-  '09:00 - 10:00': { teacher: 'Dr. Rakesh Sharma', subject: 'Algebra Review', class: 'Class 11A', room: 'Room 101' },
-  '10:30 - 11:30': { teacher: 'Prof. Priya Verma', subject: 'Wave Physics', class: 'Class 12B', room: 'Room 202' },
-  '11:30 - 12:30': { teacher: 'Ms. Anjali Mehra', subject: 'Literature Discussion', class: 'Class 11B', room: 'Room 205' },
-  '13:30 - 14:30': { teacher: 'Dr. Kavita Rao', subject: 'Human Anatomy', class: 'Class 10A', room: 'Room 105' },
-  '14:30 - 15:30': { teacher: 'Mr. Arjun Singh', subject: 'Chemistry Review', class: 'Class 10B', room: 'Room 301' }
+  const timeSlots = useMemo(() => {
+    const slots = new Map();
+    timetables.forEach((tt) => {
+      (tt.entries || []).forEach((entry) => {
+        if (!entry.startTime || !entry.endTime) return;
+        const key = `${entry.startTime}-${entry.endTime}`;
+        if (!slots.has(key)) {
+          slots.set(key, {
+            key,
+            startTime: entry.startTime,
+            endTime: entry.endTime,
+            label: `${convertTo12Hour(entry.startTime)} - ${convertTo12Hour(entry.endTime)}`,
+          });
+        }
+      });
+    });
+
+    if (slots.size === 0) return DEFAULT_TIME_SLOTS;
+
+    return Array.from(slots.values()).sort((a, b) => {
+      const startDiff = timeToMinutes(a.startTime) - timeToMinutes(b.startTime);
+      if (startDiff !== 0) return startDiff;
+      return timeToMinutes(a.endTime) - timeToMinutes(b.endTime);
+    });
+  }, [timetables]);
+
+  const slotLabelByKey = useMemo(() => {
+    const map = new Map();
+    timeSlots.forEach((slot) => {
+      map.set(slot.key, slot.label);
+    });
+    return map;
+  }, [timeSlots]);
+
+  const routineData = useMemo(() => {
+    const data = {};
+    weekDays.forEach((day) => {
+      data[day] = {};
+    });
+
+    timetables.forEach((tt) => {
+      const className = tt.classId?.name || '';
+      const sectionName = tt.sectionId?.name || '';
+      (tt.entries || []).forEach((entry) => {
+        if (!entry.dayOfWeek || !entry.startTime || !entry.endTime) return;
+        const day = entry.dayOfWeek;
+        if (!data[day]) data[day] = {};
+        const key = `${entry.startTime}-${entry.endTime}`;
+        if (!data[day][key]) data[day][key] = [];
+        data[day][key].push({
+          teacher: entry.teacherId?.name || 'TBA',
+          teacherId: entry.teacherId?._id || entry.teacherId || null,
+          subject: entry.subjectId?.name || 'Unknown',
+          className,
+          sectionName,
+          room: entry.room || '',
+        });
+      });
+    });
+
+    return data;
+  }, [timetables]);
+
+  const loadData = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const [teacherData, timetableData] = await Promise.all([
+        academicApi.getTeachers().catch(() => []),
+        timetableApi.getAll().catch(() => []),
+      ]);
+      setTeachers(Array.isArray(teacherData) ? teacherData : []);
+      setTimetables(Array.isArray(timetableData) ? timetableData : []);
+    } catch (err) {
+      setError(err.message || 'Failed to load timetable data');
+    } finally {
+      setLoading(false);
     }
   };
+
+  useEffect(() => {
+    loadData();
+  }, []);
 
   const getSubjectColor = (subject) => {
     const colors = {
@@ -132,32 +176,44 @@ const TeacherTimetable = ({ setShowAdminHeader }) => {
   };
 
   const getFilteredTimetableData = () => {
-    if (selectedTeacher === 'all') return timetableData;
-    
-    const teacherName = teachers.find(t => t.id === Number(selectedTeacher))?.name;
-    if (!teacherName) return timetableData;
-    
+    if (selectedTeacher === 'all') return routineData;
+
     const filteredData = {};
-    Object.keys(timetableData).forEach(day => {
+    Object.keys(routineData).forEach(day => {
       filteredData[day] = {};
-      Object.entries(timetableData[day]).forEach(([time, classData]) => {
-        if (classData.teacher === teacherName) {
-          filteredData[day][time] = classData;
+      Object.entries(routineData[day]).forEach(([time, entries]) => {
+        const matches = (entries || []).filter((entry) => (
+          String(entry.teacherId) === String(selectedTeacher)
+        ));
+        if (matches.length > 0) {
+          filteredData[day][time] = matches;
         }
       });
     });
     return filteredData;
   };
 
-  const getTeacherSchedule = (teacherName) => {
+  const getTeacherSchedule = (teacherId) => {
     const schedule = {};
     weekDays.forEach(day => {
-      schedule[day] = Object.entries(timetableData[day] || {})
-        .filter(([slot, classData]) => classData.teacher === teacherName)
-        .map(([slot, classData]) => ({ slot, ...classData }));
+      schedule[day] = [];
+      Object.entries(routineData[day] || {}).forEach(([slot, entries]) => {
+        (entries || [])
+          .filter((entry) => String(entry.teacherId) === String(teacherId))
+          .forEach((entry) => {
+            schedule[day].push({
+              slot: slotLabelByKey.get(slot) || slot,
+              ...entry,
+            });
+          });
+      });
     });
     return schedule;
   };
+
+  const timetableData = useMemo(() => {
+    return getFilteredTimetableData();
+  }, [routineData, selectedTeacher]);
 
   const exportTimetableToPDF = () => {
     const pdf = new jsPDF('l', 'mm', 'a4'); // Landscape orientation
@@ -174,8 +230,10 @@ const TeacherTimetable = ({ setShowAdminHeader }) => {
     pdf.setFontSize(12);
     pdf.setFont(undefined, 'normal');
     if (selectedTeacher !== 'all') {
-      const teacher = teachers.find(t => t.id == selectedTeacher);
-      pdf.text(`Teacher: ${teacher.name} - ${teacher.subject}`, pageWidth / 2, yPosition, { align: 'center' });
+      const teacher = teachers.find(t => String(t._id) === String(selectedTeacher));
+      if (teacher) {
+        pdf.text(`Teacher: ${teacher.name} - ${teacher.subject || ''}`, pageWidth / 2, yPosition, { align: 'center' });
+      }
     } else {
       pdf.text('All Teachers Schedule', pageWidth / 2, yPosition, { align: 'center' });
     }
@@ -216,13 +274,15 @@ const TeacherTimetable = ({ setShowAdminHeader }) => {
         }
         
         xPosition = 20;
-        pdf.text(slot, xPosition, yPosition);
+        pdf.text(slot.label, xPosition, yPosition);
         xPosition += 45;
         
         weekDays.forEach(day => {
-          const classData = timetableData[day]?.[slot];
-          if (classData && (selectedTeacher === 'all' || classData.teacher === teachers.find(t => t.id == selectedTeacher)?.name)) {
-            const text = `${classData.subject}\n${classData.class}\n${classData.room}\n${classData.teacher}`;
+          const entries = timetableData[day]?.[slot.key] || [];
+          const classData = entries[0];
+          if (classData) {
+            const classLabel = `${classData.className}${classData.sectionName ? `-${classData.sectionName}` : ''}`;
+            const text = `${classData.subject}\n${classLabel}\n${classData.room}\n${classData.teacher}`;
             pdf.text(text.split('\n')[0], xPosition, yPosition - 2);
             pdf.text(text.split('\n')[1], xPosition, yPosition + 2);
             pdf.text(text.split('\n')[2], xPosition, yPosition + 6);
@@ -246,7 +306,9 @@ const TeacherTimetable = ({ setShowAdminHeader }) => {
     pdf.text('Teacher Schedule Summary', 20, yPosition);
     yPosition += 12;
 
-    const teachersToShow = selectedTeacher === 'all' ? teachers : [teachers.find(t => t.id == selectedTeacher)];
+    const teachersToShow = selectedTeacher === 'all'
+      ? teachers
+      : [teachers.find(t => String(t._id) === String(selectedTeacher))].filter(Boolean);
     
     teachersToShow.forEach(teacher => {
       if (yPosition > 180) {
@@ -256,13 +318,13 @@ const TeacherTimetable = ({ setShowAdminHeader }) => {
       
       pdf.setFontSize(12);
       pdf.setFont(undefined, 'bold');
-      pdf.text(`${teacher.name} (${teacher.subject})`, 20, yPosition);
+      pdf.text(`${teacher.name} (${teacher.subject || ''})`, 20, yPosition);
       yPosition += 8;
       
       pdf.setFontSize(8);
       pdf.setFont(undefined, 'normal');
       
-      const schedule = getTeacherSchedule(teacher.name);
+      const schedule = getTeacherSchedule(teacher._id);
       Object.entries(schedule).forEach(([day, classes]) => {
         if (classes.length > 0) {
           pdf.setFont(undefined, 'bold');
@@ -271,7 +333,8 @@ const TeacherTimetable = ({ setShowAdminHeader }) => {
           yPosition += 5;
           
           classes.forEach(classInfo => {
-            pdf.text(`  ${classInfo.slot}: ${classInfo.subject} - ${classInfo.class} (${classInfo.room})`, 25, yPosition);
+            const classLabel = `${classInfo.className}${classInfo.sectionName ? `-${classInfo.sectionName}` : ''}`;
+            pdf.text(`  ${classInfo.slot}: ${classInfo.subject} - ${classLabel} (${classInfo.room})`, 25, yPosition);
             yPosition += 4;
           });
           yPosition += 2;
@@ -285,7 +348,9 @@ const TeacherTimetable = ({ setShowAdminHeader }) => {
     pdf.setFont(undefined, 'italic');
     pdf.text('Generated by School Management System - Teacher Timetable Module', pageWidth / 2, pdf.internal.pageSize.height - 10, { align: 'center' });
 
-    const teacherSuffix = selectedTeacher === 'all' ? 'all-teachers' : teachers.find(t => t.id == selectedTeacher)?.name.replace(/ /g, '-');
+    const teacherSuffix = selectedTeacher === 'all'
+      ? 'all-teachers'
+      : (teachers.find(t => String(t._id) === String(selectedTeacher))?.name || 'teacher').replace(/ /g, '-');
     pdf.save(`teacher-timetable-${teacherSuffix}-${currentDate.replace(/\//g, '-')}.pdf`);
   };
 
@@ -335,7 +400,7 @@ const TeacherTimetable = ({ setShowAdminHeader }) => {
               >
                 <option value="all">All Teachers</option>
                 {teachers.map(teacher => (
-                  <option key={teacher.id} value={teacher.id}>{teacher.name}</option>
+                  <option key={teacher._id} value={teacher._id}>{teacher.name}</option>
                 ))}
               </select>
             </div>
@@ -381,7 +446,7 @@ const TeacherTimetable = ({ setShowAdminHeader }) => {
                   <div className="text-sm text-gray-500">Week of</div>
                   <div className="font-semibold text-gray-900">
                     {getCurrentWeekDates()[0].toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} - 
-                    {getCurrentWeekDates()[4].toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                    {getCurrentWeekDates()[weekDays.length - 1].toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
                   </div>
                 </div>
                 <button 
@@ -415,11 +480,23 @@ const TeacherTimetable = ({ setShowAdminHeader }) => {
       </div>
 
       {/* Enhanced Week View with RoutineView styling */}
-      {currentView === 'week' && (
+      {loading && (
+        <div className="bg-white rounded-xl shadow-sm border border-purple-400 p-6 mb-6 text-sm text-gray-600">
+          Loading timetable...
+        </div>
+      )}
+      {!loading && error && (
+        <div className="bg-white rounded-xl shadow-sm border border-red-300 p-6 mb-6 text-sm text-red-600">
+          {error}
+        </div>
+      )}
+      {!loading && !error && currentView === 'week' && (
         <div className="bg-white rounded-xl shadow-sm border border-purple-400 overflow-hidden">
           <div className="p-6 border-b border-gray-100">
             <h2 className="text-xl font-semibold text-gray-900">
-              {selectedTeacher === 'all' ? 'All Teachers' : teachers.find(t => t.id === Number(selectedTeacher))?.name + "'s"} Weekly Schedule
+              {selectedTeacher === 'all'
+                ? 'All Teachers'
+                : (teachers.find(t => String(t._id) === String(selectedTeacher))?.name || 'Teacher') + "'s"} Weekly Schedule
             </h2>
           </div>
           
@@ -445,18 +522,19 @@ const TeacherTimetable = ({ setShowAdminHeader }) => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-purple-100">
-                {timeSlots.map(timeSlot => (
-                  <tr key={timeSlot} className="hover:bg-gray-50 transition-colors min-h-16">
+                {timeSlots.map((timeSlot) => (
+                  <tr key={timeSlot.key} className="hover:bg-gray-50 transition-colors min-h-16">
                     <td className="p-3 bg-gray-50 text-sm text-gray-600 text-center border-r border-gray-200">
-                      {timeSlot}
+                      {timeSlot.label}
                     </td>
                     {weekDays.map(day => {
-                      const filteredData = getFilteredTimetableData();
-                      const classData = filteredData[day]?.[timeSlot];
+                      const entries = timetableData[day]?.[timeSlot.key] || [];
+                      const classData = entries[0];
+                      const extraCount = entries.length > 1 ? entries.length - 1 : 0;
                       
                       if (classData) {
                         return (
-                          <td key={`${day}-${timeSlot}`} className="px-4 py-4">
+                          <td key={`${day}-${timeSlot.key}`} className="px-4 py-4">
                             <div className={`p-3 rounded-lg border-l-4 ${getSubjectColor(classData.subject)} group hover:shadow-md transition-all cursor-pointer`}>
                               <div className="flex items-start justify-between">
                                 <div className="flex-1">
@@ -468,12 +546,17 @@ const TeacherTimetable = ({ setShowAdminHeader }) => {
                                     </div>
                                     <div className="flex items-center space-x-2 text-xs">
                                       <Users className="w-3 h-3 text-gray-500" />
-                                      <span className="text-gray-600">{classData.class}</span>
+                                      <span className="text-gray-600">
+                                        {classData.className}{classData.sectionName ? `-${classData.sectionName}` : ''}
+                                      </span>
                                     </div>
                                     <div className="flex items-center space-x-2 text-xs">
                                       <MapPin className="w-3 h-3 text-gray-500" />
                                       <span className="text-gray-600">{classData.room}</span>
                                     </div>
+                                    {extraCount > 0 && (
+                                      <div className="text-[10px] text-gray-500">+{extraCount} more</div>
+                                    )}
                                   </div>
                                 </div>
                                 <div className="opacity-0 group-hover:opacity-100 transition-opacity flex flex-col space-y-1">
@@ -490,7 +573,7 @@ const TeacherTimetable = ({ setShowAdminHeader }) => {
                         );
                       } else {
                         return (
-                          <td key={`${day}-${timeSlot}`} className="px-4 py-4">
+                          <td key={`${day}-${timeSlot.key}`} className="px-4 py-4">
                             <div className="p-3 border border-dashed border-gray-200 rounded-lg text-center text-gray-400 hover:border-indigo-300 hover:text-indigo-500 transition-colors cursor-pointer">
                               <Plus className="w-4 h-4 mx-auto mb-1" />
                               <span className="text-xs">Add Class</span>
@@ -508,7 +591,7 @@ const TeacherTimetable = ({ setShowAdminHeader }) => {
       )}
 
       {/* Day Selector (RoutineView style) */}
-      {currentView === 'day' && (
+      {!loading && !error && currentView === 'day' && (
         <div className="bg-white rounded-xl shadow-sm border border-purple-400 p-6 mb-6">
           <div className="grid grid-cols-5 gap-2">
             {weekDays.map((day) => {
@@ -528,7 +611,7 @@ const TeacherTimetable = ({ setShowAdminHeader }) => {
                   )}
                   <div className="text-sm font-medium">{day.substring(0, 3)}</div>
                   <div className="text-xs mt-1 opacity-75">
-                    {Object.values(getFilteredTimetableData()[day] || {}).length} items
+                    {Object.values(timetableData[day] || {}).length} items
                   </div>
                 </button>
               );
@@ -538,7 +621,7 @@ const TeacherTimetable = ({ setShowAdminHeader }) => {
       )}
 
       {/* Enhanced Day View with RoutineView styling */}
-      {currentView === 'day' && (
+      {!loading && !error && currentView === 'day' && (
         <div className="bg-white rounded-xl shadow-sm border border-purple-400">
           <div className="p-6 border-b border-gray-100">
             <div className="flex items-center justify-between">
@@ -549,22 +632,23 @@ const TeacherTimetable = ({ setShowAdminHeader }) => {
                 )}
               </h2>
               <div className="text-sm text-gray-500">
-                {Object.values(getFilteredTimetableData()[selectedDay] || {}).length} items
+                {Object.values(timetableData[selectedDay] || {}).length} items
               </div>
             </div>
           </div>
           
           <div className="p-6">
-            {Object.values(getFilteredTimetableData()[selectedDay] || {}).length > 0 ? (
+            {Object.values(timetableData[selectedDay] || {}).length > 0 ? (
               <div className="space-y-4">
-                {timeSlots.map(timeSlot => {
-                  const filteredData = getFilteredTimetableData();
-                  const classData = filteredData[selectedDay]?.[timeSlot];
+                {timeSlots.map((timeSlot) => {
+                  const entries = timetableData[selectedDay]?.[timeSlot.key] || [];
+                  const classData = entries[0];
+                  const extraCount = entries.length > 1 ? entries.length - 1 : 0;
                   
                   if (!classData) return null;
                   
                   return (
-                    <div key={timeSlot} className="border border-gray-200 rounded-lg p-6 hover:shadow-md transition-all hover:border-indigo-300">
+                    <div key={timeSlot.key} className="border border-gray-200 rounded-lg p-6 hover:shadow-md transition-all hover:border-indigo-300">
                       <div className="flex items-start space-x-4">
                         <div className={`w-12 h-12 rounded-lg ${getSubjectColor(classData.subject).includes('blue') ? 'bg-blue-500' : 
                           getSubjectColor(classData.subject).includes('green') ? 'bg-green-500' :
@@ -586,7 +670,7 @@ const TeacherTimetable = ({ setShowAdminHeader }) => {
                           <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-sm text-gray-600">
                             <div className="flex items-center space-x-2">
                               <Clock size={16} className="text-gray-400 flex-shrink-0" />
-                              <span className="truncate">{timeSlot}</span>
+                              <span className="truncate">{timeSlot.label}</span>
                             </div>
                             
                             <div className="flex items-center space-x-2">
@@ -603,8 +687,13 @@ const TeacherTimetable = ({ setShowAdminHeader }) => {
                           <div className="mt-3">
                             <div className="flex items-center space-x-2 text-sm text-gray-600">
                               <Users size={16} className="text-gray-400 flex-shrink-0" />
-                              <span className="truncate">{classData.class}</span>
+                              <span className="truncate">
+                                {classData.className}{classData.sectionName ? `-${classData.sectionName}` : ''}
+                              </span>
                             </div>
+                            {extraCount > 0 && (
+                              <div className="mt-1 text-xs text-gray-500">+{extraCount} more</div>
+                            )}
                           </div>
                         </div>
                       </div>
@@ -626,7 +715,7 @@ const TeacherTimetable = ({ setShowAdminHeader }) => {
       )}
 
       {/* Teacher Statistics (RoutineView style) */}
-      {selectedTeacher === 'all' && currentView === 'week' && (
+      {!loading && !error && selectedTeacher === 'all' && currentView === 'week' && (
         <div className="bg-white rounded-xl shadow-sm border border-purple-400">
           <div className="p-6 border-b border-gray-100">
             <h2 className="text-xl font-semibold text-gray-900">Teacher Statistics</h2>
@@ -643,28 +732,39 @@ const TeacherTimetable = ({ setShowAdminHeader }) => {
               
               <div className="text-center p-4 bg-green-50 rounded-lg">
                 <div className="text-2xl font-bold text-green-600">
-                  {Object.values(timetableData).flatMap(day => Object.values(day)).length}
+                  {Object.values(timetableData)
+                    .flatMap(day => Object.values(day))
+                    .reduce((total, entries) => total + entries.length, 0)}
                 </div>
                 <div className="text-sm text-green-800">Total Classes</div>
               </div>
               
               <div className="text-center p-4 bg-purple-50 rounded-lg">
                 <div className="text-2xl font-bold text-purple-600">
-                  {new Set(Object.values(timetableData).flatMap(day => Object.values(day)).map(c => c.class)).size}
+                  {new Set(Object.values(timetableData)
+                    .flatMap(day => Object.values(day))
+                    .flatMap(entries => entries.map(c => `${c.className}${c.sectionName ? `-${c.sectionName}` : ''}`))
+                  ).size}
                 </div>
                 <div className="text-sm text-purple-800">Unique Classes</div>
               </div>
               
               <div className="text-center p-4 bg-orange-50 rounded-lg">
                 <div className="text-2xl font-bold text-orange-600">
-                  {new Set(Object.values(timetableData).flatMap(day => Object.values(day)).map(c => c.room)).size}
+                  {new Set(Object.values(timetableData)
+                    .flatMap(day => Object.values(day))
+                    .flatMap(entries => entries.map(c => c.room))
+                  ).size}
                 </div>
                 <div className="text-sm text-orange-800">Rooms Used</div>
               </div>
               
               <div className="text-center p-4 bg-pink-50 rounded-lg">
                 <div className="text-2xl font-bold text-pink-600">
-                  {new Set(Object.values(timetableData).flatMap(day => Object.values(day)).map(c => c.subject)).size}
+                  {new Set(Object.values(timetableData)
+                    .flatMap(day => Object.values(day))
+                    .flatMap(entries => entries.map(c => c.subject))
+                  ).size}
                 </div>
                 <div className="text-sm text-pink-800">Subjects</div>
               </div>
@@ -673,16 +773,16 @@ const TeacherTimetable = ({ setShowAdminHeader }) => {
             {/* Teacher Cards */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {teachers.map(teacher => {
-                const teacherClasses = Object.values(timetableData).flatMap(day => 
-                  Object.values(day).filter(classData => classData.teacher === teacher.name)
-                );
+                const teacherClasses = Object.values(timetableData)
+                  .flatMap(day => Object.values(day))
+                  .flatMap(entries => entries.filter(classData => String(classData.teacherId) === String(teacher._id)));
                 
                 return (
-                  <div key={teacher.id} className="bg-white border border-gray-200 rounded-lg p-4 hover:shadow-md transition-all hover:border-indigo-300">
+                  <div key={teacher._id} className="bg-white border border-gray-200 rounded-lg p-4 hover:shadow-md transition-all hover:border-indigo-300">
                     <div className="flex items-start justify-between mb-4">
                       <div>
                         <h3 className="font-semibold text-gray-900">{teacher.name}</h3>
-                        <p className="text-sm text-gray-600">{teacher.subject}</p>
+                        <p className="text-sm text-gray-600">{teacher.subject || ''}</p>
                       </div>
                       <div className="w-10 h-10 bg-indigo-100 rounded-full flex items-center justify-center">
                         <User className="w-5 h-5 text-indigo-600" />
@@ -696,7 +796,9 @@ const TeacherTimetable = ({ setShowAdminHeader }) => {
                       </div>
                       <div className="flex justify-between text-sm">
                         <span className="text-gray-600">Unique Classes</span>
-                        <span className="font-medium">{new Set(teacherClasses.map(c => c.class)).size}</span>
+                        <span className="font-medium">
+                          {new Set(teacherClasses.map(c => `${c.className}${c.sectionName ? `-${c.sectionName}` : ''}`)).size}
+                        </span>
                       </div>
                     </div>
                     
@@ -723,7 +825,7 @@ const TeacherTimetable = ({ setShowAdminHeader }) => {
               <div className="flex items-center justify-between">
                 <div>
                   <h2 className="text-xl font-semibold text-gray-900">{modalTeacher.name}</h2>
-                  <p className="text-gray-600">{modalTeacher.subject} - Weekly Schedule</p>
+                  <p className="text-gray-600">{modalTeacher.subject || ''} - Weekly Schedule</p>
                 </div>
                 <button
                   onClick={closeModal}
@@ -738,7 +840,7 @@ const TeacherTimetable = ({ setShowAdminHeader }) => {
             <div className="p-6 overflow-y-auto max-h-[calc(90vh-140px)]">
               <div className="space-y-6">
                 {weekDays.map(day => {
-                  const daySchedule = getTeacherSchedule(modalTeacher.name)[day];
+                  const daySchedule = getTeacherSchedule(modalTeacher._id)[day];
                   
                   return (
                     <div key={day} className="border border-gray-200 rounded-lg p-4 hover:bg-gray-50 transition-colors">
@@ -772,7 +874,9 @@ const TeacherTimetable = ({ setShowAdminHeader }) => {
                                   <div className="flex items-center space-x-1">
                                     <Users className="w-3 h-3 text-gray-500" />
                                     <span className="text-gray-600">Class:</span>
-                                    <span className="font-medium">{classInfo.class}</span>
+                                    <span className="font-medium">
+                                      {classInfo.className}{classInfo.sectionName ? `-${classInfo.sectionName}` : ''}
+                                    </span>
                                   </div>
                                   <div className="flex items-center space-x-1">
                                     <MapPin className="w-3 h-3 text-gray-500" />
@@ -803,7 +907,7 @@ const TeacherTimetable = ({ setShowAdminHeader }) => {
             <div className="p-6 border-t bg-gray-50">
               <div className="flex flex-col md:flex-row items-center justify-between gap-4">
                 <div className="text-sm text-gray-600">
-                  Total weekly classes: {Object.values(getTeacherSchedule(modalTeacher.name)).flat().length}
+                  Total weekly classes: {Object.values(getTeacherSchedule(modalTeacher._id)).flat().length}
                 </div>
                 <div className="flex space-x-3">
                   <button className="px-4 py-2 border border-gray-300 rounded-lg text-black hover:bg-gray-100 transition-colors">

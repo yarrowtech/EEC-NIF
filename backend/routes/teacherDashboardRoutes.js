@@ -41,6 +41,9 @@ router.get('/', authTeacher, async (req, res) => {
     if (campusId) {
       studentFilter.campusId = campusId;
     }
+    if (campusId) {
+      studentFilter.campusId = campusId;
+    }
     const students = await StudentUser.find(studentFilter)
       .select('name grade section attendance')
       .lean();
@@ -160,7 +163,11 @@ router.get('/', authTeacher, async (req, res) => {
 
     const weekday = today.toLocaleDateString('en-US', { weekday: 'long' });
     const timetables = teacherId
-      ? await Timetable.find({ schoolId, 'entries.teacherId': teacherId }).lean()
+      ? await Timetable.find({
+        schoolId,
+        ...(campusId ? { campusId } : {}),
+        'entries.teacherId': teacherId,
+      }).lean()
       : [];
 
     const subjectIds = new Set();
@@ -177,15 +184,24 @@ router.get('/', authTeacher, async (req, res) => {
       });
     });
 
+    const subjectFilter = subjectIds.size ? { _id: { $in: [...subjectIds] } } : null;
+    const classFilter = classIds.size ? { _id: { $in: [...classIds] } } : null;
+    const sectionFilter = sectionIds.size ? { _id: { $in: [...sectionIds] } } : null;
+    if (campusId) {
+      if (subjectFilter) subjectFilter.campusId = campusId;
+      if (classFilter) classFilter.campusId = campusId;
+      if (sectionFilter) sectionFilter.campusId = campusId;
+    }
+
     const [subjects, classes, sections] = await Promise.all([
-      subjectIds.size
-        ? Subject.find({ _id: { $in: [...subjectIds] } }).select('name').lean()
+      subjectFilter
+        ? Subject.find(subjectFilter).select('name').lean()
         : [],
-      classIds.size
-        ? ClassModel.find({ _id: { $in: [...classIds] } }).select('name').lean()
+      classFilter
+        ? ClassModel.find(classFilter).select('name').lean()
         : [],
-      sectionIds.size
-        ? Section.find({ _id: { $in: [...sectionIds] } }).select('name classId').lean()
+      sectionFilter
+        ? Section.find(sectionFilter).select('name classId').lean()
         : [],
     ]);
 
@@ -221,11 +237,7 @@ router.get('/', authTeacher, async (req, res) => {
 
     const assignmentFilter = { schoolId, dueDate: { $gte: today } };
     if (campusId) {
-      assignmentFilter.$or = [
-        { campusId },
-        { campusId: { $exists: false } },
-        { campusId: null },
-      ];
+      assignmentFilter.campusId = campusId;
     }
     const upcomingDeadlines = await Assignment.find(assignmentFilter)
       .sort({ dueDate: 1 })

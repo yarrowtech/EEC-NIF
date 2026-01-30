@@ -16,6 +16,7 @@ const entrySchema = new mongoose.Schema(
 const timetableSchema = new mongoose.Schema(
   {
     schoolId: { type: mongoose.Schema.Types.ObjectId, ref: 'School', required: true },
+    campusId: { type: String, default: null, index: true },
     academicYearId: { type: mongoose.Schema.Types.ObjectId, ref: 'AcademicYear' },
     classId: { type: mongoose.Schema.Types.ObjectId, ref: 'Class', required: true },
     sectionId: { type: mongoose.Schema.Types.ObjectId, ref: 'Section' },

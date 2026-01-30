@@ -23,6 +23,8 @@ const resolveSchoolId = (req, res) => {
     return schoolId;
 };
 
+const resolveCampusId = (req) => req.campusId || null;
+
 
 
 const router = express.Router();
@@ -33,7 +35,9 @@ router.get("/fetch", adminAuth, async (req, res) => {
     try {
         const schoolId = resolveSchoolId(req, res);
         if (!schoolId) return;
-        const exams = await Exam.find({ schoolId }).lean();
+        const campusId = resolveCampusId(req);
+        const filter = { schoolId, ...(campusId ? { campusId } : {}) };
+        const exams = await Exam.find(filter).lean();
         res.status(200).json(exams);
     } catch(err) {
         res.status(400).json({error: err.message});
@@ -46,8 +50,10 @@ router.post("/add", adminAuth, async (req, res) => {
         const { title, subject, term, instructor, venue, date, time, duration, marks, noOfStudents, status } = req.body;
         const schoolId = resolveSchoolId(req, res);
         if (!schoolId) return;
+        const campusId = resolveCampusId(req);
         const exam = await Exam.create({
             schoolId,
+            campusId: campusId || null,
             title,
             subject,
             term: term || 'Term 1',
@@ -77,7 +83,11 @@ const adminOrTeacherAuth = async (req, res, next) => {
             if (decoded.type === 'admin') {
                 req.admin = decoded;
                 req.schoolId = decoded.schoolId;
+                req.campusId = decoded.campusId || null;
                 req.userType = 'Admin';
+                if (!req.campusId) {
+                  return res.status(400).json({ error: 'campusId is required' });
+                }
                 return next();
             }
         } catch (err) {
@@ -93,17 +103,21 @@ router.post("/results", adminOrTeacherAuth, async (req, res) => {
     try {
         const schoolId = req.schoolId || req.user?.schoolId || req.admin?.schoolId || null;
         if (!schoolId) return res.status(400).json({ error: 'schoolId is required' });
+        const campusId = req.campusId || null;
         const { examId, studentId, marks, grade, remarks, status } = req.body || {};
         if (!examId || !studentId) {
             return res.status(400).json({ error: 'examId and studentId are required' });
         }
-        const exam = await Exam.findOne({ _id: examId, schoolId }).lean();
+        const exam = await Exam.findOne({ _id: examId, schoolId, ...(campusId ? { campusId } : {}) }).lean();
         if (!exam) {
             return res.status(404).json({ error: 'Exam not found' });
         }
-        const student = await StudentUser.findOne({ _id: studentId, schoolId }).lean();
+        const student = await StudentUser.findOne({ _id: studentId, schoolId, ...(campusId ? { campusId } : {}) }).lean();
         if (!student) {
             return res.status(404).json({ error: 'Student not found' });
+        }
+        if (campusId && student.campusId && String(student.campusId) !== String(campusId)) {
+            return res.status(400).json({ error: 'Student does not belong to this campus' });
         }
         const score = Number(marks);
         if (!Number.isFinite(score) || score < 0) {
@@ -111,9 +125,10 @@ router.post("/results", adminOrTeacherAuth, async (req, res) => {
         }
 
         const result = await ExamResult.findOneAndUpdate(
-            { examId, studentId, schoolId },
+            { examId, studentId, schoolId, ...(campusId ? { campusId } : {}) },
             {
                 schoolId,
+                campusId: campusId || null,
                 examId,
                 studentId,
                 marks: score,
@@ -137,8 +152,9 @@ router.get("/results", teacherAuth, async (req, res) => {
     try {
         const schoolId = req.schoolId || req.user?.schoolId || null;
         if (!schoolId) return res.status(400).json({ error: 'schoolId is required' });
+        const campusId = req.campusId || null;
         const { examId, studentId } = req.query || {};
-        const filter = { schoolId };
+        const filter = { schoolId, ...(campusId ? { campusId } : {}) };
         if (examId) filter.examId = examId;
         if (studentId) filter.studentId = studentId;
         const results = await ExamResult.find(filter)
@@ -196,7 +212,12 @@ router.get("/results/me", require('../middleware/authStudent'), async (req, res)
     try {
         const schoolId = req.schoolId || req.user?.schoolId || null;
         if (!schoolId) return res.status(400).json({ error: 'schoolId is required' });
-        const results = await ExamResult.find({ schoolId, studentId: req.user.id })
+        const campusId = req.campusId || null;
+        const results = await ExamResult.find({
+          schoolId,
+          studentId: req.user.id,
+          ...(campusId ? { campusId } : {}),
+        })
             .populate('examId', 'title subject date')
             .lean();
         res.json(results);
@@ -248,7 +269,7 @@ router.post("/results/bulk-upload", adminAuth, upload.single('file'), async (req
                 }
 
                 // Verify exam exists
-                const exam = await Exam.findOne({ _id: examId, schoolId }).lean();
+                const exam = await Exam.findOne({ _id: examId, schoolId, ...(campusId ? { campusId } : {}) }).lean();
                 if (!exam) {
                     errors.push(`Row ${i + 2}: Exam not found`);
                     errorCount++;
@@ -256,9 +277,14 @@ router.post("/results/bulk-upload", adminAuth, upload.single('file'), async (req
                 }
 
                 // Verify student exists
-                const student = await StudentUser.findOne({ _id: studentId, schoolId }).lean();
+                const student = await StudentUser.findOne({ _id: studentId, schoolId, ...(campusId ? { campusId } : {}) }).lean();
                 if (!student) {
                     errors.push(`Row ${i + 2}: Student not found`);
+                    errorCount++;
+                    continue;
+                }
+                if (campusId && student.campusId && String(student.campusId) !== String(campusId)) {
+                    errors.push(`Row ${i + 2}: Student does not belong to this campus`);
                     errorCount++;
                     continue;
                 }
@@ -272,9 +298,10 @@ router.post("/results/bulk-upload", adminAuth, upload.single('file'), async (req
 
                 // Upsert result
                 await ExamResult.findOneAndUpdate(
-                    { examId, studentId, schoolId },
+                    { examId, studentId, schoolId, ...(campusId ? { campusId } : {}) },
                     {
                         schoolId,
+                        campusId: campusId || null,
                         examId,
                         studentId,
                         marks: score,
@@ -318,6 +345,7 @@ router.post("/results/publish", adminAuth, async (req, res) => {
     try {
         const schoolId = resolveSchoolId(req, res);
         if (!schoolId) return;
+        const campusId = resolveCampusId(req);
 
         const { grade, section } = req.body || {};
         if (!grade) {
@@ -325,7 +353,7 @@ router.post("/results/publish", adminAuth, async (req, res) => {
         }
 
         // Find all students in this class/section
-        const studentFilter = { schoolId, grade };
+        const studentFilter = { schoolId, grade, ...(campusId ? { campusId } : {}) };
         if (section) studentFilter.section = section;
 
         const students = await StudentUser.find(studentFilter).select('_id grade section').lean();
@@ -338,11 +366,14 @@ router.post("/results/publish", adminAuth, async (req, res) => {
 
         // Find all teachers who teach this class (teachers with same grade in subject or department field)
         // Note: This is a simplified approach. You might need to adjust based on your teacher-class assignment logic
-        const teachers = await TeacherUser.find({ schoolId }).select('_id name email').lean();
+        const teachers = await TeacherUser.find({ schoolId, ...(campusId ? { campusId } : {}) })
+          .select('_id name email')
+          .lean();
 
         // Find all parents of these students
         const parents = await ParentUser.find({
             schoolId,
+            ...(campusId ? { campusId } : {}),
             childrenIds: { $in: studentIds }
         }).select('_id name email').lean();
 
@@ -354,6 +385,7 @@ router.post("/results/publish", adminAuth, async (req, res) => {
         // Create notifications for students
         await Notification.create({
             schoolId,
+            campusId: campusId || null,
             title: notificationTitle,
             message: notificationMessage,
             audience: 'Student',
@@ -363,6 +395,7 @@ router.post("/results/publish", adminAuth, async (req, res) => {
         // Create notifications for teachers
         await Notification.create({
             schoolId,
+            campusId: campusId || null,
             title: notificationTitle,
             message: `The examination results for ${grade}${sectionText} have been published.`,
             audience: 'Teacher',
@@ -372,6 +405,7 @@ router.post("/results/publish", adminAuth, async (req, res) => {
         // Create notifications for parents
         await Notification.create({
             schoolId,
+            campusId: campusId || null,
             title: notificationTitle,
             message: `The examination results for ${grade}${sectionText} have been published. Please check your child's results.`,
             audience: 'Parent',

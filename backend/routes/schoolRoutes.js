@@ -155,7 +155,7 @@ router.put('/registrations/:id/approve', adminAuth, ensureSuperAdmin, async (req
 
     if (school.registrationStatus !== 'pending') {
       return res.status(400).json({
-        error: `School registration has already been ${school.registrationStatus}`
+        error: `School registration has already been ${school.registrationStatus}` 
       });
     }
 

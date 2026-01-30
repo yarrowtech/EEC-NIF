@@ -3,6 +3,7 @@ const mongoose = require('mongoose');
 const examResultSchema = new mongoose.Schema(
   {
     schoolId: { type: mongoose.Schema.Types.ObjectId, ref: 'School', required: true },
+    campusId: { type: String, default: null, index: true },
     examId: { type: mongoose.Schema.Types.ObjectId, ref: 'Exam', required: true },
     studentId: { type: mongoose.Schema.Types.ObjectId, ref: 'StudentUser', required: true },
     marks: { type: Number, min: 0, required: true },

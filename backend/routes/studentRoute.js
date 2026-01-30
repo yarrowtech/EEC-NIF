@@ -237,6 +237,9 @@ router.post('/login', rateLimit({ windowMs: 60 * 1000, max: 10 }), async (req, r
     if (!user || !(await bcrypt.compare(password, user.password))) {
       return res.status(401).json({ error: 'Invalid credentials' });
     }
+    if (!user.campusId) {
+      return res.status(400).json({ error: 'campusId is required for this account' });
+    }
     if (!user.studentCode && user.schoolId) {
       const admissionYear = resolveAdmissionYear(user.admissionDate);
       user.studentCode = await generateStudentCode(user.schoolId, admissionYear);
@@ -265,6 +268,9 @@ router.get('/test/list', adminAuth, async (req, res) => {
   // #swagger.tags = ['Students']
   try {
     const filter = req.schoolId ? { schoolId: req.schoolId } : {};
+    if (req.campusId) {
+      filter.campusId = req.campusId;
+    }
     const students = await StudentUser.find(filter).select('username name grade section').limit(5).lean();
     res.json({
       total: await StudentUser.countDocuments(filter),
@@ -458,7 +464,7 @@ router.get('/results', authStudent, async (req, res) => {
   // #swagger.tags = ['Students']
   try {
     const student = await StudentUser.findById(req.user.id)
-      .select('name grade section schoolId')
+      .select('name grade section schoolId campusId')
       .lean();
 
     if (!student) {
@@ -468,7 +474,8 @@ router.get('/results', authStudent, async (req, res) => {
     // Fetch exam results from ExamResult collection
     const examResults = await ExamResult.find({
       studentId: req.user.id,
-      schoolId: student.schoolId
+      schoolId: student.schoolId,
+      ...(student.campusId ? { campusId: student.campusId } : {}),
     })
       .populate('examId', 'title subject date term marks')
       .sort({ createdAt: -1 })
@@ -504,7 +511,7 @@ router.get('/schedule', authStudent, async (req, res) => {
   // #swagger.tags = ['Students']
   try {
     const student = await StudentUser.findById(req.user.id)
-      .select('grade section schoolId')
+      .select('grade section schoolId campusId')
       .lean();
 
     if (!student) {
@@ -517,32 +524,44 @@ router.get('/schedule', authStudent, async (req, res) => {
     }
 
     // Find Class by name matching grade
-    const classDoc = await Class.findOne({
+    const classFilter = {
       schoolId: student.schoolId,
-      name: student.grade
-    }).lean();
+      name: student.grade,
+    };
+    if (student.campusId) {
+      classFilter.campusId = student.campusId;
+    }
+    const classDoc = await Class.findOne(classFilter).lean();
 
     if (!classDoc) {
       return res.json({ schedule: [] });
     }
 
     // Find Section by name matching section
-    const sectionDoc = await Section.findOne({
+    const sectionFilter = {
       schoolId: student.schoolId,
       classId: classDoc._id,
-      name: student.section
-    }).lean();
+      name: student.section,
+    };
+    if (student.campusId) {
+      sectionFilter.campusId = student.campusId;
+    }
+    const sectionDoc = await Section.findOne(sectionFilter).lean();
 
     if (!sectionDoc) {
       return res.json({ schedule: [] });
     }
 
     // Get timetable for this class/section
-    const timetable = await Timetable.findOne({
+    const timetableFilter = {
       schoolId: student.schoolId,
       classId: classDoc._id,
-      sectionId: sectionDoc._id
-    })
+      sectionId: sectionDoc._id,
+    };
+    if (student.campusId) {
+      timetableFilter.campusId = student.campusId;
+    }
+    const timetable = await Timetable.findOne(timetableFilter)
       .populate('entries.subjectId', 'name')
       .populate('entries.teacherId', 'name')
       .lean();
