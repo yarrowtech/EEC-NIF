@@ -37,6 +37,8 @@ const Header = ({ sidebarOpen, setSidebarOpen, onOpenProfile }) => {
     className: '',
     sectionName: '',
     rollNumber: '',
+    campusName: '',
+    campusType: '',
     schoolName: '',
     schoolLogo: null,
     profilePic: null,
@@ -44,6 +46,11 @@ const Header = ({ sidebarOpen, setSidebarOpen, onOpenProfile }) => {
   const displayClass = studentData.className || studentData.grade;
   const displaySection = studentData.sectionName || studentData.section;
   const displayRoll = studentData.rollNumber || studentData.roll;
+  const displayCampus = studentData.campusName
+    ? studentData.campusType
+      ? `${studentData.campusName} (${studentData.campusType})`
+      : studentData.campusName
+    : '';
 
   // Greeting and date
   const { greeting, dateLabel } = useMemo(() => {
@@ -88,6 +95,7 @@ const Header = ({ sidebarOpen, setSidebarOpen, onOpenProfile }) => {
                   ? `Class ${displayClass}${displaySection ? ` • Section ${displaySection}` : ''}`
                   : 'Class not assigned'}
                 {displayRoll ? ` • Roll ${displayRoll}` : ''}
+                {displayCampus ? ` • Campus ${displayCampus}` : ''}
               </div>
             </div>
           </div>

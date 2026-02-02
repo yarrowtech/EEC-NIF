@@ -271,18 +271,70 @@ const Students = ({ setShowAdminHeader, setShowAdminBreadcrumb }) => {
     setShowWellbeingModal(true);
   };
 
-  const refreshStudents = async () => {
-    const res = await fetch(`${API_BASE}/api/nif/students`, {
+  const fetchParents = async () => {
+    const res = await fetch(`${API_BASE}/api/admin/users/get-parents`, {
       method: "GET",
       headers: {
         "Content-Type": "application/json",
         authorization: `Bearer ${localStorage.getItem("token")}`,
       },
     });
-    if (res.ok) {
-      const data = await res.json();
-      setStudentData(data);
+    if (!res.ok) {
+      throw new Error("Failed to fetch parents");
     }
+    const data = await res.json();
+    return Array.isArray(data) ? data : [];
+  };
+
+  const refreshStudents = async () => {
+    const [studentsResult, parentsResult] = await Promise.allSettled([
+      fetch(`${API_BASE}/api/nif/students`, {
+        method: "GET",
+        headers: {
+          "Content-Type": "application/json",
+          authorization: `Bearer ${localStorage.getItem("token")}`,
+        },
+      }).then((res) => (res.ok ? res.json() : [])),
+      fetchParents(),
+    ]);
+
+    const students =
+      studentsResult.status === "fulfilled" && Array.isArray(studentsResult.value)
+        ? studentsResult.value
+        : [];
+    const parents = parentsResult.status === "fulfilled" ? parentsResult.value : [];
+
+    if (!parents.length) {
+      setStudentData(students);
+      return;
+    }
+
+    const parentByStudentUserId = new Map();
+    parents.forEach((parent) => {
+      const ids = Array.isArray(parent.childrenIds) ? parent.childrenIds : [];
+      ids.forEach((id) => {
+        if (id) parentByStudentUserId.set(String(id), parent);
+      });
+    });
+
+    const enriched = students.map((student) => {
+      const portalUserId = student.studentPortalUser
+        ? String(student.studentPortalUser)
+        : null;
+      const parent = portalUserId ? parentByStudentUserId.get(portalUserId) : null;
+
+      if (!parent) return student;
+
+      return {
+        ...student,
+        parent,
+        guardianName: student.guardianName || parent.name || student.guardianName,
+        guardianEmail: student.guardianEmail || parent.email || student.guardianEmail,
+        guardianPhone: student.guardianPhone || parent.mobile || student.guardianPhone,
+      };
+    });
+
+    setStudentData(enriched);
   };
 
   // Fetch archived students from backend

@@ -41,12 +41,19 @@ const Sidebar = ({ activeView, isOpen, setIsOpen }) => {
     className: '',
     sectionName: '',
     rollNumber: '',
+    campusName: '',
+    campusType: '',
     schoolName: '',
     schoolLogo: null,
   };
   const displayClass = studentData.className || studentData.grade;
   const displaySection = studentData.sectionName || studentData.section;
   const displayRoll = studentData.rollNumber || studentData.roll;
+  const displayCampus = studentData.campusName
+    ? studentData.campusType
+      ? `${studentData.campusName} (${studentData.campusType})`
+      : studentData.campusName
+    : '';
 
   // Helper function to navigate to a page
   const navigateToPage = (pageId) => {
@@ -196,6 +203,9 @@ const Sidebar = ({ activeView, isOpen, setIsOpen }) => {
                     </div>
                     {displayRoll && (
                       <div className="text-white/80 text-[11px]">Roll No: {displayRoll}</div>
+                    )}
+                    {displayCampus && (
+                      <div className="text-white/80 text-[11px]">Campus: {displayCampus}</div>
                     )}
                   </div>
                 </div>

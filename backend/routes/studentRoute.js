@@ -377,6 +377,8 @@ router.get('/dashboard', authStudent, async (req, res) => {
         rollNumber: resolvedRoll,
         profilePic: resolveProfilePhoto(student),
         avatar: resolveProfilePhoto(student),
+        campusName: student.campusName || '',
+        campusType: student.campusType || '',
         school: schoolInfo,
         schoolName: schoolInfo?.name || '',
         schoolLogo: schoolInfo?.logo || null,
