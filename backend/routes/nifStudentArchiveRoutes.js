@@ -28,7 +28,7 @@ const buildCampusFilter = (req) => {
 };
 
 const buildSchoolAndCampusFilter = (req) => {
-  const schoolFilter = buildSchoolAndCampusFilter(req);
+  const schoolFilter = buildSchoolFilter(req);
   const campusFilter = buildCampusFilter(req);
 
   if (Object.keys(schoolFilter).length === 0 && Object.keys(campusFilter).length === 0) {

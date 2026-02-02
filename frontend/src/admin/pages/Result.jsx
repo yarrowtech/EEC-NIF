@@ -90,13 +90,13 @@ const Result = ({ setShowAdminHeader }) => {
   const fetchClassesAndSections = async () => {
     try {
       const [classesRes, sectionsRes] = await Promise.all([
-        fetch(`${API_BASE}/api/academics/classes`, {
+        fetch(`${API_BASE}/api/academic/classes`, {
           headers: {
             'Authorization': `Bearer ${localStorage.getItem('token')}`,
             'Content-Type': 'application/json',
           },
         }),
-        fetch(`${API_BASE}/api/academics/sections`, {
+        fetch(`${API_BASE}/api/academic/sections`, {
           headers: {
             'Authorization': `Bearer ${localStorage.getItem('token')}`,
             'Content-Type': 'application/json',
@@ -175,6 +175,15 @@ const Result = ({ setShowAdminHeader }) => {
       const data = await response.json();
       const allStudents = Array.isArray(data) ? data : [];
 
+      console.log('=== Student Fetch Debug ===');
+      console.log('Total students from API:', allStudents.length);
+      console.log('First 3 students:', allStudents.slice(0, 3).map(s => ({
+        _id: s._id,
+        name: s.name,
+        roll: s.roll,
+        grade: s.grade
+      })));
+
       const normalizedSelectedClass = normalizeClassValue(selectedClass);
       const normalizedSelectedSection = normalizeSectionValue(selectedSection);
 
@@ -187,18 +196,46 @@ const Result = ({ setShowAdminHeader }) => {
         return gradeMatch && sectionMatch;
       });
 
+      console.log('After filtering by class/section:', filtered.length);
+
+      // Remove duplicates - check both _id and name+roll+grade combination
       const uniqueMap = new Map();
+      const seenIds = [];
+      const seenCombos = new Set();
+
       filtered.forEach((student) => {
         const id = student._id?.toString() || student.id?.toString();
-        const nifId = student.nifStudent?.toString();
-        const key = nifId || id || `${student.name}-${student.roll}`;
-        if (!key || uniqueMap.has(key)) return;
-        uniqueMap.set(key, student);
+        seenIds.push(id);
+
+        // Create a unique key based on name, roll, and grade
+        const comboKey = `${student.name?.toLowerCase()}-${student.roll}-${student.grade}`;
+
+        // Only add student if we haven't seen this combination before
+        if (id && !seenCombos.has(comboKey)) {
+          uniqueMap.set(id, student);
+          seenCombos.add(comboKey);
+        } else if (seenCombos.has(comboKey)) {
+          console.warn('Skipping duplicate student:', { name: student.name, roll: student.roll, grade: student.grade, _id: id });
+        }
       });
+
+      // Check for duplicate IDs
+      const duplicateIds = seenIds.filter((id, index) => seenIds.indexOf(id) !== index);
+      if (duplicateIds.length > 0) {
+        console.warn('Found duplicate student IDs in API response:', duplicateIds);
+      }
 
       const uniqueStudents = Array.from(uniqueMap.values()).sort((a, b) =>
         (a.name || '').localeCompare(b.name || '')
       );
+
+      console.log('Unique students after deduplication:', uniqueStudents.length);
+      console.log('Final student list:', uniqueStudents.map(s => ({
+        _id: s._id,
+        name: s.name,
+        roll: s.roll
+      })));
+      console.log('=========================');
 
       setStudents(uniqueStudents);
     } catch (error) {

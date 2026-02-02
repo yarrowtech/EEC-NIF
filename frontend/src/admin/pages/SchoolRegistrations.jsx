@@ -405,7 +405,7 @@ const SchoolRegistrations = ({ setShowAdminHeader }) => {
               <div>
                 <h3 className="text-base sm:text-lg font-bold text-gray-800 mb-3 sm:mb-4">Main School Address</h3>
                 <div className="flex items-start gap-2 sm:gap-3 p-3 sm:p-4 bg-gray-50 rounded-lg">
-                  <MapPin className="text-amber-500 flex-shrink-0 mt-0.5 sm:mt-1" size={18} className="sm:w-5 sm:h-5" />
+                  <MapPin className="text-amber-500 flex-shrink-0 mt-0.5 sm:mt-1 sm:w-5 sm:h-5" size={18} />
                   <p className="text-gray-700 text-sm sm:text-base break-words">{selectedSchool.address}</p>
                 </div>
               </div>
@@ -422,9 +422,9 @@ const SchoolRegistrations = ({ setShowAdminHeader }) => {
                       rel="noopener noreferrer"
                       className="flex items-center gap-2 sm:gap-3 p-2.5 sm:p-3 bg-gray-50 hover:bg-gray-100 rounded-lg transition-colors"
                     >
-                      <FileText className="text-gray-400 flex-shrink-0" size={18} className="sm:w-5 sm:h-5" />
+                      <FileText className="text-gray-400 flex-shrink-0 sm:w-5 sm:h-5" size={18} />
                       <span className="text-xs sm:text-sm text-gray-700 flex-1 truncate">{doc.originalName}</span>
-                      <Eye className="text-blue-500 flex-shrink-0" size={16} className="sm:w-[18px] sm:h-[18px]" />
+                      <Eye className="text-blue-500 flex-shrink-0 sm:w-[18px] sm:h-[18px]" size={16} />
                     </a>
                   ))}
                 </div>
@@ -440,7 +440,7 @@ const SchoolRegistrations = ({ setShowAdminHeader }) => {
                     value={new Date(selectedSchool.submittedAt).toLocaleString()}
                   />
                   <div className="flex items-start gap-2 sm:gap-3">
-                    <Clock className="text-gray-400 mt-0.5 sm:mt-1 flex-shrink-0" size={18} className="sm:w-5 sm:h-5" />
+                    <Clock className="text-gray-400 mt-0.5 sm:mt-1 flex-shrink-0 sm:w-5 sm:h-5" size={18} />
                     <div>
                       <p className="text-xs sm:text-sm font-medium text-gray-500">Status</p>
                       <div className="mt-1">
