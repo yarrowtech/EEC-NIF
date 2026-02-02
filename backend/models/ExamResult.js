@@ -10,6 +10,8 @@ const examResultSchema = new mongoose.Schema(
     grade: { type: String, trim: true },
     remarks: { type: String, trim: true },
     status: { type: String, enum: ['pass', 'fail', 'absent'], default: 'pass' },
+    published: { type: Boolean, default: false },
+    publishedAt: { type: Date },
     createdBy: { type: mongoose.Schema.Types.ObjectId },
   },
   { timestamps: true }

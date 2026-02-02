@@ -18,6 +18,7 @@ const Result = ({ setShowAdminHeader }) => {
   const [sections, setSections] = useState([]);
 
   const [loading, setLoading] = useState(true);
+  const [loadingStudents, setLoadingStudents] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedClass, setSelectedClass] = useState('');
   const [selectedSection, setSelectedSection] = useState('');
@@ -120,6 +121,9 @@ const Result = ({ setShowAdminHeader }) => {
 
   const fetchExams = async () => {
     try {
+      console.log('=== Fetching Exams ===');
+      console.log('Term filter:', selectedTerm);
+
       const response = await fetch(`${API_BASE}/api/exam/fetch`, {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('token')}`,
@@ -130,15 +134,21 @@ const Result = ({ setShowAdminHeader }) => {
       if (response.ok) {
         const data = await response.json();
         const allExams = Array.isArray(data) ? data : [];
-        const filteredExams = allExams.filter(exam => exam.term === selectedTerm);
-        setExams(filteredExams);
+        console.log('Total exams from API:', allExams.length);
+
+        // Don't filter by term - show all exams in modal
+        setExams(allExams);
+        console.log('Exams loaded:', allExams.length);
       } else {
-        console.error('Failed to fetch exams');
+        const errorText = await response.text();
+        console.error('Failed to fetch exams:', response.status, errorText);
         toast.error('Failed to fetch exams');
+        setExams([]);
       }
     } catch (error) {
       console.error('Error fetching exams:', error);
       toast.error('Error fetching exams');
+      setExams([]);
     }
   };
 
@@ -153,13 +163,18 @@ const Result = ({ setShowAdminHeader }) => {
   const normalizeSectionValue = (value = '') =>
     value ? value.toString().trim().toLowerCase() : '';
 
-  const fetchStudentsByClass = async () => {
+  const fetchStudentsByClass = async (forceAll = false) => {
+    setLoadingStudents(true);
     try {
       const { schoolId } = getStoredAdminScope();
       const url = new URL(`${API_BASE}/api/admin/users/get-students`);
       if (schoolId) {
         url.searchParams.set('schoolId', schoolId);
       }
+
+      console.log('=== Fetching Students ===');
+      console.log('API URL:', url.toString());
+      console.log('Token present:', !!localStorage.getItem('token'));
 
       const response = await fetch(url, {
         headers: {
@@ -169,79 +184,86 @@ const Result = ({ setShowAdminHeader }) => {
       });
 
       if (!response.ok) {
-        throw new Error('Failed to fetch students');
+        const errorText = await response.text();
+        console.error('API Error Response:', errorText);
+        throw new Error(`Failed to fetch students: ${response.status} ${response.statusText}`);
       }
 
       const data = await response.json();
       const allStudents = Array.isArray(data) ? data : [];
 
-      console.log('=== Student Fetch Debug ===');
       console.log('Total students from API:', allStudents.length);
-      console.log('First 3 students:', allStudents.slice(0, 3).map(s => ({
+
+      if (allStudents.length === 0) {
+        console.warn('⚠️ No students returned from API!');
+        toast.error('No students found in the system');
+        setStudents([]);
+        return;
+      }
+
+      console.log('Sample students:', allStudents.slice(0, 3).map(s => ({
         _id: s._id,
         name: s.name,
         roll: s.roll,
         grade: s.grade
       })));
 
-      const normalizedSelectedClass = normalizeClassValue(selectedClass);
-      const normalizedSelectedSection = normalizeSectionValue(selectedSection);
+      // Filter by class/section only if not forced to get all and class is selected
+      let filtered = allStudents;
 
-      const filtered = allStudents.filter(student => {
-        if (!selectedClass) return true;
-        const studentGrade = normalizeClassValue(student.grade || student.class || '');
-        const studentSection = normalizeSectionValue(student.section || '');
-        const gradeMatch = studentGrade === normalizedSelectedClass;
-        const sectionMatch = selectedSection ? studentSection === normalizedSelectedSection : true;
-        return gradeMatch && sectionMatch;
-      });
+      if (!forceAll && selectedClass) {
+        const normalizedSelectedClass = normalizeClassValue(selectedClass);
+        const normalizedSelectedSection = normalizeSectionValue(selectedSection);
 
-      console.log('After filtering by class/section:', filtered.length);
+        filtered = allStudents.filter(student => {
+          const studentGrade = normalizeClassValue(student.grade || student.class || '');
+          const studentSection = normalizeSectionValue(student.section || '');
+          const gradeMatch = studentGrade === normalizedSelectedClass;
+          const sectionMatch = selectedSection ? studentSection === normalizedSelectedSection : true;
+          return gradeMatch && sectionMatch;
+        });
+
+        console.log(`Filtered by class "${selectedClass}":`, filtered.length);
+      } else {
+        console.log('Showing all students (no class filter)');
+      }
 
       // Remove duplicates - check both _id and name+roll+grade combination
       const uniqueMap = new Map();
-      const seenIds = [];
       const seenCombos = new Set();
 
       filtered.forEach((student) => {
         const id = student._id?.toString() || student.id?.toString();
-        seenIds.push(id);
 
         // Create a unique key based on name, roll, and grade
-        const comboKey = `${student.name?.toLowerCase()}-${student.roll}-${student.grade}`;
+        const comboKey = `${student.name?.toLowerCase()}-${student.roll}-${student.grade?.toLowerCase()}`;
 
         // Only add student if we haven't seen this combination before
         if (id && !seenCombos.has(comboKey)) {
           uniqueMap.set(id, student);
           seenCombos.add(comboKey);
-        } else if (seenCombos.has(comboKey)) {
-          console.warn('Skipping duplicate student:', { name: student.name, roll: student.roll, grade: student.grade, _id: id });
         }
       });
-
-      // Check for duplicate IDs
-      const duplicateIds = seenIds.filter((id, index) => seenIds.indexOf(id) !== index);
-      if (duplicateIds.length > 0) {
-        console.warn('Found duplicate student IDs in API response:', duplicateIds);
-      }
 
       const uniqueStudents = Array.from(uniqueMap.values()).sort((a, b) =>
         (a.name || '').localeCompare(b.name || '')
       );
 
-      console.log('Unique students after deduplication:', uniqueStudents.length);
-      console.log('Final student list:', uniqueStudents.map(s => ({
-        _id: s._id,
-        name: s.name,
-        roll: s.roll
-      })));
+      console.log('Final unique students:', uniqueStudents.length);
+      console.log('Student names:', uniqueStudents.map(s => s.name).slice(0, 10));
       console.log('=========================');
 
       setStudents(uniqueStudents);
+
+      if (uniqueStudents.length === 0 && allStudents.length > 0) {
+        toast.warning('No students found for the selected class/section');
+      }
     } catch (error) {
       console.error('Error fetching students:', error);
-      toast.error('Failed to fetch students');
+      toast.error(error.message || 'Failed to fetch students');
       setStudents([]);
+    } finally {
+      setLoadingStudents(false);
     }
   };
 
@@ -302,6 +324,29 @@ const Result = ({ setShowAdminHeader }) => {
         console.error('Error publishing results:', error);
         Swal.fire('Error!', 'Failed to publish results. Please try again.', 'error');
       }
+    }
+  };
+
+  // Toggle Publish/Unpublish individual result
+  const handleTogglePublish = async (resultId, shouldPublish) => {
+    try {
+      const response = await fetch(`${API_BASE}/api/exam/results/${resultId}/publish`, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ published: shouldPublish })
+      });
+
+      if (!response.ok) throw new Error('Failed to update publish status');
+
+      const data = await response.json();
+      toast.success(data.message || `Result ${shouldPublish ? 'published' : 'unpublished'} successfully`);
+      fetchResults(); // Refresh the results list
+    } catch (error) {
+      console.error('Error toggling publish status:', error);
+      toast.error('Failed to update publish status');
     }
   };
 
@@ -551,11 +596,13 @@ const Result = ({ setShowAdminHeader }) => {
             <button
               onClick={async () => {
                 try {
-                  await Promise.all([fetchExams(), fetchStudentsByClass()]);
+                  console.log('Opening Add Result modal...');
+                  // Fetch all students (not filtered by class) and exams
+                  await Promise.all([fetchExams(), fetchStudentsByClass(true)]);
                   setShowAddResultModal(true);
                 } catch (error) {
                   console.error('Error loading modal data:', error);
-                  toast.error('Failed to load data');
+                  toast.error('Failed to load data for modal');
                 }
               }}
               className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
@@ -710,6 +757,12 @@ const Result = ({ setShowAdminHeader }) => {
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Status
                     </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Published
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Actions
+                    </th>
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
@@ -753,6 +806,27 @@ const Result = ({ setShowAdminHeader }) => {
                         <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(result.status)}`}>
                           {result.status || 'N/A'}
                         </span>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <span className={`inline-flex items-center px-2 py-1 text-xs font-semibold rounded-full ${
+                          result.published
+                            ? 'bg-green-100 text-green-800'
+                            : 'bg-yellow-100 text-yellow-800'
+                        }`}>
+                          {result.published ? '✓ Published' : '⏳ Draft'}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <button
+                          onClick={() => handleTogglePublish(result._id, !result.published)}
+                          className={`px-3 py-1 text-xs font-medium rounded-lg transition-colors ${
+                            result.published
+                              ? 'bg-yellow-100 text-yellow-700 hover:bg-yellow-200'
+                              : 'bg-green-100 text-green-700 hover:bg-green-200'
+                          }`}
+                        >
+                          {result.published ? 'Unpublish' : 'Publish'}
+                        </button>
                       </td>
                     </tr>
                   ))}
@@ -802,15 +876,28 @@ const Result = ({ setShowAdminHeader }) => {
                     value={resultForm.studentId}
                     onChange={(e) => setResultForm({...resultForm, studentId: e.target.value})}
                     required
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                    disabled={loadingStudents}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
                   >
-                    <option value="">Choose a student</option>
+                    <option value="">
+                      {loadingStudents ? 'Loading students...' : students.length === 0 ? 'No students found' : 'Choose a student'}
+                    </option>
                     {students.map(student => (
                       <option key={student._id} value={student._id}>
-                        {student.name} - Roll: {student.roll} ({student.grade} {student.section})
+                        {student.name} - Roll: {student.roll || 'N/A'} ({student.grade || 'No Grade'} {student.section || ''})
                       </option>
                     ))}
                   </select>
+                  {!loadingStudents && students.length === 0 && (
+                    <p className="text-sm text-red-600 mt-1">
+                      No students available. Please add students first.
+                    </p>
+                  )}
+                  {!loadingStudents && students.length > 0 && (
+                    <p className="text-sm text-gray-500 mt-1">
+                      {students.length} student{students.length !== 1 ? 's' : ''} available
+                    </p>
+                  )}
                 </div>
 
                 <div className="grid grid-cols-2 gap-4">

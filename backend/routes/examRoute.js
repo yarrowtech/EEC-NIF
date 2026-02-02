@@ -425,4 +425,80 @@ router.post("/results/publish", adminAuth, async (req, res) => {
     }
 });
 
+// Publish/Unpublish individual result
+router.put("/results/:id/publish", adminAuth, async (req, res) => {
+  // #swagger.tags = ['Exams']
+    try {
+        const { id } = req.params;
+        const { published } = req.body;
+
+        const schoolId = resolveSchoolId(req, res);
+        if (!schoolId) return;
+        const campusId = resolveCampusId(req);
+
+        const filter = {
+            _id: id,
+            schoolId,
+            ...(campusId ? { campusId } : {})
+        };
+
+        const result = await ExamResult.findOne(filter);
+
+        if (!result) {
+            return res.status(404).json({ error: 'Result not found' });
+        }
+
+        result.published = published;
+        result.publishedAt = published ? new Date() : null;
+        await result.save();
+
+        res.status(200).json({
+            success: true,
+            message: `Result ${published ? 'published' : 'unpublished'} successfully`,
+            result
+        });
+    } catch (err) {
+        console.error('Publish/unpublish result error:', err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// Bulk publish/unpublish results by IDs
+router.put("/results/bulk-publish", adminAuth, async (req, res) => {
+  // #swagger.tags = ['Exams']
+    try {
+        const { resultIds, published } = req.body;
+
+        if (!Array.isArray(resultIds) || resultIds.length === 0) {
+            return res.status(400).json({ error: 'resultIds array is required' });
+        }
+
+        const schoolId = resolveSchoolId(req, res);
+        if (!schoolId) return;
+        const campusId = resolveCampusId(req);
+
+        const filter = {
+            _id: { $in: resultIds },
+            schoolId,
+            ...(campusId ? { campusId } : {})
+        };
+
+        const updateData = {
+            published,
+            publishedAt: published ? new Date() : null
+        };
+
+        const updateResult = await ExamResult.updateMany(filter, updateData);
+
+        res.status(200).json({
+            success: true,
+            message: `${updateResult.modifiedCount} result(s) ${published ? 'published' : 'unpublished'} successfully`,
+            modifiedCount: updateResult.modifiedCount
+        });
+    } catch (err) {
+        console.error('Bulk publish/unpublish results error:', err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
 module.exports = router;

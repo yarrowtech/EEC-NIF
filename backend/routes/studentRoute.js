@@ -473,10 +473,11 @@ router.get('/results', authStudent, async (req, res) => {
       return res.status(404).json({ error: 'Student not found' });
     }
 
-    // Fetch exam results from ExamResult collection
+    // Fetch exam results from ExamResult collection (only published results)
     const examResults = await ExamResult.find({
       studentId: req.user.id,
       schoolId: student.schoolId,
+      published: true, // Only show published results to students
       ...(student.campusId ? { campusId: student.campusId } : {}),
     })
       .populate('examId', 'title subject date term marks')
