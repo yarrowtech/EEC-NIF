@@ -143,6 +143,21 @@ export const timetableApi = {
     }
   },
 
+  // Auto-generate timetable
+  autoGenerate: async (data) => {
+    try {
+      const res = await fetch(`${API_BASE}/timetable/auto-generate`, {
+        method: 'POST',
+        headers: createHeaders(true),
+        body: JSON.stringify(data)
+      });
+      return handleResponse(res);
+    } catch (error) {
+      console.error('Error auto-generating timetable:', error);
+      throw error;
+    }
+  },
+
   // Get teacher's schedule
   getTeacherSchedule: async (teacherId) => {
     try {

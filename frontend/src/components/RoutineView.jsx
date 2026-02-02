@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Calendar, Clock, MapPin, BookOpen, AlertCircle } from 'lucide-react';
+import { Calendar, Clock, MapPin, BookOpen, AlertCircle, Sparkles } from 'lucide-react';
+import { timetableApi } from '../admin/utils/timetableApi';
 
 const dayOrder = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
 const dayLabels = {
@@ -18,6 +19,10 @@ const RoutineView = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [lastUpdated, setLastUpdated] = useState(null);
+  const [generating, setGenerating] = useState(false);
+  const [generateMessage, setGenerateMessage] = useState('');
+  const userType = typeof window !== 'undefined' ? window.localStorage.getItem('userType') : null;
+  const isAdmin = (userType || '').toLowerCase() === 'admin';
 
   useEffect(() => {
     const fetchSchedule = async () => {
@@ -60,6 +65,32 @@ const RoutineView = () => {
     fetchSchedule();
   }, []);
 
+  const handleAutoGenerate = async () => {
+    if (!isAdmin) {
+      setGenerateMessage('Admin access required to auto-generate routines.');
+      return;
+    }
+    const ok = window.confirm('Auto-generate routines for all classes? This overwrites existing timetables.');
+    if (!ok) return;
+
+    try {
+      setGenerating(true);
+      setGenerateMessage('');
+      const result = await timetableApi.autoGenerate({ overwriteExisting: true });
+      const total = result?.totalGenerated || 0;
+      const failed = result?.totalErrors || 0;
+      const firstError = result?.errors?.[0];
+      const errorLabel = firstError
+        ? ` First error: ${firstError.className || firstError.classId}${firstError.sectionName ? `-${firstError.sectionName}` : ''} — ${firstError.error}`
+        : '';
+      setGenerateMessage(`Generated ${total} timetable${total !== 1 ? 's' : ''}.${failed ? ` ${failed} failed.` : ''}${errorLabel}`);
+    } catch (err) {
+      setGenerateMessage(err.message || 'Auto-generation failed.');
+    } finally {
+      setGenerating(false);
+    }
+  };
+
   const daySessions = schedule[selectedDay] || [];
   const totalSessions = useMemo(
     () => dayOrder.reduce((sum, day) => sum + (schedule[day]?.length || 0), 0),
@@ -85,6 +116,27 @@ const RoutineView = () => {
               <h1 className="text-2xl font-bold text-gray-900">Weekly Routine</h1>
             </div>
             <p className="text-gray-500 text-sm">Synced with your timetable from the school portal</p>
+            <div className="mt-3 flex flex-wrap items-center gap-3">
+              <button
+                onClick={handleAutoGenerate}
+                disabled={generating}
+                className="inline-flex items-center gap-2 rounded-full border border-amber-200 bg-amber-50 px-4 py-2 text-xs font-semibold text-amber-700 transition hover:-translate-y-0.5 hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-70"
+              >
+                <Sparkles size={14} />
+                {generating ? 'Generating...' : 'Auto Generate (Admin)'}
+              </button>
+              <a
+                href="/admin/routines"
+                className="inline-flex items-center gap-2 rounded-full border border-gray-200 bg-white px-4 py-2 text-xs font-semibold text-gray-700 transition hover:-translate-y-0.5 hover:bg-gray-50"
+              >
+                Customize / Edit
+              </a>
+            </div>
+            {generateMessage && (
+              <div className="mt-3 text-xs font-medium text-amber-700 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2">
+                {generateMessage}
+              </div>
+            )}
           </div>
           <div className="text-right text-sm text-gray-500">
             <p>Total sessions this week: <span className="font-semibold text-gray-900">{totalSessions}</span></p>

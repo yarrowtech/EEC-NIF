@@ -6,6 +6,13 @@ const ClassModel = require('../models/Class');
 const Section = require('../models/Section');
 const Subject = require('../models/Subject');
 const TeacherUser = require('../models/TeacherUser');
+const {
+  DEFAULT_DAYS,
+  DEFAULT_PERIODS,
+  initTracker,
+  cloneTracker,
+  generateTimetable,
+} = require('../utils/timetableGenerator');
 
 const router = express.Router();
 
@@ -96,6 +103,84 @@ const ensureTeachersExist = async (schoolId, campusId, entries) => {
     .select('_id')
     .lean();
   return teachers.length === teacherIds.length;
+};
+
+const normalizeSubjectPlan = ({
+  subjects,
+  teacherPool,
+  assignTeachers,
+}) => {
+  const poolBySubject = {};
+  teacherPool.forEach((teacher) => {
+    if (!teacher.subject) return;
+    const key = String(teacher.subject).trim().toLowerCase();
+    if (!poolBySubject[key]) poolBySubject[key] = [];
+    poolBySubject[key].push(teacher);
+  });
+
+  return subjects.map((subject, index) => {
+    const subjectName = subject.name || subject.label || subject.subjectName || '';
+    const subjectKey = subjectName.toLowerCase();
+    const candidates = poolBySubject[subjectKey] || [];
+    const assignedTeacher = subject.teacherId
+      ? teacherPool.find((t) => String(t._id) === String(subject.teacherId))
+      : (assignTeachers ? candidates[0] : null);
+
+    return {
+      key: subject.subjectId ? String(subject.subjectId) : `subject-${index}-${subjectName}`,
+      subjectId: subject.subjectId || subject._id || null,
+      name: subjectName,
+      teacherId: assignedTeacher?._id || null,
+      weeklyCount: subject.weeklyCount,
+      maxPerDay: subject.maxPerDay,
+      isLab: Boolean(subject.isLab),
+      preferMorning: Boolean(subject.preferMorning),
+      afterBreakOnly: Boolean(subject.afterBreakOnly),
+      avoidLastPeriod: subject.avoidLastPeriod !== false,
+      room: subject.room || '',
+    };
+  });
+};
+
+const buildEntriesFromGrid = (grid) => {
+  const entries = [];
+  Object.entries(grid).forEach(([day, periods]) => {
+    periods.forEach((periodSlot) => {
+      if (periodSlot.isBreak || !periodSlot.entry) return;
+      const subject = periodSlot.entry;
+      entries.push({
+        dayOfWeek: day,
+        period: periodSlot.period,
+        subjectId: subject.subjectId || undefined,
+        teacherId: subject.teacherId || undefined,
+        startTime: periodSlot.startTime,
+        endTime: periodSlot.endTime,
+        room: subject.room || '',
+      });
+    });
+  });
+  return entries;
+};
+
+const addExistingToTracker = (tracker, timetables) => {
+  timetables.forEach((timetable) => {
+    (timetable.entries || []).forEach((entry) => {
+      if (!entry.teacherId || !entry.dayOfWeek || !entry.period) return;
+      const day = entry.dayOfWeek;
+      const periodIndex = (entry.period || 1) - 1;
+      if (Number.isNaN(periodIndex)) return;
+      if (!tracker.teacherDayPeriods[entry.teacherId]) {
+        tracker.teacherDayPeriods[entry.teacherId] = {};
+        tracker.teacherDayCounts[entry.teacherId] = {};
+      }
+      if (!tracker.teacherDayPeriods[entry.teacherId][day]) {
+        tracker.teacherDayPeriods[entry.teacherId][day] = new Set();
+        tracker.teacherDayCounts[entry.teacherId][day] = 0;
+      }
+      tracker.teacherDayPeriods[entry.teacherId][day].add(periodIndex);
+      tracker.teacherDayCounts[entry.teacherId][day] += 1;
+    });
+  });
 };
 
 // Create or update timetable (admin only)
@@ -479,6 +564,193 @@ router.post('/validate-conflicts', adminAuth, async (req, res) => {
     res.json({
       hasConflicts: conflicts.length > 0,
       conflicts
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Auto-generate routine
+router.post('/auto-generate', adminAuth, async (req, res) => {
+  // #swagger.tags = ['Timetable']
+  try {
+    const schoolId = resolveSchoolId(req, res);
+    if (!schoolId) return;
+    const campusId = resolveCampusId(req);
+
+    const {
+      classId,
+      sectionId,
+      classes,
+      subjects: inputSubjects,
+      days,
+      periods,
+      options,
+      overwriteExisting = true,
+      academicYearId,
+    } = req.body || {};
+
+    const classTargets = [];
+    if (Array.isArray(classes) && classes.length > 0) {
+      classes.forEach((item) => {
+        if (item?.classId && mongoose.isValidObjectId(item.classId)) {
+          classTargets.push({
+            classId: item.classId,
+            sectionId: resolveSectionId(item.sectionId),
+            subjects: item.subjects || null,
+          });
+        }
+      });
+    } else if (classId && mongoose.isValidObjectId(classId)) {
+      classTargets.push({
+        classId,
+        sectionId: resolveSectionId(sectionId),
+        subjects: inputSubjects || null,
+      });
+    } else {
+      const allClasses = await ClassModel.find(buildCampusFilter(schoolId, campusId)).lean();
+      allClasses.forEach((cls) => {
+        classTargets.push({ classId: cls._id, sectionId: null, subjects: null });
+      });
+    }
+
+    if (classTargets.length === 0) {
+      return res.status(400).json({ error: 'No valid class targets provided.' });
+    }
+
+    const teacherPool = await TeacherUser.find(buildCampusFilter(schoolId, campusId))
+      .select('_id subject name')
+      .lean();
+
+    const existingTimetables = await Timetable.find(buildCampusFilter(schoolId, campusId)).lean();
+    const shouldOverwrite = (timetable) =>
+      classTargets.some((target) => {
+        const classMatch = String(target.classId) === String(timetable.classId);
+        if (!classMatch) return false;
+        if (!target.sectionId) return true;
+        return String(target.sectionId) === String(timetable.sectionId || '');
+      });
+
+    const preservedTimetables = overwriteExisting
+      ? existingTimetables.filter((tt) => !shouldOverwrite(tt))
+      : existingTimetables;
+
+    const globalTracker = initTracker();
+    addExistingToTracker(globalTracker, preservedTimetables);
+
+    const results = [];
+    const errors = [];
+
+    for (const target of classTargets) {
+      const targetClass = await ClassModel.findOne(buildCampusFilter(schoolId, campusId))
+        .where({ _id: target.classId })
+        .lean();
+      if (!targetClass) {
+        errors.push({ classId: target.classId, error: 'Class not found' });
+        continue;
+      }
+
+      const targetSections = [];
+      if (target.sectionId) {
+        const sectionDoc = await ensureSectionExists(schoolId, campusId, target.classId, target.sectionId);
+        if (!sectionDoc) {
+          errors.push({
+            classId: target.classId,
+            className: targetClass?.name || '',
+            sectionId: target.sectionId,
+            error: 'Section not found',
+          });
+          continue;
+        }
+        targetSections.push(sectionDoc);
+      } else {
+        const sections = await Section.find(buildCampusFilter(schoolId, campusId))
+          .where({ classId: target.classId })
+          .lean();
+        if (sections.length === 0) {
+          targetSections.push(null);
+        } else {
+          targetSections.push(...sections);
+        }
+      }
+
+      const subjectDocs = Array.isArray(target.subjects) && target.subjects.length > 0
+        ? target.subjects
+        : await Subject.find(buildCampusFilter(schoolId, campusId))
+            .where({ classId: target.classId })
+            .lean();
+
+      if (!subjectDocs || subjectDocs.length === 0) {
+        errors.push({
+          classId: target.classId,
+          className: targetClass?.name || '',
+          error: 'No subjects found for class',
+        });
+        continue;
+      }
+
+      for (const sectionDoc of targetSections) {
+        const trackerCopy = cloneTracker(globalTracker);
+        const normalizedSubjects = normalizeSubjectPlan({
+          subjects: subjectDocs,
+          teacherPool,
+          assignTeachers: false,
+        });
+
+        const { grid, tracker, error } = generateTimetable({
+          subjects: normalizedSubjects,
+          days: Array.isArray(days) && days.length > 0 ? days : DEFAULT_DAYS,
+          periods: Array.isArray(periods) && periods.length > 0 ? periods : DEFAULT_PERIODS,
+          options,
+          tracker: trackerCopy,
+        });
+
+        if (error) {
+          errors.push({
+            classId: target.classId,
+            className: targetClass?.name || '',
+            sectionId: sectionDoc?._id || null,
+            sectionName: sectionDoc?.name || '',
+            error,
+          });
+          continue;
+        }
+
+        const entries = buildEntriesFromGrid(grid);
+        const payload = {
+          schoolId,
+          campusId: campusId || null,
+          classId: target.classId,
+          sectionId: sectionDoc?._id || undefined,
+          academicYearId: academicYearId || undefined,
+          entries,
+        };
+
+        const updated = await Timetable.findOneAndUpdate(
+          { ...buildCampusFilter(schoolId, campusId), classId: target.classId, sectionId: sectionDoc?._id || null },
+          payload,
+          { new: true, upsert: true }
+        );
+
+        results.push({
+          classId: target.classId,
+          className: targetClass?.name || '',
+          sectionId: sectionDoc?._id || null,
+          sectionName: sectionDoc?.name || '',
+          entries: entries.length,
+          timetableId: updated._id,
+        });
+
+        globalTracker.teacherDayPeriods = tracker.teacherDayPeriods;
+        globalTracker.teacherDayCounts = tracker.teacherDayCounts;
+      }
+    }
+
+    res.json({
+      generated: results,
+      errors,
+      totalGenerated: results.length,
+      totalErrors: errors.length,
     });
   } catch (err) {
     res.status(500).json({ error: err.message });

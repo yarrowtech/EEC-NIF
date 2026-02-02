@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import jsPDF from 'jspdf';
-import { Plus, Edit2, Trash2, Clock, Calendar, LayoutGrid, ChevronLeft, ChevronRight, Grid, List, User, Loader2, AlertCircle } from 'lucide-react';
+import { Plus, Edit2, Trash2, Clock, Calendar, LayoutGrid, ChevronLeft, ChevronRight, Grid, List, User, Loader2, AlertCircle, Sparkles } from 'lucide-react';
 import { timetableApi, academicApi, transformTimetablesToRoutines, convertTo24Hour, convertTo12Hour } from './utils/timetableApi';
 
 // Weekly builder for static routines
@@ -78,6 +78,8 @@ const Routines = ({setShowAdminHeader}) => {
   const [error, setError] = useState(null);
   const [saving, setSaving] = useState(false);
   const [draftSaving, setDraftSaving] = useState(false);
+  const [generating, setGenerating] = useState(false);
+  const [generateMessage, setGenerateMessage] = useState('');
 
   // Toast state
   const [toast, setToast] = useState({ show: false, message: '', type: 'success' });
@@ -197,6 +199,43 @@ const Routines = ({setShowAdminHeader}) => {
   useEffect(() => {
     loadInitialData();
   }, []);
+
+  const handleAutoGenerate = async () => {
+    if (!selectedClass) {
+      const ok = window.confirm('Generate routines for all classes? This will overwrite existing timetables.');
+      if (!ok) return;
+    }
+
+    try {
+      setGenerating(true);
+      setGenerateMessage('');
+      const classDoc = getClassDoc();
+      const sectionDoc = classDoc ? getSectionDoc(classDoc) : null;
+      const payload = {
+        overwriteExisting: true,
+      };
+      if (classDoc?._id) payload.classId = classDoc._id;
+      if (sectionDoc?._id) payload.sectionId = sectionDoc._id;
+
+      const result = await timetableApi.autoGenerate(payload);
+      const total = result?.totalGenerated || 0;
+      const failed = result?.totalErrors || 0;
+      const firstError = result?.errors?.[0];
+      const errorLabel = firstError
+        ? ` First error: ${firstError.className || firstError.classId}${firstError.sectionName ? `-${firstError.sectionName}` : ''} — ${firstError.error}`
+        : '';
+      const message = `Generated ${total} timetable${total !== 1 ? 's' : ''}.${failed ? ` ${failed} failed.` : ''}${errorLabel}`;
+      setGenerateMessage(message);
+      showSuccessToast(message);
+      await loadInitialData();
+    } catch (err) {
+      const message = err.message || 'Auto-generation failed.';
+      setGenerateMessage(message);
+      showErrorToast(message);
+    } finally {
+      setGenerating(false);
+    }
+  };
 
   const getClassDoc = () => classes.find(c => c.name === selectedClass);
   const getSectionDoc = (classDoc) =>
@@ -736,8 +775,21 @@ const Routines = ({setShowAdminHeader}) => {
               <Plus size={16} />
               <span>Add Routine</span>
             </button>
+            <button
+              onClick={handleAutoGenerate}
+              disabled={generating}
+              className="border border-indigo-200 bg-white text-indigo-700 hover:bg-indigo-50 px-4 py-2 rounded-lg flex items-center space-x-2 disabled:opacity-60 disabled:cursor-not-allowed"
+            >
+              <Sparkles size={16} />
+              <span>{generating ? 'Generating...' : 'Auto Generate'}</span>
+            </button>
           </div>
         </div>
+        {generateMessage && (
+          <div className="mt-4 rounded-lg border border-purple-100 bg-purple-50 px-4 py-2 text-sm text-purple-700">
+            {generateMessage}
+          </div>
+        )}
       </div>
 
       {/* Enhanced Controls */}

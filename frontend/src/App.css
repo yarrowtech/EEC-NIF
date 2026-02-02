@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@import url("https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap");
 
 .super-admin-scroll {
   scrollbar-width: thin;
@@ -20,4 +21,76 @@
 
 .super-admin-scroll::-webkit-scrollbar-thumb:hover {
   background: #94a3b8;
+}
+
+.routine-shell {
+  font-family: "Space Grotesk", "Trebuchet MS", "Segoe UI", sans-serif;
+  color: #0f172a;
+  background:
+    radial-gradient(1200px 600px at 10% -10%, rgba(14, 165, 233, 0.18), transparent 60%),
+    radial-gradient(900px 700px at 90% 0%, rgba(245, 158, 11, 0.18), transparent 55%),
+    linear-gradient(135deg, #f8fafc 0%, #fef9c3 45%, #ecfeff 100%);
+}
+
+.routine-title {
+  font-family: "Playfair Display", "Georgia", "Times New Roman", serif;
+  letter-spacing: 0.2px;
+}
+
+.routine-card {
+  background: rgba(255, 255, 255, 0.88);
+  border: 1px solid rgba(148, 163, 184, 0.25);
+  box-shadow: 0 20px 60px rgba(15, 23, 42, 0.08);
+  backdrop-filter: blur(12px);
+}
+
+.routine-glass {
+  background: rgba(255, 255, 255, 0.72);
+  border: 1px solid rgba(226, 232, 240, 0.9);
+  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.08);
+  backdrop-filter: blur(10px);
+}
+
+.routine-animate {
+  animation: routine-rise-in 650ms ease forwards;
+  opacity: 0;
+  transform: translateY(12px);
+}
+
+.routine-animate-delay-1 {
+  animation-delay: 120ms;
+}
+
+.routine-animate-delay-2 {
+  animation-delay: 220ms;
+}
+
+.routine-animate-delay-3 {
+  animation-delay: 320ms;
+}
+
+.routine-pulse {
+  animation: routine-soft-pulse 6s ease-in-out infinite;
+}
+
+@keyframes routine-rise-in {
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes routine-soft-pulse {
+  0% {
+    transform: translateY(0);
+    opacity: 0.6;
+  }
+  50% {
+    transform: translateY(-6px);
+    opacity: 0.9;
+  }
+  100% {
+    transform: translateY(0);
+    opacity: 0.7;
+  }
 }

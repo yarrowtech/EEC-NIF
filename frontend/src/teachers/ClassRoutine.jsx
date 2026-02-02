@@ -1,10 +1,13 @@
 import React, { useState } from 'react';
-import { Clock, MapPin, Users, BookOpen, Calendar, ChevronLeft, ChevronRight, Filter, Search, Bell, Info } from 'lucide-react';
+import { Clock, MapPin, Users, BookOpen, Calendar, ChevronLeft, ChevronRight, Filter, Search, Bell, Info, Sparkles } from 'lucide-react';
+import { timetableApi } from '../admin/utils/timetableApi';
 
 const ClassRoutine = () => {
   const [selectedWeek, setSelectedWeek] = useState(new Date());
   const [viewMode, setViewMode] = useState('week'); // week, day
   const [selectedDay, setSelectedDay] = useState(new Date().getDay() === 0 ? 1 : new Date().getDay());
+  const [generating, setGenerating] = useState(false);
+  const [generateMessage, setGenerateMessage] = useState('');
 
   // Sample teacher schedule data
   const teacherSchedule = {
@@ -315,6 +318,28 @@ const ClassRoutine = () => {
     return classDateTime > now;
   });
 
+  const handleAutoGenerate = async () => {
+    const ok = window.confirm('Auto-generate routines for all classes? This overwrites existing timetables.');
+    if (!ok) return;
+
+    try {
+      setGenerating(true);
+      setGenerateMessage('');
+      const result = await timetableApi.autoGenerate({ overwriteExisting: true });
+      const total = result?.totalGenerated || 0;
+      const failed = result?.totalErrors || 0;
+      const firstError = result?.errors?.[0];
+      const errorLabel = firstError
+        ? ` First error: ${firstError.className || firstError.classId}${firstError.sectionName ? `-${firstError.sectionName}` : ''} — ${firstError.error}`
+        : '';
+      setGenerateMessage(`Generated ${total} timetable${total !== 1 ? 's' : ''}.${failed ? ` ${failed} failed.` : ''}${errorLabel}`);
+    } catch (err) {
+      setGenerateMessage(err.message || 'Auto-generation failed (admin access required).');
+    } finally {
+      setGenerating(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gray-50 p-6">
       {/* Header */}
@@ -323,6 +348,27 @@ const ClassRoutine = () => {
           <div>
             <h1 className="text-3xl font-bold mb-2">Class Routine</h1>
             <p className="text-indigo-100">View your teaching schedule and upcoming classes</p>
+            <div className="mt-3 flex flex-wrap items-center gap-3">
+              <button
+                onClick={handleAutoGenerate}
+                disabled={generating}
+                className="inline-flex items-center gap-2 rounded-full bg-white/90 px-4 py-2 text-xs font-semibold text-indigo-700 shadow-sm transition hover:-translate-y-0.5 hover:bg-white disabled:cursor-not-allowed disabled:opacity-70"
+              >
+                <Sparkles className="h-4 w-4" />
+                {generating ? 'Generating...' : 'Auto Generate (Admin)'}
+              </button>
+              <a
+                href="/admin/routines"
+                className="inline-flex items-center gap-2 rounded-full border border-white/40 px-4 py-2 text-xs font-semibold text-white transition hover:-translate-y-0.5 hover:bg-white/10"
+              >
+                Customize / Edit
+              </a>
+            </div>
+            {generateMessage && (
+              <div className="mt-3 rounded-lg border border-white/30 bg-white/10 px-3 py-2 text-xs text-white">
+                {generateMessage}
+              </div>
+            )}
             <div className="flex items-center mt-2 space-x-4">
               <span className="text-indigo-200">Teacher: {teacherSchedule.teacherName}</span>
               <span className="text-indigo-200">•</span>
