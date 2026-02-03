@@ -1,7 +1,11 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import { Calendar, Clock, MapPin, BookOpen, AlertCircle, Users } from 'lucide-react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { Calendar, Clock, MapPin, BookOpen, AlertCircle, Users, School } from 'lucide-react';
 
 const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+const DAY_LOOKUP = DAYS.reduce((acc, day) => {
+  acc[day.toLowerCase()] = day;
+  return acc;
+}, {});
 
 const to12Hour = (value) => {
   if (!value) return '';
@@ -19,6 +23,31 @@ const formatSlot = (entry) => {
   }
   if (entry.startTime) return to12Hour(entry.startTime);
   return entry.period ? `Period ${entry.period}` : 'TBD';
+};
+
+const normalizeDayLabel = (value) => {
+  if (!value) return null;
+  const normalized = String(value).trim().toLowerCase();
+  return DAY_LOOKUP[normalized] || null;
+};
+
+const normalizeSchedule = (rawSchedule) => {
+  const base = DAYS.reduce((acc, day) => {
+    acc[day] = [];
+    return acc;
+  }, {});
+
+  if (!rawSchedule || typeof rawSchedule !== 'object') {
+    return base;
+  }
+
+  Object.entries(rawSchedule).forEach(([day, entries]) => {
+    const dayKey = normalizeDayLabel(day);
+    if (!dayKey) return;
+    base[dayKey] = Array.isArray(entries) ? entries : [];
+  });
+
+  return base;
 };
 
 const normalizeValue = (value) => String(value || '').trim().toLowerCase();
@@ -66,67 +95,97 @@ const matchesCredential = (entryValues, credentialValues) => {
   );
 };
 
+const toScopeLabel = (scope) => {
+  if (scope === 'campus') return 'Campus matched';
+  if (scope === 'school-fallback') return 'School fallback';
+  if (scope === 'dashboard-fallback') return 'Dashboard fallback';
+  return 'School matched';
+};
+
 const ClassRoutine = () => {
   const [schedule, setSchedule] = useState({});
   const [teacherProfile, setTeacherProfile] = useState(null);
+  const [routineMeta, setRoutineMeta] = useState({ campusScoped: true, timetableCount: 0, filterSource: 'campus' });
   const [selectedDay, setSelectedDay] = useState(DAYS[new Date().getDay() === 0 ? 6 : new Date().getDay() - 1]);
+  const [viewMode, setViewMode] = useState('daily');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  useEffect(() => {
-    const loadRoutine = async () => {
-      try {
-        setLoading(true);
-        setError(null);
+  const loadRoutine = useCallback(async () => {
+    try {
+      setLoading(true);
+      setError(null);
 
-        const token = localStorage.getItem('token');
-        const userType = localStorage.getItem('userType');
-        if (!token || userType !== 'Teacher') {
-          setError('Only teachers can view this routine.');
-          return;
+      const token = localStorage.getItem('token');
+      const userType = localStorage.getItem('userType');
+      if (!token || (userType !== 'Teacher' && userType !== 'teacher')) {
+        setError('Only teachers can view this routine.');
+        return;
+      }
+
+      const routineResponse = await fetch(`${import.meta.env.VITE_API_URL}/api/teacher/dashboard/routine`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (routineResponse.ok) {
+        const data = await routineResponse.json().catch(() => ({}));
+        setSchedule(normalizeSchedule(data.schedule));
+        setRoutineMeta({
+          campusScoped: Boolean(data?.meta?.campusScoped),
+          timetableCount: Number(data?.meta?.timetableCount || 0),
+          filterSource: data?.meta?.filterSource || (data?.meta?.campusScoped ? 'campus' : 'school'),
+        });
+        if (data.teacher) {
+          setTeacherProfile(data.teacher);
         }
-
-        const response = await fetch(`${import.meta.env.VITE_API_URL}/api/teacher/dashboard/routine`, {
+      } else {
+        const dashboardResponse = await fetch(`${import.meta.env.VITE_API_URL}/api/teacher/dashboard`, {
           headers: {
             Authorization: `Bearer ${token}`,
             'Content-Type': 'application/json',
           },
         });
 
-        if (!response.ok) {
-          const data = await response.json().catch(() => ({}));
+        if (!dashboardResponse.ok) {
+          const data = await dashboardResponse.json().catch(() => ({}));
           throw new Error(data.error || 'Unable to load teacher routine.');
         }
 
-        const data = await response.json();
-        setSchedule(data.schedule || {});
-        if (data.teacher) {
-          setTeacherProfile(data.teacher);
-        }
-
-        try {
-          const profileResponse = await fetch(`${import.meta.env.VITE_API_URL}/api/teacher/dashboard`, {
-            headers: {
-              Authorization: `Bearer ${token}`,
-              'Content-Type': 'application/json',
-            },
-          });
-          if (profileResponse.ok) {
-            const profileData = await profileResponse.json();
-            setTeacherProfile((prev) => prev || profileData?.teacher || null);
-          }
-        } catch (profileError) {
-          console.error('Unable to load teacher credentials for routine filtering', profileError);
-        }
-      } catch (err) {
-        setError(err.message || 'Failed to load routine');
-      } finally {
-        setLoading(false);
+        const dashboardData = await dashboardResponse.json().catch(() => ({}));
+        const today = new Date().toLocaleDateString('en-US', { weekday: 'long' });
+        const fallbackSchedule = normalizeSchedule({
+          [today]: (dashboardData?.upcomingClasses || []).map((item, index) => ({
+            subject: item.subject || 'Subject',
+            className: item.class || '',
+            sectionName: '',
+            classLabel: item.class || '',
+            room: item.room || 'TBA',
+            startTime: item.time || '',
+            endTime: '',
+            period: index + 1,
+          })),
+        });
+        setSchedule(fallbackSchedule);
+        setRoutineMeta({
+          campusScoped: true,
+          timetableCount: Number((dashboardData?.upcomingClasses || []).length > 0 ? 1 : 0),
+          filterSource: 'dashboard-fallback',
+        });
+        setTeacherProfile(dashboardData?.teacher || null);
       }
-    };
-
-    loadRoutine();
+    } catch (err) {
+      setError(err.message || 'Failed to load routine');
+    } finally {
+      setLoading(false);
+    }
   }, []);
+
+  useEffect(() => {
+    loadRoutine();
+  }, [loadRoutine]);
 
   const teacherClassValues = useMemo(
     () =>
@@ -137,6 +196,7 @@ const ClassRoutine = () => {
         'standard',
         'assignedClass',
         'assignedClasses',
+        'assignedClassLabels',
         'classes',
       ]),
     [teacherProfile]
@@ -150,6 +210,7 @@ const ClassRoutine = () => {
         'standard',
         'assignedClass',
         'assignedClasses',
+        'assignedClassLabels',
         'classes',
       ]),
     [teacherProfile]
@@ -196,17 +257,64 @@ const ClassRoutine = () => {
     [schedule, teacherClassValues, teacherSectionValues]
   );
 
-  const totalClasses = useMemo(
+  const filteredTotalClasses = useMemo(
     () => DAYS.reduce((sum, day) => sum + ((filteredSchedule[day] || []).length), 0),
     [filteredSchedule]
   );
-  const todayClasses = filteredSchedule[selectedDay] || [];
+
+  const effectiveSchedule = useMemo(() => {
+    // If strict class/section filter removes everything, fallback to teacher-scoped schedule.
+    if (filteredTotalClasses > 0) return filteredSchedule;
+    return schedule;
+  }, [filteredSchedule, schedule, filteredTotalClasses]);
+
+  useEffect(() => {
+    const firstAvailableDay = DAYS.find((day) => (effectiveSchedule[day] || []).length > 0);
+    if (firstAvailableDay) {
+      setSelectedDay(firstAvailableDay);
+    }
+  }, [effectiveSchedule]);
+
+  const totalClasses = useMemo(
+    () => DAYS.reduce((sum, day) => sum + ((effectiveSchedule[day] || []).length), 0),
+    [effectiveSchedule]
+  );
+  const todayClasses = effectiveSchedule[selectedDay] || [];
+  const weeklySlots = useMemo(() => {
+    const slotMap = new Map();
+    DAYS.forEach((day) => {
+      (effectiveSchedule[day] || []).forEach((entry, index) => {
+        const slot = formatSlot(entry) || `Period ${entry.period || index + 1}`;
+        const order = Number(entry.period || 999);
+        if (!slotMap.has(slot)) {
+          slotMap.set(slot, { slot, order });
+        } else if (order < slotMap.get(slot).order) {
+          slotMap.set(slot, { slot, order });
+        }
+      });
+    });
+    return Array.from(slotMap.values()).sort((a, b) =>
+      a.order === b.order ? a.slot.localeCompare(b.slot) : a.order - b.order
+    );
+  }, [effectiveSchedule]);
+  const weeklyMatrix = useMemo(() => {
+    const matrix = {};
+    DAYS.forEach((day) => {
+      matrix[day] = {};
+      (effectiveSchedule[day] || []).forEach((entry, index) => {
+        const slot = formatSlot(entry) || `Period ${entry.period || index + 1}`;
+        matrix[day][slot] = entry;
+      });
+    });
+    return matrix;
+  }, [effectiveSchedule]);
 
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 p-6 space-y-4">
-        <div className="h-28 bg-white rounded-xl shadow animate-pulse" />
-        <div className="h-40 bg-white rounded-xl shadow animate-pulse" />
+        <div className="h-24 bg-white rounded-xl shadow animate-pulse" />
+        <div className="h-16 bg-white rounded-xl shadow animate-pulse" />
+        <div className="h-64 bg-white rounded-xl shadow animate-pulse" />
       </div>
     );
   }
@@ -214,12 +322,29 @@ const ClassRoutine = () => {
   return (
     <div className="min-h-screen bg-gray-50 p-6">
       <div className="bg-gradient-to-r from-indigo-500 to-indigo-600 rounded-xl p-6 mb-6 text-white shadow-md">
-        <h1 className="text-3xl font-bold mb-2">Class Routine</h1>
-        <p className="text-indigo-100">
-          Teacher view only
-          {teacherClassLabels.length ? ` | Class ${teacherClassLabels.join(', ')}` : ''}
-          {teacherSectionLabels.length ? ` | Section ${teacherSectionLabels.join(', ')}` : ''}
-        </p>
+        <div className="flex flex-col gap-3">
+          <div>
+            <h1 className="text-3xl font-bold mb-2">Class Routine</h1>
+            <p className="text-indigo-100">
+              Teacher view only
+              {teacherClassLabels.length ? ` | Class ${teacherClassLabels.join(', ')}` : ''}
+              {teacherSectionLabels.length ? ` | Section ${teacherSectionLabels.join(', ')}` : ''}
+            </p>
+            {(teacherProfile?.subject || teacherProfile?.department) ? (
+              <p className="text-indigo-50 text-sm mt-1">
+                {teacherProfile?.subject || 'Subject not set'}
+                {teacherProfile?.department ? ` | ${teacherProfile.department}` : ''}
+              </p>
+            ) : null}
+          </div>
+          <div className="inline-flex items-center gap-2 text-sm text-indigo-50">
+            <School size={15} />
+            <span>
+              Campus: {teacherProfile?.campusName || 'N/A'}
+              {teacherProfile?.campusType ? ` (${teacherProfile.campusType})` : ''}
+            </span>
+          </div>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
@@ -232,12 +357,46 @@ const ClassRoutine = () => {
           <h3 className="text-2xl font-bold text-gray-800 mt-1">{todayClasses.length}</h3>
         </div>
         <div className="bg-white rounded-xl p-5 shadow-sm border border-gray-200">
-          <p className="text-sm text-gray-500">Campus Scoped</p>
-          <h3 className="text-2xl font-bold text-gray-800 mt-1">Yes</h3>
+          <p className="text-sm text-gray-500">Timetable Source</p>
+          <h3 className="text-2xl font-bold text-gray-800 mt-1">
+            {routineMeta.campusScoped ? 'Campus' : 'School'}
+          </h3>
+          <p className="text-xs text-gray-500 mt-1">
+            {toScopeLabel(routineMeta.filterSource)} | Matched timetables: {routineMeta.timetableCount}
+          </p>
         </div>
       </div>
 
-      <div className="bg-white rounded-xl p-4 mb-6 shadow-sm border border-gray-200">
+      <div className="bg-white rounded-xl p-4 mb-6 shadow-sm border border-gray-200 space-y-4">
+        <div className="flex items-center justify-between flex-wrap gap-3">
+          <div className="inline-flex rounded-lg border border-gray-200 bg-gray-50 p-1">
+            <button
+              onClick={() => setViewMode('daily')}
+              className={`px-3 py-1.5 rounded-md text-sm font-medium ${
+                viewMode === 'daily' ? 'bg-indigo-600 text-white' : 'text-gray-700 hover:bg-gray-200'
+              }`}
+            >
+              Daily View
+            </button>
+            <button
+              onClick={() => setViewMode('weekly')}
+              className={`px-3 py-1.5 rounded-md text-sm font-medium ${
+                viewMode === 'weekly' ? 'bg-indigo-600 text-white' : 'text-gray-700 hover:bg-gray-200'
+              }`}
+            >
+              Weekly Sheet
+            </button>
+          </div>
+          <div className="flex items-center gap-3">
+            <p className="text-xs text-gray-500">Use Weekly Sheet for full timetable layout</p>
+            <button
+              onClick={loadRoutine}
+              className="text-xs font-medium text-indigo-700 hover:text-indigo-800"
+            >
+              Reload
+            </button>
+          </div>
+        </div>
         <div className="flex flex-wrap gap-2">
           {DAYS.map((day) => (
             <button
@@ -248,9 +407,9 @@ const ClassRoutine = () => {
               }`}
             >
               {day}
-              {filteredSchedule[day]?.length ? (
+              {effectiveSchedule[day]?.length ? (
                 <span className="ml-2 text-xs rounded-full bg-indigo-500 text-white px-2 py-0.5">
-                  {filteredSchedule[day].length}
+                  {effectiveSchedule[day].length}
                 </span>
               ) : null}
             </button>
@@ -266,10 +425,57 @@ const ClassRoutine = () => {
       ) : (
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
           <div className="p-6 border-b border-gray-200">
-            <h2 className="text-xl font-semibold text-gray-800">{selectedDay} Schedule</h2>
+            <h2 className="text-xl font-semibold text-gray-800">
+              {viewMode === 'weekly' ? 'Weekly Class Routine' : `${selectedDay} Schedule`}
+            </h2>
           </div>
           <div className="p-6 space-y-4">
-            {todayClasses.length > 0 ? (
+            {totalClasses === 0 ? (
+              <div className="text-center py-10 text-gray-500">
+                <Calendar className="w-10 h-10 mx-auto mb-3 text-gray-300" />
+                No classes assigned yet for this teacher.
+              </div>
+            ) : viewMode === 'weekly' ? (
+              <div className="overflow-x-auto rounded-lg border border-gray-200">
+                <table className="w-full min-w-[920px] border-collapse">
+                  <thead>
+                    <tr className="bg-gray-50">
+                      <th className="text-left px-4 py-3 text-sm font-semibold text-gray-700 border-b">Time</th>
+                      {DAYS.map((day) => (
+                        <th key={`head-${day}`} className="text-left px-4 py-3 text-sm font-semibold text-gray-700 border-b">
+                          {day}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {weeklySlots.map((slot) => (
+                      <tr key={`slot-${slot.slot}`} className="align-top">
+                        <td className="px-4 py-3 text-sm font-medium text-gray-700 bg-gray-50 border-b">{slot.slot}</td>
+                        {DAYS.map((day) => {
+                          const entry = weeklyMatrix[day]?.[slot.slot];
+                          return (
+                            <td key={`cell-${day}-${slot.slot}`} className="px-3 py-3 border-b">
+                              {entry ? (
+                                <div className="rounded-lg border border-indigo-100 bg-indigo-50 px-3 py-2">
+                                  <p className="text-sm font-semibold text-gray-900">{entry.subject || 'Subject'}</p>
+                                  <p className="text-xs text-gray-600 mt-1">{entry.classLabel || entry.className || 'Class'}</p>
+                                  <p className="text-xs text-gray-500 mt-1">{entry.room || 'TBA'}</p>
+                                </div>
+                              ) : (
+                                <div className="rounded-lg border border-dashed border-gray-200 px-3 py-2 text-center text-xs text-gray-400">
+                                  --
+                                </div>
+                              )}
+                            </td>
+                          );
+                        })}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : todayClasses.length > 0 ? (
               todayClasses.map((entry, index) => (
                 <div key={`${selectedDay}-${index}`} className="p-4 rounded-lg border border-gray-200 bg-gray-50">
                   <div className="flex items-center justify-between gap-4">

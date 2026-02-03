@@ -333,10 +333,13 @@ const TeacherDashboard = () => {
                 </div>
               ))}
             </div>
-            <button className="w-full mt-4 flex items-center justify-center space-x-2 py-2.5 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors">
+            <Link
+              to="/teacher/class-routine"
+              className="w-full mt-4 flex items-center justify-center space-x-2 py-2.5 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+            >
               <span>View Full Schedule</span>
               <ChevronRight className="w-4 h-4" />
-            </button>
+            </Link>
           </div>
         </div>
 
@@ -409,7 +412,7 @@ const TeacherDashboard = () => {
                   return (
                     <Link
                       key={action.id}
-                      to="/teachers/progress"
+                      to="/teacher/progress"
                       className="flex flex-col items-center justify-center p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors group"
                     >
                       <ButtonContent />
@@ -421,7 +424,7 @@ const TeacherDashboard = () => {
                   return (
                     <Link
                       key={action.id}
-                      to="/teachers/weak-students"
+                      to="/teacher/weak-students"
                       className="flex flex-col items-center justify-center p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors group"
                     >
                       <ButtonContent />

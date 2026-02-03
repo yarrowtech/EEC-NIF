@@ -11,6 +11,22 @@ const TeacherUser = require('../models/TeacherUser');
 
 const router = express.Router();
 const WEEK_DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+const DAY_LOOKUP = WEEK_DAYS.reduce((acc, day) => {
+  acc[day.toLowerCase()] = day;
+  return acc;
+}, {});
+
+const normalizeDayLabel = (value) => {
+  if (!value) return null;
+  return DAY_LOOKUP[String(value).trim().toLowerCase()] || null;
+};
+
+const extractId = (value) => {
+  if (!value) return null;
+  if (typeof value === 'string') return value;
+  if (typeof value === 'object') return value._id ? String(value._id) : null;
+  return null;
+};
 
 const startOfDay = (value) => {
   const date = new Date(value);
@@ -288,24 +304,38 @@ router.get('/routine', authTeacher, async (req, res) => {
     if (!schoolId) {
       return res.status(400).json({ error: 'schoolId is required' });
     }
-    if (!campusId) {
-      return res.status(400).json({ error: 'campusId is required' });
-    }
     if (!teacherId) {
       return res.status(400).json({ error: 'teacherId is required' });
     }
 
-    const timetables = await Timetable.find({
+    const baseFilter = {
       schoolId,
-      campusId,
       'entries.teacherId': teacherId,
-    })
+    };
+
+    const primaryFilter = campusId
+      ? { ...baseFilter, campusId }
+      : baseFilter;
+    let routineSource = campusId ? 'campus' : 'school';
+
+    let timetables = await Timetable.find(primaryFilter)
       .populate('classId', 'name')
       .populate('sectionId', 'name')
       .populate('entries.subjectId', 'name')
       .lean();
 
+    // Fallback for legacy records that may not have campusId set
+    if (campusId && (!Array.isArray(timetables) || timetables.length === 0)) {
+      timetables = await Timetable.find(baseFilter)
+        .populate('classId', 'name')
+        .populate('sectionId', 'name')
+        .populate('entries.subjectId', 'name')
+        .lean();
+      routineSource = 'school-fallback';
+    }
+
     const schedule = {};
+    const assignedClassLabels = new Set();
     WEEK_DAYS.forEach((day) => {
       schedule[day] = [];
     });
@@ -314,12 +344,14 @@ router.get('/routine', authTeacher, async (req, res) => {
       const className = tt.classId?.name || 'Class';
       const sectionName = tt.sectionId?.name || '';
       const classLabel = sectionName ? `${className}-${sectionName}` : className;
+      assignedClassLabels.add(classLabel);
 
       (tt.entries || []).forEach((entry) => {
-        if (String(entry.teacherId) !== String(teacherId)) return;
-        if (!entry.dayOfWeek || !schedule[entry.dayOfWeek]) return;
+        if (extractId(entry.teacherId) !== String(teacherId)) return;
+        const normalizedDay = normalizeDayLabel(entry.dayOfWeek);
+        if (!normalizedDay || !schedule[normalizedDay]) return;
 
-        schedule[entry.dayOfWeek].push({
+        schedule[normalizedDay].push({
           subject: entry.subjectId?.name || 'Subject',
           className,
           sectionName,
@@ -340,7 +372,24 @@ router.get('/routine', authTeacher, async (req, res) => {
       });
     });
 
-    res.json({ schedule });
+    const teacher = await TeacherUser.findById(teacherId)
+      .select('name employeeCode subject department campusId campusName campusType')
+      .lean();
+
+    res.json({
+      schedule,
+      teacher: teacher
+        ? {
+          ...teacher,
+          assignedClassLabels: Array.from(assignedClassLabels),
+        }
+        : null,
+      meta: {
+        timetableCount: Array.isArray(timetables) ? timetables.length : 0,
+        campusScoped: routineSource === 'campus',
+        filterSource: routineSource,
+      },
+    });
   } catch (err) {
     res.status(500).json({ error: err.message || 'Unable to load teacher routine' });
   }
