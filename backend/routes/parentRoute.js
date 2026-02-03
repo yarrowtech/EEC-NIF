@@ -65,6 +65,9 @@ router.post('/login', rateLimit({ windowMs: 60 * 1000, max: 10 }), async (req, r
     if (!user.campusId) {
       return res.status(400).json({ error: 'campusId is required for this account' });
     }
+    if (!user.lastLoginAt) {
+      return res.json({ requiresPasswordReset: true, username: user.username });
+    }
 
     const token = jwt.sign(
       { id: user._id, userType: 'parent', schoolId: user.schoolId || null, campusId: user.campusId || null },
@@ -73,6 +76,37 @@ router.post('/login', rateLimit({ windowMs: 60 * 1000, max: 10 }), async (req, r
     );
 
     res.json({ token });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+router.post('/reset-first-password', rateLimit({ windowMs: 60 * 1000, max: 10 }), async (req, res) => {
+  // #swagger.tags = ['Parents']
+  const { username, newPassword } = req.body || {};
+  try {
+    if (!username || !String(username).trim()) {
+      return res.status(400).json({ error: 'Username is required' });
+    }
+    if (!newPassword || !String(newPassword).trim()) {
+      return res.status(400).json({ error: 'New password is required' });
+    }
+    if (!isStrongPassword(newPassword)) {
+      return res.status(400).json({ error: passwordPolicyMessage });
+    }
+
+    const user = await ParentUser.findOne({ username: String(username).trim() });
+    if (!user) {
+      return res.status(404).json({ error: 'Parent not found' });
+    }
+    if (user.lastLoginAt) {
+      return res.status(400).json({ error: 'Password reset already completed' });
+    }
+
+    user.password = String(newPassword);
+    user.lastLoginAt = new Date();
+    await user.save();
+    res.json({ message: 'Password reset successful' });
   } catch (err) {
     res.status(400).json({ error: err.message });
   }

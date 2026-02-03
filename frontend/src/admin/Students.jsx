@@ -61,6 +61,10 @@ const Students = ({ setShowAdminHeader, setShowAdminBreadcrumb }) => {
   const [credentialLoadingId, setCredentialLoadingId] = useState(null);
   const [credentialStatus, setCredentialStatus] = useState({});
   const [isBulkGenerating, setIsBulkGenerating] = useState(false);
+  const [enrollContext, setEnrollContext] = useState({
+    schoolName: "NIF",
+    campusType: "",
+  });
 
   const [newStudent, setNewStudent] = useState({
     // core
@@ -337,6 +341,47 @@ const Students = ({ setShowAdminHeader, setShowAdminBreadcrumb }) => {
     setStudentData(enriched);
   };
 
+  const refreshEnrollContext = async () => {
+    try {
+      const token = localStorage.getItem("token");
+      if (!token) return;
+
+      const [profileRes, schoolsRes] = await Promise.allSettled([
+        fetch(`${API_BASE}/api/admin/auth/profile`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            authorization: `Bearer ${token}`,
+          },
+        }).then((res) => (res.ok ? res.json() : null)),
+        fetch(`${API_BASE}/api/schools`, {
+          method: "GET",
+          headers: {
+            "Content-Type": "application/json",
+            authorization: `Bearer ${token}`,
+          },
+        }).then((res) => (res.ok ? res.json() : [])),
+      ]);
+
+      const profile =
+        profileRes.status === "fulfilled" && profileRes.value
+          ? profileRes.value
+          : null;
+      const schools =
+        schoolsRes.status === "fulfilled" && Array.isArray(schoolsRes.value)
+          ? schoolsRes.value
+          : [];
+      const firstSchool = schools[0] || null;
+
+      setEnrollContext({
+        schoolName: firstSchool?.name || "NIF",
+        campusType: profile?.campusType || "",
+      });
+    } catch (err) {
+      console.error("Failed to load school context:", err);
+    }
+  };
+
   // Fetch archived students from backend
   const refreshArchivedStudents = async () => {
     try {
@@ -373,6 +418,7 @@ const Students = ({ setShowAdminHeader, setShowAdminBreadcrumb }) => {
     setShowAdminBreadcrumb?.(false);
     refreshStudents().catch(console.error);
     refreshArchivedStudents().catch(console.error);
+    refreshEnrollContext().catch(console.error);
 
     return () => {
       setShowAdminBreadcrumb?.(true);
@@ -555,12 +601,25 @@ const Students = ({ setShowAdminHeader, setShowAdminBreadcrumb }) => {
       }
       Swal.fire({
         icon: "success",
-        title: "student enrolled successfully!",
-        toast: true,
-        position: "top-end",
-        showConfirmButton: false,
-        timer: 2000,
-        timerProgressBar: true,
+        title: "Student enrolled successfully!",
+        html: `
+          <div class="text-left space-y-2">
+          <div><strong>Student ID:</strong> ${data.generatedStudentId || data.admissionNumber || "Generated"}</div>
+          ${
+              data.studentCredentials
+                ? `<div><strong>Student Username:</strong> ${data.studentCredentials.userId}</div>
+                   <div><strong>Student Password:</strong> ${data.studentCredentials.password}</div>`
+                : ""
+            }
+            ${
+              data.parentCredentials
+                ? `<div><strong>Parent ID:</strong> ${data.parentCredentials.userId}</div>
+                   <div><strong>Parent Password:</strong> ${data.parentCredentials.password || "Already exists (existing password)"}</div>`
+                : ""
+            }
+          </div>
+        `,
+        confirmButtonColor: "#EAB308",
       });
 
       await refreshStudents();
@@ -1550,6 +1609,12 @@ const Students = ({ setShowAdminHeader, setShowAdminBreadcrumb }) => {
                           <div className="text-xs text-gray-500 truncate">
                             {student.email || 'No email'}
                           </div>
+                          <div className="text-[11px] text-emerald-700 truncate">
+                            Student User: {student.portalAccess?.username || "-"}
+                          </div>
+                          <div className="text-[11px] text-purple-700 truncate">
+                            Parent User: {student.parent?.username || "-"}
+                          </div>
                         </div>
                       </div>
                     </td>
@@ -1708,7 +1773,9 @@ const Students = ({ setShowAdminHeader, setShowAdminBreadcrumb }) => {
                     </div>
                     <div>
                       <h2 className="text-2xl font-bold text-white">
-                        Enroll New NIF Student
+                        Enroll New {enrollContext.schoolName}{" "}
+                        {enrollContext.campusType ? `(${enrollContext.campusType}) ` : ""}
+                        Student
                       </h2>
                       <p className="text-yellow-100 mt-1">
                         Complete all sections to register student

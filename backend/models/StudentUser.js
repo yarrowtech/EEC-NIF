@@ -36,6 +36,7 @@ const studentUserSchema = new mongoose.Schema({
   address: String,
   pinCode: String,
   profilePic: { type: String, default: "" },
+  lastLoginAt: { type: Date, default: null },
 
 
   // Embedded attendance array

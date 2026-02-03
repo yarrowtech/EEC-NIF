@@ -89,14 +89,34 @@ const LoginForm = () => {
     setResetNotice('');
     try {
       if (resetMode) {
-        const isTeacherReset = resetUserType === 'Teacher';
-        const resetEndpoint = isTeacherReset
-          ? '/api/teacher/auth/reset-first-password'
-          : '/api/admin/auth/reset-first-password';
-        const loginEndpoint = isTeacherReset ? '/api/teacher/auth/login' : '/api/admin/auth/login';
-        const loginRedirect = isTeacherReset ? '/teacher' : '/admin/dashboard';
+        const resetConfigByType = {
+          Admin: {
+            resetEndpoint: '/api/admin/auth/reset-first-password',
+            loginEndpoint: '/api/admin/auth/login',
+            redirect: '/admin/dashboard',
+          },
+          Teacher: {
+            resetEndpoint: '/api/teacher/auth/reset-first-password',
+            loginEndpoint: '/api/teacher/auth/login',
+            redirect: '/teachers',
+          },
+          Student: {
+            resetEndpoint: '/api/student/auth/reset-first-password',
+            loginEndpoint: '/api/student/auth/login',
+            redirect: '/dashboard',
+          },
+          Parent: {
+            resetEndpoint: '/api/parent/auth/reset-first-password',
+            loginEndpoint: '/api/parent/auth/login',
+            redirect: '/parents',
+          },
+        };
+        const resetConfig = resetConfigByType[resetUserType];
+        if (!resetConfig) {
+          throw new Error('Unsupported password reset flow');
+        }
 
-        const resetRes = await fetch(`${API_BASE}${resetEndpoint}`, {
+        const resetRes = await fetch(`${API_BASE}${resetConfig.resetEndpoint}`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json'
@@ -112,7 +132,7 @@ const LoginForm = () => {
           throw new Error(data?.error || 'Unable to reset password');
         }
 
-        const loginRes = await fetch(`${API_BASE}${loginEndpoint}`, {
+        const loginRes = await fetch(`${API_BASE}${resetConfig.loginEndpoint}`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json'
@@ -129,14 +149,8 @@ const LoginForm = () => {
 
         const loginData = await loginRes.json();
         localStorage.setItem('token', loginData.token);
-        if (isTeacherReset) {
-          localStorage.setItem('userType', 'Teacher');
-          navigate(loginRedirect);
-          return;
-        }
-
-        localStorage.setItem('userType', 'Admin');
-        navigate(loginRedirect);
+        localStorage.setItem('userType', resetUserType);
+        navigate(resetConfig.redirect);
         return;
       }
 
@@ -175,7 +189,7 @@ const LoginForm = () => {
         }
 
         const data = await res.json();
-        if ((option.userType === 'Admin' || option.userType === 'Teacher') && data?.requiresPasswordReset) {
+        if (data?.requiresPasswordReset) {
           setResetMode(true);
           setResetUserType(option.userType);
           setFormData((prev) => ({

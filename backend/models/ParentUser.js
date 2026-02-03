@@ -18,6 +18,7 @@ const parentUserSchema = new mongoose.Schema({
 
    mobile: String,
   email: String,
+  lastLoginAt: { type: Date, default: null },
   childrenIds: [{ type: mongoose.Schema.Types.ObjectId, ref: 'StudentUser' }],
   children: [String],
   grade: [String],
