@@ -23,6 +23,11 @@ const resolveSchoolId = (req, res) => {
 };
 
 const resolveCampusId = (req) => req.campusId || null;
+const resolveCampusScope = (req) => {
+  const scope = String(req.query?.scope || '').trim().toLowerCase();
+  if (scope === 'school') return null;
+  return resolveCampusId(req);
+};
 
 const buildCampusFilter = (schoolId, campusId) => {
   const filter = { schoolId };
@@ -184,7 +189,7 @@ router.get('/classes', adminAuth, async (req, res) => {
   try {
     const schoolId = resolveSchoolId(req, res);
     if (!schoolId) return;
-    const items = await ClassModel.find(buildCampusFilter(schoolId, resolveCampusId(req)))
+    const items = await ClassModel.find(buildCampusFilter(schoolId, resolveCampusScope(req)))
       .sort({ order: 1, name: 1 })
       .lean();
     res.json(items);
@@ -350,7 +355,7 @@ router.get('/sections', adminAuth, async (req, res) => {
   try {
     const schoolId = resolveSchoolId(req, res);
     if (!schoolId) return;
-    const filter = buildCampusFilter(schoolId, resolveCampusId(req));
+    const filter = buildCampusFilter(schoolId, resolveCampusScope(req));
     if (req.query.classId && mongoose.isValidObjectId(req.query.classId)) {
       filter.classId = req.query.classId;
     }

@@ -29,7 +29,7 @@ import {
   ChevronRight
 } from 'lucide-react';
 
-const ParentDashboard = () => {
+const ParentDashboard = ({ parentName, childrenNames = [] }) => {
   const [monitorData, setMonitorData] = useState({
     isOnline: true,
     lastActivity: 'Just now',
@@ -189,10 +189,10 @@ const ParentDashboard = () => {
                   </div>
                   <div>
                     <p className="text-white/80 text-sm font-medium">
-                      {getGreeting()}, Parent! 👋
+                      {getGreeting()}, {parentName || 'Parent'}! 👋
                     </p>
                     <h1 className="text-4xl font-bold text-white leading-tight">
-                      Welcome to <span className="text-yellow-300">{childName}'s</span> Portal
+                      Welcome to <span className="text-yellow-300">Parent</span> Portal
                     </h1>
                   </div>
                 </div>
@@ -237,10 +237,18 @@ const ParentDashboard = () => {
             
             {/* Quick Action Pills */}
             <div className="flex flex-wrap gap-3 mt-6">
-              <div className="flex items-center space-x-2 bg-white/10 backdrop-blur-sm rounded-full px-4 py-2">
+              {childrenNames.length > 0 && (
+                <div className="flex items-center space-x-2 bg-white/10 backdrop-blur-sm rounded-full px-4 py-2">
+                  <Users className="w-4 h-4 text-cyan-300" />
+                  <span className="text-white text-sm font-medium">
+                    Children: {childrenNames.join(', ')}
+                  </span>
+                </div>
+              )}
+              {/* <div className="flex items-center space-x-2 bg-white/10 backdrop-blur-sm rounded-full px-4 py-2">
                 <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
                 <span className="text-white text-sm font-medium">{childName} is Online</span>
-              </div>
+              </div> */}
               <div className="flex items-center space-x-2 bg-white/10 backdrop-blur-sm rounded-full px-4 py-2">
                 <Award className="w-4 h-4 text-yellow-300" />
                 <span className="text-white text-sm font-medium">3 New Achievements</span>

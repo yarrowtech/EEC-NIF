@@ -597,6 +597,24 @@ router.delete('/students/:id', adminAuth, async (req, res) => {
   }
 });
 
+router.put('/parents/:id', adminAuth, async (req, res) => {
+  // #swagger.tags = ['Admin Users']
+  try {
+    await updateByScope(ParentUser, req, res);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.delete('/parents/:id', adminAuth, async (req, res) => {
+  // #swagger.tags = ['Admin Users']
+  try {
+    await deleteByScope(ParentUser, req, res);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 router.put('/staff/:id', adminAuth, async (req, res) => {
   // #swagger.tags = ['Admin Users']
   try {

@@ -10,7 +10,6 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const adminAuth = require('../middleware/adminAuth');
 const { generatePassword } = require('../utils/generator');
-const { generateStudentCode } = require('../utils/codeGenerator');
 const extractPopulatedDoc = (doc) => {
   if (doc && typeof doc.toJSON === 'function') {
     return doc.toJSON();
@@ -68,6 +67,35 @@ const resolveAdmissionDate = (value) => {
     return undefined;
   }
   return parsed;
+};
+const escapeRegex = (value) => String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+const padNumber = (value, size = 3) => String(value).padStart(size, '0');
+const normalizeOrgPrefix = (adminUsername) => {
+  const normalized = String(adminUsername || '')
+    .trim()
+    .toUpperCase()
+    .replace(/^EEC[-_]?/, '')
+    .replace(/[^A-Z0-9-]/g, '');
+  return normalized || 'SCH';
+};
+const resolveStudentPrefix = ({ adminUsername, admissionYear }) =>
+  `${normalizeOrgPrefix(adminUsername)}-STD-${String(admissionYear).slice(-2)}-`;
+const getNextStudentUsername = async ({ schoolId, campusId, prefix }) => {
+  const regex = new RegExp(`^${escapeRegex(prefix)}\\d+$`);
+  const filter = {
+    schoolId,
+    username: { $regex: regex },
+  };
+  if (campusId) filter.campusId = campusId;
+  const users = await StudentUser.find(filter).select('username').lean();
+  let maxSequence = 0;
+  users.forEach((user) => {
+    const value = String(user?.username || '');
+    const match = value.match(/(\d+)$/);
+    const seq = match ? Number(match[1]) : 0;
+    if (Number.isFinite(seq) && seq > maxSequence) maxSequence = seq;
+  });
+  return `${prefix}${padNumber(maxSequence + 1)}`;
 };
 const rateLimit = require('../middleware/rateLimit');
 const { isStrongPassword, passwordPolicyMessage } = require('../utils/passwordPolicy');
@@ -146,9 +174,17 @@ router.post('/register', adminAuth, async (req, res) => {
     const resolvedEmail = email || nifStudentDoc?.email || '';
     const resolvedBatchCode = batchCode || nifStudentDoc?.batchCode || '';
 
-    let studentCode = existingPortalUser?.studentCode;
+    let studentCode = existingPortalUser?.studentCode || existingPortalUser?.username;
     if (!studentCode) {
-      studentCode = await generateStudentCode(resolvedSchoolId, admissionYear);
+      const prefix = resolveStudentPrefix({
+        adminUsername: req.admin?.username,
+        admissionYear,
+      });
+      studentCode = await getNextStudentUsername({
+        schoolId: resolvedSchoolId,
+        campusId: resolvedCampusId,
+        prefix,
+      });
     }
 
     const nifPhoto =
@@ -176,6 +212,7 @@ router.post('/register', adminAuth, async (req, res) => {
       pinCode: pinCode || nifStudentDoc?.pincode || '',
       batchCode: resolvedBatchCode,
       studentCode,
+      lastLoginAt: existingPortalUser?.lastLoginAt || null,
     };
     if (!payload.profilePic && nifPhoto) {
       payload.profilePic = nifPhoto;
@@ -239,9 +276,11 @@ router.post('/login', rateLimit({ windowMs: 60 * 1000, max: 10 }), async (req, r
     if (!user.campusId) {
       return res.status(400).json({ error: 'campusId is required for this account' });
     }
-    if (!user.studentCode && user.schoolId) {
-      const admissionYear = resolveAdmissionYear(user.admissionDate);
-      user.studentCode = await generateStudentCode(user.schoolId, admissionYear);
+    if (!user.lastLoginAt) {
+      return res.json({ requiresPasswordReset: true, username: user.username || user.studentCode });
+    }
+    if (!user.studentCode) {
+      user.studentCode = user.username;
       await user.save();
     }
 
@@ -257,6 +296,45 @@ router.post('/login', rateLimit({ windowMs: 60 * 1000, max: 10 }), async (req, r
     );
 
     res.json({ token });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+router.post('/reset-first-password', rateLimit({ windowMs: 60 * 1000, max: 10 }), async (req, res) => {
+  // #swagger.tags = ['Students']
+  const { username, newPassword } = req.body || {};
+  try {
+    if (!username || !String(username).trim()) {
+      return res.status(400).json({ error: 'Username is required' });
+    }
+    if (!newPassword || !String(newPassword).trim()) {
+      return res.status(400).json({ error: 'New password is required' });
+    }
+    if (!isStrongPassword(newPassword)) {
+      return res.status(400).json({ error: passwordPolicyMessage });
+    }
+
+    const user = await StudentUser.findOne({
+      $or: [
+        { username: String(username).trim() },
+        { studentCode: String(username).trim() },
+      ],
+    });
+    if (!user) {
+      return res.status(404).json({ error: 'Student not found' });
+    }
+    if (user.lastLoginAt) {
+      return res.status(400).json({ error: 'Password reset already completed' });
+    }
+
+    user.password = String(newPassword);
+    user.lastLoginAt = new Date();
+    if (!user.studentCode) {
+      user.studentCode = user.username;
+    }
+    await user.save();
+    res.json({ message: 'Password reset successful' });
   } catch (err) {
     res.status(400).json({ error: err.message });
   }

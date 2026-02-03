@@ -61,6 +61,20 @@ const Students = ({ setShowAdminHeader, setShowAdminBreadcrumb }) => {
   const [credentialLoadingId, setCredentialLoadingId] = useState(null);
   const [credentialStatus, setCredentialStatus] = useState({});
   const [isBulkGenerating, setIsBulkGenerating] = useState(false);
+  const [enrollContext, setEnrollContext] = useState({
+    schoolName: "NIF",
+    campusType: "",
+  });
+  const [academicYears, setAcademicYears] = useState([]);
+  const [academicClasses, setAcademicClasses] = useState([]);
+  const [academicSections, setAcademicSections] = useState([]);
+  const [selectedClassId, setSelectedClassId] = useState("");
+  const [sessionFilter, setSessionFilter] = useState("");
+  const [classFilter, setClassFilter] = useState("");
+  const [sectionFilter, setSectionFilter] = useState("");
+  const [parentDirectory, setParentDirectory] = useState([]);
+  const [parentSearchTerm, setParentSearchTerm] = useState("");
+  const [selectedExistingParent, setSelectedExistingParent] = useState(null);
 
   const [newStudent, setNewStudent] = useState({
     // core
@@ -138,14 +152,24 @@ const Students = ({ setShowAdminHeader, setShowAdminBreadcrumb }) => {
   /* -------------------- Derived -------------------- */
   const filteredStudents = useMemo(
     () =>
-      studentData.filter((student) =>
-        [student.name, student.roll, student.email]
+      studentData.filter((student) => {
+        const matchesSearch = [student.name, student.roll, student.email]
           .filter(Boolean)
           .some((v) =>
             String(v).toLowerCase().includes(searchTerm.toLowerCase())
-          )
-      ),
-    [studentData, searchTerm]
+          );
+        if (!matchesSearch) return false;
+
+        const studentSession = String(student.academicYear || "").trim();
+        const studentClass = String(student.class || student.grade || "").trim();
+        const studentSection = String(student.section || "").trim();
+
+        if (sessionFilter && studentSession !== sessionFilter) return false;
+        if (classFilter && studentClass !== classFilter) return false;
+        if (sectionFilter && studentSection !== sectionFilter) return false;
+        return true;
+      }),
+    [studentData, searchTerm, sessionFilter, classFilter, sectionFilter]
   );
   const totalPages = Math.max(
     1,
@@ -167,6 +191,90 @@ const Students = ({ setShowAdminHeader, setShowAdminBreadcrumb }) => {
     currentPage * STUDENTS_PER_PAGE,
     filteredStudents.length
   );
+  const sessionOptions = useMemo(
+    () => {
+      const catalogSessions = academicYears
+        .map((year) => String(year?.name || "").trim())
+        .filter(Boolean);
+      const studentSessions = studentData
+        .map((student) => String(student.academicYear || "").trim())
+        .filter(Boolean);
+      return Array.from(new Set([...catalogSessions, ...studentSessions])).sort();
+    },
+    [academicYears, studentData]
+  );
+  const classOptions = useMemo(
+    () => {
+      if (!sessionFilter) return [];
+      const classFromStudents = studentData
+        .filter(
+          (student) =>
+            String(student.academicYear || "").trim() === String(sessionFilter).trim()
+        )
+        .map((student) => String(student.class || student.grade || "").trim())
+        .filter(Boolean);
+      const classFromCatalog = academicClasses
+        .map((item) => String(item?.name || "").trim())
+        .filter(Boolean);
+      return Array.from(new Set([...classFromStudents, ...classFromCatalog])).sort();
+    },
+    [sessionFilter, studentData, academicClasses]
+  );
+  const sectionOptions = useMemo(
+    () => {
+      if (!sessionFilter || !classFilter) return [];
+      const sectionFromStudents = studentData
+        .filter((student) => {
+          const studentSession = String(student.academicYear || "").trim();
+          const studentClass = String(student.class || student.grade || "").trim();
+          return (
+            studentSession === String(sessionFilter).trim() &&
+            studentClass === String(classFilter).trim()
+          );
+        })
+        .map((student) => String(student.section || "").trim())
+        .filter(Boolean);
+
+      const selectedCatalogClass = academicClasses.find(
+        (item) => String(item?.name || "").trim() === String(classFilter).trim()
+      );
+      const sectionFromCatalog = selectedCatalogClass
+        ? academicSections
+            .filter(
+              (section) =>
+                String(section?.classId || "") === String(selectedCatalogClass?._id || "")
+            )
+            .map((section) => String(section?.name || "").trim())
+            .filter(Boolean)
+        : [];
+
+      return Array.from(new Set([...sectionFromStudents, ...sectionFromCatalog])).sort();
+    },
+    [sessionFilter, classFilter, studentData, academicClasses, academicSections]
+  );
+  const isStudentsTableVisible = Boolean(sessionFilter && classFilter && sectionFilter);
+  const filteredAcademicSections = useMemo(() => {
+    if (!selectedClassId) return [];
+    return academicSections.filter(
+      (section) => String(section.classId) === String(selectedClassId)
+    );
+  }, [academicSections, selectedClassId]);
+  const addFormClassOptions = useMemo(
+    () =>
+      academicClasses.map((item) => ({
+        id: String(item._id),
+        name: item.name,
+      })),
+    [academicClasses]
+  );
+  const addFormSectionOptions = useMemo(
+    () =>
+      filteredAcademicSections.map((item) => ({
+        id: String(item._id),
+        name: item.name,
+      })),
+    [filteredAcademicSections]
+  );
   useEffect(() => {
     setCurrentPage((prev) => {
       const next = Math.min(prev, totalPages);
@@ -176,7 +284,7 @@ const Students = ({ setShowAdminHeader, setShowAdminBreadcrumb }) => {
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchTerm]);
+  }, [searchTerm, sessionFilter, classFilter, sectionFilter]);
 
   // Refresh archived students when modal opens
   useEffect(() => {
@@ -303,6 +411,7 @@ const Students = ({ setShowAdminHeader, setShowAdminBreadcrumb }) => {
         ? studentsResult.value
         : [];
     const parents = parentsResult.status === "fulfilled" ? parentsResult.value : [];
+    setParentDirectory(parents);
 
     if (!parents.length) {
       setStudentData(students);
@@ -335,6 +444,111 @@ const Students = ({ setShowAdminHeader, setShowAdminBreadcrumb }) => {
     });
 
     setStudentData(enriched);
+  };
+
+  const matchedParents = useMemo(() => {
+    const query = parentSearchTerm.trim().toLowerCase();
+    if (!query) return [];
+    return parentDirectory
+      .filter((parent) => {
+        const name = String(parent?.name || "").toLowerCase();
+        const username = String(parent?.username || "").toLowerCase();
+        return name.includes(query) || username.includes(query);
+      })
+      .slice(0, 8);
+  }, [parentDirectory, parentSearchTerm]);
+
+  const handleSelectExistingParent = (parent) => {
+    if (!parent) return;
+    setSelectedExistingParent(parent);
+    setParentSearchTerm(parent.name || parent.username || "");
+    setNewStudent((prev) => ({
+      ...prev,
+      guardianName: prev.guardianName || parent.name || "",
+      guardianEmail: prev.guardianEmail || parent.email || "",
+      guardianPhone: prev.guardianPhone || parent.mobile || "",
+    }));
+  };
+
+  const refreshEnrollContext = async () => {
+    try {
+      const token = localStorage.getItem("token");
+      if (!token) return;
+
+      const [profileRes, schoolsRes] = await Promise.allSettled([
+        fetch(`${API_BASE}/api/admin/auth/profile`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            authorization: `Bearer ${token}`,
+          },
+        }).then((res) => (res.ok ? res.json() : null)),
+        fetch(`${API_BASE}/api/schools`, {
+          method: "GET",
+          headers: {
+            "Content-Type": "application/json",
+            authorization: `Bearer ${token}`,
+          },
+        }).then((res) => (res.ok ? res.json() : [])),
+      ]);
+
+      const profile =
+        profileRes.status === "fulfilled" && profileRes.value
+          ? profileRes.value
+          : null;
+      const schools =
+        schoolsRes.status === "fulfilled" && Array.isArray(schoolsRes.value)
+          ? schoolsRes.value
+          : [];
+      const firstSchool = schools[0] || null;
+
+      setEnrollContext({
+        schoolName: firstSchool?.name || "NIF",
+        campusType: profile?.campusType || "",
+      });
+    } catch (err) {
+      console.error("Failed to load school context:", err);
+    }
+  };
+
+  const refreshAcademicCatalog = async () => {
+    try {
+      const token = localStorage.getItem("token");
+      if (!token) return;
+      const headers = {
+        "Content-Type": "application/json",
+        authorization: `Bearer ${token}`,
+      };
+      const [yearsRes, classesRes, sectionsRes] = await Promise.allSettled([
+        fetch(`${API_BASE}/api/academic/years`, { method: "GET", headers }).then((res) =>
+          res.ok ? res.json() : []
+        ),
+        fetch(`${API_BASE}/api/academic/classes?scope=school`, { method: "GET", headers }).then((res) =>
+          res.ok ? res.json() : []
+        ),
+        fetch(`${API_BASE}/api/academic/sections?scope=school`, { method: "GET", headers }).then((res) =>
+          res.ok ? res.json() : []
+        ),
+      ]);
+
+      setAcademicYears(
+        yearsRes.status === "fulfilled" && Array.isArray(yearsRes.value)
+          ? yearsRes.value
+          : []
+      );
+      setAcademicClasses(
+        classesRes.status === "fulfilled" && Array.isArray(classesRes.value)
+          ? classesRes.value
+          : []
+      );
+      setAcademicSections(
+        sectionsRes.status === "fulfilled" && Array.isArray(sectionsRes.value)
+          ? sectionsRes.value
+          : []
+      );
+    } catch (error) {
+      console.error("Failed to load academic catalog:", error);
+    }
   };
 
   // Fetch archived students from backend
@@ -373,6 +587,8 @@ const Students = ({ setShowAdminHeader, setShowAdminBreadcrumb }) => {
     setShowAdminBreadcrumb?.(false);
     refreshStudents().catch(console.error);
     refreshArchivedStudents().catch(console.error);
+    refreshEnrollContext().catch(console.error);
+    refreshAcademicCatalog().catch(console.error);
 
     return () => {
       setShowAdminBreadcrumb?.(true);
@@ -508,6 +724,19 @@ const Students = ({ setShowAdminHeader, setShowAdminBreadcrumb }) => {
     setNewStudent((prev) => ({ ...prev, [name]: value }));
   };
 
+  const handleAcademicClassChange = (e) => {
+    const nextClassId = e.target.value;
+    const selectedClass = addFormClassOptions.find(
+      (item) => String(item.id) === String(nextClassId)
+    );
+    setSelectedClassId(nextClassId);
+    setNewStudent((prev) => ({
+      ...prev,
+      class: selectedClass?.name || "",
+      section: "",
+    }));
+  };
+
   const handleAddStudentSubmit = async (e) => {
     e.preventDefault();
     const requiredFields = [
@@ -533,6 +762,7 @@ const Students = ({ setShowAdminHeader, setShowAdminBreadcrumb }) => {
     try {
       const payload = {
         ...newStudent,
+        parentUserId: selectedExistingParent?._id || undefined,
         // convert serialNo to number if provided
         serialNo: newStudent.serialNo
           ? Number(newStudent.serialNo)
@@ -555,17 +785,33 @@ const Students = ({ setShowAdminHeader, setShowAdminBreadcrumb }) => {
       }
       Swal.fire({
         icon: "success",
-        title: "student enrolled successfully!",
-        toast: true,
-        position: "top-end",
-        showConfirmButton: false,
-        timer: 2000,
-        timerProgressBar: true,
+        title: "Student enrolled successfully!",
+        html: `
+          <div class="text-left space-y-2">
+          <div><strong>Student ID:</strong> ${data.generatedStudentId || data.admissionNumber || "Generated"}</div>
+          ${
+              data.studentCredentials
+                ? `<div><strong>Student Username:</strong> ${data.studentCredentials.userId}</div>
+                   <div><strong>Student Password:</strong> ${data.studentCredentials.password}</div>`
+                : ""
+            }
+            ${
+              data.parentCredentials
+                ? `<div><strong>Parent ID:</strong> ${data.parentCredentials.userId}</div>
+                   <div><strong>Parent Password:</strong> ${data.parentCredentials.password || "Already exists (existing password)"}</div>`
+                : ""
+            }
+          </div>
+        `,
+        confirmButtonColor: "#EAB308",
       });
 
       await refreshStudents();
 
       setShowAddForm(false);
+      setParentSearchTerm("");
+      setSelectedExistingParent(null);
+      setSelectedClassId("");
       setNewStudent({
         name: "",
         email: "",
@@ -1465,7 +1711,7 @@ const Students = ({ setShowAdminHeader, setShowAdminBreadcrumb }) => {
           </div>
         </div>
         <div className="flex-1 flex flex-col min-h-0">
-          {/* Search */}
+          {/* Search + Drilldown */}
           <div className="mb-3 md:mb-4 flex flex-wrap items-center gap-4 flex-shrink-0">
             <div className="flex-1 min-w-[200px] md:min-w-[240px] relative">
               <Search
@@ -1474,225 +1720,388 @@ const Students = ({ setShowAdminHeader, setShowAdminBreadcrumb }) => {
               />
               <input
                 type="text"
-                placeholder="Search students..."
+                placeholder={
+                  isStudentsTableVisible
+                    ? "Search students..."
+                    : "Select session, class, section to search students"
+                }
                 className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-500 text-sm md:text-base"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
+                disabled={!isStudentsTableVisible}
               />
             </div>
+            <button
+              onClick={() => {
+                setSessionFilter("");
+                setClassFilter("");
+                setSectionFilter("");
+              }}
+              className="border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-700 hover:bg-gray-50"
+            >
+              Reset
+            </button>
           </div>
+
+          <div className="mb-3 md:mb-4 rounded-lg border border-yellow-200 bg-yellow-50 px-3 py-2 text-xs md:text-sm text-yellow-900">
+            <span className="font-semibold">Flow:</span> Session
+            <ChevronDown className="inline w-3 h-3 mx-1" />
+            Class
+            <ChevronDown className="inline w-3 h-3 mx-1" />
+            Section
+            <ChevronDown className="inline w-3 h-3 mx-1" />
+            Students
+          </div>
+
+          <div className="mb-3 md:mb-4 flex flex-wrap items-center gap-2">
+            <button
+              className={`px-3 py-1.5 rounded-full text-xs md:text-sm border ${
+                !sessionFilter
+                  ? "bg-yellow-500 border-yellow-500 text-white"
+                  : "border-gray-200 text-gray-700 hover:bg-gray-50"
+              }`}
+              onClick={() => {
+                setSessionFilter("");
+                setClassFilter("");
+                setSectionFilter("");
+              }}
+            >
+              Sessions
+            </button>
+            {sessionFilter && (
+              <button
+                className={`px-3 py-1.5 rounded-full text-xs md:text-sm border ${
+                  !classFilter
+                    ? "bg-yellow-500 border-yellow-500 text-white"
+                    : "border-gray-200 text-gray-700 hover:bg-gray-50"
+                }`}
+                onClick={() => {
+                  setClassFilter("");
+                  setSectionFilter("");
+                }}
+              >
+                {sessionFilter}
+              </button>
+            )}
+            {classFilter && (
+              <button
+                className={`px-3 py-1.5 rounded-full text-xs md:text-sm border ${
+                  !sectionFilter
+                    ? "bg-yellow-500 border-yellow-500 text-white"
+                    : "border-gray-200 text-gray-700 hover:bg-gray-50"
+                }`}
+                onClick={() => setSectionFilter("")}
+              >
+                {classFilter}
+              </button>
+            )}
+            {sectionFilter && (
+              <span className="px-3 py-1.5 rounded-full text-xs md:text-sm border bg-yellow-500 border-yellow-500 text-white">
+                {sectionFilter}
+              </span>
+            )}
+          </div>
+
+          {!sessionFilter && (
+            <div className="flex-1 overflow-y-auto rounded-lg border border-gray-200 p-4">
+              <h3 className="text-sm font-semibold text-gray-800 mb-3">
+                Select Session
+              </h3>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                {sessionOptions.map((session) => (
+                  <button
+                    key={session}
+                    onClick={() => {
+                      setSessionFilter(session);
+                      setClassFilter("");
+                      setSectionFilter("");
+                    }}
+                    className="rounded-lg border border-gray-200 px-4 py-3 text-left hover:border-yellow-400 hover:bg-yellow-50 transition-colors"
+                  >
+                    <div className="font-medium text-gray-900">{session}</div>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {sessionFilter && !classFilter && (
+            <div className="flex-1 overflow-y-auto rounded-lg border border-gray-200 p-4">
+              <h3 className="text-sm font-semibold text-gray-800 mb-3">
+                Select Class in {sessionFilter}
+              </h3>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                {classOptions.map((item) => (
+                  <button
+                    key={item}
+                    onClick={() => {
+                      setClassFilter(item);
+                      setSectionFilter("");
+                    }}
+                    className="rounded-lg border border-gray-200 px-4 py-3 text-left hover:border-yellow-400 hover:bg-yellow-50 transition-colors"
+                  >
+                    <div className="font-medium text-gray-900">{item}</div>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {sessionFilter && classFilter && !sectionFilter && (
+            <div className="flex-1 overflow-y-auto rounded-lg border border-gray-200 p-4">
+              <h3 className="text-sm font-semibold text-gray-800 mb-3">
+                Select Section in {classFilter}
+              </h3>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                {sectionOptions.map((item) => (
+                  <button
+                    key={item}
+                    onClick={() => setSectionFilter(item)}
+                    className="rounded-lg border border-gray-200 px-4 py-3 text-left hover:border-yellow-400 hover:bg-yellow-50 transition-colors"
+                  >
+                    <div className="font-medium text-gray-900">{item}</div>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* Students Table */}
-          <div className="flex-1 overflow-y-auto rounded-lg border border-gray-200">
-            <table className="w-full border-collapse table-fixed">
-              <thead>
-                <tr className="bg-yellow-50">
-                  <th className="border-b border-yellow-100 px-2 py-2 text-left text-xs font-semibold text-yellow-800 w-[20%]">
-                    Student
-                  </th>
-                  <th className="border-b border-yellow-100 px-2 py-2 text-left text-xs font-semibold text-yellow-800 w-[12%]">
-                    Academic
-                  </th>
-                  <th className="border-b border-yellow-100 px-2 py-2 text-left text-xs font-semibold text-yellow-800 w-[15%]">
-                    Course
-                  </th>
-                  <th className="border-b border-yellow-100 px-2 py-2 text-left text-xs font-semibold text-yellow-800 w-[12%]">
-                    Contact
-                  </th>
-                  <th className="border-b border-yellow-100 px-2 py-2 text-left text-xs font-semibold text-yellow-800 w-[18%]">
-                    Fees
-                  </th>
-                  <th className="border-b border-yellow-100 px-2 py-2 text-center text-xs font-semibold text-yellow-800 w-[23%]">
-                    Actions
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {paginatedStudents.map((student) => {
-                  const studentKey = student._id || student.id;
-                  const admissionYear = student.admissionDate
-                    ? new Date(student.admissionDate).getFullYear()
-                    : undefined;
-                  const portalReady = credentialStatus[studentKey] === "active";
-                  const isCredentialLoading = credentialLoadingId === studentKey;
-                  const prefillValues = {
-                    batchCode:
-                      student.batchCode ||
-                      student.section ||
-                      student.grade ||
-                      "",
-                    referenceName: student.name || "",
-                  };
-                  if (admissionYear) {
-                    prefillValues.joiningYear = admissionYear;
-                  }
-                  return (
-                    <tr
-                      key={studentKey}
-                    className="hover:bg-yellow-50 transition-all duration-200"
-                  >
-                    {/* Student Info */}
-                    <td
-                      className="border-b border-yellow-100 px-2 py-2 cursor-pointer"
-                      onClick={() => {
-                        setEditingStudent({ ...student });
-                        setShowDetailModal(true);
-                      }}
-                    >
-                      <div className="flex items-center gap-2">
-                        <div className="w-6 h-6 rounded-full bg-yellow-200 flex items-center justify-center text-xs flex-shrink-0">
-                          {student.name?.charAt(0) || "?"}
-                        </div>
-                        <div className="min-w-0 flex-1">
-                          <div className="font-medium text-gray-900 text-xs truncate hover:text-yellow-600">
-                            {student.name}
-                          </div>
-                          <div className="text-xs text-gray-500 truncate">
-                            {student.email || 'No email'}
-                          </div>
-                        </div>
-                      </div>
-                    </td>
-                    
-                    {/* Academic Info */}
-                    <td className="border-b border-yellow-100 px-2 py-2">
-                      <div className="text-xs text-gray-600">
-                        <div className="font-medium">Roll: {student.roll}</div>
-                        <div className="text-gray-500">{student.batchCode}</div>
-                      </div>
-                    </td>
-                    
-                    {/* Course Info */}
-                    <td className="border-b border-yellow-100 px-2 py-2">
-                      <div className="text-xs text-gray-600">
-                        <div className="font-medium truncate" title={student.grade}>{student.grade}</div>
-                        <div className="text-gray-500 truncate" title={student.course}>{student.course}</div>
-                      </div>
-                    </td>
-                    
-                    {/* Contact */}
-                    <td className="border-b border-yellow-100 px-2 py-2 text-xs text-gray-600">
-                      {student.mobile}
-                    </td>
-                    
-                    {/* Fees */}
-                    <td className="border-b border-yellow-100 px-2 py-2">
-                      <div className="text-xs">
-                        <div className="text-gray-600">
-                          {formatCurrency(student.feeSummary?.paidAmount)}/{formatCurrency(student.feeSummary?.totalFee)}
-                        </div>
-                        <div className="flex items-center gap-1 mt-1">
-                          <span
-                            className={`inline-flex px-1.5 py-0.5 text-xs rounded ${getFeeStatusClass(
-                              student.feeSummary?.status
-                            )}`}
+          {isStudentsTableVisible && (
+            <>
+              <div className="flex-1 overflow-y-auto rounded-lg border border-gray-200">
+                <table className="w-full border-collapse table-fixed">
+                  <thead>
+                    <tr className="bg-yellow-50">
+                      <th className="border-b border-yellow-100 px-2 py-2 text-left text-xs font-semibold text-yellow-800 w-[20%]">
+                        Student
+                      </th>
+                      <th className="border-b border-yellow-100 px-2 py-2 text-left text-xs font-semibold text-yellow-800 w-[12%]">
+                        Academic
+                      </th>
+                      <th className="border-b border-yellow-100 px-2 py-2 text-left text-xs font-semibold text-yellow-800 w-[15%]">
+                        Course
+                      </th>
+                      <th className="border-b border-yellow-100 px-2 py-2 text-left text-xs font-semibold text-yellow-800 w-[12%]">
+                        Contact
+                      </th>
+                      <th className="border-b border-yellow-100 px-2 py-2 text-left text-xs font-semibold text-yellow-800 w-[18%]">
+                        Fees
+                      </th>
+                      <th className="border-b border-yellow-100 px-2 py-2 text-center text-xs font-semibold text-yellow-800 w-[23%]">
+                        Actions
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {paginatedStudents.map((student) => {
+                      const studentKey = student._id || student.id;
+                      const admissionYear = student.admissionDate
+                        ? new Date(student.admissionDate).getFullYear()
+                        : undefined;
+                      const portalReady = credentialStatus[studentKey] === "active";
+                      const isCredentialLoading = credentialLoadingId === studentKey;
+                      const prefillValues = {
+                        batchCode:
+                          student.batchCode ||
+                          student.section ||
+                          student.grade ||
+                          "",
+                        referenceName: student.name || "",
+                      };
+                      if (admissionYear) {
+                        prefillValues.joiningYear = admissionYear;
+                      }
+                      return (
+                        <tr
+                          key={studentKey}
+                          className="hover:bg-yellow-50 transition-all duration-200"
+                        >
+                          {/* Student Info */}
+                          <td
+                            className="border-b border-yellow-100 px-2 py-2 cursor-pointer"
+                            onClick={() => {
+                              setEditingStudent({ ...student });
+                              setShowDetailModal(true);
+                            }}
                           >
-                            {student.feeSummary?.status || "N/A"}
-                          </span>
-                          <span className="text-xs text-red-600 font-semibold">
-                            {formatCurrency(student.feeSummary?.dueAmount)}
-                          </span>
-                        </div>
-                      </div>
-                    </td>
-                    
-                    {/* Actions */}
-                    <td className="border-b border-yellow-100 px-2 py-2">
-                      <div className="flex items-center gap-1 justify-center flex-wrap">
-                        <CredentialGeneratorButton
-                          buttonText="Credentials"
-                          defaultRole="Student"
-                          allowRoleSelection={false}
-                          size="sm"
-                          buttonClassName="bg-emerald-600 hover:bg-emerald-700 px-3 py-1 text-xs"
-                          prefillValues={prefillValues}
-                          disabled={isCredentialLoading}
-                          onGenerate={({ id, password }) =>
-                            handleStudentCredentialProvision(student, {
-                              id,
-                              password,
-                            })
-                          }
-                        />
-                        {portalReady && (
-                          <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 text-[10px] font-semibold">
-                            Portal Ready
-                          </span>
-                        )}
-                        <button
-                          onClick={() => handleArchiveStudent(student)}
-                          disabled={isArchiving}
-                          className="inline-flex items-center px-2 py-1 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded text-xs transition-colors disabled:opacity-50"
-                          title="Archive Student"
-                        >
-                          <Archive size={12} />
-                        </button>
-                        <button
-                          onClick={() => handleDeleteStudent(student)}
-                          disabled={!!deletingId}
-                          className="inline-flex items-center px-2 py-1 bg-red-50 text-red-700 hover:bg-red-100 rounded text-xs transition-colors disabled:opacity-50"
-                          title="Delete Student"
-                        >
-                          <Trash2 size={12} />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                );
-                })}
-                {filteredStudents.length === 0 && (
-                  <tr>
-                    <td
-                      colSpan={6}
-                      className="text-center text-gray-500 py-10 text-sm"
-                    >
-                      No students found.
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
+                            <div className="flex items-center gap-2">
+                              <div className="w-6 h-6 rounded-full bg-yellow-200 flex items-center justify-center text-xs flex-shrink-0">
+                                {student.name?.charAt(0) || "?"}
+                              </div>
+                              <div className="min-w-0 flex-1">
+                                <div className="font-medium text-gray-900 text-xs truncate hover:text-yellow-600">
+                                  {student.name}
+                                </div>
+                                <div className="text-xs text-gray-500 truncate">
+                                  {student.email || "No email"}
+                                </div>
+                                <div className="text-[11px] text-emerald-700 truncate">
+                                  Student User: {student.portalAccess?.username || "-"}
+                                </div>
+                                <div className="text-[11px] text-purple-700 truncate">
+                                  Parent User: {student.parent?.username || "-"}
+                                </div>
+                              </div>
+                            </div>
+                          </td>
 
-          {/* Pagination */}
-          <div className="mt-3 md:mt-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between flex-shrink-0 pt-3 md:pt-4 border-t border-yellow-100">
-            <div className="text-gray-600 text-xs md:text-sm">
-              {filteredStudents.length === 0
-                ? "No students to display"
-                : `Showing ${startItem}-${endItem} of ${filteredStudents.length} students`}
+                          {/* Academic Info */}
+                          <td className="border-b border-yellow-100 px-2 py-2">
+                            <div className="text-xs text-gray-600">
+                              <div className="font-medium">Session: {student.academicYear || "-"}</div>
+                              <div className="text-gray-500">
+                                Class: {student.class || student.grade || "-"} | Sec: {student.section || "-"}
+                              </div>
+                              <div className="text-gray-500">Roll: {student.roll || "-"}</div>
+                            </div>
+                          </td>
+
+                          {/* Course Info */}
+                          <td className="border-b border-yellow-100 px-2 py-2">
+                            <div className="text-xs text-gray-600">
+                              <div className="font-medium truncate" title={student.grade}>{student.grade}</div>
+                              <div className="text-gray-500 truncate" title={student.course}>{student.course}</div>
+                            </div>
+                          </td>
+
+                          {/* Contact */}
+                          <td className="border-b border-yellow-100 px-2 py-2 text-xs text-gray-600">
+                            {student.mobile}
+                          </td>
+
+                          {/* Fees */}
+                          <td className="border-b border-yellow-100 px-2 py-2">
+                            <div className="text-xs">
+                              <div className="text-gray-600">
+                                {formatCurrency(student.feeSummary?.paidAmount)}/{formatCurrency(student.feeSummary?.totalFee)}
+                              </div>
+                              <div className="flex items-center gap-1 mt-1">
+                                <span
+                                  className={`inline-flex px-1.5 py-0.5 text-xs rounded ${getFeeStatusClass(
+                                    student.feeSummary?.status
+                                  )}`}
+                                >
+                                  {student.feeSummary?.status || "N/A"}
+                                </span>
+                                <span className="text-xs text-red-600 font-semibold">
+                                  {formatCurrency(student.feeSummary?.dueAmount)}
+                                </span>
+                              </div>
+                            </div>
+                          </td>
+
+                          {/* Actions */}
+                          <td className="border-b border-yellow-100 px-2 py-2">
+                            <div className="flex items-center gap-1 justify-center flex-wrap">
+                              <CredentialGeneratorButton
+                                buttonText="Credentials"
+                                defaultRole="Student"
+                                allowRoleSelection={false}
+                                size="sm"
+                                buttonClassName="bg-emerald-600 hover:bg-emerald-700 px-3 py-1 text-xs"
+                                prefillValues={prefillValues}
+                                disabled={isCredentialLoading}
+                                onGenerate={({ id, password }) =>
+                                  handleStudentCredentialProvision(student, {
+                                    id,
+                                    password,
+                                  })
+                                }
+                              />
+                              {portalReady && (
+                                <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 text-[10px] font-semibold">
+                                  Portal Ready
+                                </span>
+                              )}
+                              <button
+                                onClick={() => handleArchiveStudent(student)}
+                                disabled={isArchiving}
+                                className="inline-flex items-center px-2 py-1 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded text-xs transition-colors disabled:opacity-50"
+                                title="Archive Student"
+                              >
+                                <Archive size={12} />
+                              </button>
+                              <button
+                                onClick={() => handleDeleteStudent(student)}
+                                disabled={!!deletingId}
+                                className="inline-flex items-center px-2 py-1 bg-red-50 text-red-700 hover:bg-red-100 rounded text-xs transition-colors disabled:opacity-50"
+                                title="Delete Student"
+                              >
+                                <Trash2 size={12} />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                    {filteredStudents.length === 0 && (
+                      <tr>
+                        <td
+                          colSpan={6}
+                          className="text-center text-gray-500 py-10 text-sm"
+                        >
+                          No students found.
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Pagination */}
+              <div className="mt-3 md:mt-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between flex-shrink-0 pt-3 md:pt-4 border-t border-yellow-100">
+                <div className="text-gray-600 text-xs md:text-sm">
+                  {filteredStudents.length === 0
+                    ? "No students to display"
+                    : `Showing ${startItem}-${endItem} of ${filteredStudents.length} students`}
+                </div>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <button
+                    className="px-2 md:px-3 py-1 md:py-1.5 border border-gray-200 rounded-lg text-xs md:text-sm hover:bg-yellow-50 disabled:opacity-50 text-black"
+                    onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
+                    disabled={currentPage === 1}
+                  >
+                    Previous
+                  </button>
+                  {pageNumbers.map((page) => (
+                    <button
+                      key={page}
+                      onClick={() => setCurrentPage(page)}
+                      className={`px-2 md:px-3 py-1 md:py-1.5 rounded-lg text-xs md:text-sm border ${
+                        page === currentPage
+                          ? "bg-yellow-500 text-white border-yellow-500"
+                          : "border-gray-200 text-black hover:bg-yellow-50"
+                      }`}
+                    >
+                      {page}
+                    </button>
+                  ))}
+                  <button
+                    className="px-2 md:px-3 py-1 md:py-1.5 border border-gray-200 rounded-lg text-xs md:text-sm hover:bg-yellow-50 disabled:opacity-50 text-black"
+                    onClick={() =>
+                      setCurrentPage((prev) => Math.min(prev + 1, totalPages))
+                    }
+                    disabled={currentPage === totalPages}
+                  >
+                    Next
+                  </button>
+                </div>
+              </div>
+            </>
+          )}
+
+          {sessionFilter && !classOptions.length && !classFilter && (
+            <div className="text-center text-gray-500 text-sm py-8 border border-dashed border-gray-300 rounded-lg">
+              No classes found for this session.
             </div>
-            <div className="flex items-center gap-2 flex-wrap">
-              <button
-                className="px-2 md:px-3 py-1 md:py-1.5 border border-gray-200 rounded-lg text-xs md:text-sm hover:bg-yellow-50 disabled:opacity-50 text-black"
-                onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
-                disabled={currentPage === 1}
-              >
-                Previous
-              </button>
-              {pageNumbers.map((page) => (
-                <button
-                  key={page}
-                  onClick={() => setCurrentPage(page)}
-                  className={`px-2 md:px-3 py-1 md:py-1.5 rounded-lg text-xs md:text-sm border ${
-                    page === currentPage
-                      ? "bg-yellow-500 text-white border-yellow-500"
-                      : "border-gray-200 text-black hover:bg-yellow-50"
-                  }`}
-                >
-                  {page}
-                </button>
-              ))}
-              <button
-                className="px-2 md:px-3 py-1 md:py-1.5 border border-gray-200 rounded-lg text-xs md:text-sm hover:bg-yellow-50 disabled:opacity-50 text-black"
-                onClick={() =>
-                  setCurrentPage((prev) => Math.min(prev + 1, totalPages))
-                }
-                disabled={currentPage === totalPages}
-              >
-                Next
-              </button>
+          )}
+
+          {sessionFilter && classFilter && !sectionOptions.length && !sectionFilter && (
+            <div className="text-center text-gray-500 text-sm py-8 border border-dashed border-gray-300 rounded-lg">
+              No sections found for this class.
             </div>
-          </div>
+          )}
         </div>
 
         {/* Add Student Modal */}
@@ -1708,7 +2117,9 @@ const Students = ({ setShowAdminHeader, setShowAdminBreadcrumb }) => {
                     </div>
                     <div>
                       <h2 className="text-2xl font-bold text-white">
-                        Enroll New NIF Student
+                        Enroll New {enrollContext.schoolName}{" "}
+                        {enrollContext.campusType ? `(${enrollContext.campusType}) ` : ""}
+                        Student
                       </h2>
                       <p className="text-yellow-100 mt-1">
                         Complete all sections to register student
@@ -1888,48 +2299,6 @@ const Students = ({ setShowAdminHeader, setShowAdminBreadcrumb }) => {
                       </div>
                     </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                      <div className="space-y-2">
-                        <label className="text-sm font-medium text-gray-700">
-                          Guardian Name
-                        </label>
-                        <input
-                          type="text"
-                          name="guardianName"
-                          value={newStudent.guardianName}
-                          onChange={handleAddStudentChange}
-                          className="w-full border border-gray-300 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-yellow-500"
-                          placeholder="Parent/Guardian Name"
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <label className="text-sm font-medium text-gray-700">
-                          Guardian Phone
-                        </label>
-                        <input
-                          type="tel"
-                          name="guardianPhone"
-                          value={newStudent.guardianPhone}
-                          onChange={handleAddStudentChange}
-                          className="w-full border border-gray-300 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-yellow-500"
-                          placeholder="+91 90000 00000"
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <label className="text-sm font-medium text-gray-700">
-                          Guardian Email
-                        </label>
-                        <input
-                          type="email"
-                          name="guardianEmail"
-                          value={newStudent.guardianEmail}
-                          onChange={handleAddStudentChange}
-                          className="w-full border border-gray-300 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-yellow-500"
-                          placeholder="guardian@example.com"
-                        />
-                      </div>
-                    </div>
-
                     <div className="space-y-2">
                       <label className="text-sm font-medium text-gray-700">
                         Present Address
@@ -2088,117 +2457,65 @@ const Students = ({ setShowAdminHeader, setShowAdminBreadcrumb }) => {
                       </h3>
                     </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                      <div className="space-y-2">
-                        <label className="text-sm font-medium text-gray-700">
-                          Father's Name
-                        </label>
-                        <input
-                          type="text"
-                          name="fatherName"
-                          value={newStudent.fatherName}
-                          onChange={handleAddStudentChange}
-                          className="w-full border border-gray-300 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-yellow-500"
-                          placeholder="Father's full name"
-                        />
-                      </div>
-
-                      <div className="space-y-2">
-                        <label className="text-sm font-medium text-gray-700">
-                          Father's Occupation
-                        </label>
-                        <input
-                          type="text"
-                          name="fatherOccupation"
-                          value={newStudent.fatherOccupation}
-                          onChange={handleAddStudentChange}
-                          className="w-full border border-gray-300 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-yellow-500"
-                          placeholder="Occupation"
-                        />
-                      </div>
-
-                      <div className="space-y-2">
-                        <label className="text-sm font-medium text-gray-700">
-                          Father's Phone
-                        </label>
-                        <input
-                          type="tel"
-                          name="fatherPhone"
-                          value={newStudent.fatherPhone}
-                          onChange={handleAddStudentChange}
-                          className="w-full border border-gray-300 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-yellow-500"
-                          placeholder="+91 90000 00000"
-                        />
-                      </div>
+                    <div className="space-y-2 relative">
+                      <label className="text-sm font-medium text-gray-700">
+                        Search Existing Parent (by name)
+                      </label>
+                      <input
+                        type="text"
+                        value={parentSearchTerm}
+                        onChange={(e) => {
+                          setParentSearchTerm(e.target.value);
+                          setSelectedExistingParent(null);
+                        }}
+                        className="w-full border border-gray-300 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-yellow-500"
+                        placeholder="Type parent name to link existing parent"
+                      />
+                      {selectedExistingParent && (
+                        <div className="text-xs text-green-700">
+                          Linked parent: {selectedExistingParent.name || "-"} ({selectedExistingParent.username || "-"})
+                        </div>
+                      )}
+                      {!selectedExistingParent && parentSearchTerm.trim() && matchedParents.length > 0 && (
+                        <div className="absolute z-20 mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg max-h-48 overflow-y-auto">
+                          {matchedParents.map((parent) => (
+                            <button
+                              key={parent._id}
+                              type="button"
+                              onClick={() => handleSelectExistingParent(parent)}
+                              className="w-full text-left px-4 py-2 hover:bg-yellow-50 border-b border-gray-100 last:border-b-0"
+                            >
+                              <div className="text-sm font-medium text-gray-800">{parent.name || "Unnamed Parent"}</div>
+                              <div className="text-xs text-gray-500">{parent.username || "-"} · {parent.mobile || "No mobile"}</div>
+                            </button>
+                          ))}
+                        </div>
+                      )}
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                       <div className="space-y-2">
                         <label className="text-sm font-medium text-gray-700">
-                          Mother's Name
+                          Guardian Login Name
                         </label>
                         <input
                           type="text"
-                          name="motherName"
-                          value={newStudent.motherName}
+                          name="guardianName"
+                          value={newStudent.guardianName}
                           onChange={handleAddStudentChange}
                           className="w-full border border-gray-300 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-yellow-500"
-                          placeholder="Mother's full name"
+                          placeholder="Parent/Guardian full name"
                         />
                       </div>
 
                       <div className="space-y-2">
                         <label className="text-sm font-medium text-gray-700">
-                          Mother's Occupation
-                        </label>
-                        <input
-                          type="text"
-                          name="motherOccupation"
-                          value={newStudent.motherOccupation}
-                          onChange={handleAddStudentChange}
-                          className="w-full border border-gray-300 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-yellow-500"
-                          placeholder="Occupation"
-                        />
-                      </div>
-
-                      <div className="space-y-2">
-                        <label className="text-sm font-medium text-gray-700">
-                          Mother's Phone
+                          Guardian Login Phone
                         </label>
                         <input
                           type="tel"
-                          name="motherPhone"
-                          value={newStudent.motherPhone}
-                          onChange={handleAddStudentChange}
-                          className="w-full border border-gray-300 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-yellow-500"
-                          placeholder="+91 90000 00000"
-                        />
-                      </div>
-                    </div>
-
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6 pt-4 border-t border-gray-100">
-                      <div className="space-y-2">
-                        <label className="text-sm font-medium text-gray-700">
-                          Emergency Contact Name
-                        </label>
-                        <input
-                          type="text"
-                          name="emergencyContactName"
-                          value={newStudent.emergencyContactName}
-                          onChange={handleAddStudentChange}
-                          className="w-full border border-gray-300 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-yellow-500"
-                          placeholder="Emergency contact person"
-                        />
-                      </div>
-
-                      <div className="space-y-2">
-                        <label className="text-sm font-medium text-gray-700">
-                          Emergency Contact Phone
-                        </label>
-                        <input
-                          type="tel"
-                          name="emergencyContactPhone"
-                          value={newStudent.emergencyContactPhone}
+                          name="guardianPhone"
+                          value={newStudent.guardianPhone}
                           onChange={handleAddStudentChange}
                           className="w-full border border-gray-300 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-yellow-500"
                           placeholder="+91 90000 00000"
@@ -2207,15 +2524,15 @@ const Students = ({ setShowAdminHeader, setShowAdminBreadcrumb }) => {
 
                       <div className="space-y-2">
                         <label className="text-sm font-medium text-gray-700">
-                          Relation
+                          Guardian Login Email
                         </label>
                         <input
-                          type="text"
-                          name="emergencyContactRelation"
-                          value={newStudent.emergencyContactRelation}
+                          type="email"
+                          name="guardianEmail"
+                          value={newStudent.guardianEmail}
                           onChange={handleAddStudentChange}
                           className="w-full border border-gray-300 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-yellow-500"
-                          placeholder="Relation to student"
+                          placeholder="guardian@example.com"
                         />
                       </div>
                     </div>
@@ -2510,16 +2827,21 @@ const Students = ({ setShowAdminHeader, setShowAdminBreadcrumb }) => {
 
                       <div className="space-y-2">
                         <label className="text-sm font-medium text-gray-700">
-                          Academic Year
+                          Academic Session
                         </label>
-                        <input
-                          type="text"
+                        <select
                           name="academicYear"
                           value={newStudent.academicYear}
                           onChange={handleAddStudentChange}
-                          className="w-full border border-gray-300 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-yellow-500"
-                          placeholder="e.g., 2024-25"
-                        />
+                          className="w-full border border-gray-300 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-yellow-500 appearance-none bg-white"
+                        >
+                          <option value="">Select Session</option>
+                          {academicYears.map((year) => (
+                            <option key={year._id} value={year.name}>
+                              {year.name}
+                            </option>
+                          ))}
+                        </select>
                       </div>
                     </div>
 
@@ -2531,27 +2853,17 @@ const Students = ({ setShowAdminHeader, setShowAdminBreadcrumb }) => {
                         </label>
                         <select
                           name="class"
-                          value={newStudent.class}
-                          onChange={handleAddStudentChange}
+                          value={selectedClassId}
+                          onChange={handleAcademicClassChange}
                           required
                           className="w-full border border-gray-300 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-yellow-500 appearance-none bg-white"
                         >
                           <option value="">Select Class</option>
-                          <option value="Nursery">Nursery</option>
-                          <option value="LKG">LKG</option>
-                          <option value="UKG">UKG</option>
-                          <option value="1">Class 1</option>
-                          <option value="2">Class 2</option>
-                          <option value="3">Class 3</option>
-                          <option value="4">Class 4</option>
-                          <option value="5">Class 5</option>
-                          <option value="6">Class 6</option>
-                          <option value="7">Class 7</option>
-                          <option value="8">Class 8</option>
-                          <option value="9">Class 9</option>
-                          <option value="10">Class 10</option>
-                          <option value="11">Class 11</option>
-                          <option value="12">Class 12</option>
+                          {addFormClassOptions.map((classItem) => (
+                            <option key={classItem.id} value={classItem.id}>
+                              {classItem.name}
+                            </option>
+                          ))}
                         </select>
                         <div className="pointer-events-none absolute right-3 top-[45px]">
                           <ChevronDown className="w-4 h-4 text-gray-400" />
@@ -2566,16 +2878,19 @@ const Students = ({ setShowAdminHeader, setShowAdminBreadcrumb }) => {
                         <select
                           name="section"
                           value={newStudent.section}
-                          onChange={handleAddStudentChange}
+                          onChange={(e) =>
+                            setNewStudent((prev) => ({ ...prev, section: e.target.value }))
+                          }
                           required
+                          disabled={!selectedClassId}
                           className="w-full border border-gray-300 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-yellow-500 appearance-none bg-white"
                         >
                           <option value="">Select Section</option>
-                          <option value="A">Section A</option>
-                          <option value="B">Section B</option>
-                          <option value="C">Section C</option>
-                          <option value="D">Section D</option>
-                          <option value="E">Section E</option>
+                          {addFormSectionOptions.map((section) => (
+                            <option key={section.id} value={section.name}>
+                              {section.name}
+                            </option>
+                          ))}
                         </select>
                         <div className="pointer-events-none absolute right-3 top-[45px]">
                           <ChevronDown className="w-4 h-4 text-gray-400" />

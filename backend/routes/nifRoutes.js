@@ -7,7 +7,11 @@ const router = express.Router();
 const NifStudent = require('../models/NifStudent');
 const NifFeeRecord = require('../models/NifFeeRecord');
 const NifCourse = require('../models/NifCourse');
+const StudentUser = require('../models/StudentUser');
+const ParentUser = require('../models/ParentUser');
+const School = require('../models/School');
 const adminAuth = require('../middleware/adminAuth');
+const { generatePassword } = require('../utils/generator');
 
 router.use(adminAuth);
 
@@ -31,6 +35,99 @@ const parseDate = (value) => {
   if (!value) return undefined;
   const d = new Date(value);
   return Number.isNaN(d.getTime()) ? undefined : d;
+};
+
+const optionalUniqueString = (value) => {
+  const normalized = sanitizeString(value);
+  return normalized ? normalized : undefined;
+};
+
+const escapeRegex = (value) => String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+const padNumber = (value, size = 3) => String(value).padStart(size, '0');
+
+const resolveSessionYear = (admissionDateValue, academicYearValue) => {
+  if (academicYearValue && typeof academicYearValue === 'string') {
+    const startYearMatch = academicYearValue.match(/(\d{4})/);
+    if (startYearMatch) return startYearMatch[1].slice(-2);
+    const twoDigitMatch = academicYearValue.match(/(\d{2})/);
+    if (twoDigitMatch) return twoDigitMatch[1];
+  }
+
+  const parsedAdmission = parseDate(admissionDateValue);
+  const fallbackYear = parsedAdmission ? parsedAdmission.getFullYear() : new Date().getFullYear();
+  return String(fallbackYear).slice(-2);
+};
+
+const sanitizeSchoolCode = (value) => {
+  const code = String(value || '')
+    .trim()
+    .toUpperCase()
+    .replace(/[^A-Z0-9-]/g, '');
+  return code || 'SCH';
+};
+
+const normalizeOrgPrefix = ({ adminUsername, schoolCode }) => {
+  const fromAdmin = String(adminUsername || '')
+    .trim()
+    .toUpperCase()
+    .replace(/^EEC[-_]?/, '')
+    .replace(/[^A-Z0-9-]/g, '');
+  if (fromAdmin) return fromAdmin;
+  return sanitizeSchoolCode(schoolCode);
+};
+
+const getNextIdSequence = async ({ Model, field, schoolId, campusId, prefix }) => {
+  const regex = new RegExp(`^${escapeRegex(prefix)}\\d+$`);
+  const filter = {
+    schoolId,
+    [field]: { $regex: regex },
+  };
+  if (campusId) {
+    filter.campusId = campusId;
+  }
+
+  const existing = await Model.find(filter).select(field).lean();
+  let maxSequence = 0;
+  existing.forEach((row) => {
+    const value = row?.[field] ? String(row[field]) : '';
+    const match = value.match(/(\d+)$/);
+    const seq = match ? Number(match[1]) : 0;
+    if (Number.isFinite(seq) && seq > maxSequence) {
+      maxSequence = seq;
+    }
+  });
+  return maxSequence + 1;
+};
+
+const pickParentPayload = (body = {}) => {
+  if (body.guardianName && String(body.guardianName).trim()) {
+    return {
+      relation: 'guardian',
+      name: String(body.guardianName).trim(),
+      mobile: sanitizeString(body.guardianPhone) || '',
+      email: sanitizeString(body.guardianEmail)?.toLowerCase() || '',
+    };
+  }
+
+  if (body.fatherName && String(body.fatherName).trim()) {
+    return {
+      relation: 'father',
+      name: String(body.fatherName).trim(),
+      mobile: sanitizeString(body.fatherPhone) || sanitizeString(body.guardianPhone) || '',
+      email: sanitizeString(body.guardianEmail)?.toLowerCase() || '',
+    };
+  }
+
+  if (body.motherName && String(body.motherName).trim()) {
+    return {
+      relation: 'mother',
+      name: String(body.motherName).trim(),
+      mobile: sanitizeString(body.motherPhone) || sanitizeString(body.guardianPhone) || '',
+      email: sanitizeString(body.guardianEmail)?.toLowerCase() || '',
+    };
+  }
+
+  return null;
 };
 
 const PROGRAM_DEFAULT_TOTALS = {
@@ -583,6 +680,38 @@ router.post('/students', adminAuth, async (req, res) => {
     }
 
     const campusId = resolveCampusIdForWrite(req, res);
+    const schoolDoc = await School.findById(schoolId).select('name code').lean();
+    const schoolCode = sanitizeSchoolCode(schoolDoc?.code);
+    const orgPrefix = normalizeOrgPrefix({
+      adminUsername: req.admin?.username,
+      schoolCode: schoolDoc?.code,
+    });
+    const schoolName = schoolDoc?.name || '';
+    const sessionYear = resolveSessionYear(body.admissionDate, body.academicYear);
+
+    const generatedAdmissionPrefix = `${orgPrefix}-STU-${sessionYear}-`;
+    const generatedAdmissionSeq = await getNextIdSequence({
+      Model: NifStudent,
+      field: 'admissionNumber',
+      schoolId,
+      campusId,
+      prefix: generatedAdmissionPrefix,
+    });
+    const generatedAdmissionNumber = `${generatedAdmissionPrefix}${padNumber(generatedAdmissionSeq)}`;
+
+    const generatedSerialNo = await (async () => {
+      const serialFilter = { schoolId };
+      if (campusId) serialFilter.campusId = campusId;
+      const latestBySerial = await NifStudent.findOne({
+        ...serialFilter,
+        serialNo: { $type: 'number' },
+      })
+        .sort({ serialNo: -1 })
+        .select('serialNo')
+        .lean();
+      const current = Number(latestBySerial?.serialNo || 0);
+      return current + 1;
+    })();
 
     // Build student document directly without course dependency
     const studentDoc = {
@@ -643,16 +772,16 @@ router.post('/students', adminAuth, async (req, res) => {
       birthCertificateNo: sanitizeString(body.birthCertificateNo),
 
       // Office Use
-      applicationId: sanitizeString(body.applicationId),
+      applicationId: optionalUniqueString(body.applicationId),
       applicationDate: parseDate(body.applicationDate),
       approvalStatus: sanitizeString(body.approvalStatus) || 'Pending',
       remarks: sanitizeString(body.remarks),
 
       // Academic Details
-      serialNo: parseNumber(body.serialNo),
+      serialNo: parseNumber(body.serialNo) || generatedSerialNo,
       academicYear: sanitizeString(body.academicYear),
       admissionDate: parseDate(body.admissionDate) || new Date(),
-      admissionNumber: sanitizeString(body.admissionNumber),
+      admissionNumber: sanitizeString(body.admissionNumber) || generatedAdmissionNumber,
       roll: sanitizeString(body.roll),
       class: sanitizeString(body.class),
       section: sanitizeString(body.section),
@@ -663,7 +792,163 @@ router.post('/students', adminAuth, async (req, res) => {
 
     const student = await NifStudent.create(studentDoc);
 
-    res.status(201).json(student.toJSON());
+    const generatedStudentPrefix = `${orgPrefix}-STD-${sessionYear}-`;
+    const generatedStudentSeq = await getNextIdSequence({
+      Model: StudentUser,
+      field: 'username',
+      schoolId,
+      campusId,
+      prefix: generatedStudentPrefix,
+    });
+    const generatedStudentUsername = `${generatedStudentPrefix}${padNumber(generatedStudentSeq)}`;
+    const generatedStudentPassword = generatePassword();
+
+    const studentUser = await StudentUser.create({
+      username: generatedStudentUsername,
+      password: generatedStudentPassword,
+      schoolId,
+      campusId,
+      campusName: req.isSuperAdmin ? body?.campusName || null : req.admin?.campusName || null,
+      campusType: req.isSuperAdmin ? body?.campusType || null : req.admin?.campusType || null,
+      studentCode: generatedStudentUsername,
+      nifStudent: student._id,
+      name: student.name,
+      grade: student.class || student.grade || '',
+      section: student.section || '',
+      roll: student.roll || '',
+      gender: student.gender || 'other',
+      dob: student.dob || undefined,
+      admissionDate: student.admissionDate || undefined,
+      mobile: student.mobile || '',
+      email: student.email || '',
+      address: student.address || '',
+      pinCode: student.pincode || '',
+      batchCode: student.batchCode || '',
+      lastLoginAt: null,
+    });
+
+    student.studentPortalUser = studentUser._id;
+    student.portalAccess = {
+      enabled: true,
+      username: generatedStudentUsername,
+      issuedAt: new Date(),
+      issuedBy: req.admin?._id || req.admin?.id || null,
+    };
+    await student.save();
+
+    let parentCredentialPayload = null;
+    const parentInfo = pickParentPayload(body);
+    let parentUser = null;
+    const selectedParentUserId = sanitizeString(body.parentUserId);
+    const selectedParentUsername = sanitizeString(body.parentUsername);
+
+    if (selectedParentUserId && mongoose.isValidObjectId(selectedParentUserId)) {
+      parentUser = await ParentUser.findOne({
+        _id: selectedParentUserId,
+        schoolId,
+        campusId,
+      });
+    } else if (selectedParentUsername) {
+      parentUser = await ParentUser.findOne({
+        username: selectedParentUsername,
+        schoolId,
+        campusId,
+      });
+    }
+
+    if (parentInfo || parentUser) {
+      const parentLookupOr = [];
+      if (parentInfo?.mobile) parentLookupOr.push({ mobile: parentInfo.mobile });
+      if (parentInfo?.email) parentLookupOr.push({ email: parentInfo.email });
+
+      if (!parentUser && parentLookupOr.length) {
+        parentUser = await ParentUser.findOne({
+          schoolId,
+          campusId,
+          $or: parentLookupOr,
+        });
+      }
+
+      if (!parentUser) {
+        const parentPrefix = `${orgPrefix}-PRA-${sessionYear}-`;
+        const nextParentSequence = await getNextIdSequence({
+          Model: ParentUser,
+          field: 'username',
+          schoolId,
+          campusId,
+          prefix: parentPrefix,
+        });
+        const parentUsername = `${parentPrefix}${padNumber(nextParentSequence)}`;
+        const parentPassword = generatePassword();
+        const studentClass = sanitizeString(body.class) || sanitizeString(body.grade) || '';
+
+        parentUser = await ParentUser.create({
+          username: parentUsername,
+          password: parentPassword,
+          schoolId,
+          campusId,
+          name: parentInfo.name,
+          mobile: parentInfo.mobile,
+          email: parentInfo.email,
+          childrenIds: [studentUser._id],
+          children: [student.name],
+          grade: studentClass ? [studentClass] : [],
+          lastLoginAt: null,
+        });
+
+        parentCredentialPayload = {
+          relation: parentInfo.relation,
+          userId: parentUsername,
+          password: parentPassword,
+          schoolName,
+        };
+      } else {
+        const children = new Set(
+          Array.isArray(parentUser.children)
+            ? parentUser.children.filter((item) => typeof item === 'string' && item.trim())
+            : []
+        );
+        children.add(student.name);
+        parentUser.children = Array.from(children);
+
+        const grades = new Set(
+          Array.isArray(parentUser.grade)
+            ? parentUser.grade.filter((item) => typeof item === 'string' && item.trim())
+            : []
+        );
+        const studentClass = sanitizeString(body.class) || sanitizeString(body.grade);
+        if (studentClass) grades.add(studentClass);
+        parentUser.grade = Array.from(grades);
+
+        if (parentInfo && !parentUser.name && parentInfo.name) parentUser.name = parentInfo.name;
+        if (parentInfo && !parentUser.mobile && parentInfo.mobile) parentUser.mobile = parentInfo.mobile;
+        if (parentInfo && !parentUser.email && parentInfo.email) parentUser.email = parentInfo.email;
+        const childIds = new Set(
+          Array.isArray(parentUser.childrenIds)
+            ? parentUser.childrenIds.map((id) => String(id))
+            : []
+        );
+        childIds.add(String(studentUser._id));
+        parentUser.childrenIds = Array.from(childIds);
+        await parentUser.save();
+        parentCredentialPayload = {
+          relation: parentInfo?.relation || 'parent',
+          userId: parentUser.username,
+          password: null,
+          schoolName,
+        };
+      }
+    }
+
+    res.status(201).json({
+      ...student.toJSON(),
+      generatedStudentId: student.admissionNumber,
+      studentCredentials: {
+        userId: generatedStudentUsername,
+        password: generatedStudentPassword,
+      },
+      parentCredentials: parentCredentialPayload,
+    });
   } catch (err) {
     console.error('Student create error:', err);
     res.status(400).json({ message: err.message });
