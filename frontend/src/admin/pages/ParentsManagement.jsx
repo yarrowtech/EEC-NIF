@@ -33,8 +33,10 @@ import {
   Baby
 } from 'lucide-react';
 import CredentialGeneratorButton from '../components/CredentialGeneratorButton';
+import { useNavigate } from 'react-router-dom';
 
 const ParentsManagement = ({setShowAdminHeader}) => {
+  const navigate = useNavigate();
   const [searchTerm, setSearchTerm] = useState('');
   const [filterGrade, setFilterGrade] = useState('All');
   const [filterRelationship, setFilterRelationship] = useState('All');
@@ -43,6 +45,10 @@ const ParentsManagement = ({setShowAdminHeader}) => {
   const [parents, setParents] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
+  const [showChildrenModal, setShowChildrenModal] = useState(false);
+  const [selectedParent, setSelectedParent] = useState(null);
+  const [childActionLoadingId, setChildActionLoadingId] = useState('');
+  const [parentActionLoadingId, setParentActionLoadingId] = useState('');
 
   // Filter parents based on search and filters
   const filteredParents = parents.filter(parent => {
@@ -51,6 +57,7 @@ const ParentsManagement = ({setShowAdminHeader}) => {
     const query = searchTerm.toLowerCase();
     const matchesSearch = !query ||
       parent.name.toLowerCase().includes(query) ||
+      parent.loginUsername.toLowerCase().includes(query) ||
       parent.email.toLowerCase().includes(query) ||
       children.some(child => child.toLowerCase().includes(query));
 
@@ -68,75 +75,204 @@ const ParentsManagement = ({setShowAdminHeader}) => {
     return matchesSearch && matchesGrade && matchesRelationship && matchesEngagement && matchesCommunication;
   });
 
-  useEffect(() => {
-    setShowAdminHeader?.(false);
-    setError('');
-    const fetchParents = async () => {
-      setIsLoading(true);
-      try {
-        const res = await fetch(`${import.meta.env.VITE_API_URL}/api/admin/users/get-parents`, {
+  const fetchParents = async () => {
+    setIsLoading(true);
+    try {
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/admin/users/get-parents`, {
           method: 'GET',
           headers: {
             'Content-Type': 'application/json',
             authorization: `Bearer ${localStorage.getItem('token')}`
           }
         });
-        if (!res.ok) {
-          throw new Error('Failed to fetch parents');
-        }
-        const data = await res.json();
-        const normalized = (Array.isArray(data) ? data : []).map((parent, idx) => {
-          const children = Array.isArray(parent.children) ? parent.children : [];
-          const grades = Array.isArray(parent.grade)
-            ? parent.grade
-            : Array.isArray(parent.grades)
-            ? parent.grades
-            : [];
-          const engagementMetrics = parent.engagementMetrics || parent.metrics || {};
-          return {
-            id: parent._id || parent.id || idx,
-            name: parent.name || 'Unnamed Parent',
-            parentId: parent._id ? `PAR-${parent._id.slice(-4)}` : `PAR-${idx + 1}`,
-            email: parent.email || '—',
-            mobile: parent.mobile || '—',
-            children,
-            grades,
-            occupation: parent.occupation || '—',
-            address: parent.address || '—',
-            joinDate: parent.createdAt ? new Date(parent.createdAt).toISOString().slice(0, 10) : '—',
-            emergencyContact: parent.emergencyContact || parent.mobile || '—',
-            relationship: parent.relationship || 'Parent',
-            contactPreference: parent.contactPreference || parent.preferredContact || '—',
-            communicationStatus: parent.communicationStatus || '—',
-            engagementLevel: parent.engagementLevel || '—',
-            engagementMetrics: {
-              communicationRate: engagementMetrics.communicationRate ?? 0,
-              eventAttendance: engagementMetrics.eventAttendance ?? 0,
-              meetingParticipation: engagementMetrics.meetingParticipation ?? 0,
-              responsiveness: engagementMetrics.responsiveness ?? 0,
-              totalInteractions: engagementMetrics.totalInteractions ?? 0,
-              lastContactDays: engagementMetrics.lastContactDays ?? null,
-            },
-            recentActivities: Array.isArray(parent.recentActivities) ? parent.recentActivities : [],
-            childrenDetails: Array.isArray(parent.childrenDetails) ? parent.childrenDetails : [],
-          };
-        });
-        setParents(normalized);
-      } catch (err) {
-        console.error('Error fetching parents:', err);
-        setError(err.message || 'Failed to fetch parents');
-        setParents([]);
-      } finally {
-        setIsLoading(false);
+      if (!res.ok) {
+        throw new Error('Failed to fetch parents');
       }
-    };
+      const data = await res.json();
+      const normalized = (Array.isArray(data) ? data : []).map((parent, idx) => {
+        const children = Array.isArray(parent.children) ? parent.children : [];
+        const grades = Array.isArray(parent.grade)
+          ? parent.grade
+          : Array.isArray(parent.grades)
+          ? parent.grades
+          : [];
+        const engagementMetrics = parent.engagementMetrics || parent.metrics || {};
+        const childrenDetails = Array.isArray(parent.childrenDetails) ? parent.childrenDetails : [];
+        const mappedChildrenDetails = childrenDetails.length
+          ? childrenDetails.map((child, childIdx) => ({
+              id: child?._id || child?.id || null,
+              name: child?.name || children[childIdx] || 'Unnamed Student',
+              grade: child?.grade || grades[childIdx] || '—',
+              section: child?.section || '',
+              performance: child?.performance || '',
+            }))
+          : children.map((childName, childIdx) => ({
+              id: null,
+              name: childName || 'Unnamed Student',
+              grade: grades[childIdx] || '—',
+              section: '',
+              performance: '',
+            }));
+        return {
+          id: parent._id || parent.id || idx,
+          name: parent.name || 'Unnamed Parent',
+          loginUsername: parent.username || '—',
+          parentId: parent._id ? `PAR-${parent._id.slice(-4)}` : `PAR-${idx + 1}`,
+          email: parent.email || '—',
+          mobile: parent.mobile || '—',
+          children,
+          grades,
+          occupation: parent.occupation || '—',
+          address: parent.address || '—',
+          joinDate: parent.createdAt ? new Date(parent.createdAt).toISOString().slice(0, 10) : '—',
+          emergencyContact: parent.emergencyContact || parent.mobile || '—',
+          relationship: parent.relationship || 'Parent',
+          contactPreference: parent.contactPreference || parent.preferredContact || '—',
+          communicationStatus: parent.communicationStatus || '—',
+          engagementLevel: parent.engagementLevel || '—',
+          engagementMetrics: {
+            communicationRate: engagementMetrics.communicationRate ?? 0,
+            eventAttendance: engagementMetrics.eventAttendance ?? 0,
+            meetingParticipation: engagementMetrics.meetingParticipation ?? 0,
+            responsiveness: engagementMetrics.responsiveness ?? 0,
+            totalInteractions: engagementMetrics.totalInteractions ?? 0,
+            lastContactDays: engagementMetrics.lastContactDays ?? null,
+          },
+          recentActivities: Array.isArray(parent.recentActivities) ? parent.recentActivities : [],
+          childrenDetails: mappedChildrenDetails,
+        };
+      });
+      setParents(normalized);
+    } catch (err) {
+      console.error('Error fetching parents:', err);
+      setError(err.message || 'Failed to fetch parents');
+      setParents([]);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    setShowAdminHeader?.(false);
+    setError('');
 
     fetchParents();
   }, [setShowAdminHeader]);
 
+  const openChildrenModal = (parent) => {
+    setSelectedParent(parent);
+    setShowChildrenModal(true);
+  };
+
+  const handleEditChild = (childName = '') => {
+    navigate('/admin/students');
+    if (childName) {
+      localStorage.setItem('admin_student_search', childName);
+    }
+    setShowChildrenModal(false);
+  };
+
+  const handleDeleteChild = async (child) => {
+    if (!child?.id) {
+      alert('Cannot delete: this student has no linked student record id.');
+      return;
+    }
+    if (!window.confirm(`Delete student "${child.name}"?`)) {
+      return;
+    }
+    setChildActionLoadingId(String(child.id));
+    try {
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/admin/users/students/${child.id}`, {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+          authorization: `Bearer ${localStorage.getItem('token')}`,
+        },
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data?.error || 'Failed to delete student');
+      }
+      await fetchParents();
+      setSelectedParent((prev) => {
+        if (!prev) return prev;
+        const nextChildrenDetails = (prev.childrenDetails || []).filter((item) => String(item.id) !== String(child.id));
+        return {
+          ...prev,
+          childrenDetails: nextChildrenDetails,
+        };
+      });
+    } catch (err) {
+      alert(err.message || 'Failed to delete student');
+    } finally {
+      setChildActionLoadingId('');
+    }
+  };
+
+  const handleEditParent = async (parent) => {
+    if (!parent?.id) return;
+    const nextName = window.prompt('Edit parent name:', parent.name || '');
+    if (nextName === null) return;
+    const nextMobile = window.prompt('Edit parent mobile:', parent.mobile === '—' ? '' : parent.mobile || '');
+    if (nextMobile === null) return;
+    const nextEmail = window.prompt('Edit parent email:', parent.email === '—' ? '' : parent.email || '');
+    if (nextEmail === null) return;
+
+    setParentActionLoadingId(String(parent.id));
+    try {
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/admin/users/parents/${parent.id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          authorization: `Bearer ${localStorage.getItem('token')}`,
+        },
+        body: JSON.stringify({
+          name: nextName.trim(),
+          mobile: nextMobile.trim(),
+          email: nextEmail.trim().toLowerCase(),
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data?.error || 'Failed to update parent');
+      }
+      await fetchParents();
+    } catch (err) {
+      alert(err.message || 'Failed to update parent');
+    } finally {
+      setParentActionLoadingId('');
+    }
+  };
+
+  const handleDeleteParent = async (parent) => {
+    if (!parent?.id) return;
+    if (!window.confirm(`Delete parent "${parent.name}"?`)) {
+      return;
+    }
+    setParentActionLoadingId(String(parent.id));
+    try {
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/admin/users/parents/${parent.id}`, {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+          authorization: `Bearer ${localStorage.getItem('token')}`,
+        },
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data?.error || 'Failed to delete parent');
+      }
+      await fetchParents();
+    } catch (err) {
+      alert(err.message || 'Failed to delete parent');
+    } finally {
+      setParentActionLoadingId('');
+    }
+  };
+
   return (
-    <div className="h-screen bg-gradient-to-br from-green-50 via-green-100 to-emerald-100 ">
-      <div className="flex-1 flex flex-col mx-auto w-full bg-white/90 border border-green-200 ">
+    <div className="min-h-full bg-gradient-to-br from-green-50 via-green-100 to-emerald-100">
+      <div className="flex-1 flex flex-col mx-auto w-full bg-white/90 border border-green-200 rounded-xl overflow-hidden">
         
         {/* Fixed Header Section */}
         <div className="flex-shrink-0 p-8 bg-white/90 border-b border-green-100">
@@ -237,13 +373,13 @@ const ParentsManagement = ({setShowAdminHeader}) => {
 
         {/* Scrollable Table Container */}
         <div className="flex-1 overflow-hidden">
-          <div className="h-full overflow-y-auto">
+          <div className="h-full overflow-auto">
             {error ? (
               <div className="px-6 py-3 text-sm text-red-600 bg-red-50 border-b border-red-100">
                 {error}
               </div>
             ) : null}
-            <table className="w-full border-collapse">
+            <table className="w-full min-w-[1250px] border-collapse">
               <thead className="sticky top-0 bg-green-50 z-10">
                 <tr>
                   <th className="border-b border-green-100 px-6 py-3 text-left text-sm font-semibold text-green-800">Parent Info</th>
@@ -283,7 +419,8 @@ const ParentsManagement = ({setShowAdminHeader}) => {
                         </div>
                         <div className="min-w-0">
                           <div className="font-medium text-gray-900 truncate">{parent.name}</div>
-                          <div className="text-xs text-gray-500 font-mono">ID: {parent.parentId}</div>
+                          {/* <div className="text-xs text-gray-500 font-mono">ID: {parent.parentId}</div> */}
+                          <div className="text-xs text-emerald-700 font-mono">Login: {parent.loginUsername}</div>
                           <div className="text-xs text-gray-600">{parent.relationship}</div>
                           <div className="text-xs text-gray-500">{parent.occupation}</div>
                         </div>
@@ -412,7 +549,7 @@ const ParentsManagement = ({setShowAdminHeader}) => {
                     {/* Enhanced Actions */}
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-1">
-                        <button 
+                        {/* <button 
                           className="text-green-600 hover:text-green-800 p-1 hover:bg-green-50 rounded" 
                           title="View Engagement Analytics"
                         >
@@ -435,19 +572,39 @@ const ParentsManagement = ({setShowAdminHeader}) => {
                           title="View Children Progress"
                         >
                           <GraduationCap size={14} />
+                        </button> */}
+                        <button
+                          type="button"
+                          onClick={() => openChildrenModal(parent)}
+                          className="text-emerald-600 hover:text-emerald-800 p-1 hover:bg-emerald-50 rounded"
+                          title="View Students"
+                        >
+                          <Eye size={14} />
                         </button>
-                        <button 
-                          className="text-orange-600 hover:text-orange-800 p-1 hover:bg-orange-50 rounded" 
+                        <button
+                          type="button"
+                          onClick={() => handleEditParent(parent)}
+                          disabled={parentActionLoadingId === String(parent.id)}
+                          className="text-orange-600 hover:text-orange-800 p-1 hover:bg-orange-50 rounded disabled:opacity-60" 
                           title="Edit Parent Info"
                         >
                           <Edit2 size={14} />
                         </button>
-                        <button 
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteParent(parent)}
+                          disabled={parentActionLoadingId === String(parent.id)}
+                          className="text-red-600 hover:text-red-800 p-1 hover:bg-red-50 rounded disabled:opacity-60"
+                          title="Delete Parent"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                        {/* <button 
                           className="text-gray-600 hover:text-gray-800 p-1 hover:bg-gray-50 rounded" 
                           title="More Options"
                         >
                           <MoreVertical size={14} />
-                        </button>
+                        </button> */}
                       </div>
                     </td>
                   </tr>
@@ -470,6 +627,63 @@ const ParentsManagement = ({setShowAdminHeader}) => {
           </div>
         </div>
       </div>
+
+      {showChildrenModal && selectedParent && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-2xl rounded-xl bg-white shadow-xl border border-gray-200 overflow-hidden">
+            <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900">Students of {selectedParent.name}</h3>
+                <p className="text-sm text-gray-500">Parent Login: {selectedParent.loginUsername}</p>
+              </div>
+              <button
+                type="button"
+                className="px-3 py-1.5 text-sm rounded-lg border text-white bg-red-500 border-gray-200 hover:bg-red-600"
+                onClick={() => setShowChildrenModal(false)}
+              >
+                Close
+              </button>
+            </div>
+            <div className="p-4 max-h-[60vh] overflow-y-auto">
+              {(selectedParent.childrenDetails || []).length === 0 ? (
+                <div className="text-sm text-gray-500 py-6 text-center">No linked students found.</div>
+              ) : (
+                <div className="space-y-2">
+                  {selectedParent.childrenDetails.map((child, idx) => (
+                    <div key={`${child.id || child.name}-${idx}`} className="flex items-center justify-between rounded-lg border border-gray-100 px-4 py-3">
+                      <div className="min-w-0">
+                        <div className="font-medium text-gray-900 truncate">{child.name}</div>
+                        <div className="text-xs text-gray-500">
+                          Grade: {child.grade || '—'} {child.section ? `| Section: ${child.section}` : ''}
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => handleEditChild(child.name)}
+                          className="inline-flex items-center gap-1 rounded-lg border border-blue-200 bg-blue-50 px-2.5 py-1.5 text-xs text-blue-700 hover:bg-blue-100"
+                        >
+                          <Edit2 size={12} />
+                          Edit
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteChild(child)}
+                          disabled={childActionLoadingId === String(child.id)}
+                          className="inline-flex items-center gap-1 rounded-lg border border-red-200 bg-red-50 px-2.5 py-1.5 text-xs text-red-700 hover:bg-red-100 disabled:opacity-60"
+                        >
+                          <Trash2 size={12} />
+                          {childActionLoadingId === String(child.id) ? 'Deleting...' : 'Delete'}
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

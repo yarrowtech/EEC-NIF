@@ -100,6 +100,15 @@ const getNextIdSequence = async ({ Model, field, schoolId, campusId, prefix }) =
 };
 
 const pickParentPayload = (body = {}) => {
+  if (body.guardianName && String(body.guardianName).trim()) {
+    return {
+      relation: 'guardian',
+      name: String(body.guardianName).trim(),
+      mobile: sanitizeString(body.guardianPhone) || '',
+      email: sanitizeString(body.guardianEmail)?.toLowerCase() || '',
+    };
+  }
+
   if (body.fatherName && String(body.fatherName).trim()) {
     return {
       relation: 'father',
@@ -114,15 +123,6 @@ const pickParentPayload = (body = {}) => {
       relation: 'mother',
       name: String(body.motherName).trim(),
       mobile: sanitizeString(body.motherPhone) || sanitizeString(body.guardianPhone) || '',
-      email: sanitizeString(body.guardianEmail)?.toLowerCase() || '',
-    };
-  }
-
-  if (body.guardianName && String(body.guardianName).trim()) {
-    return {
-      relation: 'guardian',
-      name: String(body.guardianName).trim(),
-      mobile: sanitizeString(body.guardianPhone) || '',
       email: sanitizeString(body.guardianEmail)?.toLowerCase() || '',
     };
   }
@@ -838,13 +838,30 @@ router.post('/students', adminAuth, async (req, res) => {
 
     let parentCredentialPayload = null;
     const parentInfo = pickParentPayload(body);
-    if (parentInfo) {
-      const parentLookupOr = [];
-      if (parentInfo.mobile) parentLookupOr.push({ mobile: parentInfo.mobile });
-      if (parentInfo.email) parentLookupOr.push({ email: parentInfo.email });
+    let parentUser = null;
+    const selectedParentUserId = sanitizeString(body.parentUserId);
+    const selectedParentUsername = sanitizeString(body.parentUsername);
 
-      let parentUser = null;
-      if (parentLookupOr.length) {
+    if (selectedParentUserId && mongoose.isValidObjectId(selectedParentUserId)) {
+      parentUser = await ParentUser.findOne({
+        _id: selectedParentUserId,
+        schoolId,
+        campusId,
+      });
+    } else if (selectedParentUsername) {
+      parentUser = await ParentUser.findOne({
+        username: selectedParentUsername,
+        schoolId,
+        campusId,
+      });
+    }
+
+    if (parentInfo || parentUser) {
+      const parentLookupOr = [];
+      if (parentInfo?.mobile) parentLookupOr.push({ mobile: parentInfo.mobile });
+      if (parentInfo?.email) parentLookupOr.push({ email: parentInfo.email });
+
+      if (!parentUser && parentLookupOr.length) {
         parentUser = await ParentUser.findOne({
           schoolId,
           campusId,
@@ -903,9 +920,9 @@ router.post('/students', adminAuth, async (req, res) => {
         if (studentClass) grades.add(studentClass);
         parentUser.grade = Array.from(grades);
 
-        if (!parentUser.name && parentInfo.name) parentUser.name = parentInfo.name;
-        if (!parentUser.mobile && parentInfo.mobile) parentUser.mobile = parentInfo.mobile;
-        if (!parentUser.email && parentInfo.email) parentUser.email = parentInfo.email;
+        if (parentInfo && !parentUser.name && parentInfo.name) parentUser.name = parentInfo.name;
+        if (parentInfo && !parentUser.mobile && parentInfo.mobile) parentUser.mobile = parentInfo.mobile;
+        if (parentInfo && !parentUser.email && parentInfo.email) parentUser.email = parentInfo.email;
         const childIds = new Set(
           Array.isArray(parentUser.childrenIds)
             ? parentUser.childrenIds.map((id) => String(id))
@@ -915,7 +932,7 @@ router.post('/students', adminAuth, async (req, res) => {
         parentUser.childrenIds = Array.from(childIds);
         await parentUser.save();
         parentCredentialPayload = {
-          relation: parentInfo.relation,
+          relation: parentInfo?.relation || 'parent',
           userId: parentUser.username,
           password: null,
           schoolName,

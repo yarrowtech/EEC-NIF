@@ -1,5 +1,5 @@
-import React, { useState, useRef } from 'react';
-import { Routes, Route, Link } from 'react-router-dom';
+import React, { useState, useRef, useEffect } from 'react';
+import { Routes, Route, Link, useNavigate } from 'react-router-dom';
 import { 
   Users, 
   Calendar, 
@@ -17,7 +17,8 @@ import {
   ChevronLeft,
   ChevronRight,
   Home,
-  Eye
+  Eye,
+  LogOut
 } from 'lucide-react';
 import AttendanceReport from './AttendanceReport';
 import AcademicReport from './AcademicReport';
@@ -35,7 +36,38 @@ import ParentChat from './ParentChat';
 
 const ParentPortal = () => {
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [parentProfile, setParentProfile] = useState(null);
   const navRef = useRef(null);
+  const navigate = useNavigate();
+  const API_BASE = (import.meta.env.VITE_API_URL || 'http://localhost:5000').replace(/\/$/, '');
+
+  useEffect(() => {
+    const loadParentProfile = async () => {
+      const token = localStorage.getItem('token');
+      if (!token) return;
+      try {
+        const res = await fetch(`${API_BASE}/api/parent/auth/profile`, {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+            authorization: `Bearer ${token}`,
+          },
+        });
+        if (!res.ok) return;
+        const data = await res.json();
+        setParentProfile(data);
+      } catch (err) {
+        console.error('Failed to load parent profile', err);
+      }
+    };
+    loadParentProfile();
+  }, [API_BASE]);
+
+  const handleLogout = () => {
+    localStorage.removeItem('token');
+    localStorage.removeItem('userType');
+    navigate('/');
+  };
 
   const scrollDown = () => {
     if (navRef.current) {
@@ -94,7 +126,9 @@ const ParentPortal = () => {
             </div>
             {sidebarOpen && <div>
               <h2 className="text-lg font-semibold text-gray-800">Parent Portal</h2>
-              <p className="text-sm text-gray-500">Welcome back!</p>
+              <p className="text-sm text-gray-500">
+                Welcome back{parentProfile?.name ? `, ${parentProfile.name}` : ''}!
+              </p>
             </div>}
             <button
             onClick={() => setSidebarOpen(!sidebarOpen)}
@@ -118,6 +152,15 @@ const ParentPortal = () => {
             ))}
           </nav>
 
+          <button
+            type="button"
+            onClick={handleLogout}
+            className="mt-3 w-full flex items-center justify-center gap-2 px-4 py-3 rounded-lg bg-red-50 text-red-600 hover:bg-red-100 transition-colors"
+          >
+            <LogOut className="w-4 h-4" />
+            {sidebarOpen && <span className="text-sm font-medium">Logout</span>}
+          </button>
+
           {/* Scroll Down Button */}
           <button
             onClick={scrollDown}
@@ -131,7 +174,15 @@ const ParentPortal = () => {
       {/* Main Content */}
       <div className={`overflow-y-scroll h-screen ${sidebarOpen ? 'md:ml-80' : 'md:ml-32'} flex-grow p-6 bg-gray-50 transition-all duration-300`}>
         <Routes>
-          <Route path="/" element={<ParentDashboard />} />
+          <Route
+            path="/"
+            element={
+              <ParentDashboard
+                parentName={parentProfile?.name}
+                childrenNames={Array.isArray(parentProfile?.children) ? parentProfile.children : []}
+              />
+            }
+          />
           <Route path="attendance" element={<AttendanceReport />} />
           <Route path="academic" element={<AcademicReport />} />
           <Route path="fees" element={<FeesPayment />} />
