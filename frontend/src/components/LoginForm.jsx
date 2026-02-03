@@ -89,6 +89,7 @@ const LoginForm = () => {
     setResetNotice('');
     try {
       if (resetMode) {
+
         const resetConfigByType = {
           Admin: {
             resetEndpoint: '/api/admin/auth/reset-first-password',
