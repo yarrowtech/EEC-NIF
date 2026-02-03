@@ -3,7 +3,6 @@ const router = express.Router();
 const StudentUser = require('../models/StudentUser');
 const NifStudent = require('../models/NifStudent');
 const Class = require('../models/Class');
-const Section = require('../models/Section');
 const Timetable = require('../models/Timetable');
 const ExamResult = require('../models/ExamResult');
 const Exam = require('../models/Exam');
@@ -514,64 +513,91 @@ router.get('/schedule', authStudent, async (req, res) => {
   // #swagger.tags = ['Students']
   try {
     const student = await StudentUser.findById(req.user.id)
-      .select('grade section schoolId campusId')
+      .select('grade section schoolId campusId nifStudent')
+      .populate('nifStudent', 'class grade section')
       .lean();
 
     if (!student) {
       return res.status(404).json({ error: 'Student not found' });
     }
 
-    // If student doesn't have grade or section, return empty schedule
-    if (!student.grade || !student.section) {
+    const normalizeKey = (value) =>
+      String(value || '')
+        .trim()
+        .toLowerCase()
+        .replace(/\s+/g, '');
+    const escapeRegex = (value) => String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+    const nifStudent = student.nifStudent || null;
+    const resolvedGrade = String(
+      nifStudent?.class || nifStudent?.grade || student.grade || ''
+    ).trim();
+    const resolvedSection = String(
+      nifStudent?.section || student.section || ''
+    ).trim();
+
+    if (!resolvedGrade) {
       return res.json({ schedule: [] });
     }
 
-    // Find Class by name matching grade
+    // Find Class by grade/class name (case-insensitive fallback)
     const classFilter = {
       schoolId: student.schoolId,
-      name: student.grade,
+      name: resolvedGrade,
     };
     if (student.campusId) {
       classFilter.campusId = student.campusId;
     }
-    const classDoc = await Class.findOne(classFilter).lean();
+
+    let classDoc = await Class.findOne(classFilter).lean();
+    if (!classDoc) {
+      classDoc = await Class.findOne({
+        ...classFilter,
+        name: { $regex: `^${escapeRegex(resolvedGrade)}$`, $options: 'i' },
+      }).lean();
+    }
 
     if (!classDoc) {
       return res.json({ schedule: [] });
     }
 
-    // Find Section by name matching section
-    const sectionFilter = {
-      schoolId: student.schoolId,
-      classId: classDoc._id,
-      name: student.section,
-    };
-    if (student.campusId) {
-      sectionFilter.campusId = student.campusId;
-    }
-    const sectionDoc = await Section.findOne(sectionFilter).lean();
-
-    if (!sectionDoc) {
-      return res.json({ schedule: [] });
-    }
-
-    // Get timetable for this class/section
+    // Load timetables for class and resolve section by student credential
     const timetableFilter = {
       schoolId: student.schoolId,
       classId: classDoc._id,
-      sectionId: sectionDoc._id,
     };
     if (student.campusId) {
       timetableFilter.campusId = student.campusId;
     }
-    const timetable = await Timetable.findOne(timetableFilter)
+
+    const timetables = await Timetable.find(timetableFilter)
+      .populate('sectionId', 'name')
       .populate('entries.subjectId', 'name')
       .populate('entries.teacherId', 'name')
       .lean();
 
-    if (!timetable || !timetable.entries) {
+    if (!Array.isArray(timetables) || timetables.length === 0) {
       return res.json({ schedule: [] });
     }
+
+    let timetable = null;
+    if (resolvedSection) {
+      const normalizedSection = normalizeKey(resolvedSection);
+      timetable = timetables.find((tt) => {
+        const sectionName = tt?.sectionId?.name || '';
+        return normalizeKey(sectionName) === normalizedSection;
+      }) || null;
+    }
+
+    if (!timetable) {
+      timetable = timetables.find((tt) => !tt.sectionId) || timetables[0];
+    }
+
+    if (!timetable || !Array.isArray(timetable.entries) || timetable.entries.length === 0) {
+      return res.json({ schedule: [] });
+    }
+
+    const resolvedSectionName = timetable?.sectionId?.name || resolvedSection || '';
 
     // Transform timetable entries to schedule format grouped by day
     const scheduleByDay = {};
@@ -582,9 +608,11 @@ router.get('/schedule', authStudent, async (req, res) => {
       scheduleByDay[entry.dayOfWeek].push({
         time: `${entry.startTime} - ${entry.endTime}`,
         subject: entry.subjectId?.name || 'Unknown',
-        teacher: entry.teacherId?.name || 'TBA',
+        instructor: entry.teacherId?.name || 'TBA',
         room: entry.room || '',
-        period: entry.period
+        period: entry.period,
+        className: classDoc.name,
+        sectionName: resolvedSectionName,
       });
     });
 

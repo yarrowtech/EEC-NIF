@@ -18,7 +18,7 @@ const FeedbackThankYou = () => {
           We appreciate you taking the time to help us improve our services.
         </p>
         <button
-          onClick={() => navigate('/dashboard')}
+          onClick={() => navigate('/student')}
           className="w-full bg-yellow-500 text-black py-3 px-4 rounded-md hover:bg-yellow-600 transition-colors text-lg font-medium"
         >
           Return to Home

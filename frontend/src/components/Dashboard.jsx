@@ -20,30 +20,36 @@ import AcademicAlcove from './AcademicAlcove';
 import StudentWellbeing from './StudentWellbeing';
 import { StudentDashboardProvider } from './StudentDashboardContext';
 
+const normalizeViewFromPath = (pathname) => {
+  if (
+    pathname === '/student' ||
+    pathname === '/student/' ||
+    pathname === '/dashboard' ||
+    pathname === '/dashboard/'
+  ) {
+    return 'dashboard';
+  }
+  const match = pathname.match(/^\/(student|dashboard)\/([^/]+).*$/);
+  if (match?.[2]) return match[2];
+  return 'dashboard';
+};
+
 const Dashboard = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const [sidebarOpen, setSidebarOpen] = useState(false); // default to closed on mobile
   
-  // Extract the current view from the URL path
-  const getActiveViewFromPath = (pathname) => {
-    if (pathname === '/dashboard' || pathname === '/dashboard/') {
-      return 'dashboard';
-    }
-    // Extract everything after /dashboard/
-    const match = pathname.match(/^\/dashboard\/(.+)$/);
-    if (match) {
-      const view = match[1];
-      return view;
-    }
-    return 'dashboard';
-  };
+  useEffect(() => {
+    if (!location.pathname.startsWith('/dashboard')) return;
+    const canonicalPath = location.pathname.replace('/dashboard', '/student');
+    navigate(canonicalPath, { replace: true });
+  }, [location.pathname, navigate]);
 
-  const activeView = getActiveViewFromPath(location.pathname);
+  const activeView = normalizeViewFromPath(location.pathname);
 
   // Function to handle navigation
   const setActiveView = (view) => {
-    const path = view === 'dashboard' ? '/dashboard' : `/dashboard/${view}`;
+    const path = view === 'dashboard' ? '/student' : `/student/${view}`;
     navigate(path);
   };
 
@@ -75,6 +81,12 @@ const Dashboard = () => {
     themecustomizer: ThemeCustomizer,
   };
 
+  useEffect(() => {
+    if (!viewComponents[activeView]) {
+      navigate('/student', { replace: true });
+    }
+  }, [activeView, navigate]);
+
   const renderContent = () => {
     const Component = viewComponents[activeView];
     
@@ -101,7 +113,7 @@ const Dashboard = () => {
           <Header 
             sidebarOpen={sidebarOpen}
             setSidebarOpen={setSidebarOpen}
-            onOpenProfile={() => navigate('/dashboard/profile')}
+            onOpenProfile={() => navigate('/student/profile')}
           />
           <main className={`flex-1 min-h-0 ${(activeView === 'chat' || activeView === 'excuse-letter') ? 'p-0' : 'p-2 sm:p-4 md:p-6'} w-full flex flex-col`}>
             {renderContent()}

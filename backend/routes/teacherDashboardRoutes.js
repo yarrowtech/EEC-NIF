@@ -10,6 +10,7 @@ const Section = require('../models/Section');
 const TeacherUser = require('../models/TeacherUser');
 
 const router = express.Router();
+const WEEK_DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 
 const startOfDay = (value) => {
   const date = new Date(value);
@@ -270,6 +271,78 @@ router.get('/', authTeacher, async (req, res) => {
     });
   } catch (err) {
     res.status(500).json({ error: err.message || 'Unable to load dashboard data' });
+  }
+});
+
+router.get('/routine', authTeacher, async (req, res) => {
+  // #swagger.tags = ['Teacher Dashboard']
+  try {
+    if (req.user?.userType !== 'teacher') {
+      return res.status(403).json({ error: 'Teacher access required' });
+    }
+
+    const schoolId = req.schoolId || req.user?.schoolId || null;
+    const campusId = req.campusId || req.user?.campusId || null;
+    const teacherId = req.user?.id || null;
+
+    if (!schoolId) {
+      return res.status(400).json({ error: 'schoolId is required' });
+    }
+    if (!campusId) {
+      return res.status(400).json({ error: 'campusId is required' });
+    }
+    if (!teacherId) {
+      return res.status(400).json({ error: 'teacherId is required' });
+    }
+
+    const timetables = await Timetable.find({
+      schoolId,
+      campusId,
+      'entries.teacherId': teacherId,
+    })
+      .populate('classId', 'name')
+      .populate('sectionId', 'name')
+      .populate('entries.subjectId', 'name')
+      .lean();
+
+    const schedule = {};
+    WEEK_DAYS.forEach((day) => {
+      schedule[day] = [];
+    });
+
+    timetables.forEach((tt) => {
+      const className = tt.classId?.name || 'Class';
+      const sectionName = tt.sectionId?.name || '';
+      const classLabel = sectionName ? `${className}-${sectionName}` : className;
+
+      (tt.entries || []).forEach((entry) => {
+        if (String(entry.teacherId) !== String(teacherId)) return;
+        if (!entry.dayOfWeek || !schedule[entry.dayOfWeek]) return;
+
+        schedule[entry.dayOfWeek].push({
+          subject: entry.subjectId?.name || 'Subject',
+          className,
+          sectionName,
+          classLabel,
+          room: entry.room || 'TBA',
+          startTime: entry.startTime || '',
+          endTime: entry.endTime || '',
+          period: entry.period || null,
+        });
+      });
+    });
+
+    WEEK_DAYS.forEach((day) => {
+      schedule[day].sort((a, b) => {
+        if (a.startTime && b.startTime) return a.startTime.localeCompare(b.startTime);
+        if (a.period && b.period) return a.period - b.period;
+        return 0;
+      });
+    });
+
+    res.json({ schedule });
+  } catch (err) {
+    res.status(500).json({ error: err.message || 'Unable to load teacher routine' });
   }
 });
 

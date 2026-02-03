@@ -94,7 +94,7 @@ const LoginForm = () => {
           ? '/api/teacher/auth/reset-first-password'
           : '/api/admin/auth/reset-first-password';
         const loginEndpoint = isTeacherReset ? '/api/teacher/auth/login' : '/api/admin/auth/login';
-        const loginRedirect = isTeacherReset ? '/teachers' : '/admin/dashboard';
+        const loginRedirect = isTeacherReset ? '/teacher' : '/admin/dashboard';
 
         const resetRes = await fetch(`${API_BASE}${resetEndpoint}`, {
           method: 'POST',
@@ -141,9 +141,9 @@ const LoginForm = () => {
       }
 
       const loginOptions = [
-        { userType: 'Student', url: '/api/student/auth/login', redirect: '/dashboard' },
-        { userType: 'Teacher', url: '/api/teacher/auth/login', redirect: '/teachers' },
-        { userType: 'Parent', url: '/api/parent/auth/login', redirect: '/parents' },
+        { userType: 'Student', url: '/api/student/auth/login', redirect: '/student' },
+        { userType: 'Teacher', url: '/api/teacher/auth/login', redirect: '/teacher' },
+        { userType: 'Parent', url: '/api/parent/auth/login', redirect: '/parent' },
         { userType: 'Principal', url: '/api/principal/auth/login', redirect: '/principal' },
         { userType: 'Admin', url: '/api/admin/auth/login', redirect: '/admin/dashboard' }
       ];

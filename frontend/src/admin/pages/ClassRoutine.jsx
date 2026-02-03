@@ -430,7 +430,7 @@ const ClassRoutine = () => {
           <div className="mt-4 flex flex-wrap items-center gap-3 rounded-2xl border border-slate-200 bg-white/70 px-4 py-3 text-xs font-medium text-slate-600">
             <span>Need custom edits after auto-generation?</span>
             <a
-              href="/admin/routines"
+              href="/admin/routine"
               className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-700 transition hover:-translate-y-0.5 hover:border-slate-300"
             >
               Open Customize / Edit

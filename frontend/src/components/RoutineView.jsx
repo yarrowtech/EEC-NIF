@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Calendar, Clock, MapPin, BookOpen, AlertCircle, Sparkles } from 'lucide-react';
-import { timetableApi } from '../admin/utils/timetableApi';
+import { Calendar, Clock, MapPin, BookOpen, AlertCircle } from 'lucide-react';
+import { useStudentDashboard } from './StudentDashboardContext';
 
 const dayOrder = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
 const dayLabels = {
@@ -10,241 +10,18 @@ const dayLabels = {
   thursday: 'Thursday',
   friday: 'Friday',
   saturday: 'Saturday',
-  sunday: 'Sunday'
+  sunday: 'Sunday',
 };
 
-const RoutineView = () => {
-  const [schedule, setSchedule] = useState({});
-  const [selectedDay, setSelectedDay] = useState(dayOrder[0]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-  const [lastUpdated, setLastUpdated] = useState(null);
-  const [generating, setGenerating] = useState(false);
-  const [generateMessage, setGenerateMessage] = useState('');
-  const userType = typeof window !== 'undefined' ? window.localStorage.getItem('userType') : null;
-  const isAdmin = (userType || '').toLowerCase() === 'admin';
-
-  useEffect(() => {
-    const fetchSchedule = async () => {
-      try {
-        setLoading(true);
-        setError(null);
-        const token = localStorage.getItem('token');
-        const userType = localStorage.getItem('userType');
-
-        if (!token || userType !== 'Student') {
-          setLoading(false);
-          return;
-        }
-
-        const response = await fetch(`${import.meta.env.VITE_API_URL}/api/student/auth/schedule`, {
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json'
-          }
-        });
-
-        if (!response.ok) {
-          throw new Error('Unable to load routine.');
-        }
-
-        const data = await response.json();
-        const normalized = normalizeSchedule(data.schedule);
-        setSchedule(normalized);
-        const firstAvailableDay = dayOrder.find(day => normalized[day]?.length) || dayOrder[0];
-        setSelectedDay(firstAvailableDay);
-        setLastUpdated(new Date());
-      } catch (err) {
-        console.error('Failed to fetch schedule:', err);
-        setError(err.message);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchSchedule();
-  }, []);
-
-  const handleAutoGenerate = async () => {
-    if (!isAdmin) {
-      setGenerateMessage('Admin access required to auto-generate routines.');
-      return;
-    }
-    const ok = window.confirm('Auto-generate routines for all classes? This overwrites existing timetables.');
-    if (!ok) return;
-
-    try {
-      setGenerating(true);
-      setGenerateMessage('');
-      const result = await timetableApi.autoGenerate({ overwriteExisting: true });
-      const total = result?.totalGenerated || 0;
-      const failed = result?.totalErrors || 0;
-      const firstError = result?.errors?.[0];
-      const errorLabel = firstError
-        ? ` First error: ${firstError.className || firstError.classId}${firstError.sectionName ? `-${firstError.sectionName}` : ''} — ${firstError.error}`
-        : '';
-      setGenerateMessage(`Generated ${total} timetable${total !== 1 ? 's' : ''}.${failed ? ` ${failed} failed.` : ''}${errorLabel}`);
-    } catch (err) {
-      setGenerateMessage(err.message || 'Auto-generation failed.');
-    } finally {
-      setGenerating(false);
-    }
-  };
-
-  const daySessions = schedule[selectedDay] || [];
-  const totalSessions = useMemo(
-    () => dayOrder.reduce((sum, day) => sum + (schedule[day]?.length || 0), 0),
-    [schedule]
-  );
-
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-yellow-50 via-orange-50 to-purple-50 p-4 sm:p-6 space-y-4">
-        <div className="h-32 bg-white rounded-2xl shadow animate-pulse" />
-        <div className="h-48 bg-white rounded-2xl shadow animate-pulse" />
-      </div>
-    );
-  }
-
-  return (
-    <div className="min-h-screen bg-gradient-to-br from-yellow-50 via-orange-50 to-purple-50 p-4 sm:p-6 space-y-6">
-      <div className="bg-white rounded-2xl shadow-lg border border-yellow-200 p-6">
-        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-          <div>
-            <div className="flex items-center gap-3 mb-2">
-              <Calendar className="w-6 h-6 text-amber-500" />
-              <h1 className="text-2xl font-bold text-gray-900">Weekly Routine</h1>
-            </div>
-            <p className="text-gray-500 text-sm">Synced with your timetable from the school portal</p>
-            <div className="mt-3 flex flex-wrap items-center gap-3">
-              <button
-                onClick={handleAutoGenerate}
-                disabled={generating}
-                className="inline-flex items-center gap-2 rounded-full border border-amber-200 bg-amber-50 px-4 py-2 text-xs font-semibold text-amber-700 transition hover:-translate-y-0.5 hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-70"
-              >
-                <Sparkles size={14} />
-                {generating ? 'Generating...' : 'Auto Generate (Admin)'}
-              </button>
-              <a
-                href="/admin/routines"
-                className="inline-flex items-center gap-2 rounded-full border border-gray-200 bg-white px-4 py-2 text-xs font-semibold text-gray-700 transition hover:-translate-y-0.5 hover:bg-gray-50"
-              >
-                Customize / Edit
-              </a>
-            </div>
-            {generateMessage && (
-              <div className="mt-3 text-xs font-medium text-amber-700 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2">
-                {generateMessage}
-              </div>
-            )}
-          </div>
-          <div className="text-right text-sm text-gray-500">
-            <p>Total sessions this week: <span className="font-semibold text-gray-900">{totalSessions}</span></p>
-            {lastUpdated && <p>Updated {lastUpdated.toLocaleDateString()}</p>}
-          </div>
-        </div>
-        {error && (
-          <div className="mt-4 flex items-center text-sm text-red-600 bg-red-50 border border-red-100 rounded-lg px-3 py-2">
-            <AlertCircle size={16} className="mr-2" />
-            {error}
-          </div>
-        )}
-      </div>
-
-      <div className="bg-white rounded-2xl shadow-lg border border-gray-100 p-4">
-        <div className="flex flex-wrap gap-2 mb-6">
-          {dayOrder.map((day) => (
-            <button
-              key={day}
-              onClick={() => setSelectedDay(day)}
-              className={`px-4 py-2 rounded-xl text-sm font-semibold transition-all ${
-                selectedDay === day
-                  ? 'bg-purple-600 text-white shadow'
-                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-              }`}
-            >
-              {dayLabels[day]}
-              {schedule[day]?.length ? (
-                <span className="ml-2 text-xs text-purple-100 bg-purple-500 rounded-full px-2 py-0.5">
-                  {schedule[day].length}
-                </span>
-              ) : null}
-            </button>
-          ))}
-        </div>
-
-        {daySessions.length > 0 ? (
-          <div className="space-y-4">
-            {daySessions.map((session, index) => (
-              <div
-                key={session.id || `${selectedDay}-${index}`}
-                className="p-4 border border-purple-100 rounded-2xl bg-gradient-to-r from-white to-purple-50 shadow-sm flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4"
-              >
-                <div>
-                  <p className="text-xs uppercase font-medium text-purple-500">{session.type || 'Session'}</p>
-                  <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
-                    <BookOpen size={16} className="text-purple-500" />
-                    {session.course || session.subject || session.title || 'Class'}
-                  </h3>
-                  {session.instructor && (
-                    <p className="text-sm text-gray-500">By {session.instructor}</p>
-                  )}
-                </div>
-                <div className="flex items-center gap-4 text-sm text-gray-600">
-                  <div className="flex items-center gap-1">
-                    <Clock size={16} className="text-purple-500" />
-                    <span>
-                      {session.time ||
-                        `${session.startTime || '--'}${session.endTime ? ` - ${session.endTime}` : ''}`}
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <MapPin size={16} className="text-purple-500" />
-                    <span>{session.room || session.location || 'TBD'}</span>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        ) : (
-          <div className="text-center py-8 text-gray-500">
-            No classes scheduled for {dayLabels[selectedDay]}. Enjoy your day!
-          </div>
-        )}
-      </div>
-
-      <div className="bg-white rounded-2xl shadow-lg border border-gray-100 p-6">
-        <h2 className="text-lg font-semibold text-gray-900 mb-4">Week At a Glance</h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {dayOrder.map((day) => (
-            <div key={`overview-${day}`} className="border border-gray-100 rounded-xl p-4 bg-gray-50">
-              <p className="text-sm font-semibold text-gray-800">{dayLabels[day]}</p>
-              <p className="text-xs text-gray-500 mb-2">{schedule[day]?.length || 0} sessions</p>
-              <ul className="space-y-2">
-                {(schedule[day] || []).slice(0, 3).map((session, idx) => (
-                  <li key={`${day}-session-${idx}`} className="text-sm text-gray-600 flex justify-between">
-                    <span className="truncate mr-2">{session.course || session.subject || 'Class'}</span>
-                    <span className="text-xs text-gray-400">
-                      {session.time || session.startTime || ''}
-                    </span>
-                  </li>
-                ))}
-                {(schedule[day]?.length || 0) > 3 && (
-                  <li className="text-xs text-gray-400">+{schedule[day].length - 3} more</li>
-                )}
-              </ul>
-            </div>
-          ))}
-        </div>
-      </div>
-    </div>
-  );
+const normalizeDay = (value) => {
+  if (!value) return null;
+  const normalized = String(value).trim().toLowerCase();
+  return dayOrder.includes(normalized) ? normalized : null;
 };
 
 const normalizeSchedule = (rawSchedule) => {
   if (!rawSchedule) return {};
 
-  // Support both array of sessions and object keyed by day
   if (Array.isArray(rawSchedule)) {
     return rawSchedule.reduce((acc, session) => {
       const day = normalizeDay(session.day || session.weekday || session.dayOfWeek);
@@ -267,11 +44,423 @@ const normalizeSchedule = (rawSchedule) => {
   return {};
 };
 
-const normalizeDay = (value) => {
+const pickId = (value) => {
   if (!value) return null;
-  const normalized = String(value).trim().toLowerCase();
-  if (dayOrder.includes(normalized)) return normalized;
+  if (typeof value === 'string') return value;
+  if (typeof value === 'object') return value._id || value.id || null;
   return null;
+};
+
+const hasScheduleEntries = (normalizedSchedule) =>
+  dayOrder.some((day) => (normalizedSchedule?.[day] || []).length > 0);
+
+const normalizeTimetablePayload = (payload) => {
+  const timetables = [];
+
+  if (Array.isArray(payload)) {
+    timetables.push(...payload);
+  } else if (Array.isArray(payload?.timetables)) {
+    timetables.push(...payload.timetables);
+  } else if (payload?.timetable) {
+    timetables.push(payload.timetable);
+  } else if (Array.isArray(payload?.entries)) {
+    timetables.push({ entries: payload.entries });
+  }
+
+  const sessions = timetables.flatMap((timetable) =>
+    (timetable?.entries || []).map((entry) => ({
+      day: entry.dayOfWeek || entry.day || entry.weekday,
+      startTime: entry.startTime,
+      endTime: entry.endTime,
+      time:
+        entry.time ||
+        (entry.startTime
+          ? `${entry.startTime}${entry.endTime ? ` - ${entry.endTime}` : ''}`
+          : undefined),
+      subject:
+        entry.subjectId?.name ||
+        entry.subject?.name ||
+        entry.subjectName ||
+        entry.subject ||
+        'Class',
+      instructor:
+        entry.teacherId?.name ||
+        entry.teacher?.name ||
+        entry.teacherName ||
+        entry.instructor,
+      room: entry.room || entry.location || 'TBD',
+      className: timetable?.classId?.name || entry.className || entry.class,
+      sectionName: timetable?.sectionId?.name || entry.sectionName || entry.section,
+    }))
+  );
+
+  return normalizeSchedule(sessions);
+};
+
+const normalizeValue = (value) => String(value || '').trim().toLowerCase();
+
+const getEntryValues = (entry, keys) =>
+  keys
+    .map((key) => entry?.[key])
+    .filter(Boolean)
+    .map((value) => normalizeValue(value));
+
+const matchesCredential = (entryValues, credentialValues) => {
+  if (!credentialValues.length) return true;
+  if (!entryValues.length) return true;
+  return entryValues.some((entryValue) =>
+    credentialValues.some(
+      (credentialValue) =>
+        entryValue === credentialValue ||
+        entryValue.includes(credentialValue) ||
+        credentialValue.includes(entryValue)
+    )
+  );
+};
+
+const RoutineView = () => {
+  const { profile } = useStudentDashboard();
+  const [schedule, setSchedule] = useState({});
+  const [selectedDay, setSelectedDay] = useState(dayOrder[0]);
+  const [viewMode, setViewMode] = useState('daily');
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [lastUpdated, setLastUpdated] = useState(null);
+
+  useEffect(() => {
+    const fetchSchedule = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+
+        const token = localStorage.getItem('token');
+        const userType = localStorage.getItem('userType');
+        if (!token || userType !== 'Student') {
+          setError('Only students can view this routine.');
+          return;
+        }
+
+        const headers = {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        };
+
+        const tryFetchSchedule = async (url) => {
+          const response = await fetch(url, { headers });
+          if (!response.ok) return null;
+          const data = await response.json().catch(() => null);
+          if (!data) return null;
+          const normalized = normalizeSchedule(data.schedule || data.routine || data.data?.schedule);
+          return hasScheduleEntries(normalized) ? normalized : null;
+        };
+
+        let normalized =
+          (await tryFetchSchedule(`${import.meta.env.VITE_API_URL}/api/student/auth/schedule`)) ||
+          (await tryFetchSchedule(`${import.meta.env.VITE_API_URL}/api/student/dashboard/routine`)) ||
+          (await tryFetchSchedule(`${import.meta.env.VITE_API_URL}/api/student/routine`));
+
+        if (!normalized) {
+          const classId = pickId(profile?.classId || profile?.class || profile?.currentClass);
+          const sectionId = pickId(profile?.sectionId || profile?.section || profile?.currentSection);
+
+          if (classId) {
+            const params = new URLSearchParams({ classId });
+            if (sectionId) params.append('sectionId', sectionId);
+
+            const timetableResponse = await fetch(
+              `${import.meta.env.VITE_API_URL}/api/timetable?${params.toString()}`,
+              { headers }
+            );
+
+            if (timetableResponse.ok) {
+              const timetableData = await timetableResponse.json().catch(() => null);
+              normalized = normalizeTimetablePayload(timetableData);
+            }
+          }
+        }
+
+        if (!normalized) {
+          setSchedule({});
+          setLastUpdated(new Date());
+          setError('No routine has been assigned yet for your class/section.');
+          return;
+        }
+
+        setSchedule(normalized);
+        setLastUpdated(new Date());
+      } catch (err) {
+        setError(err.message || 'Failed to load routine');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchSchedule();
+  }, [profile]);
+
+  const studentClassValues = useMemo(
+    () =>
+      [profile?.className, profile?.grade]
+        .filter(Boolean)
+        .map((value) => normalizeValue(value)),
+    [profile]
+  );
+
+  const studentSectionValues = useMemo(
+    () =>
+      [profile?.sectionName, profile?.section]
+        .filter(Boolean)
+        .map((value) => normalizeValue(value)),
+    [profile]
+  );
+
+  const filteredSchedule = useMemo(() => {
+    return dayOrder.reduce((acc, day) => {
+      const entries = schedule[day] || [];
+      acc[day] = entries.filter((entry) => {
+        const entryClassValues = getEntryValues(entry, ['className', 'class', 'grade', 'standard']);
+        const entrySectionValues = getEntryValues(entry, ['sectionName', 'section', 'division']);
+        const classMatch = matchesCredential(entryClassValues, studentClassValues);
+        const sectionMatch = matchesCredential(entrySectionValues, studentSectionValues);
+        return classMatch && sectionMatch;
+      });
+      return acc;
+    }, {});
+  }, [schedule, studentClassValues, studentSectionValues]);
+
+  const weeklySlots = useMemo(() => {
+    const slotMap = new Map();
+    dayOrder.forEach((day) => {
+      (filteredSchedule[day] || []).forEach((session, index) => {
+        const timeLabel =
+          session.time ||
+          (session.startTime
+            ? `${session.startTime}${session.endTime ? ` - ${session.endTime}` : ''}`
+            : `Period ${session.period || index + 1}`);
+        const periodOrder = Number(session.period || 999);
+        if (!slotMap.has(timeLabel)) {
+          slotMap.set(timeLabel, { timeLabel, periodOrder });
+        } else {
+          const prev = slotMap.get(timeLabel);
+          if (periodOrder < prev.periodOrder) {
+            slotMap.set(timeLabel, { timeLabel, periodOrder });
+          }
+        }
+      });
+    });
+    return Array.from(slotMap.values()).sort((a, b) =>
+      a.periodOrder === b.periodOrder
+        ? a.timeLabel.localeCompare(b.timeLabel)
+        : a.periodOrder - b.periodOrder
+    );
+  }, [filteredSchedule]);
+
+  const weeklyMatrix = useMemo(() => {
+    const matrix = {};
+    dayOrder.forEach((day) => {
+      matrix[day] = {};
+      (filteredSchedule[day] || []).forEach((session, index) => {
+        const timeLabel =
+          session.time ||
+          (session.startTime
+            ? `${session.startTime}${session.endTime ? ` - ${session.endTime}` : ''}`
+            : `Period ${session.period || index + 1}`);
+        matrix[day][timeLabel] = session;
+      });
+    });
+    return matrix;
+  }, [filteredSchedule]);
+
+  useEffect(() => {
+    const firstAvailableDay = dayOrder.find((day) => filteredSchedule[day]?.length) || dayOrder[0];
+    setSelectedDay(firstAvailableDay);
+  }, [filteredSchedule]);
+
+  const daySessions = filteredSchedule[selectedDay] || [];
+  const totalSessions = useMemo(
+    () => dayOrder.reduce((sum, day) => sum + (filteredSchedule[day]?.length || 0), 0),
+    [filteredSchedule]
+  );
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-slate-50 p-4 sm:p-6 space-y-4">
+        <div className="h-28 bg-white rounded-2xl shadow-sm animate-pulse" />
+        <div className="h-52 bg-white rounded-2xl shadow-sm animate-pulse" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-slate-50 p-4 sm:p-6 space-y-6">
+      <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-5 sm:p-6">
+        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+          <div>
+            <div className="flex items-center gap-3 mb-2">
+              <Calendar className="w-6 h-6 text-indigo-600" />
+              <h1 className="text-2xl font-bold text-slate-900">Daily Routine</h1>
+            </div>
+            <p className="text-slate-500 text-sm">
+              Student view only
+              {(profile?.className || profile?.grade) &&
+                ` | Class ${profile?.className || profile?.grade}`}
+              {(profile?.sectionName || profile?.section) &&
+                ` | Section ${profile?.sectionName || profile?.section}`}
+            </p>
+          </div>
+          <div className="text-right text-sm text-slate-500">
+            <p>
+              Total sessions this week: <span className="font-semibold text-slate-900">{totalSessions}</span>
+            </p>
+            {lastUpdated && <p>Updated {lastUpdated.toLocaleDateString()}</p>}
+          </div>
+        </div>
+        {error && (
+          <div className="mt-4 flex items-center text-sm text-red-700 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+            <AlertCircle size={16} className="mr-2" />
+            {error}
+          </div>
+        )}
+      </div>
+
+      <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-4">
+        <div className="flex flex-wrap items-center justify-between gap-3 mb-5">
+          <div className="inline-flex rounded-xl border border-slate-200 p-1 bg-slate-50">
+            <button
+              onClick={() => setViewMode('daily')}
+              className={`px-3 py-1.5 rounded-lg text-sm font-semibold transition ${
+                viewMode === 'daily' ? 'bg-indigo-600 text-white' : 'text-slate-600 hover:bg-slate-200'
+              }`}
+            >
+              Daily
+            </button>
+            <button
+              onClick={() => setViewMode('weekly')}
+              className={`px-3 py-1.5 rounded-lg text-sm font-semibold transition ${
+                viewMode === 'weekly' ? 'bg-indigo-600 text-white' : 'text-slate-600 hover:bg-slate-200'
+              }`}
+            >
+              Weekly
+            </button>
+          </div>
+          <p className="text-xs text-slate-500">Switch between daily and weekly routine</p>
+        </div>
+
+        <div className="flex flex-wrap gap-2 mb-5">
+          {dayOrder.map((day) => (
+            <button
+              key={day}
+              onClick={() => setSelectedDay(day)}
+              className={`px-4 py-2 rounded-xl text-sm font-semibold transition-all ${
+                selectedDay === day ? 'bg-indigo-600 text-white shadow' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+              }`}
+            >
+              {dayLabels[day]}
+              {filteredSchedule[day]?.length ? (
+                <span className="ml-2 text-xs text-indigo-100 bg-indigo-500 rounded-full px-2 py-0.5">
+                  {filteredSchedule[day].length}
+                </span>
+              ) : null}
+            </button>
+          ))}
+        </div>
+
+        {totalSessions === 0 ? (
+          <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-8 text-center">
+            <p className="text-lg font-semibold text-slate-800">No routine assigned yet</p>
+            <p className="text-sm text-slate-500 mt-2">
+              Please ask your school admin to assign timetable for your class and section.
+            </p>
+          </div>
+        ) : viewMode === 'weekly' ? (
+          <div className="overflow-x-auto rounded-xl border border-slate-200">
+            <table className="min-w-[900px] w-full border-collapse">
+              <thead>
+                <tr className="bg-slate-100">
+                  <th className="text-left text-sm font-semibold text-slate-700 px-4 py-3 border-b border-slate-200">
+                    Time
+                  </th>
+                  {dayOrder.map((day) => (
+                    <th
+                      key={`head-${day}`}
+                      className="text-left text-sm font-semibold text-slate-700 px-4 py-3 border-b border-slate-200"
+                    >
+                      {dayLabels[day]}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {weeklySlots.map((slot) => (
+                  <tr key={`row-${slot.timeLabel}`} className="align-top">
+                    <td className="px-4 py-3 text-sm font-medium text-slate-700 border-b border-slate-100 bg-slate-50">
+                      {slot.timeLabel}
+                    </td>
+                    {dayOrder.map((day) => {
+                      const session = weeklyMatrix[day]?.[slot.timeLabel];
+                      return (
+                        <td key={`cell-${day}-${slot.timeLabel}`} className="px-3 py-3 border-b border-slate-100">
+                          {session ? (
+                            <div className="rounded-lg border border-indigo-100 bg-indigo-50 px-3 py-2">
+                              <p className="text-sm font-semibold text-slate-900">
+                                {session.course || session.subject || session.title || 'Class'}
+                              </p>
+                              <p className="text-xs text-slate-600 mt-1">
+                                {session.instructor || session.teacher || 'TBA'}
+                                {(session.room || session.location) ? ` | ${session.room || session.location}` : ''}
+                              </p>
+                            </div>
+                          ) : (
+                            <div className="rounded-lg border border-dashed border-slate-200 px-3 py-2 text-xs text-slate-400 text-center">
+                              --
+                            </div>
+                          )}
+                        </td>
+                      );
+                    })}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : daySessions.length > 0 ? (
+          <div className="space-y-4">
+            {daySessions.map((session, index) => (
+              <div
+                key={session.id || `${selectedDay}-${index}`}
+                className="p-4 border border-indigo-100 rounded-2xl bg-gradient-to-r from-white to-indigo-50 shadow-sm flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4"
+              >
+                <div>
+                  <p className="text-xs uppercase font-medium text-indigo-600">{session.type || `Period ${session.period || index + 1}`}</p>
+                  <h3 className="text-lg font-semibold text-slate-900 flex items-center gap-2">
+                    <BookOpen size={16} className="text-indigo-600" />
+                    {session.course || session.subject || session.title || 'Class'}
+                  </h3>
+                  {(session.instructor || session.teacher) && (
+                    <p className="text-sm text-slate-500">By {session.instructor || session.teacher}</p>
+                  )}
+                </div>
+                <div className="flex items-center gap-4 text-sm text-slate-600">
+                  <div className="flex items-center gap-1">
+                    <Clock size={16} className="text-indigo-600" />
+                    <span>{session.time || `${session.startTime || '--'}${session.endTime ? ` - ${session.endTime}` : ''}`}</span>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <MapPin size={16} className="text-indigo-600" />
+                    <span>{session.room || session.location || 'TBD'}</span>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="rounded-xl border border-slate-200 bg-slate-50 p-6 text-center text-slate-600">
+            No classes scheduled for {dayLabels[selectedDay]}. Please select another day.
+          </div>
+        )}
+      </div>
+    </div>
+  );
 };
 
 export default RoutineView;

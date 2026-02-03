@@ -2,9 +2,9 @@ import React from "react";
 import { Navigate } from "react-router-dom";
 
 const roleHome = {
-  Student: "/dashboard",
-  Teacher: "/teachers",
-  Parent: "/parents",
+  Student: "/student",
+  Teacher: "/teacher",
+  Parent: "/parent",
   Principal: "/principal",
   Admin: "/admin/dashboard",
   SuperAdmin: "/super-admin/overview",

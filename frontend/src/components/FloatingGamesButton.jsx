@@ -7,14 +7,15 @@ const FloatingGamesButton = () => {
   const location = useLocation();
   const navigate = useNavigate();
 
-  const isDashboardHome = location.pathname === '/dashboard';
+  const isDashboardHome =
+    location.pathname === '/student' || location.pathname === '/dashboard';
   if (!isDashboardHome) return null;
 
   return (
     <div className="fixed bottom-6 right-6 z-40">
       <div className="relative">
         <button
-          onClick={() => navigate('/dashboard/games')}
+          onClick={() => navigate('/student/games')}
           className="h-16 w-16 rounded-full shadow-2xl bg-gradient-to-br from-fuchsia-500 via-purple-600 to-indigo-600 hover:from-fuchsia-500 hover:via-purple-700 hover:to-indigo-700 text-white flex items-center justify-center transition-all duration-300 hover:scale-110 relative group"
           aria-label="Open games menu"
         >

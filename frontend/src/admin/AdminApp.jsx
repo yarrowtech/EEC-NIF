@@ -124,6 +124,7 @@ const AdminApp = () => {
           }
         />
         <Route path="wellbeing" element={<Wellbeing setShowAdminHeader={setShowAdminHeader} />} />
+        <Route path="routine" element={<Routines setShowAdminHeader={setShowAdminHeader} />} />
         <Route path="routines" element={<Routines setShowAdminHeader={setShowAdminHeader} />} />
         <Route path="parents" element={<ParentsManagement setShowAdminHeader={setShowAdminHeader} />} />
         <Route path="academics" element={<AcademicSetup setShowAdminHeader={setShowAdminHeader} />} />

@@ -31,6 +31,14 @@ const resolveSchoolId = (req, res) => {
 
 const resolveCampusId = (req) => req.campusId || null;
 
+const ensureSchoolAdmin = (req, res) => {
+  if (req.isSuperAdmin) {
+    res.status(403).json({ error: 'Only school admin can manage timetable routines' });
+    return false;
+  }
+  return true;
+};
+
 const buildCampusFilter = (schoolId, campusId) => {
   const filter = { schoolId };
   if (campusId) {
@@ -189,6 +197,7 @@ router.post('/', adminAuth, async (req, res) => {
   try {
     const schoolId = resolveSchoolId(req, res);
     if (!schoolId) return;
+    if (!ensureSchoolAdmin(req, res)) return;
     const campusId = resolveCampusId(req);
     const { classId, sectionId, academicYearId, entries } = req.body || {};
     if (!classId || !mongoose.isValidObjectId(classId)) {
@@ -244,6 +253,7 @@ router.post('/day', adminAuth, async (req, res) => {
   try {
     const schoolId = resolveSchoolId(req, res);
     if (!schoolId) return;
+    if (!ensureSchoolAdmin(req, res)) return;
     const campusId = resolveCampusId(req);
     const { classId, sectionId, dayOfWeek, entries } = req.body || {};
 
@@ -320,6 +330,7 @@ router.delete('/day', adminAuth, async (req, res) => {
   try {
     const schoolId = resolveSchoolId(req, res);
     if (!schoolId) return;
+    if (!ensureSchoolAdmin(req, res)) return;
     const campusId = resolveCampusId(req);
 
     const { classId, sectionId, dayOfWeek } = req.body || {};
@@ -367,6 +378,7 @@ router.get('/', adminAuth, async (req, res) => {
   try {
     const schoolId = resolveSchoolId(req, res);
     if (!schoolId) return;
+    if (!ensureSchoolAdmin(req, res)) return;
     const campusId = resolveCampusId(req);
     const { classId, sectionId } = req.query || {};
     if (!classId || !mongoose.isValidObjectId(classId)) {
@@ -391,6 +403,7 @@ router.get('/all', adminAuth, async (req, res) => {
   try {
     const schoolId = resolveSchoolId(req, res);
     if (!schoolId) return;
+    if (!ensureSchoolAdmin(req, res)) return;
     const campusId = resolveCampusId(req);
 
     const timetables = await Timetable.find(buildCampusFilter(schoolId, campusId))
@@ -412,6 +425,8 @@ router.get('/teacher/:teacherId', adminAuth, async (req, res) => {
   try {
     const schoolId = resolveSchoolId(req, res);
     if (!schoolId) return;
+    if (!ensureSchoolAdmin(req, res)) return;
+    const campusId = resolveCampusId(req);
 
     const { teacherId } = req.params;
     if (!mongoose.isValidObjectId(teacherId)) {
@@ -440,6 +455,8 @@ router.delete('/:id', adminAuth, async (req, res) => {
   try {
     const schoolId = resolveSchoolId(req, res);
     if (!schoolId) return;
+    if (!ensureSchoolAdmin(req, res)) return;
+    const campusId = resolveCampusId(req);
 
     const { id } = req.params;
     if (!mongoose.isValidObjectId(id)) {
@@ -467,6 +484,8 @@ router.post('/validate-conflicts', adminAuth, async (req, res) => {
   try {
     const schoolId = resolveSchoolId(req, res);
     if (!schoolId) return;
+    if (!ensureSchoolAdmin(req, res)) return;
+    const campusId = resolveCampusId(req);
 
     const { classId, sectionId, entries, excludeTimetableId } = req.body || {};
 
@@ -576,6 +595,7 @@ router.post('/auto-generate', adminAuth, async (req, res) => {
   try {
     const schoolId = resolveSchoolId(req, res);
     if (!schoolId) return;
+    if (!ensureSchoolAdmin(req, res)) return;
     const campusId = resolveCampusId(req);
 
     const {

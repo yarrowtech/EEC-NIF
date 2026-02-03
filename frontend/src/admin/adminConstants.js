@@ -100,7 +100,7 @@ export const ADMIN_MENU_ITEMS = [
   { 
     icon: Calendar, 
     label: 'Routines', 
-    path: '/admin/routines' 
+    path: '/admin/routine' 
   },
   { 
     icon: Calendar, 

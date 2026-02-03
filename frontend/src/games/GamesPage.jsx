@@ -101,7 +101,7 @@ const GamesPage = () => {
       {/* Back to Dashboard Button */}
       <div className="px-4 sm:px-6 md:px-8 pt-6">
         <button
-          onClick={() => navigate(gameKey ? '/dashboard/games' : '/dashboard')}
+          onClick={() => navigate(gameKey ? '/student/games' : '/student')}
           className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-white shadow-md hover:shadow-lg border border-gray-200 text-gray-700 hover:text-gray-900 transition-all duration-200"
         >
           <ArrowLeft className="w-4 h-4" />
@@ -137,7 +137,7 @@ const GamesPage = () => {
             {/* MIND Training Games - Large yellow card (top-left) */}
             <div
               className="col-span-1 row-span-2 bg-gradient-to-br from-yellow-300 to-orange-300 rounded-3xl shadow-2xl hover:shadow-3xl transition-all duration-500 p-6 cursor-pointer transform hover:scale-105 hover:-translate-y-2 relative overflow-hidden border-2 border-white/20"
-              onClick={() => navigate('/dashboard/games/mind-training')}
+              onClick={() => navigate('/student/games/mind-training')}
               style={{
                 boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.1)'
               }}
@@ -169,7 +169,7 @@ const GamesPage = () => {
             {/* Smiley Circles - Medium purple card (top-middle) */}
             <div
               className="col-span-1 bg-gradient-to-br from-purple-300 to-purple-400 rounded-3xl shadow-2xl hover:shadow-3xl transition-all duration-500 p-6 cursor-pointer transform hover:scale-105 hover:-translate-y-2 relative border-2 border-white/20"
-              onClick={() => navigate('/dashboard/games/smiley-circles')}
+              onClick={() => navigate('/student/games/smiley-circles')}
               style={{
                 boxShadow: '0 20px 40px -12px rgba(147, 51, 234, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.1)'
               }}
@@ -199,7 +199,7 @@ const GamesPage = () => {
             {/* Map Identifier - Large gray card (top-right) */}
             <div
               className="col-span-1 row-span-2 bg-gradient-to-br from-gray-300 to-gray-400 rounded-3xl shadow-2xl hover:shadow-3xl transition-all duration-500 p-6 cursor-pointer transform hover:scale-105 hover:-translate-y-2 relative overflow-hidden border-2 border-white/20"
-              onClick={() => navigate('/dashboard/games/map-identifier')}
+              onClick={() => navigate('/student/games/map-identifier')}
               style={{
                 boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.1)'
               }}
@@ -234,7 +234,7 @@ const GamesPage = () => {
             {/* Facial Recall - Medium gray card (middle-left) */}
             <div
               className="col-span-1 bg-gradient-to-br from-gray-200 to-gray-300 rounded-3xl shadow-2xl hover:shadow-3xl transition-all duration-500 p-6 cursor-pointer transform hover:scale-105 hover:-translate-y-2 border-2 border-white/20"
-              onClick={() => navigate('/dashboard/games/facial-recall')}
+              onClick={() => navigate('/student/games/facial-recall')}
               style={{
                 boxShadow: '0 20px 40px -12px rgba(0, 0, 0, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.1)'
               }}
@@ -258,7 +258,7 @@ const GamesPage = () => {
             {/* Digital Challenge - Medium green card (middle-center) */}
             <div
               className="col-span-1 bg-gradient-to-br from-green-300 to-green-400 rounded-3xl shadow-2xl hover:shadow-3xl transition-all duration-500 p-6 cursor-pointer transform hover:scale-105 hover:-translate-y-2 border-2 border-white/20"
-              onClick={() => navigate('/dashboard/games/digital-challenge')}
+              onClick={() => navigate('/student/games/digital-challenge')}
               style={{
                 boxShadow: '0 20px 40px -12px rgba(34, 197, 94, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.1)'
               }}
@@ -289,7 +289,7 @@ const GamesPage = () => {
             {/* RESHAPED - Medium gray card (bottom-left) */}
             <div
               className="col-span-1 bg-gradient-to-br from-gray-200 to-gray-300 rounded-3xl shadow-2xl hover:shadow-3xl transition-all duration-500 p-6 cursor-pointer transform hover:scale-105 hover:-translate-y-2 border-2 border-white/20"
-              onClick={() => navigate('/dashboard/games/reshaped')}
+              onClick={() => navigate('/student/games/reshaped')}
               style={{
                 boxShadow: '0 20px 40px -12px rgba(0, 0, 0, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.1)'
               }}
@@ -320,7 +320,7 @@ const GamesPage = () => {
             {/* Grocery - Medium card (bottom-center) */}
             <div
               className="col-span-1 bg-gradient-to-br from-blue-200 to-blue-300 rounded-3xl shadow-2xl hover:shadow-3xl transition-all duration-500 p-6 cursor-pointer transform hover:scale-105 hover:-translate-y-2 border-2 border-white/20"
-              onClick={() => navigate('/dashboard/games/grocery')}
+              onClick={() => navigate('/student/games/grocery')}
               style={{
                 boxShadow: '0 20px 40px -12px rgba(59, 130, 246, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.1)'
               }}

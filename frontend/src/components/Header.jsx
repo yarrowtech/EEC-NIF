@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { Bell, Search, Menu, CalendarDays, School } from 'lucide-react';
+import { Bell, Search, Menu, CalendarDays } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useStudentDashboard } from './StudentDashboardContext';
 
@@ -28,7 +28,7 @@ const Header = ({ sidebarOpen, setSidebarOpen, onOpenProfile }) => {
     },
   ];
   const [profileOpen, setProfileOpen] = useState(false);
-  const { profile, loading } = useStudentDashboard();
+  const { profile } = useStudentDashboard();
   const studentData = profile || {
     name: 'Student',
     grade: '',
@@ -92,10 +92,10 @@ const Header = ({ sidebarOpen, setSidebarOpen, onOpenProfile }) => {
               </div>
               <div className="text-[11px] text-gray-500 mt-0.5">
                 {displayClass
-                  ? `Class ${displayClass}${displaySection ? ` • Section ${displaySection}` : ''}`
+                  ? `Class ${displayClass}${displaySection ? ` | Section ${displaySection}` : ''}`
                   : 'Class not assigned'}
-                {displayRoll ? ` • Roll ${displayRoll}` : ''}
-                {displayCampus ? ` • Campus ${displayCampus}` : ''}
+                {displayRoll ? ` | Roll ${displayRoll}` : ''}
+                {displayCampus ? ` | Campus ${displayCampus}` : ''}
               </div>
             </div>
           </div>
@@ -124,16 +124,12 @@ const Header = ({ sidebarOpen, setSidebarOpen, onOpenProfile }) => {
               <div className="hidden lg:flex items-center gap-2 bg-white/70 backdrop-blur px-3 py-2 rounded-xl border border-gray-200">
                 <div className="w-9 h-9 rounded-full bg-gray-100 border border-gray-200 flex items-center justify-center overflow-hidden">
                   {studentData.schoolLogo ? (
-                    studentData.schoolLogo ? (
-                      <img
-                        src={studentData.schoolLogo}
-                        alt="School Logo"
-                        className="w-full h-full object-cover"
-                        onError={(e) => { e.target.style.display = 'none'; }}
-                      />
-                    ) : (
-                      <PlaceholderSchoolIcon />
-                    )
+                    <img
+                      src={studentData.schoolLogo}
+                      alt="School Logo"
+                      className="w-full h-full object-cover"
+                      onError={(e) => { e.target.style.display = 'none'; }}
+                    />
                   ) : (
                     <div className="text-gray-500 text-xs font-semibold">
                       {(studentData.schoolName || 'School').slice(0, 2).toUpperCase()}

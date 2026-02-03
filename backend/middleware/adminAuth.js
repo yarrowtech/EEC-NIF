@@ -30,9 +30,8 @@ const adminAuth = (req, res, next) => {
     const isSuperAdmin = !tokenSchoolId;
     const effectiveSchoolId = tokenSchoolId || (isSuperAdmin ? extractSchoolId(req) : null);
     const effectiveCampusId = tokenCampusId || (isSuperAdmin ? extractCampusId(req) : null);
-    if (!effectiveCampusId) {
-      return res.status(400).json({ error: 'campusId is required' });
-    }
+    // Backward compatibility: older admin records may not have campusId.
+    // In that case, allow access without a campus filter.
     req.admin = decoded;
     req.userType = 'Admin';
     req.isSuperAdmin = isSuperAdmin;

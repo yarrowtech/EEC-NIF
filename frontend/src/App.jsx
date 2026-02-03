@@ -1,4 +1,3 @@
-// src/App.jsx
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import "./App.css";
 import LoginForm from "./components/LoginForm";
@@ -19,271 +18,153 @@ import SchoolRegistrationSuccess from "./components/SchoolRegistrationSuccess";
 import FloatingGamesButton from "./components/FloatingGamesButton";
 import GamesPage from "./games/GamesPage";
 import SuperAdminApp from "./Super Admin/SuperAdminApp";
-
-
 import ArchivedStudents from "./admin/ArchivedStudents";
+
+const ROLES = Object.freeze({
+  STUDENT: "Student",
+  PARENT: "Parent",
+  TEACHER: "Teacher",
+  SCHOOL_ADMIN: "Admin",
+  PRINCIPAL: "Principal",
+  SUPER_ADMIN: "SuperAdmin",
+});
+
+const withAuth = (allowedRoles, element) => (
+  <ProtectedRoute allowedRoles={allowedRoles}>{element}</ProtectedRoute>
+);
+const AUTHENTICATED_ROLES = Object.values(ROLES);
+
+const studentSections = [
+  "home",
+  "ai-learning",
+  "ai-learning-courses",
+  "ai-learning-tutor",
+  "academics",
+  "assignments",
+  "assignments-journal",
+  "assignments-academic-alcove",
+  "results",
+  "schedule",
+  "routine",
+  "attendance",
+  "communication",
+  "chat",
+  "teacherfeedback",
+  "excuse-letter",
+  "noticeboard",
+  "wellness",
+  "wellbeing",
+  "achievements",
+  "profile",
+  "themecustomizer",
+];
+
+const studentBasePaths = ["/student", "/dashboard"];
+const studentDashboardPaths = studentBasePaths.flatMap((basePath) => [
+  basePath,
+  `${basePath}/*`,
+  ...studentSections.map((section) => `${basePath}/${section}`),
+]);
 
 function App() {
   return (
     <BrowserRouter>
       <Routes>
+        {/* Public routes */}
         <Route path="/" element={<LoginForm />} />
-        <Route
-          path="/dashboard"
-          element={
-            <ProtectedRoute allowedRoles={["Student", "Admin"]}>
-              <Dashboard />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/dashboard/home"
-          element={
-            <ProtectedRoute allowedRoles={["Student", "Admin"]}>
-              <Dashboard />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/dashboard/ai-learning"
-          element={
-            <ProtectedRoute allowedRoles={["Student", "Admin"]}>
-              <Dashboard />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/dashboard/ai-learning-courses"
-          element={
-            <ProtectedRoute allowedRoles={["Student", "Admin"]}>
-              <Dashboard />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/dashboard/ai-learning-tutor"
-          element={
-            <ProtectedRoute allowedRoles={["Student", "Admin"]}>
-              <Dashboard />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/dashboard/academics"
-          element={
-            <ProtectedRoute allowedRoles={["Student", "Admin"]}>
-              <Dashboard />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/dashboard/assignments"
-          element={
-            <ProtectedRoute allowedRoles={["Student", "Admin"]}>
-              <Dashboard />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/dashboard/assignments-journal"
-          element={
-            <ProtectedRoute allowedRoles={["Student", "Admin"]}>
-              <Dashboard />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/dashboard/assignments-academic-alcove"
-          element={
-            <ProtectedRoute allowedRoles={["Student", "Admin"]}>
-              <Dashboard />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/dashboard/results"
-          element={
-            <ProtectedRoute allowedRoles={["Student", "Admin"]}>
-              <Dashboard />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/dashboard/schedule"
-          element={
-            <ProtectedRoute allowedRoles={["Student", "Admin"]}>
-              <Dashboard />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/dashboard/routine"
-          element={
-            <ProtectedRoute allowedRoles={["Student", "Admin"]}>
-              <Dashboard />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/dashboard/attendance"
-          element={
-            <ProtectedRoute allowedRoles={["Student", "Admin"]}>
-              <Dashboard />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/dashboard/communication"
-          element={
-            <ProtectedRoute allowedRoles={["Student", "Admin"]}>
-              <Dashboard />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/dashboard/chat"
-          element={
-            <ProtectedRoute allowedRoles={["Student", "Admin"]}>
-              <Dashboard />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/dashboard/teacherfeedback"
-          element={
-            <ProtectedRoute allowedRoles={["Student", "Admin"]}>
-              <Dashboard />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/dashboard/excuse-letter"
-          element={
-            <ProtectedRoute allowedRoles={["Student", "Admin"]}>
-              <Dashboard />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/dashboard/noticeboard"
-          element={
-            <ProtectedRoute allowedRoles={["Student", "Admin"]}>
-              <Dashboard />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/dashboard/wellness"
-          element={
-            <ProtectedRoute allowedRoles={["Student", "Admin"]}>
-              <Dashboard />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/dashboard/wellbeing"
-          element={
-            <ProtectedRoute allowedRoles={["Student", "Admin"]}>
-              <Dashboard />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/dashboard/achievements"
-          element={
-            <ProtectedRoute allowedRoles={["Student", "Admin"]}>
-              <Dashboard />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/dashboard/profile"
-          element={
-            <ProtectedRoute allowedRoles={["Student", "Admin"]}>
-              <Dashboard />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/dashboard/themecustomizer"
-          element={
-            <ProtectedRoute allowedRoles={["Student", "Admin"]}>
-              <Dashboard />
-            </ProtectedRoute>
-          }
-        />
         <Route path="/signup" element={<SignupForm />} />
         <Route path="/complaint" element={<ComplaintManagementSystem />} />
         <Route
-          path="/admin/*"
-          element={
-            <ProtectedRoute allowedRoles={["Admin"]}>
-              <AdminApp />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/super-admin/*"
-          element={
-            <ProtectedRoute allowedRoles={["SuperAdmin"]}>
-              <SuperAdminApp />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/principal"
-          element={
-            <ProtectedRoute allowedRoles={["Principal", "Admin"]}>
-              <PrincipalDashboard />
-            </ProtectedRoute>
-          }
-        />
-        <Route path="/profile" element={<ProfileUpdate />} />
-        <Route
-          path="/parents/*"
-          element={
-            <ProtectedRoute allowedRoles={["Parent", "Admin"]}>
-              <ParentPortal />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/teachers/*"
-          element={
-            <ProtectedRoute allowedRoles={["Teacher", "Admin"]}>
-              <TeacherPortal />
-            </ProtectedRoute>
-          }
+          path="/profile"
+          element={withAuth(AUTHENTICATED_ROLES, <ProfileUpdate />)}
         />
         <Route path="/feedback" element={<FeedbackPage />} />
         <Route path="/feedback/thank-you" element={<FeedbackThankYou />} />
-        <Route path="/school-registration" element={<SchoolRegistrationForm />} />
-        <Route path="/school-registration/success" element={<SchoolRegistrationSuccess />} />
+        <Route
+          path="/school-registration"
+          element={<SchoolRegistrationForm />}
+        />
+        <Route
+          path="/school-registration/success"
+          element={<SchoolRegistrationSuccess />}
+        />
         <Route path="/meet-the-developer" element={<MeetTheDeveloper />} />
+
+        {/* Student module */}
+        {studentDashboardPaths.map((path) => (
+          <Route
+            key={path}
+            path={path}
+            element={withAuth([ROLES.STUDENT], <Dashboard />)}
+          />
+        ))}
+        <Route
+          path="/student/games"
+          element={
+            withAuth([ROLES.STUDENT], <GamesPage />)
+          }
+        />
+        <Route
+          path="/student/games/:gameKey"
+          element={
+            withAuth([ROLES.STUDENT], <GamesPage />)
+          }
+        />
         <Route
           path="/dashboard/games"
           element={
-            <ProtectedRoute allowedRoles={["Student", "Admin"]}>
-              <GamesPage />
-            </ProtectedRoute>
+            withAuth([ROLES.STUDENT], <GamesPage />)
           }
         />
         <Route
           path="/dashboard/games/:gameKey"
           element={
-            <ProtectedRoute allowedRoles={["Student", "Admin"]}>
-              <GamesPage />
-            </ProtectedRoute>
+            withAuth([ROLES.STUDENT], <GamesPage />)
           }
+        />
+
+        {/* School admin module */}
+        <Route
+          path="/admin/*"
+          element={withAuth([ROLES.SCHOOL_ADMIN], <AdminApp />)}
+        />
+        <Route
+          path="/school-admin/*"
+          element={withAuth([ROLES.SCHOOL_ADMIN], <AdminApp />)}
         />
         <Route
           path="/admin/archived-students"
-          element={
-            <ProtectedRoute allowedRoles={["Admin"]}>
-              <ArchivedStudents />
-            </ProtectedRoute>
-          }
+          element={withAuth([ROLES.SCHOOL_ADMIN], <ArchivedStudents />)}
         />
+        <Route
+          path="/principal"
+          element={withAuth([ROLES.PRINCIPAL], <PrincipalDashboard />)}
+        />
+        <Route
+          path="/super-admin/*"
+          element={withAuth([ROLES.SUPER_ADMIN], <SuperAdminApp />)}
+        />
+
+        {/* Parent module */}
+        <Route
+          path="/parents/*"
+          element={withAuth([ROLES.PARENT], <ParentPortal />)}
+        />
+        <Route
+          path="/parent/*"
+          element={withAuth([ROLES.PARENT], <ParentPortal />)}
+        />
+
+        {/* Teacher module */}
+        <Route
+          path="/teachers/*"
+          element={withAuth([ROLES.TEACHER], <TeacherPortal />)}
+        />
+        <Route
+          path="/teacher/*"
+          element={withAuth([ROLES.TEACHER], <TeacherPortal />)}
+        />
+
       </Routes>
 
       <FloatingGamesButton />

@@ -57,7 +57,7 @@ const Sidebar = ({ activeView, isOpen, setIsOpen }) => {
 
   // Helper function to navigate to a page
   const navigateToPage = (pageId) => {
-    const path = pageId === 'dashboard' ? '/dashboard' : `/dashboard/${pageId}`;
+    const path = pageId === 'dashboard' ? '/student' : `/student/${pageId}`;
     navigate(path);
   };
 
@@ -198,7 +198,7 @@ const Sidebar = ({ activeView, isOpen, setIsOpen }) => {
                     </div>
                     <div className="text-white/80 text-xs">
                       {displayClass
-                        ? `Class ${displayClass}${displaySection ? ` • Section ${displaySection}` : ''}`
+                        ? `Class ${displayClass}${displaySection ? ` | Section ${displaySection}` : ''}`
                         : `${studentData.name}'s Portal`}
                     </div>
                     {displayRoll && (
@@ -350,7 +350,10 @@ const Sidebar = ({ activeView, isOpen, setIsOpen }) => {
           <div className={`${isOpen ? 'space-y-2' : 'space-y-1'}`}>
             {/* Settings Button */}
             {!isOpen ? (
-              <button className="group relative w-full h-12 flex items-center justify-center rounded-xl text-gray-600 hover:bg-gradient-to-r hover:from-blue-50 hover:to-yellow-50 hover:scale-105 hover:shadow-md hover:text-gray-900 transition-all duration-300 ease-out transform active:scale-95">
+              <button
+                onClick={() => handleNavigation('themecustomizer')}
+                className="group relative w-full h-12 flex items-center justify-center rounded-xl text-gray-600 hover:bg-gradient-to-r hover:from-blue-50 hover:to-yellow-50 hover:scale-105 hover:shadow-md hover:text-gray-900 transition-all duration-300 ease-out transform active:scale-95"
+              >
                 <div className="relative flex items-center justify-center w-6 h-6 transition-all duration-300 text-gray-600 group-hover:text-blue-600 group-hover:scale-110">
                   <Settings size={18} strokeWidth={1.8} className="flex-shrink-0 transition-all duration-300" />
                 </div>
@@ -372,7 +375,10 @@ const Sidebar = ({ activeView, isOpen, setIsOpen }) => {
                 <div className="absolute inset-0 rounded-xl ring-1 ring-transparent group-hover:ring-gray-300/30 transition-all duration-300" />
               </button>
             ) : (
-              <button className="group relative w-full flex items-center px-4 py-3 rounded-xl text-gray-600 hover:bg-gradient-to-r hover:from-blue-50 hover:to-yellow-50 hover:text-gray-900 hover:shadow-md hover:scale-105 transition-all duration-300 ease-out transform active:scale-95">
+              <button
+                onClick={() => handleNavigation('themecustomizer')}
+                className="group relative w-full flex items-center px-4 py-3 rounded-xl text-gray-600 hover:bg-gradient-to-r hover:from-blue-50 hover:to-yellow-50 hover:text-gray-900 hover:shadow-md hover:scale-105 transition-all duration-300 ease-out transform active:scale-95"
+              >
                 <div className="flex items-center justify-center w-10 h-10 rounded-lg bg-gray-100 text-gray-600 group-hover:bg-blue-100 group-hover:text-blue-600 group-hover:scale-110 transition-all duration-300">
                   <Settings size={20} className="flex-shrink-0 transition-all duration-300" />
                 </div>
