@@ -33,6 +33,7 @@ import ParentDashboard from './ParentDashboard';
 import Observation from './Observation';
 import ParentObservation from './ParentObservation';
 import ParentChat from './ParentChat';
+import ClassRoutine from './ClassRoutine';
 
 const ParentPortal = () => {
   const [sidebarOpen, setSidebarOpen] = useState(true);
@@ -77,6 +78,7 @@ const ParentPortal = () => {
 
   const menuItems = [
     { icon: Home, label: 'Dashboard', path: '/parents' },
+    { icon: Calendar, label: 'Class Routine', path: '/parents/routine' },
     { icon: Calendar, label: 'Attendance Report', path: '/parents/attendance' },
     { icon: BookOpen, label: 'Academic Report', path: '/parents/academic' },
     { icon: CreditCard, label: 'Fees Payment', path: '/parents/fees' },
@@ -184,6 +186,7 @@ const ParentPortal = () => {
             }
           />
           <Route path="attendance" element={<AttendanceReport />} />
+          <Route path="routine" element={<ClassRoutine />} />
           <Route path="academic" element={<AcademicReport />} />
           <Route path="fees" element={<FeesPayment />} />
           <Route path="health" element={<HealthReport />} />

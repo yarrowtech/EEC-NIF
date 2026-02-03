@@ -1,6 +1,9 @@
 const express = require('express');
 const router = express.Router();
 const ParentUser = require('../models/ParentUser');
+const StudentUser = require('../models/StudentUser');
+const ClassModel = require('../models/Class');
+const Timetable = require('../models/Timetable');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const adminAuth = require('../middleware/adminAuth');
@@ -8,6 +11,127 @@ const authParent = require('../middleware/authParent');
 const { generateUsername, generatePassword } = require('../utils/generator');
 const rateLimit = require('../middleware/rateLimit');
 const { isStrongPassword, passwordPolicyMessage } = require('../utils/passwordPolicy');
+
+const normalizeKey = (value) =>
+  String(value || '')
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, '');
+
+const escapeRegex = (value) => String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+const buildStudentSchedule = async ({ student, schoolId, campusId }) => {
+  const resolvedGrade = String(student?.grade || '').trim();
+  const resolvedSection = String(student?.section || '').trim();
+
+  if (!resolvedGrade) {
+    return {
+      className: '',
+      sectionName: resolvedSection,
+      schedule: {},
+      hasRoutine: false,
+    };
+  }
+
+  const classFilter = {
+    schoolId,
+    name: resolvedGrade,
+  };
+  if (campusId) {
+    classFilter.campusId = campusId;
+  }
+
+  let classDoc = await ClassModel.findOne(classFilter).lean();
+  if (!classDoc) {
+    classDoc = await ClassModel.findOne({
+      ...classFilter,
+      name: { $regex: `^${escapeRegex(resolvedGrade)}$`, $options: 'i' },
+    }).lean();
+  }
+
+  if (!classDoc) {
+    return {
+      className: resolvedGrade,
+      sectionName: resolvedSection,
+      schedule: {},
+      hasRoutine: false,
+    };
+  }
+
+  const timetableFilter = {
+    schoolId,
+    classId: classDoc._id,
+  };
+  if (campusId) {
+    timetableFilter.campusId = campusId;
+  }
+
+  const timetables = await Timetable.find(timetableFilter)
+    .populate('sectionId', 'name')
+    .populate('entries.subjectId', 'name')
+    .populate('entries.teacherId', 'name')
+    .lean();
+
+  if (!Array.isArray(timetables) || timetables.length === 0) {
+    return {
+      className: classDoc.name,
+      sectionName: resolvedSection,
+      schedule: {},
+      hasRoutine: false,
+    };
+  }
+
+  let timetable = null;
+  if (resolvedSection) {
+    const normalizedSection = normalizeKey(resolvedSection);
+    timetable = timetables.find((tt) => {
+      const sectionName = tt?.sectionId?.name || '';
+      return normalizeKey(sectionName) === normalizedSection;
+    }) || null;
+  }
+
+  if (!timetable) {
+    timetable = timetables.find((tt) => !tt.sectionId) || timetables[0];
+  }
+
+  if (!timetable || !Array.isArray(timetable.entries) || timetable.entries.length === 0) {
+    return {
+      className: classDoc.name,
+      sectionName: timetable?.sectionId?.name || resolvedSection,
+      schedule: {},
+      hasRoutine: false,
+    };
+  }
+
+  const resolvedSectionName = timetable?.sectionId?.name || resolvedSection || '';
+  const scheduleByDay = {};
+  timetable.entries.forEach((entry) => {
+    if (!entry?.dayOfWeek) return;
+    if (!scheduleByDay[entry.dayOfWeek]) {
+      scheduleByDay[entry.dayOfWeek] = [];
+    }
+    scheduleByDay[entry.dayOfWeek].push({
+      time: `${entry.startTime || ''}${entry.endTime ? ` - ${entry.endTime}` : ''}`.trim(),
+      subject: entry.subjectId?.name || 'Unknown',
+      instructor: entry.teacherId?.name || 'TBA',
+      room: entry.room || '',
+      period: entry.period,
+      className: classDoc.name,
+      sectionName: resolvedSectionName,
+    });
+  });
+
+  Object.keys(scheduleByDay).forEach((day) => {
+    scheduleByDay[day].sort((a, b) => (a.period || 0) - (b.period || 0));
+  });
+
+  return {
+    className: classDoc.name,
+    sectionName: resolvedSectionName,
+    schedule: scheduleByDay,
+    hasRoutine: true,
+  };
+};
 
 // Parent Registration
 router.post('/register', adminAuth, async (req, res) => {
@@ -95,6 +219,97 @@ router.get('/profile', authParent, async (req, res) => {
     res.json(user);
   } catch (err) {
     res.status(400).json({ error: err.message });
+  }
+});
+
+router.get('/routine', authParent, async (req, res) => {
+  // #swagger.tags = ['Parents']
+  try {
+    if (req.userType !== 'parent') {
+      return res.status(403).json({ error: 'Forbidden - not a parent' });
+    }
+
+    const parent = await ParentUser.findById(req.user.id)
+      .select('schoolId campusId childrenIds children grade')
+      .lean();
+
+    if (!parent) {
+      return res.status(404).json({ error: 'Parent not found' });
+    }
+
+    const schoolId = parent.schoolId || req.schoolId || null;
+    const campusId = parent.campusId || req.campusId || null;
+    if (!schoolId) {
+      return res.status(400).json({ error: 'schoolId is required' });
+    }
+
+    const studentFilter = { schoolId };
+    if (campusId) {
+      studentFilter.campusId = campusId;
+    }
+
+    let students = [];
+    if (Array.isArray(parent.childrenIds) && parent.childrenIds.length > 0) {
+      students = await StudentUser.find({
+        ...studentFilter,
+        _id: { $in: parent.childrenIds },
+      })
+        .select('name grade section')
+        .lean();
+    }
+
+    if (students.length === 0 && Array.isArray(parent.children) && parent.children.length > 0) {
+      const validNames = parent.children.map((name) => String(name || '').trim()).filter(Boolean);
+      if (validNames.length > 0) {
+        students = await StudentUser.find({
+          ...studentFilter,
+          name: { $in: validNames },
+        })
+          .select('name grade section')
+          .lean();
+      }
+    }
+
+    if (students.length === 0) {
+      return res.json({
+        children: [],
+        meta: { childCount: 0, withRoutine: 0 },
+      });
+    }
+
+    const childRoutines = [];
+    for (const student of students) {
+      const routine = await buildStudentSchedule({
+        student,
+        schoolId,
+        campusId,
+      });
+
+      childRoutines.push({
+        studentId: student._id,
+        studentName: student.name || 'Student',
+        grade: student.grade || '',
+        section: student.section || '',
+        className: routine.className || '',
+        sectionName: routine.sectionName || '',
+        schedule: routine.schedule || {},
+        hasRoutine: Boolean(routine.hasRoutine),
+      });
+    }
+
+    const withRoutine = childRoutines.filter((child) =>
+      Object.values(child.schedule || {}).some((entries) => Array.isArray(entries) && entries.length > 0)
+    ).length;
+
+    res.json({
+      children: childRoutines,
+      meta: {
+        childCount: childRoutines.length,
+        withRoutine,
+      },
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message || 'Unable to load parent routine' });
   }
 });
 
