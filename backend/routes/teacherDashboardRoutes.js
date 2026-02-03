@@ -290,13 +290,9 @@ router.get('/', authTeacher, async (req, res) => {
   }
 });
 
-router.get('/routine', authTeacher, async (req, res) => {
+router.get('/students', authTeacher, async (req, res) => {
   // #swagger.tags = ['Teacher Dashboard']
   try {
-    if (req.user?.userType !== 'teacher') {
-      return res.status(403).json({ error: 'Teacher access required' });
-    }
-
     const schoolId = req.schoolId || req.user?.schoolId || null;
     const campusId = req.campusId || req.user?.campusId || null;
     const teacherId = req.user?.id || null;
@@ -308,17 +304,165 @@ router.get('/routine', authTeacher, async (req, res) => {
       return res.status(400).json({ error: 'teacherId is required' });
     }
 
-    const baseFilter = {
+    // Get teacher details to understand their assigned classes
+    const teacher = await TeacherUser.findById(teacherId)
+      .select('name className class grade sectionName section assignedClasses assignedSections classes sections')
+      .lean();
+
+    // Build student filter based on campus
+    const studentFilter = { schoolId };
+    if (campusId) {
+      studentFilter.campusId = campusId;
+    }
+
+    // Fetch students
+    const students = await StudentUser.find(studentFilter)
+      .select('name username rollNumber grade section className sectionName campusId campusName attendance profilePic')
+      .sort({ grade: 1, section: 1, rollNumber: 1 })
+      .lean();
+
+    // Fetch all classes and sections for filtering options
+    const classFilter = { schoolId };
+    if (campusId) {
+      classFilter.campusId = campusId;
+    }
+
+    const [classes, sections] = await Promise.all([
+      ClassModel.find(classFilter).select('name').lean(),
+      Section.find(classFilter).select('name classId').lean(),
+    ]);
+
+    // Format students with their class-section labels
+    const formattedStudents = students.map(student => {
+      const className = student.className || student.grade || '';
+      const sectionName = student.sectionName || student.section || '';
+      const classLabel = sectionName ? `${className}-${sectionName}` : className;
+
+      return {
+        _id: student._id,
+        name: student.name,
+        username: student.username,
+        rollNumber: student.rollNumber,
+        grade: student.grade,
+        section: student.section,
+        className: student.className,
+        sectionName: student.sectionName,
+        classLabel,
+        campusId: student.campusId,
+        campusName: student.campusName,
+        profilePic: student.profilePic,
+        attendance: student.attendance || []
+      };
+    });
+
+    res.json({
+      students: formattedStudents,
+      teacher: teacher || null,
+      classes: classes.map(c => c.name),
+      sections: sections.map(s => ({ name: s.name, classId: s.classId }))
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message || 'Unable to load students' });
+  }
+});
+
+router.post('/attendance', authTeacher, async (req, res) => {
+  // #swagger.tags = ['Teacher Dashboard']
+  try {
+    const schoolId = req.schoolId || req.user?.schoolId || null;
+    const teacherId = req.user?.id || null;
+    const { date, attendanceData } = req.body || {};
+
+    if (!schoolId) {
+      return res.status(400).json({ error: 'schoolId is required' });
+    }
+    if (!teacherId) {
+      return res.status(400).json({ error: 'teacherId is required' });
+    }
+    if (!date) {
+      return res.status(400).json({ error: 'date is required' });
+    }
+    if (!attendanceData || typeof attendanceData !== 'object') {
+      return res.status(400).json({ error: 'attendanceData is required' });
+    }
+
+    const attendanceDate = new Date(date);
+    const startOfDay = new Date(attendanceDate);
+    startOfDay.setHours(0, 0, 0, 0);
+    const endOfDay = new Date(attendanceDate);
+    endOfDay.setHours(23, 59, 59, 999);
+
+    // Update attendance for each student
+    const updates = [];
+    for (const [studentId, status] of Object.entries(attendanceData)) {
+      if (!mongoose.isValidObjectId(studentId)) continue;
+      if (!['present', 'absent'].includes(status)) continue;
+
+      updates.push(
+        StudentUser.findByIdAndUpdate(
+          studentId,
+          {
+            $pull: {
+              attendance: {
+                date: { $gte: startOfDay, $lte: endOfDay }
+              }
+            }
+          }
+        ).then(() =>
+          StudentUser.findByIdAndUpdate(
+            studentId,
+            {
+              $push: {
+                attendance: {
+                  date: attendanceDate,
+                  status: status,
+                  markedBy: teacherId
+                }
+              }
+            }
+          )
+        )
+      );
+    }
+
+    await Promise.all(updates);
+
+    res.json({
+      success: true,
+      message: 'Attendance saved successfully',
+      count: updates.length,
+      date: attendanceDate
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message || 'Unable to save attendance' });
+  }
+});
+
+router.get('/routine', authTeacher, async (req, res) => {
+  // #swagger.tags = ['Teacher Dashboard']
+  try {
+    const schoolId = req.schoolId || req.user?.schoolId || null;
+    const campusId = req.campusId || req.user?.campusId || null;
+    const teacherId = req.user?.id || null;
+
+    if (!schoolId) {
+      return res.status(400).json({ error: 'schoolId is required' });
+    }
+    if (!teacherId) {
+      return res.status(400).json({ error: 'teacherId is required' });
+    }
+
+    // Build timetable filter - campusId is optional
+    const timetableFilter = {
       schoolId,
       'entries.teacherId': teacherId,
     };
 
-    const primaryFilter = campusId
-      ? { ...baseFilter, campusId }
-      : baseFilter;
-    let routineSource = campusId ? 'campus' : 'school';
+    if (campusId) {
+      timetableFilter.campusId = campusId;
+    }
 
-    let timetables = await Timetable.find(primaryFilter)
+    const timetables = await Timetable.find(timetableFilter)
       .populate('classId', 'name')
       .populate('sectionId', 'name')
       .populate('entries.subjectId', 'name')
@@ -372,23 +516,14 @@ router.get('/routine', authTeacher, async (req, res) => {
       });
     });
 
+    // Fetch teacher profile for credential-based filtering on frontend
     const teacher = await TeacherUser.findById(teacherId)
-      .select('name employeeCode subject department campusId campusName campusType')
+      .select('name className class grade sectionName section assignedClasses assignedSections classes sections')
       .lean();
 
     res.json({
       schedule,
-      teacher: teacher
-        ? {
-          ...teacher,
-          assignedClassLabels: Array.from(assignedClassLabels),
-        }
-        : null,
-      meta: {
-        timetableCount: Array.isArray(timetables) ? timetables.length : 0,
-        campusScoped: routineSource === 'campus',
-        filterSource: routineSource,
-      },
+      teacher: teacher || null
     });
   } catch (err) {
     res.status(500).json({ error: err.message || 'Unable to load teacher routine' });

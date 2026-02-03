@@ -1,34 +1,26 @@
 import React, { useMemo, useState } from 'react';
-import { Bell, Search, Menu, CalendarDays } from 'lucide-react';
+import { Bell, Search, Menu, CalendarDays, X } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useStudentDashboard } from './StudentDashboardContext';
+import { useNotifications } from '../hooks/useNotifications';
 
 const Header = ({ sidebarOpen, setSidebarOpen, onOpenProfile }) => {
   const navigate = useNavigate();
-  const [notifications] = useState(3);
   const [showNotifications, setShowNotifications] = useState(false);
-  const notificationList = [
-    {
-      id: 1,
-      type: 'assignment',
-      message: 'Math Assignment due tomorrow!',
-      time: '2 hours ago',
-    },
-    {
-      id: 2,
-      type: 'exam',
-      message: 'Science Exam scheduled for Friday.',
-      time: '1 day ago',
-    },
-    {
-      id: 3,
-      type: 'general',
-      message: 'School will be closed next Monday.',
-      time: '3 days ago',
-    },
-  ];
   const [profileOpen, setProfileOpen] = useState(false);
   const { profile } = useStudentDashboard();
+
+  // Use real notifications hook
+  const {
+    notifications: allNotifications,
+    unreadCount,
+    loading: notificationsLoading,
+    markAsRead,
+    dismissNotification
+  } = useNotifications();
+
+  // Get only recent 5 notifications for header dropdown
+  const recentNotifications = allNotifications.slice(0, 5);
   const studentData = profile || {
     name: 'Student',
     grade: '',
@@ -67,6 +59,45 @@ const Header = ({ sidebarOpen, setSidebarOpen, onOpenProfile }) => {
     localStorage.removeItem('token');
     localStorage.removeItem('userType');
     navigate('/');
+  };
+
+  // Get notification type styling
+  const getNotificationTypeColor = (type) => {
+    switch (type) {
+      case 'assignment': return 'bg-yellow-500';
+      case 'exam': return 'bg-blue-500';
+      case 'result': return 'bg-green-500';
+      case 'fee': return 'bg-red-500';
+      default: return 'bg-gray-400';
+    }
+  };
+
+  // Handle notification click
+  const handleNotificationClick = async (notification) => {
+    if (!notification.isRead) {
+      await markAsRead(notification._id);
+    }
+  };
+
+  // Handle dismiss
+  const handleDismiss = async (e, notificationId) => {
+    e.stopPropagation();
+    await dismissNotification(notificationId);
+  };
+
+  // Format time ago
+  const formatTimeAgo = (dateString) => {
+    const date = new Date(dateString);
+    const now = new Date();
+    const diffMs = now - date;
+    const diffMins = Math.floor(diffMs / 60000);
+    const diffHours = Math.floor(diffMins / 60);
+    const diffDays = Math.floor(diffHours / 24);
+
+    if (diffMins < 1) return 'Just now';
+    if (diffMins < 60) return `${diffMins} minute${diffMins > 1 ? 's' : ''} ago`;
+    if (diffHours < 24) return `${diffHours} hour${diffHours > 1 ? 's' : ''} ago`;
+    return `${diffDays} day${diffDays > 1 ? 's' : ''} ago`;
   };
 
   return (
@@ -149,28 +180,79 @@ const Header = ({ sidebarOpen, setSidebarOpen, onOpenProfile }) => {
                 aria-label="Show notifications"
               >
                 <Bell size={20} className="text-gray-700" />
-                {notifications > 0 && (
+                {unreadCount > 0 && (
                   <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] rounded-full min-w-[18px] h-[18px] px-1 flex items-center justify-center">
-                    {notifications}
+                    {unreadCount > 99 ? '99+' : unreadCount}
                   </span>
                 )}
               </button>
               {showNotifications && (
-                <div className="absolute right-0 mt-2 w-80 max-w-xs bg-white border border-gray-200 rounded-xl shadow-xl z-50 overflow-hidden">
-                  <div className="p-3 border-b bg-gray-50 font-semibold text-gray-800">Notifications</div>
-                  <ul className="divide-y divide-gray-100 max-h-64 overflow-y-auto">
-                    {notificationList.map((n) => (
-                      <li key={n.id} className="px-4 py-3 flex items-start gap-3 hover:bg-gray-50 transition-colors">
-                        <span className={`mt-1 w-2 h-2 rounded-full ${n.type === 'assignment' ? 'bg-yellow-500' : n.type === 'exam' ? 'bg-blue-500' : 'bg-gray-400'}`}></span>
-                        <div className="flex-1 min-w-0">
-                          <div className="text-sm text-gray-800 truncate">{n.message}</div>
-                          <div className="text-xs text-gray-400 mt-1">{n.time}</div>
-                        </div>
-                      </li>
-                    ))}
+                <div className="absolute right-0 mt-2 w-96 max-w-xs bg-white border border-gray-200 rounded-xl shadow-xl z-50 overflow-hidden">
+                  <div className="p-3 border-b bg-gray-50 font-semibold text-gray-800 flex items-center justify-between">
+                    <span>Notifications</span>
+                    {unreadCount > 0 && (
+                      <span className="text-xs bg-red-100 text-red-600 px-2 py-1 rounded-full">
+                        {unreadCount} new
+                      </span>
+                    )}
+                  </div>
+
+                  <ul className="divide-y divide-gray-100 max-h-96 overflow-y-auto">
+                    {notificationsLoading ? (
+                      <li className="p-4 text-gray-500 text-sm text-center">Loading...</li>
+                    ) : recentNotifications.length === 0 ? (
+                      <li className="p-4 text-gray-500 text-sm text-center">No new notifications</li>
+                    ) : (
+                      recentNotifications.map((notification) => (
+                        <li
+                          key={notification._id}
+                          className={`px-4 py-3 flex items-start gap-3 hover:bg-gray-50 transition-colors cursor-pointer ${
+                            !notification.isRead ? 'bg-blue-50' : ''
+                          }`}
+                          onClick={() => handleNotificationClick(notification)}
+                        >
+                          <span
+                            className={`mt-1 w-2 h-2 rounded-full ${
+                              getNotificationTypeColor(notification.type)
+                            }`}
+                          ></span>
+                          <div className="flex-1 min-w-0">
+                            <div className={`text-sm truncate ${
+                              !notification.isRead ? 'font-semibold text-gray-900' : 'text-gray-800'
+                            }`}>
+                              {notification.title}
+                            </div>
+                            <div className="text-xs text-gray-600 mt-1 line-clamp-2">
+                              {notification.message}
+                            </div>
+                            <div className="text-xs text-gray-400 mt-1">
+                              {formatTimeAgo(notification.createdAt)}
+                            </div>
+                          </div>
+                          <button
+                            onClick={(e) => handleDismiss(e, notification._id)}
+                            className="p-1 hover:bg-gray-200 rounded transition-colors"
+                            aria-label="Dismiss"
+                          >
+                            <X size={14} className="text-gray-400" />
+                          </button>
+                        </li>
+                      ))
+                    )}
                   </ul>
-                  {notificationList.length === 0 && (
-                    <div className="p-4 text-gray-500 text-sm text-center">No new notifications</div>
+
+                  {recentNotifications.length > 0 && (
+                    <div className="p-2 border-t bg-gray-50">
+                      <button
+                        onClick={() => {
+                          setShowNotifications(false);
+                          navigate('/student/notifications');
+                        }}
+                        className="w-full text-center text-sm text-indigo-600 hover:text-indigo-800 font-medium"
+                      >
+                        View all notifications
+                      </button>
+                    </div>
                   )}
                 </div>
               )}

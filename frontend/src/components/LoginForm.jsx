@@ -99,7 +99,7 @@ const LoginForm = () => {
           Teacher: {
             resetEndpoint: '/api/teacher/auth/reset-first-password',
             loginEndpoint: '/api/teacher/auth/login',
-            redirect: '/teachers',
+            redirect: '/teacher/dashboard',
           },
           Student: {
             resetEndpoint: '/api/student/auth/reset-first-password',
@@ -157,7 +157,7 @@ const LoginForm = () => {
 
       const loginOptions = [
         { userType: 'Student', url: '/api/student/auth/login', redirect: '/student' },
-        { userType: 'Teacher', url: '/api/teacher/auth/login', redirect: '/teacher' },
+        { userType: 'Teacher', url: '/api/teacher/auth/login', redirect: '/teacher/dashboard' },
         { userType: 'Parent', url: '/api/parent/auth/login', redirect: '/parent' },
         { userType: 'Principal', url: '/api/principal/auth/login', redirect: '/principal' },
         { userType: 'Admin', url: '/api/admin/auth/login', redirect: '/admin/dashboard' }

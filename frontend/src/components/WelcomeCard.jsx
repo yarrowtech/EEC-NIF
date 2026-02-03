@@ -31,7 +31,7 @@ const WelcomeCard = () => {
   const getGreeting = () => {
     const hour = new Date().getHours();
     if (hour < 12) return { text: 'Good Morning', icon: Sun };
-    if (hour < 17) return { text: 'Good Afternoon', icon: Sun };
+    if (hour < 18) return { text: 'Good Afternoon', icon: Cloud };
     return { text: 'Good Evening', icon: Moon };
   };
 

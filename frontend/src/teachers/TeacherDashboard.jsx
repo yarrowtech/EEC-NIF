@@ -105,6 +105,14 @@ const TeacherDashboard = () => {
 
   const { dateStr, timeStr } = formatDateTime(currentDateTime);
 
+  // Get greeting based on time of day
+  const getGreeting = () => {
+    const hour = currentDateTime.getHours();
+    if (hour < 12) return 'Good Morning';
+    if (hour < 18) return 'Good Afternoon';
+    return 'Good Evening';
+  };
+
   const stats = dashboardData?.stats || {};
   const quickStats = [
     { 
@@ -228,7 +236,7 @@ const TeacherDashboard = () => {
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
             <h1 className="text-3xl font-bold mb-2">
-              Good Morning, {dashboardData?.teacher?.name || 'Teacher'}
+              {getGreeting()}, {dashboardData?.teacher?.name || 'Teacher'}
             </h1>
             <p className="text-blue-100">Here's your teaching overview for {dateStr}</p>
           </div>

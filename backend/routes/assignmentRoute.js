@@ -6,6 +6,7 @@ const authStudent = require('../middleware/authStudent');
 const authTeacher = require('../middleware/authTeacher');
 const StudentProgress = require('../models/StudentProgress');
 const StudentUser = require('../models/StudentUser');
+const NotificationService = require('../utils/notificationService');
 
 const resolveSchoolId = (req, res) => {
     const schoolId = req.schoolId || req.admin?.schoolId || null;
@@ -52,6 +53,22 @@ router.post("/add", adminAuth, async (req, res) => {
             dueDate
         });
         await assignment.save();
+
+        // Create notification for students if assignment is active
+        if (status === 'active') {
+            try {
+                await NotificationService.notifyAssignmentCreated({
+                    schoolId,
+                    campusId: req.campusId || null,
+                    assignment,
+                    createdBy: req.admin?.id || null
+                });
+            } catch (notifErr) {
+                console.error('Failed to create assignment notification:', notifErr);
+                // Don't fail the entire request if notification fails
+            }
+        }
+
         res.status(201).json({ message: "Assignment created successfully" });
     } catch(err) {
         res.status(500).json({ error: "Internal server error" });

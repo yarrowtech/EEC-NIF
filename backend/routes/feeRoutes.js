@@ -6,6 +6,7 @@ const FeeStructure = require('../models/FeeStructure');
 const FeeInvoice = require('../models/FeeInvoice');
 const FeePayment = require('../models/FeePayment');
 const StudentUser = require('../models/StudentUser');
+const NotificationService = require('../utils/notificationService');
 
 const router = express.Router();
 
@@ -123,6 +124,25 @@ router.post('/invoices', adminAuth, async (req, res) => {
       status: 'due',
       dueDate: dueDate ? new Date(dueDate) : undefined,
     });
+
+    // Create notification if due date is within 7 days
+    if (created.dueDate) {
+      const daysUntilDue = Math.ceil((new Date(created.dueDate) - new Date()) / (1000 * 60 * 60 * 24));
+
+      if (daysUntilDue <= 7 && daysUntilDue >= 0) {
+        try {
+          await NotificationService.notifyFeeReminder({
+            schoolId,
+            campusId: req.campusId || null,
+            invoice: created,
+            createdBy: req.admin?.id || null
+          });
+        } catch (notifErr) {
+          console.error('Failed to create fee notification:', notifErr);
+          // Don't fail the entire request if notification fails
+        }
+      }
+    }
 
     res.status(201).json(created);
   } catch (err) {

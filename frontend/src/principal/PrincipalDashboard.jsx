@@ -283,6 +283,14 @@ const PrincipalDashboard = () => {
     },
   };
 
+  // Get greeting based on time of day
+  const getGreeting = () => {
+    const hour = new Date().getHours();
+    if (hour < 12) return 'Good Morning';
+    if (hour < 18) return 'Good Afternoon';
+    return 'Good Evening';
+  };
+
   const studentPerformance = overview?.performance?.gradeDistribution?.length
     ? overview.performance.gradeDistribution.map((item) => ({
         grade: item.grade,
@@ -460,7 +468,7 @@ const PrincipalDashboard = () => {
                 <div className="relative z-10">
                   <div className="flex flex-col md:flex-row items-start md:items-center justify-between">
                     <div>
-                      <h1 className="text-3xl font-bold mb-1">Principal Dashboard</h1>
+                      <h1 className="text-3xl font-bold mb-1">{getGreeting()}, Principal</h1>
                       <p className="text-black opacity-90">Comprehensive analytics for Electronic Educare Center</p>
                     </div>
                     

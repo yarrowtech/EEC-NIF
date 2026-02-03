@@ -1,173 +1,96 @@
-import React, { useState } from 'react';
-import { Calendar, Search, Check, X, ChevronLeft, ChevronRight, Users, TrendingUp, BarChart3, Download, Filter, UserCheck, UserX } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Calendar, Search, Check, X, ChevronLeft, ChevronRight, Users, TrendingUp, BarChart3, Download, Filter, UserCheck, UserX, AlertCircle } from 'lucide-react';
 
 const AttendanceManagement = () => {
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
-  const [selectedClass, setSelectedClass] = useState('10-A');
+  const [selectedClass, setSelectedClass] = useState('all');
   const [searchTerm, setSearchTerm] = useState('');
+  const [students, setStudents] = useState([]);
+  const [classes, setClasses] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [saving, setSaving] = useState(false);
 
-  // Generate more comprehensive student data
-  const students = [
-    {
-      id: 1,
-      name: "Koushik Bala",
-      rollNumber: "101",
-      class: "10-A",
-      avatar: "👩‍🎓",
-      attendance: {
-        "2024-03-15": "present",
-        "2024-03-14": "present",
-        "2024-03-13": "absent",
-        "2024-03-12": "present",
-        "2024-03-11": "present",
-        "2024-03-08": "present",
-        "2024-03-07": "present",
-        "2024-03-06": "present",
-        "2024-03-05": "absent",
-        "2024-03-04": "present"
+  // Fetch students from API
+  useEffect(() => {
+    const fetchStudents = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+
+        const token = localStorage.getItem('token');
+        if (!token) {
+          throw new Error('Authentication required');
+        }
+
+        const response = await fetch(`${import.meta.env.VITE_API_URL}/api/teacher/dashboard/students`, {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        });
+
+        if (!response.ok) {
+          const data = await response.json().catch(() => ({}));
+          throw new Error(data.error || 'Failed to load students');
+        }
+
+        const data = await response.json();
+
+        // Format students with attendance data
+        const formattedStudents = (data.students || []).map(student => {
+          // Convert attendance array to object by date
+          const attendanceByDate = {};
+          (student.attendance || []).forEach(record => {
+            const dateStr = new Date(record.date).toISOString().split('T')[0];
+            attendanceByDate[dateStr] = record.status;
+          });
+
+          return {
+            id: student._id,
+            name: student.name,
+            rollNumber: student.rollNumber,
+            class: student.classLabel || `${student.className || student.grade}${student.sectionName || student.section ? `-${student.sectionName || student.section}` : ''}`,
+            avatar: student.profilePic || '👤',
+            attendance: attendanceByDate
+          };
+        });
+
+        setStudents(formattedStudents);
+
+        // Extract unique classes
+        const uniqueClasses = [...new Set(formattedStudents.map(s => s.class))].filter(Boolean);
+        setClasses(uniqueClasses);
+
+        // Set first class as selected if available
+        if (uniqueClasses.length > 0 && selectedClass === 'all') {
+          setSelectedClass(uniqueClasses[0]);
+        }
+
+      } catch (err) {
+        setError(err.message);
+        console.error('Error fetching students:', err);
+      } finally {
+        setLoading(false);
       }
-    },
-    {
-      id: 2,
-      name: "John Doe",
-      rollNumber: "102",
-      class: "10-A",
-      avatar: "👨‍🎓",
-      attendance: {
-        "2024-03-15": "present",
-        "2024-03-14": "absent",
-        "2024-03-13": "present",
-        "2024-03-12": "present",
-        "2024-03-11": "present",
-        "2024-03-08": "absent",
-        "2024-03-07": "present",
-        "2024-03-06": "present",
-        "2024-03-05": "present",
-        "2024-03-04": "present"
-      }
-    },
-    {
-      id: 3,
-      name: "Emma Johnson",
-      rollNumber: "103",
-      class: "10-A",
-      avatar: "👩‍🎓",
-      attendance: {
-        "2024-03-15": "present",
-        "2024-03-14": "present",
-        "2024-03-13": "present",
-        "2024-03-12": "present",
-        "2024-03-11": "present",
-        "2024-03-08": "present",
-        "2024-03-07": "present",
-        "2024-03-06": "present",
-        "2024-03-05": "present",
-        "2024-03-04": "present"
-      }
-    },
-    {
-      id: 4,
-      name: "Michael Brown",
-      rollNumber: "104",
-      class: "10-A",
-      avatar: "👨‍🎓",
-      attendance: {
-        "2024-03-15": "absent",
-        "2024-03-14": "absent",
-        "2024-03-13": "present",
-        "2024-03-12": "present",
-        "2024-03-11": "absent",
-        "2024-03-08": "present",
-        "2024-03-07": "present",
-        "2024-03-06": "absent",
-        "2024-03-05": "present",
-        "2024-03-04": "present"
-      }
-    },
-    {
-      id: 5,
-      name: "Olivia Davis",
-      rollNumber: "105",
-      class: "10-A",
-      avatar: "👩‍🎓",
-      attendance: {
-        "2024-03-15": "present",
-        "2024-03-14": "present",
-        "2024-03-13": "present",
-        "2024-03-12": "absent",
-        "2024-03-11": "present",
-        "2024-03-08": "present",
-        "2024-03-07": "present",
-        "2024-03-06": "present",
-        "2024-03-05": "present",
-        "2024-03-04": "absent"
-      }
-    },
-    {
-      id: 6,
-      name: "William Wilson",
-      rollNumber: "106",
-      class: "10-B",
-      avatar: "👨‍🎓",
-      attendance: {
-        "2024-03-15": "present",
-        "2024-03-14": "present",
-        "2024-03-13": "present",
-        "2024-03-12": "present",
-        "2024-03-11": "present",
-        "2024-03-08": "present",
-        "2024-03-07": "absent",
-        "2024-03-06": "present",
-        "2024-03-05": "present",
-        "2024-03-04": "present"
-      }
-    },
-    {
-      id: 7,
-      name: "Sophia Miller",
-      rollNumber: "107",
-      class: "10-B",
-      avatar: "👩‍🎓",
-      attendance: {
-        "2024-03-15": "present",
-        "2024-03-14": "absent",
-        "2024-03-13": "absent",
-        "2024-03-12": "present",
-        "2024-03-11": "present",
-        "2024-03-08": "present",
-        "2024-03-07": "present",
-        "2024-03-06": "present",
-        "2024-03-05": "present",
-        "2024-03-04": "present"
-      }
-    },
-    {
-      id: 8,
-      name: "James Taylor",
-      rollNumber: "108",
-      class: "10-B",
-      avatar: "👨‍🎓",
-      attendance: {
-        "2024-03-15": "present",
-        "2024-03-14": "present",
-        "2024-03-13": "present",
-        "2024-03-12": "present",
-        "2024-03-11": "present",
-        "2024-03-08": "absent",
-        "2024-03-07": "present",
-        "2024-03-06": "present",
-        "2024-03-05": "absent",
-        "2024-03-04": "present"
-      }
+    };
+
+    fetchStudents();
+  }, []);
+
+  // Initialize attendance data when students change
+  const [attendanceData, setAttendanceData] = useState({});
+
+  // Update attendance data when students or date changes
+  useEffect(() => {
+    if (students.length > 0) {
+      const initialData = students.reduce((acc, student) => ({
+        ...acc,
+        [student.id]: student.attendance[selectedDate] || 'present'
+      }), {});
+      setAttendanceData(initialData);
     }
-  ];
-
-  const [attendanceData, setAttendanceData] = useState(
-    students.reduce((acc, student) => ({
-      ...acc,
-      [student.id]: student.attendance[selectedDate] || 'present'
-    }), {})
-  );
+  }, [students, selectedDate]);
 
   const getLastWeekDates = () => {
     const dates = [];
@@ -201,9 +124,54 @@ const AttendanceManagement = () => {
     }));
   };
 
-  const saveAttendance = () => {
-    // In a real application, this would save to a database
-    alert('Attendance data saved successfully!');
+  const saveAttendance = async () => {
+    try {
+      setSaving(true);
+      setError(null);
+
+      const token = localStorage.getItem('token');
+      if (!token) {
+        throw new Error('Authentication required');
+      }
+
+      const response = await fetch(`${import.meta.env.VITE_API_URL}/api/teacher/dashboard/attendance`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          date: selectedDate,
+          attendanceData: attendanceData
+        })
+      });
+
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        throw new Error(data.error || 'Failed to save attendance');
+      }
+
+      const result = await response.json();
+      alert(`✓ Attendance saved successfully! ${result.count} students marked.`);
+
+      // Update local students data
+      setStudents(prevStudents =>
+        prevStudents.map(student => ({
+          ...student,
+          attendance: {
+            ...student.attendance,
+            [selectedDate]: attendanceData[student.id] || 'present'
+          }
+        }))
+      );
+
+    } catch (err) {
+      setError(err.message);
+      alert(`Error: ${err.message}`);
+      console.error('Error saving attendance:', err);
+    } finally {
+      setSaving(false);
+    }
   };
 
   const exportAttendance = () => {
@@ -212,8 +180,8 @@ const AttendanceManagement = () => {
   };
 
   // Calculate statistics
-  const filteredStudents = students.filter(student => 
-    student.class === selectedClass && 
+  const filteredStudents = students.filter(student =>
+    (selectedClass === 'all' || student.class === selectedClass) &&
     student.name.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
@@ -234,7 +202,22 @@ const AttendanceManagement = () => {
   });
 
   // Filter students based on search and class
-  const classStudents = filteredStudents.filter(student => student.class === selectedClass);
+  const classStudents = selectedClass === 'all' ? filteredStudents : filteredStudents.filter(student => student.class === selectedClass);
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-50 p-6">
+        <div className="bg-gradient-to-r from-yellow-500 to-yellow-600 rounded-xl p-6 mb-6 text-white shadow-md animate-pulse">
+          <div className="h-8 bg-white/20 rounded w-1/3 mb-2"></div>
+          <div className="h-4 bg-white/20 rounded w-1/2"></div>
+        </div>
+        <div className="bg-white rounded-xl p-6 mb-6 shadow-sm">
+          <div className="h-10 bg-gray-200 rounded w-full mb-4"></div>
+          <div className="h-10 bg-gray-200 rounded w-full"></div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gray-50 p-6">
@@ -243,6 +226,17 @@ const AttendanceManagement = () => {
         <h1 className="text-3xl font-bold mb-2">Attendance Management</h1>
         <p className="text-yellow-100">Track and manage student attendance records</p>
       </div>
+
+      {/* Error Alert */}
+      {error && (
+        <div className="bg-red-50 border border-red-200 rounded-xl p-4 mb-6 flex items-center gap-3">
+          <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0" />
+          <div className="flex-1">
+            <p className="text-red-800 font-medium">Error</p>
+            <p className="text-red-600 text-sm">{error}</p>
+          </div>
+        </div>
+      )}
 
       {/* Controls */}
       <div className="bg-white rounded-xl p-6 mb-6 shadow-sm border border-gray-100">
@@ -261,14 +255,17 @@ const AttendanceManagement = () => {
             
             <div className="relative">
               <Filter className="w-5 h-5 absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
-              <select 
+              <select
                 className="pl-10 pr-8 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-transparent appearance-none"
                 value={selectedClass}
                 onChange={(e) => setSelectedClass(e.target.value)}
               >
-                <option value="10-A">Class 10-A</option>
-                <option value="10-B">Class 10-B</option>
                 <option value="all">All Classes</option>
+                {classes.map((className) => (
+                  <option key={className} value={className}>
+                    Class {className}
+                  </option>
+                ))}
               </select>
             </div>
 
@@ -291,12 +288,13 @@ const AttendanceManagement = () => {
               <Download className="w-4 h-4" />
               <span>Export</span>
             </button>
-            <button 
+            <button
               onClick={saveAttendance}
-              className="flex items-center space-x-2 px-4 py-2 bg-yellow-500 text-black rounded-lg hover:bg-yellow-600 transition-colors shadow-sm"
+              disabled={saving}
+              className={`flex items-center space-x-2 px-4 py-2 bg-yellow-500 text-black rounded-lg hover:bg-yellow-600 transition-colors shadow-sm ${saving ? 'opacity-50 cursor-not-allowed' : ''}`}
             >
               <Check className="w-4 h-4" />
-              <span>Save Attendance</span>
+              <span>{saving ? 'Saving...' : 'Save Attendance'}</span>
             </button>
           </div>
         </div>

@@ -112,6 +112,113 @@ router.get('/user', authAnyUser, async (req, res) => {
     if (!schoolId) return res.status(400).json({ error: 'schoolId is required' });
     const campusId = req.campusId || null;
     const userType = req.userType;
+    const userId = req.user?.id;
+    const normalizedAudience = userType
+      ? userType.charAt(0).toUpperCase() + userType.slice(1)
+      : 'unknown';
+
+    const filter = {
+      schoolId,
+      ...(campusId ? { campusId } : {}),
+      'dismissedBy.userId': { $ne: userId },
+      $and: [
+        { $or: [{ audience: 'All' }, { audience: normalizedAudience }] },
+        {
+          $or: [
+            { expiresAt: { $exists: false } },
+            { expiresAt: null },
+            { expiresAt: { $gt: new Date() } }
+          ]
+        }
+      ]
+    };
+
+    const items = await Notification.find(filter)
+      .sort({ createdAt: -1 })
+      .lean();
+
+    // Add isRead flag for each notification
+    const itemsWithReadStatus = items.map(item => ({
+      ...item,
+      isRead: item.readBy?.some(r => r.userId.toString() === userId) || false
+    }));
+
+    res.json(itemsWithReadStatus);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Mark notification as read
+router.patch('/user/:id/read', authAnyUser, async (req, res) => {
+  // #swagger.tags = ['Notifications']
+  try {
+    const { id } = req.params;
+    const userId = req.user?.id;
+
+    if (!userId) {
+      return res.status(401).json({ error: 'User not authenticated' });
+    }
+
+    const notification = await Notification.findById(id);
+    if (!notification) {
+      return res.status(404).json({ error: 'Notification not found' });
+    }
+
+    // Check if already read by this user
+    const alreadyRead = notification.readBy.some(r => r.userId.toString() === userId);
+    if (!alreadyRead) {
+      notification.readBy.push({ userId, readAt: new Date() });
+      await notification.save();
+    }
+
+    res.json({ success: true, notification });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Dismiss notification (hide from view)
+router.patch('/user/:id/dismiss', authAnyUser, async (req, res) => {
+  // #swagger.tags = ['Notifications']
+  try {
+    const { id } = req.params;
+    const userId = req.user?.id;
+
+    if (!userId) {
+      return res.status(401).json({ error: 'User not authenticated' });
+    }
+
+    const notification = await Notification.findById(id);
+    if (!notification) {
+      return res.status(404).json({ error: 'Notification not found' });
+    }
+
+    const alreadyDismissed = notification.dismissedBy.some(d => d.userId.toString() === userId);
+    if (!alreadyDismissed) {
+      notification.dismissedBy.push({ userId, dismissedAt: new Date() });
+      await notification.save();
+    }
+
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Mark all as read
+router.post('/user/read-all', authAnyUser, async (req, res) => {
+  // #swagger.tags = ['Notifications']
+  try {
+    const userId = req.user?.id;
+    const schoolId = req.schoolId;
+    const campusId = req.campusId || null;
+    const userType = req.userType;
+
+    if (!userId) {
+      return res.status(401).json({ error: 'User not authenticated' });
+    }
+
     const normalizedAudience = userType
       ? userType.charAt(0).toUpperCase() + userType.slice(1)
       : 'unknown';
@@ -120,9 +227,48 @@ router.get('/user', authAnyUser, async (req, res) => {
       schoolId,
       ...(campusId ? { campusId } : {}),
       $or: [{ audience: 'All' }, { audience: normalizedAudience }],
+      'readBy.userId': { $ne: userId },
+      'dismissedBy.userId': { $ne: userId }
     };
-    const items = await Notification.find(filter).sort({ createdAt: -1 }).lean();
-    res.json(items);
+
+    await Notification.updateMany(
+      filter,
+      { $push: { readBy: { userId, readAt: new Date() } } }
+    );
+
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Get unread count
+router.get('/user/unread-count', authAnyUser, async (req, res) => {
+  // #swagger.tags = ['Notifications']
+  try {
+    const userId = req.user?.id;
+    const schoolId = req.schoolId;
+    const campusId = req.campusId || null;
+    const userType = req.userType;
+
+    if (!userId) {
+      return res.status(401).json({ error: 'User not authenticated' });
+    }
+
+    const normalizedAudience = userType
+      ? userType.charAt(0).toUpperCase() + userType.slice(1)
+      : 'unknown';
+
+    const filter = {
+      schoolId,
+      ...(campusId ? { campusId } : {}),
+      $or: [{ audience: 'All' }, { audience: normalizedAudience }],
+      'readBy.userId': { $ne: userId },
+      'dismissedBy.userId': { $ne: userId }
+    };
+
+    const count = await Notification.countDocuments(filter);
+    res.json({ count });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

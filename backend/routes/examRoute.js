@@ -10,6 +10,7 @@ const ParentUser = require('../models/ParentUser');
 const Notification = require('../models/Notification');
 const adminAuth = require('../middleware/adminAuth');
 const teacherAuth = require('../middleware/authTeacher');
+const NotificationService = require('../utils/notificationService');
 
 // Configure multer for CSV upload
 const upload = multer({ dest: 'uploads/' });
@@ -66,6 +67,20 @@ router.post("/add", adminAuth, async (req, res) => {
             noOfStudents,
             status
         });
+
+        // Create notification for students
+        try {
+            await NotificationService.notifyExamScheduled({
+                schoolId,
+                campusId: campusId || null,
+                exam,
+                createdBy: req.admin?.id || null
+            });
+        } catch (notifErr) {
+            console.error('Failed to create exam notification:', notifErr);
+            // Don't fail the entire request if notification fails
+        }
+
         res.status(201).json({message: "Exam added successfully", exam});
     } catch(err) {
         res.status(400).json({error: err.message});
@@ -377,40 +392,48 @@ router.post("/results/publish", adminAuth, async (req, res) => {
             childrenIds: { $in: studentIds }
         }).select('_id name email').lean();
 
-        // Create notification message
+        // Create notification using NotificationService
         const sectionText = section ? ` Section ${section}` : '';
-        const notificationTitle = `Results Published - ${grade}${sectionText}`;
-        const notificationMessage = `The examination results for ${grade}${sectionText} have been published. Please check your results.`;
 
-        // Create notifications for students
-        await Notification.create({
-            schoolId,
-            campusId: campusId || null,
-            title: notificationTitle,
-            message: notificationMessage,
-            audience: 'Student',
-            createdBy: req.admin?.id || null,
-        });
+        try {
+            // Create notification for students
+            await NotificationService.notifyResultPublished({
+                schoolId,
+                campusId: campusId || null,
+                grade,
+                section,
+                createdBy: req.admin?.id || null
+            });
 
-        // Create notifications for teachers
-        await Notification.create({
-            schoolId,
-            campusId: campusId || null,
-            title: notificationTitle,
-            message: `The examination results for ${grade}${sectionText} have been published.`,
-            audience: 'Teacher',
-            createdBy: req.admin?.id || null,
-        });
+            // Create notifications for teachers
+            await Notification.create({
+                schoolId,
+                campusId: campusId || null,
+                title: `Results Published - ${grade}${sectionText}`,
+                message: `The examination results for ${grade}${sectionText} have been published.`,
+                audience: 'Teacher',
+                type: 'result',
+                priority: 'high',
+                category: 'academic',
+                createdBy: req.admin?.id || null,
+            });
 
-        // Create notifications for parents
-        await Notification.create({
-            schoolId,
-            campusId: campusId || null,
-            title: notificationTitle,
-            message: `The examination results for ${grade}${sectionText} have been published. Please check your child's results.`,
-            audience: 'Parent',
-            createdBy: req.admin?.id || null,
-        });
+            // Create notifications for parents
+            await Notification.create({
+                schoolId,
+                campusId: campusId || null,
+                title: `Results Published - ${grade}${sectionText}`,
+                message: `The examination results for ${grade}${sectionText} have been published. Please check your child's results.`,
+                audience: 'Parent',
+                type: 'result',
+                priority: 'high',
+                category: 'academic',
+                createdBy: req.admin?.id || null,
+            });
+        } catch (notifErr) {
+            console.error('Failed to create result notifications:', notifErr);
+            // Don't fail the entire request if notification fails
+        }
 
         res.status(200).json({
             success: true,
