@@ -208,6 +208,7 @@ router.put('/classes/:id', adminAuth, async (req, res) => {
 
     const schoolId = resolveSchoolId(req, res);
     if (!schoolId) return;
+    const campusId = resolveCampusId(req);
 
     const { name, academicYearId, order } = req.body || {};
     if (!name || !String(name).trim()) {
@@ -376,6 +377,7 @@ router.put('/sections/:id', adminAuth, async (req, res) => {
 
     const schoolId = resolveSchoolId(req, res);
     if (!schoolId) return;
+    const campusId = resolveCampusId(req);
 
     const { name, classId } = req.body || {};
     if (!name || !String(name).trim()) {
@@ -570,6 +572,58 @@ router.delete('/subjects/:id', adminAuth, async (req, res) => {
     res.json({ ok: true, message: 'Subject deleted successfully' });
   } catch (err) {
     res.status(400).json({ error: err.message });
+  }
+});
+
+router.get('/hierarchy', adminAuth, async (req, res) => {
+  // #swagger.tags = ['Academics']
+  try {
+    const schoolId = resolveSchoolId(req, res);
+    if (!schoolId) return;
+    const campusId = resolveCampusId(req);
+
+    const [yearDocs, classDocs, sectionDocs] = await Promise.all([
+      AcademicYear.find({ schoolId }).sort({ createdAt: -1 }).lean(),
+      ClassModel.find(buildCampusFilter(schoolId, campusId))
+        .sort({ order: 1, name: 1 })
+        .lean(),
+      Section.find(buildCampusFilter(schoolId, campusId)).sort({ name: 1 }).lean(),
+    ]);
+
+    const UNASSIGNED = 'unassigned';
+
+    const sectionsByClass = sectionDocs.reduce((acc, section) => {
+      const key = section.classId ? section.classId.toString() : UNASSIGNED;
+      if (!acc[key]) acc[key] = [];
+      acc[key].push(section);
+      return acc;
+    }, {});
+
+    const classesByYear = classDocs.reduce((acc, cls) => {
+      const key = cls.academicYearId ? cls.academicYearId.toString() : UNASSIGNED;
+      if (!acc[key]) acc[key] = [];
+      acc[key].push({
+        ...cls,
+        sections: sectionsByClass[cls._id.toString()] || [],
+      });
+      return acc;
+    }, {});
+
+    const hierarchy = yearDocs.map((year) => ({
+      ...year,
+      classes: classesByYear[year._id.toString()] || [],
+    }));
+
+    res.json({
+      hierarchy,
+      years: yearDocs,
+      classes: classDocs,
+      sections: sectionDocs,
+      unassignedClasses: classesByYear[UNASSIGNED] || [],
+      unassignedSections: sectionsByClass[UNASSIGNED] || [],
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
   }
 });
 

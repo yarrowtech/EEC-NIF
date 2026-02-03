@@ -1,8 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { BookOpen, Calendar, Layers, Plus, Edit3, Trash2, X, ChevronUp, ChevronDown, ChevronsUpDown, Download, FileSpreadsheet, Upload } from "lucide-react";
+import { BookOpen, Calendar, Layers, Plus, Edit3, Trash2, X, ChevronUp, ChevronDown, ChevronsUpDown } from "lucide-react";
 import Swal from "sweetalert2";
 import toast from "react-hot-toast";
-import * as XLSX from 'xlsx';
 
 const API_BASE = import.meta.env.VITE_API_URL;
 
@@ -11,7 +10,6 @@ const AcademicSetup = ({ setShowAdminHeader }) => {
   const [years, setYears] = useState([]);
   const [classes, setClasses] = useState([]);
   const [sections, setSections] = useState([]);
-  const [subjects, setSubjects] = useState([]);
   const [error, setError] = useState("");
 
   const [yearForm, setYearForm] = useState({
@@ -29,24 +27,14 @@ const AcademicSetup = ({ setShowAdminHeader }) => {
     name: "",
     classId: "",
   });
-  const [subjectForm, setSubjectForm] = useState({
-    name: "",
-    code: "",
-    classId: "",
-  });
-
   // Edit states for each entity type
   const [editingYear, setEditingYear] = useState(null);
   const [editingClass, setEditingClass] = useState(null);
   const [editingSection, setEditingSection] = useState(null);
-  const [editingSubject, setEditingSubject] = useState(null);
-
   // Search/filter states
   const [searchYear, setSearchYear] = useState("");
   const [searchClass, setSearchClass] = useState("");
   const [searchSection, setSearchSection] = useState("");
-  const [searchSubject, setSearchSubject] = useState("");
-
   // Loading states
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [deletingId, setDeletingId] = useState(null);
@@ -55,20 +43,16 @@ const AcademicSetup = ({ setShowAdminHeader }) => {
   const [yearSort, setYearSort] = useState({ field: 'name', order: 'asc' });
   const [classSort, setClassSort] = useState({ field: 'order', order: 'asc' });
   const [sectionSort, setSectionSort] = useState({ field: 'name', order: 'asc' });
-  const [subjectSort, setSubjectSort] = useState({ field: 'name', order: 'asc' });
-
   // Pagination states
   const [yearPage, setYearPage] = useState(1);
   const [classPage, setClassPage] = useState(1);
   const [sectionPage, setSectionPage] = useState(1);
-  const [subjectPage, setSubjectPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
 
   // Bulk selection states
   const [selectedYears, setSelectedYears] = useState([]);
   const [selectedClasses, setSelectedClasses] = useState([]);
   const [selectedSections, setSelectedSections] = useState([]);
-  const [selectedSubjects, setSelectedSubjects] = useState([]);
 
   const authHeaders = useMemo(() => {
     const token = localStorage.getItem("token");
@@ -107,70 +91,32 @@ const AcademicSetup = ({ setShowAdminHeader }) => {
     });
   }, [sections, searchSection, classes]);
 
-  const filteredSubjects = useMemo(() => {
-    if (!searchSubject.trim()) return subjects;
-    const query = searchSubject.toLowerCase();
-    return subjects.filter((s) => {
-      const className = classes.find((c) => c._id === s.classId)?.name || "";
-      return (
-        s.name.toLowerCase().includes(query) ||
-        s.code?.toLowerCase().includes(query) ||
-        className.toLowerCase().includes(query)
-      );
-    });
-  }, [subjects, searchSubject, classes]);
-
   const handleApiError = (err) => {
     console.error(err);
     setError("Unable to load academic data. Please retry.");
   };
 
-  const fetchYears = async () => {
-    const res = await fetch(`${API_BASE}/api/academic/years`, {
-      method: "GET",
-      headers: authHeaders,
-    });
-    if (!res.ok) throw new Error("Failed to load academic years");
-    const data = await res.json();
-    setYears(Array.isArray(data) ? data : []);
-  };
-
-  const fetchClasses = async () => {
-    const res = await fetch(`${API_BASE}/api/academic/classes`, {
-      method: "GET",
-      headers: authHeaders,
-    });
-    if (!res.ok) throw new Error("Failed to load classes");
-    const data = await res.json();
-    setClasses(Array.isArray(data) ? data : []);
-  };
-
-  const fetchSections = async () => {
-    const res = await fetch(`${API_BASE}/api/academic/sections`, {
-      method: "GET",
-      headers: authHeaders,
-    });
-    if (!res.ok) throw new Error("Failed to load sections");
-    const data = await res.json();
-    setSections(Array.isArray(data) ? data : []);
-  };
-
-  const fetchSubjects = async () => {
-    const res = await fetch(`${API_BASE}/api/academic/subjects`, {
-      method: "GET",
-      headers: authHeaders,
-    });
-    if (!res.ok) throw new Error("Failed to load subjects");
-    const data = await res.json();
-    setSubjects(Array.isArray(data) ? data : []);
+  const loadAcademicData = async () => {
+    try {
+      const res = await fetch(`${API_BASE}/api/academic/hierarchy`, {
+        method: "GET",
+        headers: authHeaders,
+      });
+      if (!res.ok) throw new Error("Failed to load academic setup");
+      const data = await res.json();
+      setYears(Array.isArray(data.years) ? data.years : []);
+      setClasses(Array.isArray(data.classes) ? data.classes : []);
+      setSections(Array.isArray(data.sections) ? data.sections : []);
+    } catch (err) {
+      handleApiError(err);
+      throw err;
+    }
   };
 
   useEffect(() => {
     setShowAdminHeader?.(false);
     setError("");
-    Promise.all([fetchYears(), fetchClasses(), fetchSections(), fetchSubjects()]).catch(
-      handleApiError
-    );
+    loadAcademicData().catch(handleApiError);
   }, [setShowAdminHeader]);
 
   const handleCreate = async (endpoint, payload, onSuccess) => {
@@ -191,7 +137,7 @@ const AcademicSetup = ({ setShowAdminHeader }) => {
   const submitYear = async (e) => {
     e.preventDefault();
     try {
-      await handleCreate("/api/academic/years", yearForm, fetchYears);
+      await handleCreate("/api/academic/years", yearForm, loadAcademicData);
       setYearForm({ name: "", startDate: "", endDate: "", isActive: false });
     } catch (err) {
       handleApiError(err);
@@ -201,7 +147,7 @@ const AcademicSetup = ({ setShowAdminHeader }) => {
   const submitClass = async (e) => {
     e.preventDefault();
     try {
-      await handleCreate("/api/academic/classes", classForm, fetchClasses);
+      await handleCreate("/api/academic/classes", classForm, loadAcademicData);
       setClassForm({ name: "", academicYearId: "", order: "" });
     } catch (err) {
       handleApiError(err);
@@ -215,18 +161,8 @@ const AcademicSetup = ({ setShowAdminHeader }) => {
       return;
     }
     try {
-      await handleCreate("/api/academic/sections", sectionForm, fetchSections);
+      await handleCreate("/api/academic/sections", sectionForm, loadAcademicData);
       setSectionForm({ name: "", classId: "" });
-    } catch (err) {
-      handleApiError(err);
-    }
-  };
-
-  const submitSubject = async (e) => {
-    e.preventDefault();
-    try {
-      await handleCreate("/api/academic/subjects", subjectForm, fetchSubjects);
-      setSubjectForm({ name: "", code: "", classId: "" });
     } catch (err) {
       handleApiError(err);
     }
@@ -271,7 +207,7 @@ const AcademicSetup = ({ setShowAdminHeader }) => {
         isActive: editingYear.isActive,
       },
       async () => {
-        await fetchYears();
+        await loadAcademicData();
         setEditingYear(null);
       }
     );
@@ -288,7 +224,7 @@ const AcademicSetup = ({ setShowAdminHeader }) => {
         order: editingClass.order,
       },
       async () => {
-        await fetchClasses();
+        await loadAcademicData();
         setEditingClass(null);
       }
     );
@@ -308,25 +244,8 @@ const AcademicSetup = ({ setShowAdminHeader }) => {
         classId: editingSection.classId,
       },
       async () => {
-        await fetchSections();
+        await loadAcademicData();
         setEditingSection(null);
-      }
-    );
-  };
-
-  const updateSubject = async (e) => {
-    e.preventDefault();
-    await handleUpdate(
-      "/api/academic/subjects",
-      editingSubject._id,
-      {
-        name: editingSubject.name,
-        code: editingSubject.code,
-        classId: editingSubject.classId,
-      },
-      async () => {
-        await fetchSubjects();
-        setEditingSubject(null);
       }
     );
   };
@@ -385,9 +304,7 @@ const AcademicSetup = ({ setShowAdminHeader }) => {
 
             Swal.fire({
               title: "Deleted!",
-              html: `${entityName} and ${result.deletedSections || 0} section(s), ${
-                result.deletedSubjects || 0
-              } subject(s) deleted.`,
+              html: `${entityName} and ${result.deletedSections || 0} section(s) deleted.`,
               icon: "success",
               timer: 3000,
             });
@@ -421,12 +338,10 @@ const AcademicSetup = ({ setShowAdminHeader }) => {
 
   // Delete handlers for each entity
   const deleteYear = (id) =>
-    handleDelete("/api/academic/years", id, "academic year", fetchYears);
-  const deleteClass = (id) => handleDelete("/api/academic/classes", id, "class", fetchClasses);
+    handleDelete("/api/academic/years", id, "academic year", loadAcademicData);
+  const deleteClass = (id) => handleDelete("/api/academic/classes", id, "class", loadAcademicData);
   const deleteSection = (id) =>
-    handleDelete("/api/academic/sections", id, "section", fetchSections);
-  const deleteSubject = (id) =>
-    handleDelete("/api/academic/subjects", id, "subject", fetchSubjects);
+    handleDelete("/api/academic/sections", id, "section", loadAcademicData);
 
   // Sorting utility function
   const sortData = (data, sortConfig) => {
@@ -473,10 +388,6 @@ const AcademicSetup = ({ setShowAdminHeader }) => {
     return sortData(filteredSections, sectionSort);
   }, [filteredSections, sectionSort]);
 
-  const sortedAndFilteredSubjects = useMemo(() => {
-    return sortData(filteredSubjects, subjectSort);
-  }, [filteredSubjects, subjectSort]);
-
   // Paginated data
   const paginatedYears = useMemo(() => {
     const start = (yearPage - 1) * itemsPerPage;
@@ -493,25 +404,18 @@ const AcademicSetup = ({ setShowAdminHeader }) => {
     return sortedAndFilteredSections.slice(start, start + itemsPerPage);
   }, [sortedAndFilteredSections, sectionPage, itemsPerPage]);
 
-  const paginatedSubjects = useMemo(() => {
-    const start = (subjectPage - 1) * itemsPerPage;
-    return sortedAndFilteredSubjects.slice(start, start + itemsPerPage);
-  }, [sortedAndFilteredSubjects, subjectPage, itemsPerPage]);
-
   // Bulk selection handlers
   const handleSelectAll = (entityType, items) => {
     const setters = {
       years: setSelectedYears,
       classes: setSelectedClasses,
       sections: setSelectedSections,
-      subjects: setSelectedSubjects,
     };
 
     const currentSelected = {
       years: selectedYears,
       classes: selectedClasses,
       sections: selectedSections,
-      subjects: selectedSubjects,
     }[entityType];
 
     if (currentSelected.length === items.length && items.length > 0) {
@@ -526,14 +430,12 @@ const AcademicSetup = ({ setShowAdminHeader }) => {
       years: setSelectedYears,
       classes: setSelectedClasses,
       sections: setSelectedSections,
-      subjects: setSelectedSubjects,
     };
 
     const currentSelected = {
       years: selectedYears,
       classes: selectedClasses,
       sections: selectedSections,
-      subjects: selectedSubjects,
     }[entityType];
 
     if (currentSelected.includes(id)) {
@@ -549,7 +451,6 @@ const AcademicSetup = ({ setShowAdminHeader }) => {
       years: selectedYears,
       classes: selectedClasses,
       sections: selectedSections,
-      subjects: selectedSubjects,
     }[entityType];
 
     if (selected.length === 0) return;
@@ -581,7 +482,6 @@ const AcademicSetup = ({ setShowAdminHeader }) => {
           years: '/api/academic/years',
           classes: '/api/academic/classes',
           sections: '/api/academic/sections',
-          subjects: '/api/academic/subjects',
         }[entityType];
 
         const res = await fetch(`${API_BASE}${endpoint}/${id}?cascade=true`, {
@@ -605,12 +505,11 @@ const AcademicSetup = ({ setShowAdminHeader }) => {
       }
     }
 
-    await Promise.all([fetchYears(), fetchClasses(), fetchSections(), fetchSubjects()]);
+    await loadAcademicData();
 
     setSelectedYears([]);
     setSelectedClasses([]);
     setSelectedSections([]);
-    setSelectedSubjects([]);
 
     Swal.fire({
       title: 'Completed',
@@ -621,591 +520,7 @@ const AcademicSetup = ({ setShowAdminHeader }) => {
     });
   };
 
-  // Export handlers
-  const exportToCSV = (data, filename, columns) => {
-    if (data.length === 0) {
-      toast.error('No data to export');
-      return;
-    }
-
-    const headers = columns.map(col => col.label).join(',');
-    const rows = data.map(item => {
-      return columns.map(col => {
-        let value = col.accessor(item);
-        if (value instanceof Date) {
-          value = value.toLocaleDateString();
-        }
-        if (typeof value === 'string' && (value.includes(',') || value.includes('"'))) {
-          value = `"${value.replace(/"/g, '""')}"`;
-        }
-        return value || '';
-      }).join(',');
-    });
-
-    const csv = [headers, ...rows].join('\n');
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement('a');
-    link.href = URL.createObjectURL(blob);
-    link.download = `${filename}_${new Date().toISOString().split('T')[0]}.csv`;
-    link.click();
-
-    toast.success(`Exported ${data.length} records to CSV`);
-  };
-
-  const exportToExcel = (data, filename, columns) => {
-    if (data.length === 0) {
-      toast.error('No data to export');
-      return;
-    }
-
-    const excelData = data.map(item => {
-      const row = {};
-      columns.forEach(col => {
-        row[col.label] = col.accessor(item);
-      });
-      return row;
-    });
-
-    const ws = XLSX.utils.json_to_sheet(excelData);
-    ws['!cols'] = columns.map(col => ({ wch: col.width || 15 }));
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'Data');
-    XLSX.writeFile(wb, `${filename}_${new Date().toISOString().split('T')[0]}.xlsx`);
-
-    toast.success(`Exported ${data.length} records to Excel`);
-  };
-
-  // Export column configurations
-  const yearColumns = [
-    { label: 'Name', accessor: (y) => y.name, width: 20 },
-    { label: 'Start Date', accessor: (y) => y.startDate ? new Date(y.startDate).toLocaleDateString() : '', width: 15 },
-    { label: 'End Date', accessor: (y) => y.endDate ? new Date(y.endDate).toLocaleDateString() : '', width: 15 },
-    { label: 'Active', accessor: (y) => y.isActive ? 'Yes' : 'No', width: 10 },
-  ];
-
-  const classColumns = [
-    { label: 'Name', accessor: (c) => c.name, width: 20 },
-    { label: 'Order', accessor: (c) => c.order ?? 0, width: 10 },
-    { label: 'Academic Year', accessor: (c) => years.find(y => y._id === c.academicYearId)?.name || '', width: 20 },
-  ];
-
-  const sectionColumns = [
-    { label: 'Name', accessor: (s) => s.name, width: 20 },
-    { label: 'Class', accessor: (s) => classes.find(c => c._id === s.classId)?.name || '', width: 20 },
-  ];
-
-  const subjectColumns = [
-    { label: 'Name', accessor: (s) => s.name, width: 25 },
-    { label: 'Code', accessor: (s) => s.code || '', width: 15 },
-    { label: 'Class', accessor: (s) => classes.find(c => c._id === s.classId)?.name || 'All classes', width: 20 },
-  ];
-
   // Bulk import handlers
-  const downloadYearTemplate = () => {
-    const template = [
-      { Name: '2024-2025', 'Start Date': '2024-04-01', 'End Date': '2025-03-31', Active: 'Yes' },
-      { Name: '2025-2026', 'Start Date': '2025-04-01', 'End Date': '2026-03-31', Active: 'No' },
-    ];
-    const ws = XLSX.utils.json_to_sheet(template);
-    ws['!cols'] = [{ wch: 20 }, { wch: 15 }, { wch: 15 }, { wch: 10 }];
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'Years Template');
-    XLSX.writeFile(wb, 'academic_years_template.xlsx');
-    toast.success('Template downloaded');
-  };
-
-  const downloadClassTemplate = () => {
-    const template = [
-      { Name: 'Grade 1', 'Academic Year': '2024-2025', Order: 1 },
-      { Name: 'Grade 2', 'Academic Year': '2024-2025', Order: 2 },
-      { Name: 'Grade 3', 'Academic Year': '', Order: 3 },
-    ];
-    const ws = XLSX.utils.json_to_sheet(template);
-    ws['!cols'] = [{ wch: 20 }, { wch: 20 }, { wch: 10 }];
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'Classes Template');
-    XLSX.writeFile(wb, 'classes_template.xlsx');
-    toast.success('Template downloaded');
-  };
-
-  const downloadSectionTemplate = () => {
-    const template = [
-      { Name: 'A', 'Class Name': 'Grade 1' },
-      { Name: 'B', 'Class Name': 'Grade 1' },
-      { Name: 'A', 'Class Name': 'Grade 2' },
-    ];
-    const ws = XLSX.utils.json_to_sheet(template);
-    ws['!cols'] = [{ wch: 20 }, { wch: 20 }];
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'Sections Template');
-    XLSX.writeFile(wb, 'sections_template.xlsx');
-    toast.success('Template downloaded');
-  };
-
-  const downloadSubjectTemplate = () => {
-    const template = [
-      { Name: 'Mathematics', Code: 'MATH101', 'Class Name': 'Grade 1' },
-      { Name: 'English', Code: 'ENG101', 'Class Name': 'Grade 1' },
-      { Name: 'Physical Education', Code: 'PE101', 'Class Name': '' },
-    ];
-    const ws = XLSX.utils.json_to_sheet(template);
-    ws['!cols'] = [{ wch: 25 }, { wch: 15 }, { wch: 20 }];
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'Subjects Template');
-    XLSX.writeFile(wb, 'subjects_template.xlsx');
-    toast.success('Template downloaded');
-  };
-
-  const handleYearImport = async (event) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-
-    try {
-      const data = await file.arrayBuffer();
-      const workbook = XLSX.read(data);
-      const worksheet = workbook.Sheets[workbook.SheetNames[0]];
-      const jsonData = XLSX.utils.sheet_to_json(worksheet);
-
-      if (jsonData.length === 0) {
-        toast.error('File is empty');
-        return;
-      }
-
-      let successCount = 0;
-      let failCount = 0;
-      const errors = [];
-
-      Swal.fire({
-        title: 'Importing...',
-        html: `Imported: <b>0</b> / ${jsonData.length}`,
-        allowOutsideClick: false,
-        didOpen: () => Swal.showLoading(),
-      });
-
-      for (let i = 0; i < jsonData.length; i++) {
-        const row = jsonData[i];
-        try {
-          const yearName = row['Name'] || row['name'];
-          const startDate = row['Start Date'] || row['startDate'] || '';
-          const endDate = row['End Date'] || row['endDate'] || '';
-          const active = row['Active'] || row['active'] || '';
-
-          if (!yearName?.trim()) {
-            errors.push(`Row ${i + 1}: Year name is required`);
-            failCount++;
-            continue;
-          }
-
-          const isActive = String(active).toLowerCase() === 'yes' || String(active).toLowerCase() === 'true';
-
-          const res = await fetch(`${API_BASE}/api/academic/years`, {
-            method: 'POST',
-            headers: authHeaders,
-            body: JSON.stringify({
-              name: String(yearName).trim(),
-              startDate: startDate || undefined,
-              endDate: endDate || undefined,
-              isActive,
-            }),
-          });
-
-          if (res.ok) {
-            successCount++;
-          } else {
-            const errData = await res.json().catch(() => ({}));
-            errors.push(`Row ${i + 1}: ${errData.error || 'Failed to create'}`);
-            failCount++;
-          }
-
-          Swal.update({
-            html: `Imported: <b>${successCount}</b> / ${jsonData.length}${
-              failCount > 0 ? ` (${failCount} failed)` : ''
-            }`,
-          });
-        } catch (err) {
-          errors.push(`Row ${i + 1}: ${err.message}`);
-          failCount++;
-        }
-      }
-
-      await fetchYears();
-      event.target.value = '';
-
-      if (errors.length > 0) {
-        Swal.fire({
-          title: 'Import Completed with Errors',
-          html: `
-            <p>Successfully imported: <b>${successCount}</b></p>
-            <p>Failed: <b>${failCount}</b></p>
-            <div style="max-height: 200px; overflow-y: auto; text-align: left; margin-top: 10px;">
-              <p><b>Errors:</b></p>
-              <ul style="font-size: 12px;">
-                ${errors.map(e => `<li>${e}</li>`).join('')}
-              </ul>
-            </div>
-          `,
-          icon: successCount > 0 ? 'warning' : 'error',
-        });
-      } else {
-        Swal.fire({
-          title: 'Import Successful',
-          text: `Successfully imported ${successCount} academic year(s)`,
-          icon: 'success',
-          timer: 2000,
-        });
-      }
-    } catch (err) {
-      console.error(err);
-      Swal.fire({
-        title: 'Import Failed',
-        text: err.message || 'Failed to read file',
-        icon: 'error',
-      });
-    }
-  };
-
-  const handleClassImport = async (event) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-
-    try {
-      const data = await file.arrayBuffer();
-      const workbook = XLSX.read(data);
-      const worksheet = workbook.Sheets[workbook.SheetNames[0]];
-      const jsonData = XLSX.utils.sheet_to_json(worksheet);
-
-      if (jsonData.length === 0) {
-        toast.error('File is empty');
-        return;
-      }
-
-      let successCount = 0;
-      let failCount = 0;
-      const errors = [];
-
-      Swal.fire({
-        title: 'Importing...',
-        html: `Imported: <b>0</b> / ${jsonData.length}`,
-        allowOutsideClick: false,
-        didOpen: () => Swal.showLoading(),
-      });
-
-      for (let i = 0; i < jsonData.length; i++) {
-        const row = jsonData[i];
-        try {
-          const className = row['Name'] || row['name'] || row['Class Name'];
-          const yearName = row['Academic Year'] || row['academicYear'] || '';
-          const order = row['Order'] || row['order'] || 0;
-
-          if (!className?.trim()) {
-            errors.push(`Row ${i + 1}: Class name is required`);
-            failCount++;
-            continue;
-          }
-
-          let academicYearId = '';
-          if (yearName) {
-            const year = years.find(y => y.name.toLowerCase() === yearName.toLowerCase());
-            if (year) {
-              academicYearId = year._id;
-            }
-          }
-
-          const res = await fetch(`${API_BASE}/api/academic/classes`, {
-            method: 'POST',
-            headers: authHeaders,
-            body: JSON.stringify({
-              name: String(className).trim(),
-              academicYearId: academicYearId || undefined,
-              order: Number(order) || 0,
-            }),
-          });
-
-          if (res.ok) {
-            successCount++;
-          } else {
-            const errData = await res.json().catch(() => ({}));
-            errors.push(`Row ${i + 1}: ${errData.error || 'Failed to create'}`);
-            failCount++;
-          }
-
-          Swal.update({
-            html: `Imported: <b>${successCount}</b> / ${jsonData.length}${
-              failCount > 0 ? ` (${failCount} failed)` : ''
-            }`,
-          });
-        } catch (err) {
-          errors.push(`Row ${i + 1}: ${err.message}`);
-          failCount++;
-        }
-      }
-
-      await fetchClasses();
-      event.target.value = '';
-
-      if (errors.length > 0) {
-        Swal.fire({
-          title: 'Import Completed with Errors',
-          html: `
-            <p>Successfully imported: <b>${successCount}</b></p>
-            <p>Failed: <b>${failCount}</b></p>
-            <div style="max-height: 200px; overflow-y: auto; text-align: left; margin-top: 10px;">
-              <p><b>Errors:</b></p>
-              <ul style="font-size: 12px;">
-                ${errors.map(e => `<li>${e}</li>`).join('')}
-              </ul>
-            </div>
-          `,
-          icon: successCount > 0 ? 'warning' : 'error',
-        });
-      } else {
-        Swal.fire({
-          title: 'Import Successful',
-          text: `Successfully imported ${successCount} class(es)`,
-          icon: 'success',
-          timer: 2000,
-        });
-      }
-    } catch (err) {
-      console.error(err);
-      Swal.fire({
-        title: 'Import Failed',
-        text: err.message || 'Failed to read file',
-        icon: 'error',
-      });
-    }
-  };
-
-  const handleSectionImport = async (event) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-
-    try {
-      const data = await file.arrayBuffer();
-      const workbook = XLSX.read(data);
-      const worksheet = workbook.Sheets[workbook.SheetNames[0]];
-      const jsonData = XLSX.utils.sheet_to_json(worksheet);
-
-      if (jsonData.length === 0) {
-        toast.error('File is empty');
-        return;
-      }
-
-      let successCount = 0;
-      let failCount = 0;
-      const errors = [];
-
-      Swal.fire({
-        title: 'Importing...',
-        html: `Imported: <b>0</b> / ${jsonData.length}`,
-        allowOutsideClick: false,
-        didOpen: () => Swal.showLoading(),
-      });
-
-      for (let i = 0; i < jsonData.length; i++) {
-        const row = jsonData[i];
-        try {
-          const sectionName = row['Name'] || row['name'] || row['Section Name'];
-          const className = row['Class Name'] || row['className'] || row['Class'];
-
-          if (!sectionName?.trim()) {
-            errors.push(`Row ${i + 1}: Section name is required`);
-            failCount++;
-            continue;
-          }
-
-          if (!className?.trim()) {
-            errors.push(`Row ${i + 1}: Class name is required`);
-            failCount++;
-            continue;
-          }
-
-          const classObj = classes.find(c => c.name.toLowerCase() === String(className).toLowerCase().trim());
-          if (!classObj) {
-            errors.push(`Row ${i + 1}: Class "${className}" not found`);
-            failCount++;
-            continue;
-          }
-
-          const res = await fetch(`${API_BASE}/api/academic/sections`, {
-            method: 'POST',
-            headers: authHeaders,
-            body: JSON.stringify({
-              name: String(sectionName).trim(),
-              classId: classObj._id,
-            }),
-          });
-
-          if (res.ok) {
-            successCount++;
-          } else {
-            const errData = await res.json().catch(() => ({}));
-            errors.push(`Row ${i + 1}: ${errData.error || 'Failed to create'}`);
-            failCount++;
-          }
-
-          Swal.update({
-            html: `Imported: <b>${successCount}</b> / ${jsonData.length}${
-              failCount > 0 ? ` (${failCount} failed)` : ''
-            }`,
-          });
-        } catch (err) {
-          errors.push(`Row ${i + 1}: ${err.message}`);
-          failCount++;
-        }
-      }
-
-      await fetchSections();
-      event.target.value = '';
-
-      if (errors.length > 0) {
-        Swal.fire({
-          title: 'Import Completed with Errors',
-          html: `
-            <p>Successfully imported: <b>${successCount}</b></p>
-            <p>Failed: <b>${failCount}</b></p>
-            <div style="max-height: 200px; overflow-y: auto; text-align: left; margin-top: 10px;">
-              <p><b>Errors:</b></p>
-              <ul style="font-size: 12px;">
-                ${errors.map(e => `<li>${e}</li>`).join('')}
-              </ul>
-            </div>
-          `,
-          icon: successCount > 0 ? 'warning' : 'error',
-        });
-      } else {
-        Swal.fire({
-          title: 'Import Successful',
-          text: `Successfully imported ${successCount} section(s)`,
-          icon: 'success',
-          timer: 2000,
-        });
-      }
-    } catch (err) {
-      console.error(err);
-      Swal.fire({
-        title: 'Import Failed',
-        text: err.message || 'Failed to read file',
-        icon: 'error',
-      });
-    }
-  };
-
-  const handleSubjectImport = async (event) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-
-    try {
-      const data = await file.arrayBuffer();
-      const workbook = XLSX.read(data);
-      const worksheet = workbook.Sheets[workbook.SheetNames[0]];
-      const jsonData = XLSX.utils.sheet_to_json(worksheet);
-
-      if (jsonData.length === 0) {
-        toast.error('File is empty');
-        return;
-      }
-
-      let successCount = 0;
-      let failCount = 0;
-      const errors = [];
-
-      Swal.fire({
-        title: 'Importing...',
-        html: `Imported: <b>0</b> / ${jsonData.length}`,
-        allowOutsideClick: false,
-        didOpen: () => Swal.showLoading(),
-      });
-
-      for (let i = 0; i < jsonData.length; i++) {
-        const row = jsonData[i];
-        try {
-          const subjectName = row['Name'] || row['name'] || row['Subject Name'];
-          const subjectCode = row['Code'] || row['code'] || '';
-          const className = row['Class Name'] || row['className'] || row['Class'] || '';
-
-          if (!subjectName?.trim()) {
-            errors.push(`Row ${i + 1}: Subject name is required`);
-            failCount++;
-            continue;
-          }
-
-          let classId = '';
-          if (className?.trim()) {
-            const classObj = classes.find(c => c.name.toLowerCase() === String(className).toLowerCase().trim());
-            if (classObj) {
-              classId = classObj._id;
-            } else {
-              errors.push(`Row ${i + 1}: Class "${className}" not found`);
-              failCount++;
-              continue;
-            }
-          }
-
-          const res = await fetch(`${API_BASE}/api/academic/subjects`, {
-            method: 'POST',
-            headers: authHeaders,
-            body: JSON.stringify({
-              name: String(subjectName).trim(),
-              code: subjectCode ? String(subjectCode).trim() : undefined,
-              classId: classId || undefined,
-            }),
-          });
-
-          if (res.ok) {
-            successCount++;
-          } else {
-            const errData = await res.json().catch(() => ({}));
-            errors.push(`Row ${i + 1}: ${errData.error || 'Failed to create'}`);
-            failCount++;
-          }
-
-          Swal.update({
-            html: `Imported: <b>${successCount}</b> / ${jsonData.length}${
-              failCount > 0 ? ` (${failCount} failed)` : ''
-            }`,
-          });
-        } catch (err) {
-          errors.push(`Row ${i + 1}: ${err.message}`);
-          failCount++;
-        }
-      }
-
-      await fetchSubjects();
-      event.target.value = '';
-
-      if (errors.length > 0) {
-        Swal.fire({
-          title: 'Import Completed with Errors',
-          html: `
-            <p>Successfully imported: <b>${successCount}</b></p>
-            <p>Failed: <b>${failCount}</b></p>
-            <div style="max-height: 200px; overflow-y: auto; text-align: left; margin-top: 10px;">
-              <p><b>Errors:</b></p>
-              <ul style="font-size: 12px;">
-                ${errors.map(e => `<li>${e}</li>`).join('')}
-              </ul>
-            </div>
-          `,
-          icon: successCount > 0 ? 'warning' : 'error',
-        });
-      } else {
-        Swal.fire({
-          title: 'Import Successful',
-          text: `Successfully imported ${successCount} subject(s)`,
-          icon: 'success',
-          timer: 2000,
-        });
-      }
-    } catch (err) {
-      console.error(err);
-      Swal.fire({
-        title: 'Import Failed',
-        text: err.message || 'Failed to read file',
-        icon: 'error',
-      });
-    }
-  };
 
   const tabButton = (key, label, Icon) => (
     <button
@@ -1395,14 +710,13 @@ const AcademicSetup = ({ setShowAdminHeader }) => {
           <div>
             <h1 className="text-3xl font-bold text-yellow-700">Academic Setup</h1>
             <p className="text-gray-600 mt-2">
-              Manage academic years, classes, sections, and subjects.
+              Manage academic years, classes, and sections.
             </p>
           </div>
           <div className="flex flex-wrap gap-3">
             {tabButton("years", "Academic Years", Calendar)}
             {tabButton("classes", "Classes", Layers)}
             {tabButton("sections", "Sections", BookOpen)}
-            {tabButton("subjects", "Subjects", BookOpen)}
           </div>
         </div>
 
@@ -1475,41 +789,6 @@ const AcademicSetup = ({ setShowAdminHeader }) => {
 
             <div className="bg-white rounded-xl border border-gray-200 p-6">
               <h2 className="text-xl font-semibold text-gray-800 mb-4">Academic Years</h2>
-
-              {/* Export & Import Buttons */}
-              <div className="flex flex-wrap gap-2 mb-4">
-                <button
-                  onClick={() => exportToCSV(sortedAndFilteredYears, 'academic_years', yearColumns)}
-                  className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 flex items-center gap-2 text-sm"
-                >
-                  <Download className="w-4 h-4" />
-                  Export CSV
-                </button>
-                <button
-                  onClick={() => exportToExcel(sortedAndFilteredYears, 'academic_years', yearColumns)}
-                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2 text-sm"
-                >
-                  <FileSpreadsheet className="w-4 h-4" />
-                  Export Excel
-                </button>
-                <label className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 flex items-center gap-2 text-sm cursor-pointer">
-                  <Upload className="w-4 h-4" />
-                  Import Excel
-                  <input
-                    type="file"
-                    accept=".xlsx,.xls,.csv"
-                    onChange={handleYearImport}
-                    className="hidden"
-                  />
-                </label>
-                <button
-                  onClick={downloadYearTemplate}
-                  className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 flex items-center gap-2 text-sm"
-                >
-                  <Download className="w-4 h-4" />
-                  Template
-                </button>
-              </div>
 
               {/* Bulk Action Bar */}
               {selectedYears.length > 0 && (
@@ -1708,40 +987,6 @@ const AcademicSetup = ({ setShowAdminHeader }) => {
             <div className="bg-white rounded-xl border border-gray-200 p-6">
               <h2 className="text-xl font-semibold text-gray-800 mb-4">Classes</h2>
 
-              <div className="flex flex-wrap gap-2 mb-4">
-                <button
-                  onClick={() => exportToCSV(sortedAndFilteredClasses, 'classes', classColumns)}
-                  className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 flex items-center gap-2 text-sm"
-                >
-                  <Download className="w-4 h-4" />
-                  Export CSV
-                </button>
-                <button
-                  onClick={() => exportToExcel(sortedAndFilteredClasses, 'classes', classColumns)}
-                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2 text-sm"
-                >
-                  <FileSpreadsheet className="w-4 h-4" />
-                  Export Excel
-                </button>
-                <label className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 flex items-center gap-2 text-sm cursor-pointer">
-                  <Upload className="w-4 h-4" />
-                  Import Excel
-                  <input
-                    type="file"
-                    accept=".xlsx,.xls,.csv"
-                    onChange={handleClassImport}
-                    className="hidden"
-                  />
-                </label>
-                <button
-                  onClick={downloadClassTemplate}
-                  className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 flex items-center gap-2 text-sm"
-                >
-                  <Download className="w-4 h-4" />
-                  Template
-                </button>
-              </div>
-
               {selectedClasses.length > 0 && (
                 <div className="bg-yellow-50 border border-yellow-200 rounded-lg px-4 py-3 mb-4 flex items-center justify-between">
                   <span className="text-sm font-medium text-gray-700">
@@ -1908,26 +1153,6 @@ const AcademicSetup = ({ setShowAdminHeader }) => {
             <div className="bg-white rounded-xl border border-gray-200 p-6">
               <h2 className="text-xl font-semibold text-gray-800 mb-4">Sections</h2>
 
-              <div className="flex flex-wrap gap-2 mb-4">
-                <label className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 flex items-center gap-2 text-sm cursor-pointer">
-                  <Upload className="w-4 h-4" />
-                  Import Excel
-                  <input
-                    type="file"
-                    accept=".xlsx,.xls,.csv"
-                    onChange={handleSectionImport}
-                    className="hidden"
-                  />
-                </label>
-                <button
-                  onClick={downloadSectionTemplate}
-                  className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 flex items-center gap-2 text-sm"
-                >
-                  <Download className="w-4 h-4" />
-                  Template
-                </button>
-              </div>
-
               <SearchInput
                 value={searchSection}
                 onChange={setSearchSection}
@@ -1975,129 +1200,8 @@ const AcademicSetup = ({ setShowAdminHeader }) => {
           </div>
         )}
 
-        {activeTab === "subjects" && (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-            <form onSubmit={submitSubject} className="bg-white rounded-xl border border-gray-200 p-6">
-              <h2 className="text-xl font-semibold text-gray-800 mb-4">Add Subject</h2>
-              <div className="space-y-4">
-                <div>
-                  <label className="text-sm font-medium text-gray-700">Subject Name</label>
-                  <input
-                    type="text"
-                    value={subjectForm.name}
-                    onChange={(e) => setSubjectForm((prev) => ({ ...prev, name: e.target.value }))}
-                    className="mt-2 w-full border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-yellow-500"
-                    placeholder="Mathematics"
-                    required
-                  />
-                </div>
-                <div>
-                  <label className="text-sm font-medium text-gray-700">Subject Code</label>
-                  <input
-                    type="text"
-                    value={subjectForm.code}
-                    onChange={(e) => setSubjectForm((prev) => ({ ...prev, code: e.target.value }))}
-                    className="mt-2 w-full border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-yellow-500"
-                    placeholder="MATH101"
-                  />
-                </div>
-                <div>
-                  <label className="text-sm font-medium text-gray-700">Class (optional)</label>
-                  <select
-                    value={subjectForm.classId}
-                    onChange={(e) =>
-                      setSubjectForm((prev) => ({ ...prev, classId: e.target.value }))
-                    }
-                    className="mt-2 w-full border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-yellow-500"
-                  >
-                    <option value="">All classes</option>
-                    {classes.map((cls) => (
-                      <option key={cls._id} value={cls._id}>
-                        {cls.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <button
-                  type="submit"
-                  className="w-full bg-yellow-500 text-white py-2 rounded-lg hover:bg-yellow-600 flex items-center justify-center gap-2"
-                >
-                  <Plus className="w-4 h-4" />
-                  Add Subject
-                </button>
-              </div>
-            </form>
 
-            <div className="bg-white rounded-xl border border-gray-200 p-6">
-              <h2 className="text-xl font-semibold text-gray-800 mb-4">Subjects</h2>
 
-              <div className="flex flex-wrap gap-2 mb-4">
-                <label className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 flex items-center gap-2 text-sm cursor-pointer">
-                  <Upload className="w-4 h-4" />
-                  Import Excel
-                  <input
-                    type="file"
-                    accept=".xlsx,.xls,.csv"
-                    onChange={handleSubjectImport}
-                    className="hidden"
-                  />
-                </label>
-                <button
-                  onClick={downloadSubjectTemplate}
-                  className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 flex items-center gap-2 text-sm"
-                >
-                  <Download className="w-4 h-4" />
-                  Template
-                </button>
-              </div>
-
-              <SearchInput
-                value={searchSubject}
-                onChange={setSearchSubject}
-                placeholder="Search subjects..."
-              />
-
-              <div className="space-y-3">
-                {filteredSubjects.map((subject) => (
-                  <div
-                    key={subject._id}
-                    className="flex items-center justify-between rounded-lg border border-gray-100 px-4 py-3 hover:bg-gray-50"
-                  >
-                    <div className="flex-1">
-                      <p className="font-semibold text-gray-900">{subject.name}</p>
-                      <p className="text-xs text-gray-500">
-                        {subject.code || "No code"} •{" "}
-                        {classes.find((cls) => cls._id === subject.classId)?.name || "All classes"}
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <button
-                        onClick={() => setEditingSubject(subject)}
-                        className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition"
-                        title="Edit"
-                      >
-                        <Edit3 className="w-4 h-4" />
-                      </button>
-                      <button
-                        onClick={() => deleteSubject(subject._id)}
-                        disabled={deletingId === subject._id}
-                        className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition disabled:opacity-50"
-                        title="Delete"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </div>
-                  </div>
-                ))}
-                {filteredSubjects.length === 0 && (
-                  <p className="text-sm text-gray-500">
-                    {searchSubject ? "No matching subjects found." : "No subjects yet."}
-                  </p>
-                )}
-              </div>
-            </div>
-          </div>
-        )}
 
         {/* Edit Year Modal */}
         <EditModal
@@ -2247,58 +1351,7 @@ const AcademicSetup = ({ setShowAdminHeader }) => {
           </div>
         </EditModal>
 
-        {/* Edit Subject Modal */}
-        <EditModal
-          isOpen={editingSubject !== null}
-          onClose={() => setEditingSubject(null)}
-          title="Edit Subject"
-          onSubmit={updateSubject}
-          isSubmitting={isSubmitting}
-        >
-          <div className="space-y-4">
-            <div>
-              <label className="text-sm font-medium text-gray-700">Subject Name</label>
-              <input
-                type="text"
-                value={editingSubject?.name || ""}
-                onChange={(e) =>
-                  setEditingSubject((prev) => ({ ...prev, name: e.target.value }))
-                }
-                className="mt-2 w-full border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-yellow-500"
-                required
-              />
-            </div>
-            <div>
-              <label className="text-sm font-medium text-gray-700">Subject Code</label>
-              <input
-                type="text"
-                value={editingSubject?.code || ""}
-                onChange={(e) =>
-                  setEditingSubject((prev) => ({ ...prev, code: e.target.value }))
-                }
-                className="mt-2 w-full border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-yellow-500"
-                placeholder="MATH101"
-              />
-            </div>
-            <div>
-              <label className="text-sm font-medium text-gray-700">Class (optional)</label>
-              <select
-                value={editingSubject?.classId || ""}
-                onChange={(e) =>
-                  setEditingSubject((prev) => ({ ...prev, classId: e.target.value }))
-                }
-                className="mt-2 w-full border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-yellow-500"
-              >
-                <option value="">All classes</option>
-                {classes.map((cls) => (
-                  <option key={cls._id} value={cls._id}>
-                    {cls.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
-        </EditModal>
+
       </div>
     </div>
   );
