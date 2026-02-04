@@ -8,6 +8,8 @@ const ParentUser = require('../models/ParentUser');
 const StaffUser = require('../models/StaffUser');
 const Principal = require('../models/Principal');
 const Admin = require('../models/Admin');
+const TeacherLeave = require('../models/TeacherLeave');
+const TeacherExpense = require('../models/TeacherExpense');
 const { generatePassword } = require('../utils/generator');
 const {
   getNextStudentSequence,
@@ -707,6 +709,179 @@ router.get("/dashboard-stats", adminAuth, async (req, res) => {
     });
   } catch (err) {
     res.status(500).json({ error: err.message });
+  }
+});
+
+router.get('/teacher-leaves', adminAuth, async (req, res) => {
+  // #swagger.tags = ['Admin Users']
+  try {
+    const filter = buildScopedFilter(req);
+    const query = {};
+    if (filter.schoolId) query.schoolId = filter.schoolId;
+    if (filter.campusId) query.campusId = filter.campusId;
+    if (req.query?.status) query.status = String(req.query.status).trim();
+    if (req.query?.teacherId && mongoose.isValidObjectId(req.query.teacherId)) {
+      query.teacherId = req.query.teacherId;
+    }
+
+    const leaves = await TeacherLeave.find(query).sort({ createdAt: -1 }).lean();
+    res.json({
+      leaves: leaves.map((leave) => ({
+        id: leave._id,
+        schoolId: leave.schoolId,
+        campusId: leave.campusId || null,
+        teacherId: leave.teacherId,
+        teacherName: leave.teacherName || '',
+        type: leave.type,
+        startDate: leave.startDate,
+        endDate: leave.endDate,
+        reason: leave.reason || '',
+        status: leave.status,
+        reviewedAt: leave.reviewedAt || null,
+        adminNote: leave.adminNote || '',
+        createdAt: leave.createdAt,
+      })),
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message || 'Unable to load teacher leaves' });
+  }
+});
+
+router.patch('/teacher-leaves/:id/status', adminAuth, async (req, res) => {
+  // #swagger.tags = ['Admin Users']
+  try {
+    const { status, adminNote } = req.body || {};
+    if (!['Approved', 'Rejected', 'Pending'].includes(String(status || ''))) {
+      return res.status(400).json({ error: 'Invalid status' });
+    }
+    if (!mongoose.isValidObjectId(req.params.id)) {
+      return res.status(400).json({ error: 'Invalid leave request id' });
+    }
+
+    const scope = buildScopedFilter(req);
+    const query = { _id: req.params.id };
+    if (scope.schoolId) query.schoolId = scope.schoolId;
+    if (scope.campusId) query.campusId = scope.campusId;
+
+    const updated = await TeacherLeave.findOneAndUpdate(
+      query,
+      {
+        $set: {
+          status,
+          adminNote: String(adminNote || '').trim(),
+          reviewedBy: req.admin?.id || null,
+          reviewedAt: new Date(),
+        },
+      },
+      { new: true, runValidators: true }
+    ).lean();
+
+    if (!updated) {
+      return res.status(404).json({ error: 'Leave request not found for this school/campus' });
+    }
+
+    res.json({
+      message: 'Leave status updated',
+      leave: {
+        id: updated._id,
+        teacherId: updated.teacherId,
+        teacherName: updated.teacherName || '',
+        type: updated.type,
+        startDate: updated.startDate,
+        endDate: updated.endDate,
+        status: updated.status,
+        adminNote: updated.adminNote || '',
+      },
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message || 'Unable to update leave status' });
+  }
+});
+
+router.get('/teacher-expenses', adminAuth, async (req, res) => {
+  // #swagger.tags = ['Admin Users']
+  try {
+    const filter = buildScopedFilter(req);
+    const query = {};
+    if (filter.schoolId) query.schoolId = filter.schoolId;
+    if (filter.campusId) query.campusId = filter.campusId;
+    if (req.query?.status) query.status = String(req.query.status).trim();
+    if (req.query?.teacherId && mongoose.isValidObjectId(req.query.teacherId)) {
+      query.teacherId = req.query.teacherId;
+    }
+
+    const expenses = await TeacherExpense.find(query).sort({ expenseDate: -1, createdAt: -1 }).lean();
+    res.json({
+      expenses: expenses.map((expense) => ({
+        id: expense._id,
+        schoolId: expense.schoolId,
+        campusId: expense.campusId || null,
+        teacherId: expense.teacherId,
+        teacherName: expense.teacherName || '',
+        category: expense.category,
+        amount: expense.amount,
+        description: expense.description || '',
+        date: expense.expenseDate,
+        status: expense.status,
+        receiptUrl: expense.receiptUrl || '',
+        receiptName: expense.receiptName || '',
+        reviewedAt: expense.reviewedAt || null,
+        adminNote: expense.adminNote || '',
+        createdAt: expense.createdAt,
+      })),
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message || 'Unable to load teacher expenses' });
+  }
+});
+
+router.patch('/teacher-expenses/:id/status', adminAuth, async (req, res) => {
+  // #swagger.tags = ['Admin Users']
+  try {
+    const { status, adminNote } = req.body || {};
+    if (!['Approved', 'Rejected', 'Pending'].includes(String(status || ''))) {
+      return res.status(400).json({ error: 'Invalid status' });
+    }
+    if (!mongoose.isValidObjectId(req.params.id)) {
+      return res.status(400).json({ error: 'Invalid expense id' });
+    }
+
+    const scope = buildScopedFilter(req);
+    const query = { _id: req.params.id };
+    if (scope.schoolId) query.schoolId = scope.schoolId;
+    if (scope.campusId) query.campusId = scope.campusId;
+
+    const updated = await TeacherExpense.findOneAndUpdate(
+      query,
+      {
+        $set: {
+          status,
+          adminNote: String(adminNote || '').trim(),
+          reviewedBy: req.admin?.id || null,
+          reviewedAt: new Date(),
+        },
+      },
+      { new: true, runValidators: true }
+    ).lean();
+
+    if (!updated) {
+      return res.status(404).json({ error: 'Expense not found for this school/campus' });
+    }
+
+    res.json({
+      message: 'Expense status updated',
+      expense: {
+        id: updated._id,
+        teacherId: updated.teacherId,
+        teacherName: updated.teacherName || '',
+        category: updated.category,
+        amount: updated.amount,
+        status: updated.status,
+        adminNote: updated.adminNote || '',
+      },
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message || 'Unable to update expense status' });
   }
 });
 

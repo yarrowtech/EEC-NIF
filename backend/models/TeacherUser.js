@@ -27,6 +27,7 @@ const teacherUserSchema = new mongoose.Schema({
   qualification: String,
   joiningDate: String,
   address: String,
+  emergencyContact: { type: String, default: '' },
   gender: { type: String, enum: ["male", "female", "other"], default: "male" },
   pinCode: String,
   profilePic: { type: String, default: "" },

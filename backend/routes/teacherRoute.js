@@ -11,6 +11,7 @@ const { isStrongPassword, passwordPolicyMessage } = require('../utils/passwordPo
 const School = require('../models/School');
 const Admin = require('../models/Admin');
 const { sendTeacherCredentialsEmail } = require('../utils/mailer');
+const authTeacher = require('../middleware/authTeacher');
 
 // Register Teacher
 router.post('/register', adminAuth, async (req, res) => {
@@ -177,8 +178,79 @@ router.post('/reset-first-password', rateLimit({ windowMs: 60 * 1000, max: 10 })
   }
 });
 
-/**
- * Generate a random empid
- * @returns {number} - Random 3-digit employee ID
- */
+router.get('/profile', authTeacher, async (req, res) => {
+  // #swagger.tags = ['Teachers']
+  try {
+    if (req.user?.userType !== 'teacher') {
+      return res.status(403).json({ error: 'Forbidden - not a teacher' });
+    }
+
+    const teacher = await TeacherUser.findById(req.user.id).select('-password').lean();
+    if (!teacher) {
+      return res.status(404).json({ error: 'Teacher not found' });
+    }
+
+    res.json({
+      ...teacher,
+      employeeId: teacher.username || teacher.employeeCode || '',
+    });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+router.put('/profile', authTeacher, async (req, res) => {
+  // #swagger.tags = ['Teachers']
+  try {
+    if (req.user?.userType !== 'teacher') {
+      return res.status(403).json({ error: 'Forbidden - not a teacher' });
+    }
+
+    const allowedUpdates = [
+      'name',
+      'email',
+      'mobile',
+      'subject',
+      'department',
+      'qualification',
+      'experience',
+      'joiningDate',
+      'address',
+      'emergencyContact',
+      'gender',
+      'pinCode',
+      'profilePic',
+    ];
+
+    const payload = {};
+    allowedUpdates.forEach((key) => {
+      if (Object.prototype.hasOwnProperty.call(req.body || {}, key)) {
+        payload[key] = req.body[key];
+      }
+    });
+
+    const teacher = await TeacherUser.findByIdAndUpdate(
+      req.user.id,
+      { $set: payload },
+      { new: true, runValidators: true, context: 'query' }
+    )
+      .select('-password')
+      .lean();
+
+    if (!teacher) {
+      return res.status(404).json({ error: 'Teacher not found' });
+    }
+
+    res.json({
+      message: 'Profile updated successfully',
+      teacher: {
+        ...teacher,
+        employeeId: teacher.username || teacher.employeeCode || '',
+      },
+    });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
 module.exports = router;

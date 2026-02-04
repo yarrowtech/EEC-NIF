@@ -1,4 +1,5 @@
 const express = require('express');
+const mongoose = require('mongoose');
 const authTeacher = require('../middleware/authTeacher');
 const StudentUser = require('../models/StudentUser');
 const StudentProgress = require('../models/StudentProgress');
@@ -8,6 +9,9 @@ const Subject = require('../models/Subject');
 const ClassModel = require('../models/Class');
 const Section = require('../models/Section');
 const TeacherUser = require('../models/TeacherUser');
+const TeacherAttendance = require('../models/TeacherAttendance');
+const TeacherLeave = require('../models/TeacherLeave');
+const TeacherExpense = require('../models/TeacherExpense');
 
 const router = express.Router();
 const WEEK_DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
@@ -38,6 +42,56 @@ const endOfDay = (value) => {
   const date = new Date(value);
   date.setHours(23, 59, 59, 999);
   return date;
+};
+
+const toDateKey = (value = new Date()) => {
+  const date = new Date(value);
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+};
+
+const toTimeLabel = (value) => {
+  if (!value) return '-';
+  const date = new Date(value);
+  const hh = String(date.getHours()).padStart(2, '0');
+  const mm = String(date.getMinutes()).padStart(2, '0');
+  return `${hh}:${mm}`;
+};
+
+const isLateCheckIn = (value) => {
+  if (!value) return false;
+  const date = new Date(value);
+  return date.getHours() > 9 || (date.getHours() === 9 && date.getMinutes() > 0);
+};
+
+const buildMonthRange = (month) => {
+  const fallback = new Date();
+  const [yearStr, monthStr] = String(month || '').split('-');
+  const year = Number(yearStr);
+  const monthIndex = Number(monthStr) - 1;
+  const base = Number.isInteger(year) && Number.isInteger(monthIndex) && monthIndex >= 0 && monthIndex <= 11
+    ? new Date(year, monthIndex, 1)
+    : new Date(fallback.getFullYear(), fallback.getMonth(), 1);
+  const end = new Date(base.getFullYear(), base.getMonth() + 1, 0);
+  return {
+    from: toDateKey(base),
+    to: toDateKey(end),
+    year: base.getFullYear(),
+    monthIndex: base.getMonth(),
+  };
+};
+
+const countWeekdaysInMonth = (year, monthIndex, upToDate = null) => {
+  const start = new Date(year, monthIndex, 1);
+  const end = upToDate || new Date(year, monthIndex + 1, 0);
+  let weekdays = 0;
+  for (let date = new Date(start); date <= end; date.setDate(date.getDate() + 1)) {
+    const day = date.getDay();
+    if (day !== 0 && day !== 6) weekdays += 1;
+  }
+  return weekdays;
 };
 
 router.get('/', authTeacher, async (req, res) => {
@@ -435,6 +489,472 @@ router.post('/attendance', authTeacher, async (req, res) => {
     });
   } catch (err) {
     res.status(500).json({ error: err.message || 'Unable to save attendance' });
+  }
+});
+
+router.get('/work-attendance', authTeacher, async (req, res) => {
+  // #swagger.tags = ['Teacher Dashboard']
+  try {
+    const schoolId = req.schoolId || req.user?.schoolId || null;
+    const campusId = req.campusId || req.user?.campusId || null;
+    const teacherId = req.user?.id || null;
+    const { month } = req.query || {};
+
+    if (!schoolId) return res.status(400).json({ error: 'schoolId is required' });
+    if (!teacherId) return res.status(400).json({ error: 'teacherId is required' });
+
+    const range = buildMonthRange(month);
+    const query = {
+      schoolId,
+      teacherId,
+      dateKey: { $gte: range.from, $lte: range.to },
+    };
+    if (campusId) query.campusId = campusId;
+
+    const records = await TeacherAttendance.find(query).sort({ dateKey: -1 }).lean();
+    const presentDays = records.filter((r) => Boolean(r.checkInAt)).length;
+    const lateDays = records.filter((r) => isLateCheckIn(r.checkInAt)).length;
+
+    const today = new Date();
+    const sameMonthAsToday = today.getFullYear() === range.year && today.getMonth() === range.monthIndex;
+    const upToDate = sameMonthAsToday ? today : null;
+    const workingDays = countWeekdaysInMonth(range.year, range.monthIndex, upToDate);
+    const absentDays = Math.max(workingDays - presentDays, 0);
+    const attendanceRate = workingDays > 0
+      ? Math.round(((presentDays + lateDays) / workingDays) * 100)
+      : 0;
+
+    const todayKey = toDateKey();
+    const todayRecord = records.find((record) => record.dateKey === todayKey) || null;
+
+    res.json({
+      records: records.map((record) => ({
+        id: record._id,
+        date: record.dateKey,
+        checkIn: toTimeLabel(record.checkInAt),
+        checkOut: toTimeLabel(record.checkOutAt),
+        status: record.status || (isLateCheckIn(record.checkInAt) ? 'Late' : 'Present'),
+        workingMinutes: record.workingMinutes || 0,
+      })),
+      today: todayRecord
+        ? {
+          date: todayRecord.dateKey,
+          checkIn: toTimeLabel(todayRecord.checkInAt),
+          checkOut: toTimeLabel(todayRecord.checkOutAt),
+          hasCheckedIn: Boolean(todayRecord.checkInAt),
+          hasCheckedOut: Boolean(todayRecord.checkOutAt),
+          status: todayRecord.status || (isLateCheckIn(todayRecord.checkInAt) ? 'Late' : 'Present'),
+        }
+        : {
+          date: todayKey,
+          checkIn: '-',
+          checkOut: '-',
+          hasCheckedIn: false,
+          hasCheckedOut: false,
+          status: 'Absent',
+        },
+      stats: {
+        presentDays,
+        lateDays,
+        absentDays,
+        attendanceRate,
+      },
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message || 'Unable to load work attendance' });
+  }
+});
+
+router.post('/work-attendance/check-in', authTeacher, async (req, res) => {
+  // #swagger.tags = ['Teacher Dashboard']
+  try {
+    const schoolId = req.schoolId || req.user?.schoolId || null;
+    const campusId = req.campusId || req.user?.campusId || null;
+    const teacherId = req.user?.id || null;
+    if (!schoolId) return res.status(400).json({ error: 'schoolId is required' });
+    if (!teacherId) return res.status(400).json({ error: 'teacherId is required' });
+
+    const now = new Date();
+    const dateKey = toDateKey(now);
+    const existing = await TeacherAttendance.findOne({ schoolId, campusId: campusId || null, teacherId, dateKey });
+    if (existing?.checkInAt) {
+      return res.status(400).json({ error: 'Check-in already recorded for today' });
+    }
+
+    const status = isLateCheckIn(now) ? 'Late' : 'Present';
+    const record = existing
+      ? await TeacherAttendance.findByIdAndUpdate(
+        existing._id,
+        { $set: { checkInAt: now, status } },
+        { new: true, runValidators: true }
+      )
+      : await TeacherAttendance.create({
+        schoolId,
+        campusId: campusId || null,
+        teacherId,
+        dateKey,
+        checkInAt: now,
+        status,
+      });
+
+    res.json({
+      message: 'Check-in successful',
+      record: {
+        date: record.dateKey,
+        checkIn: toTimeLabel(record.checkInAt),
+        checkOut: toTimeLabel(record.checkOutAt),
+        status: record.status,
+      },
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message || 'Unable to check in' });
+  }
+});
+
+router.post('/work-attendance/check-out', authTeacher, async (req, res) => {
+  // #swagger.tags = ['Teacher Dashboard']
+  try {
+    const schoolId = req.schoolId || req.user?.schoolId || null;
+    const campusId = req.campusId || req.user?.campusId || null;
+    const teacherId = req.user?.id || null;
+    if (!schoolId) return res.status(400).json({ error: 'schoolId is required' });
+    if (!teacherId) return res.status(400).json({ error: 'teacherId is required' });
+
+    const now = new Date();
+    const dateKey = toDateKey(now);
+    const record = await TeacherAttendance.findOne({ schoolId, campusId: campusId || null, teacherId, dateKey });
+    if (!record || !record.checkInAt) {
+      return res.status(400).json({ error: 'Please check in first' });
+    }
+    if (record.checkOutAt) {
+      return res.status(400).json({ error: 'Check-out already recorded for today' });
+    }
+
+    const workingMinutes = Math.max(Math.round((now.getTime() - new Date(record.checkInAt).getTime()) / 60000), 0);
+    record.checkOutAt = now;
+    record.workingMinutes = workingMinutes;
+    await record.save();
+
+    res.json({
+      message: 'Check-out successful',
+      record: {
+        date: record.dateKey,
+        checkIn: toTimeLabel(record.checkInAt),
+        checkOut: toTimeLabel(record.checkOutAt),
+        status: record.status,
+        workingMinutes,
+      },
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message || 'Unable to check out' });
+  }
+});
+
+router.get('/leave-requests', authTeacher, async (req, res) => {
+  // #swagger.tags = ['Teacher Dashboard']
+  try {
+    const schoolId = req.schoolId || req.user?.schoolId || null;
+    const campusId = req.campusId || req.user?.campusId || null;
+    const teacherId = req.user?.id || null;
+    if (!schoolId) return res.status(400).json({ error: 'schoolId is required' });
+    if (!teacherId) return res.status(400).json({ error: 'teacherId is required' });
+
+    const query = { schoolId, teacherId };
+    if (campusId) query.campusId = campusId;
+    if (req.query?.status) query.status = String(req.query.status);
+
+    const leaves = await TeacherLeave.find(query).sort({ createdAt: -1 }).lean();
+    res.json({
+      leaves: leaves.map((leave) => ({
+        id: leave._id,
+        type: leave.type,
+        startDate: leave.startDate,
+        endDate: leave.endDate,
+        status: leave.status,
+        reason: leave.reason,
+        adminNote: leave.adminNote || '',
+        createdAt: leave.createdAt,
+      })),
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message || 'Unable to load leave requests' });
+  }
+});
+
+router.post('/leave-requests', authTeacher, async (req, res) => {
+  // #swagger.tags = ['Teacher Dashboard']
+  try {
+    const schoolId = req.schoolId || req.user?.schoolId || null;
+    const campusId = req.campusId || req.user?.campusId || null;
+    const teacherId = req.user?.id || null;
+    if (!schoolId) return res.status(400).json({ error: 'schoolId is required' });
+    if (!teacherId) return res.status(400).json({ error: 'teacherId is required' });
+
+    const { type, startDate, endDate, reason } = req.body || {};
+    if (!type || !String(type).trim()) return res.status(400).json({ error: 'Leave type is required' });
+    if (!startDate) return res.status(400).json({ error: 'Start date is required' });
+    if (!endDate) return res.status(400).json({ error: 'End date is required' });
+    if (new Date(startDate) > new Date(endDate)) {
+      return res.status(400).json({ error: 'Start date cannot be after end date' });
+    }
+
+    const teacher = await TeacherUser.findById(teacherId).select('name').lean();
+    const created = await TeacherLeave.create({
+      schoolId,
+      campusId: campusId || null,
+      teacherId,
+      teacherName: teacher?.name || 'Teacher',
+      type: String(type).trim(),
+      startDate: String(startDate),
+      endDate: String(endDate),
+      reason: String(reason || '').trim(),
+      status: 'Pending',
+    });
+
+    res.status(201).json({
+      message: 'Leave request submitted successfully',
+      leave: {
+        id: created._id,
+        type: created.type,
+        startDate: created.startDate,
+        endDate: created.endDate,
+        status: created.status,
+        reason: created.reason,
+      },
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message || 'Unable to submit leave request' });
+  }
+});
+
+router.patch('/leave-requests/:id', authTeacher, async (req, res) => {
+  // #swagger.tags = ['Teacher Dashboard']
+  try {
+    const schoolId = req.schoolId || req.user?.schoolId || null;
+    const campusId = req.campusId || req.user?.campusId || null;
+    const teacherId = req.user?.id || null;
+    const { id } = req.params || {};
+    if (!schoolId) return res.status(400).json({ error: 'schoolId is required' });
+    if (!teacherId) return res.status(400).json({ error: 'teacherId is required' });
+    if (!mongoose.isValidObjectId(id)) return res.status(400).json({ error: 'Invalid leave request id' });
+
+    const filter = { _id: id, schoolId, teacherId };
+    if (campusId) filter.campusId = campusId;
+
+    const existing = await TeacherLeave.findOne(filter);
+    if (!existing) return res.status(404).json({ error: 'Leave request not found' });
+    if (existing.status !== 'Pending') {
+      return res.status(400).json({ error: 'Only pending requests can be edited' });
+    }
+
+    const { type, startDate, endDate, reason } = req.body || {};
+    if (startDate && endDate && new Date(startDate) > new Date(endDate)) {
+      return res.status(400).json({ error: 'Start date cannot be after end date' });
+    }
+
+    if (type !== undefined) existing.type = String(type).trim();
+    if (startDate !== undefined) existing.startDate = String(startDate);
+    if (endDate !== undefined) existing.endDate = String(endDate);
+    if (reason !== undefined) existing.reason = String(reason).trim();
+
+    await existing.save();
+    res.json({
+      message: 'Leave request updated successfully',
+      leave: {
+        id: existing._id,
+        type: existing.type,
+        startDate: existing.startDate,
+        endDate: existing.endDate,
+        status: existing.status,
+        reason: existing.reason,
+      },
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message || 'Unable to update leave request' });
+  }
+});
+
+router.delete('/leave-requests/:id', authTeacher, async (req, res) => {
+  // #swagger.tags = ['Teacher Dashboard']
+  try {
+    const schoolId = req.schoolId || req.user?.schoolId || null;
+    const campusId = req.campusId || req.user?.campusId || null;
+    const teacherId = req.user?.id || null;
+    const { id } = req.params || {};
+    if (!schoolId) return res.status(400).json({ error: 'schoolId is required' });
+    if (!teacherId) return res.status(400).json({ error: 'teacherId is required' });
+    if (!mongoose.isValidObjectId(id)) return res.status(400).json({ error: 'Invalid leave request id' });
+
+    const filter = { _id: id, schoolId, teacherId };
+    if (campusId) filter.campusId = campusId;
+
+    const existing = await TeacherLeave.findOne(filter).lean();
+    if (!existing) return res.status(404).json({ error: 'Leave request not found' });
+    if (existing.status !== 'Pending') {
+      return res.status(400).json({ error: 'Only pending requests can be deleted' });
+    }
+
+    await TeacherLeave.deleteOne({ _id: id });
+    res.json({ message: 'Leave request deleted successfully' });
+  } catch (err) {
+    res.status(500).json({ error: err.message || 'Unable to delete leave request' });
+  }
+});
+
+router.get('/expenses', authTeacher, async (req, res) => {
+  // #swagger.tags = ['Teacher Dashboard']
+  try {
+    const schoolId = req.schoolId || req.user?.schoolId || null;
+    const campusId = req.campusId || req.user?.campusId || null;
+    const teacherId = req.user?.id || null;
+    if (!schoolId) return res.status(400).json({ error: 'schoolId is required' });
+    if (!teacherId) return res.status(400).json({ error: 'teacherId is required' });
+
+    const query = { schoolId, teacherId };
+    if (campusId) query.campusId = campusId;
+    if (req.query?.status) query.status = String(req.query.status).trim();
+
+    const expenses = await TeacherExpense.find(query).sort({ expenseDate: -1, createdAt: -1 }).lean();
+    res.json({
+      expenses: expenses.map((expense) => ({
+        id: expense._id,
+        category: expense.category,
+        amount: expense.amount,
+        description: expense.description || '',
+        date: expense.expenseDate,
+        status: expense.status,
+        receiptUrl: expense.receiptUrl || '',
+        receiptName: expense.receiptName || '',
+        adminNote: expense.adminNote || '',
+        createdAt: expense.createdAt,
+      })),
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message || 'Unable to load expenses' });
+  }
+});
+
+router.post('/expenses', authTeacher, async (req, res) => {
+  // #swagger.tags = ['Teacher Dashboard']
+  try {
+    const schoolId = req.schoolId || req.user?.schoolId || null;
+    const campusId = req.campusId || req.user?.campusId || null;
+    const teacherId = req.user?.id || null;
+    if (!schoolId) return res.status(400).json({ error: 'schoolId is required' });
+    if (!teacherId) return res.status(400).json({ error: 'teacherId is required' });
+
+    const { category, amount, description, date, receiptUrl, receiptName } = req.body || {};
+    if (!category || !String(category).trim()) return res.status(400).json({ error: 'Category is required' });
+    if (amount === undefined || amount === null || Number(amount) <= 0) {
+      return res.status(400).json({ error: 'Valid amount is required' });
+    }
+    const expenseDate = date ? String(date) : toDateKey();
+
+    const teacher = await TeacherUser.findById(teacherId).select('name').lean();
+    const created = await TeacherExpense.create({
+      schoolId,
+      campusId: campusId || null,
+      teacherId,
+      teacherName: teacher?.name || 'Teacher',
+      category: String(category).trim(),
+      amount: Number(amount),
+      description: String(description || '').trim(),
+      expenseDate,
+      status: 'Pending',
+      receiptUrl: String(receiptUrl || '').trim(),
+      receiptName: String(receiptName || '').trim(),
+    });
+
+    res.status(201).json({
+      message: 'Expense submitted successfully',
+      expense: {
+        id: created._id,
+        category: created.category,
+        amount: created.amount,
+        description: created.description,
+        date: created.expenseDate,
+        status: created.status,
+        receiptUrl: created.receiptUrl,
+        receiptName: created.receiptName,
+      },
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message || 'Unable to submit expense' });
+  }
+});
+
+router.patch('/expenses/:id', authTeacher, async (req, res) => {
+  // #swagger.tags = ['Teacher Dashboard']
+  try {
+    const schoolId = req.schoolId || req.user?.schoolId || null;
+    const campusId = req.campusId || req.user?.campusId || null;
+    const teacherId = req.user?.id || null;
+    const { id } = req.params || {};
+    if (!schoolId) return res.status(400).json({ error: 'schoolId is required' });
+    if (!teacherId) return res.status(400).json({ error: 'teacherId is required' });
+    if (!mongoose.isValidObjectId(id)) return res.status(400).json({ error: 'Invalid expense id' });
+
+    const filter = { _id: id, schoolId, teacherId };
+    if (campusId) filter.campusId = campusId;
+    const existing = await TeacherExpense.findOne(filter);
+    if (!existing) return res.status(404).json({ error: 'Expense not found' });
+    if (existing.status !== 'Pending') {
+      return res.status(400).json({ error: 'Only pending expenses can be edited' });
+    }
+
+    const { category, amount, description, date, receiptUrl, receiptName } = req.body || {};
+    if (amount !== undefined && Number(amount) <= 0) {
+      return res.status(400).json({ error: 'Amount must be greater than 0' });
+    }
+    if (category !== undefined) existing.category = String(category).trim();
+    if (amount !== undefined) existing.amount = Number(amount);
+    if (description !== undefined) existing.description = String(description).trim();
+    if (date !== undefined) existing.expenseDate = String(date);
+    if (receiptUrl !== undefined) existing.receiptUrl = String(receiptUrl || '').trim();
+    if (receiptName !== undefined) existing.receiptName = String(receiptName || '').trim();
+
+    await existing.save();
+    res.json({
+      message: 'Expense updated successfully',
+      expense: {
+        id: existing._id,
+        category: existing.category,
+        amount: existing.amount,
+        description: existing.description,
+        date: existing.expenseDate,
+        status: existing.status,
+        receiptUrl: existing.receiptUrl,
+        receiptName: existing.receiptName,
+      },
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message || 'Unable to update expense' });
+  }
+});
+
+router.delete('/expenses/:id', authTeacher, async (req, res) => {
+  // #swagger.tags = ['Teacher Dashboard']
+  try {
+    const schoolId = req.schoolId || req.user?.schoolId || null;
+    const campusId = req.campusId || req.user?.campusId || null;
+    const teacherId = req.user?.id || null;
+    const { id } = req.params || {};
+    if (!schoolId) return res.status(400).json({ error: 'schoolId is required' });
+    if (!teacherId) return res.status(400).json({ error: 'teacherId is required' });
+    if (!mongoose.isValidObjectId(id)) return res.status(400).json({ error: 'Invalid expense id' });
+
+    const filter = { _id: id, schoolId, teacherId };
+    if (campusId) filter.campusId = campusId;
+    const existing = await TeacherExpense.findOne(filter).lean();
+    if (!existing) return res.status(404).json({ error: 'Expense not found' });
+    if (existing.status !== 'Pending') {
+      return res.status(400).json({ error: 'Only pending expenses can be deleted' });
+    }
+
+    await TeacherExpense.deleteOne({ _id: id });
+    res.json({ message: 'Expense deleted successfully' });
+  } catch (err) {
+    res.status(500).json({ error: err.message || 'Unable to delete expense' });
   }
 });
 
