@@ -22,8 +22,6 @@ function askQuestion(question) {
 function scoreRecord(student) {
   let score = 0;
 
-  // Prioritize records with NifStudent link (very important)
-  if (student.nifStudent) score += 100;
 
   // Prioritize records with schoolId and campusId
   if (student.schoolId) score += 50;
@@ -109,7 +107,6 @@ async function removeDuplicateStudents(dryRun = true) {
       console.log(`    _id: ${toKeep._id}`);
       console.log(`    Name: ${toKeep.name}`);
       console.log(`    Username: ${toKeep.username}`);
-      console.log(`    NifStudent: ${toKeep.nifStudent || 'None'}`);
       console.log(`    SchoolId: ${toKeep.schoolId || 'None'}`);
       console.log(`    CampusId: ${toKeep.campusId || 'None'}`);
       console.log(`    Updated: ${toKeep.updatedAt}`);

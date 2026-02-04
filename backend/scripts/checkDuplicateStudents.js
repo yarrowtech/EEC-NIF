@@ -60,7 +60,6 @@ async function checkDuplicateStudents() {
           console.log(`    Mobile: ${student.mobile || 'N/A'}`);
           console.log(`    SchoolId: ${student.schoolId || 'N/A'}`);
           console.log(`    CampusId: ${student.campusId || 'N/A'}`);
-          console.log(`    NifStudent: ${student.nifStudent || 'N/A'}`);
           console.log(`    Created: ${student.createdAt}`);
           console.log(`    Updated: ${student.updatedAt}`);
           console.log('');

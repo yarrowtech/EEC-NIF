@@ -50,10 +50,6 @@ const doc = {
     { name: 'AI Learning', description: 'Admin AI learning insights.' },
     { name: 'Student AI Learning', description: 'Student AI learning content.' },
     { name: 'Alcove', description: 'Posts and comments.' },
-    { name: 'NIF', description: 'NIF module endpoints.' },
-    { name: 'NIF Students', description: 'NIF student management.' },
-    { name: 'NIF Student Archive', description: 'NIF archived students.' },
-    { name: 'NIF Courses', description: 'NIF course management.' },
   ],
   components: {
     securitySchemes: {

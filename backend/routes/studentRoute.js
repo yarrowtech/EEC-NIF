@@ -1,7 +1,6 @@
 const express = require('express');
 const router = express.Router();
 const StudentUser = require('../models/StudentUser');
-const NifStudent = require('../models/NifStudent');
 const Class = require('../models/Class');
 const Timetable = require('../models/Timetable');
 const ExamResult = require('../models/ExamResult');
@@ -43,12 +42,7 @@ const resolvePhotoValue = (value) => {
 const resolveProfilePhoto = (studentDoc) => {
   const direct = resolvePhotoValue(studentDoc?.profilePic);
   if (direct) return direct;
-  const nif = extractPopulatedDoc(studentDoc?.nifStudent);
-  if (!nif || typeof nif !== 'object') return null;
-  const photo =
-    resolvePhotoValue(nif.photograph) ||
-    resolvePhotoValue(nif.documents?.photograph);
-  return photo;
+  return null;
 };
 
 const resolveAdmissionYear = (value) => {
@@ -117,45 +111,20 @@ router.post('/register', adminAuth, async (req, res) => {
     email,
     address,
     pinCode,
-    password: requestedPassword,
-    studentId,
-    nifStudentId,
-    batchCode,
+    password: requestedPassword
   } = req.body;
 
   try {
-    // Get the NifStudent reference (studentId is the NifStudent _id)
-    const targetNifId = studentId || nifStudentId || null;
-    let nifStudentDoc = null;
-    let existingPortalUser = null;
-
-    if (targetNifId) {
-      nifStudentDoc = await NifStudent.findById(targetNifId);
-      if (!nifStudentDoc) {
-        return res.status(404).json({ error: 'NIF student not found' });
-      }
-      if (nifStudentDoc.studentPortalUser) {
-        existingPortalUser = await StudentUser.findById(nifStudentDoc.studentPortalUser);
-        if (!existingPortalUser) {
-          nifStudentDoc.studentPortalUser = null;
-        }
-      }
-    }
-
-    const resolvedSchoolId = req.admin?.schoolId || schoolId || existingPortalUser?.schoolId || null;
-    const resolvedCampusId = req.campusId || req.admin?.campusId || req.body?.campusId || existingPortalUser?.campusId || null;
+    const resolvedSchoolId = req.admin?.schoolId || schoolId || null;
+    const resolvedCampusId = req.campusId || req.admin?.campusId || req.body?.campusId || null;
 
     if (!resolvedSchoolId) {
       return res.status(400).json({ error: 'schoolId is required to generate student ID' });
     }
 
-    const resolvedAdmissionDate =
-      resolveAdmissionDate(admissionDate || nifStudentDoc?.admissionDate) || undefined;
-    const admissionYear = resolveAdmissionYear(
-      resolvedAdmissionDate || admissionDate || nifStudentDoc?.admissionDate
-    );
+    const resolvedAdmissionDate = resolveAdmissionDate(admissionDate) || undefined;
+    const admissionYear = resolveAdmissionYear(resolvedAdmissionDate || admissionDate);
 
-    // Use requested password or generate new one
     let password = requestedPassword;
     if (password) {
       if (!isStrongPassword(password)) {
@@ -165,31 +134,23 @@ router.post('/register', adminAuth, async (req, res) => {
       password = generatePassword();
     }
 
-    const resolvedName = name || nifStudentDoc?.name || 'Student';
-    const resolvedGrade = grade || nifStudentDoc?.grade || '';
-    const resolvedSection = section || nifStudentDoc?.section || '';
-    const resolvedGender = (gender || nifStudentDoc?.gender || 'male').toLowerCase();
-    const resolvedRoll = roll || nifStudentDoc?.roll || undefined;
-    const resolvedMobile = mobile || nifStudentDoc?.mobile || '';
-    const resolvedEmail = email || nifStudentDoc?.email || '';
-    const resolvedBatchCode = batchCode || nifStudentDoc?.batchCode || '';
+    const resolvedName = name || 'Student';
+    const resolvedGrade = grade || '';
+    const resolvedSection = section || '';
+    const resolvedGender = (gender || 'male').toLowerCase();
+    const resolvedRoll = roll || undefined;
+    const resolvedMobile = mobile || '';
+    const resolvedEmail = email || '';
 
-    let studentCode = existingPortalUser?.studentCode || existingPortalUser?.username;
-    if (!studentCode) {
-      const prefix = resolveStudentPrefix({
-        adminUsername: req.admin?.username,
-        admissionYear,
-      });
-      studentCode = await getNextStudentUsername({
-        schoolId: resolvedSchoolId,
-        campusId: resolvedCampusId,
-        prefix,
-      });
-    }
-
-    const nifPhoto =
-      resolvePhotoValue(nifStudentDoc?.photograph) ||
-      resolvePhotoValue(nifStudentDoc?.documents?.photograph);
+    const prefix = resolveStudentPrefix({
+      adminUsername: req.admin?.username,
+      admissionYear,
+    });
+    const studentCode = await getNextStudentUsername({
+      schoolId: resolvedSchoolId,
+      campusId: resolvedCampusId,
+      prefix,
+    });
 
     const payload = {
       username: studentCode,
@@ -198,58 +159,28 @@ router.post('/register', adminAuth, async (req, res) => {
       campusId: resolvedCampusId,
       campusName: req.isSuperAdmin ? req.body?.campusName : req.admin?.campusName,
       campusType: req.isSuperAdmin ? req.body?.campusType : req.admin?.campusType,
-      nifStudent: targetNifId,
       name: resolvedName,
       grade: resolvedGrade,
       section: resolvedSection,
       roll: resolvedRoll,
       gender: resolvedGender,
-      dob: dob || nifStudentDoc?.dob,
+      dob,
       admissionDate: resolvedAdmissionDate,
       mobile: resolvedMobile,
       email: resolvedEmail,
-      address: address || nifStudentDoc?.address || '',
-      pinCode: pinCode || nifStudentDoc?.pincode || '',
-      batchCode: resolvedBatchCode,
+      address: address || '',
+      pinCode: pinCode || '',
       studentCode,
-      lastLoginAt: existingPortalUser?.lastLoginAt || null,
     };
-    if (!payload.profilePic && nifPhoto) {
-      payload.profilePic = nifPhoto;
-    }
 
-    let studentUser;
-    if (existingPortalUser) {
-      // Update existing portal user
-      studentUser = await StudentUser.findByIdAndUpdate(
-        existingPortalUser._id,
-        payload,
-        { new: true, runValidators: true }
-      );
-    } else {
-      // Create new portal user
-      studentUser = await StudentUser.create(payload);
-    }
-
-    // Link back to NifStudent
-    if (nifStudentDoc) {
-      nifStudentDoc.studentPortalUser = studentUser._id;
-      nifStudentDoc.portalAccess = {
-        enabled: true,
-        username: payload.username,
-        issuedAt: new Date(),
-        issuedBy: req.admin?._id || null,
-      };
-      await nifStudentDoc.save();
-    }
+    const studentUser = await StudentUser.create(payload);
 
     res.status(201).json({
-      message: existingPortalUser ? 'Student credentials updated successfully' : 'Student registered successfully',
+      message: 'Student registered successfully',
       username: payload.username,
       studentCode,
       password,
       userId: studentUser._id,
-      nifStudentId: nifStudentDoc?._id || null,
     });
   } catch (err) {
     console.error('Student register error:', err);
@@ -368,8 +299,7 @@ router.get('/profile', authStudent, async (req, res) => {
 
     const student = await StudentUser.findById(req.user.id)
       .select('-password')
-      .populate('nifStudent', 'serialNo batchCode course grade section courseId duration status admissionDate photograph documents')
-      .populate('schoolId', 'name code logo')
+            .populate('schoolId', 'name code logo')
       .lean();
 
     console.log('Student found:', student ? 'YES' : 'NO');
@@ -408,35 +338,23 @@ router.get('/dashboard', authStudent, async (req, res) => {
   // #swagger.tags = ['Students']
   try {
     const student = await StudentUser.findById(req.user.id)
-      .populate('nifStudent', 'course grade class section roll batchCode duration status photograph documents serialNo')
-      .populate('schoolId', 'name code logo')
+            .populate('schoolId', 'name code logo')
       .lean();
 
     if (!student) {
       return res.status(404).json({ error: 'Student not found' });
     }
 
-    const nifStudentData = extractPopulatedDoc(student.nifStudent);
-
     // Calculate stats
     const totalAttendance = student.attendance?.length || 0;
     const presentDays = student.attendance?.filter(a => a.status === 'present').length || 0;
     const attendancePercentage = totalAttendance > 0 ? Math.round((presentDays / totalAttendance) * 100) : 0;
 
-    const resolvedGrade = nifStudentData?.class || nifStudentData?.grade || student.grade || '';
-    const resolvedSection = nifStudentData?.section || student.section || '';
-    const resolvedRoll = nifStudentData?.roll || student.roll || '';
+    const resolvedGrade = student.grade || '';
+    const resolvedSection = student.section || '';
+    const resolvedRoll = student.roll || '';
 
-    // Get course info from nifStudent
-    const courseInfo = nifStudentData ? {
-      name: nifStudentData.course || 'Not Assigned',
-      grade: resolvedGrade || 'N/A',
-      section: resolvedSection || 'N/A',
-      roll: resolvedRoll || '',
-      batchCode: nifStudentData.batchCode || 'N/A',
-      duration: nifStudentData.duration || 'N/A',
-      status: nifStudentData.status || 'Active'
-    } : null;
+    const courseInfo = null;
 
     const schoolInfo = extractSchoolInfo(student.schoolId);
 
@@ -591,8 +509,7 @@ router.get('/schedule', authStudent, async (req, res) => {
   // #swagger.tags = ['Students']
   try {
     const student = await StudentUser.findById(req.user.id)
-      .select('grade section schoolId campusId nifStudent')
-      .populate('nifStudent', 'class grade section')
+      .select('grade section schoolId campusId')
       .lean();
 
     if (!student) {
@@ -606,13 +523,8 @@ router.get('/schedule', authStudent, async (req, res) => {
         .replace(/\s+/g, '');
     const escapeRegex = (value) => String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
-    const nifStudent = student.nifStudent || null;
-    const resolvedGrade = String(
-      nifStudent?.class || nifStudent?.grade || student.grade || ''
-    ).trim();
-    const resolvedSection = String(
-      nifStudent?.section || student.section || ''
-    ).trim();
+    const resolvedGrade = String(student.grade || '').trim();
+    const resolvedSection = String(student.section || '').trim();
 
     if (!resolvedGrade) {
       return res.json({ schedule: [] });
