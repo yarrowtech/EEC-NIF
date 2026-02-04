@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Routes, Route, NavLink, useLocation, useNavigate } from 'react-router-dom';
+import { Routes, Route, NavLink, useLocation, useNavigate, Navigate } from 'react-router-dom';
 import {
   Users,
   Activity,
@@ -41,7 +41,7 @@ import StudentObservation from './StudentObservation';
 const PORTAL_BASE = '/teacher';
 
 const menuItems = [
-  { icon: Home, label: 'Dashboard', path: PORTAL_BASE },
+  { icon: Home, label: 'Dashboard', path: `${PORTAL_BASE}/dashboard` },
   { icon: Briefcase, label: 'My Work Portal', path: `${PORTAL_BASE}/my-work-portal` },
   { icon: Clock, label: 'Class Routine', path: `${PORTAL_BASE}/class-routine` },
   { icon: UserCheck, label: 'Attendance', path: `${PORTAL_BASE}/attendance` },
@@ -184,7 +184,7 @@ const TeacherPortal = () => {
 
         <main className="p-2 sm:p-4">
           <Routes>
-            <Route index element={<TeacherDashboard />} />
+            <Route index element={<Navigate to="/teacher/dashboard" replace />} />
             <Route path="dashboard" element={<TeacherDashboard />} />
             <Route path="test" element={<TestTeacherPortal />} />
             <Route path="my-work-portal" element={<MyWorkPortal />} />
