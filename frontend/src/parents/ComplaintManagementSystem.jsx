@@ -378,7 +378,7 @@ const ComplaintManagementSystem = () => {
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
       <header className="bg-white shadow-xs border-b border-gray-200">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="w-full px-3 sm:px-4 lg:px-5">
           <div className="flex items-center justify-between h-16">
             <div className="flex items-center space-x-3">
               <div className="bg-blue-600 p-2 rounded-lg">
@@ -439,7 +439,7 @@ const ComplaintManagementSystem = () => {
         </div>
       </header>
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <div className="w-full px-3 sm:px-4 lg:px-5 py-6">
         {/* Navigation */}
         <nav className="mb-8">
           <div className="flex space-x-1 bg-white rounded-xl p-1.5 shadow-sm border border-gray-200">

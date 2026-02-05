@@ -97,7 +97,7 @@ const AchievementsView = () => {
   };
 
   return (
-    <div className="p-2 sm:p-4 md:p-6 max-w-5xl mx-auto w-full">
+    <div className="w-full p-2 sm:p-3 md:p-4">
       {/* Header */}
       <div className="bg-gradient-to-r from-yellow-400 to-yellow-500 rounded-xl p-4 sm:p-6 mb-4 sm:mb-6 text-white">
         <h1 className="text-2xl sm:text-3xl font-bold mb-1 sm:mb-2">Achievements</h1>

@@ -170,7 +170,7 @@ const ParentDashboard = ({ parentName, childrenNames = [] }) => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 lg:py-8">
+      <div className="w-full px-2 sm:px-3 md:px-3 lg:px-3 py-4 sm:py-5 lg:py-6">
         {/* Redesigned Welcome Header */}
         <div className="relative overflow-hidden bg-white rounded-3xl shadow-2xl mb-8 lg:mb-10 border border-gray-100">
           {/* Decorative Background Elements */}
