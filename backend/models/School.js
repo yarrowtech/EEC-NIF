@@ -121,7 +121,12 @@ const schoolSchema = new mongoose.Schema(
       alcove: { type: Boolean, default: true },
       aiLearning: { type: Boolean, default: false },
       analytics: { type: Boolean, default: false }
-    }
+    },
+
+    teacherAttendanceSettings: {
+      entryTime: { type: String, default: '09:00' }, // HH:mm
+      exitTime: { type: String, default: '17:00' }, // HH:mm
+    },
   },
   { timestamps: true }
 );

@@ -92,6 +92,8 @@ const HR = ({ setShowAdminHeader }) => {
   const [teacherLeaves, setTeacherLeaves] = useState([]);
   const [teacherExpenses, setTeacherExpenses] = useState([]);
   const [teacherAttendanceRecords, setTeacherAttendanceRecords] = useState([]);
+  const [attendanceSettings, setAttendanceSettings] = useState({ entryTime: '09:00', exitTime: '17:00' });
+  const [attendanceSettingsSaving, setAttendanceSettingsSaving] = useState(false);
   const [attendanceTeacherFilter, setAttendanceTeacherFilter] = useState('all');
   const [attendanceStatusFilter, setAttendanceStatusFilter] = useState('all');
   const [attendanceSearch, setAttendanceSearch] = useState('');
@@ -281,6 +283,14 @@ const HR = ({ setShowAdminHeader }) => {
   // Active filter count helper
   const countActiveFilters = (filters) => filters.filter((f) => f !== 'all' && f !== '').length;
 
+  const formatWorkingHours = (minutes) => {
+    const totalMinutes = Number(minutes || 0);
+    if (!totalMinutes) return '-';
+    const hours = Math.floor(totalMinutes / 60);
+    const mins = totalMinutes % 60;
+    return `${hours}h ${String(mins).padStart(2, '0')}m`;
+  };
+
   const fetchTeacherActivities = async (month = teacherActivityMonth) => {
     setActivityLoading(true);
     setActivityError('');
@@ -288,7 +298,7 @@ const HR = ({ setShowAdminHeader }) => {
       const token = localStorage.getItem('token');
       if (!token) throw new Error('Admin login required');
 
-      const [leavesRes, expensesRes, attendanceRes] = await Promise.all([
+      const [leavesRes, expensesRes, attendanceRes, attendanceSettingsRes] = await Promise.all([
         fetch(`${API_BASE}/api/admin/users/teacher-leaves`, {
           headers: { authorization: `Bearer ${token}` }
         }),
@@ -298,25 +308,65 @@ const HR = ({ setShowAdminHeader }) => {
         fetch(`${API_BASE}/api/admin/users/teacher-attendance?month=${encodeURIComponent(month)}`, {
           headers: { authorization: `Bearer ${token}` }
         }),
+        fetch(`${API_BASE}/api/admin/users/teacher-attendance-settings`, {
+          headers: { authorization: `Bearer ${token}` }
+        }),
       ]);
 
-      const [leavesData, expensesData, attendanceData] = await Promise.all([
+      const [leavesData, expensesData, attendanceData, attendanceSettingsData] = await Promise.all([
         leavesRes.json().catch(() => ({})),
         expensesRes.json().catch(() => ({})),
         attendanceRes.json().catch(() => ({})),
+        attendanceSettingsRes.json().catch(() => ({})),
       ]);
 
       if (!leavesRes.ok) throw new Error(leavesData?.error || 'Unable to load teacher leaves');
       if (!expensesRes.ok) throw new Error(expensesData?.error || 'Unable to load teacher expenses');
       if (!attendanceRes.ok) throw new Error(attendanceData?.error || 'Unable to load teacher attendance');
+      if (!attendanceSettingsRes.ok) throw new Error(attendanceSettingsData?.error || 'Unable to load attendance settings');
 
       setTeacherLeaves(Array.isArray(leavesData.leaves) ? leavesData.leaves : []);
       setTeacherExpenses(Array.isArray(expensesData.expenses) ? expensesData.expenses : []);
       setTeacherAttendanceRecords(Array.isArray(attendanceData.records) ? attendanceData.records : []);
+      setAttendanceSettings({
+        entryTime: attendanceSettingsData?.settings?.entryTime || '09:00',
+        exitTime: attendanceSettingsData?.settings?.exitTime || '17:00',
+      });
     } catch (err) {
       setActivityError(err.message || 'Unable to load teacher activities');
     } finally {
       setActivityLoading(false);
+    }
+  };
+
+  const saveAttendanceSettings = async () => {
+    setActivityError('');
+    setAttendanceSettingsSaving(true);
+    try {
+      const token = localStorage.getItem('token');
+      if (!token) throw new Error('Admin login required');
+      const res = await fetch(`${API_BASE}/api/admin/users/teacher-attendance-settings`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          entryTime: attendanceSettings.entryTime,
+          exitTime: attendanceSettings.exitTime,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data?.error || 'Unable to save attendance settings');
+      setAttendanceSettings({
+        entryTime: data?.settings?.entryTime || attendanceSettings.entryTime,
+        exitTime: data?.settings?.exitTime || attendanceSettings.exitTime,
+      });
+      await fetchTeacherActivities(teacherActivityMonth);
+    } catch (err) {
+      setActivityError(err.message || 'Unable to save attendance settings');
+    } finally {
+      setAttendanceSettingsSaving(false);
     }
   };
 
@@ -831,6 +881,40 @@ const HR = ({ setShowAdminHeader }) => {
               </div>
             </div>
 
+            <div className="bg-white rounded-xl border border-gray-200 p-4">
+              <div className="flex flex-col lg:flex-row lg:items-end gap-3">
+                <div className="min-w-[220px]">
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Entry Time</label>
+                  <input
+                    type="time"
+                    value={attendanceSettings.entryTime}
+                    onChange={(e) => setAttendanceSettings((prev) => ({ ...prev, entryTime: e.target.value }))}
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                  />
+                </div>
+                <div className="min-w-[220px]">
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Exit Time</label>
+                  <input
+                    type="time"
+                    value={attendanceSettings.exitTime}
+                    onChange={(e) => setAttendanceSettings((prev) => ({ ...prev, exitTime: e.target.value }))}
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                  />
+                </div>
+                <button
+                  onClick={saveAttendanceSettings}
+                  disabled={attendanceSettingsSaving || activityLoading}
+                  className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-yellow-600 text-white hover:bg-yellow-700 disabled:opacity-50 text-sm font-medium"
+                >
+                  <Clock size={14} />
+                  {attendanceSettingsSaving ? 'Saving...' : 'Save Timings'}
+                </button>
+              </div>
+              <p className="mt-2 text-xs text-gray-500">
+                Teachers checking in after entry time are marked as Late. Working hours are calculated from check-in to check-out.
+              </p>
+            </div>
+
             {/* Filter Panel */}
             <div className="bg-white rounded-xl border border-gray-200 p-4">
               <div className="flex flex-wrap items-center gap-3">
@@ -909,6 +993,7 @@ const HR = ({ setShowAdminHeader }) => {
                         <th className="px-5 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Teacher</th>
                         <th className="px-5 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Check In</th>
                         <th className="px-5 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Check Out</th>
+                        <th className="px-5 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Working Hours</th>
                         <th className="px-5 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Status</th>
                       </tr>
                     </thead>
@@ -919,11 +1004,12 @@ const HR = ({ setShowAdminHeader }) => {
                           <td className="px-5 py-3 text-sm text-gray-900 font-medium">{record.teacherName || '-'}</td>
                           <td className="px-5 py-3 text-sm text-gray-600">{record.checkInAt ? new Date(record.checkInAt).toLocaleTimeString() : '-'}</td>
                           <td className="px-5 py-3 text-sm text-gray-600">{record.checkOutAt ? new Date(record.checkOutAt).toLocaleTimeString() : '-'}</td>
+                          <td className="px-5 py-3 text-sm text-gray-600">{formatWorkingHours(record.workingMinutes)}</td>
                           <td className="px-5 py-3"><StatusBadge status={record.status} /></td>
                         </tr>
                       ))}
                       {attendanceFilteredRecords.length === 0 && (
-                        <tr><td colSpan={5} className="px-5 py-12 text-sm text-center text-gray-400">No attendance records found</td></tr>
+                        <tr><td colSpan={6} className="px-5 py-12 text-sm text-center text-gray-400">No attendance records found</td></tr>
                       )}
                     </tbody>
                   </table>

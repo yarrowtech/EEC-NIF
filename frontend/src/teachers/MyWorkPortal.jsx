@@ -63,8 +63,10 @@ const MyWorkPortal = () => {
     hasCheckedOut: false,
     checkIn: '-',
     checkOut: '-',
-    status: 'Absent'
+    status: 'Absent',
+    workingMinutes: 0
   });
+  const [attendanceTiming, setAttendanceTiming] = useState({ entryTime: '09:00', exitTime: '17:00' });
   const [attendanceLoading, setAttendanceLoading] = useState(false);
   const [attendanceSaving, setAttendanceSaving] = useState(false);
   const [attendanceError, setAttendanceError] = useState('');
@@ -184,6 +186,14 @@ const MyWorkPortal = () => {
     return `${hour12}:${String(minutes).padStart(2, '0')} ${period}`;
   };
 
+  const formatWorkingHours = (minutes) => {
+    const totalMinutes = Number(minutes || 0);
+    if (!totalMinutes) return '-';
+    const hours = Math.floor(totalMinutes / 60);
+    const mins = totalMinutes % 60;
+    return `${hours}h ${String(mins).padStart(2, '0')}m`;
+  };
+
   const fetchWorkAttendance = async (monthValue = selectedMonth) => {
     setAttendanceLoading(true);
     setAttendanceError('');
@@ -209,7 +219,12 @@ const MyWorkPortal = () => {
         hasCheckedOut: false,
         checkIn: '-',
         checkOut: '-',
-        status: 'Absent'
+        status: 'Absent',
+        workingMinutes: 0
+      });
+      setAttendanceTiming({
+        entryTime: data?.settings?.entryTime || '09:00',
+        exitTime: data?.settings?.exitTime || '17:00',
       });
     } catch (error) {
       setAttendanceError(error.message || 'Unable to load attendance');
@@ -783,6 +798,10 @@ const MyWorkPortal = () => {
 
           <div className="flex flex-wrap items-center gap-4">
             <div className="bg-white/10 backdrop-blur-sm rounded-xl px-4 py-3">
+              <p className="text-white/70 text-xs mb-1">Entry / Exit Time</p>
+              <p className="text-lg font-semibold">{formatTime(attendanceTiming.entryTime)} - {formatTime(attendanceTiming.exitTime)}</p>
+            </div>
+            <div className="bg-white/10 backdrop-blur-sm rounded-xl px-4 py-3">
               <p className="text-white/70 text-xs mb-1">Check-in</p>
               <p className="text-lg font-semibold flex items-center gap-2">
                 <LogIn className="w-4 h-4" />
@@ -795,6 +814,10 @@ const MyWorkPortal = () => {
                 <LogOut className="w-4 h-4" />
                 {formatTime(todayAttendance.checkOut)}
               </p>
+            </div>
+            <div className="bg-white/10 backdrop-blur-sm rounded-xl px-4 py-3">
+              <p className="text-white/70 text-xs mb-1">Working Hours</p>
+              <p className="text-lg font-semibold">{formatWorkingHours(todayAttendance.workingMinutes)}</p>
             </div>
             <div className="bg-white/10 backdrop-blur-sm rounded-xl px-4 py-3">
               <p className="text-white/70 text-xs mb-1">Status</p>
@@ -922,6 +945,7 @@ const MyWorkPortal = () => {
                     <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider rounded-l-lg">Date</th>
                     <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Check In</th>
                     <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Check Out</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Working Hours</th>
                     <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider rounded-r-lg">Status</th>
                   </tr>
                 </thead>
@@ -947,6 +971,9 @@ const MyWorkPortal = () => {
                           <LogOut className="w-4 h-4 text-red-500" />
                           <span className="font-medium text-red-700">{formatTime(record.checkOut)}</span>
                         </div>
+                      </td>
+                      <td className="px-4 py-4 text-sm font-medium text-gray-700">
+                        {formatWorkingHours(record.workingMinutes)}
                       </td>
                       <td className="px-4 py-4">
                         <span className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold ${

@@ -8,6 +8,7 @@ const ParentUser = require('../models/ParentUser');
 const StaffUser = require('../models/StaffUser');
 const Principal = require('../models/Principal');
 const Admin = require('../models/Admin');
+const School = require('../models/School');
 const TeacherLeave = require('../models/TeacherLeave');
 const TeacherExpense = require('../models/TeacherExpense');
 const TeacherAttendance = require('../models/TeacherAttendance');
@@ -136,6 +137,13 @@ const buildScopedIdFilter = (req, id) => {
   const filter = buildScopedFilter(req);
   filter._id = id;
   return filter;
+};
+
+const TIME_24H_RE = /^([01]\d|2[0-3]):([0-5]\d)$/;
+const isValidTimeLabel = (value) => TIME_24H_RE.test(String(value || '').trim());
+const toMinutesOfDay = (value) => {
+  const [hours, minutes] = String(value).split(':').map(Number);
+  return (hours * 60) + minutes;
 };
 
 // Utility to get the right model based on role
@@ -883,6 +891,68 @@ router.patch('/teacher-expenses/:id/status', adminAuth, async (req, res) => {
     });
   } catch (err) {
     res.status(500).json({ error: err.message || 'Unable to update expense status' });
+  }
+});
+
+router.get('/teacher-attendance-settings', adminAuth, async (req, res) => {
+  // #swagger.tags = ['Admin Users']
+  try {
+    const schoolId = req.schoolId || req.query?.schoolId || null;
+    if (!schoolId || !mongoose.isValidObjectId(schoolId)) {
+      return res.status(400).json({ error: 'Valid schoolId is required' });
+    }
+
+    const school = await School.findById(schoolId).select('teacherAttendanceSettings').lean();
+    if (!school) return res.status(404).json({ error: 'School not found' });
+
+    const entryTime = school.teacherAttendanceSettings?.entryTime || '09:00';
+    const exitTime = school.teacherAttendanceSettings?.exitTime || '17:00';
+
+    res.json({
+      settings: { entryTime, exitTime },
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message || 'Unable to load teacher attendance settings' });
+  }
+});
+
+router.put('/teacher-attendance-settings', adminAuth, async (req, res) => {
+  // #swagger.tags = ['Admin Users']
+  try {
+    const schoolId = req.schoolId || req.body?.schoolId || null;
+    if (!schoolId || !mongoose.isValidObjectId(schoolId)) {
+      return res.status(400).json({ error: 'Valid schoolId is required' });
+    }
+
+    const entryTime = String(req.body?.entryTime || '').trim();
+    const exitTime = String(req.body?.exitTime || '').trim();
+    if (!isValidTimeLabel(entryTime)) {
+      return res.status(400).json({ error: 'entryTime must be in HH:mm format' });
+    }
+    if (!isValidTimeLabel(exitTime)) {
+      return res.status(400).json({ error: 'exitTime must be in HH:mm format' });
+    }
+    if (toMinutesOfDay(exitTime) <= toMinutesOfDay(entryTime)) {
+      return res.status(400).json({ error: 'exitTime must be later than entryTime' });
+    }
+
+    const updated = await School.findByIdAndUpdate(
+      schoolId,
+      { $set: { teacherAttendanceSettings: { entryTime, exitTime } } },
+      { new: true, runValidators: true }
+    ).select('teacherAttendanceSettings').lean();
+
+    if (!updated) return res.status(404).json({ error: 'School not found' });
+
+    res.json({
+      message: 'Teacher attendance settings updated',
+      settings: {
+        entryTime: updated.teacherAttendanceSettings?.entryTime || entryTime,
+        exitTime: updated.teacherAttendanceSettings?.exitTime || exitTime,
+      },
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message || 'Unable to update teacher attendance settings' });
   }
 });
 
