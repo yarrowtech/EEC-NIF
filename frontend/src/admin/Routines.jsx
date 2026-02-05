@@ -13,6 +13,9 @@ const TIMES = [
   '10:45 AM - 11:30 AM',
   '11:30 AM - 12:15 PM',
 ];
+const DEFAULT_BREAK_TIMES = ['10:15 AM - 10:45 AM'];
+const DEFAULT_START_TIME = '08:00';
+const DEFAULT_PERIOD_MINUTES = 45;
 
 const SUBJECTS = {
   X: ['Mathematics', 'Physics', 'Chemistry', 'Biology', 'English', 'Computer'],
@@ -32,30 +35,64 @@ const TEACHERS = {
   Computer: 'Ms. Nidhi Kapoor',
 };
 
+const ROUTINE_TEMPLATES = [
+  {
+    id: 'balanced',
+    name: 'Balanced Day',
+    description: 'Blends core academics and language periods',
+    pattern: ['Mathematics', 'English', 'Science', 'Social Science', 'Computer', 'Hindi']
+  },
+  {
+    id: 'stem',
+    name: 'STEM Focus',
+    description: 'Math + science heavy schedule with labs',
+    pattern: ['Mathematics', 'Physics', 'Chemistry', 'Biology', 'Computer', 'Mathematics']
+  },
+  {
+    id: 'revision',
+    name: 'Revision & Guidance',
+    description: 'Light concepts with revision touchpoints',
+    pattern: ['English', 'Mathematics', 'Science', 'Social Science', 'Computer', 'English']
+  }
+];
+
 const getId = (value) => (value && typeof value === 'object' ? value._id : value);
 
-const buildScheduleForDay = (existingSchedule = []) => {
-  const byTime = new Map(existingSchedule.map((entry) => [entry.time, entry]));
+const addMinutesToTime = (time24, minutes) => {
+  if (!time24) return '';
+  const [hours, mins] = time24.split(':').map((part) => parseInt(part, 10));
+  if (Number.isNaN(hours) || Number.isNaN(mins)) return '';
+  const total = hours * 60 + mins + minutes;
+  const normalized = ((total % (24 * 60)) + (24 * 60)) % (24 * 60);
+  const nextHours = Math.floor(normalized / 60);
+  const nextMins = normalized % 60;
+  return `${nextHours.toString().padStart(2, '0')}:${nextMins.toString().padStart(2, '0')}`;
+};
+
+const parseTimeRange = (range) => {
+  if (!range || typeof range !== 'string') return { start: '', end: '' };
+  const [startLabel, endLabel] = range.split('-').map((part) => part.trim());
+  return {
+    start: startLabel ? convertTo24Hour(startLabel) : '',
+    end: endLabel ? convertTo24Hour(endLabel) : '',
+  };
+};
+
+const formatTimeRange = (start24, end24) => {
+  if (!start24 || !end24) return '';
+  return `${convertTo12Hour(start24)} - ${convertTo12Hour(end24)}`;
+};
+
+const getDefaultSlots = () => {
   return TIMES.map((time) => {
-    const match = byTime.get(time);
-    if (match) {
-      const isBreak = match.subject === 'Break';
-      return {
-        time,
-        isBreak,
-        subject: isBreak ? 'Break' : (match.subject || ''),
-        teacher: isBreak ? '-' : (match.teacher || ''),
-        subjectId: match.subjectId || null,
-        teacherId: match.teacherId || null,
-        room: match.room || '',
-      };
-    }
-    const isBreak = time.includes('10:15');
+    const parsed = parseTimeRange(time);
     return {
       time,
-      isBreak,
-      subject: isBreak ? 'Break' : '',
-      teacher: isBreak ? '-' : '',
+      startTime: parsed.start || '',
+      endTime: parsed.end || '',
+      isBreak: DEFAULT_BREAK_TIMES.includes(time),
+      subject: DEFAULT_BREAK_TIMES.includes(time) ? 'Break' : '',
+      teacher: DEFAULT_BREAK_TIMES.includes(time) ? '-' : '',
       subjectId: null,
       teacherId: null,
       room: '',
@@ -63,7 +100,48 @@ const buildScheduleForDay = (existingSchedule = []) => {
   });
 };
 
-const isBreakSlot = (time) => time.includes('10:15');
+const buildScheduleForDay = (existingSchedule = []) => {
+  if (Array.isArray(existingSchedule) && existingSchedule.length > 0) {
+    const sorted = [...existingSchedule].sort((a, b) => {
+      const aStart = parseTimeRange(a.time).start || '';
+      const bStart = parseTimeRange(b.time).start || '';
+      return aStart.localeCompare(bStart);
+    });
+    return sorted.map((entry) => {
+      const parsed = parseTimeRange(entry.time);
+      const isBreak = entry.subject === 'Break' || entry.isBreak;
+      return {
+        time: entry.time || formatTimeRange(parsed.start, parsed.end),
+        startTime: entry.startTime || parsed.start || '',
+        endTime: entry.endTime || parsed.end || '',
+        isBreak,
+        subject: isBreak ? 'Break' : (entry.subject || ''),
+        teacher: isBreak ? '-' : (entry.teacher || ''),
+        subjectId: entry.subjectId || null,
+        teacherId: entry.teacherId || null,
+        room: entry.room || '',
+      };
+    });
+  }
+
+  const defaultSlots = getDefaultSlots();
+  if (defaultSlots.length > 0) return defaultSlots;
+  // fallback if TIMES empty
+  const start = DEFAULT_START_TIME;
+  return [{
+    time: formatTimeRange(start, addMinutesToTime(start, DEFAULT_PERIOD_MINUTES)),
+    startTime: start,
+    endTime: addMinutesToTime(start, DEFAULT_PERIOD_MINUTES),
+    isBreak: false,
+    subject: '',
+    teacher: '',
+    subjectId: null,
+    teacherId: null,
+    room: '',
+  }];
+};
+
+const isBreakSlot = (time) => DEFAULT_BREAK_TIMES.includes(time);
 
 const Routines = ({setShowAdminHeader}) => {
   // Data state
@@ -102,12 +180,39 @@ const Routines = ({setShowAdminHeader}) => {
   const [blockDraft, setBlockDraft] = useState({ subject: '', teacher: '', room: '' });
   const [paletteBlocks, setPaletteBlocks] = useState([]);
   const [weeklyDraft, setWeeklyDraft] = useState({});
+  const [selectedCopyRoutine, setSelectedCopyRoutine] = useState('');
 
   const filteredRoutines = routines.filter(routine =>
     (!selectedClass || routine.class === selectedClass) &&
     (!selectedSection || routine.section === selectedSection) &&
     (viewMode === 'weekly' || !selectedDay || routine.day === selectedDay)
   );
+
+  const copyableRoutines = useMemo(() => {
+    return routines
+      .filter((routine) => !editingRoutine || routine.id !== editingRoutine.id)
+      .sort((a, b) => {
+        const aMatch = a.class === form.class && a.section === form.section ? 1 : 0;
+        const bMatch = b.class === form.class && b.section === form.section ? 1 : 0;
+        return bMatch - aMatch;
+      })
+      .map((routine) => ({
+        id: String(routine.id),
+        label: `Class ${routine.class}-${routine.section} • ${routine.day}`
+      }));
+  }, [routines, form.class, form.section, editingRoutine]);
+
+  const scheduleStats = useMemo(() => {
+    const total = form.schedule.filter((slot) => !slot.isBreak).length;
+    const filled = form.schedule.filter(
+      (slot) => !slot.isBreak && slot.subject && slot.teacher
+    ).length;
+    return {
+      total,
+      filled,
+      pending: total > filled ? total - filled : 0
+    };
+  }, [form.schedule]);
 
   // Toast notification helpers
   const showSuccessToast = (message) => {
@@ -199,6 +304,12 @@ const Routines = ({setShowAdminHeader}) => {
   useEffect(() => {
     loadInitialData();
   }, []);
+
+  useEffect(() => {
+    if (!isModalOpen) {
+      setSelectedCopyRoutine('');
+    }
+  }, [isModalOpen]);
 
   const handleAutoGenerate = async () => {
     if (!selectedClass) {
@@ -491,6 +602,119 @@ const Routines = ({setShowAdminHeader}) => {
     setPaletteBlocks((prev) => prev.filter((block) => block.id !== id));
   };
 
+  const handleApplyTemplate = (templateId) => {
+    const template = ROUTINE_TEMPLATES.find((entry) => entry.id === templateId);
+    if (!template) return;
+    setForm((prev) => {
+      const nextSchedule = prev.schedule.map((slot, index) => {
+        if (slot.isBreak) {
+          return { ...slot, subject: 'Break', teacher: '-', room: '' };
+        }
+        const subject = template.pattern[index % template.pattern.length] || slot.subject;
+        if (!subject) return slot;
+        const teacherSuggestion =
+          slot.subject === subject && slot.teacher
+            ? slot.teacher
+            : TEACHERS[subject] || slot.teacher || '';
+        return {
+          ...slot,
+          subject,
+          teacher: teacherSuggestion,
+        };
+      });
+      return { ...prev, schedule: nextSchedule };
+    });
+    showSuccessToast(`Applied ${template.name} template`);
+  };
+
+  const handleCopyFromExistingRoutine = () => {
+    if (!selectedCopyRoutine) return;
+    const routine = routines.find((r) => String(r.id) === String(selectedCopyRoutine));
+    if (!routine) return;
+    const schedule = buildScheduleForDay(routine.schedule);
+    setForm((prev) => ({ ...prev, schedule }));
+    setSelectedCopyRoutine('');
+    showSuccessToast(`Copied ${routine.day} routine`);
+  };
+
+  const handleResetSchedule = () => {
+    setForm((prev) => ({
+      ...prev,
+      schedule: buildScheduleForDay()
+    }));
+  };
+
+  const handleClearSubjects = () => {
+    setForm((prev) => ({
+      ...prev,
+      schedule: prev.schedule.map((slot) =>
+        slot.isBreak
+          ? { ...slot, subject: 'Break', teacher: '-', room: '' }
+          : { ...slot, subject: '', teacher: '', room: '' }
+      )
+    }));
+  };
+
+  const handleAutoAssignRooms = () => {
+    setForm((prev) => ({
+      ...prev,
+      schedule: prev.schedule.map((slot, index) =>
+        slot.isBreak
+          ? { ...slot, room: '' }
+          : { ...slot, room: slot.room || `Room ${200 + (index + 1)}` }
+      )
+    }));
+    showSuccessToast('Rooms auto-assigned to available periods');
+  };
+
+  const updateRowTimeField = (index, field, value) => {
+    setForm((prev) => {
+      const schedule = [...prev.schedule];
+      const current = schedule[index];
+      if (!current) return prev;
+      const parsed = parseTimeRange(current.time);
+      const nextStart = field === 'start' ? value : (current.startTime || parsed.start || '');
+      const nextEnd = field === 'end' ? value : (current.endTime || parsed.end || '');
+      const timeLabel = nextStart && nextEnd ? formatTimeRange(nextStart, nextEnd) : current.time;
+      schedule[index] = {
+        ...current,
+        startTime: nextStart,
+        endTime: nextEnd,
+        time: timeLabel
+      };
+      return { ...prev, schedule };
+    });
+  };
+
+  const handleAddTimeSlot = () => {
+    setForm((prev) => {
+      const lastSlot = prev.schedule[prev.schedule.length - 1];
+      const parsedLast = lastSlot ? (lastSlot.endTime || parseTimeRange(lastSlot.time).end) : '';
+      const start = parsedLast || DEFAULT_START_TIME;
+      const end = addMinutesToTime(start, DEFAULT_PERIOD_MINUTES);
+      const nextSlot = {
+        time: formatTimeRange(start, end),
+        startTime: start,
+        endTime: end,
+        isBreak: false,
+        subject: '',
+        teacher: '',
+        subjectId: null,
+        teacherId: null,
+        room: '',
+      };
+      return { ...prev, schedule: [...prev.schedule, nextSlot] };
+    });
+  };
+
+  const handleRemoveTimeSlot = (index) => {
+    setForm((prev) => {
+      if (prev.schedule.length <= 1) return prev;
+      const next = prev.schedule.filter((_, idx) => idx !== index);
+      return { ...prev, schedule: next };
+    });
+  };
+
   // Delete handler
   const handleDelete = async (routine) => {
     if (!window.confirm(`Are you sure you want to delete the routine for ${routine.class}-${routine.section} on ${routine.day}?`)) {
@@ -551,11 +775,23 @@ const Routines = ({setShowAdminHeader}) => {
         return;
       }
 
+      const timingIssues = form.schedule.filter(
+        (period) =>
+          !period.isBreak &&
+          (!period.startTime || !period.endTime || period.startTime >= period.endTime)
+      );
+      if (timingIssues.length > 0) {
+        showErrorToast('Please set valid start and end times for each period');
+        return;
+      }
+
       const entries = form.schedule
         .filter(period => !period.isBreak)
-        .filter(period => period.subject && period.time)
+        .filter(period => period.subject && (period.startTime || period.time))
         .map((period, index) => {
-          const [startTime, endTime] = period.time.split(' - ').map(t => t.trim());
+          const parsed = parseTimeRange(period.time);
+          const startTime = period.startTime || parsed.start;
+          const endTime = period.endTime || parsed.end;
           const subject = subjects.find(s => s.name === period.subject);
           const teacher = teachers.find(t => t.name === period.teacher);
 
@@ -564,8 +800,8 @@ const Routines = ({setShowAdminHeader}) => {
             period: index + 1,
             subjectId: subject?._id || null,
             teacherId: teacher?._id || null,
-            startTime: convertTo24Hour(startTime),
-            endTime: convertTo24Hour(endTime),
+            startTime,
+            endTime,
             room: period.room || ''
           };
         });
@@ -1375,8 +1611,8 @@ const Routines = ({setShowAdminHeader}) => {
         {isModalOpen && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
             <div className="absolute inset-0 bg-black/50" onClick={() => setIsModalOpen(false)} />
-            <div className="relative bg-white w-full max-w-4xl rounded-xl shadow-lg border border-purple-400 p-6">
-              <div className="flex items-center justify-between mb-6">
+            <div className="relative bg-white w-full max-w-4xl rounded-xl shadow-lg border border-purple-400 max-h-[90vh] overflow-hidden flex flex-col">
+              <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
                 <h3 className="text-xl font-semibold text-gray-900">
                   {editingRoutine ? 'Edit Routine' : 'Add Routine'}
                 </h3>
@@ -1388,71 +1624,191 @@ const Routines = ({setShowAdminHeader}) => {
                 </button>
               </div>
               
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Class</label>
-                  <select
-                    value={form.class}
-                    onChange={(e) => {
-                      const cls = e.target.value;
-                      setForm((f) => ({ ...f, class: cls }));
-                    }}
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                  >
-                    <option value="">Select Class</option>
-                    {classes.map((cls) => (
-                      <option key={cls._id} value={cls.name}>{cls.name}</option>
-                    ))}
-                  </select>
-                </div>
-                
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Section</label>
-                  <select
-                    value={form.section}
-                    onChange={(e) => setForm((f) => ({ ...f, section: e.target.value }))}
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                  >
-                    <option value="">Select Section</option>
-                    {sections
-                      .filter(s => {
-                        const classDoc = classes.find(c => c.name === form.class);
-                        return !classDoc || getId(s.classId) === classDoc._id;
-                      })
-                      .map((s) => (
-                        <option key={s._id} value={s.name}>{s.name}</option>
+              <div className="flex-1 overflow-y-auto px-6 py-4 space-y-6">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Class</label>
+                    <select
+                      value={form.class}
+                      onChange={(e) => {
+                        const cls = e.target.value;
+                        setForm((f) => ({ ...f, class: cls }));
+                      }}
+                      className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                    >
+                      <option value="">Select Class</option>
+                      {classes.map((cls) => (
+                        <option key={cls._id} value={cls.name}>{cls.name}</option>
                       ))}
-                  </select>
+                    </select>
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Section</label>
+                    <select
+                      value={form.section}
+                      onChange={(e) => setForm((f) => ({ ...f, section: e.target.value }))}
+                      className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                    >
+                      <option value="">Select Section</option>
+                      {sections
+                        .filter(s => {
+                          const classDoc = classes.find(c => c.name === form.class);
+                          return !classDoc || getId(s.classId) === classDoc._id;
+                        })
+                        .map((s) => (
+                          <option key={s._id} value={s.name}>{s.name}</option>
+                        ))}
+                    </select>
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Day</label>
+                    <select 
+                      value={form.day} 
+                      onChange={(e) => setForm((f) => ({ ...f, day: e.target.value }))} 
+                      className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                    >
+                      {DAYS.map((d) => (
+                        <option key={d} value={d}>{d}</option>
+                      ))}
+                    </select>
+                  </div>
                 </div>
-                
+
+              <div className="bg-indigo-50 border border-dashed border-indigo-200 rounded-2xl p-4 space-y-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Day</label>
-                  <select 
-                    value={form.day} 
-                    onChange={(e) => setForm((f) => ({ ...f, day: e.target.value }))} 
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                  >
-                    {DAYS.map((d) => (
-                      <option key={d} value={d}>{d}</option>
+                  <p className="text-sm font-semibold text-indigo-900">Quick templates</p>
+                  <p className="text-xs text-indigo-700 opacity-80">Apply a curated subject order and tweak from there.</p>
+                  <div className="flex flex-wrap gap-2 mt-3">
+                    {ROUTINE_TEMPLATES.map((template) => (
+                      <button
+                        key={template.id}
+                        type="button"
+                        onClick={() => handleApplyTemplate(template.id)}
+                        className="px-3 py-2 rounded-xl bg-white shadow-sm text-sm font-medium text-indigo-700 hover:bg-indigo-100 transition-colors border border-white hover:border-indigo-200"
+                        title={template.description}
+                      >
+                        {template.name}
+                      </button>
                     ))}
-                  </select>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="bg-white border border-indigo-100 rounded-xl p-3">
+                    <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Copy from existing routine</p>
+                    <div className="mt-2 flex gap-2">
+                      <select
+                        value={selectedCopyRoutine}
+                        onChange={(e) => setSelectedCopyRoutine(e.target.value)}
+                        className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                      >
+                        <option value="">Choose routine</option>
+                        {copyableRoutines.map((routine) => (
+                          <option key={routine.id} value={routine.id}>{routine.label}</option>
+                        ))}
+                      </select>
+                      <button
+                        type="button"
+                        onClick={handleCopyFromExistingRoutine}
+                        disabled={!selectedCopyRoutine}
+                        className="px-3 py-2 rounded-lg bg-indigo-600 text-white text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        Copy
+                      </button>
+                    </div>
+                    <p className="text-[11px] text-gray-500 mt-2">
+                      Same class & section routines bubble to the top of this list.
+                    </p>
+                  </div>
+
+                  <div className="bg-white border border-indigo-100 rounded-xl p-3 flex flex-col gap-3">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Day progress</p>
+                        <p className="text-lg font-semibold text-gray-900">
+                          {scheduleStats.filled}/{scheduleStats.total || 0} slots assigned
+                        </p>
+                      </div>
+                      <div className="text-xs text-gray-500">
+                        {scheduleStats.pending > 0 ? `${scheduleStats.pending} pending` : 'All set'}
+                      </div>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        onClick={handleAutoAssignRooms}
+                        className="px-3 py-2 rounded-lg border border-indigo-200 text-indigo-700 text-sm font-medium hover:bg-indigo-50 transition-colors"
+                      >
+                        Auto assign rooms
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleClearSubjects}
+                        className="px-3 py-2 rounded-lg border border-amber-200 text-amber-700 text-sm font-medium hover:bg-amber-50 transition-colors"
+                      >
+                        Clear subjects
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleResetSchedule}
+                        className="px-3 py-2 rounded-lg border border-gray-200 text-gray-700 text-sm font-medium hover:bg-gray-50 transition-colors"
+                      >
+                        Reset day
+                      </button>
+                    </div>
+                  </div>
                 </div>
               </div>
 
-              <div className="overflow-x-auto mb-6">
+              <div className="overflow-x-auto">
                 <table className="min-w-full border border-gray-200 rounded-lg overflow-hidden">
                   <thead className="bg-gray-50">
                     <tr>
-                      <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">Time</th>
+                      <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">Timing</th>
                       <th className="px-4 py-3 text-center text-sm font-medium text-gray-700">Break</th>
                       <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">Subject</th>
                       <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">Teacher</th>
+                      <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">Room</th>
+                      <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">Actions</th>
                     </tr>
                   </thead>
                   <tbody>
                     {form.schedule.map((row, idx) => (
-                      <tr key={row.time} className="even:bg-white odd:bg-gray-50 border-b border-gray-100">
-                        <td className="px-4 py-3 text-sm text-gray-800">{row.time}</td>
+                      <tr key={`${row.time || 'slot'}-${idx}`} className="even:bg-white odd:bg-gray-50 border-b border-gray-100">
+                        <td className="px-4 py-3 text-sm text-gray-800">
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="font-semibold text-gray-900">
+                              {row.time || 'Set time'}
+                            </span>
+                            {row.isBreak && (
+                              <span className="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-600">
+                                Break slot
+                              </span>
+                            )}
+                          </div>
+                          <div className="mt-2 grid grid-cols-2 gap-2">
+                            <label className="text-xs text-gray-500 flex flex-col gap-1">
+                              <span>Start</span>
+                              <input
+                                type="time"
+                                value={row.startTime || parseTimeRange(row.time).start || ''}
+                                onChange={(e) => updateRowTimeField(idx, 'start', e.target.value)}
+                                className="w-full border border-gray-300 rounded-lg px-2 py-1 text-sm"
+                              />
+                            </label>
+                            <label className="text-xs text-gray-500 flex flex-col gap-1">
+                              <span>End</span>
+                              <input
+                                type="time"
+                                value={row.endTime || parseTimeRange(row.time).end || ''}
+                                onChange={(e) => updateRowTimeField(idx, 'end', e.target.value)}
+                                className="w-full border border-gray-300 rounded-lg px-2 py-1 text-sm"
+                              />
+                            </label>
+                          </div>
+                        </td>
                         <td className="px-4 py-3 text-center">
                           <input
                             type="checkbox"
@@ -1461,8 +1817,8 @@ const Routines = ({setShowAdminHeader}) => {
                               const isBreak = e.target.checked;
                               const next = [...form.schedule];
                               next[idx] = isBreak
-                                ? { ...row, isBreak: true, subject: 'Break', teacher: '-' }
-                                : { ...row, isBreak: false, subject: '', teacher: '' };
+                                ? { ...row, isBreak: true, subject: 'Break', teacher: '-', room: '' }
+                                : { ...row, isBreak: false, subject: '', teacher: '', room: '' };
                               setForm((f) => ({ ...f, schedule: next }));
                             }}
                             className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
@@ -1509,13 +1865,57 @@ const Routines = ({setShowAdminHeader}) => {
                             </select>
                           )}
                         </td>
+                        <td className="px-4 py-3">
+                          {row.isBreak ? (
+                            <span className="text-gray-500 italic">-</span>
+                          ) : (
+                            <input
+                              type="text"
+                              value={row.room || ''}
+                              onChange={(e) => {
+                                const next = [...form.schedule];
+                                next[idx] = { ...row, room: e.target.value };
+                                setForm((f) => ({ ...f, schedule: next }));
+                              }}
+                              placeholder="Room 204 / Lab"
+                              className="w-full border border-gray-300 rounded-lg px-2 py-1 text-sm"
+                            />
+                          )}
+                        </td>
+                        <td className="px-4 py-3 text-right">
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveTimeSlot(idx)}
+                            className="p-2 rounded-lg text-gray-500 hover:text-red-600 hover:bg-red-50 transition-colors disabled:opacity-50"
+                            disabled={form.schedule.length <= 1}
+                            title="Remove slot"
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        </td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
               </div>
 
-              <div className="flex items-center justify-end space-x-3">
+              <div className="flex items-center justify-between flex-wrap gap-3">
+                <button
+                  type="button"
+                  onClick={handleAddTimeSlot}
+                  className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-dashed border-indigo-300 text-indigo-700 text-sm font-medium hover:bg-indigo-50 transition-colors"
+                >
+                  <Plus size={16} />
+                  Add time slot
+                </button>
+                <p className="text-xs text-gray-500">
+                  Customize start/end times or add extra periods to match your school timetable.
+                </p>
+              </div>
+
+              </div>
+
+              <div className="flex items-center justify-end space-x-3 border-t border-gray-100 px-6 py-4">
                 <button 
                   className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors" 
                   onClick={() => setIsModalOpen(false)}
