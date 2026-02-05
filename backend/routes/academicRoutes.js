@@ -122,7 +122,6 @@ router.delete('/years/:id', adminAuth, async (req, res) => {
 
     const schoolId = resolveSchoolId(req, res);
     if (!schoolId) return;
-    const campusId = resolveCampusId(req);
 
     // Verify ownership
     const existing = await AcademicYear.findOne({ _id: id, schoolId }).lean();

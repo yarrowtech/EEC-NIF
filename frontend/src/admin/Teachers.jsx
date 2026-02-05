@@ -38,6 +38,7 @@ const Teachers = ({setShowAdminHeader}) => {
   const [showAddForm, setShowAddForm] = useState(false);
   const [submitStatus, setSubmitStatus] = useState(null);
   const [credentialLoadingId, setCredentialLoadingId] = useState(null);
+  const [deletingTeacherId, setDeletingTeacherId] = useState(null);
   const [credentialView, setCredentialView] = useState(null);
   const [newTeacher, setNewTeacher] = useState({
     name: '',
@@ -239,6 +240,36 @@ const Teachers = ({setShowAdminHeader}) => {
       await navigator.clipboard.writeText(value);
     } catch (err) {
       console.error('Failed to copy credential:', err);
+    }
+  };
+
+  const handleDeleteTeacher = async (teacher) => {
+    const teacherId = teacher?._id || teacher?.id;
+    if (!teacherId || deletingTeacherId) return;
+    const confirmed = window.confirm(`Delete teacher ${teacher.name || ''}?`);
+    if (!confirmed) return;
+
+    setDeletingTeacherId(teacherId);
+    try {
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/admin/users/teachers/${teacherId}`, {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+          'authorization': `Bearer ${localStorage.getItem('token')}`
+        }
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data?.error || data?.message || 'Unable to delete teacher');
+      }
+
+      setTeachers((prev) => prev.filter((item) => String(item._id || item.id) !== String(teacherId)));
+      setSubmitStatus({ type: 'success', message: `${teacher.name || 'Teacher'} deleted successfully.` });
+      fetchTeachers().catch(console.error);
+    } catch (error) {
+      setSubmitStatus({ type: 'error', message: error.message || 'Unable to delete teacher' });
+    } finally {
+      setDeletingTeacherId(null);
     }
   };
 
@@ -795,6 +826,14 @@ const Teachers = ({setShowAdminHeader}) => {
                           title="Edit Teacher"
                         >
                           <Edit2 size={14} />
+                        </button>
+                        <button
+                          className="text-red-600 hover:text-red-800 p-1 hover:bg-red-50 rounded disabled:opacity-50"
+                          title="Delete Teacher"
+                          onClick={() => handleDeleteTeacher(teacher)}
+                          disabled={deletingTeacherId === (teacher._id || teacher.id)}
+                        >
+                          <Trash2 size={14} />
                         </button>
                         <button 
                           className="text-gray-600 hover:text-gray-800 p-1 hover:bg-gray-50 rounded" 
