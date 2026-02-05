@@ -5,7 +5,6 @@ import {
   UserCheck,
   Calendar as CalendarIcon,
   TrendingUp,
-  BookOpen,
   GraduationCap,
   UsersRound,
   Plus,
@@ -28,7 +27,6 @@ import {
 // Quick actions
 const quickActions = [
   { title: 'Add Student', action: 'student', icon: Plus, color: 'blue' },
-  { title: 'Create Course', action: 'course', icon: BookOpen, color: 'green' },
   { title: 'Send Notification', action: 'notification', icon: Bell, color: 'purple' },
   { title: 'Generate Report', action: 'report', icon: FileBarChart, color: 'orange' },
 ];

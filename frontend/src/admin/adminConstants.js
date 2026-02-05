@@ -11,7 +11,6 @@ import {
   Briefcase,
   UserPlus,
   Brain,
-  BookOpen,
   Settings,
   Receipt,
   UserSearch,
@@ -76,11 +75,6 @@ export const ADMIN_MENU_ITEMS = [
     icon: Layers, 
     label: 'Academic Setup', 
     path: '/admin/academics' 
-  },
-  { 
-    icon: BookOpen, 
-    label: 'Course Management', 
-    path: '/admin/courses' 
   },
   { 
     icon: Calendar, 

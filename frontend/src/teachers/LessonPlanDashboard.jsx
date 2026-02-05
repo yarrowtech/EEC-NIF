@@ -3,7 +3,7 @@ import {
   BookOpen, Plus, ChevronDown, ChevronRight, Search,
   Grid, List, Calendar, FileText, Edit3, MoreVertical,
   Download, Share, Trash2, Filter, Bookmark, Clock, User,
-  GraduationCap, X
+  X
 } from 'lucide-react';
 
 const initialLessonPlans = [
@@ -126,26 +126,9 @@ const LessonPlanDashboard = () => {
   });
   const [selectedPlan, setSelectedPlan] = useState(initialLessonPlans[0]);
   const [showDetailView, setShowDetailView] = useState(true);
-  const [showCreateCourse, setShowCreateCourse] = useState(false);
-  const [courseData, setCourseData] = useState({
-    courseName: '',
-    courseCode: '',
-    description: '',
-    duration: '',
-    credits: '',
-    department: '',
-    prerequisites: ''
-  });
 
   const handleInputChange = (field, value) => {
     setFormData(prev => ({
-      ...prev,
-      [field]: value
-    }));
-  };
-
-  const handleCourseInputChange = (field, value) => {
-    setCourseData(prev => ({
       ...prev,
       [field]: value
     }));
@@ -186,44 +169,6 @@ const LessonPlanDashboard = () => {
   };
 
   const isFormValid = formData.class && formData.section && formData.subject && formData.chapter;
-
-  const handleCourseSubmit = async (e) => {
-    e.preventDefault();
-    if (!isCourseFormValid) return;
-    
-    try {
-      const response = await fetch('/api/course/teacher/add', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(courseData)
-      });
-      
-      const result = await response.json();
-      
-      if (response.ok) {
-        setCourseData({
-          courseName: '',
-          courseCode: '',
-          description: '',
-          duration: '',
-          credits: '',
-          department: '',
-          prerequisites: ''
-        });
-        setShowCreateCourse(false);
-        alert(`Course "${courseData.courseName}" created successfully!`);
-      } else {
-        alert(`Error: ${result.error}`);
-      }
-    } catch (error) {
-      console.error('Error creating course:', error);
-      alert('Failed to create course. Please try again.');
-    }
-  };
-
-  const isCourseFormValid = courseData.courseName && courseData.courseCode && courseData.department;
 
   // Filter lesson plans based on search and filters
   const filteredPlans = lessonPlans.filter(plan => {
@@ -385,13 +330,6 @@ const LessonPlanDashboard = () => {
                 )}
               </div>
               
-              <button
-                onClick={() => setShowCreateCourse(true)}
-                className="bg-green-600 hover:bg-green-700 text-white px-4 py-2.5 rounded-lg flex items-center space-x-2 transition-colors shadow-sm"
-              >
-                <GraduationCap className="w-4 h-4" />
-                <span>Create Course</span>
-              </button>
             </div>
 
             {/* Search, Filter, View */}
@@ -680,152 +618,6 @@ const LessonPlanDashboard = () => {
           )}
         </div>
       </div>
-
-      {/* Create Course Modal */}
-      {showCreateCourse && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-            <div className="p-6 border-b border-gray-200">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center space-x-3">
-                  <div className="p-2 bg-green-100 rounded-lg">
-                    <GraduationCap className="h-6 w-6 text-green-600" />
-                  </div>
-                  <div>
-                    <h2 className="text-xl font-bold text-gray-900">Create New Course</h2>
-                    <p className="text-sm text-gray-500">Set up a new course with all required details</p>
-                  </div>
-                </div>
-                <button 
-                  onClick={() => setShowCreateCourse(false)}
-                  className="text-gray-400 hover:text-gray-600 p-1"
-                >
-                  <X className="w-6 h-6" />
-                </button>
-              </div>
-            </div>
-            
-            <form onSubmit={handleCourseSubmit} className="p-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="md:col-span-2">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Course Name *</label>
-                  <input
-                    type="text"
-                    placeholder="e.g., Advanced Mathematics"
-                    value={courseData.courseName}
-                    onChange={(e) => handleCourseInputChange('courseName', e.target.value)}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
-                    required
-                  />
-                </div>
-                
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Course Code *</label>
-                  <input
-                    type="text"
-                    placeholder="e.g., MATH401"
-                    value={courseData.courseCode}
-                    onChange={(e) => handleCourseInputChange('courseCode', e.target.value)}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
-                    required
-                  />
-                </div>
-                
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Department *</label>
-                  <select
-                    value={courseData.department}
-                    onChange={(e) => handleCourseInputChange('department', e.target.value)}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
-                    required
-                  >
-                    <option value="">Select Department</option>
-                    <option value="Mathematics">Mathematics</option>
-                    <option value="Physics">Physics</option>
-                    <option value="Chemistry">Chemistry</option>
-                    <option value="Biology">Biology</option>
-                    <option value="English">English</option>
-                    <option value="History">History</option>
-                    <option value="Computer Science">Computer Science</option>
-                    <option value="Economics">Economics</option>
-                  </select>
-                </div>
-                
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Credits</label>
-                  <input
-                    type="number"
-                    placeholder="e.g., 3"
-                    min="1"
-                    max="6"
-                    value={courseData.credits}
-                    onChange={(e) => handleCourseInputChange('credits', e.target.value)}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
-                  />
-                </div>
-                
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Duration</label>
-                  <select
-                    value={courseData.duration}
-                    onChange={(e) => handleCourseInputChange('duration', e.target.value)}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
-                  >
-                    <option value="">Select Duration</option>
-                    <option value="1 Semester">1 Semester</option>
-                    <option value="2 Semesters">2 Semesters</option>
-                    <option value="1 Year">1 Year</option>
-                    <option value="Summer Course">Summer Course</option>
-                  </select>
-                </div>
-                
-                <div className="md:col-span-2">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Course Description</label>
-                  <textarea
-                    rows="4"
-                    placeholder="Provide a detailed description of the course objectives, content, and learning outcomes..."
-                    value={courseData.description}
-                    onChange={(e) => handleCourseInputChange('description', e.target.value)}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent resize-none"
-                  />
-                </div>
-                
-                <div className="md:col-span-2">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Prerequisites</label>
-                  <input
-                    type="text"
-                    placeholder="e.g., MATH301, PHYS201 (separate multiple courses with commas)"
-                    value={courseData.prerequisites}
-                    onChange={(e) => handleCourseInputChange('prerequisites', e.target.value)}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
-                  />
-                </div>
-              </div>
-              
-              <div className="flex justify-end space-x-4 mt-8 pt-6 border-t border-gray-200">
-                <button
-                  type="button"
-                  onClick={() => setShowCreateCourse(false)}
-                  className="px-6 py-3 border border-gray-300 rounded-lg text-gray-700 font-medium hover:bg-gray-50 transition-colors"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={!isCourseFormValid}
-                  className={`px-6 py-3 rounded-lg font-medium transition-colors ${
-                    isCourseFormValid
-                      ? 'bg-green-600 hover:bg-green-700 text-white'
-                      : 'bg-gray-200 text-gray-500 cursor-not-allowed'
-                  }`}
-                >
-                  Create Course
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
     </div>
   );
 };
