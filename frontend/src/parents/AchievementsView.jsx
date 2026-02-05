@@ -1,9 +1,56 @@
-import React from 'react';
-import { Award, Medal, Trophy, Download, Calendar, Star } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Award, Medal, Trophy, Download, Calendar, Star, Users, Loader2 } from 'lucide-react';
+
+const API_BASE = (import.meta.env.VITE_API_URL || 'http://localhost:5000').replace(/\/$/, '');
 
 const AchievementsView = () => {
+  const [selectedChildId, setSelectedChildId] = useState('');
+  const [children, setChildren] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    const loadChildren = async () => {
+      const token = localStorage.getItem('token');
+      if (!token) {
+        setError('Login required');
+        setLoading(false);
+        return;
+      }
+
+      setLoading(true);
+      setError('');
+      try {
+        const res = await fetch(`${API_BASE}/api/parent/auth/profile`, {
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          throw new Error(data?.error || 'Failed to load children');
+        }
+
+        const childList = Array.isArray(data.children) ? data.children : [];
+        setChildren(childList);
+        if (childList.length > 0 && !selectedChildId) {
+          setSelectedChildId(childList[0]);
+        }
+      } catch (err) {
+        setError(err.message || 'Could not load children data');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadChildren();
+  }, []);
+
+  const selectedChild = children.find(child => child === selectedChildId) || children[0];
+
   const achievementsData = {
-    studentName: "Koushik Bala",
+    studentName: selectedChild || "Select a child",
     class: "10-A",
     totalAwards: 12,
     recentAchievements: 3,
@@ -57,6 +104,38 @@ const AchievementsView = () => {
         <p className="text-yellow-100 text-sm sm:text-base">View your child's achievements and awards</p>
       </div>
 
+      {/* Child Selector */}
+      <div className="bg-white rounded-xl p-4 sm:p-5 mb-4 sm:mb-6 shadow-sm border border-gray-100">
+        <div className="flex items-center gap-3 mb-3">
+          <Users className="w-5 h-5 text-yellow-600" />
+          <h3 className="text-base sm:text-lg font-semibold text-gray-800">Select Child</h3>
+        </div>
+        <select
+          value={selectedChildId}
+          onChange={(e) => setSelectedChildId(e.target.value)}
+          className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-transparent text-sm sm:text-base"
+          disabled={loading}
+        >
+          <option value="">Select a child</option>
+          {children.map((child, index) => (
+            <option key={index} value={child}>
+              {child}
+            </option>
+          ))}
+        </select>
+        {error && <p className="text-sm text-red-600 mt-2">{error}</p>}
+      </div>
+
+      {loading ? (
+        <div className="bg-white rounded-xl p-8 border border-gray-100 flex items-center justify-center text-gray-500">
+          <Loader2 className="w-5 h-5 animate-spin mr-2" /> Loading achievements...
+        </div>
+      ) : !selectedChild ? (
+        <div className="bg-white rounded-xl p-8 border border-gray-100 text-gray-500 text-center">
+          Please select a child to view achievements.
+        </div>
+      ) : (
+        <>
       {/* Student Info & Stats */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 mb-4 sm:mb-6">
         <div className="bg-white rounded-xl p-4 sm:p-6 shadow-sm">
@@ -120,6 +199,8 @@ const AchievementsView = () => {
           </div>
         ))}
       </div>
+        </>
+      )}
     </div>
   );
 };
