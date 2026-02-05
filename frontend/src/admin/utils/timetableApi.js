@@ -116,10 +116,14 @@ export const timetableApi = {
   // Delete timetable entries for a single day
   deleteDay: async (data) => {
     try {
-      const res = await fetch(`${API_BASE}/timetable/day`, {
+      const params = new URLSearchParams();
+      if (data?.classId) params.append('classId', String(data.classId));
+      if (data?.sectionId) params.append('sectionId', String(data.sectionId));
+      if (data?.dayOfWeek) params.append('dayOfWeek', String(data.dayOfWeek));
+      const query = params.toString();
+      const res = await fetch(`${API_BASE}/timetable/day${query ? `?${query}` : ''}`, {
         method: 'DELETE',
-        headers: createHeaders(true),
-        body: JSON.stringify(data)
+        headers: createHeaders()
       });
       return handleResponse(res);
     } catch (error) {

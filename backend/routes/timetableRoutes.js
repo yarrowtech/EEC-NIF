@@ -333,7 +333,11 @@ router.delete('/day', adminAuth, async (req, res) => {
     if (!ensureSchoolAdmin(req, res)) return;
     const campusId = resolveCampusId(req);
 
-    const { classId, sectionId, dayOfWeek } = req.body || {};
+    const body = req.body || {};
+    const query = req.query || {};
+    const classId = body.classId || query.classId;
+    const sectionId = body.sectionId || query.sectionId;
+    const dayOfWeek = body.dayOfWeek || query.dayOfWeek;
     if (!classId || !mongoose.isValidObjectId(classId)) {
       return res.status(400).json({ error: 'Valid classId is required' });
     }

@@ -662,29 +662,18 @@ const Students = ({ setShowAdminHeader, setShowAdminBreadcrumb }) => {
 
     const firstConfirm = await Swal.fire({
       title: "Delete student?",
-      text: `This will remove ${student.name} from students list.`,
+      text: `This will permanently remove ${student.name}.`,
       icon: "warning",
       showCancelButton: true,
       confirmButtonColor: "#d33",
       cancelButtonColor: "#3085d6",
-      confirmButtonText: "Delete",
+      confirmButtonText: "Delete permanently",
     });
     if (!firstConfirm.isConfirmed) return;
 
-    const secondConfirm = await Swal.fire({
-      title: "Are you absolutely sure?",
-      text: "Click delete again to permanently remove all associated records.",
-      icon: "error",
-      showCancelButton: true,
-      confirmButtonColor: "#b91c1c",
-      cancelButtonColor: "#6b7280",
-      confirmButtonText: "Delete permanently",
-    });
-    if (!secondConfirm.isConfirmed) return;
-
     setDeletingId(student._id);
     try {
-      const res = await fetch(`${API_BASE}/api/nif/students/${student._id}`, {
+      const res = await fetch(`${API_BASE}/api/admin/users/students/${student._id}`, {
         method: "DELETE",
         headers: {
           "Content-Type": "application/json",
@@ -694,17 +683,24 @@ const Students = ({ setShowAdminHeader, setShowAdminBreadcrumb }) => {
 
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
-        throw new Error(data.message || "Failed to delete student");
+        throw new Error(data.error || data.message || "Failed to delete student");
       }
 
-      await Swal.fire({
+      // Optimistic UI update so deletion feels instant.
+      setStudentData((prev) =>
+        prev.filter((item) => String(item?._id || item?.id) !== String(student._id))
+      );
+
+      Swal.fire({
         title: "Deleted",
         text: `${student.name} and associated fee records have been removed.`,
         icon: "success",
-        timer: 2000,
+        timer: 1200,
         showConfirmButton: false,
       });
-      await refreshStudents();
+
+      // Refresh in background to keep data consistent without blocking UI.
+      refreshStudents().catch(console.error);
     } catch (err) {
       console.error(err);
       Swal.fire({
