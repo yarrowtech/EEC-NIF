@@ -10,6 +10,7 @@ const initialProfile = {
   email: '',
   username: '',
   password: '',
+  confirmPassword: '',
   phone: '',
   address: '',
   dob: '',
@@ -69,6 +70,7 @@ const ProfileUpdate = () => {
             email: data.email || '',
             username: data.username || '',
             password: '',
+            confirmPassword: '',
             phone: data.mobile || '',
             address: data.address || '',
             dob: formatDate(data.dob),
@@ -106,7 +108,7 @@ const ProfileUpdate = () => {
     return () => window.removeEventListener('points:update', onUpdate);
   }, []);
 
-  const validateField = (name, value) => {
+  const validateField = (name, value, nextProfile = profile) => {
     const newErrors = { ...errors };
     
     switch (name) {
@@ -140,6 +142,24 @@ const ProfileUpdate = () => {
         } else {
           delete newErrors[name];
         }
+        if (nextProfile.confirmPassword) {
+          if (nextProfile.confirmPassword !== value) {
+            newErrors.confirmPassword = 'Passwords do not match';
+          } else {
+            delete newErrors.confirmPassword;
+          }
+        }
+        break;
+      case 'confirmPassword':
+        if (!nextProfile.password && value) {
+          newErrors[name] = 'Enter new password first';
+        } else if (nextProfile.password && !value) {
+          newErrors[name] = 'Please confirm your new password';
+        } else if (nextProfile.password && value !== nextProfile.password) {
+          newErrors[name] = 'Passwords do not match';
+        } else {
+          delete newErrors[name];
+        }
         break;
       case 'phone':
         const phoneRegex = /^\+?[\d\s()-]+$/;
@@ -158,8 +178,16 @@ const ProfileUpdate = () => {
 
   const handleChange = (e) => {
     const { name, value } = e.target;
-    setProfile((prev) => ({ ...prev, [name]: value }));
-    validateField(name, value);
+    const nextProfile = { ...profile, [name]: value };
+    setProfile(nextProfile);
+    if (errors.submit) {
+      setErrors((prev) => {
+        const next = { ...prev };
+        delete next.submit;
+        return next;
+      });
+    }
+    validateField(name, value, nextProfile);
   };
 
   const handleImageChange = (e) => {
@@ -174,6 +202,14 @@ const ProfileUpdate = () => {
       const reader = new FileReader();
       reader.onloadend = () => setPreview(reader.result);
       reader.readAsDataURL(file);
+
+      if (errors.submit) {
+        setErrors((prev) => {
+          const newErrors = { ...prev };
+          delete newErrors.submit;
+          return newErrors;
+        });
+      }
       
       if (errors.profilePic) {
         setErrors(prev => {
@@ -194,20 +230,100 @@ const ProfileUpdate = () => {
         validateField(key, profile[key]);
       }
     });
-    
+
+    if (profile.password && !profile.confirmPassword) {
+      setErrors((prev) => ({ ...prev, confirmPassword: 'Please confirm your new password' }));
+      return;
+    }
+
+    if (profile.password && profile.confirmPassword !== profile.password) {
+      setErrors((prev) => ({ ...prev, confirmPassword: 'Passwords do not match' }));
+      return;
+    }
+
     if (Object.keys(errors).length > 0) {
       return;
     }
     
     setLoading(true);
     setSuccess(false);
-    
-    // Simulate API call
-    setTimeout(() => {
+    if (errors.submit) {
+      setErrors((prev) => {
+        const next = { ...prev };
+        delete next.submit;
+        return next;
+      });
+    }
+
+    try {
+      const token = localStorage.getItem('token');
+      const userType = localStorage.getItem('userType');
+      if (!token || userType !== 'Student') {
+        throw new Error('Student login required');
+      }
+
+      const formData = new FormData();
+      formData.append('name', profile.name || '');
+      formData.append('email', profile.email || '');
+      formData.append('username', profile.username || '');
+      formData.append('mobile', profile.phone || profile.mobile || '');
+      formData.append('address', profile.address || '');
+      formData.append('dob', profile.dob || '');
+      if (profile.password) {
+        formData.append('password', profile.password);
+      }
+      if (profile.profilePic instanceof File) {
+        formData.append('profilePic', profile.profilePic);
+      }
+
+      const response = await fetch(`${import.meta.env.VITE_API_URL}/api/student/profile/update`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+        body: formData,
+      });
+
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(result?.error || 'Unable to update profile');
+      }
+
+      const updated = result?.student || {};
+      const formatDate = (dateStr) => {
+        if (!dateStr) return '';
+        const date = new Date(dateStr);
+        return Number.isNaN(date.getTime()) ? '' : date.toISOString().split('T')[0];
+      };
+
+      setProfile((prev) => ({
+        ...prev,
+        name: updated.name || prev.name,
+        email: updated.email || prev.email,
+        username: updated.username || prev.username,
+        phone: updated.mobile || prev.phone,
+        mobile: updated.mobile || prev.mobile,
+        address: updated.address || prev.address,
+        dob: formatDate(updated.dob) || prev.dob,
+        grade: updated.grade || prev.grade,
+        section: updated.section || prev.section,
+        roll: updated.roll || prev.roll,
+        profilePic: updated.profilePic || prev.profilePic,
+        password: '',
+        confirmPassword: '',
+      }));
+
+      if (updated.profilePic) {
+        setPreview(updated.profilePic);
+      }
+
       setSuccess(true);
-      setLoading(false);
       setTimeout(() => setSuccess(false), 3000);
-    }, 1500);
+    } catch (error) {
+      setErrors((prev) => ({ ...prev, submit: error.message || 'Unable to update profile' }));
+    } finally {
+      setLoading(false);
+    }
   };
 
   const inputClasses = (fieldName) =>
@@ -215,7 +331,7 @@ const ProfileUpdate = () => {
       errors[fieldName]
         ? 'border-red-300 focus:border-red-500 focus:ring-red-200'
         : 'border-gray-300 hover:border-yellow-400 focus:border-yellow-500 focus:ring-yellow-100'
-    } focus:ring-4 bg-white`;
+    } focus:ring-4 bg-white disabled:bg-gray-100 disabled:text-gray-500 disabled:border-gray-200 disabled:cursor-not-allowed`;
 
   if (dataLoading) {
     return (
@@ -239,11 +355,23 @@ const ProfileUpdate = () => {
             </div>
             <h1 className="text-2xl font-bold text-gray-800">Student Portal</h1>
           </div>
-          <nav className="flex space-x-6">
-            <a href="#" className="text-gray-600 hover:text-yellow-600 transition-colors">Dashboard</a>
-            <a href="#" className="text-gray-600 hover:text-yellow-600 transition-colors">Messages</a>
-            <a href="#" className="text-gray-600 hover:text-yellow-600 transition-colors">Settings</a>
-          </nav>
+          <div className="flex items-center gap-6">
+            {/* <nav className="hidden md:flex space-x-6">
+              <a href="#" className="text-gray-600 hover:text-yellow-600 transition-colors">Dashboard</a>
+              <a href="#" className="text-gray-600 hover:text-yellow-600 transition-colors">Messages</a>
+              <a href="#" className="text-gray-600 hover:text-yellow-600 transition-colors">Settings</a>
+            </nav> */}
+            <div className="flex items-center gap-2 rounded-full border border-gray-200 px-2 py-1 bg-white">
+              <img
+                src={preview || profile.profilePic || "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='40' height='40' viewBox='0 0 24 24' fill='none' stroke='%236b7280' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2'%3E%3C/path%3E%3Ccircle cx='12' cy='7' r='4'%3E%3C/circle%3E%3C/svg%3E"}
+                alt="Student"
+                className="w-9 h-9 rounded-full object-cover border border-gray-200"
+              />
+              <span className="hidden sm:block text-sm font-medium text-gray-700 pr-1">
+                {profile.name || 'Student'}
+              </span>
+            </div>
+          </div>
         </div>
       </header>
 
@@ -256,10 +384,10 @@ const ProfileUpdate = () => {
               <h2 className="text-3xl font-bold text-white">Profile Settings</h2>
               <p className="text-yellow-100">Manage your personal and account information</p>
             </div>
-            <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-amber-200/80 text-amber-900 font-semibold shadow-sm">
+            {/* <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-amber-200/80 text-amber-900 font-semibold shadow-sm">
               <Coins className="w-5 h-5 text-amber-700" />
               <span>{points} Points</span>
-            </div>
+            </div> */}
           </div>
 
           <div className="flex flex-col md:flex-row w-full overflow-x-hidden">
@@ -377,9 +505,10 @@ const ProfileUpdate = () => {
                           type="text"
                           name="studentId"
                           value={profile.studentId}
-                          onChange={handleChange}
-                          className={inputClasses('studentId')}
-                          placeholder="Enter your student ID"
+                          className={`${inputClasses('studentId')} bg-gray-100 text-gray-500 cursor-not-allowed`}
+                          placeholder="Student ID"
+                          disabled
+                          readOnly
                         />
                       </div>
                     </div>
@@ -409,42 +538,58 @@ const ProfileUpdate = () => {
                       )}
                     </div>
 
-                    {/* Grade & Section */}
+                    {/* Class */}
                     <div>
                       <label className="block text-sm font-semibold text-gray-700 mb-2">
-                        Grade & Section
+                        Class
                       </label>
                       <div className="relative">
                         <BookOpen className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
                         <input
                           type="text"
-                          name="semester"
-                          value={profile.semester}
-                          onChange={handleChange}
-                          className={inputClasses('semester')}
+                          value={profile.grade || profile.education || 'Not assigned'}
+                          className={`${inputClasses('grade')} bg-gray-100 text-gray-500 cursor-not-allowed`}
+                          placeholder="Class"
+                          disabled
+                          readOnly
+                        />
+                      </div>
+                    </div>
+
+                    {/* Section */}
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">
+                        Section
+                      </label>
+                      <div className="relative">
+                        <BookOpen className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+                        <input
+                          type="text"
+                          value={profile.section || 'Not assigned'}
+                          className={`${inputClasses('section')} bg-gray-100 text-gray-500 cursor-not-allowed`}
                           placeholder="Not assigned"
+                          disabled
                           readOnly
                         />
                       </div>
                     </div>
 
                     {/* Roll Number */}
-                    {profile.roll && (
-                      <div>
-                        <label className="block text-sm font-semibold text-gray-700 mb-2">
-                          Roll Number
-                        </label>
-                        <div className="relative">
-                          <CreditCard className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
-                          <input
-                            type="text"
-                            value={profile.roll}
-                            className={inputClasses('roll')}
-                            readOnly
-                          />
-                        </div>
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">
+                        Roll Number
+                      </label>
+                      <div className="relative">
+                        <CreditCard className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+                        <input
+                          type="text"
+                          value={profile.roll || 'Not assigned'}
+                          className={`${inputClasses('roll')} bg-gray-100 text-gray-500 cursor-not-allowed`}
+                          disabled
+                          readOnly
+                        />
                       </div>
-                    )}
+                    </div>
 
                     {/* Phone Field */}
                     <div>
@@ -506,7 +651,7 @@ const ProfileUpdate = () => {
                     </div>
 
                     {/* Current Grade */}
-                    <div>
+                    {/* <div>
                       <label className="block text-sm font-semibold text-gray-700 mb-2">
                         Current Grade
                       </label>
@@ -520,7 +665,7 @@ const ProfileUpdate = () => {
                           readOnly
                         />
                       </div>
-                    </div>
+                    </div> */}
                   </div>
                 </div>
               )}
@@ -541,9 +686,10 @@ const ProfileUpdate = () => {
                           type="text"
                           name="username"
                           value={profile.username}
-                          onChange={handleChange}
                           className={inputClasses('username')}
                           placeholder="Choose a unique username"
+                          disabled
+                          readOnly
                           required
                         />
                       </div>
@@ -655,11 +801,20 @@ const ProfileUpdate = () => {
                         <Shield className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
                         <input
                           type="password"
+                          name="confirmPassword"
+                          value={profile.confirmPassword}
+                          onChange={handleChange}
                           className={inputClasses('confirmPassword')}
                           placeholder="Confirm your new password"
                           autoComplete="new-password"
                         />
                       </div>
+                      {errors.confirmPassword && (
+                        <p className="text-red-500 text-sm mt-1 flex items-center gap-1">
+                          <AlertCircle className="w-4 h-4" />
+                          {errors.confirmPassword}
+                        </p>
+                      )}
                     </div>
 
                     {/* Two-Factor Authentication */}
@@ -710,6 +865,17 @@ const ProfileUpdate = () => {
                       </div>
                     </div>
                   )}
+                  {errors.submit && (
+                    <div className="mt-4 bg-red-50 border border-red-200 rounded-xl p-4 flex items-center gap-3">
+                      <div className="bg-red-500 rounded-full p-1">
+                        <AlertCircle className="w-4 h-4 text-white" />
+                      </div>
+                      <div>
+                        <p className="text-red-800 font-semibold">Update Failed</p>
+                        <p className="text-red-700 text-sm">{errors.submit}</p>
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -727,12 +893,12 @@ const ProfileUpdate = () => {
               </div>
               <p className="text-gray-600">© 2025 Student Portal. All rights reserved to EEC.</p>
             </div>
-            <div className="flex space-x-6 mt-4 md:mt-0">
+            {/* <div className="flex space-x-6 mt-4 md:mt-0">
               <a href="#" className="text-gray-600 hover:text-yellow-600 transition-colors">Terms</a>
               <a href="#" className="text-gray-600 hover:text-yellow-600 transition-colors">Privacy</a>
               <a href="#" className="text-gray-600 hover:text-yellow-600 transition-colors">Help Center</a>
               <a href="#" className="text-gray-600 hover:text-yellow-600 transition-colors">Contact</a>
-            </div>
+            </div> */}
           </div>
         </div>
       </footer>
