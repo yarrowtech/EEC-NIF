@@ -498,9 +498,25 @@ const Routines = ({setShowAdminHeader}) => {
     }
 
     try {
+      let classId = getId(routine.classId);
+      let sectionId = getId(routine.sectionId);
+      if (!classId) {
+        const classDoc = classes.find((c) => c.name === routine.class);
+        classId = classDoc?._id || null;
+        if (!sectionId && classDoc) {
+          const sectionDoc = sections.find(
+            (s) => s.name === routine.section && String(getId(s.classId)) === String(classDoc._id)
+          );
+          sectionId = sectionDoc?._id || null;
+        }
+      }
+      if (!classId) {
+        showErrorToast('Unable to delete: classId is missing');
+        return;
+      }
       await timetableApi.deleteDay({
-        classId: routine.classId,
-        sectionId: routine.sectionId,
+        classId,
+        sectionId,
         dayOfWeek: routine.day
       });
       showSuccessToast('Routine deleted successfully!');
