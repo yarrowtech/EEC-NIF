@@ -71,28 +71,38 @@ const AttendanceReport = () => {
         <p className="text-yellow-100">Read-only monthly attendance for your child</p>
       </div>
 
-      <div className="bg-white rounded-xl p-4 sm:p-6 mb-6 shadow-sm border border-gray-100">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-          <input
-            type="month"
-            value={month}
-            onChange={(e) => setMonth(e.target.value)}
-            className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent"
-          />
-          <select
-            value={selectedStudentId}
-            onChange={(e) => setSelectedStudentId(e.target.value)}
-            className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent"
-          >
-            <option value="">Select Child</option>
-            {children.map((child) => (
-              <option key={child?.student?._id} value={child?.student?._id}>
-                {child?.student?.name} ({child?.student?.grade || '-'} {child?.student?.section || ''})
-              </option>
-            ))}
-          </select>
+      <div className="bg-white rounded-xl p-4 sm:p-5 mb-6 shadow-sm border border-gray-100">
+        <div className="flex items-center gap-3 mb-4">
+          <Calendar className="w-5 h-5 text-amber-600" />
+          <h3 className="text-base sm:text-lg font-semibold text-gray-800">Filter Attendance</h3>
         </div>
-        {error ? <p className="text-sm text-red-600 mt-2">{error}</p> : null}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <label className="block text-sm font-semibold text-gray-700 mb-2">Select Month</label>
+            <input
+              type="month"
+              value={month}
+              onChange={(e) => setMonth(e.target.value)}
+              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-semibold text-gray-700 mb-2">Select Child</label>
+            <select
+              value={selectedStudentId}
+              onChange={(e) => setSelectedStudentId(e.target.value)}
+              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+            >
+              <option value="">Choose a child</option>
+              {children.map((child) => (
+                <option key={child?.student?._id} value={child?.student?._id}>
+                  {child?.student?.name} ({child?.student?.grade || '-'} {child?.student?.section || ''})
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+        {error ? <p className="text-sm text-red-600 mt-3">{error}</p> : null}
       </div>
 
       {loading ? (

@@ -1,14 +1,94 @@
-import React from 'react';
-import { AlertCircle, Phone, Mail, MapPin } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { AlertCircle, Phone, Mail, MapPin, Users, Loader2 } from 'lucide-react';
+
+const API_BASE = (import.meta.env.VITE_API_URL || 'http://localhost:5000').replace(/\/$/, '');
 
 const FeesPayment = () => {
+  const [selectedChildId, setSelectedChildId] = useState('');
+  const [children, setChildren] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    const loadChildren = async () => {
+      const token = localStorage.getItem('token');
+      if (!token) {
+        setError('Login required');
+        setLoading(false);
+        return;
+      }
+
+      setLoading(true);
+      setError('');
+      try {
+        const res = await fetch(`${API_BASE}/api/parent/auth/profile`, {
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          throw new Error(data?.error || 'Failed to load children');
+        }
+
+        const childList = Array.isArray(data.children) ? data.children : [];
+        setChildren(childList);
+        if (childList.length > 0 && !selectedChildId) {
+          setSelectedChildId(childList[0]);
+        }
+      } catch (err) {
+        setError(err.message || 'Could not load children data');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadChildren();
+  }, []);
+
+  const selectedChild = children.find(child => child === selectedChildId) || children[0];
+
   return (
-    <div className="p-6 max-w-4xl mx-auto">
+    <div className="p-4 sm:p-6 max-w-4xl mx-auto">
       {/* Header */}
-      <div className="bg-gradient-to-r from-yellow-400 to-yellow-500 rounded-xl p-6 mb-6 text-white">
-        <h1 className="text-3xl font-bold mb-2">Fees Information</h1>
-        <p className="text-yellow-100">Fee payment and information</p>
+      <div className="bg-gradient-to-r from-yellow-400 to-yellow-500 rounded-xl p-4 sm:p-6 mb-4 sm:mb-6 text-white">
+        <h1 className="text-2xl sm:text-3xl font-bold mb-1 sm:mb-2">Fees Information</h1>
+        <p className="text-yellow-100 text-sm sm:text-base">Fee payment and information</p>
       </div>
+
+      {/* Child Selector */}
+      <div className="bg-white rounded-xl p-4 sm:p-5 mb-4 sm:mb-6 shadow-sm border border-gray-100">
+        <div className="flex items-center gap-3 mb-3">
+          <Users className="w-5 h-5 text-yellow-600" />
+          <h3 className="text-base sm:text-lg font-semibold text-gray-800">Select Child</h3>
+        </div>
+        <select
+          value={selectedChildId}
+          onChange={(e) => setSelectedChildId(e.target.value)}
+          className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-transparent text-sm sm:text-base"
+          disabled={loading}
+        >
+          <option value="">Select a child</option>
+          {children.map((child, index) => (
+            <option key={index} value={child}>
+              {child}
+            </option>
+          ))}
+        </select>
+        {error && <p className="text-sm text-red-600 mt-2">{error}</p>}
+      </div>
+
+      {loading ? (
+        <div className="bg-white rounded-xl p-8 border border-gray-100 flex items-center justify-center text-gray-500">
+          <Loader2 className="w-5 h-5 animate-spin mr-2" /> Loading fee information...
+        </div>
+      ) : !selectedChild ? (
+        <div className="bg-white rounded-xl p-8 border border-gray-100 text-gray-500 text-center">
+          Please select a child to view fee information.
+        </div>
+      ) : (
+        <>
 
       {/* Notice Card */}
       <div className="bg-white rounded-xl shadow-lg p-8 mb-6">
@@ -85,6 +165,8 @@ const FeesPayment = () => {
           </li>
         </ul>
       </div>
+        </>
+      )}
     </div>
   );
 };

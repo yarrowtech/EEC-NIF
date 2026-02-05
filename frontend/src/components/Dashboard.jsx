@@ -115,7 +115,7 @@ const Dashboard = () => {
             setSidebarOpen={setSidebarOpen}
             onOpenProfile={() => navigate('/student/profile')}
           />
-          <main className={`flex-1 min-h-0 ${(activeView === 'chat' || activeView === 'excuse-letter') ? 'p-0' : 'p-2 sm:p-4 md:p-6'} w-full flex flex-col`}>
+          <main className={`flex-1 min-h-0 ${(activeView === 'chat' || activeView === 'excuse-letter') ? 'p-0' : ''} w-full flex flex-col`}>
             {renderContent()}
           </main>
         </div>

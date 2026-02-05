@@ -10,6 +10,7 @@ const Principal = require('../models/Principal');
 const Admin = require('../models/Admin');
 const TeacherLeave = require('../models/TeacherLeave');
 const TeacherExpense = require('../models/TeacherExpense');
+const TeacherAttendance = require('../models/TeacherAttendance');
 const { generatePassword } = require('../utils/generator');
 const {
   getNextStudentSequence,
@@ -882,6 +883,58 @@ router.patch('/teacher-expenses/:id/status', adminAuth, async (req, res) => {
     });
   } catch (err) {
     res.status(500).json({ error: err.message || 'Unable to update expense status' });
+  }
+});
+
+router.get('/teacher-attendance', adminAuth, async (req, res) => {
+  // #swagger.tags = ['Admin Users']
+  try {
+    const scope = buildScopedFilter(req);
+    const query = {};
+    if (scope.schoolId) query.schoolId = scope.schoolId;
+    if (scope.campusId) query.campusId = scope.campusId;
+    if (req.query?.teacherId && mongoose.isValidObjectId(req.query.teacherId)) {
+      query.teacherId = req.query.teacherId;
+    }
+
+    const month = String(req.query?.month || '').trim();
+    if (month) {
+      const [yearStr, monthStr] = month.split('-');
+      const year = Number(yearStr);
+      const monthIdx = Number(monthStr) - 1;
+      if (Number.isInteger(year) && Number.isInteger(monthIdx) && monthIdx >= 0 && monthIdx <= 11) {
+        const from = new Date(year, monthIdx, 1);
+        const to = new Date(year, monthIdx + 1, 0);
+        const fromKey = `${from.getFullYear()}-${String(from.getMonth() + 1).padStart(2, '0')}-${String(from.getDate()).padStart(2, '0')}`;
+        const toKey = `${to.getFullYear()}-${String(to.getMonth() + 1).padStart(2, '0')}-${String(to.getDate()).padStart(2, '0')}`;
+        query.dateKey = { $gte: fromKey, $lte: toKey };
+      }
+    }
+
+    const records = await TeacherAttendance.find(query).sort({ dateKey: -1, createdAt: -1 }).lean();
+
+    const teacherIds = [...new Set(records.map((r) => String(r.teacherId)).filter(Boolean))];
+    const teachers = teacherIds.length > 0
+      ? await TeacherUser.find({ _id: { $in: teacherIds } }).select('name').lean()
+      : [];
+    const teacherNameById = new Map(teachers.map((t) => [String(t._id), t.name || 'Teacher']));
+
+    res.json({
+      records: records.map((record) => ({
+        id: record._id,
+        schoolId: record.schoolId,
+        campusId: record.campusId || null,
+        teacherId: record.teacherId,
+        teacherName: teacherNameById.get(String(record.teacherId)) || 'Teacher',
+        date: record.dateKey,
+        checkInAt: record.checkInAt || null,
+        checkOutAt: record.checkOutAt || null,
+        status: record.status || 'Present',
+        workingMinutes: record.workingMinutes || 0,
+      })),
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message || 'Unable to load teacher attendance' });
   }
 });
 

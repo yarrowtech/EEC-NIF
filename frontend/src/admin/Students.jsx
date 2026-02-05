@@ -153,7 +153,14 @@ const Students = ({ setShowAdminHeader, setShowAdminBreadcrumb }) => {
   const filteredStudents = useMemo(
     () =>
       studentData.filter((student) => {
-        const matchesSearch = [student.name, student.roll, student.email]
+        const matchesSearch = [
+          student.name,
+          student.roll,
+          student.email,
+          student.username,
+          student.studentCode,
+          student.parent?.username,
+        ]
           .filter(Boolean)
           .some((v) =>
             String(v).toLowerCase().includes(searchTerm.toLowerCase())
@@ -205,13 +212,11 @@ const Students = ({ setShowAdminHeader, setShowAdminBreadcrumb }) => {
   );
   const classOptions = useMemo(
     () => {
-      if (!sessionFilter) return [];
-      const classFromStudents = studentData
-        .filter(
-          (student) =>
-            String(student.academicYear || "").trim() === String(sessionFilter).trim()
-        )
-        .map((student) => String(student.class || student.grade || "").trim())
+      const source = sessionFilter
+        ? studentData.filter((s) => String(s.academicYear || "").trim() === String(sessionFilter).trim())
+        : studentData;
+      const classFromStudents = source
+        .map((s) => String(s.class || s.grade || "").trim())
         .filter(Boolean);
       const classFromCatalog = academicClasses
         .map((item) => String(item?.name || "").trim())
@@ -222,37 +227,27 @@ const Students = ({ setShowAdminHeader, setShowAdminBreadcrumb }) => {
   );
   const sectionOptions = useMemo(
     () => {
-      if (!sessionFilter || !classFilter) return [];
-      const sectionFromStudents = studentData
-        .filter((student) => {
-          const studentSession = String(student.academicYear || "").trim();
-          const studentClass = String(student.class || student.grade || "").trim();
-          return (
-            studentSession === String(sessionFilter).trim() &&
-            studentClass === String(classFilter).trim()
-          );
-        })
-        .map((student) => String(student.section || "").trim())
+      let source = studentData;
+      if (sessionFilter) source = source.filter((s) => String(s.academicYear || "").trim() === String(sessionFilter).trim());
+      if (classFilter) source = source.filter((s) => String(s.class || s.grade || "").trim() === String(classFilter).trim());
+      const sectionFromStudents = source
+        .map((s) => String(s.section || "").trim())
         .filter(Boolean);
 
-      const selectedCatalogClass = academicClasses.find(
-        (item) => String(item?.name || "").trim() === String(classFilter).trim()
-      );
+      const selectedCatalogClass = classFilter
+        ? academicClasses.find((item) => String(item?.name || "").trim() === String(classFilter).trim())
+        : null;
       const sectionFromCatalog = selectedCatalogClass
         ? academicSections
-            .filter(
-              (section) =>
-                String(section?.classId || "") === String(selectedCatalogClass?._id || "")
-            )
+            .filter((section) => String(section?.classId || "") === String(selectedCatalogClass?._id || ""))
             .map((section) => String(section?.name || "").trim())
             .filter(Boolean)
-        : [];
+        : academicSections.map((section) => String(section?.name || "").trim()).filter(Boolean);
 
       return Array.from(new Set([...sectionFromStudents, ...sectionFromCatalog])).sort();
     },
     [sessionFilter, classFilter, studentData, academicClasses, academicSections]
   );
-  const isStudentsTableVisible = Boolean(sessionFilter && classFilter && sectionFilter);
   const filteredAcademicSections = useMemo(() => {
     if (!selectedClassId) return [];
     return academicSections.filter(
@@ -396,7 +391,7 @@ const Students = ({ setShowAdminHeader, setShowAdminBreadcrumb }) => {
 
   const refreshStudents = async () => {
     const [studentsResult, parentsResult] = await Promise.allSettled([
-      fetch(`${API_BASE}/api/nif/students`, {
+      fetch(`${API_BASE}/api/admin/users/get-students`, {
         method: "GET",
         headers: {
           "Content-Type": "application/json",
@@ -427,10 +422,14 @@ const Students = ({ setShowAdminHeader, setShowAdminBreadcrumb }) => {
     });
 
     const enriched = students.map((student) => {
-      const portalUserId = student.studentPortalUser
+      const studentId = student?._id ? String(student._id) : null;
+      const portalUserId = student?.studentPortalUser
         ? String(student.studentPortalUser)
         : null;
-      const parent = portalUserId ? parentByStudentUserId.get(portalUserId) : null;
+      const parent =
+        (studentId && parentByStudentUserId.get(studentId)) ||
+        (portalUserId && parentByStudentUserId.get(portalUserId)) ||
+        null;
 
       if (!parent) return student;
 
@@ -1711,166 +1710,93 @@ const Students = ({ setShowAdminHeader, setShowAdminBreadcrumb }) => {
           </div>
         </div>
         <div className="flex-1 flex flex-col min-h-0">
-          {/* Search + Drilldown */}
-          <div className="mb-3 md:mb-4 flex flex-wrap items-center gap-4 flex-shrink-0">
-            <div className="flex-1 min-w-[200px] md:min-w-[240px] relative">
-              <Search
-                size={20}
-                className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
-              />
-              <input
-                type="text"
-                placeholder={
-                  isStudentsTableVisible
-                    ? "Search students..."
-                    : "Select session, class, section to search students"
-                }
-                className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-500 text-sm md:text-base"
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                disabled={!isStudentsTableVisible}
-              />
-            </div>
-            <button
-              onClick={() => {
-                setSessionFilter("");
-                setClassFilter("");
-                setSectionFilter("");
-              }}
-              className="border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-700 hover:bg-gray-50"
-            >
-              Reset
-            </button>
-          </div>
+          {/* Filter Bar */}
+          <div className="mb-3 md:mb-4 bg-white rounded-xl border border-gray-200 p-3 md:p-4 flex-shrink-0">
+            <div className="flex flex-wrap items-center gap-3">
+              {/* Search */}
+              <div className="flex-1 min-w-[200px] relative">
+                <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                <input
+                  type="text"
+                  placeholder="Search by name, roll, email, or username..."
+                  className="w-full pl-9 pr-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-500 text-sm"
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                />
+              </div>
 
-          <div className="mb-3 md:mb-4 rounded-lg border border-yellow-200 bg-yellow-50 px-3 py-2 text-xs md:text-sm text-yellow-900">
-            <span className="font-semibold">Flow:</span> Session
-            <ChevronDown className="inline w-3 h-3 mx-1" />
-            Class
-            <ChevronDown className="inline w-3 h-3 mx-1" />
-            Section
-            <ChevronDown className="inline w-3 h-3 mx-1" />
-            Students
-          </div>
-
-          <div className="mb-3 md:mb-4 flex flex-wrap items-center gap-2">
-            <button
-              className={`px-3 py-1.5 rounded-full text-xs md:text-sm border ${
-                !sessionFilter
-                  ? "bg-yellow-500 border-yellow-500 text-white"
-                  : "border-gray-200 text-gray-700 hover:bg-gray-50"
-              }`}
-              onClick={() => {
-                setSessionFilter("");
-                setClassFilter("");
-                setSectionFilter("");
-              }}
-            >
-              Sessions
-            </button>
-            {sessionFilter && (
-              <button
-                className={`px-3 py-1.5 rounded-full text-xs md:text-sm border ${
-                  !classFilter
-                    ? "bg-yellow-500 border-yellow-500 text-white"
-                    : "border-gray-200 text-gray-700 hover:bg-gray-50"
-                }`}
-                onClick={() => {
-                  setClassFilter("");
-                  setSectionFilter("");
-                }}
+              {/* Session Filter */}
+              <select
+                value={sessionFilter}
+                onChange={(e) => { setSessionFilter(e.target.value); setClassFilter(""); setSectionFilter(""); }}
+                className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-yellow-500 min-w-[140px]"
               >
-                {sessionFilter}
-              </button>
-            )}
-            {classFilter && (
-              <button
-                className={`px-3 py-1.5 rounded-full text-xs md:text-sm border ${
-                  !sectionFilter
-                    ? "bg-yellow-500 border-yellow-500 text-white"
-                    : "border-gray-200 text-gray-700 hover:bg-gray-50"
-                }`}
-                onClick={() => setSectionFilter("")}
+                <option value="">All Sessions</option>
+                {sessionOptions.map((s) => <option key={s} value={s}>{s}</option>)}
+              </select>
+
+              {/* Class Filter */}
+              <select
+                value={classFilter}
+                onChange={(e) => { setClassFilter(e.target.value); setSectionFilter(""); }}
+                className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-yellow-500 min-w-[130px]"
               >
-                {classFilter}
-              </button>
-            )}
-            {sectionFilter && (
-              <span className="px-3 py-1.5 rounded-full text-xs md:text-sm border bg-yellow-500 border-yellow-500 text-white">
-                {sectionFilter}
-              </span>
+                <option value="">All Classes</option>
+                {classOptions.map((c) => <option key={c} value={c}>{c}</option>)}
+              </select>
+
+              {/* Section Filter */}
+              <select
+                value={sectionFilter}
+                onChange={(e) => setSectionFilter(e.target.value)}
+                className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-yellow-500 min-w-[130px]"
+              >
+                <option value="">All Sections</option>
+                {sectionOptions.map((s) => <option key={s} value={s}>{s}</option>)}
+              </select>
+
+              {/* Reset */}
+              {(sessionFilter || classFilter || sectionFilter || searchTerm) && (
+                <button
+                  onClick={() => { setSessionFilter(""); setClassFilter(""); setSectionFilter(""); setSearchTerm(""); }}
+                  className="inline-flex items-center gap-1 px-3 py-2 text-sm text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-lg transition-colors"
+                >
+                  <X size={14} /> Clear
+                </button>
+              )}
+            </div>
+
+            {/* Active filter tags */}
+            {(sessionFilter || classFilter || sectionFilter) && (
+              <div className="mt-2 pt-2 border-t border-gray-100 flex flex-wrap items-center gap-2">
+                <span className="text-xs text-gray-500">Active filters:</span>
+                {sessionFilter && (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-yellow-100 text-yellow-800 rounded-full text-xs font-medium">
+                    Session: {sessionFilter}
+                    <button onClick={() => { setSessionFilter(""); setClassFilter(""); setSectionFilter(""); }} className="hover:text-yellow-600"><X size={12} /></button>
+                  </span>
+                )}
+                {classFilter && (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-blue-100 text-blue-800 rounded-full text-xs font-medium">
+                    Class: {classFilter}
+                    <button onClick={() => { setClassFilter(""); setSectionFilter(""); }} className="hover:text-blue-600"><X size={12} /></button>
+                  </span>
+                )}
+                {sectionFilter && (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-green-100 text-green-800 rounded-full text-xs font-medium">
+                    Section: {sectionFilter}
+                    <button onClick={() => setSectionFilter("")} className="hover:text-green-600"><X size={12} /></button>
+                  </span>
+                )}
+                <span className="text-xs text-gray-400 ml-auto">{filteredStudents.length} student{filteredStudents.length !== 1 ? 's' : ''} found</span>
+              </div>
             )}
           </div>
-
-          {!sessionFilter && (
-            <div className="flex-1 overflow-y-auto rounded-lg border border-gray-200 p-4">
-              <h3 className="text-sm font-semibold text-gray-800 mb-3">
-                Select Session
-              </h3>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                {sessionOptions.map((session) => (
-                  <button
-                    key={session}
-                    onClick={() => {
-                      setSessionFilter(session);
-                      setClassFilter("");
-                      setSectionFilter("");
-                    }}
-                    className="rounded-lg border border-gray-200 px-4 py-3 text-left hover:border-yellow-400 hover:bg-yellow-50 transition-colors"
-                  >
-                    <div className="font-medium text-gray-900">{session}</div>
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {sessionFilter && !classFilter && (
-            <div className="flex-1 overflow-y-auto rounded-lg border border-gray-200 p-4">
-              <h3 className="text-sm font-semibold text-gray-800 mb-3">
-                Select Class in {sessionFilter}
-              </h3>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                {classOptions.map((item) => (
-                  <button
-                    key={item}
-                    onClick={() => {
-                      setClassFilter(item);
-                      setSectionFilter("");
-                    }}
-                    className="rounded-lg border border-gray-200 px-4 py-3 text-left hover:border-yellow-400 hover:bg-yellow-50 transition-colors"
-                  >
-                    <div className="font-medium text-gray-900">{item}</div>
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {sessionFilter && classFilter && !sectionFilter && (
-            <div className="flex-1 overflow-y-auto rounded-lg border border-gray-200 p-4">
-              <h3 className="text-sm font-semibold text-gray-800 mb-3">
-                Select Section in {classFilter}
-              </h3>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                {sectionOptions.map((item) => (
-                  <button
-                    key={item}
-                    onClick={() => setSectionFilter(item)}
-                    className="rounded-lg border border-gray-200 px-4 py-3 text-left hover:border-yellow-400 hover:bg-yellow-50 transition-colors"
-                  >
-                    <div className="font-medium text-gray-900">{item}</div>
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
 
           {/* Students Table */}
-          {isStudentsTableVisible && (
-            <>
-              <div className="flex-1 overflow-y-auto rounded-lg border border-gray-200">
-                <table className="w-full border-collapse table-fixed">
+          <>
+            <div className="flex-1 overflow-y-auto rounded-lg border border-gray-200">
+              <table className="w-full border-collapse table-fixed">
                   <thead>
                     <tr className="bg-yellow-50">
                       <th className="border-b border-yellow-100 px-2 py-2 text-left text-xs font-semibold text-yellow-800 w-[20%]">
@@ -1937,10 +1863,10 @@ const Students = ({ setShowAdminHeader, setShowAdminBreadcrumb }) => {
                                   {student.email || "No email"}
                                 </div>
                                 <div className="text-[11px] text-emerald-700 truncate">
-                                  Student User: {student.portalAccess?.username || "-"}
+                                  Student ID: {student.username || student.studentCode || student.portalAccess?.username || "-"}
                                 </div>
                                 <div className="text-[11px] text-purple-700 truncate">
-                                  Parent User: {student.parent?.username || "-"}
+                                  Parent ID: {student.parent?.username || "-"}
                                 </div>
                               </div>
                             </div>
@@ -2088,20 +2014,7 @@ const Students = ({ setShowAdminHeader, setShowAdminBreadcrumb }) => {
                   </button>
                 </div>
               </div>
-            </>
-          )}
-
-          {sessionFilter && !classOptions.length && !classFilter && (
-            <div className="text-center text-gray-500 text-sm py-8 border border-dashed border-gray-300 rounded-lg">
-              No classes found for this session.
-            </div>
-          )}
-
-          {sessionFilter && classFilter && !sectionOptions.length && !sectionFilter && (
-            <div className="text-center text-gray-500 text-sm py-8 border border-dashed border-gray-300 rounded-lg">
-              No sections found for this class.
-            </div>
-          )}
+          </>
         </div>
 
         {/* Add Student Modal */}
