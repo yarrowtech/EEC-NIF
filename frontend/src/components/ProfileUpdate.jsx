@@ -347,7 +347,7 @@ const ProfileUpdate = () => {
   return (
     <div className="min-h-screen bg-gradient-to-br from-yellow-50 via-amber-50 to-orange-50">
       {/* Header */}
-      <header className="bg-white shadow-sm">
+      {/* <header className="bg-white shadow-sm">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex justify-between items-center">
           <div className="flex items-center space-x-4">
             <div className="h-10 w-10 rounded-full bg-yellow-500 flex items-center justify-center">
@@ -356,11 +356,11 @@ const ProfileUpdate = () => {
             <h1 className="text-2xl font-bold text-gray-800">Student Portal</h1>
           </div>
           <div className="flex items-center gap-6">
-            {/* <nav className="hidden md:flex space-x-6">
+            <nav className="hidden md:flex space-x-6">
               <a href="#" className="text-gray-600 hover:text-yellow-600 transition-colors">Dashboard</a>
               <a href="#" className="text-gray-600 hover:text-yellow-600 transition-colors">Messages</a>
               <a href="#" className="text-gray-600 hover:text-yellow-600 transition-colors">Settings</a>
-            </nav> */}
+            </nav>
             <div className="flex items-center gap-2 rounded-full border border-gray-200 px-2 py-1 bg-white">
               <img
                 src={preview || profile.profilePic || "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='40' height='40' viewBox='0 0 24 24' fill='none' stroke='%236b7280' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2'%3E%3C/path%3E%3Ccircle cx='12' cy='7' r='4'%3E%3C/circle%3E%3C/svg%3E"}
@@ -373,7 +373,7 @@ const ProfileUpdate = () => {
             </div>
           </div>
         </div>
-      </header>
+      </header> */}
 
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">

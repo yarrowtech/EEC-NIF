@@ -232,7 +232,7 @@ const WelcomeCard = () => {
           </div>
 
           <div className="flex flex-col gap-3 items-start md:items-end">
-            {(studentData.schoolLogo || studentData.schoolName) && (
+            {/* {(studentData.schoolLogo || studentData.schoolName) && (
               <div className="flex items-center gap-3 bg-white/10 border border-white/20 rounded-xl px-4 py-2 shadow-sm backdrop-blur-sm">
                 <div className="w-10 h-10 rounded-full bg-white/30 flex items-center justify-center overflow-hidden border border-white/30">
                   {studentData.schoolLogo ? (
@@ -253,7 +253,7 @@ const WelcomeCard = () => {
                   <p className="font-semibold">{studentData.schoolName || 'Not assigned'}</p>
                 </div>
               </div>
-            )}
+            )} */}
 
             <div className="text-right">
               <p className="text-yellow-100 text-sm mb-1">Today's Date</p>
