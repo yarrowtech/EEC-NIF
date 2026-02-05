@@ -50,7 +50,7 @@ const FeesPayment = () => {
   const selectedChild = children.find(child => child === selectedChildId) || children[0];
 
   return (
-    <div className="p-4 sm:p-6 max-w-4xl mx-auto">
+    <div className="w-full p-2 sm:p-3 md:p-4">
       {/* Header */}
       <div className="bg-gradient-to-r from-yellow-400 to-yellow-500 rounded-xl p-4 sm:p-6 mb-4 sm:mb-6 text-white">
         <h1 className="text-2xl sm:text-3xl font-bold mb-1 sm:mb-2">Fees Information</h1>

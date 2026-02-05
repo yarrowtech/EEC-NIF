@@ -440,7 +440,7 @@ const PrincipalDashboard = () => {
       
       {/* Main Content */}
       <div className={`transition-all duration-300 ${
-        sidebarOpen ? 'ml-80' : 'ml-20'
+        sidebarOpen ? '' : ''
       }`}>
         {/* Header */}
         <div className="sticky top-0 z-30">
