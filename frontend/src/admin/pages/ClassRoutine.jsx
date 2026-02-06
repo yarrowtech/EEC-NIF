@@ -3,17 +3,38 @@ import jsPDF from 'jspdf';
 import { BookOpen, Calendar, CalendarRange, Clock, Download, MapPin, Plus, Search, Sparkles, Users } from 'lucide-react';
 import { academicApi, timetableApi, convertTo12Hour } from '../utils/timetableApi';
 
+const API_BASE = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '');
+
 const ClassRoutine = () => {
+  const [activeTab, setActiveTab] = useState('routine');
   const [selectedClass, setSelectedClass] = useState('all');
   const [selectedSection, setSelectedSection] = useState('all');
   const [classes, setClasses] = useState([]);
   const [sections, setSections] = useState([]);
   const [timetables, setTimetables] = useState([]);
+  const [subjects, setSubjects] = useState([]);
+  const [teachers, setTeachers] = useState([]);
+  const [allocations, setAllocations] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [generating, setGenerating] = useState(false);
   const [generateMessage, setGenerateMessage] = useState('');
+  const [manageMessage, setManageMessage] = useState('');
+  const [manageError, setManageError] = useState('');
+
+  const [subjectForm, setSubjectForm] = useState({ name: '', code: '', classId: '' });
+  const [editingSubjectId, setEditingSubjectId] = useState(null);
+
+  const [allocationForm, setAllocationForm] = useState({
+    teacherId: '',
+    subjectId: '',
+    classId: '',
+    sectionId: '',
+    isClassTeacher: false,
+    notes: '',
+  });
+  const [editingAllocationId, setEditingAllocationId] = useState(null);
 
   const DEFAULT_TIME_SLOTS = [
     { key: '08:00-08:45', label: '8:00 AM - 8:45 AM' },
@@ -108,6 +129,22 @@ const ClassRoutine = () => {
     });
   };
 
+  const apiRequest = async (path, options = {}) => {
+    const token = localStorage.getItem('token');
+    const res = await fetch(`${API_BASE}${path}`, {
+      headers: {
+        'Content-Type': 'application/json',
+        authorization: token ? `Bearer ${token}` : '',
+      },
+      ...options,
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      throw new Error(data?.error || 'Request failed');
+    }
+    return data;
+  };
+
   const loadData = async () => {
     try {
       setLoading(true);
@@ -127,9 +164,163 @@ const ClassRoutine = () => {
     }
   };
 
+  const loadSupportData = async () => {
+    try {
+      setManageError('');
+      const [subjectData, teacherData, allocationData] = await Promise.all([
+        academicApi.getSubjects().catch(() => []),
+        academicApi.getTeachers().catch(() => []),
+        apiRequest('/api/teacher-allocations').catch(() => []),
+      ]);
+      setSubjects(Array.isArray(subjectData) ? subjectData : []);
+      setTeachers(Array.isArray(teacherData) ? teacherData : []);
+      setAllocations(Array.isArray(allocationData) ? allocationData : []);
+    } catch (err) {
+      setManageError(err.message || 'Failed to load subject/teacher data');
+    }
+  };
+
   useEffect(() => {
     loadData();
   }, []);
+
+  useEffect(() => {
+    if (activeTab !== 'routine') {
+      loadSupportData();
+    }
+  }, [activeTab]);
+
+  const sectionOptions = useMemo(
+    () => sections.filter((section) => String(section.classId) === String(allocationForm.classId)),
+    [sections, allocationForm.classId]
+  );
+
+  const subjectOptions = useMemo(
+    () =>
+      subjects.filter(
+        (subject) => !subject.classId || String(subject.classId) === String(allocationForm.classId)
+      ),
+    [subjects, allocationForm.classId]
+  );
+
+  const getNameById = (list, id) => list.find((item) => String(item._id) === String(id))?.name || '-';
+
+  const resetSubjectForm = () => {
+    setSubjectForm({ name: '', code: '', classId: '' });
+    setEditingSubjectId(null);
+  };
+
+  const submitSubject = async (e) => {
+    e.preventDefault();
+    if (!subjectForm.name.trim()) {
+      setManageError('Subject name is required');
+      return;
+    }
+    try {
+      setManageError('');
+      const method = editingSubjectId ? 'PUT' : 'POST';
+      const endpoint = editingSubjectId
+        ? `/api/academic/subjects/${editingSubjectId}`
+        : '/api/academic/subjects';
+      await apiRequest(endpoint, {
+        method,
+        body: JSON.stringify({
+          name: subjectForm.name.trim(),
+          code: subjectForm.code.trim(),
+          classId: subjectForm.classId || undefined,
+        }),
+      });
+      setManageMessage(editingSubjectId ? 'Subject updated' : 'Subject added');
+      resetSubjectForm();
+      await loadSupportData();
+    } catch (err) {
+      setManageError(err.message || 'Unable to save subject');
+    }
+  };
+
+  const startEditSubject = (subject) => {
+    setEditingSubjectId(subject._id);
+    setSubjectForm({
+      name: subject.name || '',
+      code: subject.code || '',
+      classId: subject.classId || '',
+    });
+  };
+
+  const deleteSubject = async (id) => {
+    if (!window.confirm('Delete this subject?')) return;
+    try {
+      await apiRequest(`/api/academic/subjects/${id}`, { method: 'DELETE' });
+      setManageMessage('Subject deleted');
+      if (editingSubjectId === id) resetSubjectForm();
+      await loadSupportData();
+    } catch (err) {
+      setManageError(err.message || 'Unable to delete subject');
+    }
+  };
+
+  const resetAllocationForm = () => {
+    setAllocationForm({
+      teacherId: '',
+      subjectId: '',
+      classId: '',
+      sectionId: '',
+      isClassTeacher: false,
+      notes: '',
+    });
+    setEditingAllocationId(null);
+  };
+
+  const submitAllocation = async (e) => {
+    e.preventDefault();
+    const { teacherId, subjectId, classId, sectionId } = allocationForm;
+    if (!teacherId || !subjectId || !classId || !sectionId) {
+      setManageError('Teacher, subject, class and section are required');
+      return;
+    }
+    try {
+      setManageError('');
+      const method = editingAllocationId ? 'PUT' : 'POST';
+      const endpoint = editingAllocationId
+        ? `/api/teacher-allocations/${editingAllocationId}`
+        : '/api/teacher-allocations';
+      await apiRequest(endpoint, {
+        method,
+        body: JSON.stringify({
+          ...allocationForm,
+        }),
+      });
+      setManageMessage(editingAllocationId ? 'Allocation updated' : 'Teacher allocated');
+      resetAllocationForm();
+      await loadSupportData();
+    } catch (err) {
+      setManageError(err.message || 'Unable to save allocation');
+    }
+  };
+
+  const startEditAllocation = (allocation) => {
+    setEditingAllocationId(allocation._id);
+    setAllocationForm({
+      teacherId: allocation.teacherId?._id || allocation.teacherId || '',
+      subjectId: allocation.subjectId?._id || allocation.subjectId || '',
+      classId: allocation.classId?._id || allocation.classId || '',
+      sectionId: allocation.sectionId?._id || allocation.sectionId || '',
+      isClassTeacher: Boolean(allocation.isClassTeacher),
+      notes: allocation.notes || '',
+    });
+  };
+
+  const deleteAllocation = async (id) => {
+    if (!window.confirm('Delete this teacher allocation?')) return;
+    try {
+      await apiRequest(`/api/teacher-allocations/${id}`, { method: 'DELETE' });
+      setManageMessage('Allocation deleted');
+      if (editingAllocationId === id) resetAllocationForm();
+      await loadSupportData();
+    } catch (err) {
+      setManageError(err.message || 'Unable to delete allocation');
+    }
+  };
 
   const handleAutoGenerate = async () => {
     const generateAll = selectedClass === 'all';
@@ -370,6 +561,37 @@ const ClassRoutine = () => {
       <div className="pointer-events-none absolute -bottom-24 right-16 h-72 w-72 rounded-full bg-amber-200/40 blur-3xl routine-pulse" />
 
       <div className="relative z-10 mx-auto flex max-w-[1400px] flex-col gap-6 px-4 pb-10 pt-8 sm:px-6 lg:px-8">
+        <div className="routine-card rounded-2xl p-4 routine-animate">
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              className={`rounded-full px-4 py-2 text-sm font-semibold ${
+                activeTab === 'routine' ? 'bg-slate-900 text-white' : 'bg-white/80 text-slate-700'
+              }`}
+              onClick={() => setActiveTab('routine')}
+            >
+              Routine Overview
+            </button>
+            <button
+              className={`rounded-full px-4 py-2 text-sm font-semibold ${
+                activeTab === 'subjects' ? 'bg-slate-900 text-white' : 'bg-white/80 text-slate-700'
+              }`}
+              onClick={() => setActiveTab('subjects')}
+            >
+              Subject Allocation
+            </button>
+            <button
+              className={`rounded-full px-4 py-2 text-sm font-semibold ${
+                activeTab === 'allocations' ? 'bg-slate-900 text-white' : 'bg-white/80 text-slate-700'
+              }`}
+              onClick={() => setActiveTab('allocations')}
+            >
+              Teacher Allocation
+            </button>
+          </div>
+        </div>
+
+        {activeTab === 'routine' && (
+        <>
         <div className="routine-card rounded-3xl p-6 md:p-8 routine-animate">
           <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
             <div className="space-y-3">
@@ -632,6 +854,288 @@ const ClassRoutine = () => {
             )}
           </div>
         </div>
+        </>
+        )}
+
+        {activeTab === 'subjects' && (
+          <div className="grid grid-cols-1 gap-6 lg:grid-cols-2 routine-animate">
+            <form onSubmit={submitSubject} className="rounded-2xl border border-slate-200 bg-white/80 p-6">
+              <h2 className="mb-4 text-lg font-semibold text-slate-900">
+                {editingSubjectId ? 'Edit Subject' : 'Add Subject'}
+              </h2>
+              {manageError && (
+                <div className="mb-3 rounded-lg border border-rose-100 bg-rose-50 px-3 py-2 text-xs text-rose-600">
+                  {manageError}
+                </div>
+              )}
+              {manageMessage && (
+                <div className="mb-3 rounded-lg border border-emerald-100 bg-emerald-50 px-3 py-2 text-xs text-emerald-700">
+                  {manageMessage}
+                </div>
+              )}
+              <div className="space-y-4">
+                <div>
+                  <label className="text-sm text-slate-600">Subject Name</label>
+                  <input
+                    className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2"
+                    value={subjectForm.name}
+                    onChange={(e) => setSubjectForm((p) => ({ ...p, name: e.target.value }))}
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="text-sm text-slate-600">Subject Code</label>
+                  <input
+                    className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2"
+                    value={subjectForm.code}
+                    onChange={(e) => setSubjectForm((p) => ({ ...p, code: e.target.value }))}
+                  />
+                </div>
+                <div>
+                  <label className="text-sm text-slate-600">Class (optional)</label>
+                  <select
+                    className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2"
+                    value={subjectForm.classId}
+                    onChange={(e) => setSubjectForm((p) => ({ ...p, classId: e.target.value }))}
+                  >
+                    <option value="">All Classes</option>
+                    {classes.map((cls) => (
+                      <option key={cls._id} value={cls._id}>
+                        {cls.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="flex gap-3 pt-2">
+                  <button type="submit" className="rounded-lg bg-slate-900 px-4 py-2 text-sm text-white">
+                    <Plus className="mr-2 inline h-4 w-4" />
+                    {editingSubjectId ? 'Update' : 'Add'}
+                  </button>
+                  {editingSubjectId && (
+                    <button
+                      type="button"
+                      onClick={resetSubjectForm}
+                      className="rounded-lg border border-slate-300 px-4 py-2 text-sm"
+                    >
+                      Cancel
+                    </button>
+                  )}
+                </div>
+              </div>
+            </form>
+
+            <div className="rounded-2xl border border-slate-200 bg-white/80 p-6">
+              <h2 className="mb-4 text-lg font-semibold text-slate-900">Subjects</h2>
+              <div className="space-y-3">
+                {subjects.map((subject) => (
+                  <div
+                    key={subject._id}
+                    className="flex items-center justify-between rounded-lg border border-slate-200 px-4 py-3"
+                  >
+                    <div>
+                      <p className="font-medium text-slate-900">{subject.name}</p>
+                      <p className="text-xs text-slate-500">
+                        Code: {subject.code || '-'} | Class:{' '}
+                        {subject.classId ? getNameById(classes, subject.classId) : 'All'}
+                      </p>
+                    </div>
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        onClick={() => startEditSubject(subject)}
+                        className="rounded-lg p-2 text-blue-600 hover:bg-blue-50"
+                        title="Edit"
+                      >
+                        Edit
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => deleteSubject(subject._id)}
+                        className="rounded-lg p-2 text-red-600 hover:bg-red-50"
+                        title="Delete"
+                      >
+                        Delete
+                      </button>
+                    </div>
+                  </div>
+                ))}
+                {subjects.length === 0 && (
+                  <p className="text-sm text-slate-500">No subjects found for this campus.</p>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {activeTab === 'allocations' && (
+          <div className="grid grid-cols-1 gap-6 lg:grid-cols-2 routine-animate">
+            <form onSubmit={submitAllocation} className="rounded-2xl border border-slate-200 bg-white/80 p-6">
+              <h2 className="mb-4 text-lg font-semibold text-slate-900">
+                {editingAllocationId ? 'Edit Allocation' : 'Allocate Teacher'}
+              </h2>
+              {manageError && (
+                <div className="mb-3 rounded-lg border border-rose-100 bg-rose-50 px-3 py-2 text-xs text-rose-600">
+                  {manageError}
+                </div>
+              )}
+              {manageMessage && (
+                <div className="mb-3 rounded-lg border border-emerald-100 bg-emerald-50 px-3 py-2 text-xs text-emerald-700">
+                  {manageMessage}
+                </div>
+              )}
+              <div className="grid grid-cols-1 gap-4">
+                <div>
+                  <label className="text-sm text-slate-600">Teacher</label>
+                  <select
+                    className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2"
+                    value={allocationForm.teacherId}
+                    onChange={(e) => setAllocationForm((p) => ({ ...p, teacherId: e.target.value }))}
+                    required
+                  >
+                    <option value="">Select teacher</option>
+                    {teachers.map((teacher) => (
+                      <option key={teacher._id} value={teacher._id}>
+                        {teacher.name} ({teacher.employeeCode || teacher.username || 'N/A'})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="text-sm text-slate-600">Class</label>
+                  <select
+                    className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2"
+                    value={allocationForm.classId}
+                    onChange={(e) =>
+                      setAllocationForm((p) => ({
+                        ...p,
+                        classId: e.target.value,
+                        sectionId: '',
+                        subjectId: '',
+                      }))
+                    }
+                    required
+                  >
+                    <option value="">Select class</option>
+                    {classes.map((cls) => (
+                      <option key={cls._id} value={cls._id}>
+                        {cls.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="text-sm text-slate-600">Section</label>
+                  <select
+                    className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2"
+                    value={allocationForm.sectionId}
+                    onChange={(e) => setAllocationForm((p) => ({ ...p, sectionId: e.target.value }))}
+                    required
+                  >
+                    <option value="">Select section</option>
+                    {sectionOptions.map((section) => (
+                      <option key={section._id} value={section._id}>
+                        {section.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="text-sm text-slate-600">Subject</label>
+                  <select
+                    className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2"
+                    value={allocationForm.subjectId}
+                    onChange={(e) => setAllocationForm((p) => ({ ...p, subjectId: e.target.value }))}
+                    required
+                  >
+                    <option value="">Select subject</option>
+                    {subjectOptions.map((subject) => (
+                      <option key={subject._id} value={subject._id}>
+                        {subject.name} {subject.code ? `(${subject.code})` : ''}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <label className="flex items-center gap-2 text-sm text-slate-700">
+                  <input
+                    type="checkbox"
+                    checked={allocationForm.isClassTeacher}
+                    onChange={(e) =>
+                      setAllocationForm((p) => ({ ...p, isClassTeacher: e.target.checked }))
+                    }
+                  />
+                  Class teacher for this section
+                </label>
+                <div>
+                  <label className="text-sm text-slate-600">Notes</label>
+                  <textarea
+                    className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2"
+                    rows={2}
+                    value={allocationForm.notes}
+                    onChange={(e) => setAllocationForm((p) => ({ ...p, notes: e.target.value }))}
+                    placeholder="Optional"
+                  />
+                </div>
+                <div className="flex gap-3 pt-2">
+                  <button type="submit" className="rounded-lg bg-slate-900 px-4 py-2 text-sm text-white">
+                    {editingAllocationId ? 'Update Allocation' : 'Allocate'}
+                  </button>
+                  {editingAllocationId && (
+                    <button
+                      type="button"
+                      onClick={resetAllocationForm}
+                      className="rounded-lg border border-slate-300 px-4 py-2 text-sm"
+                    >
+                      Cancel
+                    </button>
+                  )}
+                </div>
+              </div>
+            </form>
+
+            <div className="rounded-2xl border border-slate-200 bg-white/80 p-6">
+              <h2 className="mb-4 text-lg font-semibold text-slate-900">Current Allocations</h2>
+              <div className="space-y-3">
+                {allocations.map((item) => (
+                  <div
+                    key={item._id}
+                    className="flex items-center justify-between rounded-lg border border-slate-200 px-4 py-3"
+                  >
+                    <div>
+                      <p className="font-medium text-slate-900">
+                        {item.teacherId?.name || '-'} {'->'} {item.subjectId?.name || '-'}
+                      </p>
+                      <p className="text-xs text-slate-500">
+                        Class {item.classId?.name || '-'} | Section {item.sectionId?.name || '-'}
+                        {item.isClassTeacher ? ' | Class Teacher' : ''}
+                      </p>
+                    </div>
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        onClick={() => startEditAllocation(item)}
+                        className="rounded-lg p-2 text-blue-600 hover:bg-blue-50"
+                        title="Edit"
+                      >
+                        Edit
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => deleteAllocation(item._id)}
+                        className="rounded-lg p-2 text-red-600 hover:bg-red-50"
+                        title="Delete"
+                      >
+                        Delete
+                      </button>
+                    </div>
+                  </div>
+                ))}
+                {allocations.length === 0 && (
+                  <p className="text-sm text-slate-500">No teacher allocations found for this campus.</p>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
