@@ -41,7 +41,6 @@ const auditLogRoutes = require("./routes/auditLogRoutes");
 const superAdminRoutes = require("./routes/superAdminRoutes");
 const supportRoutes = require('./routes/supportRoutes');
 const issueRoutes = require('./routes/issueRoutes');
-const teacherAllocationRoutes = require('./routes/teacherAllocationRoutes');
 const Principal = require('./models/Principal');
 const Admin = require('./models/Admin');
 const { isStrongPassword } = require('./utils/passwordPolicy');
@@ -267,7 +266,6 @@ app.use('/api/audit-logs', auditLogRoutes);
 app.use('/api/super-admin', superAdminRoutes);
 app.use('/api/support', supportRoutes);
 app.use('/api/issues', issueRoutes);
-app.use('/api/teacher-allocations', teacherAllocationRoutes);
 
 
 app.use("/api/uploads", uploadRoutes);
