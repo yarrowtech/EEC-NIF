@@ -756,15 +756,57 @@ const Students = ({ setShowAdminHeader, setShowAdminBreadcrumb }) => {
     setIsSubmitting(true);
     try {
       const payload = {
-        ...newStudent,
-        parentUserId: selectedExistingParent?._id || undefined,
-        // convert serialNo to number if provided
-        serialNo: newStudent.serialNo
-          ? Number(newStudent.serialNo)
-          : undefined,
+        name: newStudent.name,
+        email: newStudent.email,
+        mobile: newStudent.mobile,
+        gender: newStudent.gender,
+        dob: newStudent.dob,
+        address: newStudent.address,
+        permanentAddress: newStudent.permanentAddress,
+        pinCode: newStudent.pincode,
+        birthPlace: newStudent.birthPlace,
+        nationality: newStudent.nationality,
+        religion: newStudent.religion,
+        caste: newStudent.caste,
+        category: newStudent.category,
+        profilePic: newStudent.photograph,
+        guardianName: newStudent.guardianName,
+        guardianPhone: newStudent.guardianPhone,
+        guardianEmail: newStudent.guardianEmail,
+        admissionNumber: newStudent.admissionNumber,
+        admissionDate: newStudent.admissionDate,
+        roll: newStudent.roll,
+        grade: newStudent.class,
+        section: newStudent.section,
+        academicYear: newStudent.academicYear,
+        serialNo: newStudent.serialNo,
+        status: newStudent.status,
+        applicationId: newStudent.applicationId,
+        applicationDate: newStudent.applicationDate,
+        approvalStatus: newStudent.approvalStatus,
+        previousSchoolName: newStudent.previousSchoolName,
+        previousClass: newStudent.previousClass,
+        previousPercentage: newStudent.previousPercentage,
+        transferCertificateNo: newStudent.transferCertificateNo,
+        transferCertificateDate: newStudent.transferCertificateDate,
+        reasonForLeaving: newStudent.reasonForLeaving,
+        bloodGroup: newStudent.bloodGroup,
+        fatherName: newStudent.fatherName,
+        fatherPhone: newStudent.fatherPhone,
+        fatherOccupation: newStudent.fatherOccupation,
+        motherName: newStudent.motherName,
+        motherPhone: newStudent.motherPhone,
+        motherOccupation: newStudent.motherOccupation,
+        knownHealthIssues: newStudent.knownHealthIssues,
+        allergies: newStudent.allergies,
+        immunizationStatus: newStudent.immunizationStatus,
+        learningDisabilities: newStudent.learningDisabilities,
+        aadharNumber: newStudent.aadharNumber,
+        birthCertificateNo: newStudent.birthCertificateNo,
+        remarks: newStudent.remarks,
       };
 
-      const res = await fetch(`${API_BASE}/api/nif/students`, {
+      const res = await fetch(`${API_BASE}/api/student/auth/register`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -778,24 +820,19 @@ const Students = ({ setShowAdminHeader, setShowAdminBreadcrumb }) => {
         alert(`Registration failed: ${data.message || res.statusText}`);
         return;
       }
+      const studentId = data.studentCode || data.username || data.userId || "Generated";
+      const studentPassword = data.password || "";
+      const parentId = data?.parentCredentials?.userId || "";
+      const parentPassword = data?.parentCredentials?.password || "";
       Swal.fire({
         icon: "success",
         title: "Student enrolled successfully!",
         html: `
           <div class="text-left space-y-2">
-          <div><strong>Student ID:</strong> ${data.generatedStudentId || data.admissionNumber || "Generated"}</div>
-          ${
-              data.studentCredentials
-                ? `<div><strong>Student Username:</strong> ${data.studentCredentials.userId}</div>
-                   <div><strong>Student Password:</strong> ${data.studentCredentials.password}</div>`
-                : ""
-            }
-            ${
-              data.parentCredentials
-                ? `<div><strong>Parent ID:</strong> ${data.parentCredentials.userId}</div>
-                   <div><strong>Parent Password:</strong> ${data.parentCredentials.password || "Already exists (existing password)"}</div>`
-                : ""
-            }
+          <div><strong>Student ID:</strong> ${studentId}</div>
+          ${studentPassword ? `<div><strong>Student Password:</strong> ${studentPassword}</div>` : ""}
+          ${parentId ? `<div><strong>Parent ID:</strong> ${parentId}</div>` : ""}
+          ${parentPassword ? `<div><strong>Parent Password:</strong> ${parentPassword}</div>` : ""}
           </div>
         `,
         confirmButtonColor: "#EAB308",
@@ -1190,15 +1227,65 @@ const Students = ({ setShowAdminHeader, setShowAdminBreadcrumb }) => {
 
     setIsUpdating(true);
     try {
+      const payload = {
+        name: editingStudent.name,
+        email: editingStudent.email,
+        mobile: editingStudent.mobile,
+        gender: (editingStudent.gender || "").toLowerCase(),
+        dob: editingStudent.dob,
+        address: editingStudent.address,
+        permanentAddress: editingStudent.permanentAddress,
+        pinCode: editingStudent.pincode || editingStudent.pinCode,
+        birthPlace: editingStudent.birthPlace,
+        nationality: editingStudent.nationality,
+        religion: editingStudent.religion,
+        caste: editingStudent.caste,
+        category: editingStudent.category,
+        profilePic: editingStudent.profilePic,
+        admissionNumber: editingStudent.admissionNumber,
+        roll: editingStudent.roll,
+        grade: editingStudent.class || editingStudent.grade,
+        section: editingStudent.section,
+        admissionDate: editingStudent.admissionDate,
+        academicYear: editingStudent.academicYear,
+        serialNo: editingStudent.serialNo,
+        status: editingStudent.status,
+        applicationId: editingStudent.applicationId,
+        applicationDate: editingStudent.applicationDate,
+        approvalStatus: editingStudent.approvalStatus,
+        previousSchoolName: editingStudent.previousSchoolName,
+        previousClass: editingStudent.previousClass,
+        previousPercentage: editingStudent.previousPercentage,
+        transferCertificateNo: editingStudent.transferCertificateNo,
+        transferCertificateDate: editingStudent.transferCertificateDate,
+        reasonForLeaving: editingStudent.reasonForLeaving,
+        bloodGroup: editingStudent.bloodGroup,
+        fatherName: editingStudent.fatherName,
+        fatherPhone: editingStudent.fatherPhone,
+        fatherOccupation: editingStudent.fatherOccupation,
+        motherName: editingStudent.motherName,
+        motherPhone: editingStudent.motherPhone,
+        motherOccupation: editingStudent.motherOccupation,
+        guardianName: editingStudent.guardianName,
+        guardianPhone: editingStudent.guardianPhone,
+        guardianEmail: editingStudent.guardianEmail,
+        knownHealthIssues: editingStudent.knownHealthIssues,
+        allergies: editingStudent.allergies,
+        immunizationStatus: editingStudent.immunizationStatus,
+        learningDisabilities: editingStudent.learningDisabilities,
+        aadharNumber: editingStudent.aadharNumber,
+        birthCertificateNo: editingStudent.birthCertificateNo,
+        remarks: editingStudent.remarks,
+      };
       const res = await fetch(
-        `${API_BASE}/api/nif/students/${editingStudent._id}`,
+        `${API_BASE}/api/admin/users/students/${editingStudent._id}`,
         {
           method: "PUT",
           headers: {
             "Content-Type": "application/json",
             authorization: `Bearer ${localStorage.getItem("token")}`,
           },
-          body: JSON.stringify(editingStudent),
+          body: JSON.stringify(payload),
         }
       );
 
@@ -1229,6 +1316,37 @@ const Students = ({ setShowAdminHeader, setShowAdminBreadcrumb }) => {
       });
     } finally {
       setIsUpdating(false);
+    }
+  };
+
+  const loadStudentForEdit = async (student) => {
+    if (!student?._id) return;
+    setEditingStudent({
+      ...student,
+      class: student.class || student.grade || "",
+    });
+    setShowDetailModal(true);
+
+    try {
+      const res = await fetch(`${API_BASE}/api/admin/users/get-students`, {
+        method: "GET",
+        headers: {
+          "Content-Type": "application/json",
+          authorization: `Bearer ${localStorage.getItem("token")}`,
+        },
+      });
+      if (!res.ok) return;
+      const data = await res.json();
+      if (!Array.isArray(data)) return;
+      const fresh = data.find((s) => String(s?._id) === String(student._id));
+      if (fresh) {
+        setEditingStudent({
+          ...fresh,
+          class: fresh.class || fresh.grade || "",
+        });
+      }
+    } catch (err) {
+      console.error("Failed to fetch student details:", err);
     }
   };
 
@@ -1843,8 +1961,7 @@ const Students = ({ setShowAdminHeader, setShowAdminBreadcrumb }) => {
                           <td
                             className="border-b border-yellow-100 px-2 py-2 cursor-pointer"
                             onClick={() => {
-                              setEditingStudent({ ...student });
-                              setShowDetailModal(true);
+                              loadStudentForEdit(student);
                             }}
                           >
                             <div className="flex items-center gap-2">
@@ -2972,8 +3089,16 @@ const Students = ({ setShowAdminHeader, setShowAdminBreadcrumb }) => {
               <div className="px-6 py-4 border-b border-gray-200 bg-gradient-to-r from-yellow-50 to-amber-50">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-4">
-                    <div className="w-16 h-16 rounded-full bg-gradient-to-br from-yellow-400 to-amber-500 flex items-center justify-center text-white text-2xl font-bold shadow-lg">
-                      {editingStudent.name?.charAt(0) || "?"}
+                    <div className="w-16 h-16 rounded-full overflow-hidden bg-gradient-to-br from-yellow-400 to-amber-500 flex items-center justify-center text-white text-2xl font-bold shadow-lg">
+                      {editingStudent.profilePic ? (
+                        <img
+                          src={editingStudent.profilePic}
+                          alt={editingStudent.name || "Student"}
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        editingStudent.name?.charAt(0) || "?"
+                      )}
                     </div>
                     <div>
                       <h3 className="text-2xl font-bold text-gray-900">
@@ -3051,7 +3176,7 @@ const Students = ({ setShowAdminHeader, setShowAdminBreadcrumb }) => {
                           Gender <span className="text-red-500">*</span>
                         </label>
                         <select
-                          value={editingStudent.gender || ""}
+                          value={(editingStudent.gender || "").toLowerCase()}
                           onChange={(e) =>
                             setEditingStudent({ ...editingStudent, gender: e.target.value })
                           }
@@ -3059,9 +3184,9 @@ const Students = ({ setShowAdminHeader, setShowAdminBreadcrumb }) => {
                           required
                         >
                           <option value="">Select</option>
-                          <option value="Male">Male</option>
-                          <option value="Female">Female</option>
-                          <option value="Other">Other</option>
+                          <option value="male">Male</option>
+                          <option value="female">Female</option>
+                          <option value="other">Other</option>
                         </select>
                       </div>
                       <div>
