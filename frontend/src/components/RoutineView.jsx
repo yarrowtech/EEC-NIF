@@ -23,22 +23,24 @@ const normalizeSchedule = (rawSchedule) => {
   if (!rawSchedule) return {};
 
   if (Array.isArray(rawSchedule)) {
-    return rawSchedule.reduce((acc, session) => {
+    const reduced = rawSchedule.reduce((acc, session) => {
       const day = normalizeDay(session.day || session.weekday || session.dayOfWeek);
       if (!day) return acc;
       acc[day] = acc[day] || [];
       acc[day].push(session);
       return acc;
     }, {});
+    return addBreaksToSchedule(reduced);
   }
 
   if (typeof rawSchedule === 'object') {
-    return Object.entries(rawSchedule).reduce((acc, [day, sessions]) => {
+    const reduced = Object.entries(rawSchedule).reduce((acc, [day, sessions]) => {
       const dayKey = normalizeDay(day);
       if (!dayKey) return acc;
       acc[dayKey] = Array.isArray(sessions) ? sessions : [];
       return acc;
     }, {});
+    return addBreaksToSchedule(reduced);
   }
 
   return {};
@@ -53,6 +55,71 @@ const pickId = (value) => {
 
 const hasScheduleEntries = (normalizedSchedule) =>
   dayOrder.some((day) => (normalizedSchedule?.[day] || []).length > 0);
+
+const parseTimeToMinutes = (value) => {
+  if (!value) return null;
+  const raw = String(value).trim();
+  const timeMatch = raw.match(/^(\d{1,2}):(\d{2})\s*([AaPp][Mm])?$/);
+  if (!timeMatch) return null;
+  let hours = Number(timeMatch[1]);
+  const minutes = Number(timeMatch[2]);
+  const meridiem = timeMatch[3]?.toLowerCase();
+  if (Number.isNaN(hours) || Number.isNaN(minutes)) return null;
+  if (meridiem) {
+    if (meridiem === 'pm' && hours !== 12) hours += 12;
+    if (meridiem === 'am' && hours === 12) hours = 0;
+  }
+  return hours * 60 + minutes;
+};
+
+const resolveTimeRange = (entry) => {
+  const start = entry?.startTime || entry?.time?.split('-')?.[0]?.trim() || '';
+  const end = entry?.endTime || entry?.time?.split('-')?.[1]?.trim() || '';
+  return { start, end };
+};
+
+const addBreaksToSchedule = (schedule) => {
+  const next = {};
+  dayOrder.forEach((day) => {
+    const sessions = Array.isArray(schedule?.[day]) ? [...schedule[day]] : [];
+    const withTimes = sessions
+      .map((entry) => {
+        const range = resolveTimeRange(entry);
+        const startMin = parseTimeToMinutes(range.start);
+        const endMin = parseTimeToMinutes(range.end);
+        return { entry, startMin, endMin, range };
+      })
+      .filter((item) => item.startMin !== null && item.endMin !== null)
+      .sort((a, b) => a.startMin - b.startMin);
+
+    if (withTimes.length === 0) {
+      next[day] = sessions;
+      return;
+    }
+
+    const result = [];
+    for (let i = 0; i < withTimes.length; i += 1) {
+      const current = withTimes[i];
+      result.push(current.entry);
+      const nextItem = withTimes[i + 1];
+      if (!nextItem) continue;
+      if (current.endMin < nextItem.startMin) {
+        result.push({
+          day,
+          startTime: current.range.end,
+          endTime: nextItem.range.start,
+          time: `${current.range.end} - ${nextItem.range.start}`,
+          subject: 'Break',
+          instructor: '-',
+          room: '',
+          isBreak: true,
+        });
+      }
+    }
+    next[day] = result;
+  });
+  return next;
+};
 
 const normalizeTimetablePayload = (payload) => {
   const timetables = [];
@@ -104,6 +171,10 @@ const getEntryValues = (entry, keys) =>
     .map((key) => entry?.[key])
     .filter(Boolean)
     .map((value) => normalizeValue(value));
+
+const isBreakSession = (session) =>
+  session?.isBreak ||
+  String(session?.subject || session?.course || session?.title || '').trim().toLowerCase() === 'break';
 
 const matchesCredential = (entryValues, credentialValues) => {
   if (!credentialValues.length) return true;
@@ -238,20 +309,22 @@ const RoutineView = () => {
             ? `${session.startTime}${session.endTime ? ` - ${session.endTime}` : ''}`
             : `Period ${session.period || index + 1}`);
         const periodOrder = Number(session.period || 999);
+        const startLabel = String(timeLabel).split('-')[0]?.trim();
+        const timeOrder = parseTimeToMinutes(startLabel);
         if (!slotMap.has(timeLabel)) {
-          slotMap.set(timeLabel, { timeLabel, periodOrder });
+          slotMap.set(timeLabel, { timeLabel, periodOrder, timeOrder });
         } else {
           const prev = slotMap.get(timeLabel);
           if (periodOrder < prev.periodOrder) {
-            slotMap.set(timeLabel, { timeLabel, periodOrder });
+            slotMap.set(timeLabel, { timeLabel, periodOrder, timeOrder });
           }
         }
       });
     });
     return Array.from(slotMap.values()).sort((a, b) =>
-      a.periodOrder === b.periodOrder
+      (a.timeOrder ?? a.periodOrder) === (b.timeOrder ?? b.periodOrder)
         ? a.timeLabel.localeCompare(b.timeLabel)
-        : a.periodOrder - b.periodOrder
+        : (a.timeOrder ?? a.periodOrder) - (b.timeOrder ?? b.periodOrder)
     );
   }, [filteredSchedule]);
 
@@ -401,14 +474,22 @@ const RoutineView = () => {
                       return (
                         <td key={`cell-${day}-${slot.timeLabel}`} className="px-3 py-3 border-b border-slate-100">
                           {session ? (
-                            <div className="rounded-lg border border-indigo-100 bg-indigo-50 px-3 py-2">
+                            <div
+                              className={`rounded-lg border px-3 py-2 ${
+                                isBreakSession(session)
+                                  ? 'border-amber-200 bg-amber-50'
+                                  : 'border-indigo-100 bg-indigo-50'
+                              }`}
+                            >
                               <p className="text-sm font-semibold text-slate-900">
                                 {session.course || session.subject || session.title || 'Class'}
                               </p>
-                              <p className="text-xs text-slate-600 mt-1">
-                                {session.instructor || session.teacher || 'TBA'}
-                                {(session.room || session.location) ? ` | ${session.room || session.location}` : ''}
-                              </p>
+                              {!isBreakSession(session) && (
+                                <p className="text-xs text-slate-600 mt-1">
+                                  {session.instructor || session.teacher || 'TBA'}
+                                  {(session.room || session.location) ? ` | ${session.room || session.location}` : ''}
+                                </p>
+                              )}
                             </div>
                           ) : (
                             <div className="rounded-lg border border-dashed border-slate-200 px-3 py-2 text-xs text-slate-400 text-center">
@@ -431,12 +512,14 @@ const RoutineView = () => {
                 className="p-4 border border-indigo-100 rounded-2xl bg-gradient-to-r from-white to-indigo-50 shadow-sm flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4"
               >
                 <div>
-                  <p className="text-xs uppercase font-medium text-indigo-600">{session.type || `Period ${session.period || index + 1}`}</p>
+                  <p className="text-xs uppercase font-medium text-indigo-600">
+                    {session.type || `Period ${session.period || index + 1}`}
+                  </p>
                   <h3 className="text-lg font-semibold text-slate-900 flex items-center gap-2">
                     <BookOpen size={16} className="text-indigo-600" />
                     {session.course || session.subject || session.title || 'Class'}
                   </h3>
-                  {(session.instructor || session.teacher) && (
+                  {!isBreakSession(session) && (session.instructor || session.teacher) && (
                     <p className="text-sm text-slate-500">By {session.instructor || session.teacher}</p>
                   )}
                 </div>
@@ -445,10 +528,12 @@ const RoutineView = () => {
                     <Clock size={16} className="text-indigo-600" />
                     <span>{session.time || `${session.startTime || '--'}${session.endTime ? ` - ${session.endTime}` : ''}`}</span>
                   </div>
-                  <div className="flex items-center gap-1">
-                    <MapPin size={16} className="text-indigo-600" />
-                    <span>{session.room || session.location || 'TBD'}</span>
-                  </div>
+                  {!isBreakSession(session) && (
+                    <div className="flex items-center gap-1">
+                      <MapPin size={16} className="text-indigo-600" />
+                      <span>{session.room || session.location || 'TBD'}</span>
+                    </div>
+                  )}
                 </div>
               </div>
             ))}
