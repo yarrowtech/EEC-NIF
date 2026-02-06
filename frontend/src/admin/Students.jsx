@@ -3650,7 +3650,7 @@ const Students = ({ setShowAdminHeader, setShowAdminBreadcrumb }) => {
                     {archivedStudents.map((student) => (
                       <tr key={student._id} className="border-t">
                         <td className="px-4 py-3 text-gray-900 font-medium">
-                          {student.studentName}
+                          {student.name || student.studentName || '-'}
                         </td>
                         <td className="px-4 py-3 text-gray-600">
                           {student.roll}

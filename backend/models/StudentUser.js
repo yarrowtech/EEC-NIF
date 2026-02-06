@@ -72,6 +72,8 @@ const studentUserSchema = new mongoose.Schema({
   approvalStatus: String,
   remarks: String,
   lastLoginAt: { type: Date, default: null },
+  isArchived: { type: Boolean, default: false },
+  archivedAt: { type: Date, default: null },
 
 
   // Embedded attendance array
