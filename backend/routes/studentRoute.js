@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const StudentUser = require('../models/StudentUser');
+const ParentUser = require('../models/ParentUser');
 const Class = require('../models/Class');
 const Timetable = require('../models/Timetable');
 const ExamResult = require('../models/ExamResult');
@@ -74,6 +75,8 @@ const normalizeOrgPrefix = (adminUsername) => {
 };
 const resolveStudentPrefix = ({ adminUsername, admissionYear }) =>
   `${normalizeOrgPrefix(adminUsername)}-STD-${String(admissionYear).slice(-2)}-`;
+const resolveParentPrefix = ({ adminUsername, admissionYear }) =>
+  `${normalizeOrgPrefix(adminUsername)}-PTA-${String(admissionYear).slice(-2)}-`;
 const getNextStudentUsername = async ({ schoolId, campusId, prefix }) => {
   const regex = new RegExp(`^${escapeRegex(prefix)}\\d+$`);
   const filter = {
@@ -82,6 +85,23 @@ const getNextStudentUsername = async ({ schoolId, campusId, prefix }) => {
   };
   if (campusId) filter.campusId = campusId;
   const users = await StudentUser.find(filter).select('username').lean();
+  let maxSequence = 0;
+  users.forEach((user) => {
+    const value = String(user?.username || '');
+    const match = value.match(/(\d+)$/);
+    const seq = match ? Number(match[1]) : 0;
+    if (Number.isFinite(seq) && seq > maxSequence) maxSequence = seq;
+  });
+  return `${prefix}${padNumber(maxSequence + 1)}`;
+};
+const getNextParentUsername = async ({ schoolId, campusId, prefix }) => {
+  const regex = new RegExp(`^${escapeRegex(prefix)}\\d+$`);
+  const filter = {
+    schoolId,
+    username: { $regex: regex },
+  };
+  if (campusId) filter.campusId = campusId;
+  const users = await ParentUser.find(filter).select('username').lean();
   let maxSequence = 0;
   users.forEach((user) => {
     const value = String(user?.username || '');
@@ -107,10 +127,47 @@ router.post('/register', adminAuth, async (req, res) => {
     gender,
     dob,
     admissionDate,
+    admissionNumber,
+    academicYear,
+    serialNo,
+    status,
     mobile,
     email,
     address,
+    permanentAddress,
     pinCode,
+    profilePic,
+    birthPlace,
+    bloodGroup,
+    caste,
+    fatherName,
+    fatherPhone,
+    fatherOccupation,
+    motherName,
+    motherPhone,
+    motherOccupation,
+    guardianName,
+    guardianPhone,
+    guardianEmail,
+    nationality,
+    religion,
+    category,
+    knownHealthIssues,
+    allergies,
+    immunizationStatus,
+    learningDisabilities,
+    aadharNumber,
+    birthCertificateNo,
+    previousSchoolName,
+    previousClass,
+    previousPercentage,
+    transferCertificateNo,
+    transferCertificateDate,
+    reasonForLeaving,
+    applicationId,
+    applicationDate,
+    approvalStatus,
+    remarks,
     password: requestedPassword
   } = req.body;
 
@@ -166,14 +223,117 @@ router.post('/register', adminAuth, async (req, res) => {
       gender: resolvedGender,
       dob,
       admissionDate: resolvedAdmissionDate,
+      admissionNumber: admissionNumber || '',
+      academicYear: academicYear || '',
+      serialNo: serialNo || '',
+      status: status || 'Active',
       mobile: resolvedMobile,
       email: resolvedEmail,
       address: address || '',
+      permanentAddress: permanentAddress || '',
       pinCode: pinCode || '',
+      profilePic: profilePic || '',
+      birthPlace: birthPlace || '',
+      bloodGroup: bloodGroup || '',
+      caste: caste || '',
+      fatherName: fatherName || '',
+      fatherPhone: fatherPhone || '',
+      fatherOccupation: fatherOccupation || '',
+      motherName: motherName || '',
+      motherPhone: motherPhone || '',
+      motherOccupation: motherOccupation || '',
+      guardianName: guardianName || '',
+      guardianPhone: guardianPhone || '',
+      guardianEmail: guardianEmail || '',
+      nationality: nationality || '',
+      religion: religion || '',
+      category: category || '',
+      knownHealthIssues: knownHealthIssues || '',
+      allergies: allergies || '',
+      immunizationStatus: immunizationStatus || '',
+      learningDisabilities: learningDisabilities || '',
+      aadharNumber: aadharNumber || '',
+      birthCertificateNo: birthCertificateNo || '',
+      previousSchoolName: previousSchoolName || '',
+      previousClass: previousClass || '',
+      previousPercentage: previousPercentage || '',
+      transferCertificateNo: transferCertificateNo || '',
+      transferCertificateDate: transferCertificateDate || '',
+      reasonForLeaving: reasonForLeaving || '',
+      applicationId: applicationId || '',
+      applicationDate: applicationDate || '',
+      approvalStatus: approvalStatus || '',
+      remarks: remarks || '',
       studentCode,
     };
 
     const studentUser = await StudentUser.create(payload);
+
+    let parentCredentials = null;
+    const parentName =
+      guardianName ||
+      fatherName ||
+      motherName ||
+      (resolvedName ? `Parent of ${resolvedName}` : '');
+    const parentMobile = guardianPhone || fatherPhone || motherPhone || '';
+    const parentEmail = guardianEmail || '';
+    if (parentName && (parentMobile || parentEmail)) {
+      const parentFilter = {
+        schoolId: resolvedSchoolId,
+        $or: [
+          parentEmail ? { email: parentEmail } : null,
+          parentMobile ? { mobile: parentMobile } : null,
+        ].filter(Boolean),
+      };
+      let parentUser = null;
+      if (parentFilter.$or.length) {
+        parentUser = await ParentUser.findOne(parentFilter);
+      }
+      if (!parentUser) {
+        const parentPrefix = resolveParentPrefix({
+          adminUsername: req.admin?.username,
+          admissionYear,
+        });
+        const parentUsername = await getNextParentUsername({
+          schoolId: resolvedSchoolId,
+          campusId: resolvedCampusId,
+          prefix: parentPrefix,
+        });
+        const parentPassword = generatePassword();
+        parentUser = await ParentUser.create({
+          username: parentUsername,
+          password: parentPassword,
+          schoolId: resolvedSchoolId,
+          campusId: resolvedCampusId,
+          name: parentName,
+          mobile: parentMobile,
+          email: parentEmail,
+          childrenIds: [studentUser._id],
+          children: [resolvedName],
+          grade: [resolvedGrade],
+        });
+        parentCredentials = {
+          userId: parentUser.username,
+          password: parentPassword,
+        };
+      } else {
+        const existingIds = new Set(
+          (parentUser.childrenIds || []).map((id) => String(id))
+        );
+        if (!existingIds.has(String(studentUser._id))) {
+          parentUser.childrenIds = [...(parentUser.childrenIds || []), studentUser._id];
+        }
+        const existingChildren = new Set(parentUser.children || []);
+        if (resolvedName && !existingChildren.has(resolvedName)) {
+          parentUser.children = [...(parentUser.children || []), resolvedName];
+        }
+        const existingGrades = new Set(parentUser.grade || []);
+        if (resolvedGrade && !existingGrades.has(resolvedGrade)) {
+          parentUser.grade = [...(parentUser.grade || []), resolvedGrade];
+        }
+        await parentUser.save();
+      }
+    }
 
     res.status(201).json({
       message: 'Student registered successfully',
@@ -181,6 +341,7 @@ router.post('/register', adminAuth, async (req, res) => {
       studentCode,
       password,
       userId: studentUser._id,
+      parentCredentials,
     });
   } catch (err) {
     console.error('Student register error:', err);

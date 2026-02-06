@@ -19,6 +19,34 @@ const normalizeKey = (value) =>
     .replace(/\s+/g, '');
 
 const escapeRegex = (value) => String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+const padNumber = (value, size = 3) => String(value).padStart(size, '0');
+const normalizeOrgPrefix = (adminUsername) => {
+  const normalized = String(adminUsername || '')
+    .trim()
+    .toUpperCase()
+    .replace(/^EEC[-_]?/, '')
+    .replace(/[^A-Z0-9-]/g, '');
+  return normalized || 'SCH';
+};
+const resolveParentPrefix = ({ adminUsername, year }) =>
+  `${normalizeOrgPrefix(adminUsername)}-PTA-${String(year).slice(-2)}-`;
+const getNextParentUsername = async ({ schoolId, campusId, prefix }) => {
+  const regex = new RegExp(`^${escapeRegex(prefix)}\\d+$`);
+  const filter = {
+    schoolId,
+    username: { $regex: regex },
+  };
+  if (campusId) filter.campusId = campusId;
+  const users = await ParentUser.find(filter).select('username').lean();
+  let maxSequence = 0;
+  users.forEach((user) => {
+    const value = String(user?.username || '');
+    const match = value.match(/(\d+)$/);
+    const seq = match ? Number(match[1]) : 0;
+    if (Number.isFinite(seq) && seq > maxSequence) maxSequence = seq;
+  });
+  return `${prefix}${padNumber(maxSequence + 1)}`;
+};
 
 const buildStudentSchedule = async ({ student, schoolId, campusId }) => {
   const resolvedGrade = String(student?.grade || '').trim();
@@ -146,7 +174,7 @@ router.post('/register', adminAuth, async (req, res) => {
   } = req.body;
 
   try {
-    const username = await generateUsername(name, 'parent');
+    const fallbackUsername = await generateUsername(name, 'parent');
     const password = generatePassword();
     const resolvedSchoolId = req.schoolId || (req.isSuperAdmin ? schoolId : null);
     const resolvedCampusId = req.campusId || (req.isSuperAdmin ? req.body?.campusId : null);
@@ -156,6 +184,15 @@ router.post('/register', adminAuth, async (req, res) => {
     if (!resolvedCampusId) {
       return res.status(400).json({ error: 'campusId is required' });
     }
+    const parentPrefix = resolveParentPrefix({
+      adminUsername: req.admin?.username,
+      year: new Date().getFullYear(),
+    });
+    const username = await getNextParentUsername({
+      schoolId: resolvedSchoolId,
+      campusId: resolvedCampusId,
+      prefix: parentPrefix,
+    }).catch(() => fallbackUsername);
     const allChild = children.split(',').map(child => child.trim());
     const allGrade = grade.split(',').map(g => g.trim());
     const user = new ParentUser({

@@ -450,6 +450,7 @@ router.get("/get-students", adminAuth, async (req, res) => {
   // #swagger.tags = ['Admin Users']
   try {
     const filter = buildScopedFilter(req);
+    filter.isArchived = { $ne: true };
     const students = await StudentUser.find(filter);
     res.status(200).json(students);
   } catch (err) {
