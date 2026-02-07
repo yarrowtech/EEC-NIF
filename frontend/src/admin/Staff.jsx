@@ -69,6 +69,11 @@ const Staff = ({ setShowAdminHeader }) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [showAddForm, setShowAddForm] = useState(false);
+  const [showEditForm, setShowEditForm] = useState(false);
+  const [editingStaff, setEditingStaff] = useState(null);
+  const [submitStatus, setSubmitStatus] = useState(null);
+  const [credentialView, setCredentialView] = useState(null);
+  const [deletingStaffId, setDeletingStaffId] = useState(null);
   const [newStaffMember, setNewStaffMember] = useState({
     name: '',
     email: '',
@@ -79,6 +84,20 @@ const Staff = ({ setShowAdminHeader }) => {
     qualification: '',
     salary: '',
     rating: '',
+    status: 'Active',
+    joinDate: '',
+    location: '',
+    avatar: ''
+  });
+  const [editStaffMember, setEditStaffMember] = useState({
+    name: '',
+    email: '',
+    phone: '',
+    position: '',
+    department: '',
+    experience: '',
+    qualification: '',
+    salary: '',
     status: 'Active',
     joinDate: '',
     location: '',
@@ -152,6 +171,7 @@ const Staff = ({ setShowAdminHeader }) => {
         throw new Error(data?.error || 'Failed to fetch staff');
       }
       const normalized = (Array.isArray(data) ? data : []).map((member, idx) => ({
+        _id: member._id,
         id: member._id || member.id || idx,
         name: member.name || 'Unnamed Staff',
         empId: member.employeeCode || member.empId || member.staffCode || `EMP-${idx + 1}`,
@@ -163,7 +183,7 @@ const Staff = ({ setShowAdminHeader }) => {
         experience: Number(member.experience || 0),
         joiningDate: member.joiningDate || member.joinDate || member.createdAt || '',
         status: member.status || 'Active',
-        salary: member.salary ?? member.ctc ?? null,
+        salary: Number(member.salary ?? member.ctc ?? 0),
         attendanceToday: normalizeAttendance(member.attendanceToday),
         lastSalaryDate: member.lastSalaryDate || null,
         paymentStatus: normalizePaymentStatus(member.paymentStatus),
@@ -192,10 +212,36 @@ const Staff = ({ setShowAdminHeader }) => {
     setNewStaffMember(prev => ({ ...prev, [name]: value }));
   };
 
+  const handleEditStaffChange = (e) => {
+    const { name, value } = e.target;
+    setEditStaffMember(prev => ({ ...prev, [name]: value }));
+  };
+
+  const openEditForm = (staffMember) => {
+    if (!staffMember) return;
+    setEditingStaff(staffMember);
+    setEditStaffMember({
+      name: staffMember.name || '',
+      email: staffMember.email || '',
+      phone: staffMember.mobile || '',
+      position: staffMember.position || '',
+      department: staffMember.department || '',
+      experience: staffMember.experience ? String(staffMember.experience) : '',
+      qualification: staffMember.qualification || '',
+      salary: staffMember.salary != null ? String(staffMember.salary) : '',
+      status: staffMember.status || 'Active',
+      joinDate: staffMember.joiningDate || '',
+      location: staffMember.location || '',
+      avatar: staffMember.avatar || ''
+    });
+    setShowEditForm(true);
+  };
+
   const handleAddStaffSubmit = async (e) => {
     e.preventDefault();
     // Here you would send newStaffMember to backend or update state
     try {
+      setSubmitStatus(null);
       const res = await fetch(`${import.meta.env.VITE_API_URL}/api/staff/auth/register`,{
           method: 'POST',
           headers: {
@@ -207,19 +253,132 @@ const Staff = ({ setShowAdminHeader }) => {
         const data = await res.json();
         if (!res.ok) { 
           console.error('Registration failed:', data);
-          throw new Error('Registration failed');
+          throw new Error(data?.error || 'Registration failed');
         }
-      console.log('New staff member added:', data);
+      setSubmitStatus({
+        type: 'success',
+        message: 'Staff member added successfully.'
+      });
+      if (data?.username && data?.password) {
+        setCredentialView({
+          name: newStaffMember.name,
+          username: data.username,
+          employeeCode: data.employeeCode || data.username,
+          password: data.password
+        });
+      }
       setShowAddForm(false);
       // Optionally reset form
       setNewStaffMember({
-        name: '', email: '', mobile: '', position: '', department: '', experience: '', qualification: '', joiningDate: '', address: '', pinCode: '', gender: '', salary: ''
+        name: '',
+        email: '',
+        phone: '',
+        position: '',
+        department: '',
+        experience: '',
+        qualification: '',
+        salary: '',
+        rating: '',
+        status: 'Active',
+        joinDate: '',
+        location: '',
+        avatar: ''
       });
       fetchStaff();
     }
     catch (error) {
       console.error('Error adding staff member:', error);
+      setSubmitStatus({ type: 'error', message: error.message || 'Unable to add staff member' });
     }
+  };
+
+  const handleEditStaffSubmit = async (e) => {
+    e.preventDefault();
+    if (!editingStaff?._id && !editingStaff?.id) return;
+    try {
+      setSubmitStatus(null);
+      const staffId = editingStaff._id || editingStaff.id;
+      const payload = {
+        name: editStaffMember.name,
+        email: editStaffMember.email,
+        mobile: editStaffMember.phone,
+        position: editStaffMember.position,
+        department: editStaffMember.department,
+        experience: editStaffMember.experience,
+        qualification: editStaffMember.qualification,
+        salary: editStaffMember.salary ? Number(editStaffMember.salary) : undefined,
+        status: editStaffMember.status,
+        joiningDate: editStaffMember.joinDate
+      };
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/admin/users/staff/${staffId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'authorization': `Bearer ${localStorage.getItem('token')}`
+        },
+        body: JSON.stringify(payload)
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data?.error || 'Unable to update staff member');
+      }
+      setSubmitStatus({ type: 'success', message: 'Staff member updated successfully.' });
+      setShowEditForm(false);
+      setEditingStaff(null);
+      fetchStaff();
+    } catch (error) {
+      console.error('Error updating staff member:', error);
+      setSubmitStatus({ type: 'error', message: error.message || 'Unable to update staff member' });
+    }
+  };
+
+  const handleDeleteStaff = async (staffMember) => {
+    const staffId = staffMember?._id || staffMember?.id;
+    if (!staffId || deletingStaffId) return;
+    const confirmed = window.confirm(`Delete staff member ${staffMember.name || ''}?`);
+    if (!confirmed) return;
+    setDeletingStaffId(staffId);
+    try {
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/admin/users/staff/${staffId}`, {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+          'authorization': `Bearer ${localStorage.getItem('token')}`
+        }
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data?.error || data?.message || 'Unable to delete staff member');
+      }
+      setStaff((prev) => prev.filter((item) => String(item._id || item.id) !== String(staffId)));
+      setSubmitStatus({ type: 'success', message: 'Staff member deleted successfully.' });
+    } catch (error) {
+      console.error('Error deleting staff member:', error);
+      setSubmitStatus({ type: 'error', message: error.message || 'Unable to delete staff member' });
+    } finally {
+      setDeletingStaffId(null);
+    }
+  };
+
+  const copyCredential = async (value) => {
+    if (!value) return;
+    try {
+      await navigator.clipboard.writeText(value);
+    } catch (err) {
+      console.error('Failed to copy credential:', err);
+    }
+  };
+
+  const formatDate = (value) => {
+    if (!value) return '-';
+    const dt = new Date(value);
+    if (Number.isNaN(dt.getTime())) return '-';
+    return dt.toLocaleDateString();
+  };
+
+  const formatMoney = (value) => {
+    if (value == null || Number.isNaN(Number(value))) return '-';
+    return Number(value).toLocaleString();
   };
 
 
@@ -264,7 +423,28 @@ const Staff = ({ setShowAdminHeader }) => {
                 </div>
               </div>
             </div>
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => setShowAddForm(true)}
+                className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
+              >
+                <Plus size={18} />
+                Add Staff
+              </button>
+            </div>
           </div>
+
+          {submitStatus && (
+            <div
+              className={`mb-4 rounded-lg border px-4 py-3 text-sm ${
+                submitStatus.type === 'success'
+                  ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
+                  : 'border-red-200 bg-red-50 text-red-700'
+              }`}
+            >
+              {submitStatus.message}
+            </div>
+          )}
 
           {/* Search and Filter */}
           <div className="mb-6 flex gap-4">
@@ -317,6 +497,357 @@ const Staff = ({ setShowAdminHeader }) => {
             </select>
           </div>
         </div>
+
+        {showAddForm && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
+            <div className="w-full max-w-3xl rounded-2xl bg-white shadow-2xl border border-blue-100">
+              <div className="flex items-center justify-between px-6 py-4 border-b border-blue-100">
+                <div>
+                  <h2 className="text-xl font-semibold text-blue-700">Add New Staff</h2>
+                  <p className="text-sm text-gray-500">Create staff profile and send login credentials</p>
+                </div>
+                <button
+                  onClick={() => setShowAddForm(false)}
+                  className="text-gray-500 hover:text-gray-700"
+                >
+                  <XCircle size={20} />
+                </button>
+              </div>
+              <form onSubmit={handleAddStaffSubmit} className="px-6 py-5 space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-sm font-medium text-gray-700">Full Name</label>
+                    <input
+                      type="text"
+                      name="name"
+                      value={newStaffMember.name}
+                      onChange={handleAddStaffChange}
+                      className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-gray-700">Email</label>
+                    <input
+                      type="email"
+                      name="email"
+                      value={newStaffMember.email}
+                      onChange={handleAddStaffChange}
+                      className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-gray-700">Contact Number</label>
+                    <input
+                      type="tel"
+                      name="phone"
+                      value={newStaffMember.phone}
+                      onChange={handleAddStaffChange}
+                      className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-gray-700">Position</label>
+                    <input
+                      type="text"
+                      name="position"
+                      value={newStaffMember.position}
+                      onChange={handleAddStaffChange}
+                      className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-gray-700">Department</label>
+                    <input
+                      type="text"
+                      name="department"
+                      value={newStaffMember.department}
+                      onChange={handleAddStaffChange}
+                      className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-gray-700">Qualification</label>
+                    <input
+                      type="text"
+                      name="qualification"
+                      value={newStaffMember.qualification}
+                      onChange={handleAddStaffChange}
+                      className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-gray-700">Experience (years)</label>
+                    <input
+                      type="number"
+                      name="experience"
+                      value={newStaffMember.experience}
+                      onChange={handleAddStaffChange}
+                      className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-gray-700">Salary</label>
+                    <input
+                      type="number"
+                      name="salary"
+                      value={newStaffMember.salary}
+                      onChange={handleAddStaffChange}
+                      className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-gray-700">Join Date</label>
+                    <input
+                      type="date"
+                      name="joinDate"
+                      value={newStaffMember.joinDate}
+                      onChange={handleAddStaffChange}
+                      className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-gray-700">Status</label>
+                    <select
+                      name="status"
+                      value={newStaffMember.status}
+                      onChange={handleAddStaffChange}
+                      className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
+                    >
+                      <option value="Active">Active</option>
+                      <option value="On Leave">On Leave</option>
+                      <option value="Inactive">Inactive</option>
+                    </select>
+                  </div>
+                </div>
+                <div className="flex items-center justify-end gap-3 pt-4 border-t border-blue-100">
+                  <button
+                    type="button"
+                    onClick={() => setShowAddForm(false)}
+                    className="px-4 py-2 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-5 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700"
+                  >
+                    Save & Send Credentials
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {showEditForm && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
+            <div className="w-full max-w-3xl rounded-2xl bg-white shadow-2xl border border-blue-100">
+              <div className="flex items-center justify-between px-6 py-4 border-b border-blue-100">
+                <div>
+                  <h2 className="text-xl font-semibold text-blue-700">Edit Staff</h2>
+                  <p className="text-sm text-gray-500">Update staff profile details</p>
+                </div>
+                <button
+                  onClick={() => setShowEditForm(false)}
+                  className="text-gray-500 hover:text-gray-700"
+                >
+                  <XCircle size={20} />
+                </button>
+              </div>
+              <form onSubmit={handleEditStaffSubmit} className="px-6 py-5 space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-sm font-medium text-gray-700">Full Name</label>
+                    <input
+                      type="text"
+                      name="name"
+                      value={editStaffMember.name}
+                      onChange={handleEditStaffChange}
+                      className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-gray-700">Email</label>
+                    <input
+                      type="email"
+                      name="email"
+                      value={editStaffMember.email}
+                      onChange={handleEditStaffChange}
+                      className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-gray-700">Contact Number</label>
+                    <input
+                      type="tel"
+                      name="phone"
+                      value={editStaffMember.phone}
+                      onChange={handleEditStaffChange}
+                      className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-gray-700">Position</label>
+                    <input
+                      type="text"
+                      name="position"
+                      value={editStaffMember.position}
+                      onChange={handleEditStaffChange}
+                      className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-gray-700">Department</label>
+                    <input
+                      type="text"
+                      name="department"
+                      value={editStaffMember.department}
+                      onChange={handleEditStaffChange}
+                      className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-gray-700">Qualification</label>
+                    <input
+                      type="text"
+                      name="qualification"
+                      value={editStaffMember.qualification}
+                      onChange={handleEditStaffChange}
+                      className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-gray-700">Experience (years)</label>
+                    <input
+                      type="number"
+                      name="experience"
+                      value={editStaffMember.experience}
+                      onChange={handleEditStaffChange}
+                      className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-gray-700">Salary</label>
+                    <input
+                      type="number"
+                      name="salary"
+                      value={editStaffMember.salary}
+                      onChange={handleEditStaffChange}
+                      className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-gray-700">Join Date</label>
+                    <input
+                      type="date"
+                      name="joinDate"
+                      value={editStaffMember.joinDate}
+                      onChange={handleEditStaffChange}
+                      className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-gray-700">Status</label>
+                    <select
+                      name="status"
+                      value={editStaffMember.status}
+                      onChange={handleEditStaffChange}
+                      className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
+                    >
+                      <option value="Active">Active</option>
+                      <option value="On Leave">On Leave</option>
+                      <option value="Inactive">Inactive</option>
+                    </select>
+                  </div>
+                </div>
+                <div className="flex items-center justify-end gap-3 pt-4 border-t border-blue-100">
+                  <button
+                    type="button"
+                    onClick={() => setShowEditForm(false)}
+                    className="px-4 py-2 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-5 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700"
+                  >
+                    Save Changes
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {credentialView && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
+            <div className="w-full max-w-lg rounded-2xl bg-white shadow-2xl border border-blue-100">
+              <div className="flex items-center justify-between px-6 py-4 border-b border-blue-100">
+                <div>
+                  <h2 className="text-lg font-semibold text-blue-700">Staff Login Credentials</h2>
+                  <p className="text-sm text-gray-500">Share these credentials securely</p>
+                </div>
+                <button
+                  onClick={() => setCredentialView(null)}
+                  className="text-gray-500 hover:text-gray-700"
+                >
+                  <XCircle size={20} />
+                </button>
+              </div>
+              <div className="px-6 py-5 space-y-4">
+                <div>
+                  <p className="text-sm text-gray-600">Staff Member</p>
+                  <p className="text-base font-semibold text-gray-900">{credentialView.name || 'Staff'}</p>
+                </div>
+                <div className="space-y-3">
+                  <div>
+                    <p className="text-xs font-semibold text-blue-700 uppercase">Login ID</p>
+                    <div className="mt-1 flex items-center justify-between rounded-lg border border-blue-100 bg-blue-50 px-3 py-2">
+                      <code className="text-sm font-mono text-gray-800">
+                        {credentialView.employeeCode || credentialView.username}
+                      </code>
+                      <button
+                        onClick={() => copyCredential(credentialView.employeeCode || credentialView.username)}
+                        className="text-xs bg-blue-500 hover:bg-blue-600 text-white px-2 py-1 rounded"
+                        title="Copy ID"
+                      >
+                        Copy
+                      </button>
+                    </div>
+                  </div>
+                  <div>
+                    <p className="text-xs font-semibold text-blue-700 uppercase">Password</p>
+                    <div className="mt-1 flex items-center justify-between rounded-lg border border-blue-100 bg-blue-50 px-3 py-2">
+                      <code className="text-sm font-mono text-gray-800">{credentialView.password}</code>
+                      <button
+                        onClick={() => copyCredential(credentialView.password)}
+                        className="text-xs bg-blue-500 hover:bg-blue-600 text-white px-2 py-1 rounded"
+                        title="Copy Password"
+                      >
+                        Copy
+                      </button>
+                    </div>
+                  </div>
+                </div>
+                <p className="text-xs text-gray-500">Please ask the staff member to reset the password after first login.</p>
+              </div>
+              <div className="px-6 py-4 border-t border-blue-100 flex justify-end">
+                <button
+                  onClick={() => setCredentialView(null)}
+                  className="px-4 py-2 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Scrollable Table Container */}
         <div className="flex-1 overflow-hidden">
@@ -411,14 +942,14 @@ const Staff = ({ setShowAdminHeader }) => {
                           )}
                         </div>
                         <div className="text-xs text-gray-600">
-                          Last: {new Date(staffMember.lastSalaryDate).toLocaleDateString()}
+                          Last: {formatDate(staffMember.lastSalaryDate)}
                         </div>
                         <div className="text-xs text-gray-500">
-                          Next: {new Date(staffMember.nextPaymentDue).toLocaleDateString()}
+                          Next: {formatDate(staffMember.nextPaymentDue)}
                         </div>
                         <div className="flex items-center gap-1">
-                          <span className="text-xs font-semibold text-gray-600">₹</span>
-                          <span className="text-xs text-gray-600">{staffMember.salary.toLocaleString()}</span>
+                          <span className="text-xs font-semibold text-gray-600">INR</span>
+                          <span className="text-xs text-gray-600">{formatMoney(staffMember.salary)}</span>
                         </div>
                       </div>
                     </td>
@@ -482,7 +1013,7 @@ const Staff = ({ setShowAdminHeader }) => {
                         </div>
                         <div className="text-sm text-gray-600">{staffMember.department}</div>
                         <div className="text-xs text-gray-500">
-                          Joined: {new Date(staffMember.joiningDate).toLocaleDateString()}
+                          Joined: {formatDate(staffMember.joiningDate)}
                         </div>
                       </div>
                     </td>
@@ -582,8 +1113,17 @@ const Staff = ({ setShowAdminHeader }) => {
                         <button 
                           className="text-orange-600 hover:text-orange-800 p-1 hover:bg-orange-50 rounded" 
                           title="Edit Staff Member"
+                          onClick={() => openEditForm(staffMember)}
                         >
                           <Edit2 size={14} />
+                        </button>
+                        <button 
+                          className="text-red-600 hover:text-red-800 p-1 hover:bg-red-50 rounded disabled:opacity-50" 
+                          title="Delete Staff Member"
+                          onClick={() => handleDeleteStaff(staffMember)}
+                          disabled={deletingStaffId === (staffMember._id || staffMember.id)}
+                        >
+                          <Trash2 size={14} />
                         </button>
                         <button 
                           className="text-gray-600 hover:text-gray-800 p-1 hover:bg-gray-50 rounded" 
