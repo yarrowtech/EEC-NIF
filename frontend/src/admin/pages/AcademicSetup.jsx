@@ -709,7 +709,7 @@ const AcademicSetup = ({ setShowAdminHeader }) => {
         {activeTab === "years" && (
           <div className="space-y-4">
             {/* Add Form */}
-            {showAddForm && (
+            {showAddForm && ( 
               <form onSubmit={submitYear} className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
                 <h3 className="mb-4 text-base font-semibold text-gray-800">Add Academic Year</h3>
                 <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
