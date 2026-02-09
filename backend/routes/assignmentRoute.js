@@ -11,6 +11,19 @@ const Timetable = require('../models/Timetable');
 const Class = require('../models/Class');
 const Section = require('../models/Section');
 
+const escapeRegex = (value = '') => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+const buildCampusFilter = (campusId) => (
+    campusId
+        ? {
+            $or: [
+                { campusId },
+                { campusId: { $exists: false } },
+                { campusId: null }
+            ]
+        }
+        : {}
+);
+
 const resolveSchoolId = (req, res) => {
     const schoolId = req.schoolId || req.admin?.schoolId || null;
     if (!schoolId) {
@@ -191,6 +204,7 @@ router.post("/teacher/create", authTeacher, async (req, res) => {
             description: description || '',
             subject,
             class: classDoc.name || '',
+            section: sectionDoc.name || '',
             classId,
             sectionId,
             marks: marks || 100,
@@ -365,58 +379,98 @@ router.get("/student/assignments", authStudent, async (req, res) => {
         if (!studentId) return res.status(400).json({ error: 'studentId is required' });
 
         // Get student details
-        const student = await StudentUser.findById(studentId);
+        const student = await StudentUser.findById(studentId)
+            .select('grade section campusId');
         if (!student) {
             return res.status(404).json({ error: 'Student not found' });
         }
 
-        // Find class by grade
-        const classDoc = await Class.findOne({
-            schoolId,
-            name: student.grade,
-            campusId: student.campusId
-        });
+        const campusId = req.campusId || student.campusId || null;
+        const gradeValue = String(student.grade || '').trim();
+        const sectionValue = String(student.section || '').trim();
 
-        if (!classDoc) {
-            return res.status(404).json({ error: 'Class not found' });
+        // Find class by grade if available
+        let classDoc = null;
+        if (gradeValue) {
+            const classQuery = {
+                schoolId,
+                name: gradeValue,
+                ...buildCampusFilter(campusId)
+            };
+            classDoc = await Class.findOne(classQuery);
+            if (!classDoc) {
+                classDoc = await Class.findOne({
+                    ...classQuery,
+                    name: { $regex: `^${escapeRegex(gradeValue)}$`, $options: 'i' }
+                });
+            }
         }
 
-        // Find section by name and classId
-        const sectionDoc = await Section.findOne({
-            schoolId,
-            classId: classDoc._id,
-            name: student.section
-        });
+        // Find section by name and classId if available
+        let sectionDoc = null;
+        if (sectionValue) {
+            const sectionQuery = {
+                schoolId,
+                name: sectionValue,
+                ...buildCampusFilter(campusId)
+            };
+            if (classDoc?._id) {
+                sectionQuery.classId = classDoc._id;
+            }
+            sectionDoc = await Section.findOne(sectionQuery);
+            if (!sectionDoc) {
+                sectionDoc = await Section.findOne({
+                    ...sectionQuery,
+                    name: { $regex: `^${escapeRegex(sectionValue)}$`, $options: 'i' }
+                });
+            }
+        }
 
-        if (!sectionDoc) {
-            return res.status(404).json({ error: 'Section not found' });
+        if (!classDoc && !gradeValue) {
+            return res.json([]);
         }
 
         // Get assignments for this class and section
         const filter = {
             schoolId,
-            classId: classDoc._id,
-            sectionId: sectionDoc._id,
             status: 'active'
         };
 
-        if (req.campusId) {
-            filter.$or = [
-                { campusId: req.campusId },
-                { campusId: { $exists: false } },
-                { campusId: null }
-            ];
+        Object.assign(filter, buildCampusFilter(campusId));
+
+        if (classDoc?._id) {
+            filter.classId = classDoc._id;
+        } else if (gradeValue) {
+            filter.class = new RegExp(`^${escapeRegex(gradeValue)}$`, 'i');
+        } else {
+            return res.json([]);
         }
 
         const assignments = await Assignment.find(filter)
             .populate('teacherId', 'name')
             .sort({ createdAt: -1 });
 
+        const normalizedSection = sectionValue.toLowerCase();
+        const sectionIdString = sectionDoc?._id ? String(sectionDoc._id) : null;
+        const scopedAssignments = assignments.filter((assignment) => {
+            if (sectionIdString && assignment.sectionId) {
+                return String(assignment.sectionId) === sectionIdString;
+            }
+            if (normalizedSection) {
+                if (assignment.section) {
+                    return assignment.section.trim().toLowerCase() === normalizedSection;
+                }
+                // If assignment has no section label (older data), keep it to avoid hiding work
+                return true;
+            }
+            return true;
+        });
+
         // Get student's submission status for each assignment
         const progress = await StudentProgress.findOne({ studentId, schoolId });
         const submissions = progress?.submissions || [];
 
-        const assignmentsWithStatus = assignments.map(assignment => {
+        const assignmentsWithStatus = scopedAssignments.map(assignment => {
             const submission = submissions.find(
                 sub => sub.assignmentId.toString() === assignment._id.toString()
             );

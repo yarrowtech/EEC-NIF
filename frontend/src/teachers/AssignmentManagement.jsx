@@ -153,7 +153,7 @@ const AssignmentManagement = () => {
   const [assignments, setAssignments] = useState([]);
   const [filteredAssignments, setFilteredAssignments] = useState([]);
 
-  const API_BASE_URL = 'http://localhost:5000/api';
+  const API_BASE_URL = (import.meta.env.VITE_API_URL || 'http://localhost:5000').replace(/\/$/, '');
 
   // Fetch teacher's assigned classes
   useEffect(() => {
@@ -169,7 +169,7 @@ const AssignmentManagement = () => {
     try {
       const token = localStorage.getItem('token');
       console.log('Fetching my classes with token:', token ? 'Token exists' : 'No token');
-      const response = await axios.get(`${API_BASE_URL}/assignment/teacher/my-classes`, {
+      const response = await axios.get(`${API_BASE_URL}/api/assignment/teacher/my-classes`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       console.log('My classes response:', response.data);
@@ -189,7 +189,7 @@ const AssignmentManagement = () => {
     try {
       setLoading(true);
       const token = localStorage.getItem('token');
-      const response = await axios.get(`${API_BASE_URL}/assignment/teacher/my-assignments`, {
+      const response = await axios.get(`${API_BASE_URL}/api/assignment/teacher/my-assignments`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       setAssignments(response.data);
@@ -270,7 +270,7 @@ const AssignmentManagement = () => {
 
       const token = localStorage.getItem('token');
       const response = await axios.post(
-        `${API_BASE_URL}/uploads/cloudinary/single`,
+        `${API_BASE_URL}/api/uploads/cloudinary/single`,
         formData,
         {
           headers: {
@@ -315,7 +315,7 @@ const AssignmentManagement = () => {
       const token = localStorage.getItem('token');
 
       const response = await axios.post(
-        `${API_BASE_URL}/assignment/teacher/create`,
+        `${API_BASE_URL}/api/assignment/teacher/create`,
         newAssignment,
         { headers: { Authorization: `Bearer ${token}` } }
       );
@@ -354,7 +354,7 @@ const AssignmentManagement = () => {
     try {
       setLoading(true);
       const token = localStorage.getItem('token');
-      await axios.delete(`${API_BASE_URL}/assignment/teacher/delete/${assignmentId}`, {
+      await axios.delete(`${API_BASE_URL}/api/assignment/teacher/delete/${assignmentId}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       await fetchAssignments();

@@ -22,7 +22,7 @@ const Assignment = ({ assignmentType, filter, setFilter }) => {
   const [assignments, setAssignments] = useState([]);
   const [loading, setLoading] = useState(false);
 
-  const API_BASE_URL = 'http://localhost:5000/api';
+  const API_BASE_URL = (import.meta.env.VITE_API_URL || 'http://localhost:5000').replace(/\/$/, '');
 
   // Flashcard state
   const [flashDeck, setFlashDeck] = useState([]);
@@ -62,12 +62,17 @@ const Assignment = ({ assignmentType, filter, setFilter }) => {
     try {
       setLoading(true);
       const token = localStorage.getItem('token');
-      const response = await axios.get(`${API_BASE_URL}/assignment/student/assignments`, {
+      const response = await axios.get(`${API_BASE_URL}/api/assignment/student/assignments`, {
         headers: { Authorization: `Bearer ${token}` }
       });
 
       // Transform API data to match component structure
-      const transformedAssignments = response.data.map(assignment => ({
+      const assignmentsPayload = Array.isArray(response.data)
+        ? response.data
+        : Array.isArray(response.data?.assignments)
+          ? response.data.assignments
+          : [];
+      const transformedAssignments = assignmentsPayload.map(assignment => ({
         id: assignment._id,
         title: assignment.title,
         course: assignment.subject,
