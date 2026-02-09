@@ -13,11 +13,16 @@ import {
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { addPoints, hasAward, markAwarded } from '../utils/points';
+import axios from 'axios';
 
 const Assignment = ({ assignmentType, filter, setFilter }) => {
   // School assignment state
   const [schoolSearch, setSchoolSearch] = useState("");
   const [schoolSort, setSchoolSort] = useState("due_asc");
+  const [assignments, setAssignments] = useState([]);
+  const [loading, setLoading] = useState(false);
+
+  const API_BASE_URL = 'http://localhost:5000/api';
 
   // Flashcard state
   const [flashDeck, setFlashDeck] = useState([]);
@@ -46,42 +51,47 @@ const Assignment = ({ assignmentType, filter, setFilter }) => {
     lightIntensity: 1
   });
 
-  // Sample assignment data
-  const assignments = [
-    {
-      id: 1,
-      title: "Geometry Project",
-      course: "Mathematics",
-      dueDate: "2025-06-20",
-      status: "pending",
-      priority: "high",
-      description: "Design and explain properties of different types of triangles",
-      submissionType: "file",
-      maxMarks: 100
-    },
-    {
-      id: 2,
-      title: "Essay Writing Assignment",
-      course: "English",
-      dueDate: "2025-06-18",
-      status: "completed",
-      priority: "medium",
-      description: "Write an essay on the importance of environmental conservation",
-      submissionType: "text",
-      maxMarks: 80
-    },
-    {
-      id: 3,
-      title: "Science Lab Report",
-      course: "Chemistry",
-      dueDate: "2025-06-15",
-      status: "overdue",
-      priority: "high",
-      description: "Analyze the results of the acid-base titration experiment",
-      submissionType: "file",
-      maxMarks: 90
+  // Fetch assignments from API
+  useEffect(() => {
+    if (assignmentType === 'school') {
+      fetchAssignments();
     }
-  ];
+  }, [assignmentType]);
+
+  const fetchAssignments = async () => {
+    try {
+      setLoading(true);
+      const token = localStorage.getItem('token');
+      const response = await axios.get(`${API_BASE_URL}/assignment/student/assignments`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+
+      // Transform API data to match component structure
+      const transformedAssignments = response.data.map(assignment => ({
+        id: assignment._id,
+        title: assignment.title,
+        course: assignment.subject,
+        dueDate: assignment.dueDate,
+        status: assignment.submissionStatus === 'submitted' || assignment.submissionStatus === 'graded' ? 'completed' :
+                assignment.submissionStatus === 'not_submitted' && new Date(assignment.dueDate) < new Date() ? 'overdue' : 'pending',
+        priority: 'medium',
+        description: assignment.description,
+        submissionType: 'file',
+        maxMarks: assignment.marks,
+        submittedAt: assignment.submittedAt,
+        score: assignment.score,
+        feedback: assignment.feedback,
+        teacherName: assignment.teacherId?.name,
+        attachments: assignment.attachments || []
+      }));
+
+      setAssignments(transformedAssignments);
+    } catch (err) {
+      console.error('Error fetching assignments:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const questionData = {
     '6': {
@@ -528,59 +538,99 @@ const Assignment = ({ assignmentType, filter, setFilter }) => {
         </div>
 
         {/* Assignments Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-          {filteredAssignments.map((assignment) => {
-            const days = getDaysRemaining(assignment.dueDate);
-            const daysText = days < 0 ? `${Math.abs(days)} days overdue` : `${days} days remaining`;
-            const daysColor = days < 0 ? 'text-red-600 bg-red-50 border-red-200' : days <= 3 ? 'text-amber-700 bg-amber-50 border-amber-200' : 'text-green-700 bg-green-50 border-green-200';
-            return (
-              <div
-                key={assignment.id}
-                className={`bg-white rounded-xl border shadow-sm hover:shadow-md transition overflow-hidden ${getPriorityColor(assignment.priority)}`}
-              >
-                <div className="p-5">
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="flex items-center gap-2">
-                      {getStatusIcon(assignment.status)}
-                      <h3 className="text-lg font-semibold text-gray-900 line-clamp-2">{assignment.title}</h3>
-                    </div>
-                    <span className={`px-2 py-1 rounded-full text-xs font-medium capitalize border ${getStatusColor(assignment.status)}`}>
-                      {assignment.status}
-                    </span>
-                  </div>
-                  <div className="mt-3 flex flex-wrap items-center gap-3 text-sm text-gray-700">
-                    <span className="inline-flex items-center gap-1"><Book className="w-4 h-4" />{assignment.course}</span>
-                    <span className="inline-flex items-center gap-1"><Calendar className="w-4 h-4" />Due: {formatDate(assignment.dueDate)}</span>
-                    <span className="inline-flex items-center gap-1">Max Marks: {assignment.maxMarks}</span>
-                  </div>
-                  <p className="mt-3 text-gray-700 line-clamp-3">{assignment.description}</p>
-                </div>
-                <div className="px-5 pb-5">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <span className={`px-2 py-1 rounded border text-xs font-medium ${daysColor}`}>{daysText}</span>
-                      <span className="text-xs text-gray-500">Submission: {assignment.submissionType}</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      {assignment.status === 'pending' && (
-                        <button className="px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm">Submit</button>
-                      )}
-                      <button className="px-3 py-1.5 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors text-sm inline-flex items-center gap-1">
-                        <Download className="w-4 h-4" />
-                        Download
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-
-        {filteredAssignments.length === 0 && (
+        {loading ? (
           <div className="text-center py-12">
-            <p className="text-gray-500 text-lg">No assignments found.</p>
+            <Clock className="w-12 h-12 text-blue-500 mx-auto mb-4 animate-spin" />
+            <p className="text-gray-500 text-lg">Loading assignments...</p>
           </div>
+        ) : (
+          <>
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+              {filteredAssignments.map((assignment) => {
+                const days = getDaysRemaining(assignment.dueDate);
+                const daysText = days < 0 ? `${Math.abs(days)} days overdue` : `${days} days remaining`;
+                const daysColor = days < 0 ? 'text-red-600 bg-red-50 border-red-200' : days <= 3 ? 'text-amber-700 bg-amber-50 border-amber-200' : 'text-green-700 bg-green-50 border-green-200';
+                return (
+                  <div
+                    key={assignment.id}
+                    className={`bg-white rounded-xl border shadow-sm hover:shadow-md transition overflow-hidden ${getPriorityColor(assignment.priority)}`}
+                  >
+                    <div className="p-5">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex items-center gap-2">
+                          {getStatusIcon(assignment.status)}
+                          <h3 className="text-lg font-semibold text-gray-900 line-clamp-2">{assignment.title}</h3>
+                        </div>
+                        <span className={`px-2 py-1 rounded-full text-xs font-medium capitalize border ${getStatusColor(assignment.status)}`}>
+                          {assignment.status}
+                        </span>
+                      </div>
+                      <div className="mt-3 flex flex-wrap items-center gap-3 text-sm text-gray-700">
+                        <span className="inline-flex items-center gap-1"><Book className="w-4 h-4" />{assignment.course}</span>
+                        <span className="inline-flex items-center gap-1"><Calendar className="w-4 h-4" />Due: {formatDate(assignment.dueDate)}</span>
+                        <span className="inline-flex items-center gap-1">Max Marks: {assignment.maxMarks}</span>
+                      </div>
+                      {assignment.teacherName && (
+                        <p className="mt-2 text-sm text-gray-600">Teacher: {assignment.teacherName}</p>
+                      )}
+                      <p className="mt-3 text-gray-700 line-clamp-3">{assignment.description}</p>
+
+                      {/* PDF Attachments */}
+                      {assignment.attachments && assignment.attachments.length > 0 && (
+                        <div className="mt-3 space-y-2">
+                          <p className="text-sm font-medium text-gray-600">Attachments:</p>
+                          {assignment.attachments.map((attachment, idx) => (
+                            <a
+                              key={idx}
+                              href={attachment.url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="flex items-center gap-2 p-2 bg-blue-50 border border-blue-200 rounded-lg hover:bg-blue-100 transition-colors"
+                            >
+                              <FileText className="w-4 h-4 text-blue-600" />
+                              <span className="text-sm text-blue-700 truncate flex-1">{attachment.name}</span>
+                              <Download className="w-4 h-4 text-blue-600" />
+                            </a>
+                          ))}
+                        </div>
+                      )}
+
+                      {assignment.status === 'completed' && assignment.score !== undefined && (
+                        <div className="mt-3 p-3 bg-green-50 border border-green-200 rounded-lg">
+                          <p className="text-sm font-semibold text-green-800">Score: {assignment.score}/{assignment.maxMarks}</p>
+                          {assignment.feedback && <p className="text-sm text-green-700 mt-1">{assignment.feedback}</p>}
+                        </div>
+                      )}
+                    </div>
+                    <div className="px-5 pb-5">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <span className={`px-2 py-1 rounded border text-xs font-medium ${daysColor}`}>{daysText}</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          {assignment.status === 'pending' && (
+                            <button
+                              onClick={() => alert('Submission feature coming soon!')}
+                              className="px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm"
+                            >
+                              Submit
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {filteredAssignments.length === 0 && (
+              <div className="text-center py-12">
+                <FileText className="w-12 h-12 text-gray-300 mx-auto mb-4" />
+                <p className="text-gray-500 text-lg">No assignments found.</p>
+              </div>
+            )}
+          </>
         )}
       </>
     );

@@ -134,6 +134,30 @@ class NotificationService {
       createdBy
     });
   }
+
+  /**
+   * Create parent-teacher meeting notification
+   */
+  static async notifyParentMeetingScheduled({ schoolId, campusId, meeting, createdBy }) {
+    const meetingDate = meeting.meetingDate ? new Date(meeting.meetingDate).toLocaleDateString() : 'TBA';
+    const meetingTime = meeting.meetingTime || '';
+
+    return await this.createNotification({
+      schoolId,
+      campusId,
+      title: `Parent-Teacher Meeting Scheduled`,
+      message: `A meeting has been scheduled with your child's teacher on ${meetingDate} at ${meetingTime}. Topic: ${meeting.topic}. Type: ${meeting.meetingType}.`,
+      audience: 'Parent',
+      type: 'meeting',
+      priority: 'high',
+      category: 'general',
+      createdBy,
+      relatedEntity: {
+        entityType: 'meeting',
+        entityId: meeting._id
+      }
+    });
+  }
 }
 
 module.exports = NotificationService;

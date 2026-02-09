@@ -28,6 +28,7 @@ const progressRouter = require("./routes/progressRoute");
 const aiLearningRouter = require("./routes/aiLearningRoute");
 const studentAILearningRouter = require("./routes/studentAILearningRoute");
 const alcoveRouter = require("./routes/alcoveRoute");
+const meetingRouter = require("./routes/meetingRoute");
 
 const uploadRoutes = require("./routes/uploadRoutes");
 const schoolRoutes = require("./routes/schoolRoutes");
@@ -255,6 +256,7 @@ app.use('/api/progress', progressRouter);
 app.use('/api/ai-learning', aiLearningRouter);
 app.use('/api/student-ai-learning', studentAILearningRouter);
 app.use('/api/alcove', alcoveRouter);
+app.use('/api/meeting', meetingRouter);
 
 
 

@@ -3,10 +3,19 @@ const mongoose = require("mongoose");
 const assignmentSchema = new mongoose.Schema({
   schoolId: { type: mongoose.Schema.Types.ObjectId, ref: 'School', required: true },
   campusId: { type: String, default: null },
-  title: String,
+  teacherId: { type: mongoose.Schema.Types.ObjectId, ref: 'TeacherUser', required: true },
+  title: { type: String, required: true },
+  description: { type: String, default: '' },
   subject: String,
   class: String,
-  marks: Number,
+  classId: { type: mongoose.Schema.Types.ObjectId, ref: 'Class' },
+  sectionId: { type: mongoose.Schema.Types.ObjectId, ref: 'Section' },
+  marks: { type: Number, default: 100 },
+  attachments: [{
+    name: { type: String },
+    url: { type: String },
+    type: { type: String, default: 'pdf' }
+  }],
   status: {
     type: String,
     enum: ["draft", "active"],

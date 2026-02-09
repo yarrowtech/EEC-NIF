@@ -10,6 +10,14 @@ const submissionSchema = new mongoose.Schema({
     type: Date,
     default: Date.now
   },
+  submissionText: {
+    type: String,
+    default: ''
+  },
+  attachmentUrl: {
+    type: String,
+    default: ''
+  },
   score: {
     type: Number,
     min: 0,
