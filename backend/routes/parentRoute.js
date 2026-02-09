@@ -373,6 +373,7 @@ router.post('/reset-first-password', rateLimit({ windowMs: 60 * 1000, max: 10 })
     }
 
     user.password = String(newPassword);
+    user.initialPassword = "";
     user.lastLoginAt = new Date();
     await user.save();
     res.json({ message: 'Password reset successful' });

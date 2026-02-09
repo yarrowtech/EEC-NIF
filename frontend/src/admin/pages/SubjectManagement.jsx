@@ -9,6 +9,7 @@ const SubjectManagement = ({ setShowAdminHeader }) => {
 
   const [classes, setClasses] = useState([]);
   const [subjects, setSubjects] = useState([]);
+  const [activeClassId, setActiveClassId] = useState('all');
 
   const [subjectForm, setSubjectForm] = useState({ name: '', code: '', classId: '' });
   const [editingSubjectId, setEditingSubjectId] = useState(null);
@@ -109,6 +110,17 @@ const SubjectManagement = ({ setShowAdminHeader }) => {
     }
   };
 
+  const classTabs = useMemo(() => {
+    const tabs = [{ id: 'all', name: 'All Classes' }];
+    classes.forEach((cls) => tabs.push({ id: String(cls._id), name: cls.name }));
+    return tabs;
+  }, [classes]);
+
+  const filteredSubjects = useMemo(() => {
+    if (activeClassId === 'all') return subjects;
+    return subjects.filter((subject) => String(subject.classId) === String(activeClassId));
+  }, [subjects, activeClassId]);
+
   return (
     <div className="min-h-screen bg-slate-50 p-6">
       <div className="mx-auto max-w-7xl space-y-6">
@@ -184,8 +196,24 @@ const SubjectManagement = ({ setShowAdminHeader }) => {
 
           <div className="rounded-2xl border border-slate-200 bg-white p-6">
             <h2 className="mb-4 text-lg font-semibold text-slate-900">Subjects</h2>
+            <div className="mb-4 flex flex-wrap gap-2">
+              {classTabs.map((tab) => (
+                <button
+                  key={tab.id}
+                  type="button"
+                  onClick={() => setActiveClassId(tab.id)}
+                  className={`rounded-full px-3 py-1 text-xs font-medium transition ${
+                    activeClassId === tab.id
+                      ? 'bg-slate-900 text-white'
+                      : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                  }`}
+                >
+                  {tab.name}
+                </button>
+              ))}
+            </div>
             <div className="space-y-3">
-              {subjects.map((subject) => (
+              {filteredSubjects.map((subject) => (
                 <div
                   key={subject._id}
                   className="flex items-center justify-between rounded-lg border border-slate-200 px-4 py-3"
@@ -217,8 +245,8 @@ const SubjectManagement = ({ setShowAdminHeader }) => {
                   </div>
                 </div>
               ))}
-              {subjects.length === 0 && !loading && (
-                <p className="text-sm text-slate-500">No subjects found for this campus.</p>
+              {filteredSubjects.length === 0 && !loading && (
+                <p className="text-sm text-slate-500">No subjects found for this class.</p>
               )}
             </div>
           </div>

@@ -214,6 +214,16 @@ const Routines = ({setShowAdminHeader}) => {
     };
   }, [form.schedule]);
 
+  const selectedClassDoc = useMemo(
+    () => classes.find((cls) => String(cls.name) === String(form.class)),
+    [classes, form.class]
+  );
+
+  const classFilteredSubjects = useMemo(() => {
+    if (!selectedClassDoc?._id) return subjects;
+    return subjects.filter((subject) => String(subject.classId) === String(selectedClassDoc._id));
+  }, [subjects, selectedClassDoc]);
+
   // Toast notification helpers
   const showSuccessToast = (message) => {
     setToast({ show: true, message, type: 'success' });
@@ -400,6 +410,7 @@ const Routines = ({setShowAdminHeader}) => {
   };
 
   const buildEntriesFromScheduleMap = (day, scheduleMap) => {
+    const classDoc = getClassDoc();
     return TIMES.map((time, index) => {
       if (isBreakSlot(time)) return null;
       const slot = scheduleMap[time];
@@ -407,7 +418,11 @@ const Routines = ({setShowAdminHeader}) => {
       const [startTime, endTime] = time.split(' - ').map(t => t.trim());
       const subject = slot.subjectId
         ? subjects.find(s => String(s._id) === String(slot.subjectId))
-        : subjects.find(s => s.name === slot.subject);
+        : subjects.find(
+            (s) =>
+              s.name === slot.subject &&
+              (!classDoc || String(s.classId) === String(classDoc._id))
+          );
       const teacher = slot.teacherId
         ? teachers.find(t => String(t._id) === String(slot.teacherId))
         : teachers.find(t => t.name === slot.teacher);
@@ -792,7 +807,11 @@ const Routines = ({setShowAdminHeader}) => {
           const parsed = parseTimeRange(period.time);
           const startTime = period.startTime || parsed.start;
           const endTime = period.endTime || parsed.end;
-          const subject = subjects.find(s => s.name === period.subject);
+          const subject = subjects.find(
+            (s) =>
+              s.name === period.subject &&
+              (!classDoc || String(s.classId) === String(classDoc._id))
+          );
           const teacher = teachers.find(t => t.name === period.teacher);
 
           return {
@@ -1184,7 +1203,7 @@ const Routines = ({setShowAdminHeader}) => {
                       className="border border-gray-300 rounded-lg px-3 py-2 text-sm"
                     >
                       <option value="">Select Subject</option>
-                      {subjects.map((subject) => (
+                      {classFilteredSubjects.map((subject) => (
                         <option key={subject._id} value={subject.name}>{subject.name}</option>
                       ))}
                     </select>
@@ -1839,7 +1858,7 @@ const Routines = ({setShowAdminHeader}) => {
                               className="w-full border border-gray-300 rounded-lg px-2 py-1 text-sm"
                             >
                               <option value="">Select Subject</option>
-                              {subjects.map((s) => (
+                              {classFilteredSubjects.map((s) => (
                                 <option key={s._id} value={s.name}>{s.name}</option>
                               ))}
                             </select>

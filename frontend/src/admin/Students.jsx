@@ -29,6 +29,8 @@ import {
   Archive,
   RotateCcw,
   Trash2,
+  Eye,
+  KeyRound,
 } from "lucide-react";
 import Swal from "sweetalert2";
 import * as XLSX from "xlsx";
@@ -46,6 +48,7 @@ const Students = ({ setShowAdminHeader, setShowAdminBreadcrumb }) => {
   const [showAddForm, setShowAddForm] = useState(false);
   const [showWellbeingModal, setShowWellbeingModal] = useState(false);
   const [selectedStudent, setSelectedStudent] = useState(null);
+  const [selectedStudentIds, setSelectedStudentIds] = useState([]);
   const [wellbeingData, setWellbeingData] = useState({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showDetailModal, setShowDetailModal] = useState(false);
@@ -186,6 +189,17 @@ const Students = ({ setShowAdminHeader, setShowAdminBreadcrumb }) => {
     const start = (currentPage - 1) * STUDENTS_PER_PAGE;
     return filteredStudents.slice(start, start + STUDENTS_PER_PAGE);
   }, [filteredStudents, currentPage]);
+  const visibleStudentIds = useMemo(
+    () => paginatedStudents.map((student) => String(student?._id || student?.id)).filter(Boolean),
+    [paginatedStudents]
+  );
+  const selectedIdSet = useMemo(
+    () => new Set(selectedStudentIds.map((id) => String(id))),
+    [selectedStudentIds]
+  );
+  const isAllVisibleSelected =
+    visibleStudentIds.length > 0 && visibleStudentIds.every((id) => selectedIdSet.has(id));
+  const isAnyVisibleSelected = visibleStudentIds.some((id) => selectedIdSet.has(id));
   const pageNumbers = useMemo(
     () => Array.from({ length: totalPages }, (_, idx) => idx + 1),
     [totalPages]
@@ -457,6 +471,45 @@ const Students = ({ setShowAdminHeader, setShowAdminBreadcrumb }) => {
       .slice(0, 8);
   }, [parentDirectory, parentSearchTerm]);
 
+  const normalizeStudentForEdit = (student) => {
+    if (!student) return student;
+    const normalized = {
+      ...student,
+      class: student.class || student.grade || "",
+      grade: student.grade || student.class || "",
+      pincode: student.pincode || student.pinCode || "",
+      permanentAddress: student.permanentAddress || "",
+    };
+
+    if (
+      (!normalized.guardianName || !normalized.guardianEmail || !normalized.guardianPhone) &&
+      parentDirectory.length > 0
+    ) {
+      const parentByStudentUserId = new Map();
+      parentDirectory.forEach((parent) => {
+        const ids = Array.isArray(parent.childrenIds) ? parent.childrenIds : [];
+        ids.forEach((id) => {
+          if (id) parentByStudentUserId.set(String(id), parent);
+        });
+      });
+      const studentId = normalized?._id ? String(normalized._id) : null;
+      const portalUserId = normalized?.studentPortalUser
+        ? String(normalized.studentPortalUser)
+        : null;
+      const parent =
+        (studentId && parentByStudentUserId.get(studentId)) ||
+        (portalUserId && parentByStudentUserId.get(portalUserId)) ||
+        null;
+      if (parent) {
+        normalized.guardianName = normalized.guardianName || parent.name || "";
+        normalized.guardianEmail = normalized.guardianEmail || parent.email || "";
+        normalized.guardianPhone = normalized.guardianPhone || parent.mobile || "";
+      }
+    }
+
+    return normalized;
+  };
+
   const handleSelectExistingParent = (parent) => {
     if (!parent) return;
     setSelectedExistingParent(parent);
@@ -711,6 +764,84 @@ const Students = ({ setShowAdminHeader, setShowAdminBreadcrumb }) => {
     } finally {
       setDeletingId(null);
     }
+  };
+
+  const toggleStudentSelection = (studentId) => {
+    if (!studentId) return;
+    const id = String(studentId);
+    setSelectedStudentIds((prev) => {
+      const set = new Set(prev.map((v) => String(v)));
+      if (set.has(id)) {
+        set.delete(id);
+      } else {
+        set.add(id);
+      }
+      return Array.from(set);
+    });
+  };
+
+  const toggleSelectAllVisible = () => {
+    setSelectedStudentIds((prev) => {
+      const set = new Set(prev.map((v) => String(v)));
+      if (isAllVisibleSelected) {
+        visibleStudentIds.forEach((id) => set.delete(String(id)));
+      } else {
+        visibleStudentIds.forEach((id) => set.add(String(id)));
+      }
+      return Array.from(set);
+    });
+  };
+
+  const handleBulkDeleteStudents = async () => {
+    if (!selectedStudentIds.length) return;
+    const confirm = await Swal.fire({
+      icon: "warning",
+      title: "Delete selected students?",
+      html: `<p>This will permanently remove <strong>${selectedStudentIds.length}</strong> student(s).</p>`,
+      showCancelButton: true,
+      confirmButtonText: "Yes, Delete",
+      cancelButtonText: "Cancel",
+      confirmButtonColor: "#DC2626",
+    });
+    if (!confirm.isConfirmed) return;
+
+    const results = await Promise.allSettled(
+      selectedStudentIds.map((id) =>
+        fetch(`${API_BASE}/api/admin/users/students/${id}`, {
+          method: "DELETE",
+          headers: {
+            authorization: `Bearer ${localStorage.getItem("token")}`,
+          },
+        }).then(async (res) => {
+          if (!res.ok) {
+            const data = await res.json().catch(() => ({}));
+            throw new Error(data.error || data.message || res.statusText);
+          }
+          return true;
+        })
+      )
+    );
+
+    const failed = results.filter((r) => r.status === "rejected");
+    const successCount = results.length - failed.length;
+
+    setSelectedStudentIds([]);
+    await refreshStudents();
+
+    if (failed.length) {
+      Swal.fire({
+        icon: "warning",
+        title: "Bulk Delete Completed",
+        html: `<p><strong>${successCount}</strong> deleted, <strong>${failed.length}</strong> failed.</p>`,
+      });
+      return;
+    }
+
+    Swal.fire({
+      icon: "success",
+      title: "Students Deleted",
+      text: `${successCount} student(s) deleted successfully.`,
+    });
   };
 
   /* -------------------- Add Student -------------------- */
@@ -972,6 +1103,47 @@ const Students = ({ setShowAdminHeader, setShowAdminBreadcrumb }) => {
     } finally {
       setCredentialLoadingId(null);
     }
+  };
+
+  const handleViewStudentCredentials = (student) => {
+    if (!student) return;
+    const loginId = student.username || student.studentCode || "-";
+    const studentResetAt = student.lastLoginAt ? new Date(student.lastLoginAt) : null;
+    const passwordValue = studentResetAt
+      ? `Password reset by the user at ${studentResetAt.toLocaleDateString()}`
+      : student.initialPassword || "Not available";
+    const parent = student.parent || null;
+    const parentId = parent?.username || "-";
+    const parentResetAt = parent?.lastLoginAt ? new Date(parent.lastLoginAt) : null;
+    const parentPassword = parentResetAt
+      ? `Password reset by the user at ${parentResetAt.toLocaleDateString()}`
+      : parent?.initialPassword || "Not available";
+    Swal.fire({
+      icon: "info",
+      title: "Student Credentials",
+      html: `
+        <div class="text-left space-y-3">
+          <div>
+            <div class="text-xs font-semibold text-gray-500 uppercase">Student ID</div>
+            <div class="font-mono text-sm text-gray-900">${loginId}</div>
+          </div>
+          <div>
+            <div class="text-xs font-semibold text-gray-500 uppercase">Password</div>
+            <div class="font-mono text-sm text-gray-900">${passwordValue}</div>
+          </div>
+          <div class="pt-2 border-t border-gray-200"></div>
+          <div>
+            <div class="text-xs font-semibold text-gray-500 uppercase">Parent ID</div>
+            <div class="font-mono text-sm text-gray-900">${parentId}</div>
+          </div>
+          <div>
+            <div class="text-xs font-semibold text-gray-500 uppercase">Parent Password</div>
+            <div class="font-mono text-sm text-gray-900">${parentPassword}</div>
+          </div>
+        </div>
+      `,
+      confirmButtonColor: "#EAB308",
+    });
   };
 
   const handleBulkCredentialGeneration = async () => {
@@ -1321,10 +1493,7 @@ const Students = ({ setShowAdminHeader, setShowAdminBreadcrumb }) => {
 
   const loadStudentForEdit = async (student) => {
     if (!student?._id) return;
-    setEditingStudent({
-      ...student,
-      class: student.class || student.grade || "",
-    });
+    setEditingStudent(normalizeStudentForEdit(student));
     setShowDetailModal(true);
 
     try {
@@ -1340,10 +1509,7 @@ const Students = ({ setShowAdminHeader, setShowAdminBreadcrumb }) => {
       if (!Array.isArray(data)) return;
       const fresh = data.find((s) => String(s?._id) === String(student._id));
       if (fresh) {
-        setEditingStudent({
-          ...fresh,
-          class: fresh.class || fresh.grade || "",
-        });
+        setEditingStudent(normalizeStudentForEdit(fresh));
       }
     } catch (err) {
       console.error("Failed to fetch student details:", err);
@@ -1396,31 +1562,71 @@ const Students = ({ setShowAdminHeader, setShowAdminBreadcrumb }) => {
   const COLUMN_MAP = {
     // Core fields
     'name': 'name',
+    'studentname': 'name',
+    'fullname': 'name',
+    'studentfullname': 'name',
     'mobile': 'mobile',
+    'mobileno': 'mobile',
+    'mobilenumber': 'mobile',
+    'phone': 'mobile',
+    'phoneno': 'mobile',
+    'phonenumber': 'mobile',
+    'contact': 'mobile',
+    'contactno': 'mobile',
+    'contactnumber': 'mobile',
+    'whatsapp': 'mobile',
     'email': 'email',
+    'emailid': 'email',
+    'emailaddress': 'email',
+    'mail': 'email',
+    'mailid': 'email',
     'gender': 'gender',
+    'sex': 'gender',
     'dob': 'dob',
     'dateofbirth': 'dob',
+    'birthdate': 'dob',
 
     // Address
     'address': 'address',
+    'address1': 'address',
+    'residence': 'address',
+    'residentialaddress': 'address',
+    'presentaddress': 'address',
+    'currentaddress': 'address',
     'pincode': 'pincode',
     'pin': 'pincode',
+    'zipcode': 'pincode',
+    'postalcode': 'pincode',
+    'postcode': 'pincode',
 
     // Academic
     'batchcode': 'batchCode',
     'batch': 'batchCode',
+    'session': 'batchCode',
+    'academicyear': 'batchCode',
+    'batchid': 'batchCode',
     'admissiondate': 'admissionDate',
     'admission': 'admissionDate',
     'dateofadmission': 'admissionDate',
+    'doa': 'admissionDate',
     'roll': 'roll',
     'rollno': 'roll',
     'rollnumber': 'roll',
+    'admissionno': 'roll',
     'section': 'section',
+    'sec': 'section',
+    'division': 'section',
     'course': 'course',
     'coursename': 'course',
+    'class': 'grade',
+    'classname': 'grade',
+    'program': 'course',
+    'programname': 'course',
+    'stream': 'course',
     'courseid': 'courseId',
+    'coursecode': 'courseId',
     'grade': 'grade',
+    'classgrade': 'grade',
     'duration': 'duration',
 
     // IDs
@@ -1428,6 +1634,7 @@ const Students = ({ setShowAdminHeader, setShowAdminBreadcrumb }) => {
     'serialn': 'serialNo',
     'srlno': 'serialNo',
     'serial': 'serialNo',
+    'srno': 'serialNo',
     'formno': 'formNo',
     'formn': 'formNo',
     'form': 'formNo',
@@ -1439,16 +1646,141 @@ const Students = ({ setShowAdminHeader, setShowAdminBreadcrumb }) => {
     'guardianname': 'guardianName',
     'guardian': 'guardianName',
     'parentname': 'guardianName',
+    'fathername': 'guardianName',
+    'mothername': 'guardianName',
+    'guardianloginname': 'guardianName',
+    'father': 'fatherName',
+    'mother': 'motherName',
     'guardianemail': 'guardianEmail',
     'parentemail': 'guardianEmail',
+    'fatheremail': 'guardianEmail',
+    'motheremail': 'guardianEmail',
+    'guardianloginemail': 'guardianEmail',
     'guardianphone': 'guardianPhone',
     'guardianph': 'guardianPhone',
     'guardianphn': 'guardianPhone',
     'guardiancontact': 'guardianPhone',
     'parentphone': 'guardianPhone',
+    'parentmobile': 'guardianPhone',
+    'fatherphone': 'guardianPhone',
+    'motherphone': 'guardianPhone',
+    'fathercontact': 'guardianPhone',
+    'mothercontact': 'guardianPhone',
+    'guardianloginphone': 'guardianPhone',
+    'bloodgroup': 'bloodGroup',
+    'bloodgrp': 'bloodGroup',
+    'blood': 'bloodGroup',
+    'permanentaddress': 'permanentAddress',
+    'permaddress': 'permanentAddress',
+    'peraddress': 'permanentAddress',
+    'nationality': 'nationality',
+    'religion': 'religion',
+    'category': 'category',
 
     // Status
     'status': 'status',
+  };
+
+  const DEFAULT_COLUMN_ORDER = [
+    'name',
+    'mobile',
+    'gender',
+    'batchCode',
+    'admissionDate',
+    'roll',
+    'section',
+    'course',
+    'email',
+    'dob',
+    'address',
+    'pincode',
+    'guardianName',
+    'guardianPhone',
+    'serialNo',
+    'formNo',
+    'enrollmentNo',
+    'guardianEmail',
+    'status',
+    'grade',
+    'courseId',
+    'duration',
+    'dob',
+    'bloodGroup',
+    'permanentAddress',
+    'nationality',
+    'religion',
+    'category',
+  ];
+
+  const mapHeaderToField = (header) => {
+    const normalized = normalize(header);
+    if (!normalized) return null;
+    if (COLUMN_MAP[normalized]) return COLUMN_MAP[normalized];
+
+    if (normalized.includes('name') && normalized.includes('student')) return 'name';
+    if (normalized.includes('full') && normalized.includes('name')) return 'name';
+    if (normalized.includes('phone') || normalized.includes('mobile') || normalized.includes('contact') || normalized.includes('whatsapp')) return 'mobile';
+    if (normalized.includes('email')) return 'email';
+    if (normalized.includes('gender') || normalized === 'sex') return 'gender';
+    if (normalized.includes('dob') || normalized.includes('birth')) return 'dob';
+    if (normalized.includes('admission') && normalized.includes('date')) return 'admissionDate';
+    if (normalized.includes('batch') || normalized.includes('session') || normalized.includes('academicyear')) return 'batchCode';
+    if (normalized.includes('roll')) return 'roll';
+    if (normalized.includes('section') || normalized === 'sec' || normalized.includes('division')) return 'section';
+    if (normalized.includes('course') || normalized.includes('program') || normalized.includes('stream')) return 'course';
+    if (normalized.includes('class')) return 'grade';
+    if (normalized.includes('grade')) return 'grade';
+    if (normalized.includes('address')) return 'address';
+    if (normalized.includes('permanent') && normalized.includes('address')) return 'permanentAddress';
+    if (normalized.includes('pin') || normalized.includes('zip') || normalized.includes('postal')) return 'pincode';
+    if (normalized.includes('serial') || normalized.includes('srno')) return 'serialNo';
+    if (normalized.includes('form')) return 'formNo';
+    if (normalized.includes('enrollment')) return 'enrollmentNo';
+
+    if (normalized.includes('guardianlogin')) {
+      if (normalized.includes('email')) return 'guardianEmail';
+      if (normalized.includes('phone') || normalized.includes('mobile') || normalized.includes('contact')) return 'guardianPhone';
+      if (normalized.includes('name')) return 'guardianName';
+    }
+    if (normalized.includes('guardian') || normalized.includes('parent') || normalized.includes('father') || normalized.includes('mother')) {
+      if (normalized.includes('email')) return 'guardianEmail';
+      if (normalized.includes('phone') || normalized.includes('mobile') || normalized.includes('contact')) return 'guardianPhone';
+      if (normalized.includes('name')) return 'guardianName';
+      return 'guardianName';
+    }
+
+    if (normalized.includes('blood')) return 'bloodGroup';
+    if (normalized.includes('nationality')) return 'nationality';
+    if (normalized.includes('religion')) return 'religion';
+    if (normalized.includes('category')) return 'category';
+
+    return null;
+  };
+
+  const buildPositionalHeaderMap = (rowLen) => {
+    const map = {};
+    DEFAULT_COLUMN_ORDER.forEach((field, idx) => {
+      if (idx < rowLen) map[field] = idx;
+    });
+    return map;
+  };
+
+  const isLikelyHeaderRow = (row) => {
+    if (!row || !row.length) return false;
+    const cells = row.map((c) => String(c || "").trim()).filter(Boolean);
+    if (!cells.length) return false;
+    let headerHits = 0;
+    for (const cell of cells) {
+      const normalized = normalize(cell);
+      if (COLUMN_MAP[normalized]) {
+        headerHits++;
+        continue;
+      }
+      if (/(name|student|phone|mobile|contact|email|gender|dob|birth|admission|batch|session|roll|section|class|course|program|stream|address|pin|zip|postal|guardian|parent|father|mother|serial|form|enrollment|status|grade)/.test(normalized)) {
+        headerHits++;
+      }
+    }
+    return headerHits >= Math.max(2, Math.ceil(cells.length * 0.3));
   };
 
   // simple CSV parser with quotes support
@@ -1583,18 +1915,35 @@ const Students = ({ setShowAdminHeader, setShowAdminBreadcrumb }) => {
       const headerMap = {}; // Maps normalized column name to column index
 
       rawHeaders.forEach((h, i) => {
-        const normalizedCol = normalize(h);
-        const mappedField = COLUMN_MAP[normalizedCol];
-        if (mappedField) {
-          headerMap[mappedField] = i;
-        }
+        const mappedField = mapHeaderToField(h);
+        if (mappedField) headerMap[mappedField] = i;
       });
+
+      const requiredFields = ['name', 'mobile', 'gender', 'batchCode', 'admissionDate', 'roll', 'section', 'course'];
+      const missingRequired = requiredFields.filter((f) => headerMap[f] === undefined);
+
+      let startRow = 1;
+      let effectiveHeaderMap = { ...headerMap };
+
+      if (missingRequired.length === requiredFields.length) {
+        // No recognizable headers. Assume fixed column order (template-like)
+        effectiveHeaderMap = buildPositionalHeaderMap(rawHeaders.length);
+        startRow = isLikelyHeaderRow(rawHeaders) ? 1 : 0;
+      } else if (missingRequired.length > 0) {
+        // Fill missing required fields from positional order if possible
+        const positionalMap = buildPositionalHeaderMap(rawHeaders.length);
+        missingRequired.forEach((f) => {
+          if (effectiveHeaderMap[f] === undefined && positionalMap[f] !== undefined) {
+            effectiveHeaderMap[f] = positionalMap[f];
+          }
+        });
+      }
 
       const payload = [];
       const skippedRows = [];
 
       // Process each row
-      for (let r = 1; r < rows.length; r++) {
+      for (let r = startRow; r < rows.length; r++) {
         const raw = rows[r];
 
         // Skip empty rows
@@ -1604,9 +1953,9 @@ const Students = ({ setShowAdminHeader, setShowAdminBreadcrumb }) => {
         const student = {};
 
         // Map all columns from Excel to model fields
-        Object.keys(COLUMN_MAP).forEach(normalizedCol => {
+        Object.keys(COLUMN_MAP).forEach((normalizedCol) => {
           const fieldName = COLUMN_MAP[normalizedCol];
-          const colIndex = headerMap[fieldName];
+          const colIndex = effectiveHeaderMap[fieldName];
           if (colIndex !== undefined) {
             const value = String(raw[colIndex] ?? "").trim();
             if (value) {
@@ -1614,6 +1963,20 @@ const Students = ({ setShowAdminHeader, setShowAdminBreadcrumb }) => {
             }
           }
         });
+
+        // If still missing fields, try to fill from positional order
+        DEFAULT_COLUMN_ORDER.forEach((fieldName) => {
+          if (student[fieldName]) return;
+          const colIndex = effectiveHeaderMap[fieldName];
+          if (colIndex !== undefined) {
+            const value = String(raw[colIndex] ?? "").trim();
+            if (value) student[fieldName] = value;
+          }
+        });
+
+        // Allow "grade" or "courseId" to fill course if course is missing
+        if (!student.course && student.grade) student.course = student.grade;
+        if (!student.course && student.courseId) student.course = student.courseId;
 
         // Check required fields (let backend handle validation)
         if (!student.name || !student.mobile || !student.gender ||
@@ -1646,11 +2009,16 @@ const Students = ({ setShowAdminHeader, setShowAdminBreadcrumb }) => {
           gender: student.gender.toLowerCase(),
           dob,
           address: student.address || "",
+          permanentAddress: student.permanentAddress || "",
           pincode: student.pincode || "",
           status: student.status || "Active",
           guardianName: student.guardianName || "",
           guardianEmail: student.guardianEmail ? student.guardianEmail.toLowerCase() : "",
           guardianPhone: student.guardianPhone || "",
+          bloodGroup: student.bloodGroup || "",
+          nationality: student.nationality || "",
+          religion: student.religion || "",
+          category: student.category || "",
           serialNo: student.serialNo ? Number(student.serialNo) : undefined,
           batchCode: student.batchCode,
           admissionDate,
@@ -1816,6 +2184,19 @@ const Students = ({ setShowAdminHeader, setShowAdminBreadcrumb }) => {
               <Plus size={16} /> Add Student
             </button>
             <button
+              onClick={handleBulkDeleteStudents}
+              disabled={selectedStudentIds.length === 0}
+              className="bg-red-600 text-white px-3 md:px-4 py-2 rounded-lg hover:bg-red-700 disabled:opacity-60 flex items-center gap-2 text-sm md:text-base flex-1 sm:flex-none justify-center"
+              title={
+                selectedStudentIds.length
+                  ? `Delete ${selectedStudentIds.length} selected student(s)`
+                  : "Select students to delete"
+              }
+            >
+              <Trash2 size={16} />
+              {selectedStudentIds.length ? `Delete (${selectedStudentIds.length})` : "Delete Selected"}
+            </button>
+            <button
               onClick={() => setShowArchiveModal(true)}
               className="bg-purple-600 text-white px-3 md:px-4 py-2 rounded-lg hover:bg-purple-700 flex items-center gap-2 text-sm md:text-base flex-1 sm:flex-none justify-center"
             >
@@ -1913,6 +2294,16 @@ const Students = ({ setShowAdminHeader, setShowAdminBreadcrumb }) => {
               <table className="w-full border-collapse table-fixed">
                   <thead>
                     <tr className="bg-yellow-50">
+                      <th className="border-b border-yellow-100 px-2 py-2 text-left text-xs font-semibold text-yellow-800 w-[4%]">
+                        <input
+                          type="checkbox"
+                          className="h-4 w-4 accent-yellow-600"
+                          checked={isAllVisibleSelected}
+                          disabled={!isAnyVisibleSelected && visibleStudentIds.length === 0}
+                          onChange={toggleSelectAllVisible}
+                          aria-label="Select all visible students"
+                        />
+                      </th>
                       <th className="border-b border-yellow-100 px-2 py-2 text-left text-xs font-semibold text-yellow-800 w-[20%]">
                         Student
                       </th>
@@ -1957,6 +2348,18 @@ const Students = ({ setShowAdminHeader, setShowAdminBreadcrumb }) => {
                           key={studentKey}
                           className="hover:bg-yellow-50 transition-all duration-200"
                         >
+                          <td
+                            className="border-b border-yellow-100 px-2 py-2"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <input
+                              type="checkbox"
+                              className="h-4 w-4 accent-yellow-600"
+                              checked={selectedIdSet.has(String(studentKey))}
+                              onChange={() => toggleStudentSelection(studentKey)}
+                              aria-label={`Select ${student.name || "student"}`}
+                            />
+                          </td>
                           {/* Student Info */}
                           <td
                             className="border-b border-yellow-100 px-2 py-2 cursor-pointer"
@@ -2031,30 +2434,44 @@ const Students = ({ setShowAdminHeader, setShowAdminBreadcrumb }) => {
                           </td>
 
                           {/* Actions */}
-                          <td className="border-b border-yellow-100 px-2 py-2">
+                          <td
+                            className="border-b border-yellow-100 px-2 py-2"
+                            onClick={(e) => e.stopPropagation()}
+                          >
                             <div className="flex items-center gap-1 justify-center flex-wrap">
-                              <CredentialGeneratorButton
-                                buttonText="Credentials"
-                                defaultRole="Student"
-                                allowRoleSelection={false}
-                                size="sm"
-                                buttonClassName="bg-emerald-600 hover:bg-emerald-700 px-3 py-1 text-xs"
-                                prefillValues={prefillValues}
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleViewStudentCredentials(student);
+                                }}
+                                className="inline-flex items-center gap-2 rounded-lg font-medium bg-yellow-600 text-white hover:bg-yellow-700 transition-colors px-3 py-1 text-xs disabled:opacity-60 disabled:cursor-not-allowed"
                                 disabled={isCredentialLoading}
-                                onGenerate={({ id, password }) =>
-                                  handleStudentCredentialProvision(student, {
-                                    id,
-                                    password,
-                                  })
-                                }
-                              />
+                                title="View Credentials"
+                              >
+                                <KeyRound size={14} />
+                                Credentials
+                              </button>
                               {portalReady && (
                                 <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 text-[10px] font-semibold">
                                   Portal Ready
                                 </span>
                               )}
                               <button
-                                onClick={() => handleArchiveStudent(student)}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  loadStudentForEdit(student);
+                                }}
+                                className="inline-flex items-center px-2 py-1 bg-blue-50 text-blue-700 hover:bg-blue-100 rounded text-xs transition-colors"
+                                title="Edit Student"
+                              >
+                                <Eye size={12} />
+                              </button>
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleArchiveStudent(student);
+                                }}
                                 disabled={isArchiving}
                                 className="inline-flex items-center px-2 py-1 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded text-xs transition-colors disabled:opacity-50"
                                 title="Archive Student"
@@ -2062,7 +2479,10 @@ const Students = ({ setShowAdminHeader, setShowAdminBreadcrumb }) => {
                                 <Archive size={12} />
                               </button>
                               <button
-                                onClick={() => handleDeleteStudent(student)}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleDeleteStudent(student);
+                                }}
                                 disabled={!!deletingId}
                                 className="inline-flex items-center px-2 py-1 bg-red-50 text-red-700 hover:bg-red-100 rounded text-xs transition-colors disabled:opacity-50"
                                 title="Delete Student"
@@ -2077,7 +2497,7 @@ const Students = ({ setShowAdminHeader, setShowAdminBreadcrumb }) => {
                     {filteredStudents.length === 0 && (
                       <tr>
                         <td
-                          colSpan={6}
+                          colSpan={7}
                           className="text-center text-gray-500 py-10 text-sm"
                         >
                           No students found.

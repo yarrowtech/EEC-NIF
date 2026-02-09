@@ -12,6 +12,7 @@ const hashPasswordIfNeeded = async (password) => {
 const parentUserSchema = new mongoose.Schema({
   username: { type: String, unique: true, required: true },
   password: { type: String, required: true },
+  initialPassword: { type: String, default: "" },
   schoolId: { type: mongoose.Schema.Types.ObjectId, ref: 'School', default: null },
   campusId: { type: String, default: null, index: true },
   name: String,

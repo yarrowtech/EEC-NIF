@@ -197,8 +197,8 @@ const ClassRoutine = () => {
 
   const subjectOptions = useMemo(
     () =>
-      subjects.filter(
-        (subject) => !subject.classId || String(subject.classId) === String(allocationForm.classId)
+      subjects.filter((subject) =>
+        String(subject.classId) === String(allocationForm.classId)
       ),
     [subjects, allocationForm.classId]
   );

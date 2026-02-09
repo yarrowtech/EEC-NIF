@@ -212,6 +212,7 @@ router.post('/register', adminAuth, async (req, res) => {
     const payload = {
       username: studentCode,
       password,
+      initialPassword: password,
       schoolId: resolvedSchoolId,
       campusId: resolvedCampusId,
       campusName: req.isSuperAdmin ? req.body?.campusName : req.admin?.campusName,
@@ -303,6 +304,7 @@ router.post('/register', adminAuth, async (req, res) => {
         parentUser = await ParentUser.create({
           username: parentUsername,
           password: parentPassword,
+          initialPassword: parentPassword,
           schoolId: resolvedSchoolId,
           campusId: resolvedCampusId,
           name: parentName,
@@ -421,6 +423,7 @@ router.post('/reset-first-password', rateLimit({ windowMs: 60 * 1000, max: 10 })
     }
 
     user.password = String(newPassword);
+    user.initialPassword = "";
     user.lastLoginAt = new Date();
     if (!user.studentCode) {
       user.studentCode = user.username;
