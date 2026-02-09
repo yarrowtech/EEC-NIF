@@ -37,6 +37,7 @@ import AIPoweredTeaching from './AIPoweredTeaching';
 import MyWorkPortal from './MyWorkPortal';
 import ClassRoutine from './ClassRoutine';
 import StudentObservation from './StudentObservation';
+import ClassNotes from './ClassNotes';
 
 const PORTAL_BASE = '/teacher';
 
@@ -55,6 +56,7 @@ const menuItems = [
   { icon: ClipboardCheck, label: 'Assignment Evaluation', path: `${PORTAL_BASE}/evaluation` },
   { icon: MessageSquare, label: 'Chat', path: `${PORTAL_BASE}/chat` },
   { icon: BookOpen, label: 'Lesson Plans', path: `${PORTAL_BASE}/lesson-plans` },
+  { icon: FileText, label: 'Class Notes', path: `${PORTAL_BASE}/class-notes` },
 ];
 
 const TeacherPortal = () => {
@@ -201,6 +203,7 @@ const TeacherPortal = () => {
             <Route path="evaluation" element={<AssignmentEvaluation />} />
             <Route path="chat" element={<TeacherChat />} />
             <Route path="lesson-plans" element={<LessonPlanDashboard />} />
+            <Route path="class-notes" element={<ClassNotes />} />
           </Routes>
         </main>
       </div>

@@ -10,14 +10,22 @@ const notificationSchema = new mongoose.Schema(
     classId: { type: mongoose.Schema.Types.ObjectId, ref: 'Class' },
     sectionId: { type: mongoose.Schema.Types.ObjectId, ref: 'Section' },
     createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'Admin' },
+    createdByType: { type: String, enum: ['admin', 'teacher'], default: 'admin' },
+    createdByTeacherId: { type: mongoose.Schema.Types.ObjectId, ref: 'TeacherUser', default: null },
+    createdByName: { type: String, default: '' },
+    className: { type: String, default: '' },
+    sectionName: { type: String, default: '' },
+    subjectId: { type: mongoose.Schema.Types.ObjectId, ref: 'Subject', default: null },
+    subjectName: { type: String, default: '' },
 
     // Notification metadata
     type: {
       type: String,
-      enum: ['assignment', 'exam', 'result', 'fee', 'general', 'announcement'],
+      enum: ['notice', 'class_note', 'assignment', 'exam', 'result', 'fee', 'general', 'announcement', 'other'],
       default: 'general',
       index: true
     },
+    typeLabel: { type: String, default: '' },
     priority: {
       type: String,
       enum: ['low', 'medium', 'high'],
@@ -35,6 +43,14 @@ const notificationSchema = new mongoose.Schema(
       entityType: { type: String, enum: ['assignment', 'exam', 'fee', 'result', null] },
       entityId: { type: mongoose.Schema.Types.ObjectId }
     },
+    attachments: [
+      {
+        name: { type: String, default: '' },
+        url: { type: String, default: '' },
+        size: { type: Number, default: 0 },
+        type: { type: String, default: '' },
+      },
+    ],
 
     // Read tracking
     readBy: [{

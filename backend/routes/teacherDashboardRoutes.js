@@ -13,6 +13,7 @@ const TeacherUser = require('../models/TeacherUser');
 const TeacherAttendance = require('../models/TeacherAttendance');
 const TeacherLeave = require('../models/TeacherLeave');
 const TeacherExpense = require('../models/TeacherExpense');
+const TeacherAllocation = require('../models/TeacherAllocation');
 
 const router = express.Router();
 const WEEK_DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
@@ -361,6 +362,71 @@ router.get('/', authTeacher, async (req, res) => {
     });
   } catch (err) {
     res.status(500).json({ error: err.message || 'Unable to load dashboard data' });
+  }
+});
+
+// Get teacher allocations (classes/sections/subjects)
+router.get('/allocations', authTeacher, async (req, res) => {
+  try {
+    if (req.user?.userType !== 'teacher') {
+      return res.status(403).json({ error: 'Forbidden - not a teacher' });
+    }
+    const schoolId = req.schoolId;
+    const campusId = req.campusId || null;
+    const teacherId = req.user?.id;
+    if (!schoolId || !teacherId) {
+      return res.status(400).json({ error: 'schoolId and teacherId are required' });
+    }
+
+    let items = await TeacherAllocation.find({
+      schoolId,
+      ...(campusId
+        ? { $or: [{ campusId }, { campusId: null }, { campusId: { $exists: false } }] }
+        : {}),
+      teacherId,
+    })
+      .populate('subjectId', 'name code classId')
+      .populate('classId', 'name')
+      .populate('sectionId', 'name classId')
+      .sort({ createdAt: -1 })
+      .lean();
+
+    if (!items.length) {
+      const timetableFilter = {
+        schoolId,
+        'entries.teacherId': teacherId,
+        ...(campusId ? { campusId } : {}),
+      };
+      const timetables = await Timetable.find(timetableFilter)
+        .populate('classId', 'name')
+        .populate('sectionId', 'name classId')
+        .populate('entries.subjectId', 'name code classId')
+        .lean();
+
+      const map = new Map();
+      timetables.forEach((tt) => {
+        (tt.entries || []).forEach((entry) => {
+          if (String(entry.teacherId) !== String(teacherId)) return;
+          const classId = tt.classId || null;
+          const sectionId = tt.sectionId || null;
+          const subjectId = entry.subjectId || null;
+          if (!classId || !sectionId || !subjectId) return;
+          const key = `${classId._id}_${sectionId._id}_${subjectId._id}`;
+          if (map.has(key)) return;
+          map.set(key, {
+            _id: key,
+            classId,
+            sectionId,
+            subjectId,
+          });
+        });
+      });
+      items = Array.from(map.values());
+    }
+
+    res.json(items);
+  } catch (err) {
+    res.status(500).json({ error: err.message || 'Unable to load allocations' });
   }
 });
 

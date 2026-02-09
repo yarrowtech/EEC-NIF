@@ -18,8 +18,15 @@ router.post("/cloudinary/single", upload.single("file"), async (req, res) => {
     const tags = String(req.body.tags || "")
       .split(",").map((t) => t.trim()).filter(Boolean);
 
+    const isPdf = req.file.mimetype === "application/pdf";
     const r = await uploadBufferToCloudinary(req.file.buffer, {
-      folder, tags, resource_type: "auto", use_filename: true, unique_filename: true, overwrite: false,
+      folder,
+      tags,
+      resource_type: isPdf ? "raw" : "auto",
+      access_mode: "public",
+      use_filename: true,
+      unique_filename: true,
+      overwrite: false,
     });
 
     res.json({
@@ -53,8 +60,15 @@ router.post("/cloudinary/bulk", upload.array("files", 25), async (req, res) => {
 
     const files = await Promise.all(
       req.files.map(async (f) => {
+        const isPdf = f.mimetype === "application/pdf";
         const r = await uploadBufferToCloudinary(f.buffer, {
-          folder, tags, resource_type: "auto", use_filename: true, unique_filename: true, overwrite: false,
+          folder,
+          tags,
+          resource_type: isPdf ? "raw" : "auto",
+          access_mode: "public",
+          use_filename: true,
+          unique_filename: true,
+          overwrite: false,
         });
         return {
           originalName: f.originalname,

@@ -69,33 +69,6 @@ const NoticeBoard = () => {
 
     fetchNotices();
   }, []);
-  
-  // Filter notices based on search query and filters
-  const filteredNotices = notices.filter(notice => {
-    const title = (notice.title || '').toLowerCase();
-    const message = (notice.message || '').toLowerCase();
-    const author = (notice.author || 'School Administration').toLowerCase();
-    const matchesSearch = title.includes(searchQuery.toLowerCase()) ||
-                         message.includes(searchQuery.toLowerCase()) ||
-                         author.includes(searchQuery.toLowerCase());
-
-    const priority = resolvePriority(notice);
-    const category = resolveCategory(notice);
-    const matchesPriority = filterPriority === 'all' || priority === filterPriority;
-    const matchesCategory = filterCategory === 'all' || category === filterCategory;
-    
-    return matchesSearch && matchesPriority && matchesCategory;
-  });
-  
-  // Sort notices: pinned first, then by date
-  const sortedNotices = [...filteredNotices].sort((a, b) => {
-    const aPinned = Boolean(a.pinned);
-    const bPinned = Boolean(b.pinned);
-    if (aPinned && !bPinned) return -1;
-    if (!aPinned && bPinned) return 1;
-    return new Date(resolveDate(b) || 0) - new Date(resolveDate(a) || 0);
-  });
-  
   const toggleBookmark = (noticeId) => {
     setBookmarkedNotices(prev => 
       prev.includes(noticeId) 
@@ -140,8 +113,52 @@ const NoticeBoard = () => {
   const resolvePriority = (notice) => (notice?.priority || 'general').toLowerCase();
   const resolveCategory = (notice) => (notice?.category || notice?.audience || 'general').toLowerCase();
   const resolveDate = (notice) => notice?.date || notice?.createdAt || notice?.updatedAt || null;
-  const resolveAuthor = (notice) => notice?.author || notice?.createdByName || 'School Administration';
+  const looksLikeUserId = (value) => {
+    const v = String(value || '').trim();
+    if (!v) return false;
+    return /^[A-Z0-9-]{6,}$/.test(v);
+  };
+
+  const resolveAuthor = (notice) => {
+    const rawName = notice?.createdByName || '';
+    const safeName = rawName && !looksLikeUserId(rawName) ? rawName : '';
+    if (notice?.createdByType === 'admin') {
+      const name = safeName ? ` · ${safeName}` : '';
+      return `School Admin${name}`;
+    }
+    if (notice?.createdByType === 'teacher') {
+      const name = safeName ? ` · ${safeName}` : '';
+      return `Teacher${name}`;
+    }
+    return notice?.author || 'School Administration';
+  };
   const resolveId = (notice) => notice?._id || notice?.id;
+
+  // Filter notices based on search query and filters
+  const filteredNotices = notices.filter(notice => {
+    const title = (notice.title || '').toLowerCase();
+    const message = (notice.message || '').toLowerCase();
+    const author = resolveAuthor(notice).toLowerCase();
+    const matchesSearch = title.includes(searchQuery.toLowerCase()) ||
+                         message.includes(searchQuery.toLowerCase()) ||
+                         author.includes(searchQuery.toLowerCase());
+
+    const priority = resolvePriority(notice);
+    const category = resolveCategory(notice);
+    const matchesPriority = filterPriority === 'all' || priority === filterPriority;
+    const matchesCategory = filterCategory === 'all' || category === filterCategory;
+    
+    return matchesSearch && matchesPriority && matchesCategory;
+  });
+  
+  // Sort notices: pinned first, then by date
+  const sortedNotices = [...filteredNotices].sort((a, b) => {
+    const aPinned = Boolean(a.pinned);
+    const bPinned = Boolean(b.pinned);
+    if (aPinned && !bPinned) return -1;
+    if (!aPinned && bPinned) return 1;
+    return new Date(resolveDate(b) || 0) - new Date(resolveDate(a) || 0);
+  });
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-yellow-50 via-amber-50 to-purple-50 p-6">
@@ -296,6 +313,7 @@ const NoticeBoard = () => {
             const noticeId = resolveId(notice);
             const priority = resolvePriority(notice);
             const category = resolveCategory(notice);
+            const subjectLabel = notice.subjectName || notice.subject || '';
             const displayDate = resolveDate(notice);
             const author = resolveAuthor(notice);
             const views = Number(notice.views) || 0;
@@ -342,6 +360,11 @@ const NoticeBoard = () => {
                       <p className="text-amber-700 leading-relaxed mb-4">
                         {notice.message}
                       </p>
+                      {subjectLabel && (
+                        <p className="text-xs text-amber-600 mb-3">
+                          Subject: {subjectLabel}
+                        </p>
+                      )}
                       
                       {/* Attachments */}
                       {attachments.length > 0 && (
@@ -353,7 +376,18 @@ const NoticeBoard = () => {
                                 className="flex items-center gap-2 bg-yellow-50 border border-yellow-200 rounded-lg px-3 py-2 text-sm cursor-pointer hover:bg-yellow-100 transition-colors"
                               >
                                 <Download className="w-4 h-4 text-amber-600" />
-                                <span className="text-amber-800">{attachment}</span>
+                                {attachment?.url ? (
+                                  <a
+                                    href={attachment.url}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="text-amber-800 hover:underline"
+                                  >
+                                    {attachment.name || 'Attachment'}
+                                  </a>
+                                ) : (
+                                  <span className="text-amber-800">{String(attachment)}</span>
+                                )}
                               </div>
                             ))}
                           </div>
@@ -400,10 +434,10 @@ const NoticeBoard = () => {
                         }) : 'Date TBA'}</span>
                       </div>
                       
-                      <div className="flex items-center gap-1">
+                      {/* <div className="flex items-center gap-1">
                         <Eye className="w-4 h-4" />
                         <span>{views} views</span>
-                      </div>
+                      </div> */}
                     </div>
                     
                     <div className="flex items-center gap-2">

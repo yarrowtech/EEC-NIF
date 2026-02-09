@@ -19,7 +19,8 @@ import {
   Building2,
   Shield,
   UserRound,
-  LifeBuoy
+  LifeBuoy,
+  Bell
 } from 'lucide-react';
 
 export const ADMIN_MENU_ITEMS = [
@@ -95,6 +96,11 @@ export const ADMIN_MENU_ITEMS = [
     icon: Calendar, 
     label: 'Routines', 
     path: '/admin/routine' 
+  },
+  { 
+    icon: Bell, 
+    label: 'Notices', 
+    path: '/admin/notices' 
   },
   { 
     icon: Calendar, 

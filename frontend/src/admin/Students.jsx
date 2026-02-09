@@ -2167,7 +2167,7 @@ const Students = ({ setShowAdminHeader, setShowAdminBreadcrumb }) => {
               }}
             />
 
-            <button
+            {/* <button
               onClick={handleBulkCredentialGeneration}
               disabled={isBulkGenerating}
               className="bg-emerald-600 text-white px-3 md:px-4 py-2 rounded-lg hover:bg-emerald-700 disabled:opacity-60 flex items-center gap-2 text-sm md:text-base flex-1 sm:flex-none justify-center"
@@ -2175,7 +2175,7 @@ const Students = ({ setShowAdminHeader, setShowAdminBreadcrumb }) => {
             >
               <FileDown size={16} />
               {isBulkGenerating ? "Generating..." : "Generate All IDs"}
-            </button>
+            </button> */}
 
             <button
               onClick={() => setShowAddForm(true)}
