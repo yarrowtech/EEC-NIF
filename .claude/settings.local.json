@@ -3,7 +3,8 @@
     "allow": [
       "Bash(test:*)",
       "Bash(find:*)",
-      "Bash(node -e:*)"
+      "Bash(node -e:*)",
+      "Bash(npx vite build:*)"
     ]
   }
 }
