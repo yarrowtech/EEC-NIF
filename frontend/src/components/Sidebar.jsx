@@ -162,7 +162,7 @@ const Sidebar = ({ activeView, isOpen, setIsOpen }) => {
       {/* Mobile backdrop */}
       {isOpen && (
         <div 
-          className="fixed inset-0 bg-black bg-opacity-50 z-40 md:hidden transition-opacity duration-300" 
+          className="fixed inset-0 bg-black/20 backdrop-blur-sm z-40 md:hidden transition-opacity duration-300" 
           onClick={() => setIsOpen(false)} 
         />
       )}
@@ -349,7 +349,7 @@ const Sidebar = ({ activeView, isOpen, setIsOpen }) => {
         <div className={`border-t border-gray-200 ${!isOpen ? 'p-2' : 'p-4'}`}>
           <div className={`${isOpen ? 'space-y-2' : 'space-y-1'}`}>
             {/* Settings Button */}
-            {!isOpen ? (
+            {/* {!isOpen ? (
               <button
                 onClick={() => handleNavigation('themecustomizer')}
                 className="group relative w-full h-12 flex items-center justify-center rounded-xl text-gray-600 hover:bg-gradient-to-r hover:from-blue-50 hover:to-yellow-50 hover:scale-105 hover:shadow-md hover:text-gray-900 transition-all duration-300 ease-out transform active:scale-95"
@@ -357,21 +357,16 @@ const Sidebar = ({ activeView, isOpen, setIsOpen }) => {
                 <div className="relative flex items-center justify-center w-6 h-6 transition-all duration-300 text-gray-600 group-hover:text-blue-600 group-hover:scale-110">
                   <Settings size={18} strokeWidth={1.8} className="flex-shrink-0 transition-all duration-300" />
                 </div>
-                
-                {/* Enhanced Tooltip */}
                 <div className="absolute left-full ml-3 opacity-0 group-hover:opacity-100 transition-all duration-300 ease-out transform translate-x-2 group-hover:translate-x-0 pointer-events-none z-50">
                   <div className="bg-gray-900 text-white px-4 py-3 rounded-xl shadow-2xl border border-gray-700 min-w-max">
                     <div className="font-semibold text-sm">Settings</div>
                     <div className="text-xs text-gray-300 mt-1">Preferences & Config</div>
-                    
-                    {/* Modern Arrow */}
                     <div className="absolute left-0 top-1/2 transform -translate-x-1 -translate-y-1/2">
                       <div className="w-2 h-2 bg-gray-900 border-l border-t border-gray-700 rotate-45" />
                     </div>
                   </div>
                 </div>
                 
-                {/* Subtle Hover Ring */}
                 <div className="absolute inset-0 rounded-xl ring-1 ring-transparent group-hover:ring-gray-300/30 transition-all duration-300" />
               </button>
             ) : (
@@ -387,9 +382,8 @@ const Sidebar = ({ activeView, isOpen, setIsOpen }) => {
                   <div className="text-xs text-gray-500 group-hover:text-blue-600 transition-all duration-300">Preferences & Config</div>
                 </div>
               </button>
-            )}
+            )} */}
             
-            {/* Logout Button */}
             {!isOpen ? (
               <button
                 onClick={handleLogout}

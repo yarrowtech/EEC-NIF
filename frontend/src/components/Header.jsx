@@ -8,6 +8,8 @@ const Header = ({ sidebarOpen, setSidebarOpen, onOpenProfile }) => {
   const navigate = useNavigate();
   const [showNotifications, setShowNotifications] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
+  const [searchText, setSearchText] = useState('');
+  const [showSearchSuggestions, setShowSearchSuggestions] = useState(false);
   const { profile } = useStudentDashboard();
 
   // Use real notifications hook
@@ -67,6 +69,85 @@ const Header = ({ sidebarOpen, setSidebarOpen, onOpenProfile }) => {
     localStorage.removeItem('userType');
     navigate('/');
   };
+
+  const runSearch = () => {
+    const query = searchText.trim();
+    if (!query) return;
+    const q = query.toLowerCase();
+
+    if (q.includes('attendance') || q.includes('present') || q.includes('absent')) {
+      const filter = q.includes('present') ? 'present' : q.includes('absent') ? 'absent' : 'all';
+      navigate(`/student/attendance?filter=${filter}`);
+      return;
+    }
+    if (q.includes('journal')) {
+      navigate('/student/assignments-journal');
+      return;
+    }
+    if (q.includes('assignment') || q.includes('homework')) {
+      navigate(`/student/assignments?q=${encodeURIComponent(query)}`);
+      return;
+    }
+    if (q.includes('result')) {
+      navigate('/student/results');
+      return;
+    }
+    if (q.includes('notice')) {
+      navigate('/student/noticeboard');
+      return;
+    }
+    if (q.includes('excuse') || q.includes('leave')) {
+      navigate('/student/excuse-letter');
+      return;
+    }
+    if (q.includes('routine') || q.includes('schedule')) {
+      navigate('/student/routine');
+      return;
+    }
+    if (q.includes('profile')) {
+      navigate('/student/profile');
+      return;
+    }
+    if (q.includes('chat') || q.includes('message')) {
+      navigate('/student/chat');
+      return;
+    }
+    if (q.includes('wellbeing') || q.includes('wellness')) {
+      navigate('/student/wellbeing');
+      return;
+    }
+    if (q.includes('achievement')) {
+      navigate('/student/achievements');
+      return;
+    }
+    if (q.includes('course')) {
+      navigate('/student/courses');
+      return;
+    }
+
+    navigate(`/student/assignments?q=${encodeURIComponent(query)}`);
+  };
+
+  const searchSuggestions = useMemo(() => ([
+    { label: 'Assignments', hint: 'View all assignments', action: () => navigate('/student/assignments') },
+    { label: 'Attendance (All)', hint: 'Daily attendance overview', action: () => navigate('/student/attendance?filter=all') },
+    { label: 'Attendance (Present)', hint: 'Only present days', action: () => navigate('/student/attendance?filter=present') },
+    { label: 'Attendance (Absent)', hint: 'Only absent days', action: () => navigate('/student/attendance?filter=absent') },
+    { label: 'Journal', hint: 'My Learning Journal', action: () => navigate('/student/assignments-journal') },
+    { label: 'Results', hint: 'Academic results', action: () => navigate('/student/results') },
+    { label: 'Notice Board', hint: 'School notices', action: () => navigate('/student/noticeboard') },
+    { label: 'Excuse Letter', hint: 'Leave application', action: () => navigate('/student/excuse-letter') },
+    { label: 'Routine', hint: 'Daily routine', action: () => navigate('/student/routine') },
+    { label: 'Profile', hint: 'Update your profile', action: () => navigate('/student/profile') },
+  ]), [navigate]);
+
+  const filteredSuggestions = useMemo(() => {
+    const q = searchText.trim().toLowerCase();
+    if (!q) return searchSuggestions.slice(0, 5);
+    return searchSuggestions
+      .filter((s) => s.label.toLowerCase().includes(q) || s.hint.toLowerCase().includes(q))
+      .slice(0, 6);
+  }, [searchText, searchSuggestions]);
 
   // Get notification type styling
   const getNotificationTypeColor = (type) => {
@@ -140,19 +221,72 @@ const Header = ({ sidebarOpen, setSidebarOpen, onOpenProfile }) => {
 
           {/* Center: Search */}
           <div className="flex-1 max-w-xl">
-            <div className="relative flex items-center">
+            <div className="relative">
+              <div className="relative flex items-center">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
               <input
                 type="text"
                 placeholder="Search courses, assignments, or results"
-                className="w-full pl-9 pr-24 py-2 rounded-lg border border-gray-300 bg-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none shadow-sm"
+                value={searchText}
+                onChange={(e) => setSearchText(e.target.value)}
+                onFocus={() => setShowSearchSuggestions(true)}
+                onBlur={() => setTimeout(() => setShowSearchSuggestions(false), 120)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    runSearch();
+                  }
+                }}
+                className="w-full pl-9 pr-28 py-2 rounded-lg border border-gray-300 bg-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none shadow-sm"
               />
+              {searchText && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSearchText('');
+                    setShowSearchSuggestions(true);
+                  }}
+                  className="absolute right-20 text-gray-400 hover:text-gray-600 p-1"
+                  aria-label="Clear search"
+                >
+                  <X size={16} />
+                </button>
+              )}
               <button
                 className="absolute right-2 px-4 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium rounded-md transition-colors"
                 aria-label="Search"
+                onClick={runSearch}
               >
                 Search
               </button>
+              </div>
+
+              {showSearchSuggestions && (
+                <div className="absolute left-0 right-0 mt-2 rounded-xl border border-gray-200 bg-white shadow-xl z-50 overflow-hidden">
+                  {filteredSuggestions.length === 0 ? (
+                    <div className="px-4 py-3 text-sm text-gray-500">No suggestions found.</div>
+                  ) : (
+                    <ul className="divide-y divide-gray-100">
+                      {filteredSuggestions.map((s) => (
+                        <li key={s.label}>
+                          <button
+                            type="button"
+                            onMouseDown={(e) => e.preventDefault()}
+                            onClick={() => {
+                              setShowSearchSuggestions(false);
+                              s.action();
+                            }}
+                            className="w-full px-4 py-3 text-left hover:bg-gray-50 transition-colors"
+                          >
+                            <div className="text-sm font-medium text-gray-900">{s.label}</div>
+                            <div className="text-xs text-gray-500">{s.hint}</div>
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              )}
             </div>
           </div>
 

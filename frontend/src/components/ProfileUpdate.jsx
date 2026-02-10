@@ -333,6 +333,12 @@ const ProfileUpdate = () => {
         : 'border-gray-300 hover:border-yellow-400 focus:border-yellow-500 focus:ring-yellow-100'
     } focus:ring-4 bg-white disabled:bg-gray-100 disabled:text-gray-500 disabled:border-gray-200 disabled:cursor-not-allowed`;
 
+  const nameParts = (profile?.name || '').trim().split(/\s+/).filter(Boolean);
+  const initials = nameParts.length >= 2
+    ? `${nameParts[0][0]}${nameParts[nameParts.length - 1][0]}`
+    : (nameParts[0]?.[0] || 'S');
+  const initialsLabel = initials.toUpperCase();
+
   if (dataLoading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-yellow-50 via-amber-50 to-orange-50 flex items-center justify-center">
@@ -403,8 +409,8 @@ const ProfileUpdate = () => {
                         className="w-full h-full object-cover"
                       />
                     ) : (
-                      <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-yellow-100 to-amber-100">
-                        <User className="w-16 h-16 text-yellow-600" />
+                      <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-yellow-100 to-amber-100 text-yellow-700 text-3xl font-semibold">
+                        {initialsLabel}
                       </div>
                     )}
                   </div>

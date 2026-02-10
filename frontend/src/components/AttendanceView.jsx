@@ -4,6 +4,7 @@ import {
   ChevronLeft, ChevronRight, Target, BarChart3, Eye, BookOpen,
   Flame, CalendarDays, LayoutGrid, List, ChevronDown, ChevronUp,
 } from 'lucide-react';
+import { useLocation } from 'react-router-dom';
 
 const STATUS_COLORS = {
   present: 'bg-emerald-500',
@@ -83,6 +84,7 @@ const TabBtn = ({ active, icon: Icon, label, onClick }) => (
 );
 
 const AttendanceView = () => {
+  const location = useLocation();
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState('');
   const [loading, setLoading] = useState(true);
@@ -94,6 +96,15 @@ const AttendanceView = () => {
     totalClasses: 0, attended: 0, absent: 0, percentage: 0,
   });
   const [attendanceRecords, setAttendanceRecords] = useState([]);
+
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const filter = params.get('filter');
+    if (filter && ['all', 'present', 'absent'].includes(filter)) {
+      setDailyFilter(filter);
+      setActiveTab('daily');
+    }
+  }, [location.search]);
 
   useEffect(() => {
     const fetchAttendance = async () => {

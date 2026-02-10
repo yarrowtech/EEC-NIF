@@ -22,8 +22,10 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { addPoints, hasAward, markAwarded } from '../utils/points';
 import axios from 'axios';
+import { useLocation } from 'react-router-dom';
 
 const Assignment = ({ assignmentType, filter, setFilter }) => {
+  const location = useLocation();
   // School assignment state
   const [schoolSearch, setSchoolSearch] = useState("");
   const [schoolSort, setSchoolSort] = useState("due_asc");
@@ -80,6 +82,15 @@ const Assignment = ({ assignmentType, filter, setFilter }) => {
       fetchAssignments();
     }
   }, [assignmentType]);
+
+  useEffect(() => {
+    if (assignmentType !== 'school') return;
+    const params = new URLSearchParams(location.search);
+    const q = params.get('q');
+    if (q && q.trim() && q !== schoolSearch) {
+      setSchoolSearch(q);
+    }
+  }, [assignmentType, location.search, schoolSearch]);
 
   const fetchAssignments = async () => {
     try {
