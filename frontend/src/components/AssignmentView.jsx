@@ -155,9 +155,9 @@ const AssignmentView = ({ defaultType = "school" }) => {
   const typeTabs = [
     { key: "school", label: "School", icon: BookOpen },
     { key: "eec", label: "Practice", icon: GraduationCap },
-    { key: "tryout", label: "Tryout", icon: Gamepad2 },
-    { key: "lab", label: "Lab", icon: FlaskConical },
-    { key: "flashcard", label: "FlashCard", icon: Layers },
+    // { key: "tryout", label: "Tryout", icon: Gamepad2 },
+    // { key: "lab", label: "Lab", icon: FlaskConical },
+    // { key: "flashcard", label: "FlashCard", icon: Layers },
   ];
 
   const moodOptions = ["Happy", "Neutral", "Curious", "Challenged", "Excited"];
