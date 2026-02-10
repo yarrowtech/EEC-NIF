@@ -6,6 +6,8 @@ const Class = require('../models/Class');
 const Timetable = require('../models/Timetable');
 const ExamResult = require('../models/ExamResult');
 const Exam = require('../models/Exam');
+const StudentProgress = require('../models/StudentProgress');
+const Assignment = require('../models/Assignment');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const adminAuth = require('../middleware/adminAuth');
@@ -759,24 +761,66 @@ router.get('/results', authStudent, async (req, res) => {
       .sort({ createdAt: -1 })
       .lean();
 
-    // Transform to match frontend expectations
+    // Transform exam results
     const formattedResults = examResults.map(result => ({
       _id: result._id,
       examName: result.examId?.title || 'Exam',
       subject: result.examId?.subject || '',
       date: result.examId?.date || null,
       type: result.examId?.term || 'general',
+      resultType: 'exam',
       obtainedMarks: result.marks || 0,
       totalMarks: result.examId?.marks || 100,
-      percentage: result.examId?.marks ? (result.marks / result.examId.marks) * 100 : 0,
+      percentage: result.examId?.marks ? Math.round((result.marks / result.examId.marks) * 100) : 0,
       grade: result.grade || '',
       status: result.status || 'pass',
       remarks: result.remarks || '',
-      subjects: [] // Can be expanded if needed
+      subjects: []
     }));
 
+    // Fetch graded assignment results from StudentProgress
+    const progress = await StudentProgress.findOne({
+      studentId: req.user.id,
+      schoolId: student.schoolId
+    }).lean();
+
+    const gradedSubmissions = (progress?.submissions || []).filter(
+      sub => sub.status === 'graded' && sub.score !== undefined && sub.score !== null
+    );
+
+    let assignmentResults = [];
+    if (gradedSubmissions.length > 0) {
+      const assignmentIds = gradedSubmissions.map(s => s.assignmentId);
+      const assignments = await Assignment.find({ _id: { $in: assignmentIds } })
+        .select('title subject marks dueDate')
+        .lean();
+      const aMap = {};
+      assignments.forEach(a => { aMap[String(a._id)] = a; });
+
+      assignmentResults = gradedSubmissions.map(sub => {
+        const a = aMap[String(sub.assignmentId)] || {};
+        const total = a.marks || 100;
+        const obtained = sub.score;
+        return {
+          _id: sub._id,
+          examName: a.title || 'Assignment',
+          subject: a.subject || '',
+          date: sub.submittedAt || null,
+          type: 'assignment',
+          resultType: 'assignment',
+          obtainedMarks: obtained,
+          totalMarks: total,
+          percentage: Math.round((obtained / total) * 100),
+          grade: obtained >= total * 0.9 ? 'A+' : obtained >= total * 0.8 ? 'A' : obtained >= total * 0.7 ? 'B' : obtained >= total * 0.6 ? 'C' : obtained >= total * 0.5 ? 'D' : 'F',
+          status: obtained >= total * 0.4 ? 'pass' : 'fail',
+          remarks: sub.feedback || '',
+          subjects: []
+        };
+      });
+    }
+
     res.json({
-      results: formattedResults
+      results: [...formattedResults, ...assignmentResults]
     });
   } catch (err) {
     console.error('Results error:', err);

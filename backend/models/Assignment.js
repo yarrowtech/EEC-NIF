@@ -8,6 +8,7 @@ const assignmentSchema = new mongoose.Schema({
   description: { type: String, default: '' },
   subject: String,
   class: String,
+  section: { type: String, default: '' },
   classId: { type: mongoose.Schema.Types.ObjectId, ref: 'Class' },
   sectionId: { type: mongoose.Schema.Types.ObjectId, ref: 'Section' },
   marks: { type: Number, default: 100 },
@@ -16,6 +17,11 @@ const assignmentSchema = new mongoose.Schema({
     url: { type: String },
     type: { type: String, default: 'pdf' }
   }],
+  submissionFormat: {
+    type: String,
+    enum: ['text', 'pdf'],
+    default: 'text'
+  },
   status: {
     type: String,
     enum: ["draft", "active"],

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   FileText, Calendar, Search, Plus, Clock, AlertCircle, X,
   Edit3, Trash2, Eye, Users, CheckCircle, XCircle,
@@ -145,6 +145,7 @@ const AssignmentManagement = () => {
     dueDate: "",
     marks: 100,
     status: "draft",
+    submissionFormat: "text",
     attachments: []
   });
   const [pdfFile, setPdfFile] = useState(null);
@@ -153,7 +154,44 @@ const AssignmentManagement = () => {
   const [assignments, setAssignments] = useState([]);
   const [filteredAssignments, setFilteredAssignments] = useState([]);
 
-  const API_BASE_URL = 'http://localhost:5000/api';
+  const API_BASE_URL = (import.meta.env.VITE_API_URL || 'http://localhost:5000').replace(/\/$/, '');
+
+  const globalSubjectOptions = useMemo(() => {
+    const map = new Map();
+    myClasses.forEach(cs => {
+      (cs.subjects || []).forEach(subject => {
+        if (!subject?.name) return;
+        const key = String(subject.id || subject._id || subject.name);
+        if (!map.has(key)) {
+          map.set(key, { id: key, name: subject.name });
+        }
+      });
+    });
+    return Array.from(map.values());
+  }, [myClasses]);
+
+  const subjectOptions = useMemo(() => {
+    if (newAssignment.classId && newAssignment.sectionId) {
+      const matched = myClasses.find(
+        cs => cs.classId === newAssignment.classId && cs.sectionId === newAssignment.sectionId
+      );
+      if (matched?.subjects?.length) {
+        const map = new Map();
+        matched.subjects.forEach(sub => {
+          if (!sub?.name) return;
+          const key = String(sub.id || sub._id || sub.name);
+          if (!map.has(key)) {
+            map.set(key, { id: key, name: sub.name });
+          }
+        });
+        const scoped = Array.from(map.values());
+        if (scoped.length) {
+          return scoped;
+        }
+      }
+    }
+    return globalSubjectOptions;
+  }, [myClasses, newAssignment.classId, newAssignment.sectionId, globalSubjectOptions]);
 
   // Fetch teacher's assigned classes
   useEffect(() => {
@@ -169,11 +207,19 @@ const AssignmentManagement = () => {
     try {
       const token = localStorage.getItem('token');
       console.log('Fetching my classes with token:', token ? 'Token exists' : 'No token');
-      const response = await axios.get(`${API_BASE_URL}/assignment/teacher/my-classes`, {
+      const response = await axios.get(`${API_BASE_URL}/api/assignment/teacher/my-classes`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       console.log('My classes response:', response.data);
-      setMyClasses(response.data);
+      const normalizedClasses = Array.isArray(response.data)
+        ? response.data.map(item => ({
+            ...item,
+            subjects: Array.isArray(item.subjects)
+              ? item.subjects.filter(sub => sub && sub.name)
+              : []
+          }))
+        : [];
+      setMyClasses(normalizedClasses);
 
       if (response.data.length === 0) {
         setError('No classes assigned. You need to be assigned to classes in the timetable first.');
@@ -189,7 +235,7 @@ const AssignmentManagement = () => {
     try {
       setLoading(true);
       const token = localStorage.getItem('token');
-      const response = await axios.get(`${API_BASE_URL}/assignment/teacher/my-assignments`, {
+      const response = await axios.get(`${API_BASE_URL}/api/assignment/teacher/my-assignments`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       setAssignments(response.data);
@@ -270,7 +316,7 @@ const AssignmentManagement = () => {
 
       const token = localStorage.getItem('token');
       const response = await axios.post(
-        `${API_BASE_URL}/uploads/cloudinary/single`,
+        `${API_BASE_URL}/api/uploads/cloudinary/single`,
         formData,
         {
           headers: {
@@ -315,7 +361,7 @@ const AssignmentManagement = () => {
       const token = localStorage.getItem('token');
 
       const response = await axios.post(
-        `${API_BASE_URL}/assignment/teacher/create`,
+        `${API_BASE_URL}/api/assignment/teacher/create`,
         newAssignment,
         { headers: { Authorization: `Bearer ${token}` } }
       );
@@ -332,6 +378,7 @@ const AssignmentManagement = () => {
           dueDate: "",
           marks: 100,
           status: "draft",
+          submissionFormat: "text",
           attachments: []
         });
         setPdfFile(null);
@@ -354,7 +401,7 @@ const AssignmentManagement = () => {
     try {
       setLoading(true);
       const token = localStorage.getItem('token');
-      await axios.delete(`${API_BASE_URL}/assignment/teacher/delete/${assignmentId}`, {
+      await axios.delete(`${API_BASE_URL}/api/assignment/teacher/delete/${assignmentId}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       await fetchAssignments();
@@ -593,7 +640,9 @@ const AssignmentManagement = () => {
             </div>
           ) : (
             <div className={viewMode === 'grid' ? 'grid grid-cols-1 md:grid-cols-2 gap-6' : 'space-y-4'}>
-              {filteredAssignments.map((assignment) => (
+              {filteredAssignments.map((assignment) => {
+                const submissionFormat = assignment?.submissionFormat === 'pdf' ? 'pdf' : 'text';
+                return (
                 <div
                   key={assignment._id}
                   className={`bg-white rounded-xl shadow-sm border border-gray-200 hover:shadow-md transition-all duration-200 ${
@@ -634,6 +683,9 @@ const AssignmentManagement = () => {
                         </span>
                         <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-700 border border-blue-200">
                           {assignment.classId?.name || assignment.class} - {assignment.sectionId?.name}
+                        </span>
+                        <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium border ${submissionFormat === 'pdf' ? 'border-purple-200 bg-purple-50 text-purple-700' : 'border-green-200 bg-green-50 text-green-700'}`}>
+                          {submissionFormat === 'pdf' ? 'PDF Upload' : 'Text Only'}
                         </span>
                       </div>
                       
@@ -677,7 +729,7 @@ const AssignmentManagement = () => {
                     </div>
                   </div>
                 </div>
-              ))}
+              )})}
             </div>
           )}
 
@@ -731,25 +783,52 @@ const AssignmentManagement = () => {
 
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">Subject *</label>
-                    <input
-                      name="subject"
-                      value={newAssignment.subject}
-                      onChange={handleChange}
-                      type="text"
-                      placeholder="e.g., Mathematics"
-                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                      required
-                    />
+                    {subjectOptions.length > 0 ? (
+                      <>
+                        <select
+                          name="subject"
+                          value={newAssignment.subject}
+                          onChange={handleChange}
+                          className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                          required
+                        >
+                          <option value="">Select Subject</option>
+                          {subjectOptions.map(subject => (
+                            <option key={subject.id} value={subject.name}>
+                              {subject.name}
+                            </option>
+                          ))}
+                        </select>
+                        <p className="mt-1 text-xs text-gray-500">Subjects are pulled from your assigned timetable.</p>
+                      </>
+                    ) : (
+                      <>
+                        <input
+                          name="subject"
+                          value={newAssignment.subject}
+                          onChange={handleChange}
+                          type="text"
+                          placeholder="e.g., Mathematics"
+                          className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                          required
+                        />
+                        <p className="mt-1 text-xs text-gray-500">No assigned subjects found. Please enter a subject.</p>
+                      </>
+                    )}
                   </div>
 
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">Class & Section *</label>
                     <select
                       name="classSection"
-                      value={`${newAssignment.classId}-${newAssignment.sectionId}`}
+                      value={newAssignment.classId && newAssignment.sectionId ? `${newAssignment.classId}-${newAssignment.sectionId}` : ''}
                       onChange={(e) => {
+                        if (!e.target.value) {
+                          setNewAssignment(prev => ({ ...prev, classId: "", sectionId: "", subject: "" }));
+                          return;
+                        }
                         const [classId, sectionId] = e.target.value.split('-');
-                        setNewAssignment({ ...newAssignment, classId, sectionId });
+                        setNewAssignment(prev => ({ ...prev, classId, sectionId, subject: "" }));
                       }}
                       className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                       required
@@ -787,6 +866,21 @@ const AssignmentManagement = () => {
                       className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                       required
                     />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Submission Format *</label>
+                    <select
+                      name="submissionFormat"
+                      value={newAssignment.submissionFormat}
+                      onChange={handleChange}
+                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      required
+                    >
+                      <option value="text">Text Only</option>
+                      <option value="pdf">PDF Upload</option>
+                    </select>
+                    <p className="mt-1 text-xs text-gray-500">Choose how students should submit this assignment.</p>
                   </div>
 
                   <div>

@@ -6,7 +6,9 @@ import {
   Target,
   Calendar,
   Trophy,
-  AlertCircle
+  AlertCircle,
+  FileText,
+  BookOpen
 } from 'lucide-react';
 
 const ResultsView = () => {
@@ -48,8 +50,9 @@ const ResultsView = () => {
 
         const data = await response.json();
         const items = Array.isArray(data.results) ? data.results : [];
-        setResults(items);
-        setOverview(buildOverview(items));
+        const sortedItems = sortResultsByDate(items);
+        setResults(sortedItems);
+        setOverview(buildOverview(sortedItems));
         setLastUpdated(new Date());
       } catch (err) {
         console.error('Failed to fetch results:', err);
@@ -164,7 +167,7 @@ const ResultsView = () => {
                   : 'bg-white text-gray-700 border border-gray-200 hover:bg-gray-50'
               }`}
             >
-              {type === 'all' ? 'All Exams' : type.replace(/^\w/, c => c.toUpperCase())}
+              {type === 'all' ? 'All Results' : type === 'assignment' ? 'Assignments' : type.replace(/^\w/, c => c.toUpperCase())}
             </button>
           ))}
         </div>
@@ -173,7 +176,7 @@ const ResultsView = () => {
       <div className="space-y-4">
         {filteredResults.length === 0 ? (
           <div className="bg-white border border-dashed border-gray-200 rounded-xl p-8 text-center text-gray-500">
-            No exam records available. Once your school publishes results they will appear here automatically.
+            No results available yet. Exam results and graded assignments will appear here automatically.
           </div>
         ) : (
           filteredResults.map((exam, index) => (
@@ -202,24 +205,31 @@ const SummaryCard = ({ icon: Icon, title, value, subtitle, accent }) => (
 );
 
 const ExamCard = ({ exam }) => {
+  const isAssignment = exam.resultType === 'assignment' || exam.type === 'assignment';
   const percentage = exam.percentage ?? (exam.obtainedMarks && exam.totalMarks
     ? (exam.obtainedMarks / exam.totalMarks) * 100
     : null);
 
   return (
-    <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-      <div className="p-6 border-b border-gray-100 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+    <div className={`bg-white rounded-2xl shadow-sm overflow-hidden border ${isAssignment ? 'border-purple-100' : 'border-gray-100'}`}>
+      <div className={`p-6 border-b flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 ${isAssignment ? 'border-purple-100' : 'border-gray-100'}`}>
         <div className="flex-1">
-          <h3 className="text-xl font-semibold text-gray-900">{exam.examName || 'Exam'}</h3>
+          {isAssignment && (
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-purple-100 text-purple-700 mb-2">
+              <BookOpen size={11} />
+              Assignment
+            </span>
+          )}
+          <h3 className="text-xl font-semibold text-gray-900">{exam.examName || (isAssignment ? 'Assignment' : 'Exam')}</h3>
           {exam.subject && (
-            <p className="text-sm font-medium text-indigo-600 mt-1">
+            <p className={`text-sm font-medium mt-1 ${isAssignment ? 'text-purple-600' : 'text-indigo-600'}`}>
               📚 {exam.subject}
             </p>
           )}
           <p className="text-sm text-gray-500 flex items-center gap-2 mt-1">
             <Calendar size={14} />
             {exam.date ? new Date(exam.date).toLocaleDateString() : 'Date not available'}
-            {exam.type && <>• {exam.type.replace(/^\w/, c => c.toUpperCase())}</>}
+            {exam.type && !isAssignment && <>• {exam.type.replace(/^\w/, c => c.toUpperCase())}</>}
           </p>
         </div>
 
@@ -227,13 +237,17 @@ const ExamCard = ({ exam }) => {
           {percentage !== null && (
             <div className="text-right">
               <p className="text-xs text-gray-500">Score</p>
-              <p className="text-2xl font-bold text-indigo-600">{percentage.toFixed(1)}%</p>
+              <p className={`text-2xl font-bold ${isAssignment ? 'text-purple-600' : 'text-indigo-600'}`}>
+                {percentage.toFixed(1)}%
+              </p>
             </div>
           )}
-          <button className="flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg text-sm text-gray-700 hover:bg-gray-50 transition-colors">
-            <Download size={16} />
-            Download
-          </button>
+          {!isAssignment && (
+            <button className="flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg text-sm text-gray-700 hover:bg-gray-50 transition-colors">
+              <Download size={16} />
+              Download
+            </button>
+          )}
         </div>
       </div>
 
@@ -244,22 +258,27 @@ const ExamCard = ({ exam }) => {
           )}
           <Stat label="Total Marks" value={exam.totalMarks ?? '-'} />
           <Stat label="Obtained" value={exam.obtainedMarks ?? '-'} />
-          <Stat label="Status" value={exam.status || 'Not available'} />
-          <Stat label="Result" value={exam.grade || (percentage ? `${percentage.toFixed(1)}%` : '-')} />
+          {!isAssignment && <Stat label="Status" value={exam.status || 'Not available'} />}
+          <Stat label="Grade" value={exam.grade || (percentage ? `${percentage.toFixed(1)}%` : '-')} />
         </div>
 
-        {/* Teacher's Remarks */}
         {exam.remarks && (
-          <div className="mb-4 p-4 bg-amber-50 border-l-4 border-amber-500 rounded-r-lg">
+          <div className={`mb-4 p-4 border-l-4 rounded-r-lg ${isAssignment ? 'bg-purple-50 border-purple-500' : 'bg-amber-50 border-amber-500'}`}>
             <div className="flex items-start gap-2">
               <div className="flex-shrink-0 mt-0.5">
-                <svg className="w-5 h-5 text-amber-600" fill="currentColor" viewBox="0 0 20 20">
-                  <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
-                </svg>
+                {isAssignment ? (
+                  <FileText className="w-5 h-5 text-purple-600" />
+                ) : (
+                  <svg className="w-5 h-5 text-amber-600" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                  </svg>
+                )}
               </div>
               <div className="flex-1">
-                <h4 className="text-sm font-semibold text-amber-900 mb-1">Teacher's Remarks</h4>
-                <p className="text-sm text-amber-800">{exam.remarks}</p>
+                <h4 className={`text-sm font-semibold mb-1 ${isAssignment ? 'text-purple-900' : 'text-amber-900'}`}>
+                  {isAssignment ? "Teacher's Feedback" : "Teacher's Remarks"}
+                </h4>
+                <p className={`text-sm ${isAssignment ? 'text-purple-800' : 'text-amber-800'}`}>{exam.remarks}</p>
               </div>
             </div>
           </div>
@@ -312,6 +331,20 @@ const gradeColor = (grade = '') => {
   if (grade.startsWith('B')) return 'bg-blue-100 text-blue-700';
   if (grade.startsWith('C')) return 'bg-yellow-100 text-yellow-700';
   return 'bg-gray-100 text-gray-700';
+};
+
+const getResultTimestamp = (result = {}) => {
+  const candidates = [result.date, result.updatedAt, result.createdAt];
+  for (const value of candidates) {
+    if (!value) continue;
+    const parsed = new Date(value).getTime();
+    if (!Number.isNaN(parsed)) return parsed;
+  }
+  return 0;
+};
+
+const sortResultsByDate = (items = []) => {
+  return [...items].sort((a, b) => getResultTimestamp(b) - getResultTimestamp(a));
 };
 
 const buildOverview = (items = []) => {

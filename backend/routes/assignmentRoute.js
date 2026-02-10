@@ -11,6 +11,20 @@ const Timetable = require('../models/Timetable');
 const Class = require('../models/Class');
 const Section = require('../models/Section');
 
+const escapeRegex = (value = '') => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+const buildCampusFilter = (campusId) => (
+    campusId
+        ? {
+            $or: [
+                { campusId },
+                { campusId: { $exists: false } },
+                { campusId: null }
+            ]
+        }
+        : {}
+);
+const normalizeSubmissionFormat = (value = 'text') => (value === 'pdf' ? 'pdf' : 'text');
+
 const resolveSchoolId = (req, res) => {
     const schoolId = req.schoolId || req.admin?.schoolId || null;
     if (!schoolId) {
@@ -103,26 +117,52 @@ router.get("/teacher/my-classes", authTeacher, async (req, res) => {
         })
         .populate('classId', 'name')
         .populate('sectionId', 'name')
+        .populate('entries.subjectId', 'name code')
         .lean();
 
         console.log('Found timetables:', timetables.length);
 
-        // Extract unique class-section combinations
-        const classSections = [];
-        const seen = new Set();
+        // Extract unique class-section combinations and assigned subjects
+        const teacherIdString = String(teacherId);
+        const classSectionsMap = new Map();
 
         timetables.forEach(timetable => {
-            const key = `${timetable.classId?._id}-${timetable.sectionId?._id}`;
-            if (!seen.has(key) && timetable.classId && timetable.sectionId) {
-                seen.add(key);
-                classSections.push({
+            if (!timetable.classId || !timetable.sectionId) return;
+            const key = `${timetable.classId._id}-${timetable.sectionId._id}`;
+            const existing = classSectionsMap.get(key);
+            const subjectMap = existing?.subjectMap || new Map();
+
+            (timetable.entries || []).forEach(entry => {
+                if (!entry?.teacherId || !entry?.subjectId) return;
+                if (String(entry.teacherId) !== teacherIdString) return;
+                const subjectId = String(entry.subjectId?._id);
+                const subjectName = entry.subjectId?.name;
+                if (!subjectId || !subjectName) return;
+                if (!subjectMap.has(subjectId)) {
+                    subjectMap.set(subjectId, { id: entry.subjectId._id, name: subjectName });
+                }
+            });
+
+            if (!existing) {
+                classSectionsMap.set(key, {
                     classId: timetable.classId._id,
                     className: timetable.classId.name,
                     sectionId: timetable.sectionId._id,
-                    sectionName: timetable.sectionId.name
+                    sectionName: timetable.sectionId.name,
+                    subjectMap
                 });
+            } else {
+                existing.subjectMap = subjectMap;
             }
         });
+
+        let classSections = Array.from(classSectionsMap.values()).map(item => ({
+            classId: item.classId,
+            className: item.className,
+            sectionId: item.sectionId,
+            sectionName: item.sectionName,
+            subjects: Array.from(item.subjectMap.values())
+        }));
 
         // If no timetables found, fallback to all classes in the school/campus
         if (classSections.length === 0) {
@@ -147,7 +187,8 @@ router.get("/teacher/my-classes", authTeacher, async (req, res) => {
                         classId: classDoc._id,
                         className: classDoc.name,
                         sectionId: section._id,
-                        sectionName: section.name
+                        sectionName: section.name,
+                        subjects: []
                     });
                 });
             }
@@ -165,7 +206,7 @@ router.get("/teacher/my-classes", authTeacher, async (req, res) => {
 router.post("/teacher/create", authTeacher, async (req, res) => {
   // #swagger.tags = ['Assignments']
     try {
-        const { title, description, subject, classId, sectionId, marks, dueDate, status, attachments } = req.body;
+        const { title, description, subject, classId, sectionId, marks, dueDate, status, attachments, submissionFormat } = req.body;
         const schoolId = req.schoolId || req.teacher?.schoolId || null;
         if (!schoolId) return res.status(400).json({ error: 'schoolId is required' });
 
@@ -191,10 +232,12 @@ router.post("/teacher/create", authTeacher, async (req, res) => {
             description: description || '',
             subject,
             class: classDoc.name || '',
+            section: sectionDoc.name || '',
             classId,
             sectionId,
             marks: marks || 100,
             attachments: attachments || [],
+            submissionFormat: normalizeSubmissionFormat(submissionFormat),
             status: status || 'draft',
             dueDate
         });
@@ -268,7 +311,7 @@ router.put("/teacher/update/:id", authTeacher, async (req, res) => {
             return res.status(404).json({ error: 'Assignment not found or unauthorized' });
         }
 
-        const { title, description, subject, marks, dueDate, status, attachments } = req.body;
+        const { title, description, subject, marks, dueDate, status, attachments, submissionFormat } = req.body;
 
         if (title) assignment.title = title;
         if (description !== undefined) assignment.description = description;
@@ -276,6 +319,7 @@ router.put("/teacher/update/:id", authTeacher, async (req, res) => {
         if (marks !== undefined) assignment.marks = marks;
         if (dueDate) assignment.dueDate = dueDate;
         if (status) assignment.status = status;
+        if (submissionFormat) assignment.submissionFormat = normalizeSubmissionFormat(submissionFormat);
         if (attachments !== undefined) assignment.attachments = attachments;
 
         await assignment.save();
@@ -365,58 +409,98 @@ router.get("/student/assignments", authStudent, async (req, res) => {
         if (!studentId) return res.status(400).json({ error: 'studentId is required' });
 
         // Get student details
-        const student = await StudentUser.findById(studentId);
+        const student = await StudentUser.findById(studentId)
+            .select('grade section campusId');
         if (!student) {
             return res.status(404).json({ error: 'Student not found' });
         }
 
-        // Find class by grade
-        const classDoc = await Class.findOne({
-            schoolId,
-            name: student.grade,
-            campusId: student.campusId
-        });
+        const campusId = req.campusId || student.campusId || null;
+        const gradeValue = String(student.grade || '').trim();
+        const sectionValue = String(student.section || '').trim();
 
-        if (!classDoc) {
-            return res.status(404).json({ error: 'Class not found' });
+        // Find class by grade if available
+        let classDoc = null;
+        if (gradeValue) {
+            const classQuery = {
+                schoolId,
+                name: gradeValue,
+                ...buildCampusFilter(campusId)
+            };
+            classDoc = await Class.findOne(classQuery);
+            if (!classDoc) {
+                classDoc = await Class.findOne({
+                    ...classQuery,
+                    name: { $regex: `^${escapeRegex(gradeValue)}$`, $options: 'i' }
+                });
+            }
         }
 
-        // Find section by name and classId
-        const sectionDoc = await Section.findOne({
-            schoolId,
-            classId: classDoc._id,
-            name: student.section
-        });
+        // Find section by name and classId if available
+        let sectionDoc = null;
+        if (sectionValue) {
+            const sectionQuery = {
+                schoolId,
+                name: sectionValue,
+                ...buildCampusFilter(campusId)
+            };
+            if (classDoc?._id) {
+                sectionQuery.classId = classDoc._id;
+            }
+            sectionDoc = await Section.findOne(sectionQuery);
+            if (!sectionDoc) {
+                sectionDoc = await Section.findOne({
+                    ...sectionQuery,
+                    name: { $regex: `^${escapeRegex(sectionValue)}$`, $options: 'i' }
+                });
+            }
+        }
 
-        if (!sectionDoc) {
-            return res.status(404).json({ error: 'Section not found' });
+        if (!classDoc && !gradeValue) {
+            return res.json([]);
         }
 
         // Get assignments for this class and section
         const filter = {
             schoolId,
-            classId: classDoc._id,
-            sectionId: sectionDoc._id,
             status: 'active'
         };
 
-        if (req.campusId) {
-            filter.$or = [
-                { campusId: req.campusId },
-                { campusId: { $exists: false } },
-                { campusId: null }
-            ];
+        Object.assign(filter, buildCampusFilter(campusId));
+
+        if (classDoc?._id) {
+            filter.classId = classDoc._id;
+        } else if (gradeValue) {
+            filter.class = new RegExp(`^${escapeRegex(gradeValue)}$`, 'i');
+        } else {
+            return res.json([]);
         }
 
         const assignments = await Assignment.find(filter)
             .populate('teacherId', 'name')
             .sort({ createdAt: -1 });
 
+        const normalizedSection = sectionValue.toLowerCase();
+        const sectionIdString = sectionDoc?._id ? String(sectionDoc._id) : null;
+        const scopedAssignments = assignments.filter((assignment) => {
+            if (sectionIdString && assignment.sectionId) {
+                return String(assignment.sectionId) === sectionIdString;
+            }
+            if (normalizedSection) {
+                if (assignment.section) {
+                    return assignment.section.trim().toLowerCase() === normalizedSection;
+                }
+                // If assignment has no section label (older data), keep it to avoid hiding work
+                return true;
+            }
+            return true;
+        });
+
         // Get student's submission status for each assignment
         const progress = await StudentProgress.findOne({ studentId, schoolId });
         const submissions = progress?.submissions || [];
 
-        const assignmentsWithStatus = assignments.map(assignment => {
+        const assignmentsWithStatus = scopedAssignments.map(assignment => {
             const submission = submissions.find(
                 sub => sub.assignmentId.toString() === assignment._id.toString()
             );
@@ -425,7 +509,8 @@ router.get("/student/assignments", authStudent, async (req, res) => {
                 submissionStatus: submission?.status || 'not_submitted',
                 submittedAt: submission?.submittedAt,
                 score: submission?.score,
-                feedback: submission?.feedback
+                feedback: submission?.feedback,
+                submissionFormat: assignment.submissionFormat || 'text'
             };
         });
 
@@ -447,6 +532,14 @@ router.post("/submit", authStudent, async (req, res) => {
 
         const assignment = await Assignment.findOne({ _id: assignmentId, schoolId }).lean();
         if (!assignment) return res.status(404).json({ error: 'Assignment not found' });
+
+        const requiredFormat = assignment.submissionFormat || 'text';
+        if (requiredFormat === 'text' && !submissionText?.trim()) {
+            return res.status(400).json({ error: 'This assignment requires a written response.' });
+        }
+        if (requiredFormat === 'pdf' && !attachmentUrl) {
+            return res.status(400).json({ error: 'This assignment requires a PDF upload.' });
+        }
 
         let progress = await StudentProgress.findOne({ studentId: req.user.id, schoolId });
         if (!progress) {
@@ -485,6 +578,79 @@ router.post("/submit", authStudent, async (req, res) => {
         res.status(201).json({ message: 'Assignment submitted', status });
     } catch (err) {
         res.status(400).json({ error: err.message });
+    }
+});
+
+// Teacher views submissions for THEIR assignments only (used by evaluation page)
+router.get("/teacher/submissions", authTeacher, async (req, res) => {
+  // #swagger.tags = ['Assignments']
+    try {
+        const schoolId = req.schoolId || req.teacher?.schoolId || null;
+        if (!schoolId) return res.status(400).json({ error: 'schoolId is required' });
+
+        const teacherId = req.teacher?.id || req.user?.id;
+        if (!teacherId) return res.status(400).json({ error: 'teacherId is required' });
+
+        // Find all assignments created by this teacher
+        const teacherAssignments = await Assignment.find({ schoolId, teacherId })
+            .populate('classId', 'name')
+            .populate('sectionId', 'name')
+            .lean();
+
+        if (!teacherAssignments.length) return res.json([]);
+
+        const assignmentIds = teacherAssignments.map(a => a._id);
+        const assignmentMap = {};
+        teacherAssignments.forEach(a => { assignmentMap[String(a._id)] = a; });
+
+        // Find all StudentProgress docs that have a submission for one of these assignments
+        const progressDocs = await StudentProgress.find({
+            schoolId,
+            'submissions.assignmentId': { $in: assignmentIds }
+        })
+        .populate('studentId', 'name grade section roll')
+        .lean();
+
+        // Flatten to one row per submission
+        const rows = [];
+        progressDocs.forEach(doc => {
+            (doc.submissions || []).forEach(sub => {
+                const aIdStr = String(sub.assignmentId);
+                const assignment = assignmentMap[aIdStr];
+                if (!assignment) return; // not this teacher's assignment
+                rows.push({
+                    submissionId: sub._id,
+                    studentId: doc.studentId?._id,
+                    studentName: doc.studentId?.name,
+                    grade: doc.studentId?.grade,
+                    section: doc.studentId?.section,
+                    assignmentId: assignment._id,
+                    assignmentTitle: assignment.title,
+                    subject: assignment.subject,
+                    totalMarks: assignment.marks,
+                    className: assignment.classId?.name || assignment.class,
+                    sectionName: assignment.sectionId?.name,
+                    submittedAt: sub.submittedAt,
+                    submissionText: sub.submissionText || '',
+                    attachmentUrl: sub.attachmentUrl || '',
+                    status: sub.status,          // submitted | graded | late
+                    score: sub.score ?? null,
+                    feedback: sub.feedback || '',
+                    dueDate: assignment.dueDate
+                });
+            });
+        });
+
+        // Sort: ungraded first, then by submission time
+        rows.sort((a, b) => {
+            if ((a.score === null) !== (b.score === null)) return a.score === null ? -1 : 1;
+            return new Date(b.submittedAt) - new Date(a.submittedAt);
+        });
+
+        res.json(rows);
+    } catch (err) {
+        console.error('Error in teacher/submissions:', err);
+        res.status(500).json({ error: err.message });
     }
 });
 
