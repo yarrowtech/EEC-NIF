@@ -6,6 +6,7 @@ const Class = require('../models/Class');
 const Timetable = require('../models/Timetable');
 const ExamResult = require('../models/ExamResult');
 const Exam = require('../models/Exam');
+const StudentJournalEntry = require('../models/StudentJournalEntry');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const adminAuth = require('../middleware/adminAuth');
@@ -62,6 +63,19 @@ const resolveAdmissionDate = (value) => {
     return undefined;
   }
   return parsed;
+};
+
+const normalizeTags = (tags) => {
+  if (!tags) return [];
+  if (Array.isArray(tags)) {
+    return tags
+      .map((tag) => String(tag || '').trim())
+      .filter(Boolean);
+  }
+  return String(tags)
+    .split(',')
+    .map((tag) => tag.trim())
+    .filter(Boolean);
 };
 const escapeRegex = (value) => String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 const padNumber = (value, size = 3) => String(value).padStart(size, '0');
@@ -560,6 +574,109 @@ router.get('/dashboard', authStudent, async (req, res) => {
     res.json(dashboardData);
   } catch (err) {
     console.error('Dashboard data error:', err);
+    res.status(400).json({ error: err.message });
+  }
+});
+
+// Student Journal - List entries
+router.get('/journal', authStudent, async (req, res) => {
+  // #swagger.tags = ['Student Journal']
+  try {
+    if (!req.schoolId) {
+      return res.status(400).json({ error: 'schoolId is required' });
+    }
+    const entries = await StudentJournalEntry.find({
+      studentId: req.user.id,
+      schoolId: req.schoolId,
+      campusId: req.campusId,
+    })
+      .sort({ updatedAt: -1 })
+      .lean();
+    res.json({ entries });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+// Student Journal - Create entry
+router.post('/journal', authStudent, async (req, res) => {
+  // #swagger.tags = ['Student Journal']
+  try {
+    if (!req.schoolId) {
+      return res.status(400).json({ error: 'schoolId is required' });
+    }
+    const { title, content, tags, mood } = req.body || {};
+    if (!String(title || '').trim() && !String(content || '').trim()) {
+      return res.status(400).json({ error: 'Title or content is required' });
+    }
+    const entry = await StudentJournalEntry.create({
+      studentId: req.user.id,
+      schoolId: req.schoolId,
+      campusId: req.campusId,
+      title: String(title || '').trim() || 'Untitled',
+      content: content || '',
+      tags: normalizeTags(tags),
+      mood: String(mood || 'Neutral'),
+    });
+    res.status(201).json({ entry });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+// Student Journal - Update entry
+router.put('/journal/:id', authStudent, async (req, res) => {
+  // #swagger.tags = ['Student Journal']
+  try {
+    if (!req.schoolId) {
+      return res.status(400).json({ error: 'schoolId is required' });
+    }
+    const { title, content, tags, mood } = req.body || {};
+    const entry = await StudentJournalEntry.findOneAndUpdate(
+      {
+        _id: req.params.id,
+        studentId: req.user.id,
+        schoolId: req.schoolId,
+        campusId: req.campusId,
+      },
+      {
+        $set: {
+          title: String(title || '').trim() || 'Untitled',
+          content: content || '',
+          tags: normalizeTags(tags),
+          mood: String(mood || 'Neutral'),
+          updatedAt: new Date(),
+        },
+      },
+      { new: true }
+    );
+    if (!entry) {
+      return res.status(404).json({ error: 'Entry not found' });
+    }
+    res.json({ entry });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+// Student Journal - Delete entry
+router.delete('/journal/:id', authStudent, async (req, res) => {
+  // #swagger.tags = ['Student Journal']
+  try {
+    if (!req.schoolId) {
+      return res.status(400).json({ error: 'schoolId is required' });
+    }
+    const entry = await StudentJournalEntry.findOneAndDelete({
+      _id: req.params.id,
+      studentId: req.user.id,
+      schoolId: req.schoolId,
+      campusId: req.campusId,
+    });
+    if (!entry) {
+      return res.status(404).json({ error: 'Entry not found' });
+    }
+    res.json({ message: 'Entry deleted' });
+  } catch (err) {
     res.status(400).json({ error: err.message });
   }
 });

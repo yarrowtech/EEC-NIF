@@ -38,6 +38,7 @@ import MyWorkPortal from './MyWorkPortal';
 import ClassRoutine from './ClassRoutine';
 import StudentObservation from './StudentObservation';
 import ClassNotes from './ClassNotes';
+import PracticeQuestions from './PracticeQuestions';
 
 const PORTAL_BASE = '/teacher';
 
@@ -53,6 +54,7 @@ const menuItems = [
   { icon: Eye, label: 'Student Observations', path: `${PORTAL_BASE}/student-observations` },
   { icon: Calendar, label: 'Parent Meetings', path: `${PORTAL_BASE}/parent-meetings` },
   { icon: FileText, label: 'Assignment Management', path: `${PORTAL_BASE}/assignments` },
+  { icon: FileText, label: 'Practice Questions', path: `${PORTAL_BASE}/practice-questions` },
   { icon: ClipboardCheck, label: 'Assignment Evaluation', path: `${PORTAL_BASE}/evaluation` },
   { icon: MessageSquare, label: 'Chat', path: `${PORTAL_BASE}/chat` },
   { icon: BookOpen, label: 'Lesson Plans', path: `${PORTAL_BASE}/lesson-plans` },
@@ -200,6 +202,7 @@ const TeacherPortal = () => {
             <Route path="student-observations" element={<StudentObservation />} />
             <Route path="parent-meetings" element={<ParentMeetings />} />
             <Route path="assignments" element={<AssignmentManagement />} />
+            <Route path="practice-questions" element={<PracticeQuestions />} />
             <Route path="evaluation" element={<AssignmentEvaluation />} />
             <Route path="chat" element={<TeacherChat />} />
             <Route path="lesson-plans" element={<LessonPlanDashboard />} />

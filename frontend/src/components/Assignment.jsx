@@ -22,7 +22,8 @@ const Assignment = ({ assignmentType, filter, setFilter }) => {
   const [assignments, setAssignments] = useState([]);
   const [loading, setLoading] = useState(false);
 
-  const API_BASE_URL = 'http://localhost:5000/api';
+  const API_BASE = (import.meta.env.VITE_API_URL || 'http://localhost:5000').replace(/\/$/, '');
+  const API_BASE_URL = `${API_BASE}/api`;
 
   // Flashcard state
   const [flashDeck, setFlashDeck] = useState([]);
@@ -31,12 +32,17 @@ const Assignment = ({ assignmentType, filter, setFilter }) => {
   const [flashKnown, setFlashKnown] = useState({});
   const [flashShuffle, setFlashShuffle] = useState(false);
 
-  // EEC state
+  // EEC / Practice state
   const [selectedClass, setSelectedClass] = useState("6");
-  const [eecSubject, setEecSubject] = useState("math");
-  const [questionType, setQuestionType] = useState("mcq");
-  const [eecAnswers, setEecAnswers] = useState({});
-  const [eecFeedback, setEecFeedback] = useState(null);
+  const [practiceMeta, setPracticeMeta] = useState(null);
+  const [practiceSubjectId, setPracticeSubjectId] = useState("");
+  const [practiceType, setPracticeType] = useState("mcq");
+  const [practiceQuestions, setPracticeQuestions] = useState([]);
+  const [practiceAnswers, setPracticeAnswers] = useState({});
+  const [practiceResults, setPracticeResults] = useState(null);
+  const [practiceLoading, setPracticeLoading] = useState(false);
+  const [practiceSubmitting, setPracticeSubmitting] = useState(false);
+  const [practiceError, setPracticeError] = useState("");
   const [showAnswers, setShowAnswers] = useState(false);
 
   // Lab state
@@ -90,47 +96,6 @@ const Assignment = ({ assignmentType, filter, setFilter }) => {
       console.error('Error fetching assignments:', err);
     } finally {
       setLoading(false);
-    }
-  };
-
-  const questionData = {
-    '6': {
-      'math': {
-        'mcq': [
-          { q: 'What is 7+5?', o: ['10', '11', '12', '13'], a: '12', e: 'Simple addition' },
-          { q: 'What is 8*6?', o: ['42', '48', '54', '56'], a: '48', e: 'Multiplication' }
-        ],
-        'blank': [
-          { q: 'Fill in the blank: 9 - 4 = ___', a: '5', e: 'Simple subtraction' }
-        ]
-      },
-      'science': {
-        'mcq': [
-          { q: 'What planet is closest to the Sun?', o: ['Venus', 'Mercury', 'Earth', 'Mars'], a: 'Mercury', e: 'Mercury is the closest planet to the Sun' }
-        ],
-        'blank': [
-          { q: 'The process by which plants make food is called ___', a: 'photosynthesis', e: 'Plants use sunlight to make food' }
-        ]
-      }
-    },
-    '7': {
-      'math': {
-        'mcq': [
-          { q: 'What is 12*7?', o: ['82', '84', '86', '88'], a: '84', e: 'Multiplication' },
-          { q: 'What is 15/3?', o: ['3', '4', '5', '6'], a: '5', e: 'Division' }
-        ],
-        'blank': [
-          { q: 'Fill in the blank: 16 + 9 = ___', a: '25', e: 'Simple addition' }
-        ]
-      },
-      'science': {
-        'mcq': [
-          { q: 'What is the chemical symbol for gold?', o: ['Go', 'Gd', 'Au', 'Ag'], a: 'Au', e: 'Gold has the chemical symbol Au' }
-        ],
-        'blank': [
-          { q: 'The largest organ in the human body is the ___', a: 'skin', e: 'Skin is the largest organ' }
-        ]
-      }
     }
   };
 
@@ -302,33 +267,59 @@ const Assignment = ({ assignmentType, filter, setFilter }) => {
     };
   }, [assignmentType, labControls]);
 
-  // EEC handlers
-  const handleEecInput = (index, value) => {
-    setEecAnswers(prev => ({ ...prev, [index]: value }));
+  // Practice handlers
+  const handlePracticeAnswer = (questionId, value) => {
+    setPracticeAnswers((prev) => ({ ...prev, [questionId]: value }));
   };
 
-  const handleEecSubmit = () => {
-    const currentQuestions = questionData[selectedClass]?.[eecSubject]?.[questionType] || [];
-    let correct = 0;
-    const feedback = {};
+  const handlePracticeSubmit = async () => {
+    if (!practiceQuestions.length) return;
+    const token = localStorage.getItem('token');
+    if (!token) {
+      setPracticeError('Login required');
+      return;
+    }
+    setPracticeSubmitting(true);
+    setPracticeError('');
+    try {
+      const payload = {
+        answers: practiceQuestions.map((q) => ({
+          questionId: q.id,
+          answer: practiceAnswers[q.id] || '',
+        })),
+      };
+      const res = await fetch(`${API_BASE}/api/practice/student/submit`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        throw new Error(d?.error || 'Unable to submit answers');
+      }
+      const data = await res.json();
+      const resultMap = {};
+      (data?.results || []).forEach((r) => {
+        resultMap[String(r.questionId)] = r;
+      });
+      setPracticeResults(resultMap);
+      setShowAnswers(true);
 
-    currentQuestions.forEach((q, idx) => {
-      const userAnswer = eecAnswers[idx] || '';
-      const isCorrect = userAnswer.toLowerCase().trim() === q.a.toLowerCase().trim();
-      feedback[idx] = isCorrect;
-      if (isCorrect) correct++;
-    });
-
-    setEecFeedback(feedback);
-    
-    const score = Math.round((correct / currentQuestions.length) * 100);
-    if (score >= 70) {
-      addPoints(10);
-      const el = document.createElement('div');
-      el.className = 'fixed top-20 right-6 bg-emerald-600 text-white px-3 py-2 rounded-lg shadow-lg flex items-center gap-2 animate-bounce z-50';
-      el.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="21" r="1"></circle><circle cx="19" cy="21" r="1"></circle><path d="M2.05 10.05a7 7 0 0 1 9.9 0l10 10"></path><path d="M13 13h8"></path></svg><span>+10 Points</span>';
-      document.body.appendChild(el);
-      setTimeout(() => document.body.removeChild(el), 1800);
+      const total = data?.total || 0;
+      const correct = data?.correct || 0;
+      const score = total > 0 ? Math.round((correct / total) * 100) : 0;
+      if (score >= 70) {
+        const awardKey = `practice_${practiceSubjectId}_${practiceType}`;
+        if (!hasAward(awardKey)) {
+          addPoints(10);
+          markAwarded(awardKey);
+        }
+      }
+    } catch (err) {
+      console.error('Practice submit error:', err);
+      setPracticeError(err.message || 'Failed to submit answers');
+    } finally {
+      setPracticeSubmitting(false);
     }
   };
 
@@ -345,91 +336,203 @@ const Assignment = ({ assignmentType, filter, setFilter }) => {
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [flashFlipped, assignmentType]);
 
-  // MCQ and Blank components
-  const MCQ = ({ array = [], insight, setInsight }) => {
-    const [answers, setAnswers] = useState({});
-    const [showResults, setShowResults] = useState(false);
+  const loadPracticeMeta = async () => {
+    const token = localStorage.getItem('token');
+    if (!token) {
+      setPracticeError('Login required');
+      return;
+    }
+    setPracticeLoading(true);
+    setPracticeError('');
+    try {
+      const res = await fetch(`${API_BASE}/api/practice/student/meta`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        throw new Error(d?.error || 'Unable to load practice metadata');
+      }
+      const data = await res.json();
+      const subjects = Array.isArray(data?.subjects) ? data.subjects : [];
+      setPracticeMeta({
+        classId: data?.class?.id || null,
+        className: data?.class?.name || '',
+        sectionId: data?.section?.id || null,
+        sectionName: data?.section?.name || '',
+        subjects,
+      });
+      const firstSubjectId = subjects[0]?.id || '';
+      setPracticeSubjectId(firstSubjectId);
+    } catch (err) {
+      console.error('Practice meta error:', err);
+      setPracticeError(err.message || 'Failed to load practice metadata');
+    } finally {
+      setPracticeLoading(false);
+    }
+  };
 
+  const loadPracticeQuestions = async (subjectId, type) => {
+    if (!subjectId) {
+      setPracticeQuestions([]);
+      return;
+    }
+    const token = localStorage.getItem('token');
+    if (!token) {
+      setPracticeError('Login required');
+      return;
+    }
+    setPracticeLoading(true);
+    setPracticeError('');
+    try {
+      const params = new URLSearchParams({ subjectId, type });
+      const res = await fetch(`${API_BASE}/api/practice/student/questions?${params.toString()}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        throw new Error(d?.error || 'Unable to load practice questions');
+      }
+      const data = await res.json();
+      setPracticeQuestions(Array.isArray(data?.questions) ? data.questions : []);
+      setPracticeAnswers({});
+      setPracticeResults(null);
+      setShowAnswers(false);
+    } catch (err) {
+      console.error('Practice load error:', err);
+      setPracticeError(err.message || 'Failed to load practice questions');
+    } finally {
+      setPracticeLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (assignmentType !== 'eec') return;
+    loadPracticeMeta();
+  }, [assignmentType]);
+
+  useEffect(() => {
+    if (assignmentType !== 'eec') return;
+    if (!practiceSubjectId) return;
+    loadPracticeQuestions(practiceSubjectId, practiceType);
+  }, [assignmentType, practiceSubjectId, practiceType]);
+
+  // MCQ and Blank components
+  const MCQ = ({ questions = [] }) => {
     return (
       <div className="space-y-6">
-        {array.map((q, idx) => (
-          <div key={idx} className="mb-5">
-            <div className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
+        {questions.map((q, idx) => {
+          const answer = practiceAnswers[q.id] || '';
+          const result = practiceResults?.[String(q.id)] || null;
+          return (
+          <div key={q.id || idx} className="mb-5">
+            <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+              <div className="flex items-center justify-between border-b border-slate-100 bg-slate-50 px-4 py-3 sm:px-6">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-8 w-8 items-center justify-center rounded-full bg-indigo-100 text-indigo-700 text-xs font-bold">
+                    {idx + 1}
+                  </div>
+                  <p className="text-sm font-semibold text-slate-800">Question {idx + 1}</p>
+                </div>
+                {result && (
+                  <span className={`rounded-full px-3 py-1 text-xs font-semibold ${result.isCorrect ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'}`}>
+                    {result.isCorrect ? 'Correct' : 'Incorrect'}
+                  </span>
+                )}
+              </div>
               <div className="p-4 sm:p-6">
-                <div className="flex items-start gap-3">
-                  <div className="shrink-0 w-7 h-7 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center text-sm font-semibold">{idx + 1}</div>
-                  <div className="flex-1">
-                    <div className="text-gray-900 font-medium">{q.q}</div>
-                    <div className="mt-4 space-y-2">
-                      {q.o.map((option, oidx) => (
-                        <label key={oidx} className="flex items-center gap-3 p-2 rounded-lg hover:bg-gray-50 cursor-pointer">
-                          <input
-                            type="radio"
-                            name={`q${idx}`}
-                            value={option}
-                            checked={answers[idx] === option}
-                            onChange={e => setAnswers(prev => ({ ...prev, [idx]: e.target.value }))}
-                            className="text-blue-600 focus:ring-blue-500"
-                          />
-                          <span className="text-gray-700">{option}</span>
-                        </label>
-                      ))}
+                <div className="text-slate-900 font-medium">{q.question}</div>
+                <div className="mt-4 grid gap-2 sm:grid-cols-2">
+                  {(q.options || []).map((option, oidx) => {
+                    const selected = answer === option;
+                    const isCorrect = result?.correctAnswer === option;
+                    const showState = showAnswers && result;
+                    const borderColor = showState
+                      ? isCorrect
+                        ? 'border-emerald-400 bg-emerald-50'
+                        : selected
+                        ? 'border-rose-300 bg-rose-50'
+                        : 'border-slate-200'
+                      : selected
+                      ? 'border-indigo-400 bg-indigo-50'
+                      : 'border-slate-200 hover:border-indigo-200 hover:bg-slate-50';
+                    return (
+                      <label
+                        key={oidx}
+                        className={`flex cursor-pointer items-center gap-3 rounded-xl border px-3 py-2 text-sm transition ${borderColor}`}
+                      >
+                        <input
+                          type="radio"
+                          name={`q${idx}`}
+                          value={option}
+                          checked={selected}
+                          onChange={(e) => handlePracticeAnswer(q.id, e.target.value)}
+                          className="text-indigo-600 focus:ring-indigo-500"
+                        />
+                        <span className="text-slate-700">{option}</span>
+                      </label>
+                    );
+                  })}
+                </div>
+                {showAnswers && result && (
+                  <div className={`mt-4 rounded-xl border px-4 py-3 text-sm ${result.isCorrect ? 'border-emerald-200 bg-emerald-50' : 'border-rose-200 bg-rose-50'}`}>
+                    <div className={result.isCorrect ? 'text-emerald-800' : 'text-rose-700'}>
+                      <span className="font-semibold">Your answer:</span> {answer || '-'} {result.isCorrect ? '✓' : '✗'}
                     </div>
-                    {showResults && answers[idx] && (
-                      <div className={`mt-3 rounded-lg border p-3 text-sm ${answers[idx] === q.a ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'}`}>
-                        <div className={answers[idx] === q.a ? 'text-green-800' : 'text-red-800'}>
-                          <span className="font-semibold">Your answer:</span> {answers[idx]} {answers[idx] === q.a ? '✓' : '✗'}
-                        </div>
-                        {answers[idx] !== q.a && (
-                          <div className="text-green-800 mt-1">
-                            <span className="font-semibold">Correct answer:</span> {q.a}
-                          </div>
-                        )}
-                        {q.e && <div className="text-gray-700 mt-1"><span className="font-semibold">Explanation:</span> {q.e}</div>}
+                    {!result.isCorrect && (
+                      <div className="mt-1 text-emerald-700">
+                        <span className="font-semibold">Correct answer:</span> {result.correctAnswer}
+                      </div>
+                    )}
+                    {result.explanation && (
+                      <div className="mt-2 text-slate-700">
+                        <span className="font-semibold">Explanation:</span> {result.explanation}
                       </div>
                     )}
                   </div>
-                </div>
+                )}
               </div>
             </div>
           </div>
-        ))}
-        <div className="flex gap-3">
-          <button
-            className="px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700"
-            onClick={() => setShowResults(!showResults)}
-          >
-            {showResults ? 'Hide Results' : 'Check Answers'}
-          </button>
-        </div>
+        );
+        })}
       </div>
     );
   };
 
-  const Blank = ({ array = [], insight, setInsight }) => {
+  const Blank = ({ questions = [] }) => {
     return (
       <div className="space-y-6">
-        {array.map((q, idx) => (
-          <div key={idx} className="mb-5">
+        {questions.map((q, idx) => {
+          const answer = practiceAnswers[q.id] || '';
+          const result = practiceResults?.[String(q.id)] || null;
+          return (
+          <div key={q.id || idx} className="mb-5">
             <div className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
               <div className="p-4 sm:p-6">
                 <div className="flex items-start gap-3">
                   <div className="shrink-0 w-7 h-7 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center text-sm font-semibold">{idx + 1}</div>
                   <div className="flex-1">
-                    <div className="text-gray-900 font-medium">{q.q}</div>
+                    <div className="text-gray-900 font-medium">{q.question}</div>
                     <div className="mt-3">
                       <input
                         type="text"
                         className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                         placeholder="Type your answer here..."
-                        value={eecAnswers[idx] || ''}
-                        onChange={e => handleEecInput(idx, e.target.value)}
+                        value={answer}
+                        onChange={(e) => handlePracticeAnswer(q.id, e.target.value)}
                       />
                     </div>
-                    {showAnswers && (
-                      <div className="mt-3 rounded-lg bg-green-50 border border-green-200 p-3 text-sm">
-                        <div className="text-green-800"><span className="font-semibold">Answer:</span> {q.a}</div>
-                        {q.e && <div className="text-green-700 mt-1"><span className="font-semibold">Explanation:</span> {q.e}</div>}
+                    {showAnswers && result && (
+                      <div className={`mt-3 rounded-lg border p-3 text-sm ${result.isCorrect ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'}`}>
+                        <div className={result.isCorrect ? 'text-green-800' : 'text-red-800'}>
+                          <span className="font-semibold">Your answer:</span> {answer || '-'} {result.isCorrect ? '✓' : '✗'}
+                        </div>
+                        {!result.isCorrect && (
+                          <div className="text-green-800 mt-1">
+                            <span className="font-semibold">Correct answer:</span> {result.correctAnswer}
+                          </div>
+                        )}
+                        {result.explanation && <div className="text-gray-700 mt-1"><span className="font-semibold">Explanation:</span> {result.explanation}</div>}
                       </div>
                     )}
                   </div>
@@ -437,7 +540,8 @@ const Assignment = ({ assignmentType, filter, setFilter }) => {
               </div>
             </div>
           </div>
-        ))}
+        );
+        })}
       </div>
     );
   };
@@ -663,61 +767,96 @@ const Assignment = ({ assignmentType, filter, setFilter }) => {
 
   if (assignmentType === 'eec') {
     return (
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden relative">
-        {/* Header */}
-        <div className="p-6 sm:p-7 bg-gradient-to-r from-blue-50 to-indigo-50 border-b border-gray-200">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div className="relative overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+        {/* Hero Header */}
+        <div className="relative overflow-hidden border-b border-slate-200 bg-gradient-to-r from-sky-50 via-indigo-50 to-violet-50 p-6 sm:p-8">
+          <div className="absolute inset-0 opacity-30" style={{ backgroundImage: 'radial-gradient(circle at 20% 20%, #93c5fd 0, transparent 40%), radial-gradient(circle at 80% 30%, #a5b4fc 0, transparent 40%)' }} />
+          <div className="relative flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
             <div>
-              <h2 className="text-2xl sm:text-3xl font-bold text-gray-900">EEC Practice Paper</h2>
-              <p className="text-gray-600 mt-1">Challenge yourself with curated questions</p>
+              <h2 className="text-2xl sm:text-3xl font-bold text-slate-900">EEC Practice Paper</h2>
+              <p className="mt-1 text-sm text-slate-600">Challenge yourself with curated questions</p>
             </div>
-            <div className="flex items-center gap-3">
-              <select
-                value={selectedClass}
-                onChange={e => setSelectedClass(e.target.value)}
-                className="border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
-              >
-                <option value="6">Class 6</option>
-                <option value="7">Class 7</option>
-              </select>
-              <select
-                value={eecSubject}
-                onChange={e => setEecSubject(e.target.value)}
-                className="border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
-              >
-                <option value="math">Math</option>
-              </select>
-              <select
-                value={questionType}
-                onChange={e => setQuestionType(e.target.value)}
-                className="border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
-              >
-                <option value="mcq">Multiple Choice</option>
-                <option value="blank">Fill in the Blank</option>
-              </select>
+            <div className="flex flex-wrap items-center gap-3">
+              <div className="rounded-full border border-slate-200 bg-white/80 px-3 py-1.5 text-xs font-semibold text-slate-700">
+                Class: {practiceMeta ? `${practiceMeta.className}${practiceMeta.sectionName ? ` - ${practiceMeta.sectionName}` : ''}` : 'Loading...'}
+              </div>
+              <div className="flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 shadow-sm">
+                <span className="text-[10px] uppercase tracking-wide text-slate-400">Subject</span>
+                <select
+                  value={practiceSubjectId}
+                  onChange={(e) => setPracticeSubjectId(e.target.value)}
+                  className="bg-transparent text-xs font-semibold text-slate-700 focus:outline-none"
+                >
+                  {(practiceMeta?.subjects || []).map((subject) => (
+                    <option key={subject.id} value={subject.id}>
+                      {subject.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 shadow-sm">
+                <span className="text-[10px] uppercase tracking-wide text-slate-400">Type</span>
+                <select
+                  value={practiceType}
+                  onChange={(e) => setPracticeType(e.target.value)}
+                  className="bg-transparent text-xs font-semibold text-slate-700 focus:outline-none"
+                >
+                  <option value="mcq">Multiple Choice</option>
+                  <option value="blank">Fill in the Blank</option>
+                </select>
+              </div>
             </div>
+          </div>
+        </div>
+
+        {/* Summary Bar */}
+        <div className="flex flex-wrap items-center gap-3 border-b border-slate-200 bg-white px-6 py-4 text-sm text-slate-600">
+          <div className="rounded-lg bg-slate-50 px-3 py-1.5 text-xs font-medium text-slate-700">
+            Questions: {practiceQuestions.length}
+          </div>
+          {practiceResults && (
+            <div className="rounded-lg bg-emerald-50 px-3 py-1.5 text-xs font-medium text-emerald-700">
+              Score: {Object.values(practiceResults).filter((r) => r.isCorrect).length}/{practiceQuestions.length}
+            </div>
+          )}
+          <div className="ml-auto text-xs text-slate-500">
+            Tip: Read carefully before selecting an answer.
           </div>
         </div>
 
         {/* Content */}
         <div className="p-6 sm:p-7">
-          {questionType === "mcq" 
-            ? <MCQ array={questionData[selectedClass][eecSubject]?.mcq} />
-            : <Blank array={questionData[selectedClass][eecSubject]?.blank} />
-          }
+          {practiceError && (
+            <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+              {practiceError}
+            </div>
+          )}
+          {practiceLoading && (
+            <div className="text-sm text-slate-500">Loading questions...</div>
+          )}
+          {!practiceLoading && practiceQuestions.length === 0 && (
+            <div className="text-sm text-slate-500">No questions available for this subject.</div>
+          )}
+          {!practiceLoading && practiceQuestions.length > 0 && (
+            practiceType === "mcq" 
+              ? <MCQ questions={practiceQuestions} />
+              : <Blank questions={practiceQuestions} />
+          )}
         </div>
 
         {/* Footer */}
-        <div className="p-6 sm:p-7 bg-gray-50 border-t border-gray-200 flex flex-wrap gap-3">
+        <div className="flex flex-wrap items-center gap-3 border-t border-slate-200 bg-slate-50 px-6 py-4">
           <button
-            className="px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700"
-            onClick={handleEecSubmit}
+            className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-60"
+            onClick={handlePracticeSubmit}
+            disabled={practiceSubmitting || practiceQuestions.length === 0}
           >
-            Submit Answers
+            {practiceSubmitting ? 'Submitting...' : 'Submit Answers'}
           </button>
           <button
-            className={`px-4 py-2 rounded-lg border ${showAnswers ? 'border-green-600 text-green-700 hover:bg-green-50' : 'border-gray-300 text-gray-700 hover:bg-gray-50'}`}
-            onClick={() => { setEecFeedback(null); setShowAnswers(!showAnswers); }}
+            className={`rounded-lg border px-4 py-2 text-sm font-medium ${showAnswers ? 'border-emerald-300 text-emerald-700 hover:bg-emerald-50' : 'border-slate-300 text-slate-700 hover:bg-slate-100'}`}
+            onClick={() => setShowAnswers(!showAnswers)}
+            disabled={!practiceResults}
           >
             {showAnswers ? 'Hide Explanations' : 'Show Explanations'}
           </button>

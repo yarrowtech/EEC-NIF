@@ -1,121 +1,178 @@
-import React, { useEffect, useState, useRef } from "react";
+import React, { useEffect, useState, useRef, useCallback } from "react";
 import {
   Plus,
-  Edit,
   Trash2,
-  Tag,
-  Smile,
-  Coins,
-  Search as SearchIcon,
-  Clock,
-  CheckCircle,
-  AlertCircle,
-  FileText,
-  Book,
-  Calendar,
-  Download
+  BookOpen,
+  FlaskConical,
+  Layers,
+  PenLine,
+  GraduationCap,
+  Gamepad2,
+  ChevronRight,
+  ChevronLeft,
+  X,
+  Sparkles,
 } from "lucide-react";
-import PointsBadge from './PointsBadge';
-import QuillEditor from '../utils/quill';
-import { addPoints, hasAward, markAwarded, getPoints } from '../utils/points';
-import Assignment from './Assignment';
-import Tryout from './Tryout';
+import PointsBadge from "./PointsBadge";
+import Assignment from "./Assignment";
+import Tryout from "./Tryout";
 
-const QUESTION_DATA = {
-  '9': {
-    math: {
-      mcq: [
-        { q: 'What is 2+2?', o: ['3', '4', '5', '6'], a: '4', e: 'Simple addition' },
-        { q: 'What is 5*3?', o: ['10', '15', '20', '25'], a: '15', e: 'Multiplication' }
-      ],
-      blank: [
-        { q: 'Fill in the blank: 2 + 2 = ___', a: '4', e: 'Simple addition' }
-      ]
-    },
-    science: {
-      mcq: [
-        { q: 'What is H2O?', o: ['Water', 'Hydrogen', 'Oxygen', 'Salt'], a: 'Water', e: 'Chemical formula for water' }
-      ],
-      blank: [
-        { q: 'H2O is the chemical formula for ___', a: 'water', e: 'Chemical formula' }
-      ]
-    }
-  }
-};
+/* ═══════════════ TOUR STEPS CONFIG ═══════════════ */
+const TOUR_STEPS = [
+  {
+    target: "tour-welcome",
+    title: "Welcome to Your Learning Journal!",
+    description: "This is your personal space to record what you learn every day. Let\u2019s take a quick tour to get you started.",
+    emoji: "\u{1F4D6}",
+    position: "center",
+  },
+  {
+    target: "tour-timeline",
+    title: "Your Timeline",
+    description: "All your journal entries appear here, organized by day. You can scroll through your past entries and click any one to revisit it.",
+    emoji: "\u{1F4C5}",
+    position: "right",
+  },
+  {
+    target: "tour-new-entry",
+    title: "Start a New Day",
+    description: "Click \u201CAdd New Day\u201D to begin writing a fresh journal entry. Each entry represents one day of your learning journey.",
+    emoji: "\u2795",
+    position: "right",
+  },
+  {
+    target: "tour-title",
+    title: "Give It a Title",
+    description: "Write a short title for today\u2019s entry \u2014 something like \u201CDiscovered photosynthesis\u201D or \u201CMath breakthrough!\u201D",
+    emoji: "\u270F\uFE0F",
+    position: "left",
+  },
+  {
+    target: "tour-content",
+    title: "Write Your Notes",
+    description: "This is the main writing area with lined paper. Describe what you learned, questions you have, or anything interesting from your day.",
+    emoji: "\u{1F4DD}",
+    position: "left",
+  },
+  {
+    target: "tour-mood-tags",
+    title: "Track Your Mood & Tags",
+    description: "Add tags to organize entries (like \u201Cscience\u201D, \u201Cmath\u201D) and pick an emoji that matches how you felt today.",
+    emoji: "\u{1F3F7}\uFE0F",
+    position: "top",
+  },
+  {
+    target: "tour-save",
+    title: "Auto-Save & Manual Save",
+    description: "Your journal auto-saves as you type! You can also click \u201CSave Entry\u201D anytime. Look for the status indicator next to the button.",
+    emoji: "\u{1F4BE}",
+    position: "top",
+  },
+  {
+    target: "tour-done",
+    title: "You\u2019re All Set!",
+    description: "Start writing your first entry now. The more you journal, the better you\u2019ll understand your learning journey. Happy writing!",
+    emoji: "\u{1F389}",
+    position: "center",
+  },
+];
+
+const TOUR_STORAGE_KEY = "journal_tour_completed";
 
 const AssignmentView = ({ defaultType = "school" }) => {
-  const [filter, setFilter] = useState("all"); // all, pending, completed, overdue
-  const [assignmentType, setAssignmentType] = useState(defaultType); // 'school' | 'eec' | 'journal' | ...
+  const API_BASE = (import.meta.env.VITE_API_URL || "http://localhost:5000").replace(/\/$/, "");
+  const [filter, setFilter] = useState("all");
+  const [assignmentType, setAssignmentType] = useState(defaultType);
 
   // Journal state
   const [journalTitle, setJournalTitle] = useState("");
   const [journalContent, setJournalContent] = useState("");
-  const [journalTags, setJournalTags] = useState(""); // comma-separated
+  const [journalTags, setJournalTags] = useState("");
   const [journalMood, setJournalMood] = useState("Neutral");
   const [journalEntries, setJournalEntries] = useState([]);
   const [selectedEntryId, setSelectedEntryId] = useState(null);
-  const [entrySearch, setEntrySearch] = useState("");
   const [autosaveLabel, setAutosaveLabel] = useState("Saved");
+  const [journalLoading, setJournalLoading] = useState(false);
+  const skipAutosaveRef = useRef(false);
 
-  // EEC and FlashCard state
-  const [selectedClass, setSelectedClass] = useState('9');
-  const [eecSubject, setEecSubject] = useState('math');
-  const [questionType, setQuestionType] = useState('mcq');
-  const [insight, setInsight] = useState({});
-  const [flashDeck, setFlashDeck] = useState([]);
-  const [flashIndex, setFlashIndex] = useState(0);
-  const [flashKnown, setFlashKnown] = useState({});
-  const [flashFlipped, setFlashFlipped] = useState(false);
-  const [flashShuffle, setFlashShuffle] = useState(false);
-
-  // School assignments state
-  const [schoolSearch, setSchoolSearch] = useState("");
-  const [schoolSort, setSchoolSort] = useState("due_asc");
-  const [assignments, setAssignments] = useState([]);
-
-  // Tryout state
-  const [tryoutType, setTryoutType] = useState('names');
-  const [tryoutDifficulty, setTryoutDifficulty] = useState('easy');
-
-  // Lab state
-  const [labControls, setLabControls] = useState({
-    rotation: 0,
-    zoom: 1,
-    animationSpeed: 1,
-    isAnimating: false
+  // Tour state
+  const [tourStep, setTourStep] = useState(-1); // -1 = not showing
+  const [tourDismissed, setTourDismissed] = useState(() => {
+    try { return localStorage.getItem(TOUR_STORAGE_KEY) === "true"; } catch { return false; }
   });
-  const labContainerRef = useRef(null);
-  const labCameraRef = useRef(null);
-  const labInitialCamPosRef = useRef(null);
-  const labModelRef = useRef(null);
 
-  // Tryout difficulty options
-  const tryoutDifficultyOptions = [
-    { value: 'easy', label: 'Easy', className: 'border-green-300 text-green-700', activeClass: 'bg-green-50 ring-green-500' },
-    { value: 'medium', label: 'Medium', className: 'border-yellow-300 text-yellow-700', activeClass: 'bg-yellow-50 ring-yellow-500' },
-    { value: 'hard', label: 'Hard', className: 'border-red-300 text-red-700', activeClass: 'bg-red-50 ring-red-500' }
-  ];
-  const baseDifficultyButtonClasses = 'px-4 py-2 rounded-lg border text-sm font-medium transition-colors';
+  useEffect(() => { setAssignmentType(defaultType); }, [defaultType]);
 
-
-
-
-  // Keep local type in sync if parent changes default
   useEffect(() => {
-    setAssignmentType(defaultType);
-  }, [defaultType]);
+    if (assignmentType !== "journal") return;
+    loadJournalEntries();
+  }, [assignmentType]);
 
-  // Load persisted journal entries
+  // Auto-start tour when journal loads and not previously dismissed
   useEffect(() => {
-    try {
-      const saved = JSON.parse(localStorage.getItem('journalEntries') || '[]');
-      if (Array.isArray(saved)) setJournalEntries(saved);
-    } catch (_) {}
+    if (assignmentType === "journal" && !tourDismissed && tourStep === -1) {
+      const timer = setTimeout(() => setTourStep(0), 600);
+      return () => clearTimeout(timer);
+    }
+  }, [assignmentType, tourDismissed]);
+
+  /* ─── Tour helpers ─── */
+  const tourNext = useCallback(() => {
+    setTourStep((s) => (s < TOUR_STEPS.length - 1 ? s + 1 : s));
   }, []);
 
-  const persistJournal = (next) => {
-    setJournalEntries(next);
-    try { localStorage.setItem('journalEntries', JSON.stringify(next)); } catch (_) {}
+  const tourPrev = useCallback(() => {
+    setTourStep((s) => (s > 0 ? s - 1 : s));
+  }, []);
+
+  const tourFinish = useCallback(() => {
+    setTourStep(-1);
+    setTourDismissed(true);
+    try { localStorage.setItem(TOUR_STORAGE_KEY, "true"); } catch {}
+  }, []);
+
+  const tourSkip = tourFinish;
+
+  const restartTour = useCallback(() => {
+    setTourDismissed(false);
+    setTourStep(0);
+    try { localStorage.removeItem(TOUR_STORAGE_KEY); } catch {}
+  }, []);
+
+  /* ─── Auth ─── */
+  const getAuthHeaders = () => {
+    const token = localStorage.getItem("token");
+    if (!token) return null;
+    return { Authorization: `Bearer ${token}`, "Content-Type": "application/json" };
+  };
+
+  /* ─── Journal helpers ─── */
+  const normalizeEntry = (entry) => ({
+    id: entry?._id || entry?.id,
+    title: entry?.title || "",
+    content: entry?.content || "",
+    tags: Array.isArray(entry?.tags) ? entry.tags : [],
+    mood: entry?.mood || "Neutral",
+    createdAt: entry?.createdAt,
+    updatedAt: entry?.updatedAt,
+  });
+
+  const loadJournalEntries = async () => {
+    const headers = getAuthHeaders();
+    if (!headers) { setAutosaveLabel("Login required"); setJournalEntries([]); return; }
+    setJournalLoading(true);
+    try {
+      const res = await fetch(`${API_BASE}/api/student/auth/journal`, { headers });
+      if (!res.ok) { const d = await res.json().catch(() => ({})); throw new Error(d?.error || "Unable to load journal entries"); }
+      const payload = await res.json();
+      setJournalEntries((Array.isArray(payload?.entries) ? payload.entries : []).map(normalizeEntry));
+      setAutosaveLabel("Saved");
+    } catch (err) {
+      console.error("Journal load error:", err);
+      setAutosaveLabel("Not saved");
+    } finally {
+      setJournalLoading(false);
+    }
   };
 
   const resetJournalForm = () => {
@@ -126,696 +183,514 @@ const AssignmentView = ({ defaultType = "school" }) => {
     setJournalMood("Neutral");
   };
 
-  const handleSaveDraft = () => {
-    const now = new Date();
+  const handleSaveDraft = async () => {
+    const headers = getAuthHeaders();
+    if (!headers) { setAutosaveLabel("Login required"); return; }
     if (!journalTitle.trim() && !journalContent.trim()) return;
-    if (selectedEntryId) {
-      const next = journalEntries.map(e => e.id === selectedEntryId ? {
-        ...e,
-        title: journalTitle.trim() || 'Untitled',
-        content: journalContent,
-        tags: (journalTags || '').split(',').map(t => t.trim()).filter(Boolean),
-        mood: journalMood,
-        updatedAt: now.toISOString(),
-      } : e);
-      persistJournal(next);
-    } else {
-      const entry = {
-        id: Date.now(),
-        title: journalTitle.trim() || 'Untitled',
-        content: journalContent,
-        tags: (journalTags || '').split(',').map(t => t.trim()).filter(Boolean),
-        mood: journalMood,
-        createdAt: now.toISOString(),
-        updatedAt: now.toISOString(),
-      };
-      persistJournal([entry, ...journalEntries]);
-      setSelectedEntryId(entry.id);
+    setAutosaveLabel("Saving\u2026");
+    const payload = {
+      title: journalTitle.trim() || "Untitled",
+      content: journalContent,
+      tags: (journalTags || "").split(",").map((t) => t.trim()).filter(Boolean),
+      mood: journalMood,
+    };
+    try {
+      if (selectedEntryId) {
+        const res = await fetch(`${API_BASE}/api/student/auth/journal/${selectedEntryId}`, { method: "PUT", headers, body: JSON.stringify(payload) });
+        if (!res.ok) { const d = await res.json().catch(() => ({})); throw new Error(d?.error || "Unable to update journal entry"); }
+        const data = await res.json();
+        const entry = normalizeEntry(data?.entry || data);
+        setJournalEntries((prev) => prev.map((e) => (e.id === selectedEntryId ? entry : e)));
+      } else {
+        const res = await fetch(`${API_BASE}/api/student/auth/journal`, { method: "POST", headers, body: JSON.stringify(payload) });
+        if (!res.ok) { const d = await res.json().catch(() => ({})); throw new Error(d?.error || "Unable to create journal entry"); }
+        const data = await res.json();
+        const entry = normalizeEntry(data?.entry || data);
+        setJournalEntries((prev) => [entry, ...prev]);
+        setSelectedEntryId(entry.id);
+      }
+      setAutosaveLabel("Saved");
+    } catch (err) {
+      console.error("Journal save error:", err);
+      setAutosaveLabel("Not saved");
     }
-    setAutosaveLabel('Saved');
   };
 
-  const handleNewEntry = () => {
-    resetJournalForm();
-  };
-
-  const handleDeleteEntry = (id) => {
-    const next = journalEntries.filter(e => e.id !== id);
-    persistJournal(next);
-    if (selectedEntryId === id) resetJournalForm();
+  const handleDeleteEntry = async (id) => {
+    const headers = getAuthHeaders();
+    if (!headers) { setAutosaveLabel("Login required"); return; }
+    try {
+      const res = await fetch(`${API_BASE}/api/student/auth/journal/${id}`, { method: "DELETE", headers });
+      if (!res.ok) { const d = await res.json().catch(() => ({})); throw new Error(d?.error || "Unable to delete journal entry"); }
+      setJournalEntries((prev) => prev.filter((e) => e.id !== id));
+      if (selectedEntryId === id) resetJournalForm();
+      setAutosaveLabel("Saved");
+    } catch (err) {
+      console.error("Journal delete error:", err);
+      setAutosaveLabel("Not saved");
+    }
   };
 
   const loadEntry = (entry) => {
+    skipAutosaveRef.current = true;
     setSelectedEntryId(entry.id);
-    setJournalTitle(entry.title || '');
-    setJournalContent(entry.content || '');
-    setJournalTags((entry.tags || []).join(', '));
-    setJournalMood(entry.mood || 'Neutral');
+    setJournalTitle(entry.title || "");
+    setJournalContent(entry.content || "");
+    setJournalTags((entry.tags || []).join(", "));
+    setJournalMood(entry.mood || "Neutral");
   };
 
-  // Simple autosave debounce
+  // Autosave debounce
   useEffect(() => {
-    if (assignmentType !== 'journal') return;
-    setAutosaveLabel('Saving…');
-    const t = setTimeout(() => {
-      handleSaveDraft();
-    }, 1200);
+    if (assignmentType !== "journal") return;
+    if (skipAutosaveRef.current) { skipAutosaveRef.current = false; return; }
+    if (!journalTitle.trim() && !journalContent.trim()) { setAutosaveLabel("Saved"); return; }
+    setAutosaveLabel("Saving\u2026");
+    const t = setTimeout(() => handleSaveDraft(), 1200);
     return () => clearTimeout(t);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [journalTitle, journalContent, journalTags, journalMood, assignmentType]);
 
-  // Initialize EEC state
-  useEffect(() => {
-    if(!selectedClass || !QUESTION_DATA[selectedClass]) return;
-    setEecSubject(Object.keys(QUESTION_DATA[selectedClass])[0])
-  }, [selectedClass])
+  /* ─── Type tabs config ─── */
+  const typeTabs = [
+    { key: "school", label: "School", icon: BookOpen },
+    { key: "eec", label: "Practice", icon: GraduationCap },
+    { key: "tryout", label: "Tryout", icon: Gamepad2 },
+    { key: "lab", label: "Lab", icon: FlaskConical },
+    { key: "flashcard", label: "FlashCard", icon: Layers },
+  ];
 
-  useEffect(() => {
-    setInsight({studentClass: selectedClass, subject: eecSubject, questionType: questionType, startTime: new Date(), endTime: null, correct: 0, incorrect: 0});
-  }, [selectedClass, eecSubject, questionType])
+  const moodOptions = ["Happy", "Neutral", "Curious", "Challenged", "Excited"];
+  const moodEmojis = { Happy: "\u{1F60A}", Neutral: "\u{1F610}", Curious: "\u{1F914}", Challenged: "\u{1F4AA}", Excited: "\u{1F389}" };
 
-  // Build flashcard deck from questionPaper (MCQ -> front: question, back: answer + explanation)
-  useEffect(() => {
-    if (!QUESTION_DATA[selectedClass] || !QUESTION_DATA[selectedClass][eecSubject]) {
-      setFlashDeck([]);
-      setFlashIndex(0);
-      setFlashKnown({});
-      setFlashFlipped(false);
-      return;
-    }
-    const mcq = QUESTION_DATA[selectedClass][eecSubject]?.mcq || [];
-    let deck = mcq.map((q) => ({
-      front: q.q,
-      back: `${q.a ? `Answer: ${q.a}` : ''}${q.e ? `\n${q.e}` : ''}`.trim(),
-    }));
-    if (flashShuffle) {
-      for (let i = deck.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [deck[i], deck[j]] = [deck[j], deck[i]];
-      }
-    }
-    setFlashDeck(deck);
-    setFlashIndex(0);
-    setFlashKnown({});
-    setFlashFlipped(false);
-  }, [selectedClass, eecSubject, flashShuffle]);
-
-  // Keyboard controls for FlashCard mode
-  useEffect(() => {
-    if (assignmentType !== 'flashcard') return;
-    const onKeyDown = (e) => {
-      if (e.key === ' ') {
-        e.preventDefault();
-        setFlashFlipped((f) => !f);
-      } else if (e.key === 'ArrowRight') {
-        setFlashFlipped(false);
-        setFlashIndex((i) => (flashDeck.length ? Math.min(i + 1, flashDeck.length - 1) : 0));
-      } else if (e.key === 'ArrowLeft') {
-        setFlashFlipped(false);
-        setFlashIndex((i) => (i > 0 ? i - 1 : 0));
-      }
-    };
-    window.addEventListener('keydown', onKeyDown);
-    return () => window.removeEventListener('keydown', onKeyDown);
-  }, [assignmentType, flashDeck.length]);
-
-  // Helper functions for school assignments
-  const getDaysRemaining = (dueDate) => {
-    const today = new Date();
-    const due = new Date(dueDate);
-    const diffTime = due - today;
-    return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-  };
-
-  const formatDate = (dateStr) => {
-    return new Date(dateStr).toLocaleDateString('en-US', { 
-      month: 'short', 
-      day: 'numeric',
-      year: 'numeric'
-    });
-  };
-
-  const getPriorityColor = (priority) => {
-    switch(priority) {
-      case 'high': return 'border-l-4 border-l-red-500';
-      case 'medium': return 'border-l-4 border-l-yellow-500';
-      case 'low': return 'border-l-4 border-l-green-500';
-      default: return 'border-l-4 border-l-gray-300';
-    }
-  };
-
-  const getStatusColor = (status) => {
-    switch(status) {
-      case 'completed': return 'bg-green-100 text-green-800 border-green-200';
-      case 'pending': return 'bg-yellow-100 text-yellow-800 border-yellow-200';
-      case 'overdue': return 'bg-red-100 text-red-800 border-red-200';
-      default: return 'bg-gray-100 text-gray-800 border-gray-200';
-    }
-  };
-
-  const getStatusIcon = (status) => {
-    switch(status) {
-      case 'completed': return <CheckCircle className="w-5 h-5 text-green-600" />;
-      case 'pending': return <Clock className="w-5 h-5 text-yellow-600" />;
-      case 'overdue': return <AlertCircle className="w-5 h-5 text-red-600" />;
-      default: return <FileText className="w-5 h-5 text-gray-600" />;
-    }
-  };
-
-  // Filter and sort assignments
-  const filteredAssignments = assignments
-    .filter(assignment => {
-      const searchTerm = schoolSearch.toLowerCase();
-      const matchesSearch = assignment.title.toLowerCase().includes(searchTerm) ||
-                           assignment.course.toLowerCase().includes(searchTerm) ||
-                           assignment.description.toLowerCase().includes(searchTerm);
-      
-      if (filter === 'all') return matchesSearch;
-      return matchesSearch && assignment.status === filter;
-    })
-    .sort((a, b) => {
-      switch(schoolSort) {
-        case 'due_asc': return new Date(a.dueDate) - new Date(b.dueDate);
-        case 'due_desc': return new Date(b.dueDate) - new Date(a.dueDate);
-        case 'priority': {
-          const priorityOrder = { 'high': 3, 'medium': 2, 'low': 1 };
-          return priorityOrder[b.priority] - priorityOrder[a.priority];
-        }
-        case 'status': return a.status.localeCompare(b.status);
-        default: return 0;
-      }
-    });
-
+  /* ═══════════════ RENDER ═══════════════ */
   return (
-    <div className="w-full min-h-screen bg-white px-1 sm:px-4 md:px-8 py-4 sm:py-6 space-y-4 sm:space-y-6 overflow-x-hidden">
-      {/* Assignment Type Dropdown */}
-      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center mb-4 gap-2 sm:gap-4">
-        {assignmentType !== 'journal' && (
+    <div className="w-full min-h-screen bg-slate-50 px-3 sm:px-6 md:px-8 py-5 space-y-5 overflow-x-hidden">
+
+      {/* ─── Header ─── */}
+      {assignmentType !== "journal" && (
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Assignments</h1>
-            <p className="text-gray-600 text-sm sm:text-base">Manage your assignments and submissions</p>
+            <h1 className="text-2xl font-bold text-gray-900">Assignments</h1>
+            <p className="mt-1 text-sm text-gray-500">Manage your assignments and submissions</p>
           </div>
-        )}
-        <div className="flex items-center space-x-3">
-          {assignmentType !== 'journal' && <PointsBadge />}
-          {assignmentType !== 'journal' && (
-            <>
-              <label htmlFor="assignmentType" className="font-medium text-gray-700">Type:</label>
-              <select
-                id="assignmentType"
-                value={assignmentType}
-                onChange={e => setAssignmentType(e.target.value)}
-                className="border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              >
-                <option value="school">School Assignment</option>
-                <option value="eec">Practice Paper</option>
-                <option value="tryout">Tryout</option>
-                <option value="lab">Lab</option>
-                <option value="flashcard">FlashCard</option>
-              </select>
-            </>
-          )}
+          <PointsBadge />
         </div>
-      </div>
+      )}
 
-      {/* Journal Section */}
-      {assignmentType === 'journal' && (
-        <div className="relative bg-gradient-to-br from-amber-50 via-orange-50 to-yellow-50 p-2 sm:p-4 lg:p-6 rounded-2xl shadow-2xl max-w-7xl mx-auto" style={{background: 'linear-gradient(135deg, #f3e8d7 0%, #e8dcc6 50%, #ddd0bb 100%)'}}>
+      {/* ─── Type Tabs ─── */}
+      {assignmentType !== "journal" && (
+        <div className="flex gap-1 overflow-x-auto rounded-xl bg-gray-100 p-1">
+          {typeTabs.map((t) => (
+            <button
+              key={t.key}
+              onClick={() => setAssignmentType(t.key)}
+              className={`flex items-center gap-2 whitespace-nowrap rounded-lg px-4 py-2 text-sm font-medium transition ${
+                assignmentType === t.key
+                  ? "bg-white text-gray-900 shadow-sm"
+                  : "text-gray-500 hover:text-gray-700"
+              }`}
+            >
+              <t.icon className="h-4 w-4" />
+              {t.label}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* ═══════════════ JOURNAL (Notebook Style) ═══════════════ */}
+      {assignmentType === "journal" && (
+        <div
+          data-tour-root
+          className="relative mx-auto max-w-7xl rounded-2xl p-3 shadow-2xl sm:p-5 lg:p-6"
+          style={{ background: "linear-gradient(135deg, #f3e8d7 0%, #e8dcc6 50%, #ddd0bb 100%)" }}
+        >
           {/* Notebook Header */}
-          <div className="text-center mb-3 sm:mb-4 lg:mb-6">
-            <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-brown-800" style={{color: '#8B4513', fontFamily: 'Georgia, serif'}}>My Learning Journal</h1>
-            <div className="w-20 sm:w-24 lg:w-32 h-0.5 sm:h-1 bg-brown-400 mx-auto mt-1 sm:mt-2 rounded" style={{backgroundColor: '#D2691E'}}></div>
+          <div className="mb-4 flex items-center justify-between sm:mb-5">
+            <div className="text-center flex-1">
+              <h1
+                className="text-2xl font-bold sm:text-3xl lg:text-4xl"
+                style={{ color: "#8B4513", fontFamily: "Georgia, serif" }}
+              >
+                My Learning Journal
+              </h1>
+              <div className="mx-auto mt-1.5 h-0.5 w-24 rounded sm:w-32" style={{ backgroundColor: "#D2691E" }} />
+            </div>
+            <div className="flex items-center gap-3">
+              {tourDismissed && (
+                <button
+                  onClick={restartTour}
+                  className="flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs transition hover:bg-amber-50"
+                  style={{ borderColor: "#D2691E", color: "#8B4513" }}
+                >
+                  <Sparkles className="h-3 w-3" /> Tour
+                </button>
+              )}
+              <span className="text-xs" style={{ color: "#8B7355" }}>{autosaveLabel}</span>
+              <PointsBadge />
+            </div>
           </div>
 
-          {/* Notebook Layout */}
-          <div className="relative bg-white border-2 sm:border-3 lg:border-4 border-gray-300 rounded-lg shadow-inner overflow-hidden" style={{backgroundColor: '#fefcf8', borderColor: '#8B7355', height: 'calc(100vh - 200px)', minHeight: '500px', maxHeight: '800px'}}>
-            
+          {/* Notebook Body */}
+          <div
+            className="relative overflow-hidden rounded-lg border-[3px] shadow-inner"
+            style={{
+              backgroundColor: "#fefcf8",
+              borderColor: "#8B7355",
+              height: "calc(100vh - 200px)",
+              minHeight: "520px",
+              maxHeight: "820px",
+            }}
+          >
             {/* Spiral Binding */}
-            <div className="absolute left-1/2 transform -translate-x-1/2 top-0 bottom-0 w-4 sm:w-6 lg:w-8 z-10" style={{background: 'linear-gradient(to right, #666 0%, #999 50%, #666 100%)'}}>
-              {[...Array(Math.min(20, Math.floor(window.innerHeight / 40)))].map((_, i) => (
-                <div key={i} className="absolute w-3 h-2 sm:w-4 sm:h-2 lg:w-6 lg:h-3 border border-gray-500 rounded-full left-1/2 transform -translate-x-1/2" style={{top: `${i * 5 + 2}%`, borderColor: '#555'}}></div>
+            <div
+              className="absolute left-1/2 top-0 bottom-0 z-10 hidden w-7 -translate-x-1/2 lg:block"
+              style={{ background: "linear-gradient(to right, #666 0%, #999 50%, #666 100%)" }}
+            >
+              {Array.from({ length: 18 }).map((_, i) => (
+                <div
+                  key={i}
+                  className="absolute left-1/2 h-2.5 w-5 -translate-x-1/2 rounded-full border"
+                  style={{ top: `${i * 5.2 + 2}%`, borderColor: "#555" }}
+                />
               ))}
             </div>
 
-            <div className="flex flex-col lg:grid lg:grid-cols-2 h-full relative">
-              
-              {/* Timeline Section */}
-              <div className="border-b lg:border-b-0 lg:border-r-2 border-gray-300 p-3 sm:p-4 lg:p-6 relative overflow-hidden flex-1 lg:flex-none" style={{borderColor: '#8B7355'}}>
-                <h2 className="text-lg sm:text-xl lg:text-2xl font-bold text-center mb-3 sm:mb-4 lg:mb-6 underline" style={{color: '#8B4513', fontFamily: 'Georgia, serif'}}>Timeline</h2>
-                
-                {/* New Entry Button */}
-                <div className="mb-3 sm:mb-4">
-                  <button 
-                    onClick={handleNewEntry} 
-                    className="w-full px-3 py-2 sm:px-4 sm:py-2 border-2 border-dashed border-gray-400 rounded-lg hover:bg-yellow-50 transition-colors text-sm sm:text-base"
-                    style={{borderColor: '#B8860B', color: '#8B4513'}}
-                  >
-                    <Plus className="w-3 h-3 sm:w-4 sm:h-4 inline mr-2" /> Add New Day
-                  </button>
-                </div>
+            <div className="flex h-full flex-col lg:grid lg:grid-cols-2">
+              {/* ─── Left Page: Timeline ─── */}
+              <div
+                data-tour="tour-timeline"
+                className="flex flex-col border-b-2 p-4 lg:border-b-0 lg:border-r-2 lg:p-6"
+                style={{ borderColor: "#8B7355" }}
+              >
+                <h2
+                  className="mb-4 text-center text-lg font-bold underline sm:text-xl"
+                  style={{ color: "#8B4513", fontFamily: "Georgia, serif" }}
+                >
+                  Timeline
+                </h2>
 
-                {/* Timeline Entries */}
-                <div className="space-y-2 sm:space-y-3 overflow-y-auto pr-1 sm:pr-2 lg:max-h-none lg:h-auto lg:flex-1" style={{height: 'calc(100% - 100px)', maxHeight: '300px'}}>
-                  {journalEntries.map((entry, index) => (
-                    <div 
+                {/* New Entry */}
+                <button
+                  data-tour="tour-new-entry"
+                  onClick={resetJournalForm}
+                  className="mb-4 flex w-full items-center justify-center gap-2 rounded-lg border-2 border-dashed px-3 py-2 text-sm transition hover:bg-yellow-50"
+                  style={{ borderColor: "#B8860B", color: "#8B4513" }}
+                >
+                  <Plus className="h-4 w-4" /> Add New Day
+                </button>
+
+                {/* Entries */}
+                <div
+                  className="flex-1 space-y-2.5 overflow-y-auto pr-1"
+                  style={{ maxHeight: "calc(100% - 100px)" }}
+                >
+                  {journalLoading && (
+                    <div className="py-8 text-center text-sm" style={{ color: "#8B7355" }}>Loading entries...</div>
+                  )}
+
+                  {!journalLoading && journalEntries.map((entry, index) => (
+                    <div
                       key={entry.id}
                       onClick={() => loadEntry(entry)}
-                      className={`p-2 sm:p-3 rounded-lg cursor-pointer transition-all border ${
-                        selectedEntryId === entry.id 
-                          ? 'bg-yellow-100 border-yellow-400' 
-                          : 'bg-yellow-50 border-yellow-200 hover:bg-yellow-100'
-                      }`}
+                      className="group cursor-pointer rounded-lg border p-3 transition-all"
                       style={{
-                        backgroundColor: selectedEntryId === entry.id ? '#fef3c7' : '#fffbeb',
-                        borderColor: selectedEntryId === entry.id ? '#f59e0b' : '#fbbf24'
+                        backgroundColor: selectedEntryId === entry.id ? "#fef3c7" : "#fffbeb",
+                        borderColor: selectedEntryId === entry.id ? "#f59e0b" : "#fde68a",
                       }}
                     >
-                      <div className="flex justify-between items-start">
-                        <div className="flex-1">
-                          <div className="font-semibold text-sm sm:text-base text-brown-800" style={{color: '#8B4513'}}>
-                            Day {journalEntries.length - index}
+                      <div className="flex items-start justify-between">
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-2">
+                            <span
+                              className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-bold"
+                              style={{ backgroundColor: "#fbbf24", color: "#92400e" }}
+                            >
+                              {journalEntries.length - index}
+                            </span>
+                            <span className="font-semibold text-sm" style={{ color: "#8B4513" }}>
+                              Day {journalEntries.length - index}
+                            </span>
                           </div>
-                          <div className="text-xs sm:text-sm text-gray-600 mt-1">
-                            {new Date(entry.updatedAt || entry.createdAt).toLocaleDateString('en-US', { 
-                              month: 'short', 
-                              day: 'numeric' 
-                            })}
+                          <div className="mt-1 pl-8 text-xs text-gray-500">
+                            {new Date(entry.updatedAt || entry.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+                            {entry.mood && entry.mood !== "Neutral" && (
+                              <span className="ml-2">{moodEmojis[entry.mood] || ""}</span>
+                            )}
                           </div>
-                          <div className="text-xs text-gray-500 mt-1 line-clamp-2">
-                            {entry.title || 'Untitled'}
+                          <div className="mt-1 pl-8 text-xs text-gray-400 line-clamp-1">
+                            {entry.title || "Untitled"}
                           </div>
                         </div>
                         <button
-                          title="Delete"
                           onClick={(ev) => { ev.stopPropagation(); handleDeleteEntry(entry.id); }}
-                          className="p-1 rounded hover:bg-red-100 text-red-500"
+                          className="shrink-0 rounded p-1 text-red-400 opacity-0 transition hover:bg-red-100 group-hover:opacity-100"
+                          title="Delete"
                         >
-                          <Trash2 className="w-3 h-3" />
+                          <Trash2 className="h-3 w-3" />
                         </button>
                       </div>
                     </div>
                   ))}
 
-                  {journalEntries.length === 0 && (
-                    <div className="text-center py-6 sm:py-8 text-gray-500" style={{color: '#8B7355'}}>
-                      <p className="text-sm sm:text-base">No entries yet.</p>
-                      <p className="text-xs sm:text-sm mt-2">Start by adding your first day!</p>
+                  {!journalLoading && journalEntries.length === 0 && (
+                    <div className="flex flex-col items-center py-10" style={{ color: "#8B7355" }}>
+                      <PenLine className="mb-2 h-8 w-8" />
+                      <p className="text-sm">No entries yet.</p>
+                      <p className="mt-1 text-xs">Start by adding your first day!</p>
                     </div>
                   )}
                 </div>
               </div>
 
-              {/* Notes Section */}
-              <div className="p-3 sm:p-4 lg:p-6 relative overflow-hidden flex flex-col flex-1">
-                <h2 className="text-lg sm:text-xl lg:text-2xl font-bold text-center mb-3 sm:mb-4 lg:mb-6 underline" style={{color: '#8B4513', fontFamily: 'Georgia, serif'}}>Notes</h2>
-                
-                {/* Current Date */}
-                <div className="text-center text-xs sm:text-sm text-gray-600 mb-3 sm:mb-4" style={{color: '#8B7355'}}>
-                  {new Date().toLocaleDateString('en-US', { 
-                    weekday: window.innerWidth > 640 ? 'long' : 'short',
-                    year: 'numeric', 
-                    month: window.innerWidth > 640 ? 'long' : 'short', 
-                    day: 'numeric' 
-                  })}
+              {/* ─── Right Page: Notes ─── */}
+              <div className="flex flex-1 flex-col p-4 lg:p-6">
+                <h2
+                  className="mb-3 text-center text-lg font-bold underline sm:text-xl"
+                  style={{ color: "#8B4513", fontFamily: "Georgia, serif" }}
+                >
+                  Notes
+                </h2>
+
+                {/* Date */}
+                <div className="mb-3 text-center text-xs" style={{ color: "#8B7355" }}>
+                  {new Date().toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}
                 </div>
 
-                {/* Entry Form */}
-                <div className="flex-1 flex flex-col space-y-2 sm:space-y-3 lg:space-y-4 overflow-hidden min-h-0">
-                  
-                  {/* Title Input */}
-                  <div className="flex-shrink-0">
-                    <input
-                      type="text"
-                      value={journalTitle}
-                      onChange={(e) => setJournalTitle(e.target.value)}
-                      placeholder="Today I learned..."
-                      className="w-full bg-transparent border-0 border-b border-gray-300 px-0 py-1 sm:py-2 text-base sm:text-lg placeholder-gray-400 focus:ring-0 focus:border-brown-500"
-                      style={{
-                        borderBottomColor: '#B8860B',
-                        color: '#8B4513',
-                        fontFamily: 'Georgia, serif'
-                      }}
-                    />
-                  </div>
+                <div className="flex flex-1 flex-col space-y-3 overflow-hidden">
+                  {/* Title */}
+                  <input
+                    data-tour="tour-title"
+                    type="text"
+                    value={journalTitle}
+                    onChange={(e) => setJournalTitle(e.target.value)}
+                    placeholder="Today I learned..."
+                    className="w-full border-0 border-b bg-transparent px-0 py-1.5 text-base placeholder-gray-400 focus:outline-none focus:ring-0 sm:text-lg"
+                    style={{ borderBottomColor: "#B8860B", color: "#8B4513", fontFamily: "Georgia, serif" }}
+                  />
 
-                  {/* Content Editor */}
-                  <div className="flex-1 min-h-0">
+                  {/* Content - Lined paper */}
+                  <div data-tour="tour-content" className="min-h-0 flex-1">
                     <textarea
-                      value={journalContent.replace(/<[^>]*>/g, '')}
+                      value={journalContent.replace(/<[^>]*>/g, "")}
                       onChange={(e) => setJournalContent(e.target.value)}
-                      placeholder="Today Susan hit me with her car but she claimed I hit her car with my body.
-
-Before the lights went out, I saw a deer near the headlight. Seems like it wasn't her first time.
-
-Should she still have a license?
-
-My head hurts, too."
-                      className="w-full h-full bg-transparent border-0 resize-none p-0 text-gray-700 placeholder-gray-400 focus:ring-0 text-sm sm:text-base leading-5 sm:leading-6"
+                      placeholder="Write about what you learned today..."
+                      className="h-full w-full resize-none border-0 bg-transparent p-0 text-sm placeholder-gray-400 focus:outline-none focus:ring-0"
                       style={{
-                        color: '#4B5563',
-                        fontFamily: 'Georgia, serif',
-                        backgroundImage: 'repeating-linear-gradient(transparent, transparent 19px, #e5e7eb 19px, #e5e7eb 20px)',
-                        lineHeight: '20px'
+                        color: "#4B5563",
+                        fontFamily: "Georgia, serif",
+                        backgroundImage: "repeating-linear-gradient(transparent, transparent 23px, #e5e7eb 23px, #e5e7eb 24px)",
+                        lineHeight: "24px",
                       }}
                     />
                   </div>
 
                   {/* Tags and Mood */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-4 flex-shrink-0">
+                  <div data-tour="tour-mood-tags" className="grid shrink-0 grid-cols-1 gap-3 sm:grid-cols-2">
                     <div>
-                      <label className="block text-xs sm:text-sm font-medium text-gray-600 mb-1" style={{color: '#8B7355'}}>Tags</label>
+                      <label className="mb-1 block text-xs font-medium" style={{ color: "#8B7355" }}>Tags</label>
                       <input
                         type="text"
                         value={journalTags}
                         onChange={(e) => setJournalTags(e.target.value)}
                         placeholder="learning, reflection"
-                        className="w-full border border-gray-300 rounded px-2 py-1 text-xs sm:text-sm focus:ring-1 focus:ring-yellow-400 focus:border-yellow-400"
-                        style={{backgroundColor: '#fffbeb'}}
+                        className="w-full rounded border border-gray-300 px-2 py-1.5 text-xs focus:border-yellow-400 focus:outline-none focus:ring-1 focus:ring-yellow-400"
+                        style={{ backgroundColor: "#fffbeb" }}
                       />
                     </div>
                     <div>
-                      <label className="block text-xs sm:text-sm font-medium text-gray-600 mb-1" style={{color: '#8B7355'}}>Mood</label>
-                      <select
-                        value={journalMood}
-                        onChange={(e) => setJournalMood(e.target.value)}
-                        className="w-full border border-gray-300 rounded px-2 py-1 text-xs sm:text-sm focus:ring-1 focus:ring-yellow-400 focus:border-yellow-400"
-                        style={{backgroundColor: '#fffbeb'}}
-                      >
-                        <option>Happy</option>
-                        <option>Neutral</option>
-                        <option>Curious</option>
-                        <option>Challenged</option>
-                        <option>Excited</option>
-                      </select>
+                      <label className="mb-1 block text-xs font-medium" style={{ color: "#8B7355" }}>Mood</label>
+                      <div className="flex gap-1">
+                        {moodOptions.map((m) => (
+                          <button
+                            key={m}
+                            type="button"
+                            onClick={() => setJournalMood(m)}
+                            className={`flex-1 rounded border px-1 py-1.5 text-center transition ${
+                              journalMood === m
+                                ? "border-amber-400 bg-amber-50 shadow-sm"
+                                : "border-gray-200 hover:bg-yellow-50"
+                            }`}
+                            style={{ backgroundColor: journalMood === m ? "#fef3c7" : "#fffbeb" }}
+                            title={m}
+                          >
+                            <span className="text-sm">{moodEmojis[m]}</span>
+                          </button>
+                        ))}
+                      </div>
                     </div>
                   </div>
 
-                  {/* Save Button */}
-                  <div className="text-right pt-2 sm:pt-4 flex-shrink-0">
-                    <button 
-                      onClick={handleSaveDraft} 
-                      className="px-4 py-1.5 sm:px-6 sm:py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 shadow-lg text-sm sm:text-base font-medium transition-colors"
-                      style={{backgroundColor: '#D97706'}}
+                  {/* Save */}
+                  <div data-tour="tour-save" className="flex shrink-0 items-center justify-end gap-3 pt-2">
+                    <span className="text-xs text-gray-500">{autosaveLabel}</span>
+                    <button
+                      onClick={handleSaveDraft}
+                      className="rounded-lg px-5 py-2 text-sm font-medium text-white shadow-lg transition hover:brightness-110"
+                      style={{ backgroundColor: "#D97706" }}
                     >
                       Save Entry
                     </button>
-                    <div className="text-xs text-gray-500 mt-1 sm:mt-2">{autosaveLabel}</div>
                   </div>
                 </div>
               </div>
             </div>
 
             {/* Notebook Bottom Edge */}
-            <div className="absolute bottom-0 left-0 right-0 h-2 sm:h-3 lg:h-4 bg-gradient-to-r from-gray-200 via-gray-300 to-gray-200" style={{backgroundColor: '#E5E5E5'}}>
-              <div className="absolute bottom-0 left-0 right-0 h-1 sm:h-2" style={{background: 'repeating-linear-gradient(90deg, transparent 0px, transparent 8px, rgba(0,0,0,0.1) 8px, rgba(0,0,0,0.1) 12px)'}}></div>
-            </div>
-
+            <div
+              className="absolute bottom-0 left-0 right-0 h-3"
+              style={{ background: "linear-gradient(to right, #d4d4d4, #b0b0b0, #d4d4d4)" }}
+            />
           </div>
 
-          {/* Paper texture overlay */}
-          <div className="absolute inset-0 pointer-events-none rounded-2xl opacity-30 sm:opacity-50" style={{
-            backgroundImage: `url("data:image/svg+xml,%3Csvg width='40' height='40' viewBox='0 0 40 40' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23d4af37' fill-opacity='0.02'%3E%3Cpath d='m20 20v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")`
-          }}></div>
+          {/* Paper Texture Overlay */}
+          <div
+            className="pointer-events-none absolute inset-0 rounded-2xl opacity-40"
+            style={{
+              backgroundImage: `url("data:image/svg+xml,%3Csvg width='40' height='40' viewBox='0 0 40 40' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23d4af37' fill-opacity='0.02'%3E%3Cpath d='m20 20v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")`,
+            }}
+          />
+
+          {/* ═══════════════ TOUR OVERLAY ═══════════════ */}
+          {tourStep >= 0 && tourStep < TOUR_STEPS.length && (() => {
+            const step = TOUR_STEPS[tourStep];
+            const isCentered = step.position === "center";
+            const targetEl = !isCentered ? document.querySelector(`[data-tour="${step.target}"]`) : null;
+            const rect = targetEl?.getBoundingClientRect();
+            const parentRect = targetEl?.closest("[data-tour-root]")?.getBoundingClientRect();
+
+            // Relative position within the notebook container
+            const relTop = rect && parentRect ? rect.top - parentRect.top : 0;
+            const relLeft = rect && parentRect ? rect.left - parentRect.left : 0;
+
+            return (
+              <div className="absolute inset-0 z-50 rounded-2xl overflow-hidden">
+                {/* Backdrop */}
+                <div
+                  className="absolute inset-0 bg-black/40 backdrop-blur-[1px]"
+                  onClick={tourSkip}
+                />
+
+                {/* Spotlight highlight on target element */}
+                {targetEl && rect && parentRect && (
+                  <div
+                    className="absolute rounded-lg ring-4 ring-amber-400/60 shadow-lg shadow-amber-300/30"
+                    style={{
+                      top: relTop - 4,
+                      left: relLeft - 4,
+                      width: rect.width + 8,
+                      height: rect.height + 8,
+                      backgroundColor: "rgba(255,255,255,0.15)",
+                      pointerEvents: "none",
+                    }}
+                  />
+                )}
+
+                {/* Tooltip Card */}
+                <div
+                  className={`absolute flex flex-col rounded-xl border border-amber-200 bg-white p-5 shadow-2xl ${
+                    isCentered ? "left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2" : ""
+                  }`}
+                  style={{
+                    width: "min(340px, 85vw)",
+                    zIndex: 60,
+                    ...(!isCentered && rect && parentRect
+                      ? {
+                          top: step.position === "top"
+                            ? Math.max(10, relTop - 180)
+                            : Math.min(Math.max(10, relTop + 10), parentRect.height - 220),
+                          left: Math.max(10, Math.min(
+                            step.position === "right"
+                              ? relLeft + rect.width + 16
+                              : step.position === "left"
+                              ? relLeft - 356
+                              : relLeft,
+                            parentRect.width - 360
+                          )),
+                        }
+                      : {}),
+                  }}
+                >
+                  {/* Close button */}
+                  <button
+                    onClick={tourSkip}
+                    className="absolute right-2 top-2 rounded-full p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+
+                  {/* Emoji + Title */}
+                  <div className="flex items-center gap-3 mb-2">
+                    <span className="text-3xl">{step.emoji}</span>
+                    <h3 className="text-base font-bold text-gray-900 pr-6">{step.title}</h3>
+                  </div>
+
+                  {/* Description */}
+                  <p className="text-sm text-gray-600 leading-relaxed mb-4">
+                    {step.description}
+                  </p>
+
+                  {/* Progress dots + navigation */}
+                  <div className="flex items-center justify-between">
+                    <div className="flex gap-1.5">
+                      {TOUR_STEPS.map((_, i) => (
+                        <div
+                          key={i}
+                          className={`h-2 rounded-full transition-all ${
+                            i === tourStep ? "w-5 bg-amber-500" : i < tourStep ? "w-2 bg-amber-300" : "w-2 bg-gray-200"
+                          }`}
+                        />
+                      ))}
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      {tourStep > 0 && (
+                        <button
+                          onClick={tourPrev}
+                          className="flex items-center gap-1 rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-50 transition"
+                        >
+                          <ChevronLeft className="h-3 w-3" /> Back
+                        </button>
+                      )}
+                      {tourStep < TOUR_STEPS.length - 1 ? (
+                        <button
+                          onClick={tourNext}
+                          className="flex items-center gap-1 rounded-lg px-3 py-1.5 text-xs font-medium text-white shadow transition hover:brightness-110"
+                          style={{ backgroundColor: "#D97706" }}
+                        >
+                          Next <ChevronRight className="h-3 w-3" />
+                        </button>
+                      ) : (
+                        <button
+                          onClick={tourFinish}
+                          className="flex items-center gap-1 rounded-lg px-4 py-1.5 text-xs font-medium text-white shadow transition hover:brightness-110"
+                          style={{ backgroundColor: "#16a34a" }}
+                        >
+                          Start Writing!
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Step counter */}
+                  <div className="mt-2 text-center text-[10px] text-gray-400">
+                    {tourStep + 1} of {TOUR_STEPS.length}
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
         </div>
       )}
 
-      {/* Assignment Section (School, EEC, Lab, Flashcard) */}
-      {(['school', 'eec', 'lab', 'flashcard'].includes(assignmentType)) && (
+      {/* ═══════════════ ASSIGNMENT (School, EEC, Lab, Flashcard) ═══════════════ */}
+      {["school", "eec", "lab", "flashcard"].includes(assignmentType) && (
         <Assignment assignmentType={assignmentType} filter={filter} setFilter={setFilter} />
       )}
 
-
-
-      {/* Tryout Section */}
-      {assignmentType === 'tryout' && (
-        <Tryout />
-      )}
-
+      {/* ═══════════════ TRYOUT ═══════════════ */}
+      {assignmentType === "tryout" && <Tryout />}
     </div>
   );
 };
-
-function MCQ({array, insight, setInsight}) {
-  const [eecFeedback, setEecFeedback] = useState(null);
-  const [showAnswers, setShowAnswers] = useState(false);
-  const [eecAnswers, setEecAnswers] = useState({}); // { [idx]: userInput }
-  const [checked, setChecked] = useState(false)
-  const [showPointPopup, setShowPointPopup] = useState(false);
-
-
-  useEffect(() => {
-    setShowAnswers(false);
-    setEecFeedback(null);
-  }, [array])
-
-  useEffect(() => {
-    if (!checked) return
-    fetch(`${import.meta.env.VITE_API_URL}/api/behaviour/submit`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(insight)
-    }).then(res => {
-      if (!res.ok) {
-        throw new Error('Network response was not ok');
-      }
-      return res.json();
-    }).then(data => {
-      console.log(data)
-    }).catch(error => {
-      console.error(error);
-    })
-    setChecked(false)
-  }, [checked])
-
-  useEffect(() => {
-    window.scrollTo(0, 0)
-  }, [showAnswers])
-
-  // Handler for answer input
-  const handleEecInput = (idx, value) => {
-    setEecAnswers((prev) => ({ ...prev, [idx]: value }));
-    setEecFeedback(null);
-  };
-  // Handler for answer check
-  const handleEecCheck = () => {
-    let correction = []
-    array.forEach((q, idx) => {
-      const userAns = (eecAnswers[idx] || "").trim().toLowerCase();
-      const correct = (q.a || "").trim().toLowerCase();
-      correction.push(userAns === correct)
-    });
-    setEecFeedback(correction);
-    setShowAnswers(true);
-    setInsight((prev) => {
-      return {...prev, endTime: new Date(), correct: correction.filter(c => c).length, incorrect: correction.filter(c => !c).length}
-    })
-    // Award points if all correct and not previously awarded for this paper
-    try {
-      const allCorrect = correction.length > 0 && correction.every(Boolean);
-      const awardKey = `${insight?.studentClass || 'cls'}_${insight?.subject || 'sub'}_${insight?.questionType || 'type'}`;
-      if (allCorrect && !hasAward(awardKey)) {
-        addPoints(10);
-        markAwarded(awardKey);
-        setShowPointPopup(true);
-        setTimeout(() => setShowPointPopup(false), 2000);
-      }
-    } catch (_) {}
-    setChecked(true)
-  };
-
-  return (
-    <>
-      {array && array.map((q, idx) => (
-        <div key={idx} className="mb-5">
-          <div className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
-            <div className="p-4 sm:p-6">
-              <div className="flex items-start gap-3">
-                <div className="shrink-0 w-7 h-7 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center text-sm font-semibold">{idx + 1}</div>
-                <div className="flex-1">
-                  <div className="text-gray-900 font-medium">{q.q}</div>
-                  <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-2">
-                    {q.o && q.o.map((option, oi) => {
-                      const selected = (eecAnswers[idx] || '') === option;
-                      return (
-                        <label key={oi} className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition ${selected ? 'border-blue-500 bg-blue-50' : 'border-gray-200 hover:bg-gray-50'}`}>
-                          <input
-                            className="h-4 w-4 text-blue-600 focus:ring-blue-500"
-                            name={`q-${idx}`}
-                            type="radio"
-                            checked={selected}
-                            onChange={() => handleEecInput(idx, option)}
-                          />
-                          <span className="text-gray-800">{option}</span>
-                        </label>
-                      );
-                    })}
-                  </div>
-                  {showAnswers && (
-                    <div className="mt-3 rounded-lg bg-green-50 border border-green-200 p-3 text-sm">
-                      <div className="text-green-800"><span className="font-semibold">Answer:</span> {q.a}</div>
-                      {q.e && <div className="text-green-700 mt-1"><span className="font-semibold">Explanation:</span> {q.e}</div>}
-                    </div>
-                  )}
-                  {eecFeedback !== null && (
-                    <div className={`mt-2 text-sm font-semibold ${eecFeedback[idx] ? 'text-green-600' : 'text-red-600'}`}>
-                      {eecFeedback[idx] ? 'Correct' : 'Incorrect'}
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      ))}
-      <div className="mt-6 flex flex-wrap items-center gap-3">
-        <button onClick={handleEecCheck} className="px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700">
-          Check Answers
-        </button>
-        <button
-          className={`px-4 py-2 rounded-lg border ${showAnswers ? 'border-green-600 text-green-700 hover:bg-green-50' : 'border-gray-300 text-gray-700 hover:bg-gray-50'}`}
-          onClick={() => { setEecFeedback(null); setShowAnswers(!showAnswers); }}
-        >
-          {showAnswers ? 'Hide Explanations' : 'Show Explanations'}
-        </button>
-      </div>
-      {showPointPopup && (
-        <div className="fixed top-20 right-6 bg-emerald-600 text-white px-3 py-2 rounded-lg shadow-lg flex items-center gap-2 animate-bounce z-50">
-          <Coins className="w-4 h-4 text-yellow-300" />
-          <span>+10 Points</span>
-        </div>
-      )}
-    </>
-  );
-}
-
-function Blank({array, insight, setInsight}) {
-
-  const [eecFeedback, setEecFeedback] = useState(null);
-  const [showAnswers, setShowAnswers] = useState(false);
-  const [eecAnswers, setEecAnswers] = useState({}); // { [idx]: userInput }
-  const [checked, setChecked] = useState(false)
-  const [showPointPopup, setShowPointPopup] = useState(false);
-
-  useEffect(() => {
-    setShowAnswers(false);
-    setEecFeedback(null);
-  }, [array])
-
-    useEffect(() => {
-    window.scrollTo(0, 0)
-  }, [showAnswers])
-
-  useEffect(() => {
-    if (!checked) return
-    fetch(`${import.meta.env.VITE_API_URL}/api/behaviour/submit`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(insight)
-    }).then(res => {
-      if (!res.ok) {
-        throw new Error('Network response was not ok');
-      }
-      return res.json();
-    }).then(data => {
-      console.log(data)
-    }).catch(error => {
-      console.error(error);
-    })
-    setChecked(false)
-  }, [checked])
-
-  // Handler for answer input
-  const handleEecInput = (idx, value) => {
-    setEecAnswers((prev) => ({ ...prev, [idx]: value }));
-    setEecFeedback(null);
-  };
-  // Handler for answer check
-  const handleEecCheck = () => {
-    let correction = []
-    array.forEach((q, idx) => {
-      const userAns = (eecAnswers[idx] || "").trim().toLowerCase();
-      const correct = (q.a || "").trim().toLowerCase();
-      correction.push(userAns === correct)
-    });
-    setEecFeedback(correction);
-    setShowAnswers(true);
-    setInsight((prev) => {
-      return {...prev, endTime: new Date(), correct: correction.filter(c => c).length, incorrect: correction.filter(c => !c).length}
-    })
-    // Award points if all correct and not previously awarded for this paper
-    try {
-      const allCorrect = correction.length > 0 && correction.every(Boolean);
-      const awardKey = `${insight?.studentClass || 'cls'}_${insight?.subject || 'sub'}_${insight?.questionType || 'type'}`;
-      if (allCorrect && !hasAward(awardKey)) {
-        addPoints(10);
-        markAwarded(awardKey);
-        setShowPointPopup(true);
-        setTimeout(() => setShowPointPopup(false), 2000);
-      }
-    } catch (_) {}
-    setChecked(true)
-  };
-
-  return (
-    <>
-      {array && array.map((q, idx) => (
-        <div key={idx} className="mb-5">
-          <div className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
-            <div className="p-4 sm:p-6">
-              <div className="flex items-start gap-3">
-                <div className="shrink-0 w-7 h-7 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center text-sm font-semibold">{idx + 1}</div>
-                <div className="flex-1">
-                  <div className="text-gray-900 font-medium">{q.q}</div>
-                  <div className="mt-3">
-                    <input
-                      type="text"
-                      className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                      placeholder="Type your answer here..."
-                      value={eecAnswers[idx] || ''}
-                      onChange={e => handleEecInput(idx, e.target.value)}
-                    />
-                  </div>
-                  {showAnswers && (
-                    <div className="mt-3 rounded-lg bg-green-50 border border-green-200 p-3 text-sm">
-                      <div className="text-green-800"><span className="font-semibold">Answer:</span> {q.a}</div>
-                      {q.e && <div className="text-green-700 mt-1"><span className="font-semibold">Explanation:</span> {q.e}</div>}
-                    </div>
-                  )}
-                  {eecFeedback !== null && (
-                    <div className={`mt-2 text-sm font-semibold ${eecFeedback[idx] ? 'text-green-600' : 'text-red-600'}`}>
-                      {eecFeedback[idx] ? 'Correct' : 'Incorrect'}
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      ))}
-      <div className="mt-6 flex flex-wrap items-center gap-3">
-        <button onClick={handleEecCheck} className="px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700">
-          Check Answers
-        </button>
-        <button
-          className={`px-4 py-2 rounded-lg border ${showAnswers ? 'border-green-600 text-green-700 hover:bg-green-50' : 'border-gray-300 text-gray-700 hover:bg-gray-50'}`}
-          onClick={() => { setEecFeedback(null); setShowAnswers(!showAnswers); }}
-        >
-          {showAnswers ? 'Hide Explanations' : 'Show Explanations'}
-        </button>
-      </div>
-      {showPointPopup && (
-        <div className="fixed top-20 right-6 bg-emerald-600 text-white px-3 py-2 rounded-lg shadow-lg flex items-center gap-2 animate-bounce z-50">
-          <Coins className="w-4 h-4 text-yellow-300" />
-          <span>+10 Points</span>
-        </div>
-      )}
-    </>
-  );
-}
-
 
 export default AssignmentView;
