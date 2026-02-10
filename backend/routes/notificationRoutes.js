@@ -364,17 +364,31 @@ router.get('/user', authAnyUser, async (req, res) => {
 
     if (normalizedAudience === 'Student') {
       const student = await StudentUser.findById(userId).select('grade section').lean();
-      const className = student?.grade || '';
+      const rawClassName = student?.grade || '';
+      const className = String(rawClassName || '').trim();
       const sectionName = student?.section || '';
       let classId = null;
       let sectionId = null;
+      const classNameCandidates = new Set();
       if (className) {
+        classNameCandidates.add(className);
+        if (/^\d+$/i.test(className)) {
+          classNameCandidates.add(`Class ${className}`);
+        }
+        if (/^class\s+/i.test(className)) {
+          classNameCandidates.add(className.replace(/^class\s+/i, '').trim());
+        }
+      }
+      if (classNameCandidates.size) {
         const classDoc = await ClassModel.findOne({
           schoolId,
           ...(campusId ? { campusId } : {}),
-          name: className
-        }).select('_id').lean();
+          name: { $in: Array.from(classNameCandidates) },
+        }).select('_id name').lean();
         classId = classDoc?._id || null;
+        if (classDoc?.name) {
+          classNameCandidates.add(classDoc.name);
+        }
       }
       if (classId && sectionName) {
         const sectionDoc = await Section.findOne({
@@ -391,7 +405,7 @@ router.get('/user', authAnyUser, async (req, res) => {
           { classId: { $exists: false } },
           { classId: null },
           classId ? { classId } : null,
-          className ? { className } : null,
+          classNameCandidates.size ? { className: { $in: Array.from(classNameCandidates) } } : null,
         ].filter(Boolean),
       });
       if (sectionId || sectionName) {

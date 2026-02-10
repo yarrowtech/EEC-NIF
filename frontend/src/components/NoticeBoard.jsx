@@ -45,7 +45,10 @@ const NoticeBoard = () => {
           return;
         }
 
-        const response = await fetch(`${import.meta.env.VITE_API_URL}/api/notifications/user`, {
+        const API_BASE = (import.meta.env.VITE_API_URL || 'http://localhost:5000')
+          .replace(/\/$/, '')
+          .replace(/\/api$/, '');
+        const response = await fetch(`${API_BASE}/api/notifications/user`, {
           headers: {
             'Authorization': `Bearer ${token}`,
             'Content-Type': 'application/json'
