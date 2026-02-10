@@ -37,16 +37,10 @@ const Assignment = ({ assignmentType, filter, setFilter }) => {
   const [submitting, setSubmitting] = useState(false);
   const [submitSuccess, setSubmitSuccess] = useState(false);
 
-  // Detail modal state
-  const [selectedAssignment, setSelectedAssignment] = useState(null);
-  const [submissionText, setSubmissionText] = useState('');
-  const [submitting, setSubmitting] = useState(false);
-  const [submitSuccess, setSubmitSuccess] = useState(false);
-  const [submissionFileUrl, setSubmissionFileUrl] = useState('');
-  const [submissionFileName, setSubmissionFileName] = useState('');
-  const [uploadingSubmissionFile, setUploadingSubmissionFile] = useState(false);
-
-  const API_BASE_URL = (import.meta.env.VITE_API_URL || 'http://localhost:5000').replace(/\/$/, '');
+  const API_BASE = (import.meta.env.VITE_API_URL || 'http://localhost:5000')
+    .replace(/\/$/, '')
+    .replace(/\/api$/, '');
+  const API_BASE_URL = `${API_BASE}`;
 
   // Flashcard state
   const [flashDeck, setFlashDeck] = useState([]);
@@ -321,9 +315,13 @@ const closeDetail = () => {
   // Filtered assignments logic
   const filteredAssignments = assignments
     .filter((assignment) => {
-      const matchesSearch = assignment.title.toLowerCase().includes(schoolSearch.toLowerCase()) ||
-        assignment.course.toLowerCase().includes(schoolSearch.toLowerCase()) ||
-        assignment.description.toLowerCase().includes(schoolSearch.toLowerCase());
+      const title = String(assignment.title || '');
+      const course = String(assignment.course || '');
+      const description = String(assignment.description || '');
+      const needle = schoolSearch.toLowerCase();
+      const matchesSearch = title.toLowerCase().includes(needle) ||
+        course.toLowerCase().includes(needle) ||
+        description.toLowerCase().includes(needle);
       
       if (!matchesSearch) return false;
       
