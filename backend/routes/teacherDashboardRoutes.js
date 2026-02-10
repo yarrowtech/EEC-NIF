@@ -70,22 +70,25 @@ const toMinutesOfDay = (value) => {
   return (hours * 60) + minutes;
 };
 
-const isLateCheckIn = (value, entryTime = '09:00') => {
+const isLateCheckIn = (value, entryTime = '09:00', graceMinutes = 0) => {
   if (!value) return false;
   const date = new Date(value);
   const checkInMinutes = (date.getHours() * 60) + date.getMinutes();
-  return checkInMinutes > toMinutesOfDay(entryTime);
+  const grace = Number.isFinite(Number(graceMinutes)) ? Number(graceMinutes) : 0;
+  return checkInMinutes > (toMinutesOfDay(entryTime) + Math.max(0, grace));
 };
 
 const getSchoolAttendanceSettings = async (schoolId) => {
-  const defaults = { entryTime: '09:00', exitTime: '17:00' };
+  const defaults = { entryTime: '09:00', exitTime: '17:00', graceMinutes: 0 };
   if (!schoolId) return defaults;
   const school = await School.findById(schoolId).select('teacherAttendanceSettings').lean();
   const entryTime = school?.teacherAttendanceSettings?.entryTime;
   const exitTime = school?.teacherAttendanceSettings?.exitTime;
+  const graceMinutes = school?.teacherAttendanceSettings?.graceMinutes;
   return {
     entryTime: TIME_24H_RE.test(String(entryTime || '').trim()) ? String(entryTime).trim() : defaults.entryTime,
     exitTime: TIME_24H_RE.test(String(exitTime || '').trim()) ? String(exitTime).trim() : defaults.exitTime,
+    graceMinutes: Number.isFinite(Number(graceMinutes)) ? Number(graceMinutes) : defaults.graceMinutes,
   };
 };
 
@@ -629,7 +632,7 @@ router.get('/work-attendance', authTeacher, async (req, res) => {
 
     const records = await TeacherAttendance.find(query).sort({ dateKey: -1 }).lean();
     const presentDays = records.filter((r) => Boolean(r.checkInAt)).length;
-    const lateDays = records.filter((r) => isLateCheckIn(r.checkInAt, attendanceSettings.entryTime)).length;
+    const lateDays = records.filter((r) => isLateCheckIn(r.checkInAt, attendanceSettings.entryTime, attendanceSettings.graceMinutes)).length;
 
     const today = new Date();
     const sameMonthAsToday = today.getFullYear() === range.year && today.getMonth() === range.monthIndex;
@@ -649,7 +652,7 @@ router.get('/work-attendance', authTeacher, async (req, res) => {
         date: record.dateKey,
         checkIn: toTimeLabel(record.checkInAt),
         checkOut: toTimeLabel(record.checkOutAt),
-        status: record.status || (isLateCheckIn(record.checkInAt, attendanceSettings.entryTime) ? 'Late' : 'Present'),
+        status: record.status || (isLateCheckIn(record.checkInAt, attendanceSettings.entryTime, attendanceSettings.graceMinutes) ? 'Late' : 'Present'),
         workingMinutes: record.workingMinutes || 0,
       })),
       today: todayRecord
@@ -659,7 +662,7 @@ router.get('/work-attendance', authTeacher, async (req, res) => {
           checkOut: toTimeLabel(todayRecord.checkOutAt),
           hasCheckedIn: Boolean(todayRecord.checkInAt),
           hasCheckedOut: Boolean(todayRecord.checkOutAt),
-          status: todayRecord.status || (isLateCheckIn(todayRecord.checkInAt, attendanceSettings.entryTime) ? 'Late' : 'Present'),
+          status: todayRecord.status || (isLateCheckIn(todayRecord.checkInAt, attendanceSettings.entryTime, attendanceSettings.graceMinutes) ? 'Late' : 'Present'),
           workingMinutes: todayRecord.workingMinutes || 0,
         }
         : {
@@ -701,7 +704,7 @@ router.post('/work-attendance/check-in', authTeacher, async (req, res) => {
       return res.status(400).json({ error: 'Check-in already recorded for today' });
     }
 
-    const status = isLateCheckIn(now, attendanceSettings.entryTime) ? 'Late' : 'Present';
+    const status = isLateCheckIn(now, attendanceSettings.entryTime, attendanceSettings.graceMinutes) ? 'Late' : 'Present';
     const record = existing
       ? await TeacherAttendance.findByIdAndUpdate(
         existing._id,

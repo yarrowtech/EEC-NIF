@@ -908,9 +908,12 @@ router.get('/teacher-attendance-settings', adminAuth, async (req, res) => {
 
     const entryTime = school.teacherAttendanceSettings?.entryTime || '09:00';
     const exitTime = school.teacherAttendanceSettings?.exitTime || '17:00';
+    const graceMinutes = Number.isFinite(school.teacherAttendanceSettings?.graceMinutes)
+      ? school.teacherAttendanceSettings.graceMinutes
+      : 0;
 
     res.json({
-      settings: { entryTime, exitTime },
+      settings: { entryTime, exitTime, graceMinutes },
     });
   } catch (err) {
     res.status(500).json({ error: err.message || 'Unable to load teacher attendance settings' });
@@ -927,6 +930,7 @@ router.put('/teacher-attendance-settings', adminAuth, async (req, res) => {
 
     const entryTime = String(req.body?.entryTime || '').trim();
     const exitTime = String(req.body?.exitTime || '').trim();
+    const graceMinutesRaw = req.body?.graceMinutes;
     if (!isValidTimeLabel(entryTime)) {
       return res.status(400).json({ error: 'entryTime must be in HH:mm format' });
     }
@@ -936,10 +940,11 @@ router.put('/teacher-attendance-settings', adminAuth, async (req, res) => {
     if (toMinutesOfDay(exitTime) <= toMinutesOfDay(entryTime)) {
       return res.status(400).json({ error: 'exitTime must be later than entryTime' });
     }
+    const graceMinutes = Math.max(0, Math.min(720, Number(graceMinutesRaw) || 0));
 
     const updated = await School.findByIdAndUpdate(
       schoolId,
-      { $set: { teacherAttendanceSettings: { entryTime, exitTime } } },
+      { $set: { teacherAttendanceSettings: { entryTime, exitTime, graceMinutes } } },
       { new: true, runValidators: true }
     ).select('teacherAttendanceSettings').lean();
 
@@ -950,6 +955,9 @@ router.put('/teacher-attendance-settings', adminAuth, async (req, res) => {
       settings: {
         entryTime: updated.teacherAttendanceSettings?.entryTime || entryTime,
         exitTime: updated.teacherAttendanceSettings?.exitTime || exitTime,
+        graceMinutes: Number.isFinite(updated.teacherAttendanceSettings?.graceMinutes)
+          ? updated.teacherAttendanceSettings.graceMinutes
+          : graceMinutes,
       },
     });
   } catch (err) {

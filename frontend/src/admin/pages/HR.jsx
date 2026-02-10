@@ -92,7 +92,7 @@ const HR = ({ setShowAdminHeader }) => {
   const [teacherLeaves, setTeacherLeaves] = useState([]);
   const [teacherExpenses, setTeacherExpenses] = useState([]);
   const [teacherAttendanceRecords, setTeacherAttendanceRecords] = useState([]);
-  const [attendanceSettings, setAttendanceSettings] = useState({ entryTime: '09:00', exitTime: '17:00' });
+  const [attendanceSettings, setAttendanceSettings] = useState({ entryTime: '09:00', exitTime: '17:00', graceMinutes: 0 });
   const [attendanceSettingsSaving, setAttendanceSettingsSaving] = useState(false);
   const [attendanceTeacherFilter, setAttendanceTeacherFilter] = useState('all');
   const [attendanceStatusFilter, setAttendanceStatusFilter] = useState('all');
@@ -331,6 +331,9 @@ const HR = ({ setShowAdminHeader }) => {
       setAttendanceSettings({
         entryTime: attendanceSettingsData?.settings?.entryTime || '09:00',
         exitTime: attendanceSettingsData?.settings?.exitTime || '17:00',
+        graceMinutes: Number.isFinite(attendanceSettingsData?.settings?.graceMinutes)
+          ? attendanceSettingsData.settings.graceMinutes
+          : 0,
       });
     } catch (err) {
       setActivityError(err.message || 'Unable to load teacher activities');
@@ -354,6 +357,7 @@ const HR = ({ setShowAdminHeader }) => {
         body: JSON.stringify({
           entryTime: attendanceSettings.entryTime,
           exitTime: attendanceSettings.exitTime,
+          graceMinutes: attendanceSettings.graceMinutes,
         }),
       });
       const data = await res.json().catch(() => ({}));
@@ -361,6 +365,9 @@ const HR = ({ setShowAdminHeader }) => {
       setAttendanceSettings({
         entryTime: data?.settings?.entryTime || attendanceSettings.entryTime,
         exitTime: data?.settings?.exitTime || attendanceSettings.exitTime,
+        graceMinutes: Number.isFinite(data?.settings?.graceMinutes)
+          ? data.settings.graceMinutes
+          : attendanceSettings.graceMinutes,
       });
       await fetchTeacherActivities(teacherActivityMonth);
     } catch (err) {
@@ -901,6 +908,17 @@ const HR = ({ setShowAdminHeader }) => {
                     className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
                   />
                 </div>
+                <div className="min-w-[200px]">
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Consideration (min)</label>
+                  <input
+                    type="number"
+                    min="0"
+                    max="720"
+                    value={attendanceSettings.graceMinutes}
+                    onChange={(e) => setAttendanceSettings((prev) => ({ ...prev, graceMinutes: Number(e.target.value || 0) }))}
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                  />
+                </div>
                 <button
                   onClick={saveAttendanceSettings}
                   disabled={attendanceSettingsSaving || activityLoading}
@@ -910,8 +928,13 @@ const HR = ({ setShowAdminHeader }) => {
                   {attendanceSettingsSaving ? 'Saving...' : 'Save Timings'}
                 </button>
               </div>
-              <p className="mt-2 text-xs text-gray-500">
-                Teachers checking in after entry time are marked as Late. Working hours are calculated from check-in to check-out.
+              <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-gray-500">
+                <span>Saved: {attendanceSettings.entryTime} - {attendanceSettings.exitTime}</span>
+                <span className="text-gray-400">|</span>
+                <span>Consideration: {attendanceSettings.graceMinutes} min</span>
+              </div>
+              <p className="mt-1 text-xs text-gray-500">
+                Teachers checking in within the consideration time are marked as Present. Working hours are calculated from check-in to check-out.
               </p>
             </div>
 

@@ -126,6 +126,7 @@ const schoolSchema = new mongoose.Schema(
     teacherAttendanceSettings: {
       entryTime: { type: String, default: '09:00' }, // HH:mm
       exitTime: { type: String, default: '17:00' }, // HH:mm
+      graceMinutes: { type: Number, default: 0 }, // Minutes allowed after entryTime
     },
   },
   { timestamps: true }
