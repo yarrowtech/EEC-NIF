@@ -8,6 +8,8 @@ const ExamResult = require('../models/ExamResult');
 const Exam = require('../models/Exam');
 const StudentProgress = require('../models/StudentProgress');
 const Assignment = require('../models/Assignment');
+const TeacherUser = require('../models/TeacherUser');
+const TeacherFeedback = require('../models/TeacherFeedback');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const adminAuth = require('../middleware/adminAuth');
@@ -79,6 +81,7 @@ const normalizeTags = (tags) => {
     .filter(Boolean);
 };
 const escapeRegex = (value) => String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+const normalizeString = (value = '') => String(value || '').trim().toLowerCase();
 const padNumber = (value, size = 3) => String(value).padStart(size, '0');
 const normalizeOrgPrefix = (adminUsername) => {
   const normalized = String(adminUsername || '')
@@ -125,6 +128,107 @@ const getNextParentUsername = async ({ schoolId, campusId, prefix }) => {
     if (Number.isFinite(seq) && seq > maxSequence) maxSequence = seq;
   });
   return `${prefix}${padNumber(maxSequence + 1)}`;
+};
+const buildTeacherFeedbackContext = async (studentDoc = null) => {
+  const fallback = { classDoc: null, contexts: [] };
+  if (!studentDoc || !studentDoc.schoolId) return fallback;
+
+  const resolvedGrade = String(studentDoc.grade || '').trim();
+  if (!resolvedGrade) return fallback;
+
+  const classFilter = {
+    schoolId: studentDoc.schoolId,
+    name: resolvedGrade
+  };
+  if (studentDoc.campusId) {
+    classFilter.campusId = studentDoc.campusId;
+  }
+
+  let classDoc = await Class.findOne(classFilter).lean();
+  if (!classDoc) {
+    classDoc = await Class.findOne({
+      ...classFilter,
+      name: { $regex: `^${escapeRegex(resolvedGrade)}$`, $options: 'i' }
+    }).lean();
+  }
+
+  if (!classDoc) {
+    return fallback;
+  }
+
+  const timetableFilter = {
+    schoolId: studentDoc.schoolId,
+    classId: classDoc._id
+  };
+  if (studentDoc.campusId) {
+    timetableFilter.campusId = studentDoc.campusId;
+  }
+
+  const timetables = await Timetable.find(timetableFilter)
+    .populate('sectionId', 'name')
+    .populate('entries.subjectId', 'name')
+    .populate('entries.teacherId', 'name profilePic subject')
+    .lean();
+
+  if (!Array.isArray(timetables) || timetables.length === 0) {
+    return { classDoc, contexts: [] };
+  }
+
+  const normalizedSection = normalizeString(studentDoc.section);
+  const scopedTimetables = normalizedSection
+    ? timetables.filter(tt => normalizeString(tt?.sectionId?.name) === normalizedSection)
+    : timetables;
+
+  const effectiveTimetables = scopedTimetables.length > 0 ? scopedTimetables : timetables;
+
+  const comboMap = new Map();
+
+  effectiveTimetables.forEach(tt => {
+    const sectionName = tt.sectionId?.name || studentDoc.section || '';
+    const sectionId = tt.sectionId?._id || null;
+
+    (tt.entries || []).forEach(entry => {
+      if (!entry?.teacherId) return;
+      const teacherId = entry.teacherId?._id || entry.teacherId;
+      if (!teacherId) return;
+
+      const subjectName = entry.subjectId?.name || entry.subjectName || entry.subject || 'Subject';
+      const subjectId = entry.subjectId?._id || null;
+      const key = `${teacherId}-${subjectId || subjectName}`;
+
+      const scheduleEntry = entry.dayOfWeek
+        ? {
+            dayOfWeek: entry.dayOfWeek,
+            period: entry.period,
+            time: entry.startTime && entry.endTime ? `${entry.startTime} - ${entry.endTime}` : entry.startTime || ''
+          }
+        : null;
+
+      if (!comboMap.has(key)) {
+        comboMap.set(key, {
+          contextId: key,
+          teacherId: teacherId.toString(),
+          teacherName: entry.teacherId?.name || 'Teacher',
+          teacherProfilePic: entry.teacherId?.profilePic || '',
+          teacherSubject: entry.teacherId?.subject || '',
+          subjectId: subjectId ? subjectId.toString() : null,
+          subjectName,
+          classId: classDoc._id,
+          className: classDoc.name,
+          sectionId,
+          sectionName,
+          scheduleTimes: scheduleEntry ? [scheduleEntry] : []
+        });
+      } else if (scheduleEntry) {
+        comboMap.get(key).scheduleTimes.push(scheduleEntry);
+      }
+    });
+  });
+
+  return {
+    classDoc,
+    contexts: Array.from(comboMap.values())
+  };
 };
 const rateLimit = require('../middleware/rateLimit');
 const { isStrongPassword, passwordPolicyMessage } = require('../utils/passwordPolicy');
@@ -940,6 +1044,155 @@ router.get('/schedule', authStudent, async (req, res) => {
     });
   } catch (err) {
     console.error('Schedule error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Teacher feedback context (subjects/teachers)
+router.get('/teacher-feedback/context', authStudent, async (req, res) => {
+  // #swagger.tags = ['Students']
+  try {
+    const student = await StudentUser.findById(req.user.id)
+      .select('name grade section schoolId campusId')
+      .lean();
+
+    if (!student) {
+      return res.status(404).json({ error: 'Student not found' });
+    }
+
+    const { contexts } = await buildTeacherFeedbackContext(student);
+    res.json({ teachers: contexts });
+  } catch (err) {
+    console.error('Teacher feedback context error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Get student's previous teacher feedback
+router.get('/teacher-feedback', authStudent, async (req, res) => {
+  // #swagger.tags = ['Students']
+  try {
+    const feedbackDocs = await TeacherFeedback.find({ studentId: req.user.id })
+      .sort({ createdAt: -1 })
+      .lean();
+
+    const formatted = feedbackDocs.map(doc => ({
+      id: doc._id,
+      teacherId: doc.teacherId,
+      teacherName: doc.teacherName,
+      teacherProfilePic: doc.teacherProfilePic,
+      subjectName: doc.subjectName,
+      className: doc.className,
+      sectionName: doc.sectionName,
+      ratings: doc.ratings || {},
+      overallRating: doc.overallRating || 0,
+      comments: doc.comments || '',
+      createdAt: doc.createdAt
+    }));
+
+    res.json(formatted);
+  } catch (err) {
+    console.error('Teacher feedback list error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Submit teacher feedback
+router.post('/teacher-feedback', authStudent, async (req, res) => {
+  // #swagger.tags = ['Students']
+  try {
+    const student = await StudentUser.findById(req.user.id)
+      .select('name grade section schoolId campusId')
+      .lean();
+
+    if (!student) {
+      return res.status(404).json({ error: 'Student not found' });
+    }
+
+    const { teacherId, subjectId, subjectName, ratings = {}, comments = '' } = req.body || {};
+    if (!teacherId || !subjectName) {
+      return res.status(400).json({ error: 'Teacher and subject are required' });
+    }
+    const normalizedSubjectName = normalizeString(subjectName);
+
+    const normalizedRatings = {};
+    Object.entries(ratings || {}).forEach(([key, value]) => {
+      const parsed = Number(value);
+      if (!Number.isFinite(parsed) || parsed <= 0) return;
+      const bounded = Math.max(1, Math.min(5, parsed));
+      normalizedRatings[key] = bounded;
+    });
+    const ratingValues = Object.values(normalizedRatings);
+    if (ratingValues.length === 0) {
+      return res.status(400).json({ error: 'Please provide at least one rating' });
+    }
+
+    const { classDoc, contexts } = await buildTeacherFeedbackContext(student);
+    const selectedContext = contexts.find(ctx => {
+      if (ctx.teacherId !== String(teacherId)) return false;
+      if (ctx.subjectId && subjectId) {
+        return ctx.subjectId === String(subjectId);
+      }
+      if (!ctx.subjectId && !subjectId) {
+        return normalizeString(ctx.subjectName) === normalizedSubjectName;
+      }
+      return !ctx.subjectId && !subjectId;
+    });
+
+    if (!selectedContext) {
+      return res.status(400).json({ error: 'Selected teacher or subject is not associated with your class' });
+    }
+
+    const teacher = await TeacherUser.findOne({
+      _id: teacherId,
+      schoolId: student.schoolId
+    })
+      .select('name profilePic')
+      .lean();
+
+    if (!teacher) {
+      return res.status(404).json({ error: 'Teacher not found' });
+    }
+
+    const overallRating = ratingValues.reduce((sum, value) => sum + value, 0) / ratingValues.length;
+
+    const feedbackDoc = await TeacherFeedback.create({
+      schoolId: student.schoolId,
+      campusId: student.campusId || req.campusId || null,
+      studentId: req.user.id,
+      studentName: student.name || '',
+      classId: selectedContext.classId || classDoc?._id || null,
+      className: selectedContext.className || student.grade || '',
+      sectionId: selectedContext.sectionId || null,
+      sectionName: selectedContext.sectionName || student.section || '',
+      teacherId,
+      teacherName: teacher.name || selectedContext.teacherName,
+      teacherProfilePic: teacher.profilePic || selectedContext.teacherProfilePic || '',
+      subjectId: subjectId || selectedContext.subjectId || null,
+      subjectName: subjectName || selectedContext.subjectName,
+      ratings: normalizedRatings,
+      overallRating,
+      comments: comments || ''
+    });
+
+    res.status(201).json({
+      message: 'Feedback submitted',
+      feedback: {
+        id: feedbackDoc._id,
+        teacherId: feedbackDoc.teacherId,
+        teacherName: feedbackDoc.teacherName,
+        teacherProfilePic: feedbackDoc.teacherProfilePic,
+        subjectName: feedbackDoc.subjectName,
+        className: feedbackDoc.className,
+        sectionName: feedbackDoc.sectionName,
+        ratings: feedbackDoc.ratings,
+        overallRating: feedbackDoc.overallRating,
+        comments: feedbackDoc.comments,
+        createdAt: feedbackDoc.createdAt
+      }
+    });
+  } catch (err) {
+    console.error('Teacher feedback submit error:', err);
     res.status(500).json({ error: err.message });
   }
 });

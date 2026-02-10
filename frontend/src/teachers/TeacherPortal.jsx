@@ -19,6 +19,7 @@ import {
   Clock,
   Eye,
   LogOut,
+  ThumbsUp,
 } from 'lucide-react';
 
 import HealthUpdates from './HealthUpdates';
@@ -38,7 +39,7 @@ import MyWorkPortal from './MyWorkPortal';
 import ClassRoutine from './ClassRoutine';
 import StudentObservation from './StudentObservation';
 import ClassNotes from './ClassNotes';
-import PracticeQuestions from './PracticeQuestions';
+import TeacherFeedbackPortal from './TeacherFeedbackPortal';
 
 const PORTAL_BASE = '/teacher';
 
@@ -59,6 +60,7 @@ const menuItems = [
   { icon: MessageSquare, label: 'Chat', path: `${PORTAL_BASE}/chat` },
   { icon: BookOpen, label: 'Lesson Plans', path: `${PORTAL_BASE}/lesson-plans` },
   { icon: FileText, label: 'Class Notes', path: `${PORTAL_BASE}/class-notes` },
+  { icon: ThumbsUp, label: 'Feedback', path: `${PORTAL_BASE}/feedback` },
 ];
 
 const TeacherPortal = () => {
@@ -207,6 +209,7 @@ const TeacherPortal = () => {
             <Route path="chat" element={<TeacherChat />} />
             <Route path="lesson-plans" element={<LessonPlanDashboard />} />
             <Route path="class-notes" element={<ClassNotes />} />
+            <Route path="feedback" element={<TeacherFeedbackPortal />} />
           </Routes>
         </main>
       </div>

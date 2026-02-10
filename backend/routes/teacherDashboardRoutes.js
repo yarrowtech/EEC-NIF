@@ -14,6 +14,7 @@ const TeacherAttendance = require('../models/TeacherAttendance');
 const TeacherLeave = require('../models/TeacherLeave');
 const TeacherExpense = require('../models/TeacherExpense');
 const TeacherAllocation = require('../models/TeacherAllocation');
+const TeacherFeedback = require('../models/TeacherFeedback');
 
 const router = express.Router();
 const WEEK_DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
@@ -1139,6 +1140,81 @@ router.get('/routine', authTeacher, async (req, res) => {
     });
   } catch (err) {
     res.status(500).json({ error: err.message || 'Unable to load teacher routine' });
+  }
+});
+
+router.get('/feedback', authTeacher, async (req, res) => {
+  // #swagger.tags = ['Teacher Dashboard']
+  try {
+    const teacherId = req.user?.id;
+    const schoolId = req.schoolId || req.user?.schoolId || null;
+    if (!teacherId) return res.status(400).json({ error: 'teacherId is required' });
+    if (!schoolId) return res.status(400).json({ error: 'schoolId is required' });
+
+    const filter = { teacherId, schoolId };
+    const feedbackDocs = await TeacherFeedback.find(filter).sort({ createdAt: -1 }).lean();
+
+    const totalFeedback = feedbackDocs.length;
+    const ratingKeys = ['teaching_quality', 'communication', 'engagement', 'preparation', 'availability', 'fairness'];
+
+    const stats = {
+      totalFeedback,
+      averageRating: 0,
+      ratingDistribution: { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 },
+      categoryAverages: ratingKeys.reduce((acc, key) => {
+        acc[key] = { total: 0, count: 0, average: 0 };
+        return acc;
+      }, {}),
+      latestFeedbackDate: null
+    };
+
+    if (totalFeedback > 0) {
+      let overallSum = 0;
+      feedbackDocs.forEach((doc, index) => {
+        const computedOverall = (() => {
+          if (Number.isFinite(Number(doc.overallRating))) return Number(doc.overallRating);
+          const values = Object.values(doc.ratings || {})
+            .map((value) => Number(value))
+            .filter((value) => Number.isFinite(value));
+          return values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : 0;
+        })();
+        overallSum += computedOverall;
+        const rounded = Math.max(1, Math.min(5, Math.round(computedOverall || 0)));
+        stats.ratingDistribution[rounded] += 1;
+        ratingKeys.forEach((key) => {
+          const value = Number(doc.ratings?.[key]);
+          if (Number.isFinite(value)) {
+            stats.categoryAverages[key].total += value;
+            stats.categoryAverages[key].count += 1;
+          }
+        });
+        if (index === 0 && doc.createdAt) {
+          stats.latestFeedbackDate = doc.createdAt;
+        }
+      });
+      stats.averageRating = overallSum / totalFeedback;
+      ratingKeys.forEach((key) => {
+        const entry = stats.categoryAverages[key];
+        entry.average = entry.count ? entry.total / entry.count : 0;
+      });
+    }
+
+    const feedback = feedbackDocs.map((doc) => ({
+      id: doc._id,
+      studentName: doc.studentName || 'Student',
+      className: doc.className || '',
+      sectionName: doc.sectionName || '',
+      subjectName: doc.subjectName,
+      ratings: doc.ratings || {},
+      overallRating: Number(doc.overallRating) || 0,
+      comments: doc.comments || '',
+      createdAt: doc.createdAt
+    }));
+
+    res.json({ stats, feedback });
+  } catch (err) {
+    console.error('Teacher feedback fetch error:', err);
+    res.status(500).json({ error: err.message });
   }
 });
 

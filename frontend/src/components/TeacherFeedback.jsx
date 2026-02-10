@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { 
   Star, 
   MessageCircle, 
@@ -25,7 +25,6 @@ import {
 
 const TeacherFeedback = () => {
   const [selectedSubject, setSelectedSubject] = useState('');
-  const [selectedTeacher, setSelectedTeacher] = useState('');
   const [ratings, setRatings] = useState({});
   const [hoveredRatings, setHoveredRatings] = useState({});
   const [feedback, setFeedback] = useState('');
@@ -33,58 +32,15 @@ const TeacherFeedback = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [filterSubject, setFilterSubject] = useState('all');
   const [showPreviousFeedback, setShowPreviousFeedback] = useState(false);
+  const [teacherSubjects, setTeacherSubjects] = useState([]);
+  const [previousFeedback, setPreviousFeedback] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState('');
+  const [submitError, setSubmitError] = useState('');
+  const [submittingFeedback, setSubmittingFeedback] = useState(false);
 
-  // Mock data for subjects and teachers
-  const subjects = [
-    {
-      id: 'mathematics',
-      name: 'Mathematics',
-      teacher: 'Dr. Sarah Johnson',
-      teacherImage: 'https://images.unsplash.com/photo-1494790108755-2616b612b786?w=150&h=150&fit=crop&crop=face',
-      code: 'MATH-101',
-      schedule: 'Mon, Wed, Fri - 9:00 AM'
-    },
-    {
-      id: 'physics',
-      name: 'Physics',
-      teacher: 'Prof. Michael Chen',
-      teacherImage: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=150&h=150&fit=crop&crop=face',
-      code: 'PHY-201',
-      schedule: 'Tue, Thu - 11:00 AM'
-    },
-    {
-      id: 'chemistry',
-      name: 'Chemistry',
-      teacher: 'Dr. Emily Rodriguez',
-      teacherImage: 'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=150&h=150&fit=crop&crop=face',
-      code: 'CHEM-201',
-      schedule: 'Mon, Wed, Fri - 2:00 PM'
-    },
-    {
-      id: 'english',
-      name: 'English Literature',
-      teacher: 'Ms. Jennifer Davis',
-      teacherImage: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=150&h=150&fit=crop&crop=face',
-      code: 'ENG-301',
-      schedule: 'Tue, Thu - 10:00 AM'
-    },
-    {
-      id: 'history',
-      name: 'World History',
-      teacher: 'Mr. David Thompson',
-      teacherImage: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&h=150&fit=crop&crop=face',
-      code: 'HIST-201',
-      schedule: 'Mon, Wed - 1:00 PM'
-    },
-    {
-      id: 'biology',
-      name: 'Biology',
-      teacher: 'Dr. Lisa Anderson',
-      teacherImage: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?w=150&h=150&fit=crop&crop=face',
-      code: 'BIO-201',
-      schedule: 'Tue, Fri - 9:00 AM'
-    }
-  ];
+  const API_BASE_URL = (import.meta.env.VITE_API_URL || 'http://localhost:5000').replace(/\/$/, '');
+  const placeholderAvatar = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='40' height='40' viewBox='0 0 24 24' fill='none' stroke='%236B7280' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2'%3E%3C/path%3E%3Ccircle cx='12' cy='7' r='4'%3E%3C/circle%3E%3C/svg%3E";
 
   // Rating categories for teacher evaluation
   const ratingCategories = [
@@ -118,49 +74,96 @@ const TeacherFeedback = () => {
       description: 'How accessible is the teacher for questions and help?',
       icon: Heart
     },
-    {
-      id: 'fairness',
-      label: 'Fair Assessment',
-      description: 'How fair and consistent is the teacher\'s grading?',
-      icon: Target
-    }
-  ];
+  {
+    id: 'fairness',
+    label: 'Fair Assessment',
+    description: 'How fair and consistent is the teacher\'s grading?',
+    icon: Target
+  }
+];
 
-  // Previous feedback data (mock)
-  const previousFeedback = [
-    {
-      id: 1,
-      subject: 'Mathematics',
-      teacher: 'Dr. Sarah Johnson',
-      date: '2024-07-15',
-      rating: 4.5,
-      feedback: 'Excellent teacher! Very clear explanations and always willing to help.',
-      categories: {
-        teaching_quality: 5,
-        communication: 4,
-        engagement: 5,
-        preparation: 4,
-        availability: 5,
-        fairness: 4
+  useEffect(() => {
+    const fetchData = async () => {
+      const token = localStorage.getItem('token');
+      const userType = localStorage.getItem('userType');
+
+      if (!token || userType !== 'Student') {
+        setLoadError('Student session not found. Please login again.');
+        setLoading(false);
+        return;
       }
-    },
-    {
-      id: 2,
-      subject: 'Physics',
-      teacher: 'Prof. Michael Chen',
-      date: '2024-07-10',
-      rating: 4.0,
-      feedback: 'Great practical demonstrations. Could improve on explaining complex theories.',
-      categories: {
-        teaching_quality: 4,
-        communication: 3,
-        engagement: 5,
-        preparation: 4,
-        availability: 4,
-        fairness: 4
+
+      setLoadError('');
+      setLoading(true);
+
+      try {
+        const headers = {
+          Authorization: `Bearer ${token}`
+        };
+
+        const [contextRes, historyRes] = await Promise.all([
+          fetch(`${API_BASE_URL}/api/student/auth/teacher-feedback/context`, { headers }),
+          fetch(`${API_BASE_URL}/api/student/auth/teacher-feedback`, { headers })
+        ]);
+
+        const contextData = await contextRes.json();
+        if (!contextRes.ok) {
+          throw new Error(contextData.error || 'Unable to load teacher data');
+        }
+        setTeacherSubjects(Array.isArray(contextData.teachers) ? contextData.teachers : []);
+
+        const historyData = await historyRes.json();
+        if (!historyRes.ok) {
+          throw new Error(historyData.error || 'Unable to load feedback history');
+        }
+        setPreviousFeedback(Array.isArray(historyData) ? historyData : []);
+      } catch (err) {
+        console.error('Teacher feedback fetch error:', err);
+        setLoadError(err.message || 'Failed to load teacher feedback data.');
+        setTeacherSubjects([]);
+        setPreviousFeedback([]);
+      } finally {
+        setLoading(false);
       }
-    }
-  ];
+    };
+
+    fetchData();
+  }, [API_BASE_URL]);
+
+  const selectedContext = useMemo(
+    () => teacherSubjects.find(subject => subject.contextId === selectedSubject),
+    [teacherSubjects, selectedSubject]
+  );
+
+  const filteredSubjects = useMemo(() => {
+    if (!searchQuery.trim()) return teacherSubjects;
+    const normalizedQuery = searchQuery.toLowerCase();
+    return teacherSubjects.filter(subject =>
+      subject.subjectName?.toLowerCase().includes(normalizedQuery) ||
+      subject.teacherName?.toLowerCase().includes(normalizedQuery)
+    );
+  }, [teacherSubjects, searchQuery]);
+
+  const previousSubjectOptions = useMemo(() => {
+    const set = new Set();
+    previousFeedback.forEach(item => {
+      if (item.subjectName) set.add(item.subjectName);
+    });
+    return Array.from(set);
+  }, [previousFeedback]);
+
+  const filteredPreviousFeedback = useMemo(() => {
+    if (filterSubject === 'all') return previousFeedback;
+    return previousFeedback.filter(item => item.subjectName === filterSubject);
+  }, [previousFeedback, filterSubject]);
+
+  const totalFeedbackGiven = previousFeedback.length;
+  const averageRatingGiven = totalFeedbackGiven
+    ? (previousFeedback.reduce((sum, item) => sum + (item.overallRating || 0), 0) / totalFeedbackGiven).toFixed(1)
+    : '0.0';
+  const responseRate = teacherSubjects.length
+    ? Math.min(100, Math.round((totalFeedbackGiven / teacherSubjects.length) * 100))
+    : 0;
 
   const handleRatingChange = (category, rating) => {
     setRatings(prev => ({ ...prev, [category]: rating }));
@@ -180,45 +183,97 @@ const TeacherFeedback = () => {
     return (ratingValues.reduce((sum, rating) => sum + rating, 0) / ratingValues.length).toFixed(1);
   };
 
-  const handleSubmit = () => {
-    if (!selectedSubject || Object.keys(ratings).length === 0) {
-      alert('Please select a subject and provide ratings before submitting.');
+  const getSelectedContextOrAlert = () => {
+    if (!selectedSubject) {
+      alert('Please select a subject before submitting feedback.');
+      return null;
+    }
+    const context = teacherSubjects.find(subject => subject.contextId === selectedSubject);
+    if (!context) {
+      alert('Selected subject is no longer available. Please choose again.');
+      return null;
+    }
+    if (Object.keys(ratings).length === 0) {
+      alert('Please provide ratings before submitting.');
+      return null;
+    }
+    return context;
+  };
+
+  const handleSubmit = async () => {
+    const context = getSelectedContextOrAlert();
+    if (!context) return;
+
+    const token = localStorage.getItem('token');
+    if (!token) {
+      setSubmitError('Student session not found. Please login again.');
       return;
     }
-    
-    // In a real app, this would be sent to the backend
-    console.log('Feedback submitted:', {
-      subject: selectedSubject,
-      ratings,
-      feedback,
-      averageRating: getAverageRating()
-    });
-    
-    setIsSubmitted(true);
-    setTimeout(() => {
-      setIsSubmitted(false);
-      setRatings({});
-      setFeedback('');
-      setSelectedSubject('');
-      setSelectedTeacher('');
-    }, 3000);
+
+    setSubmitError('');
+    setSubmittingFeedback(true);
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/student/auth/teacher-feedback`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          teacherId: context.teacherId,
+          subjectId: context.subjectId,
+          subjectName: context.subjectName,
+          ratings,
+          comments: feedback
+        })
+      });
+
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to submit feedback');
+      }
+
+      if (data.feedback) {
+        setPreviousFeedback(prev => [data.feedback, ...prev]);
+      }
+
+      setIsSubmitted(true);
+      setTimeout(() => {
+        setIsSubmitted(false);
+        setRatings({});
+        setFeedback('');
+        setSelectedSubject('');
+        setSubmitError('');
+      }, 3000);
+    } catch (err) {
+      console.error('Feedback submit error:', err);
+      setSubmitError(err.message || 'Failed to submit feedback.');
+    } finally {
+      setSubmittingFeedback(false);
+    }
   };
 
   const resetForm = () => {
     setRatings({});
     setFeedback('');
     setSelectedSubject('');
-    setSelectedTeacher('');
+    setSubmitError('');
   };
 
-  const filteredSubjects = subjects.filter(subject => 
-    subject.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    subject.teacher.toLowerCase().includes(searchQuery.toLowerCase())
-  );
-
-  const filteredPreviousFeedback = previousFeedback.filter(item => 
-    filterSubject === 'all' || item.subject.toLowerCase().includes(filterSubject.toLowerCase())
-  );
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-yellow-50 via-amber-50 to-purple-50 flex items-center justify-center p-6">
+        <div className="bg-white rounded-2xl shadow-xl p-8 text-center border border-yellow-200 max-w-md mx-auto">
+          <div className="w-16 h-16 bg-yellow-100 rounded-full flex items-center justify-center mx-auto mb-4">
+            <Clock className="w-8 h-8 text-amber-500" />
+          </div>
+          <h3 className="text-2xl font-bold text-amber-900 mb-2">Loading your teachers…</h3>
+          <p className="text-amber-600">Fetching your timetable and previous feedback.</p>
+        </div>
+      </div>
+    );
+  }
 
   if (isSubmitted) {
     return (
@@ -231,7 +286,7 @@ const TeacherFeedback = () => {
           <p className="text-amber-600 mb-4">Thank you for your valuable feedback. Your input helps us improve the learning experience.</p>
           <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
             <p className="text-sm text-amber-700">
-              <strong>Subject:</strong> {subjects.find(s => s.id === selectedSubject)?.name}<br />
+              <strong>Subject:</strong> {selectedContext?.subjectName || 'Selected Subject'}<br />
               <strong>Average Rating:</strong> {getAverageRating()}/5 stars
             </p>
           </div>
@@ -254,12 +309,18 @@ const TeacherFeedback = () => {
           </div>
           <div className="text-right">
             <div className="bg-white/20 rounded-lg p-4">
-              <div className="text-3xl font-bold">{subjects.length}</div>
+              <div className="text-3xl font-bold">{teacherSubjects.length}</div>
               <div className="text-sm text-yellow-100">Subjects Available</div>
             </div>
           </div>
         </div>
       </div>
+
+      {loadError && (
+        <div className="mb-6 bg-red-50 border border-red-200 text-red-700 rounded-lg p-4">
+          {loadError}
+        </div>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         {/* Left Column: Feedback Form */}
@@ -285,39 +346,50 @@ const TeacherFeedback = () => {
             </div>
             
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {filteredSubjects.map((subject) => (
-                <div
-                  key={subject.id}
-                  onClick={() => {
-                    setSelectedSubject(subject.id);
-                    setSelectedTeacher(subject.teacher);
-                  }}
-                  className={`p-4 border-2 rounded-xl cursor-pointer transition-all duration-200 hover:shadow-md ${
-                    selectedSubject === subject.id
-                      ? 'border-purple-400 bg-purple-50 ring-2 ring-purple-100'
-                      : 'border-yellow-200 bg-white hover:border-amber-300'
-                  }`}
-                >
-                  <div className="flex items-center gap-3 mb-3">
-                    <img
-                      src={subject.teacherImage}
-                      alt={subject.teacher}
-                      className="w-10 h-10 rounded-full object-cover border-2 border-white shadow-sm"
-                      onError={(e) => {
-                        e.target.src = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='40' height='40' viewBox='0 0 24 24' fill='none' stroke='%236B7280' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2'%3E%3C/path%3E%3Ccircle cx='12' cy='7' r='4'%3E%3C/circle%3E%3C/svg%3E";
-                      }}
-                    />
-                    <div>
-                      <h4 className="font-bold text-amber-900">{subject.name}</h4>
-                      <p className="text-sm text-amber-600">{subject.code}</p>
+              {filteredSubjects.length === 0 ? (
+                <div className="col-span-2 text-center text-sm text-amber-600 py-6">
+                  No matching subjects. Try adjusting your search.
+                </div>
+              ) : (
+                filteredSubjects.map((subject) => (
+                  <div
+                    key={subject.contextId}
+                    onClick={() => setSelectedSubject(subject.contextId)}
+                    className={`p-4 border-2 rounded-xl cursor-pointer transition-all duration-200 hover:shadow-md ${
+                      selectedSubject === subject.contextId
+                        ? 'border-purple-400 bg-purple-50 ring-2 ring-purple-100'
+                        : 'border-yellow-200 bg-white hover:border-amber-300'
+                    }`}
+                  >
+                    <div className="flex items-center gap-3 mb-3">
+                      <img
+                        src={subject.teacherProfilePic || placeholderAvatar}
+                        alt={subject.teacherName}
+                        className="w-10 h-10 rounded-full object-cover border-2 border-white shadow-sm"
+                        onError={(e) => {
+                          e.target.src = placeholderAvatar;
+                        }}
+                      />
+                      <div>
+                        <h4 className="font-bold text-amber-900">{subject.subjectName}</h4>
+                        <p className="text-sm text-amber-600">
+                          {subject.className}
+                          {subject.sectionName ? ` • Section ${subject.sectionName}` : ''}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="text-sm text-amber-700">
+                      <p className="font-medium">{subject.teacherName}</p>
+                      {subject.scheduleTimes?.length > 0 && (
+                        <p className="text-xs text-amber-600">
+                          {subject.scheduleTimes[0].dayOfWeek}
+                          {subject.scheduleTimes[0].time ? ` • ${subject.scheduleTimes[0].time}` : ''}
+                        </p>
+                      )}
                     </div>
                   </div>
-                  <div className="text-sm text-amber-700">
-                    <p className="font-medium">{subject.teacher}</p>
-                    <p className="text-xs text-amber-600">{subject.schedule}</p>
-                  </div>
-                </div>
-              ))}
+                ))
+              )}
             </div>
           </div>
 
@@ -334,6 +406,11 @@ const TeacherFeedback = () => {
                   <div className="text-sm text-amber-600">Average Rating</div>
                 </div>
               </div>
+              {selectedContext && (
+                <p className="text-sm text-amber-600 mb-4">
+                  {selectedContext.teacherName} • {selectedContext.subjectName}
+                </p>
+              )}
               
               <div className="space-y-6">
                 {ratingCategories.map((category) => {
@@ -393,6 +470,7 @@ const TeacherFeedback = () => {
                 placeholder="Share specific feedback, suggestions, or what you appreciate about this teacher's teaching style..."
                 value={feedback}
                 onChange={(e) => setFeedback(e.target.value)}
+                maxLength={500}
                 className="w-full px-4 py-3 border border-yellow-200 rounded-lg focus:ring-2 focus:ring-yellow-400 focus:border-transparent resize-none"
               />
               <div className="flex items-center justify-between mt-4">
@@ -402,21 +480,25 @@ const TeacherFeedback = () => {
                 <div className="flex gap-3">
                   <button
                     onClick={resetForm}
-                    className="flex items-center gap-2 px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
+                    disabled={submittingFeedback}
+                    className="flex items-center gap-2 px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 disabled:opacity-50 transition-colors"
                   >
                     <RotateCcw className="w-4 h-4" />
                     Reset
                   </button>
                   <button
                     onClick={handleSubmit}
-                    disabled={!selectedSubject || Object.keys(ratings).length === 0}
+                    disabled={!selectedSubject || Object.keys(ratings).length === 0 || submittingFeedback}
                     className="flex items-center gap-2 px-6 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                   >
                     <Send className="w-4 h-4" />
-                    Submit Feedback
+                    {submittingFeedback ? 'Submitting…' : 'Submit Feedback'}
                   </button>
                 </div>
               </div>
+              {submitError && (
+                <p className="mt-3 text-sm text-red-600">{submitError}</p>
+              )}
             </div>
           )}
         </div>
@@ -432,15 +514,15 @@ const TeacherFeedback = () => {
             <div className="space-y-4">
               <div className="flex items-center justify-between p-3 bg-yellow-50 rounded-lg">
                 <span className="text-amber-700">Total Feedback Given</span>
-                <span className="font-bold text-amber-900">12</span>
+                <span className="font-bold text-amber-900">{totalFeedbackGiven}</span>
               </div>
               <div className="flex items-center justify-between p-3 bg-purple-50 rounded-lg">
                 <span className="text-purple-700">Average Rating Given</span>
-                <span className="font-bold text-purple-900">4.2/5</span>
+                <span className="font-bold text-purple-900">{averageRatingGiven}/5</span>
               </div>
               <div className="flex items-center justify-between p-3 bg-green-50 rounded-lg">
                 <span className="text-green-700">Response Rate</span>
-                <span className="font-bold text-green-900">89%</span>
+                <span className="font-bold text-green-900">{responseRate}%</span>
               </div>
             </div>
           </div>
@@ -470,8 +552,8 @@ const TeacherFeedback = () => {
                     className="w-full px-3 py-2 border border-yellow-200 rounded-lg focus:ring-2 focus:ring-yellow-400 focus:border-transparent"
                   >
                     <option value="all">All Subjects</option>
-                    {subjects.map(subject => (
-                      <option key={subject.id} value={subject.name}>{subject.name}</option>
+                    {previousSubjectOptions.map(subjectName => (
+                      <option key={subjectName} value={subjectName}>{subjectName}</option>
                     ))}
                   </select>
                 </div>
@@ -480,23 +562,29 @@ const TeacherFeedback = () => {
             
             {showPreviousFeedback && (
               <div className="max-h-96 overflow-y-auto">
-                {filteredPreviousFeedback.map((item) => (
-                  <div key={item.id} className="p-4 border-b border-yellow-100 last:border-b-0 hover:bg-yellow-50 transition-colors">
-                    <div className="flex items-center justify-between mb-2">
-                      <h4 className="font-semibold text-amber-900">{item.subject}</h4>
-                      <div className="flex items-center gap-1">
-                        <Star className="w-4 h-4 fill-yellow-400 text-yellow-500" />
-                        <span className="text-sm font-medium text-amber-700">{item.rating}</span>
+                {filteredPreviousFeedback.length === 0 ? (
+                  <div className="p-4 text-center text-sm text-amber-600">
+                    No feedback records yet.
+                  </div>
+                ) : (
+                  filteredPreviousFeedback.map((item) => (
+                    <div key={item.id} className="p-4 border-b border-yellow-100 last:border-b-0 hover:bg-yellow-50 transition-colors">
+                      <div className="flex items-center justify-between mb-2">
+                        <h4 className="font-semibold text-amber-900">{item.subjectName}</h4>
+                        <div className="flex items-center gap-1">
+                          <Star className="w-4 h-4 fill-yellow-400 text-yellow-500" />
+                          <span className="text-sm font-medium text-amber-700">{(item.overallRating || 0).toFixed(1)}</span>
+                        </div>
+                      </div>
+                      <p className="text-sm text-amber-600 mb-2">{item.teacherName}</p>
+                      <p className="text-sm text-amber-700 mb-2">"{item.comments || 'No comments provided.'}"</p>
+                      <div className="flex items-center justify-between text-xs text-amber-600">
+                        <span>{item.createdAt ? new Date(item.createdAt).toLocaleDateString() : ''}</span>
+                        <span>{Object.keys(item.ratings || {}).length} categories rated</span>
                       </div>
                     </div>
-                    <p className="text-sm text-amber-600 mb-2">{item.teacher}</p>
-                    <p className="text-sm text-amber-700 mb-2">"{item.feedback}"</p>
-                    <div className="flex items-center justify-between text-xs text-amber-600">
-                      <span>{new Date(item.date).toLocaleDateString()}</span>
-                      <span>6 categories rated</span>
-                    </div>
-                  </div>
-                ))}
+                  ))
+                )}
               </div>
             )}
           </div>
