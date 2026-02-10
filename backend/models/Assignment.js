@@ -17,6 +17,11 @@ const assignmentSchema = new mongoose.Schema({
     url: { type: String },
     type: { type: String, default: 'pdf' }
   }],
+  submissionFormat: {
+    type: String,
+    enum: ['text', 'pdf'],
+    default: 'text'
+  },
   status: {
     type: String,
     enum: ["draft", "active"],
