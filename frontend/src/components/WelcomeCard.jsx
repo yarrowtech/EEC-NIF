@@ -27,6 +27,13 @@ const WelcomeCard = () => {
       ? `${studentData.campusName} (${studentData.campusType})`
       : studentData.campusName
     : '';
+  const profileImage = studentData.profilePic || studentData.avatar || '';
+  const hasProfileImage = typeof profileImage === 'string' && profileImage.trim() !== '';
+  const nameParts = (studentData.name || '').trim().split(/\s+/).filter(Boolean);
+  const initials = nameParts.length >= 2
+    ? `${nameParts[0][0]}${nameParts[nameParts.length - 1][0]}`
+    : (nameParts[0]?.[0] || 'S');
+  const initialsLabel = initials.toUpperCase();
 
   const getGreeting = () => {
     const hour = new Date().getHours();
@@ -189,14 +196,20 @@ const WelcomeCard = () => {
         <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <div className="flex items-center space-x-4">
             <div className="relative">
-              <img
-                src={studentData.profilePic}
-                alt="Profile"
-                className="w-16 h-16 rounded-full border-4 border-white/20 shadow-lg"
-                onError={(e) => {
-                  e.target.src = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='64' height='64' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2'%3E%3C/path%3E%3Ccircle cx='12' cy='7' r='4'%3E%3C/circle%3E%3C/svg%3E";
-                }}
-              />
+              {hasProfileImage ? (
+                <img
+                  src={profileImage}
+                  alt="Profile"
+                  className="w-16 h-16 rounded-full border-4 border-white/20 shadow-lg object-cover"
+                  onError={(e) => {
+                    e.target.src = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='64' height='64' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2'%3E%3C/path%3E%3Ccircle cx='12' cy='7' r='4'%3E%3C/circle%3E%3C/svg%3E";
+                  }}
+                />
+              ) : (
+                <div className="w-16 h-16 rounded-full border-4 border-white/20 shadow-lg bg-white/20 text-white flex items-center justify-center text-xl font-semibold">
+                  {initialsLabel}
+                </div>
+              )}
               <div className="absolute bottom-1 right-1 w-4 h-4 bg-green-400 border-2 border-white rounded-full"></div>
             </div>
             

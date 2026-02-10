@@ -1,9 +1,56 @@
-import React, { useMemo } from 'react';
-import { BookOpen, Trophy, Clock, TrendingUp } from 'lucide-react';
+import React, { useEffect, useMemo, useState } from 'react';
+import { BookOpen, Trophy, Clock, TrendingUp, FileText } from 'lucide-react';
 import { useStudentDashboard } from './StudentDashboardContext';
 
 const QuickStats = () => {
   const { stats: dashboardStats, course, loading } = useStudentDashboard();
+  const [assignmentSummary, setAssignmentSummary] = useState({
+    total: 0,
+    pending: 0,
+    loading: false,
+  });
+
+  useEffect(() => {
+    const activeCourses = dashboardStats?.activeCourses ?? 0;
+    if (loading || activeCourses > 0) return;
+
+    const fetchAssignments = async () => {
+      try {
+        setAssignmentSummary((prev) => ({ ...prev, loading: true }));
+        const token = localStorage.getItem('token');
+        if (!token) {
+          setAssignmentSummary({ total: 0, pending: 0, loading: false });
+          return;
+        }
+        const API_BASE = (import.meta.env.VITE_API_URL || 'http://localhost:5000').replace(/\/+$/, '');
+        const res = await fetch(`${API_BASE}/api/assignment/student/assignments`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (!res.ok) {
+          throw new Error('Failed to load assignments');
+        }
+        const data = await res.json();
+        const assignmentsPayload = Array.isArray(data)
+          ? data
+          : Array.isArray(data?.assignments)
+            ? data.assignments
+            : [];
+        const pendingCount = assignmentsPayload.filter((a) => a?.submissionStatus === 'not_submitted' || !a?.submissionStatus).length;
+        const evaluatedCount = assignmentsPayload.filter((a) => a?.submissionStatus === 'graded').length;
+        setAssignmentSummary({
+          total: assignmentsPayload.length,
+          pending: pendingCount,
+          evaluated: evaluatedCount,
+          loading: false,
+        });
+      } catch (err) {
+        console.error('Assignments summary error:', err);
+        setAssignmentSummary({ total: 0, pending: 0, evaluated: 0, loading: false });
+      }
+    };
+
+    fetchAssignments();
+  }, [dashboardStats, loading]);
 
   const stats = useMemo(() => {
     if (!dashboardStats) {
@@ -55,7 +102,7 @@ const QuickStats = () => {
       ? 'neutral'
       : 'negative';
 
-    return [
+    const baseStats = [
       {
         title: "Active Courses",
         value: dashboardStats.activeCourses.toString(),
@@ -89,7 +136,24 @@ const QuickStats = () => {
         color: "bg-purple-500"
       }
     ];
-  }, [dashboardStats, course, loading]);
+
+    if (dashboardStats.activeCourses === 0) {
+      baseStats[0] = {
+        title: "Assignments",
+        value: assignmentSummary.loading ? "..." : assignmentSummary.total.toString(),
+        change: assignmentSummary.loading
+          ? "Loading..."
+          : assignmentSummary.total > 0
+            ? `Evaluated ${assignmentSummary.evaluated || 0}`
+            : "No assignments",
+        changeType: assignmentSummary.pending > 0 ? "neutral" : "positive",
+        icon: FileText,
+        color: "bg-blue-500"
+      };
+    }
+
+    return baseStats;
+  }, [dashboardStats, course, loading, assignmentSummary]);
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">

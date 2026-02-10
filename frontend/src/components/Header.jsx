@@ -43,6 +43,13 @@ const Header = ({ sidebarOpen, setSidebarOpen, onOpenProfile }) => {
       ? `${studentData.campusName} (${studentData.campusType})`
       : studentData.campusName
     : '';
+  const profileImage = studentData.profilePic || studentData.avatar || '';
+  const hasProfileImage = typeof profileImage === 'string' && profileImage.trim() !== '';
+  const nameParts = (studentData.name || '').trim().split(/\s+/).filter(Boolean);
+  const initials = nameParts.length >= 2
+    ? `${nameParts[0][0]}${nameParts[nameParts.length - 1][0]}`
+    : (nameParts[0]?.[0] || 'S');
+  const initialsLabel = initials.toUpperCase();
 
   // Greeting and date
   const { greeting, dateLabel } = useMemo(() => {
@@ -264,14 +271,20 @@ const Header = ({ sidebarOpen, setSidebarOpen, onOpenProfile }) => {
                 onClick={() => setProfileOpen(!profileOpen)}
                 aria-label="Open profile menu"
               >
-                <img
-                  src={studentData.profilePic || studentData.avatar}
-                  alt="Profile"
-                  className="w-9 h-9 rounded-full border-2 border-gray-200"
-                  onError={(e) => {
-                    e.target.src = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='40' height='40' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2'%3E%3C/path%3E%3Ccircle cx='12' cy='7' r='4'%3E%3C/circle%3E%3C/svg%3E";
-                  }}
-                />
+                {hasProfileImage ? (
+                  <img
+                    src={profileImage}
+                    alt="Profile"
+                    className="w-9 h-9 rounded-full border-2 border-gray-200 object-cover"
+                    onError={(e) => {
+                      e.target.src = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='40' height='40' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2'%3E%3C/path%3E%3Ccircle cx='12' cy='7' r='4'%3E%3C/circle%3E%3C/svg%3E";
+                    }}
+                  />
+                ) : (
+                  <div className="w-9 h-9 rounded-full border-2 border-gray-200 bg-yellow-100 text-yellow-900 flex items-center justify-center text-sm font-semibold">
+                    {initialsLabel}
+                  </div>
+                )}
                 <div className="hidden sm:block text-left">
                   <div className="text-sm font-semibold text-gray-900 leading-tight">
                     {studentData.name || 'Student'}

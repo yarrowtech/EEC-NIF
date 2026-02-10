@@ -1,9 +1,31 @@
 import React from 'react';
-import { BookOpen, Clock, User, GraduationCap } from 'lucide-react';
+import { BookOpen, Clock, User, GraduationCap, Activity, ClipboardList, Target } from 'lucide-react';
 import { useStudentDashboard } from './StudentDashboardContext';
 
 const CourseProgress = () => {
-  const { course, loading, error } = useStudentDashboard();
+  const { course, stats, profile, loading, error } = useStudentDashboard();
+  const displayClass = profile?.className || profile?.grade || '';
+  const displaySection = profile?.sectionName || profile?.section || '';
+  const snapshotItems = [
+    {
+      label: 'Attendance',
+      value: typeof stats?.attendancePercentage === 'number' ? `${stats.attendancePercentage}%` : '—',
+      icon: Activity,
+      color: 'text-emerald-600',
+    },
+    {
+      label: 'Present Days',
+      value: typeof stats?.presentDays === 'number' ? stats.presentDays : '—',
+      icon: ClipboardList,
+      color: 'text-blue-600',
+    },
+    {
+      label: 'Overall Progress',
+      value: typeof stats?.overallProgress === 'number' ? `${stats.overallProgress}%` : '—',
+      icon: Target,
+      color: 'text-amber-600',
+    },
+  ];
 
   if (loading) {
     return (
@@ -28,12 +50,12 @@ const CourseProgress = () => {
     <div className="bg-white rounded-xl shadow-sm border border-purple-400">
       <div className="p-6 border-b border-gray-100">
         <div className="flex items-center justify-between">
-          <h2 className="text-xl font-semibold text-gray-900">Current Course</h2>
+          <h2 className="text-xl font-semibold text-gray-900">Attendence Snapshot</h2>
         </div>
       </div>
 
-      <div className="p-6">
-        {course ? (
+      <div className="p-6 space-y-6">
+        {/* {course ? (
           <div className="space-y-6">
             <div className="group hover:bg-gray-50 rounded-lg p-4 transition-colors">
               <div className="flex items-center justify-between mb-3">
@@ -102,7 +124,30 @@ const CourseProgress = () => {
             <p className="text-gray-600 font-medium">No Course Assigned</p>
             <p className="text-sm text-gray-400 mt-1">Please contact your administrator</p>
           </div>
-        )}
+        )} */}
+
+        <div className="rounded-lg border border-gray-100 bg-gray-50 p-4">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-sm font-semibold text-gray-800">Learning Snapshot</h3>
+            {(displayClass || displaySection) && (
+              <div className="text-xs text-gray-500">
+                {displayClass ? `Class ${displayClass}` : ''}
+                {displaySection ? ` • Section ${displaySection}` : ''}
+              </div>
+            )}
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            {snapshotItems.map((item) => (
+              <div key={item.label} className="rounded-lg bg-white border border-gray-100 p-3">
+                <div className="flex items-center gap-2 text-xs text-gray-500">
+                  <item.icon size={14} className={item.color} />
+                  <span>{item.label}</span>
+                </div>
+                <div className="mt-2 text-lg font-semibold text-gray-900">{item.value}</div>
+              </div>
+            ))}
+          </div>
+        </div>
       </div>
     </div>
   );

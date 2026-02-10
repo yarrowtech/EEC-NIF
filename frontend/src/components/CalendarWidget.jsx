@@ -216,13 +216,13 @@ const CalendarWidget = () => {
                 Synced {lastSynced.toLocaleDateString()}
               </span>
             )}
-            <button
+            {/* <button
               onClick={handleAddEvent}
               className="flex items-center space-x-2 bg-purple-500 text-white px-4 py-2 rounded-lg hover:bg-purple-600 transition-colors"
             >
               <Plus size={16} />
               <span>Add Event</span>
-            </button>
+            </button> */}
           </div>
         </div>
         {error && (
