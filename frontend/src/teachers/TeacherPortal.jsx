@@ -39,6 +39,7 @@ import MyWorkPortal from './MyWorkPortal';
 import ClassRoutine from './ClassRoutine';
 import StudentObservation from './StudentObservation';
 import ClassNotes from './ClassNotes';
+import PracticeQuestions from './PracticeQuestions';
 import TeacherFeedbackPortal from './TeacherFeedbackPortal';
 
 const PORTAL_BASE = '/teacher';
