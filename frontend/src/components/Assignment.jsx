@@ -21,6 +21,13 @@ const Assignment = ({ assignmentType, filter, setFilter }) => {
   const [schoolSort, setSchoolSort] = useState("due_asc");
   const [assignments, setAssignments] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [selectedAssignment, setSelectedAssignment] = useState(null);
+  const [submissionText, setSubmissionText] = useState('');
+  const [submissionFileUrl, setSubmissionFileUrl] = useState('');
+  const [submissionFileName, setSubmissionFileName] = useState('');
+  const [uploadingSubmissionFile, setUploadingSubmissionFile] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [submitSuccess, setSubmitSuccess] = useState(false);
 
   const API_BASE = (import.meta.env.VITE_API_URL || 'http://localhost:5000').replace(/\/$/, '');
   const API_BASE_URL = `${API_BASE}/api`;
@@ -96,6 +103,129 @@ const Assignment = ({ assignmentType, filter, setFilter }) => {
       console.error('Error fetching assignments:', err);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const openDetail = (assignment) => {
+    setSelectedAssignment(assignment);
+    setSubmissionText('');
+    setSubmissionFileUrl('');
+    setSubmissionFileName('');
+    setSubmitSuccess(false);
+  };
+
+  const closeDetail = () => {
+    setSelectedAssignment(null);
+  };
+
+  const handleSubmissionFileUpload = async (event) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    setUploadingSubmissionFile(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('folder', 'student_assignments');
+      if (selectedAssignment?.id) {
+        formData.append('tags', String(selectedAssignment.id));
+      }
+      const res = await fetch(`${API_BASE_URL}/uploads/cloudinary/single`, {
+        method: 'POST',
+        body: formData,
+      });
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        throw new Error(d?.message || 'Upload failed');
+      }
+      const data = await res.json();
+      const uploaded = data?.files?.[0];
+      setSubmissionFileUrl(uploaded?.secure_url || '');
+      setSubmissionFileName(uploaded?.originalName || file.name);
+    } catch (err) {
+      console.error('Upload error:', err);
+    } finally {
+      setUploadingSubmissionFile(false);
+    }
+  };
+
+  const removeSubmissionFile = () => {
+    setSubmissionFileUrl('');
+    setSubmissionFileName('');
+  };
+
+  const handleSubmit = async () => {
+    if (!selectedAssignment) return;
+    setSubmitting(true);
+    try {
+      const token = localStorage.getItem('token');
+      const payload = {
+        assignmentId: selectedAssignment.id,
+        submissionText,
+        attachmentUrl: submissionFileUrl || '',
+      };
+      const res = await fetch(`${API_BASE_URL}/assignment/submit`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        throw new Error(d?.error || 'Submission failed');
+      }
+      setSubmitSuccess(true);
+      setAssignments((prev) =>
+        prev.map((a) =>
+          a.id === selectedAssignment.id ? { ...a, status: 'completed', submittedAt: new Date().toISOString() } : a
+        )
+      );
+    } catch (err) {
+      console.error('Submit error:', err);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const questionData = {
+    '6': {
+      'math': {
+        'mcq': [
+          { q: 'What is 7+5?', o: ['10', '11', '12', '13'], a: '12', e: 'Simple addition' },
+          { q: 'What is 8*6?', o: ['42', '48', '54', '56'], a: '48', e: 'Multiplication' }
+        ],
+        'blank': [
+          { q: 'Fill in the blank: 9 - 4 = ___', a: '5', e: 'Simple subtraction' }
+        ]
+      },
+      'science': {
+        'mcq': [
+          { q: 'What planet is closest to the Sun?', o: ['Venus', 'Mercury', 'Earth', 'Mars'], a: 'Mercury', e: 'Mercury is the closest planet to the Sun' }
+        ],
+        'blank': [
+          { q: 'The process by which plants make food is called ___', a: 'photosynthesis', e: 'Plants use sunlight to make food' }
+        ]
+      }
+    },
+    '7': {
+      'math': {
+        'mcq': [
+          { q: 'What is 12*7?', o: ['82', '84', '86', '88'], a: '84', e: 'Multiplication' },
+          { q: 'What is 15/3?', o: ['3', '4', '5', '6'], a: '5', e: 'Division' }
+        ],
+        'blank': [
+          { q: 'Fill in the blank: 16 + 9 = ___', a: '25', e: 'Simple addition' }
+        ]
+      },
+      'science': {
+        'mcq': [
+          { q: 'What is the chemical symbol for gold?', o: ['Go', 'Gd', 'Au', 'Ag'], a: 'Au', e: 'Gold has the chemical symbol Au' }
+        ],
+        'blank': [
+          { q: 'The largest organ in the human body is the ___', a: 'skin', e: 'Skin is the largest organ' }
+        ]
+      }
     }
   };
 

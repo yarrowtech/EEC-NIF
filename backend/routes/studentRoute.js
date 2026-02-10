@@ -6,7 +6,6 @@ const Class = require('../models/Class');
 const Timetable = require('../models/Timetable');
 const ExamResult = require('../models/ExamResult');
 const Exam = require('../models/Exam');
-const StudentJournalEntry = require('../models/StudentJournalEntry');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const adminAuth = require('../middleware/adminAuth');
