@@ -41,6 +41,7 @@ import StudentObservation from './StudentObservation';
 import ClassNotes from './ClassNotes';
 import PracticeQuestions from './PracticeQuestions';
 import TeacherFeedbackPortal from './TeacherFeedbackPortal';
+import ExcuseLetters from './ExcuseLetters';
 
 const PORTAL_BASE = '/teacher';
 
@@ -61,6 +62,7 @@ const menuItems = [
   { icon: MessageSquare, label: 'Chat', path: `${PORTAL_BASE}/chat` },
   { icon: BookOpen, label: 'Lesson Plans', path: `${PORTAL_BASE}/lesson-plans` },
   { icon: FileText, label: 'Class Notes', path: `${PORTAL_BASE}/class-notes` },
+  { icon: FileText, label: 'Excuse Letters', path: `${PORTAL_BASE}/excuse-letters` },
   { icon: ThumbsUp, label: 'Feedback', path: `${PORTAL_BASE}/feedback` },
 ];
 
@@ -210,6 +212,7 @@ const TeacherPortal = () => {
             <Route path="chat" element={<TeacherChat />} />
             <Route path="lesson-plans" element={<LessonPlanDashboard />} />
             <Route path="class-notes" element={<ClassNotes />} />
+            <Route path="excuse-letters" element={<ExcuseLetters />} />
             <Route path="feedback" element={<TeacherFeedbackPortal />} />
           </Routes>
         </main>

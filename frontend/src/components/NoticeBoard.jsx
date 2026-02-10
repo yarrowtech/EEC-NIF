@@ -31,6 +31,8 @@ const NoticeBoard = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [lastUpdated, setLastUpdated] = useState(null);
+  const [classTeacher, setClassTeacher] = useState(null);
+  const [teacherLoading, setTeacherLoading] = useState(false);
 
   useEffect(() => {
     const fetchNotices = async () => {
@@ -62,11 +64,26 @@ const NoticeBoard = () => {
         const data = await response.json();
         setNotices(Array.isArray(data) ? data : []);
         setLastUpdated(new Date());
+
+        setTeacherLoading(true);
+        const teacherRes = await fetch(`${API_BASE}/api/student/auth/class-teacher`, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+        });
+        if (teacherRes.ok) {
+          const teacherData = await teacherRes.json().catch(() => ({}));
+          setClassTeacher(teacherData?.teacher || null);
+        } else {
+          setClassTeacher(null);
+        }
       } catch (err) {
         console.error('Failed to fetch notices:', err);
         setError(err.message);
       } finally {
         setLoading(false);
+        setTeacherLoading(false);
       }
     };
 
@@ -182,6 +199,24 @@ const NoticeBoard = () => {
             </div>
             {lastUpdated && !loading && (
               <p className="text-xs text-yellow-100 mt-2">Updated {lastUpdated.toLocaleDateString()}</p>
+            )}
+          </div>
+        </div>
+
+        <div className="mt-5">
+          <div className="inline-flex items-center gap-3 rounded-xl bg-white/15 px-4 py-3 text-sm text-white">
+            <User className="w-4 h-4" />
+            {teacherLoading ? (
+              <span>Loading class teacher…</span>
+            ) : classTeacher ? (
+              <span>
+                Class Teacher: <span className="font-semibold">{classTeacher.name}</span>
+                {classTeacher.subject ? ` • ${classTeacher.subject}` : ''}
+                {classTeacher.className ? ` • ${classTeacher.className}` : ''}
+                {classTeacher.sectionName ? `-${classTeacher.sectionName}` : ''}
+              </span>
+            ) : (
+              <span>Class Teacher: Not assigned</span>
             )}
           </div>
         </div>

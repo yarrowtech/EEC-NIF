@@ -1,12 +1,9 @@
-import React, { useState } from 'react';
-import { 
-  FileText, 
-  Send, 
-  Calendar, 
-  Clock, 
-  User, 
-  Mail, 
-  Phone, 
+import React, { useEffect, useMemo, useState } from 'react';
+import {
+  FileText,
+  Send,
+  Calendar,
+  User,
   AlertCircle,
   CheckCircle,
   Download,
@@ -14,11 +11,17 @@ import {
 } from 'lucide-react';
 
 const ExcuseLetter = () => {
+  const API_BASE = useMemo(
+    () => (import.meta.env.VITE_API_URL || 'http://localhost:5000').replace(/\/$/, '').replace(/\/api$/, ''),
+    []
+  );
+
   const [formData, setFormData] = useState({
     studentName: '',
     rollNumber: '',
-    class: '',
-    section: '',
+    className: '',
+    sectionName: '',
+    schoolName: '',
     parentName: '',
     parentEmail: '',
     parentPhone: '',
@@ -30,33 +33,12 @@ const ExcuseLetter = () => {
     emergencyContact: ''
   });
 
-  const [submittedLetters, setSubmittedLetters] = useState([
-    {
-      id: 1,
-      studentName: 'John Doe',
-      class: '10-A',
-      reason: 'Medical appointment',
-      dateFrom: '2025-01-15',
-      dateTo: '2025-01-15',
-      status: 'approved',
-      submittedOn: '2025-01-12',
-      approvedBy: 'Ms. Johnson'
-    },
-    {
-      id: 2,
-      studentName: 'John Doe',
-      class: '10-A',
-      reason: 'Family emergency',
-      dateFrom: '2025-01-08',
-      dateTo: '2025-01-10',
-      status: 'pending',
-      submittedOn: '2025-01-07',
-      approvedBy: null
-    }
-  ]);
-
+  const [submittedLetters, setSubmittedLetters] = useState([]);
   const [activeTab, setActiveTab] = useState('new');
   const [previewLetter, setPreviewLetter] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
 
   const reasonTypes = [
     { value: 'illness', label: 'Illness/Medical', icon: '🏥' },
@@ -69,53 +51,108 @@ const ExcuseLetter = () => {
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
-    setFormData(prev => ({
+    setFormData((prev) => ({
       ...prev,
       [name]: value
     }));
   };
 
-  const handleSubmit = (e) => {
+  const loadProfile = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      if (!token) return;
+      const res = await fetch(`${API_BASE}/api/student/auth/profile`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) return;
+      const data = await res.json().catch(() => ({}));
+      let schoolName =
+        data?.schoolName || data?.schoolInfo?.name || data?.school?.name || '';
+      if (!schoolName) {
+        const dashboardRes = await fetch(`${API_BASE}/api/student/auth/dashboard`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (dashboardRes.ok) {
+          const dash = await dashboardRes.json().catch(() => ({}));
+          schoolName =
+            dash?.profile?.schoolName || dash?.profile?.school?.name || schoolName;
+        }
+      }
+      setFormData((prev) => ({
+        ...prev,
+        studentName: data?.name || '',
+        rollNumber: data?.roll || '',
+        className: data?.grade || data?.className || '',
+        sectionName: data?.section || data?.sectionName || '',
+        schoolName,
+        parentName: data?.guardianName || data?.fatherName || data?.motherName || '',
+        parentEmail: data?.guardianEmail || data?.email || '',
+        parentPhone: data?.guardianPhone || data?.fatherPhone || data?.motherPhone || ''
+      }));
+    } catch (_) {}
+  };
+
+  const loadLetters = async () => {
+    try {
+      setLoading(true);
+      const token = localStorage.getItem('token');
+      if (!token) return;
+      const res = await fetch(`${API_BASE}/api/excuse-letters/student`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json().catch(() => []);
+      if (res.ok) setSubmittedLetters(Array.isArray(data) ? data : []);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadProfile();
+    loadLetters();
+  }, []);
+
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    
-    const newLetter = {
-      id: submittedLetters.length + 1,
-      studentName: formData.studentName,
-      class: `${formData.class}-${formData.section}`,
-      reason: formData.reason,
-      dateFrom: formData.dateFrom,
-      dateTo: formData.dateTo,
-      status: 'pending',
-      submittedOn: new Date().toISOString().split('T')[0],
-      approvedBy: null,
-      formData: { ...formData }
-    };
-
-    setSubmittedLetters(prev => [newLetter, ...prev]);
-    
-    // Reset form
-    setFormData({
-      studentName: '',
-      rollNumber: '',
-      class: '',
-      section: '',
-      parentName: '',
-      parentEmail: '',
-      parentPhone: '',
-      dateFrom: '',
-      dateTo: '',
-      reason: '',
-      reasonType: 'illness',
-      additionalNotes: '',
-      emergencyContact: ''
-    });
-
-    alert('Excuse letter submitted successfully!');
-    setActiveTab('history');
+    try {
+      setSaving(true);
+      setError('');
+      const token = localStorage.getItem('token');
+      const payload = {
+        dateFrom: formData.dateFrom,
+        dateTo: formData.dateTo,
+        reason: formData.reason,
+        reasonType: formData.reasonType,
+        additionalNotes: formData.additionalNotes,
+        emergencyContact: formData.emergencyContact
+      };
+      const res = await fetch(`${API_BASE}/api/excuse-letters/student`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data?.error || 'Unable to submit');
+      await loadLetters();
+      setFormData((prev) => ({
+        ...prev,
+        dateFrom: '',
+        dateTo: '',
+        reason: '',
+        reasonType: 'illness',
+        additionalNotes: '',
+        emergencyContact: ''
+      }));
+      setActiveTab('history');
+    } catch (err) {
+      setError(err.message || 'Unable to submit');
+    } finally {
+      setSaving(false);
+    }
   };
 
   const generateLetterPreview = (letter) => {
-    const data = letter.formData || formData;
+    const data = letter || formData;
     return {
       date: new Date().toLocaleDateString(),
       content: `
@@ -123,13 +160,13 @@ Date: ${new Date().toLocaleDateString()}
 
 To,
 The Principal/Class Teacher
-Electronic Educare
+${data.schoolName || 'School'}
 
 Subject: Request for Leave of Absence
 
 Dear Sir/Madam,
 
-I am writing to inform you that my ward, ${data.studentName}, studying in Class ${data.class}-${data.section}, Roll Number: ${data.rollNumber}, will not be able to attend school from ${new Date(data.dateFrom).toLocaleDateString()} to ${new Date(data.dateTo).toLocaleDateString()}.
+I am writing to inform you that my ward, ${data.studentName}, studying in Class ${data.className}-${data.sectionName}, Roll Number: ${data.rollNumber}, will not be able to attend school from ${new Date(data.dateFrom).toLocaleDateString()} to ${new Date(data.dateTo).toLocaleDateString()}.
 
 Reason for absence: ${data.reason}
 Type: ${reasonTypes.find(r => r.value === data.reasonType)?.label || data.reasonType}
@@ -157,7 +194,7 @@ Emergency Contact: ${data.emergencyContact}
     const element = document.createElement('a');
     const file = new Blob([preview.content], { type: 'text/plain' });
     element.href = URL.createObjectURL(file);
-    element.download = `excuse_letter_${letter.studentName}_${letter.dateFrom}.txt`;
+    element.download = `excuse_letter_${letter.studentName || 'student'}_${letter.dateFrom}.txt`;
     document.body.appendChild(element);
     element.click();
     document.body.removeChild(element);
@@ -206,385 +243,270 @@ Emergency Contact: ${data.emergencyContact}
         </div>
       </div>
 
-      {/* Content */}
-      <div className="flex-1 overflow-y-auto p-6">
-        {activeTab === 'new' ? (
-          <div className="max-w-4xl mx-auto">
-            <form onSubmit={handleSubmit} className="space-y-6">
-              {/* Student Information */}
-              <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-                <h3 className="text-lg font-medium text-gray-900 mb-4 flex items-center">
-                  <User className="h-5 w-5 mr-2 text-blue-600" />
-                  Student Information
-                </h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Student Name *
-                    </label>
-                    <input
-                      type="text"
-                      name="studentName"
-                      value={formData.studentName}
-                      onChange={handleInputChange}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                      required
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Roll Number *
-                    </label>
-                    <input
-                      type="text"
-                      name="rollNumber"
-                      value={formData.rollNumber}
-                      onChange={handleInputChange}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                      required
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Class *
-                    </label>
-                    <select
-                      name="class"
-                      value={formData.class}
-                      onChange={handleInputChange}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                      required
-                    >
-                      <option value="">Select Class</option>
-                      {Array.from({length: 12}, (_, i) => i + 1).map(num => (
-                        <option key={num} value={num}>Class {num}</option>
-                      ))}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Section *
-                    </label>
-                    <select
-                      name="section"
-                      value={formData.section}
-                      onChange={handleInputChange}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                      required
-                    >
-                      <option value="">Select Section</option>
-                      {['A', 'B', 'C', 'D'].map(section => (
-                        <option key={section} value={section}>Section {section}</option>
-                      ))}
-                    </select>
-                  </div>
+      {activeTab === 'new' && (
+        <div className="p-6 overflow-y-auto">
+          {error && (
+            <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+              {error}
+            </div>
+          )}
+          <form onSubmit={handleSubmit} className="space-y-6">
+            {/* Student Information */}
+            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+              <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+                <User className="h-5 w-5 mr-2 text-blue-600" />
+                Student Information
+              </h2>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Student Name</label>
+                  <input
+                    type="text"
+                    name="studentName"
+                    value={formData.studentName}
+                    readOnly
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg bg-gray-50"
+                  />
                 </div>
-              </div>
-
-              {/* Parent/Guardian Information */}
-              <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-                <h3 className="text-lg font-medium text-gray-900 mb-4 flex items-center">
-                  <Mail className="h-5 w-5 mr-2 text-green-600" />
-                  Parent/Guardian Information
-                </h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Parent/Guardian Name *
-                    </label>
-                    <input
-                      type="text"
-                      name="parentName"
-                      value={formData.parentName}
-                      onChange={handleInputChange}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                      required
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Email Address *
-                    </label>
-                    <input
-                      type="email"
-                      name="parentEmail"
-                      value={formData.parentEmail}
-                      onChange={handleInputChange}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                      required
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Phone Number *
-                    </label>
-                    <input
-                      type="tel"
-                      name="parentPhone"
-                      value={formData.parentPhone}
-                      onChange={handleInputChange}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                      required
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Emergency Contact
-                    </label>
-                    <input
-                      type="tel"
-                      name="emergencyContact"
-                      value={formData.emergencyContact}
-                      onChange={handleInputChange}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    />
-                  </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Roll Number</label>
+                  <input
+                    type="text"
+                    name="rollNumber"
+                    value={formData.rollNumber}
+                    readOnly
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg bg-gray-50"
+                  />
                 </div>
-              </div>
-
-              {/* Leave Details */}
-              <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-                <h3 className="text-lg font-medium text-gray-900 mb-4 flex items-center">
-                  <Calendar className="h-5 w-5 mr-2 text-purple-600" />
-                  Leave Details
-                </h3>
-                <div className="space-y-4">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        From Date *
-                      </label>
-                      <input
-                        type="date"
-                        name="dateFrom"
-                        value={formData.dateFrom}
-                        onChange={handleInputChange}
-                        min={new Date().toISOString().split('T')[0]}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                        required
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        To Date *
-                      </label>
-                      <input
-                        type="date"
-                        name="dateTo"
-                        value={formData.dateTo}
-                        onChange={handleInputChange}
-                        min={formData.dateFrom || new Date().toISOString().split('T')[0]}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                        required
-                      />
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Reason Type *
-                    </label>
-                    <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-                      {reasonTypes.map((type) => (
-                        <label key={type.value} className="flex items-center">
-                          <input
-                            type="radio"
-                            name="reasonType"
-                            value={type.value}
-                            checked={formData.reasonType === type.value}
-                            onChange={handleInputChange}
-                            className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300"
-                          />
-                          <span className="ml-2 text-sm text-gray-700">
-                            {type.icon} {type.label}
-                          </span>
-                        </label>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Detailed Reason *
-                    </label>
-                    <textarea
-                      name="reason"
-                      value={formData.reason}
-                      onChange={handleInputChange}
-                      rows={3}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                      placeholder="Please provide specific details about the reason for absence..."
-                      required
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Additional Notes
-                    </label>
-                    <textarea
-                      name="additionalNotes"
-                      value={formData.additionalNotes}
-                      onChange={handleInputChange}
-                      rows={2}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                      placeholder="Any additional information you'd like to share..."
-                    />
-                  </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Class</label>
+                  <input
+                    type="text"
+                    name="className"
+                    value={formData.className}
+                    readOnly
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg bg-gray-50"
+                  />
                 </div>
-              </div>
-
-              {/* Submit Button */}
-              <div className="flex justify-end space-x-4">
-                <button
-                  type="button"
-                  onClick={() => setPreviewLetter(generateLetterPreview({ formData }))}
-                  className="px-6 py-3 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors flex items-center"
-                >
-                  <Eye className="h-4 w-4 mr-2" />
-                  Preview Letter
-                </button>
-                <button
-                  type="submit"
-                  className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center"
-                >
-                  <Send className="h-4 w-4 mr-2" />
-                  Submit Excuse Letter
-                </button>
-              </div>
-            </form>
-          </div>
-        ) : (
-          <div className="max-w-6xl mx-auto">
-            <div className="bg-white rounded-lg shadow-sm border border-gray-200">
-              <div className="px-6 py-4 border-b border-gray-200">
-                <h3 className="text-lg font-medium text-gray-900">Submitted Excuse Letters</h3>
-              </div>
-              <div className="overflow-x-auto">
-                <table className="min-w-full divide-y divide-gray-200">
-                  <thead className="bg-gray-50">
-                    <tr>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Student
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Leave Period
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Reason
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Status
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Submitted
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Actions
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody className="bg-white divide-y divide-gray-200">
-                    {submittedLetters.map((letter) => (
-                      <tr key={letter.id} className="hover:bg-gray-50">
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div>
-                            <div className="text-sm font-medium text-gray-900">{letter.studentName}</div>
-                            <div className="text-sm text-gray-500">Class {letter.class}</div>
-                          </div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                          {new Date(letter.dateFrom).toLocaleDateString()} - {new Date(letter.dateTo).toLocaleDateString()}
-                        </td>
-                        <td className="px-6 py-4">
-                          <div className="text-sm text-gray-900 max-w-xs truncate">{letter.reason}</div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                            letter.status === 'approved' 
-                              ? 'bg-green-100 text-green-800' 
-                              : letter.status === 'rejected'
-                              ? 'bg-red-100 text-red-800'
-                              : 'bg-yellow-100 text-yellow-800'
-                          }`}>
-                            {letter.status === 'approved' && <CheckCircle className="h-3 w-3 mr-1" />}
-                            {letter.status === 'pending' && <Clock className="h-3 w-3 mr-1" />}
-                            {letter.status === 'rejected' && <AlertCircle className="h-3 w-3 mr-1" />}
-                            {letter.status.charAt(0).toUpperCase() + letter.status.slice(1)}
-                          </span>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                          {new Date(letter.submittedOn).toLocaleDateString()}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                          <div className="flex space-x-2">
-                            <button
-                              onClick={() => setPreviewLetter(generateLetterPreview(letter))}
-                              className="text-blue-600 hover:text-blue-900 flex items-center"
-                            >
-                              <Eye className="h-4 w-4 mr-1" />
-                              View
-                            </button>
-                            <button
-                              onClick={() => downloadLetter(letter)}
-                              className="text-green-600 hover:text-green-900 flex items-center"
-                            >
-                              <Download className="h-4 w-4 mr-1" />
-                              Download
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Section</label>
+                  <input
+                    type="text"
+                    name="sectionName"
+                    value={formData.sectionName}
+                    readOnly
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg bg-gray-50"
+                  />
+                </div>
               </div>
             </div>
-          </div>
-        )}
-      </div>
 
-      {/* Preview Modal */}
-      {previewLetter && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-lg shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-            <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
-              <h3 className="text-lg font-medium text-gray-900">Letter Preview</h3>
+            {/* Parent Information */}
+            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+              <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+                <User className="h-5 w-5 mr-2 text-blue-600" />
+                Parent/Guardian Information
+              </h2>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Parent/Guardian Name</label>
+                  <input
+                    type="text"
+                    name="parentName"
+                    value={formData.parentName}
+                    readOnly
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg bg-gray-50"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Parent Email</label>
+                  <input
+                    type="email"
+                    name="parentEmail"
+                    value={formData.parentEmail}
+                    readOnly
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg bg-gray-50"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Parent Phone</label>
+                  <input
+                    type="tel"
+                    name="parentPhone"
+                    value={formData.parentPhone}
+                    readOnly
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg bg-gray-50"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Emergency Contact</label>
+                  <input
+                    type="tel"
+                    name="emergencyContact"
+                    value={formData.emergencyContact}
+                    onChange={handleInputChange}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    placeholder="Emergency contact number"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Leave Details */}
+            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+              <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+                <Calendar className="h-5 w-5 mr-2 text-blue-600" />
+                Leave Details
+              </h2>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">From Date</label>
+                  <input
+                    type="date"
+                    name="dateFrom"
+                    value={formData.dateFrom}
+                    onChange={handleInputChange}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">To Date</label>
+                  <input
+                    type="date"
+                    name="dateTo"
+                    value={formData.dateTo}
+                    onChange={handleInputChange}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    required
+                  />
+                </div>
+              </div>
+
+              <div className="mb-6">
+                <label className="block text-sm font-medium text-gray-700 mb-2">Reason Type</label>
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                  {reasonTypes.map(type => (
+                    <button
+                      key={type.value}
+                      type="button"
+                      onClick={() => setFormData(prev => ({ ...prev, reasonType: type.value }))}
+                      className={`p-3 rounded-lg border-2 text-left transition-all ${
+                        formData.reasonType === type.value
+                          ? 'border-blue-500 bg-blue-50'
+                          : 'border-gray-200 hover:border-gray-300'
+                      }`}
+                    >
+                      <div className="flex items-center space-x-2">
+                        <span className="text-lg">{type.icon}</span>
+                        <span className="text-sm font-medium text-gray-700">{type.label}</span>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Reason for Leave</label>
+                  <textarea
+                    name="reason"
+                    value={formData.reason}
+                    onChange={handleInputChange}
+                    rows={4}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    placeholder="Please provide detailed reason for leave"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Additional Notes (Optional)</label>
+                  <textarea
+                    name="additionalNotes"
+                    value={formData.additionalNotes}
+                    onChange={handleInputChange}
+                    rows={3}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    placeholder="Any additional information"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="flex justify-end">
               <button
-                onClick={() => setPreviewLetter(null)}
-                className="text-gray-400 hover:text-gray-600"
+                type="submit"
+                disabled={saving}
+                className="flex items-center space-x-2 bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50"
               >
+                <Send className="h-5 w-5" />
+                <span>{saving ? 'Submitting...' : 'Submit Letter'}</span>
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {activeTab === 'history' && (
+        <div className="p-6 overflow-y-auto">
+          {loading && (
+            <div className="text-sm text-gray-500">Loading letters...</div>
+          )}
+          <div className="space-y-4">
+            {submittedLetters.map(letter => (
+              <div key={letter._id || letter.id} className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+                <div className="flex items-start justify-between">
+                  <div>
+                    <h3 className="text-lg font-semibold text-gray-900">{letter.studentName}</h3>
+                    <p className="text-sm text-gray-500">Class {letter.className}-{letter.sectionName}</p>
+                    <p className="text-sm text-gray-500">Submitted on {new Date(letter.createdAt || letter.submittedOn).toLocaleDateString()}</p>
+                  </div>
+                  <div className={`px-3 py-1 rounded-full text-xs font-medium ${
+                    letter.status === 'approved' ? 'bg-green-100 text-green-700' :
+                    letter.status === 'rejected' ? 'bg-red-100 text-red-700' :
+                    'bg-amber-100 text-amber-700'
+                  }`}>
+                    {letter.status || 'pending'}
+                  </div>
+                </div>
+                <div className="mt-4">
+                  <p className="text-sm text-gray-700"><strong>Reason:</strong> {letter.reason}</p>
+                  <p className="text-sm text-gray-700"><strong>Duration:</strong> {new Date(letter.dateFrom).toLocaleDateString()} - {new Date(letter.dateTo).toLocaleDateString()}</p>
+                </div>
+                <div className="mt-4 flex space-x-3">
+                  <button
+                    onClick={() => setPreviewLetter(letter)}
+                    className="flex items-center space-x-2 text-blue-600 hover:text-blue-700"
+                  >
+                    <Eye className="h-4 w-4" />
+                    <span className="text-sm">Preview</span>
+                  </button>
+                  <button
+                    onClick={() => downloadLetter(letter)}
+                    className="flex items-center space-x-2 text-green-600 hover:text-green-700"
+                  >
+                    <Download className="h-4 w-4" />
+                    <span className="text-sm">Download</span>
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {previewLetter && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-xl max-w-2xl w-full max-h-[80vh] overflow-y-auto p-6">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-lg font-semibold">Letter Preview</h3>
+              <button onClick={() => setPreviewLetter(null)} className="text-gray-500 hover:text-gray-700">
                 ✕
               </button>
             </div>
-            <div className="p-6">
-              <pre className="whitespace-pre-wrap text-sm text-gray-800 bg-gray-50 p-4 rounded-lg border">
-                {previewLetter.content}
-              </pre>
-            </div>
-            <div className="px-6 py-4 border-t border-gray-200 flex justify-end space-x-3">
-              <button
-                onClick={() => setPreviewLetter(null)}
-                className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50"
-              >
-                Close
-              </button>
-              <button
-                onClick={() => {
-                  const element = document.createElement('a');
-                  const file = new Blob([previewLetter.content], { type: 'text/plain' });
-                  element.href = URL.createObjectURL(file);
-                  element.download = `excuse_letter_${previewLetter.date}.txt`;
-                  document.body.appendChild(element);
-                  element.click();
-                  document.body.removeChild(element);
-                }}
-                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center"
-              >
-                <Download className="h-4 w-4 mr-2" />
-                Download
-              </button>
-            </div>
+            <pre className="whitespace-pre-wrap text-sm text-gray-700 font-mono">
+              {generateLetterPreview(previewLetter).content}
+            </pre>
           </div>
         </div>
       )}

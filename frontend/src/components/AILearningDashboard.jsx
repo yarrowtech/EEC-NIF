@@ -109,8 +109,8 @@ const AILearningDashboard = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 p-6">
-      {/* Header */}
+    <>
+    {/* <div className="min-h-screen bg-gray-50 p-6">
       <div className="bg-gradient-to-r from-blue-600 to-purple-600 rounded-2xl p-6 mb-6 text-white shadow-xl">
         <div className="flex items-center justify-between">
           <div>
@@ -131,7 +131,6 @@ const AILearningDashboard = () => {
         </div>
       </div>
 
-      {/* Progress Overview */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
         <div className="bg-white rounded-xl shadow-sm p-6 border-l-4 border-blue-500">
           <div className="flex items-center justify-between">
@@ -183,7 +182,6 @@ const AILearningDashboard = () => {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        {/* Available Courses */}
         <div className="lg:col-span-2">
           <h2 className="text-2xl font-bold text-gray-800 mb-6 flex items-center">
             <Zap className="w-6 h-6 mr-2 text-yellow-500" />
@@ -245,9 +243,7 @@ const AILearningDashboard = () => {
           </div>
         </div>
 
-        {/* AI Recommendations & Progress */}
         <div className="space-y-6">
-          {/* AI Recommendations */}
           <div className="bg-white rounded-xl shadow-sm border border-gray-100">
             <div className="p-6 border-b border-gray-100">
               <h3 className="text-lg font-semibold text-gray-800 flex items-center">
@@ -288,7 +284,6 @@ const AILearningDashboard = () => {
             </div>
           </div>
 
-          {/* Recent Activity */}
           <div className="bg-white rounded-xl shadow-sm border border-gray-100">
             <div className="p-6 border-b border-gray-100">
               <h3 className="text-lg font-semibold text-gray-800 flex items-center">
@@ -319,7 +314,14 @@ const AILearningDashboard = () => {
           </div>
         </div>
       </div>
-    </div>
+    </div> */}
+
+    <div className="bg-white shadow-sm p-6 h-[90vh]">
+        <div className="text-center flex justify-center items-center h-full">
+          <p className="text-gray-600">AI Tutor coming soon!</p>
+        </div>
+      </div>
+    </>
   );
 };
 

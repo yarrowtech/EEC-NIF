@@ -133,7 +133,7 @@ const Sidebar = ({ activeView, isOpen, setIsOpen }) => {
       gradient: 'from-pink-500 to-pink-600',
       description: 'Health & Wellbeing',
       children: [
-        { id: 'wellbeing', name: 'Mental Health', icon: Heart },
+        { id: 'wellbeing', name: 'Emotional Wellbeing', icon: Heart },
         { id: 'achievements', name: 'Achievements', icon: Trophy },
       ]
     },

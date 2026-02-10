@@ -110,7 +110,7 @@ const CoursesView = () => {
 
   return (
     <div className="space-y-4 sm:space-y-6 p-2 sm:p-0">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+      {/* <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
         <div>
           <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Courses</h1>
           <p className="text-gray-600 text-sm sm:text-base">Current academic overview synced from your dashboard</p>
@@ -227,6 +227,11 @@ const CoursesView = () => {
           ) : (
             <p className="text-sm text-gray-500">No attendance records available.</p>
           )}
+        </div>
+      </div> */}
+      <div className="bg-white shadow-sm p-6 h-[90vh]">
+        <div className="text-center flex justify-center items-center h-full">
+          <p className="text-gray-600">AI Courses comming soon!</p>
         </div>
       </div>
     </div>

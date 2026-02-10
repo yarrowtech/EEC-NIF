@@ -44,6 +44,7 @@ const supportRoutes = require('./routes/supportRoutes');
 const issueRoutes = require('./routes/issueRoutes');
 const teacherAllocationRoutes = require('./routes/teacherAllocationRoutes');
 const practiceRoutes = require('./routes/practiceRoutes');
+const excuseLetterRoutes = require('./routes/excuseLetterRoutes');
 const nifStudentRoutes = require('./routes/nifStudentRoutes');
 const Principal = require('./models/Principal');
 const Admin = require('./models/Admin');
@@ -274,6 +275,7 @@ app.use('/api/support', supportRoutes);
 app.use('/api/issues', issueRoutes);
 app.use('/api/teacher-allocations', teacherAllocationRoutes);
 app.use('/api/practice', practiceRoutes);
+app.use('/api/excuse-letters', excuseLetterRoutes);
 app.use('/api/nif', nifStudentRoutes);
 
 

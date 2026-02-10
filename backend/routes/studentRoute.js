@@ -6,6 +6,10 @@ const Class = require('../models/Class');
 const Timetable = require('../models/Timetable');
 const ExamResult = require('../models/ExamResult');
 const Exam = require('../models/Exam');
+const StudentJournalEntry = require('../models/StudentJournalEntry');
+const TeacherAllocation = require('../models/TeacherAllocation');
+const ClassModel = require('../models/Class');
+const Section = require('../models/Section');
 const StudentProgress = require('../models/StudentProgress');
 const Assignment = require('../models/Assignment');
 const TeacherUser = require('../models/TeacherUser');
@@ -612,6 +616,89 @@ router.get('/profile', authStudent, async (req, res) => {
     res.json(response);
   } catch (err) {
     console.error('❌ Get profile error:', err);
+    res.status(400).json({ error: err.message });
+  }
+});
+
+// Get class teacher for logged-in student
+router.get('/class-teacher', authStudent, async (req, res) => {
+  // #swagger.tags = ['Students']
+  try {
+    const schoolId = req.schoolId || null;
+    const campusId = req.campusId || null;
+    const studentId = req.user?.id;
+    if (!schoolId || !studentId) {
+      return res.status(400).json({ error: 'schoolId and studentId are required' });
+    }
+
+    const student = await StudentUser.findById(studentId).select('grade section').lean();
+    if (!student) {
+      return res.status(404).json({ error: 'Student not found' });
+    }
+
+    const rawClassName = String(student.grade || '').trim();
+    const classNameCandidates = new Set();
+    if (rawClassName) {
+      classNameCandidates.add(rawClassName);
+      if (/^\d+$/i.test(rawClassName)) classNameCandidates.add(`Class ${rawClassName}`);
+      if (/^class\s+/i.test(rawClassName)) classNameCandidates.add(rawClassName.replace(/^class\s+/i, '').trim());
+    }
+
+    let classDoc = null;
+    if (classNameCandidates.size) {
+      classDoc = await ClassModel.findOne({
+        schoolId,
+        ...(campusId ? { campusId } : {}),
+        name: { $in: Array.from(classNameCandidates) },
+      }).select('_id name').lean();
+    }
+
+    if (!classDoc) {
+      return res.json({ teacher: null });
+    }
+
+    const sectionName = String(student.section || '').trim();
+    const sectionDoc = sectionName
+      ? await Section.findOne({
+          schoolId,
+          ...(campusId ? { campusId } : {}),
+          classId: classDoc._id,
+          name: sectionName,
+        }).select('_id name').lean()
+      : null;
+
+    if (!sectionDoc) {
+      return res.json({ teacher: null });
+    }
+
+    const allocation = await TeacherAllocation.findOne({
+      schoolId,
+      ...(campusId ? { campusId } : {}),
+      classId: classDoc._id,
+      sectionId: sectionDoc._id,
+      isClassTeacher: true,
+    })
+      .populate('teacherId', 'name email mobile profilePic')
+      .populate('subjectId', 'name')
+      .lean();
+
+    if (!allocation?.teacherId) {
+      return res.json({ teacher: null });
+    }
+
+    res.json({
+      teacher: {
+        id: allocation.teacherId._id,
+        name: allocation.teacherId.name || '',
+        email: allocation.teacherId.email || '',
+        mobile: allocation.teacherId.mobile || '',
+        profilePic: allocation.teacherId.profilePic || '',
+        subject: allocation.subjectId?.name || '',
+        className: classDoc.name || '',
+        sectionName: sectionDoc.name || '',
+      },
+    });
+  } catch (err) {
     res.status(400).json({ error: err.message });
   }
 });

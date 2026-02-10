@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import {
   BookOpen, Calendar, Layers, Plus, Edit3, Trash2, X,
   ChevronUp, ChevronDown, ChevronsUpDown, Search, GraduationCap,
-  FolderOpen,
+  FolderOpen, UserCheck,
 } from "lucide-react";
 import Swal from "sweetalert2";
 import toast from "react-hot-toast";
@@ -15,6 +15,8 @@ const AcademicSetup = ({ setShowAdminHeader }) => {
   const [classes, setClasses] = useState([]);
   const [sections, setSections] = useState([]);
   const [subjects, setSubjects] = useState([]);
+  const [teachers, setTeachers] = useState([]);
+  const [teacherAllocations, setTeacherAllocations] = useState([]);
   const [error, setError] = useState("");
 
   // Forms
@@ -22,12 +24,14 @@ const AcademicSetup = ({ setShowAdminHeader }) => {
   const [classForm, setClassForm] = useState({ name: "", academicYearId: "", order: "" });
   const [sectionForm, setSectionForm] = useState({ name: "", classId: "" });
   const [subjectForm, setSubjectForm] = useState({ name: "", code: "", classId: "" });
+  const [classTeacherForm, setClassTeacherForm] = useState({ teacherId: "", classId: "", sectionId: "", subjectId: "" });
 
   // Edit states
   const [editingYear, setEditingYear] = useState(null);
   const [editingClass, setEditingClass] = useState(null);
   const [editingSection, setEditingSection] = useState(null);
   const [editingSubject, setEditingSubject] = useState(null);
+  const [savingClassTeacher, setSavingClassTeacher] = useState(false);
 
   // Search/filter
   const [searchYear, setSearchYear] = useState("");
@@ -110,6 +114,84 @@ const AcademicSetup = ({ setShowAdminHeader }) => {
     });
   }, [subjects, searchSubject, classes]);
 
+  const classTeacherAllocations = useMemo(
+    () => teacherAllocations.filter((a) => a.isClassTeacher),
+    [teacherAllocations]
+  );
+
+  const classTeacherSections = useMemo(() => {
+    if (!classTeacherForm.classId) return [];
+    return sections.filter((s) => String(s.classId) === String(classTeacherForm.classId));
+  }, [sections, classTeacherForm.classId]);
+
+  const classTeacherSubjects = useMemo(() => {
+    if (!classTeacherForm.classId) return [];
+    return subjects.filter((s) => String(s.classId) === String(classTeacherForm.classId));
+  }, [subjects, classTeacherForm.classId]);
+
+  const handleSaveClassTeacher = async (e) => {
+    e.preventDefault();
+    if (!classTeacherForm.teacherId || !classTeacherForm.classId || !classTeacherForm.sectionId || !classTeacherForm.subjectId) {
+      setError("Teacher, class, section, and subject are required.");
+      return;
+    }
+    setSavingClassTeacher(true);
+    setError("");
+    try {
+      const existing = classTeacherAllocations.find(
+        (a) =>
+          String(a.classId?._id || a.classId) === String(classTeacherForm.classId) &&
+          String(a.sectionId?._id || a.sectionId) === String(classTeacherForm.sectionId)
+      );
+      const payload = {
+        teacherId: classTeacherForm.teacherId,
+        classId: classTeacherForm.classId,
+        sectionId: classTeacherForm.sectionId,
+        subjectId: classTeacherForm.subjectId,
+        isClassTeacher: true,
+      };
+      const endpoint = existing ? `${API_BASE}/api/teacher-allocations/${existing._id}` : `${API_BASE}/api/teacher-allocations`;
+      const method = existing ? "PUT" : "POST";
+      const res = await fetch(endpoint, {
+        method,
+        headers: authHeaders,
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || "Unable to save class teacher");
+      }
+      await res.json().catch(() => ({}));
+      await loadClassTeachers();
+      setClassTeacherForm({ teacherId: "", classId: "", sectionId: "", subjectId: "" });
+      toast.success("Class teacher saved.");
+    } catch (err) {
+      setError(err.message);
+      toast.error(err.message);
+    } finally {
+      setSavingClassTeacher(false);
+    }
+  };
+
+  const deleteClassTeacher = async (id) => {
+    if (!window.confirm("Remove this class teacher?")) return;
+    try {
+      const res = await fetch(`${API_BASE}/api/teacher-allocations/${id}`, {
+        method: "DELETE",
+        headers: authHeaders,
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || "Unable to delete");
+      }
+      await loadClassTeachers();
+      toast.success("Removed.");
+    } catch (err) {
+      setError(err.message);
+      toast.error(err.message);
+    }
+  };
+
   /* ─── API helpers ─── */
   const handleApiError = (err) => {
     console.error(err);
@@ -138,10 +220,31 @@ const AcademicSetup = ({ setShowAdminHeader }) => {
     }
   };
 
+  const loadClassTeachers = async () => {
+    try {
+      const [teacherRes, allocationRes] = await Promise.all([
+        fetch(`${API_BASE}/api/admin/users/get-teachers`, { method: "GET", headers: authHeaders }),
+        fetch(`${API_BASE}/api/teacher-allocations`, { method: "GET", headers: authHeaders }),
+      ]);
+      if (teacherRes.ok) {
+        const teacherData = await teacherRes.json().catch(() => []);
+        setTeachers(Array.isArray(teacherData) ? teacherData : []);
+      }
+      if (allocationRes.ok) {
+        const allocData = await allocationRes.json().catch(() => []);
+        setTeacherAllocations(Array.isArray(allocData) ? allocData : []);
+      }
+    } catch (err) {
+      console.error(err);
+      setError("Unable to load class teacher data.");
+    }
+  };
+
   useEffect(() => {
     setShowAdminHeader?.(false);
     setError("");
     loadAcademicData().catch(handleApiError);
+    loadClassTeachers().catch(() => {});
   }, [setShowAdminHeader]);
 
   const handleCreate = async (endpoint, payload, onSuccess) => {
@@ -645,6 +748,7 @@ const AcademicSetup = ({ setShowAdminHeader }) => {
     { key: "classes", label: "Classes", icon: Layers, count: classes.length },
     { key: "sections", label: "Sections", icon: BookOpen, count: sections.length },
     { key: "subjects", label: "Subjects", icon: GraduationCap, count: subjects.length },
+    { key: "class-teachers", label: "Class Teachers", icon: UserCheck, count: classTeacherAllocations.length },
   ];
 
   /* ═══════════════════════ RENDER ═══════════════════════ */
@@ -1068,6 +1172,127 @@ const AcademicSetup = ({ setShowAdminHeader }) => {
                 {paginatedSubjects.length === 0 && <EmptyState search={searchSubject} entity="subjects" />}
               </div>
               <Pagination currentPage={subjectPage} totalItems={sortedSubjects.length} onPageChange={setSubjectPage} />
+            </div>
+          </div>
+        )}
+
+        {/* ═══════════════ CLASS TEACHERS TAB ═══════════════ */}
+        {activeTab === "class-teachers" && (
+          <div className="space-y-4">
+            <form onSubmit={handleSaveClassTeacher} className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
+              <h3 className="mb-4 text-base font-semibold text-gray-800">Assign Class Teacher</h3>
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-gray-600">Teacher</label>
+                  <select
+                    value={classTeacherForm.teacherId}
+                    onChange={(e) => setClassTeacherForm((p) => ({ ...p, teacherId: e.target.value }))}
+                    className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-amber-400 focus:outline-none focus:ring-2 focus:ring-amber-100"
+                    required
+                  >
+                    <option value="">Select teacher</option>
+                    {teachers.map((t) => (
+                      <option key={t._id} value={t._id}>
+                        {t.name || t.username || t.employeeCode || 'Teacher'}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-gray-600">Class</label>
+                  <select
+                    value={classTeacherForm.classId}
+                    onChange={(e) =>
+                      setClassTeacherForm((p) => ({ ...p, classId: e.target.value, sectionId: "", subjectId: "" }))
+                    }
+                    className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-amber-400 focus:outline-none focus:ring-2 focus:ring-amber-100"
+                    required
+                  >
+                    <option value="">Select class</option>
+                    {classes.map((c) => (
+                      <option key={c._id} value={c._id}>
+                        {c.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-gray-600">Section</label>
+                  <select
+                    value={classTeacherForm.sectionId}
+                    onChange={(e) => setClassTeacherForm((p) => ({ ...p, sectionId: e.target.value }))}
+                    className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-amber-400 focus:outline-none focus:ring-2 focus:ring-amber-100"
+                    required
+                  >
+                    <option value="">Select section</option>
+                    {classTeacherSections.map((s) => (
+                      <option key={s._id} value={s._id}>
+                        {s.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-gray-600">Subject</label>
+                  <select
+                    value={classTeacherForm.subjectId}
+                    onChange={(e) => setClassTeacherForm((p) => ({ ...p, subjectId: e.target.value }))}
+                    className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-amber-400 focus:outline-none focus:ring-2 focus:ring-amber-100"
+                    required
+                  >
+                    <option value="">Select subject</option>
+                    {classTeacherSubjects.map((s) => (
+                      <option key={s._id} value={s._id}>
+                        {s.name} {s.code ? `(${s.code})` : ''}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+              <div className="mt-4 flex gap-3">
+                <button
+                  type="submit"
+                  disabled={savingClassTeacher}
+                  className="rounded-lg bg-amber-500 px-4 py-2 text-sm font-medium text-white hover:bg-amber-600 disabled:opacity-50"
+                >
+                  {savingClassTeacher ? "Saving..." : "Save Class Teacher"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setClassTeacherForm({ teacherId: "", classId: "", sectionId: "", subjectId: "" })}
+                  className="rounded-lg border border-gray-200 px-4 py-2 text-sm text-gray-600 hover:bg-gray-50"
+                >
+                  Clear
+                </button>
+              </div>
+            </form>
+
+            <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
+              <h3 className="mb-4 text-base font-semibold text-gray-800">Current Class Teachers</h3>
+              <div className="space-y-3">
+                {classTeacherAllocations.length === 0 && (
+                  <p className="text-sm text-gray-500">No class teachers assigned yet.</p>
+                )}
+                {classTeacherAllocations.map((item) => (
+                  <div key={item._id} className="flex items-center justify-between rounded-lg border border-gray-200 px-4 py-3">
+                    <div>
+                      <p className="font-medium text-gray-800">
+                        {item.teacherId?.name || 'Teacher'} • {item.subjectId?.name || 'Subject'}
+                      </p>
+                      <p className="text-xs text-gray-500">
+                        Class {item.classId?.name || '-'} | Section {item.sectionId?.name || '-'}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => deleteClassTeacher(item._id)}
+                      className="rounded-lg p-2 text-red-600 hover:bg-red-50"
+                    >
+                      Remove
+                    </button>
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
         )}
