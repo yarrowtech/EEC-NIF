@@ -4,6 +4,13 @@ const ParentUser = require('../models/ParentUser');
 const StudentUser = require('../models/StudentUser');
 const ClassModel = require('../models/Class');
 const Timetable = require('../models/Timetable');
+const ExamResult = require('../models/ExamResult');
+const StudentProgress = require('../models/StudentProgress');
+const Assignment = require('../models/Assignment');
+const SupportRequest = require('../models/SupportRequest');
+const Admin = require('../models/Admin');
+const Section = require('../models/Section');
+const TeacherAllocation = require('../models/TeacherAllocation');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const adminAuth = require('../middleware/adminAuth');
@@ -46,6 +53,102 @@ const getNextParentUsername = async ({ schoolId, campusId, prefix }) => {
     if (Number.isFinite(seq) && seq > maxSequence) maxSequence = seq;
   });
   return `${prefix}${padNumber(maxSequence + 1)}`;
+};
+
+const generateTicketNumber = () => {
+  const randomSegment = Math.random().toString(36).substring(2, 6).toUpperCase();
+  return `SR-${Date.now().toString(36).toUpperCase()}-${randomSegment}`;
+};
+
+const fetchParentStudents = async ({ parent, schoolId }) => {
+  if (!parent || !schoolId) return [];
+  const baseFilter = { schoolId };
+  let students = [];
+  const childIds = Array.isArray(parent.childrenIds) ? parent.childrenIds.filter(Boolean) : [];
+
+  if (childIds.length > 0) {
+    students = await StudentUser.find({
+      ...baseFilter,
+      _id: { $in: childIds },
+    })
+      .select('name grade section')
+      .lean();
+  }
+
+  if (
+    students.length === 0 &&
+    Array.isArray(parent.children) &&
+    parent.children.length > 0
+  ) {
+    const validNames = parent.children.map((name) => String(name || '').trim()).filter(Boolean);
+    if (validNames.length > 0) {
+      students = await StudentUser.find({
+        ...baseFilter,
+        name: { $in: validNames },
+      })
+        .select('name grade section')
+        .lean();
+    }
+  }
+
+  return students;
+};
+
+const findClassTeacherForStudent = async ({ student, schoolId }) => {
+  if (!student || !student.grade) return null;
+
+  const classDoc = await ClassModel.findOne({ schoolId, name: student.grade }).lean();
+  if (!classDoc) return null;
+
+  let sectionDoc = null;
+  if (student.section) {
+    sectionDoc = await Section.findOne({
+      schoolId,
+      classId: classDoc._id,
+      name: student.section,
+    }).lean();
+  }
+
+  const baseFilter = {
+    schoolId,
+    classId: classDoc._id,
+  };
+  if (sectionDoc) {
+    baseFilter.sectionId = sectionDoc._id;
+  }
+
+  let allocation = await TeacherAllocation.findOne({
+    ...baseFilter,
+    isClassTeacher: true,
+  })
+    .populate('teacherId', 'name email phone')
+    .lean();
+
+  if (!allocation) {
+    allocation = await TeacherAllocation.findOne(baseFilter)
+      .populate('teacherId', 'name email phone')
+      .lean();
+  }
+
+  return allocation?.teacherId || null;
+};
+
+const formatComplaintResponse = (complaint) => {
+  if (!complaint) return null;
+  return {
+    id: complaint._id,
+    ticketNumber: complaint.ticketNumber,
+    title: complaint.subject || 'Complaint',
+    description: complaint.message || '',
+    category: complaint.category || 'General',
+    priority: complaint.priority || 'low',
+    status: complaint.status || 'open',
+    createdAt: complaint.createdAt,
+    updatedAt: complaint.updatedAt,
+    resolutionNotes: complaint.resolutionNotes || '',
+    owner: complaint.owner || 'Support Desk',
+    lastActivity: complaint.auditTrail && complaint.auditTrail.length > 0 ? complaint.auditTrail[complaint.auditTrail.length - 1].note : '',
+  };
 };
 
 const buildStudentSchedule = async ({ student, schoolId, campusId }) => {
@@ -347,6 +450,374 @@ router.get('/routine', authParent, async (req, res) => {
     });
   } catch (err) {
     res.status(500).json({ error: err.message || 'Unable to load parent routine' });
+  }
+});
+
+router.get('/academics', authParent, async (req, res) => {
+  try {
+    if (req.userType !== 'parent') {
+      return res.status(403).json({ error: 'Forbidden - not a parent' });
+    }
+
+    const parent = await ParentUser.findById(req.user.id)
+      .select('schoolId campusId childrenIds children')
+      .lean();
+
+    if (!parent) {
+      return res.status(404).json({ error: 'Parent not found' });
+    }
+
+    const schoolId = parent.schoolId || req.schoolId || null;
+    const campusId = parent.campusId || req.campusId || null;
+    if (!schoolId) {
+      return res.status(400).json({ error: 'schoolId is required' });
+    }
+
+    const studentFilter = { schoolId };
+    if (campusId) {
+      studentFilter.campusId = campusId;
+    }
+
+    let students = [];
+    if (Array.isArray(parent.childrenIds) && parent.childrenIds.length > 0) {
+      students = await StudentUser.find({
+        ...studentFilter,
+        _id: { $in: parent.childrenIds },
+      })
+        .select('name grade section schoolId campusId')
+        .lean();
+    }
+
+    if (students.length === 0 && Array.isArray(parent.children) && parent.children.length > 0) {
+      const validNames = parent.children.map((name) => String(name || '').trim()).filter(Boolean);
+      if (validNames.length > 0) {
+        students = await StudentUser.find({
+          ...studentFilter,
+          name: { $in: validNames },
+        })
+          .select('name grade section schoolId campusId')
+          .lean();
+      }
+    }
+
+    if (students.length === 0) {
+      return res.json({ children: [], meta: { childCount: 0 } });
+    }
+
+    const childrenReports = [];
+
+    for (const student of students) {
+      const examResults = await ExamResult.find({
+        studentId: student._id,
+        schoolId,
+        published: true,
+        ...(campusId ? { campusId } : {}),
+      })
+        .populate('examId', 'title subject date term marks')
+        .sort({ createdAt: -1 })
+        .lean();
+
+      const formattedExams = examResults.map((result) => ({
+        id: result._id,
+        examName: result.examId?.title || 'Exam',
+        subject: result.examId?.subject || '',
+        date: result.examId?.date || result.createdAt || null,
+        category: 'exam',
+        term: result.examId?.term || 'general',
+        obtainedMarks: result.marks || 0,
+        totalMarks: result.examId?.marks || 100,
+        percentage: result.examId?.marks ? Math.round((result.marks / result.examId.marks) * 100) : 0,
+        grade: result.grade || '',
+        status: result.status || 'pending',
+        remarks: result.remarks || '',
+      }));
+
+      const progress = await StudentProgress.findOne({
+        studentId: student._id,
+        schoolId,
+      }).lean();
+
+      const gradedSubmissions = (progress?.submissions || []).filter(
+        (sub) => sub.status === 'graded' && sub.score !== undefined && sub.score !== null
+      );
+
+      let assignmentRecords = [];
+      if (gradedSubmissions.length > 0) {
+        const assignmentIds = gradedSubmissions.map((sub) => sub.assignmentId);
+        const assignments = await Assignment.find({ _id: { $in: assignmentIds } })
+          .select('title subject marks dueDate')
+          .lean();
+        const assignmentMap = assignments.reduce((acc, assignment) => {
+          acc[String(assignment._id)] = assignment;
+          return acc;
+        }, {});
+
+        assignmentRecords = gradedSubmissions.map((submission) => {
+          const assignment = assignmentMap[String(submission.assignmentId)] || {};
+          const totalMarks = assignment.marks || 100;
+          const obtained = submission.score || 0;
+          const percentage = totalMarks ? Math.round((obtained / totalMarks) * 100) : 0;
+
+          return {
+            id: submission._id,
+            examName: assignment.title || 'Assignment',
+            subject: assignment.subject || '',
+            date: submission.submittedAt || assignment.dueDate || null,
+            category: 'assignment',
+            term: 'assignment',
+            obtainedMarks: obtained,
+            totalMarks,
+            percentage,
+            grade:
+              obtained >= totalMarks * 0.9
+                ? 'A+'
+                : obtained >= totalMarks * 0.8
+                ? 'A'
+                : obtained >= totalMarks * 0.7
+                ? 'B'
+                : obtained >= totalMarks * 0.6
+                ? 'C'
+                : obtained >= totalMarks * 0.5
+                ? 'D'
+                : 'F',
+            status: obtained >= totalMarks * 0.4 ? 'pass' : 'fail',
+            remarks: submission.feedback || '',
+          };
+        });
+      }
+
+      const records = [...formattedExams, ...assignmentRecords].sort((a, b) => {
+        const dateA = a.date ? new Date(a.date).getTime() : 0;
+        const dateB = b.date ? new Date(b.date).getTime() : 0;
+        return dateB - dateA;
+      });
+
+      const averagePercentage =
+        records.length > 0 ? Math.round(records.reduce((sum, entry) => sum + (entry.percentage || 0), 0) / records.length) : null;
+
+      const subjectTotals = records.reduce((acc, entry) => {
+        if (!entry.subject) return acc;
+        if (!acc[entry.subject]) {
+          acc[entry.subject] = { total: 0, count: 0 };
+        }
+        acc[entry.subject].total += entry.percentage || 0;
+        acc[entry.subject].count += 1;
+        return acc;
+      }, {});
+
+      let bestSubject = '';
+      let bestSubjectScore = 0;
+      Object.entries(subjectTotals).forEach(([subject, { total, count }]) => {
+        const avg = count ? total / count : 0;
+        if (avg > bestSubjectScore) {
+          bestSubject = subject;
+          bestSubjectScore = avg;
+        }
+      });
+
+      childrenReports.push({
+        studentId: student._id,
+        studentName: student.name || 'Student',
+        grade: student.grade || '',
+        section: student.section || '',
+        summary: {
+          averagePercentage,
+          examCount: formattedExams.length,
+          assignmentCount: assignmentRecords.length,
+          bestSubject,
+          lastUpdated: records[0]?.date || null,
+        },
+        records,
+      });
+    }
+
+    res.json({
+      children: childrenReports,
+      meta: {
+        childCount: childrenReports.length,
+      },
+    });
+  } catch (err) {
+    console.error('Parent academics error:', err);
+    res.status(500).json({ error: err.message || 'Unable to load academic report' });
+  }
+});
+
+router.get('/complaints', authParent, async (req, res) => {
+  try {
+    if (req.userType !== 'parent') {
+      return res.status(403).json({ error: 'Forbidden - not a parent' });
+    }
+
+    const parent = await ParentUser.findById(req.user.id)
+      .select('email schoolId childrenIds children')
+      .lean();
+    if (!parent) {
+      return res.status(404).json({ error: 'Parent not found' });
+    }
+
+    const schoolId = parent.schoolId || req.schoolId || null;
+    if (!schoolId) {
+      return res.status(400).json({ error: 'schoolId is required' });
+    }
+
+    const parentStudents = await fetchParentStudents({ parent, schoolId });
+    const parentIdString = String(parent._id);
+    const filterOr = [{ 'requestDetails.parentId': parentIdString }];
+    if (parent.email) {
+      filterOr.push({ contactEmail: parent.email });
+    }
+
+    const complaintFilter =
+      filterOr.length > 1
+        ? { supportType: 'complaint', $or: filterOr }
+        : { supportType: 'complaint', ...filterOr[0] };
+
+    const complaints = await SupportRequest.find(complaintFilter)
+      .sort({ createdAt: -1 })
+      .lean();
+
+    res.json({
+      complaints: complaints.map(formatComplaintResponse),
+      children: parentStudents.map((student) => ({
+        studentId: student._id,
+        name: student.name || 'Student',
+        grade: student.grade || '',
+        section: student.section || '',
+      })),
+    });
+  } catch (err) {
+    console.error('Parent complaints fetch error:', err);
+    res.status(500).json({ error: err.message || 'Unable to load complaints' });
+  }
+});
+
+router.post('/complaints', authParent, async (req, res) => {
+  try {
+    if (req.userType !== 'parent') {
+      return res.status(403).json({ error: 'Forbidden - not a parent' });
+    }
+
+    const { title, description, category, priority, studentId } = req.body || {};
+    if (!title || !String(title).trim()) {
+      return res.status(400).json({ error: 'Title is required' });
+    }
+    if (!description || !String(description).trim()) {
+      return res.status(400).json({ error: 'Description is required' });
+    }
+
+    const parent = await ParentUser.findById(req.user.id)
+      .select('name email mobile schoolId campusId children childrenIds')
+      .lean();
+
+    if (!parent) {
+      return res.status(404).json({ error: 'Parent not found' });
+    }
+
+    const schoolId = parent.schoolId || req.schoolId || null;
+    if (!schoolId) {
+      return res.status(400).json({ error: 'schoolId is required' });
+    }
+
+    const priorityValue = String(priority || '').toLowerCase();
+    const normalizedPriority = ['low', 'medium', 'high', 'critical'].includes(priorityValue) ? priorityValue : 'medium';
+    const categoryValue = String(category || '').trim().toLowerCase();
+    const isTechnical = categoryValue.includes('technical');
+    const isAcademic = categoryValue.includes('academic');
+
+    const parentStudents = await fetchParentStudents({ parent, schoolId });
+    const studentsMap = new Map(parentStudents.map((student) => [String(student._id), student]));
+
+    let selectedStudent = null;
+    if (isAcademic && parentStudents.length > 0) {
+      if (studentId && studentsMap.has(String(studentId))) {
+        selectedStudent = studentsMap.get(String(studentId));
+      } else {
+        selectedStudent = parentStudents[0];
+      }
+    }
+
+    let ownerName = 'School Admin';
+    let targetRole = 'admin';
+    let targetEmail;
+    let targetPhone;
+    let requestDetailsExtra = {};
+
+    const ensureAdminContact = async () => {
+      if (ensureAdminContact.cached) return ensureAdminContact.cached;
+      ensureAdminContact.cached = await Admin.findOne({ schoolId }).select('name email phone').lean();
+      return ensureAdminContact.cached;
+    };
+
+    if (isAcademic && selectedStudent) {
+      const teacher = await findClassTeacherForStudent({ student: selectedStudent, schoolId });
+      if (teacher) {
+        ownerName = teacher.name || 'Class Teacher';
+        targetRole = 'teacher';
+        targetEmail = teacher.email || undefined;
+        targetPhone = teacher.phone || undefined;
+        requestDetailsExtra = {
+          assignedTo: 'Class Teacher',
+          teacherId: teacher._id,
+          teacherName: teacher.name || '',
+          teacherEmail: teacher.email || '',
+        };
+      } else {
+        const adminContact = await ensureAdminContact();
+        ownerName = adminContact?.name || 'School Admin';
+        targetEmail = adminContact?.email || undefined;
+        targetPhone = adminContact?.phone || undefined;
+        requestDetailsExtra = { assignedTo: 'School Admin' };
+      }
+    } else {
+      const adminContact = await ensureAdminContact();
+      ownerName = adminContact?.name || 'School Admin';
+      targetEmail = adminContact?.email || undefined;
+      targetPhone = adminContact?.phone || undefined;
+      requestDetailsExtra = { assignedTo: 'School Admin' };
+    }
+
+    const ticket = await SupportRequest.create({
+      ticketNumber: generateTicketNumber(),
+      supportType: 'complaint',
+      category: category || 'General',
+      subject: title.trim(),
+      message: description.trim(),
+      priority: normalizedPriority,
+      status: 'open',
+      owner: ownerName,
+      schoolId,
+      campusType: null,
+      targetRole,
+      targetEmail,
+      contactEmail: parent.email || targetEmail || undefined,
+      contactPhone: parent.mobile || targetPhone || undefined,
+      createdByName: parent.name || 'Parent User',
+      createdByRole: 'parent',
+      requestDetails: {
+        parentId: String(parent._id),
+        parentName: parent.name || '',
+        category: category || 'General',
+        priority: normalizedPriority,
+        studentId: selectedStudent?._id ? String(selectedStudent._id) : undefined,
+        studentName: selectedStudent?.name || undefined,
+        studentGrade: selectedStudent?.grade || undefined,
+        studentSection: selectedStudent?.section || undefined,
+        ...requestDetailsExtra,
+      },
+      auditTrail: [
+        {
+          status: 'open',
+          note: 'Complaint submitted by parent',
+          changedByName: parent.name || 'Parent User',
+        },
+      ],
+    });
+
+    res.status(201).json(formatComplaintResponse(ticket));
+  } catch (err) {
+    console.error('Parent complaint creation error:', err);
+    res.status(500).json({ error: err.message || 'Unable to submit complaint' });
   }
 });
 

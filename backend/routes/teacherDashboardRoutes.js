@@ -15,6 +15,7 @@ const TeacherLeave = require('../models/TeacherLeave');
 const TeacherExpense = require('../models/TeacherExpense');
 const TeacherAllocation = require('../models/TeacherAllocation');
 const TeacherFeedback = require('../models/TeacherFeedback');
+const SupportRequest = require('../models/SupportRequest');
 
 const router = express.Router();
 const WEEK_DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
@@ -115,6 +116,33 @@ const countWeekdaysInMonth = (year, monthIndex, upToDate = null) => {
   }
   return weekdays;
 };
+
+const toObjectIdVariants = (value) => {
+  const variants = [];
+  if (!value) return variants;
+  variants.push(String(value));
+  if (mongoose.Types.ObjectId.isValid(value)) {
+    variants.push(new mongoose.Types.ObjectId(value));
+  }
+  return variants;
+};
+
+const formatTeacherComplaint = (doc) => ({
+  id: doc._id,
+  ticketNumber: doc.ticketNumber,
+  title: doc.subject || 'Complaint',
+  description: doc.message || '',
+  status: doc.status || 'open',
+  priority: doc.priority || 'low',
+  category: doc.category || 'General',
+  parentName: doc.requestDetails?.parentName || 'Parent',
+  studentName: doc.requestDetails?.studentName || '',
+  studentGrade: doc.requestDetails?.studentGrade || '',
+  studentSection: doc.requestDetails?.studentSection || '',
+  resolutionNotes: doc.resolutionNotes || '',
+  createdAt: doc.createdAt,
+  updatedAt: doc.updatedAt,
+});
 
 router.get('/', authTeacher, async (req, res) => {
   // #swagger.tags = ['Teacher Dashboard']
@@ -1215,6 +1243,118 @@ router.get('/feedback', authTeacher, async (req, res) => {
   } catch (err) {
     console.error('Teacher feedback fetch error:', err);
     res.status(500).json({ error: err.message });
+  }
+});
+
+router.get('/complaints', authTeacher, async (req, res) => {
+  try {
+    const teacherId = req.user?.id;
+    const schoolId = req.schoolId || req.user?.schoolId || null;
+    if (!teacherId) return res.status(400).json({ error: 'teacherId is required' });
+    if (!schoolId) return res.status(400).json({ error: 'schoolId is required' });
+
+    const teacher = await TeacherUser.findById(teacherId).select('name email').lean();
+    if (!teacher) return res.status(404).json({ error: 'Teacher account not found' });
+
+    const orConditions = [];
+    const variants = toObjectIdVariants(teacherId);
+    variants.forEach((variant) => {
+      orConditions.push({ 'requestDetails.teacherId': variant });
+    });
+    if (teacher.email) {
+      orConditions.push({ targetEmail: teacher.email });
+    }
+    if (!orConditions.length) {
+      orConditions.push({ 'requestDetails.teacherId': teacherId });
+    }
+
+    const complaints = await SupportRequest.find({
+      supportType: 'complaint',
+      schoolId,
+      $or: orConditions,
+    })
+      .sort({ createdAt: -1 })
+      .lean();
+
+    const stats = complaints.reduce(
+      (acc, doc) => {
+        acc.total += 1;
+        if (doc.status === 'open') acc.open += 1;
+        else if (doc.status === 'in_progress') acc.inProgress += 1;
+        else if (doc.status === 'resolved') acc.resolved += 1;
+        return acc;
+      },
+      { total: 0, open: 0, inProgress: 0, resolved: 0 }
+    );
+
+    res.json({
+      stats,
+      complaints: complaints.map(formatTeacherComplaint),
+    });
+  } catch (err) {
+    console.error('Teacher complaints fetch error:', err);
+    res.status(500).json({ error: err.message || 'Unable to load complaints' });
+  }
+});
+
+router.put('/complaints/:id/status', authTeacher, async (req, res) => {
+  try {
+    const teacherId = req.user?.id;
+    const schoolId = req.schoolId || req.user?.schoolId || null;
+    if (!teacherId) return res.status(400).json({ error: 'teacherId is required' });
+    if (!schoolId) return res.status(400).json({ error: 'schoolId is required' });
+
+    const { id } = req.params;
+    const { status, resolutionNotes } = req.body || {};
+    const allowedStatuses = ['open', 'in_progress', 'resolved'];
+    if (!allowedStatuses.includes(status)) {
+      return res.status(400).json({ error: 'Invalid status' });
+    }
+
+    const teacher = await TeacherUser.findById(teacherId).select('name email').lean();
+    if (!teacher) return res.status(404).json({ error: 'Teacher account not found' });
+
+    const orConditions = [];
+    const variants = toObjectIdVariants(teacherId);
+    variants.forEach((variant) => orConditions.push({ 'requestDetails.teacherId': variant }));
+    if (teacher.email) orConditions.push({ targetEmail: teacher.email });
+    if (!orConditions.length) orConditions.push({ 'requestDetails.teacherId': teacherId });
+
+    const complaint = await SupportRequest.findOne({
+      _id: id,
+      supportType: 'complaint',
+      schoolId,
+      $or: orConditions,
+    });
+
+    if (!complaint) {
+      return res.status(404).json({ error: 'Complaint not found' });
+    }
+
+    complaint.status = status;
+    if (typeof resolutionNotes === 'string') {
+      complaint.resolutionNotes = resolutionNotes;
+    }
+    complaint.auditTrail = complaint.auditTrail || [];
+    complaint.auditTrail.push({
+      status,
+      note: resolutionNotes || `Marked as ${status}`,
+      changedBy: teacherId,
+      changedByName: teacher.name || 'Teacher',
+    });
+
+    if (status === 'resolved') {
+      complaint.resolvedBy = teacherId;
+      complaint.resolvedByName = teacher.name || 'Teacher';
+      complaint.resolvedAt = new Date();
+    }
+
+    await complaint.save();
+
+    res.json(formatTeacherComplaint(complaint));
+  } catch (err) {
+    console.error('Teacher complaint update error:', err);
+    res.status(500).json({ error: err.message || 'Unable to update complaint' });
   }
 });
 
