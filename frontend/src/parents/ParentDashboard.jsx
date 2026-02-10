@@ -14,11 +14,8 @@ import {
   User,
   BarChart3,
   Camera,
-  MapPin,
   Heart,
   Smile,
-  Wifi,
-  Battery,
   Shield,
   Star,
   Sparkles,
@@ -33,11 +30,8 @@ const ParentDashboard = ({ parentName, childrenNames = [] }) => {
   const [monitorData, setMonitorData] = useState({
     isOnline: true,
     lastActivity: 'Just now',
-    currentLocation: 'Mathematics Classroom',
     healthStatus: 'Good',
     moodRating: 4,
-    connectionStrength: 'Strong',
-    batteryLevel: 85,
     safetyStatus: 'Secure',
     activityLevel: 'Active'
   });
@@ -127,22 +121,6 @@ const ParentDashboard = ({ parentName, childrenNames = [] }) => {
     }
   };
 
-  const getConnectionIndicator = (strength) => {
-    switch(strength.toLowerCase()) {
-      case 'strong': return { color: 'bg-green-500', bars: 4 };
-      case 'good': return { color: 'bg-blue-500', bars: 3 };
-      case 'weak': return { color: 'bg-yellow-500', bars: 2 };
-      case 'poor': return { color: 'bg-red-500', bars: 1 };
-      default: return { color: 'bg-gray-500', bars: 0 };
-    }
-  };
-
-  const getBatteryColor = (level) => {
-    if (level > 50) return 'text-green-600';
-    if (level > 20) return 'text-yellow-600';
-    return 'text-red-600';
-  };
-
   // Real-time updates simulation
   useEffect(() => {
     const interval = setInterval(() => {
@@ -152,7 +130,6 @@ const ParentDashboard = ({ parentName, childrenNames = [] }) => {
       // Simulate real-time data changes
       setMonitorData(prev => ({
         ...prev,
-        batteryLevel: Math.max(20, prev.batteryLevel + (Math.random() > 0.5 ? -1 : 1)),
         lastActivity: 'Just now',
         activityLevel: ['Active', 'Moderate', 'Low'][Math.floor(Math.random() * 3)]
       }));
@@ -459,22 +436,6 @@ const ParentDashboard = ({ parentName, childrenNames = [] }) => {
               </div>
               
               <div className="space-y-3">
-                {/* Location Status */}
-                <div className="group bg-white rounded-xl p-4 border-l-4 border-blue-500 shadow-sm hover:shadow-md transition-all duration-200 cursor-pointer">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center space-x-3">
-                      <div className="p-2 bg-blue-50 rounded-lg group-hover:bg-blue-100 transition-colors">
-                        <MapPin className="w-4 h-4 text-blue-600" />
-                      </div>
-                      <span className="text-sm font-semibold text-gray-600">Location</span>
-                    </div>
-                    <div className="flex items-center space-x-2">
-                      <span className="text-sm text-gray-800 font-bold">{monitorData.currentLocation}</span>
-                      <div className="w-2.5 h-2.5 bg-green-500 rounded-full shadow-sm"></div>
-                    </div>
-                  </div>
-                </div>
-
                 {/* Health Status */}
                 <div className="group bg-white rounded-xl p-4 border-l-4 border-green-500 shadow-sm hover:shadow-md transition-all duration-200 cursor-pointer">
                   <div className="flex items-center justify-between">
@@ -512,86 +473,34 @@ const ParentDashboard = ({ parentName, childrenNames = [] }) => {
                   </div>
                 </div>
 
-                {/* Connection & Safety Row */}
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="group bg-white rounded-xl p-3.5 border-l-4 border-cyan-500 shadow-sm hover:shadow-md transition-all duration-200 cursor-pointer">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center space-x-2">
-                        <div className="p-1.5 bg-cyan-50 rounded-lg group-hover:bg-cyan-100 transition-colors">
-                          <Wifi className="w-3.5 h-3.5 text-cyan-600" />
-                        </div>
-                        <span className="text-xs font-semibold text-gray-600">Connection</span>
+                {/* Safety Status */}
+                <div className="group bg-white rounded-xl p-3.5 border-l-4 border-emerald-500 shadow-sm hover:shadow-md transition-all duration-200 cursor-pointer">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center space-x-2">
+                      <div className="p-1.5 bg-emerald-50 rounded-lg group-hover:bg-emerald-100 transition-colors">
+                        <Shield className="w-3.5 h-3.5 text-emerald-600" />
                       </div>
-                      <div className="flex items-center space-x-1">
-                        {[...Array(4)].map((_, i) => (
-                          <div
-                            key={i}
-                            className={`w-1 h-3 rounded-sm transition-all ${
-                              i < getConnectionIndicator(monitorData.connectionStrength).bars
-                                ? getConnectionIndicator(monitorData.connectionStrength).color
-                                : 'bg-gray-200'
-                            }`}
-                          />
-                        ))}
-                      </div>
+                      <span className="text-xs font-semibold text-gray-600">Safety</span>
                     </div>
-                  </div>
-
-                  <div className="group bg-white rounded-xl p-3.5 border-l-4 border-emerald-500 shadow-sm hover:shadow-md transition-all duration-200 cursor-pointer">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center space-x-2">
-                        <div className="p-1.5 bg-emerald-50 rounded-lg group-hover:bg-emerald-100 transition-colors">
-                          <Shield className="w-3.5 h-3.5 text-emerald-600" />
-                        </div>
-                        <span className="text-xs font-semibold text-gray-600">Safety</span>
-                      </div>
-                      <div className="flex items-center space-x-1.5">
-                        <span className="text-xs text-emerald-600 font-bold">{monitorData.safetyStatus}</span>
-                        <div className="w-2 h-2 bg-emerald-500 rounded-full shadow-sm"></div>
-                      </div>
+                    <div className="flex items-center space-x-1.5">
+                      <span className="text-xs text-emerald-600 font-bold">{monitorData.safetyStatus}</span>
+                      <div className="w-2 h-2 bg-emerald-500 rounded-full shadow-sm"></div>
                     </div>
                   </div>
                 </div>
 
-                {/* Battery & Mood Row */}
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="group bg-white rounded-xl p-3.5 border-l-4 border-yellow-500 shadow-sm hover:shadow-md transition-all duration-200 cursor-pointer">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center space-x-2">
-                        <div className="p-1.5 bg-yellow-50 rounded-lg group-hover:bg-yellow-100 transition-colors">
-                          <Battery className="w-3.5 h-3.5 text-yellow-600" />
-                        </div>
-                        <span className="text-xs font-semibold text-gray-600">Device</span>
+                {/* Mood Status */}
+                <div className="group bg-white rounded-xl p-3.5 border-l-4 border-orange-500 shadow-sm hover:shadow-md transition-all duration-200 cursor-pointer">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center space-x-2">
+                      <div className="p-1.5 bg-orange-50 rounded-lg group-hover:bg-orange-100 transition-colors">
+                        <Smile className="w-3.5 h-3.5 text-orange-600" />
                       </div>
-                      <div className="flex items-center space-x-1.5">
-                        <span className={`text-xs font-bold ${getBatteryColor(monitorData.batteryLevel)}`}>
-                          {monitorData.batteryLevel}%
-                        </span>
-                        <div className="w-5 h-2.5 border-2 border-gray-300 rounded-sm relative overflow-hidden">
-                          <div
-                            className={`h-full transition-all duration-500 ${
-                              monitorData.batteryLevel > 50 ? 'bg-green-500' :
-                              monitorData.batteryLevel > 20 ? 'bg-yellow-500' : 'bg-red-500'
-                            }`}
-                            style={{ width: `${Math.max(monitorData.batteryLevel, 10)}%` }}
-                          />
-                        </div>
-                      </div>
+                      <span className="text-xs font-semibold text-gray-600">Mood</span>
                     </div>
-                  </div>
-
-                  <div className="group bg-white rounded-xl p-3.5 border-l-4 border-orange-500 shadow-sm hover:shadow-md transition-all duration-200 cursor-pointer">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center space-x-2">
-                        <div className="p-1.5 bg-orange-50 rounded-lg group-hover:bg-orange-100 transition-colors">
-                          <Smile className="w-3.5 h-3.5 text-orange-600" />
-                        </div>
-                        <span className="text-xs font-semibold text-gray-600">Mood</span>
-                      </div>
-                      <div className="flex items-center space-x-1.5">
-                        <span className="text-lg">😊</span>
-                        <span className="text-xs text-gray-800 font-bold">{monitorData.moodRating}/5</span>
-                      </div>
+                    <div className="flex items-center space-x-1.5">
+                      <span className="text-lg">😊</span>
+                      <span className="text-xs text-gray-800 font-bold">{monitorData.moodRating}/5</span>
                     </div>
                   </div>
                 </div>
@@ -612,126 +521,69 @@ const ParentDashboard = ({ parentName, childrenNames = [] }) => {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-5 lg:gap-6">
-          {/* Enhanced Important Notifications */}
-          <div className="lg:col-span-2 bg-white/90 backdrop-blur-md rounded-3xl shadow-2xl border border-gray-100 overflow-hidden">
-            <div className="p-5 sm:p-6 lg:p-7 border-b border-gray-100 bg-gradient-to-r from-orange-50/50 to-red-50/50">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                <div className="flex items-center space-x-3">
-                  <div className="p-3 bg-gradient-to-br from-orange-400 to-red-500 rounded-xl shadow-md">
-                    <Bell className="w-6 h-6 text-white" />
-                  </div>
-                  <h2 className="text-xl sm:text-2xl font-bold text-gray-800">Important Updates</h2>
+        {/* Enhanced Important Notifications */}
+        <div className="bg-white/90 backdrop-blur-md rounded-3xl shadow-2xl border border-gray-100 overflow-hidden">
+          <div className="p-5 sm:p-6 lg:p-7 border-b border-gray-100 bg-gradient-to-r from-orange-50/50 to-red-50/50">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="flex items-center space-x-3">
+                <div className="p-3 bg-gradient-to-br from-orange-400 to-red-500 rounded-xl shadow-md">
+                  <Bell className="w-6 h-6 text-white" />
                 </div>
-                <div className="text-xs text-orange-600 font-bold bg-orange-100 px-4 py-2 rounded-full shadow-sm border border-orange-200 self-start sm:self-auto">
-                  {notifications.length} Updates
-                </div>
+                <h2 className="text-xl sm:text-2xl font-bold text-gray-800">Important Updates</h2>
               </div>
-            </div>
-            <div className="p-5 sm:p-6 lg:p-7">
-              <div className="space-y-4">
-                {notifications.map((notification) => (
-                  <div
-                    key={notification.id}
-                    className={`group flex items-start space-x-4 p-4 sm:p-5 rounded-xl sm:rounded-2xl border-l-4 transition-all duration-300 hover:shadow-lg cursor-pointer ${
-                      notification.priority === 'high'
-                        ? 'bg-red-50 border-red-400 hover:bg-red-100/50'
-                        : notification.priority === 'medium'
-                        ? 'bg-yellow-50 border-yellow-400 hover:bg-yellow-100/50'
-                        : 'bg-gray-50 border-gray-400 hover:bg-gray-100/50'
-                    }`}
-                  >
-                    <div className={`p-2.5 rounded-xl shadow-sm ${
-                      notification.priority === 'high'
-                        ? 'bg-red-100 group-hover:bg-red-200'
-                        : notification.priority === 'medium'
-                        ? 'bg-yellow-100 group-hover:bg-yellow-200'
-                        : 'bg-gray-100 group-hover:bg-gray-200'
-                    } transition-colors`}>
-                      <AlertCircle className={`w-5 h-5 ${
-                        notification.priority === 'high'
-                          ? 'text-red-600'
-                          : notification.priority === 'medium'
-                          ? 'text-yellow-600'
-                          : 'text-gray-600'
-                      }`} />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm sm:text-base font-semibold text-gray-800 leading-relaxed mb-3">{notification.message}</p>
-                      <div className="flex flex-wrap items-center justify-between gap-2">
-                        <div className="flex items-center space-x-2">
-                          <Clock className="w-3.5 h-3.5 text-gray-400" />
-                          <p className="text-xs sm:text-sm text-gray-500 font-medium">{notification.time}</p>
-                        </div>
-                        <span className={`text-xs font-bold px-3 py-1.5 rounded-full shadow-sm ${
-                          notification.priority === 'high'
-                            ? 'bg-red-200 text-red-700'
-                            : notification.priority === 'medium'
-                            ? 'bg-yellow-200 text-yellow-700'
-                            : 'bg-gray-200 text-gray-700'
-                        }`}>
-                          {notification.priority.toUpperCase()}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                ))}
+              <div className="text-xs text-orange-600 font-bold bg-orange-100 px-4 py-2 rounded-full shadow-sm border border-orange-200 self-start sm:self-auto">
+                {notifications.length} Updates
               </div>
             </div>
           </div>
-
-          {/* Enhanced Quick Actions */}
-          <div className="bg-white/90 backdrop-blur-md rounded-3xl shadow-2xl border border-gray-100 overflow-hidden">
-            <div className="p-5 sm:p-6 lg:p-7 border-b border-gray-100 bg-gradient-to-r from-purple-50/50 to-indigo-50/50">
-              <div className="flex items-center space-x-3">
-                <div className="p-3 bg-gradient-to-br from-purple-400 to-indigo-500 rounded-xl shadow-md">
-                  <Activity className="w-6 h-6 text-white" />
+          <div className="p-5 sm:p-6 lg:p-7">
+            <div className="space-y-4">
+              {notifications.map((notification) => (
+                <div
+                  key={notification.id}
+                  className={`group flex items-start space-x-4 p-4 sm:p-5 rounded-xl sm:rounded-2xl border-l-4 transition-all duration-300 hover:shadow-lg cursor-pointer ${
+                    notification.priority === 'high'
+                      ? 'bg-red-50 border-red-400 hover:bg-red-100/50'
+                      : notification.priority === 'medium'
+                      ? 'bg-yellow-50 border-yellow-400 hover:bg-yellow-100/50'
+                      : 'bg-gray-50 border-gray-400 hover:bg-gray-100/50'
+                  }`}
+                >
+                  <div className={`p-2.5 rounded-xl shadow-sm ${
+                    notification.priority === 'high'
+                      ? 'bg-red-100 group-hover:bg-red-200'
+                      : notification.priority === 'medium'
+                      ? 'bg-yellow-100 group-hover:bg-yellow-200'
+                      : 'bg-gray-100 group-hover:bg-gray-200'
+                  } transition-colors`}>
+                    <AlertCircle className={`w-5 h-5 ${
+                      notification.priority === 'high'
+                        ? 'text-red-600'
+                        : notification.priority === 'medium'
+                        ? 'text-yellow-600'
+                        : 'text-gray-600'
+                    }`} />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm sm:text-base font-semibold text-gray-800 leading-relaxed mb-3">{notification.message}</p>
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div className="flex items-center space-x-2">
+                        <Clock className="w-3.5 h-3.5 text-gray-400" />
+                        <p className="text-xs sm:text-sm text-gray-500 font-medium">{notification.time}</p>
+                      </div>
+                      <span className={`text-xs font-bold px-3 py-1.5 rounded-full shadow-sm ${
+                        notification.priority === 'high'
+                          ? 'bg-red-200 text-red-700'
+                          : notification.priority === 'medium'
+                          ? 'bg-yellow-200 text-yellow-700'
+                          : 'bg-gray-200 text-gray-700'
+                      }`}>
+                        {notification.priority.toUpperCase()}
+                      </span>
+                    </div>
+                  </div>
                 </div>
-                <h2 className="text-xl sm:text-2xl font-bold text-gray-800">Quick Actions</h2>
-              </div>
-            </div>
-            <div className="p-5 sm:p-6 lg:p-7">
-              <div className="space-y-3 sm:space-y-4">
-                <button className="w-full group flex items-center justify-between p-4 sm:p-5 text-left rounded-xl sm:rounded-2xl bg-gradient-to-r from-blue-50 to-indigo-50 hover:from-blue-100 hover:to-indigo-100 border border-blue-200/50 hover:border-blue-300 transition-all duration-300 hover:shadow-lg hover:-translate-y-0.5">
-                  <div className="flex items-center space-x-3 sm:space-x-4">
-                    <div className="p-2.5 sm:p-3 bg-blue-500 rounded-xl shadow-md group-hover:scale-110 group-hover:bg-blue-600 transition-all">
-                      <Video className="w-5 h-5 text-white" />
-                    </div>
-                    <span className="font-semibold text-sm sm:text-base text-gray-700 group-hover:text-blue-700 transition-colors">Schedule PTM</span>
-                  </div>
-                  <ChevronRight className="w-5 h-5 text-gray-400 group-hover:text-blue-500 group-hover:translate-x-1 transition-all" />
-                </button>
-
-                <button className="w-full group flex items-center justify-between p-4 sm:p-5 text-left rounded-xl sm:rounded-2xl bg-gradient-to-r from-green-50 to-emerald-50 hover:from-green-100 hover:to-emerald-100 border border-green-200/50 hover:border-green-300 transition-all duration-300 hover:shadow-lg hover:-translate-y-0.5">
-                  <div className="flex items-center space-x-3 sm:space-x-4">
-                    <div className="p-2.5 sm:p-3 bg-green-500 rounded-xl shadow-md group-hover:scale-110 group-hover:bg-green-600 transition-all">
-                      <CreditCard className="w-5 h-5 text-white" />
-                    </div>
-                    <span className="font-semibold text-sm sm:text-base text-gray-700 group-hover:text-green-700 transition-colors">Pay Fees</span>
-                  </div>
-                  <ChevronRight className="w-5 h-5 text-gray-400 group-hover:text-green-500 group-hover:translate-x-1 transition-all" />
-                </button>
-
-                <button className="w-full group flex items-center justify-between p-4 sm:p-5 text-left rounded-xl sm:rounded-2xl bg-gradient-to-r from-red-50 to-pink-50 hover:from-red-100 hover:to-pink-100 border border-red-200/50 hover:border-red-300 transition-all duration-300 hover:shadow-lg hover:-translate-y-0.5">
-                  <div className="flex items-center space-x-3 sm:space-x-4">
-                    <div className="p-2.5 sm:p-3 bg-red-500 rounded-xl shadow-md group-hover:scale-110 group-hover:bg-red-600 transition-all">
-                      <Heart className="w-5 h-5 text-white" />
-                    </div>
-                    <span className="font-semibold text-sm sm:text-base text-gray-700 group-hover:text-red-700 transition-colors">Health Report</span>
-                  </div>
-                  <ChevronRight className="w-5 h-5 text-gray-400 group-hover:text-red-500 group-hover:translate-x-1 transition-all" />
-                </button>
-
-                <button className="w-full group flex items-center justify-between p-4 sm:p-5 text-left rounded-xl sm:rounded-2xl bg-gradient-to-r from-purple-50 to-violet-50 hover:from-purple-100 hover:to-violet-100 border border-purple-200/50 hover:border-purple-300 transition-all duration-300 hover:shadow-lg hover:-translate-y-0.5">
-                  <div className="flex items-center space-x-3 sm:space-x-4">
-                    <div className="p-2.5 sm:p-3 bg-purple-500 rounded-xl shadow-md group-hover:scale-110 group-hover:bg-purple-600 transition-all">
-                      <Eye className="w-5 h-5 text-white" />
-                    </div>
-                    <span className="font-semibold text-sm sm:text-base text-gray-700 group-hover:text-purple-700 transition-colors">Observations</span>
-                  </div>
-                  <ChevronRight className="w-5 h-5 text-gray-400 group-hover:text-purple-500 group-hover:translate-x-1 transition-all" />
-                </button>
-              </div>
+              ))}
             </div>
           </div>
         </div>

@@ -1,7 +1,8 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { AlertCircle, BookOpen, Calendar, Clock, MapPin, User } from 'lucide-react';
 
 const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+const API_BASE_URL = (import.meta.env.VITE_API_URL || 'http://localhost:5000').replace(/\/$/, '');
 
 const normalizeDay = (value) => {
   if (!value) return null;
@@ -34,48 +35,71 @@ const ParentClassRoutine = () => {
   const [viewMode, setViewMode] = useState('weekly');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [lastFetchedAt, setLastFetchedAt] = useState(null);
+
+  const fetchRoutine = useCallback(async ({ initial = false } = {}) => {
+    const token = localStorage.getItem('token');
+    const userType = localStorage.getItem('userType');
+    if (!token || userType !== 'Parent') {
+      setError('Only parents can view children routines.');
+      setChildren([]);
+      setSelectedChildId('');
+      setLoading(false);
+      setIsRefreshing(false);
+      return;
+    }
+
+    try {
+      if (initial) {
+        setLoading(true);
+      } else {
+        setIsRefreshing(true);
+      }
+      setError('');
+
+      const res = await fetch(`${API_BASE_URL}/api/parent/auth/routine`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data?.error || 'Unable to load routine');
+      }
+
+      const list = (data?.children || []).map((child) => ({
+        ...child,
+        schedule: normalizeSchedule(child?.schedule),
+      }));
+
+      setChildren(list);
+      setSelectedChildId((prev) => {
+        if (prev && list.some((child) => String(child.studentId) === String(prev))) {
+          return prev;
+        }
+        if (list.length === 0) return '';
+        const preferred = list.find((child) => child.hasRoutine) || list[0];
+        return String(preferred.studentId);
+      });
+      setLastFetchedAt(new Date());
+    } catch (err) {
+      setError(err.message || 'Unable to load routine');
+      setChildren([]);
+      setSelectedChildId('');
+    } finally {
+      if (initial) {
+        setLoading(false);
+      } else {
+        setIsRefreshing(false);
+      }
+    }
+  }, []);
 
   useEffect(() => {
-    const fetchRoutine = async () => {
-      try {
-        setLoading(true);
-        setError('');
-        const token = localStorage.getItem('token');
-        const userType = localStorage.getItem('userType');
-        if (!token || userType !== 'Parent') {
-          setError('Only parents can view children routines.');
-          return;
-        }
-
-        const res = await fetch(`${import.meta.env.VITE_API_URL}/api/parent/auth/routine`, {
-          headers: {
-            Authorization: `Bearer ${token}`,
-            'Content-Type': 'application/json',
-          },
-        });
-        const data = await res.json().catch(() => ({}));
-        if (!res.ok) {
-          throw new Error(data?.error || 'Unable to load routine');
-        }
-
-        const list = (data?.children || []).map((child) => ({
-          ...child,
-          schedule: normalizeSchedule(child?.schedule),
-        }));
-        setChildren(list);
-        if (list.length > 0) {
-          const preferred = list.find((child) => child.hasRoutine) || list[0];
-          setSelectedChildId(String(preferred.studentId));
-        }
-      } catch (err) {
-        setError(err.message || 'Unable to load routine');
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchRoutine();
-  }, []);
+    fetchRoutine({ initial: true });
+  }, [fetchRoutine]);
 
   const selectedChild = useMemo(
     () => children.find((child) => String(child.studentId) === String(selectedChildId)) || null,
@@ -138,6 +162,18 @@ const ParentClassRoutine = () => {
             {error}
           </div>
         )}
+        <div className="mt-4 flex flex-wrap items-center gap-3 text-sm text-gray-600">
+          {lastFetchedAt && (
+            <span>Last updated: {lastFetchedAt.toLocaleTimeString()}</span>
+          )}
+          <button
+            onClick={() => fetchRoutine()}
+            disabled={loading || isRefreshing}
+            className="inline-flex items-center gap-1 rounded-lg border border-amber-200 px-3 py-1.5 text-amber-700 hover:bg-amber-50 disabled:opacity-60 disabled:cursor-not-allowed"
+          >
+            {isRefreshing ? 'Refreshing...' : 'Refresh data'}
+          </button>
+        </div>
       </div>
 
       <div className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm">
