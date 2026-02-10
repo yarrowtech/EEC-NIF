@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Bell, Search, Menu, CalendarDays, X } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useStudentDashboard } from './StudentDashboardContext';
@@ -11,6 +11,34 @@ const Header = ({ sidebarOpen, setSidebarOpen, onOpenProfile }) => {
   const [searchText, setSearchText] = useState('');
   const [showSearchSuggestions, setShowSearchSuggestions] = useState(false);
   const { profile } = useStudentDashboard();
+
+  const notifRef = useRef(null);
+  const profileRef = useRef(null);
+
+  // Close dropdowns on outside click
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (notifRef.current && !notifRef.current.contains(e.target)) {
+        setShowNotifications(false);
+      }
+      if (profileRef.current && !profileRef.current.contains(e.target)) {
+        setProfileOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  // Toggle one dropdown, close the other
+  const toggleNotifications = useCallback(() => {
+    setShowNotifications((prev) => !prev);
+    setProfileOpen(false);
+  }, []);
+
+  const toggleProfile = useCallback(() => {
+    setProfileOpen((prev) => !prev);
+    setShowNotifications(false);
+  }, []);
 
   // Use real notifications hook
   const {
@@ -314,10 +342,10 @@ const Header = ({ sidebarOpen, setSidebarOpen, onOpenProfile }) => {
                 </div>
               </div>
             )}
-            <div className="relative">
+            <div className="relative" ref={notifRef}>
               <button
                 className="p-2 rounded-lg hover:bg-gray-100 transition-colors relative"
-                onClick={() => setShowNotifications((prev) => !prev)}
+                onClick={toggleNotifications}
                 aria-label="Show notifications"
               >
                 <Bell size={20} className="text-gray-700" />
@@ -399,10 +427,10 @@ const Header = ({ sidebarOpen, setSidebarOpen, onOpenProfile }) => {
               )}
             </div>
 
-            <div className="relative">
+            <div className="relative" ref={profileRef}>
               <button
                 className="flex items-center gap-2 rounded-lg p-1 hover:bg-gray-100"
-                onClick={() => setProfileOpen(!profileOpen)}
+                onClick={toggleProfile}
                 aria-label="Open profile menu"
               >
                 {hasProfileImage ? (

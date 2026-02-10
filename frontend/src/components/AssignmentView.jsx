@@ -391,8 +391,8 @@ const AssignmentView = ({ defaultType = "school" }) => {
                 {/* ─── Right: Writing Page (realistic notebook paper) ─── */}
                 <div className="flex flex-1 flex-col relative overflow-hidden" style={{ background: "#fefcf8" }}>
 
-                  {/* Red margin line */}
-                  <div className="absolute top-0 bottom-0 w-px z-5 pointer-events-none"
+                  {/* Red margin line (hidden on small screens) */}
+                  <div className="absolute top-0 bottom-0 w-px z-5 pointer-events-none hidden sm:block"
                     style={{ left: "48px", background: "rgba(220,80,80,0.25)" }} />
 
                   {/* Top punched holes */}
@@ -402,7 +402,7 @@ const AssignmentView = ({ defaultType = "school" }) => {
                     ))}
                   </div>
 
-                  <div className="flex flex-1 flex-col p-4 sm:p-5 lg:pl-16 lg:pr-6 lg:pt-10">
+                  <div className="flex flex-1 flex-col p-3 sm:p-5 sm:pl-16 lg:pr-6 lg:pt-10">
 
                     {/* Date header */}
                     <div className="mb-3 flex items-center gap-3">
@@ -462,10 +462,10 @@ const AssignmentView = ({ defaultType = "school" }) => {
                         </div>
                         <div>
                           <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-wider" style={{ color: "#a08060" }}>Mood</label>
-                          <div className="flex gap-1.5">
+                          <div className="grid grid-cols-5 gap-1 sm:gap-1.5">
                             {moodOptions.map((m) => (
                               <button key={m} type="button" onClick={() => setJournalMood(m)}
-                                className={`flex-1 rounded-lg border py-2 text-center transition ${
+                                className={`rounded-lg border py-1.5 sm:py-2 text-center transition ${
                                   journalMood === m ? "shadow-sm" : "hover:shadow-sm"
                                 }`}
                                 style={{
@@ -473,7 +473,7 @@ const AssignmentView = ({ defaultType = "school" }) => {
                                   borderColor: journalMood === m ? "#d97706" : "#e0d5c0",
                                 }}
                                 title={m}>
-                                <span className="text-base">{moodEmojis[m]}</span>
+                                <span className="text-sm sm:text-base">{moodEmojis[m]}</span>
                               </button>
                             ))}
                           </div>
