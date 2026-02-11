@@ -1462,12 +1462,7 @@ const Students = ({ setShowAdminHeader, setShowAdminBreadcrumb }) => {
       );
 
       if (res.ok) {
-        const updatedStudent = await res.json();
-        setStudentData((prev) =>
-          prev.map((s) =>
-            s._id === updatedStudent._id ? updatedStudent : s
-          )
-        );
+        await refreshStudents();
         setShowDetailModal(false);
         setEditingStudent(null);
         Swal.fire({
