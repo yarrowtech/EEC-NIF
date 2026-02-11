@@ -9,43 +9,27 @@ import {
   Bell,
   TrendingUp,
   BookOpen,
-  MessageSquare,
-  Award,
   BarChart3,
-  Download,
   Clock,
   Eye,
-  Plus,
   ChevronRight,
-  Search,
-  Filter,
   AlertTriangle,
-  LogOut
+  Award,
+  Sparkles,
 } from 'lucide-react';
 
 const TeacherDashboard = () => {
   const [currentDateTime, setCurrentDateTime] = useState(new Date());
-  const [unreadNotifications] = useState(5);
   const [dashboardData, setDashboardData] = useState(null);
+  const [classTeacherAllocations, setClassTeacherAllocations] = useState([]);
   const [dashboardError, setDashboardError] = useState('');
   const [dashboardLoading, setDashboardLoading] = useState(true);
   const navigate = useNavigate();
 
-  // Update time every second
   useEffect(() => {
-    const timer = setInterval(() => {
-      setCurrentDateTime(new Date());
-    }, 1000);
-
+    const timer = setInterval(() => setCurrentDateTime(new Date()), 1000);
     return () => clearInterval(timer);
   }, []);
-
-  // Handle logout
-  const handleLogout = () => {
-    localStorage.removeItem('token');
-    localStorage.removeItem('userType');
-    navigate('/');
-  };
 
   const timeAgo = (timestamp) => {
     if (!timestamp) return 'Just now';
@@ -53,11 +37,11 @@ const TeacherDashboard = () => {
     if (Number.isNaN(diffMs)) return 'Just now';
     const diffMinutes = Math.floor(diffMs / (1000 * 60));
     if (diffMinutes < 1) return 'Just now';
-    if (diffMinutes < 60) return `${diffMinutes} minutes ago`;
+    if (diffMinutes < 60) return `${diffMinutes}m ago`;
     const diffHours = Math.floor(diffMinutes / 60);
-    if (diffHours < 24) return `${diffHours} hours ago`;
+    if (diffHours < 24) return `${diffHours}h ago`;
     const diffDays = Math.floor(diffHours / 24);
-    return `${diffDays} days ago`;
+    return `${diffDays}d ago`;
   };
 
   useEffect(() => {
@@ -65,47 +49,38 @@ const TeacherDashboard = () => {
       setDashboardLoading(true);
       setDashboardError('');
       try {
-        const res = await fetch(`${import.meta.env.VITE_API_URL}/api/teacher/dashboard`, {
-          headers: {
-            'Content-Type': 'application/json',
-            authorization: `Bearer ${localStorage.getItem('token')}`,
-          },
-        });
-        const data = await res.json().catch(() => ({}));
-        if (!res.ok) {
-          throw new Error(data?.error || 'Unable to load dashboard data');
+        const token = localStorage.getItem('token');
+        const headers = {
+          'Content-Type': 'application/json',
+          authorization: `Bearer ${token}`,
+        };
+        const [dashboardRes, allocationRes] = await Promise.all([
+          fetch(`${import.meta.env.VITE_API_URL}/api/teacher/dashboard`, { headers }),
+          fetch(`${import.meta.env.VITE_API_URL}/api/teacher/dashboard/allocations`, { headers }),
+        ]);
+
+        const dashboardPayload = await dashboardRes.json().catch(() => ({}));
+        if (!dashboardRes.ok) {
+          throw new Error(dashboardPayload?.error || 'Unable to load dashboard data');
         }
-        setDashboardData(data);
+        setDashboardData(dashboardPayload);
+
+        const allocationPayload = await allocationRes.json().catch(() => []);
+        if (allocationRes.ok && Array.isArray(allocationPayload)) {
+          const classTeacherOnly = allocationPayload.filter((item) => Boolean(item?.isClassTeacher));
+          setClassTeacherAllocations(classTeacherOnly);
+        } else {
+          setClassTeacherAllocations([]);
+        }
       } catch (error) {
         setDashboardError(error.message || 'Unable to load dashboard data');
       } finally {
         setDashboardLoading(false);
       }
     };
-
     fetchDashboard();
   }, []);
 
-  // Format date and time
-  const formatDateTime = (date) => {
-    const options = { 
-      weekday: 'long', 
-      year: 'numeric', 
-      month: 'long', 
-      day: 'numeric' 
-    };
-    const dateStr = date.toLocaleDateString('en-US', options);
-    const timeStr = date.toLocaleTimeString('en-US', { 
-      hour: '2-digit', 
-      minute: '2-digit', 
-      second: '2-digit' 
-    });
-    return { dateStr, timeStr };
-  };
-
-  const { dateStr, timeStr } = formatDateTime(currentDateTime);
-
-  // Get greeting based on time of day
   const getGreeting = () => {
     const hour = currentDateTime.getHours();
     if (hour < 12) return 'Good Morning';
@@ -113,229 +88,182 @@ const TeacherDashboard = () => {
     return 'Good Evening';
   };
 
+  const dateStr = currentDateTime.toLocaleDateString('en-US', {
+    weekday: 'long',
+    month: 'long',
+    day: 'numeric',
+    year: 'numeric',
+  });
+
+  const timeStr = currentDateTime.toLocaleTimeString('en-US', {
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+
+  const classTeacherLabel = classTeacherAllocations.length
+    ? classTeacherAllocations
+        .map((item) => {
+          const className = item?.classId?.name || item?.className || 'Class';
+          const sectionName = item?.sectionId?.name || item?.sectionName || 'Section';
+          return `${className}-${sectionName}`;
+        })
+        .join(', ')
+    : '';
+
   const stats = dashboardData?.stats || {};
   const quickStats = [
-    { 
-      label: 'Total Students', 
-      value: stats.totalStudents ?? 0, 
-      icon: Users, 
-      color: 'blue',
-      change: 'Campus total',
-      trend: 'neutral'
-    },
-    { 
-      label: 'Attendance Today', 
-      value: `${stats.attendanceRate ?? 0}%`, 
-      icon: Activity, 
-      color: 'green',
-      change: 'Marked today',
-      trend: 'neutral'
-    },
-    { 
-      label: 'Pending Evaluations', 
-      value: stats.pendingEvaluations ?? 0, 
-      icon: FileText, 
-      color: 'orange',
-      change: 'Submissions pending',
-      trend: 'neutral'
-    },
-    { 
-      label: 'Upcoming Events', 
-      value: stats.upcomingEvents ?? 0, 
-      icon: Calendar, 
-      color: 'purple',
-      change: 'Scheduled today',
-      trend: 'neutral'
-    }
+    { label: 'Total Students', value: stats.totalStudents ?? 0, icon: Users, gradient: 'from-blue-500 to-indigo-600', bg: 'bg-blue-50', text: 'text-blue-600', change: 'Campus total' },
+    { label: 'Attendance Today', value: `${stats.attendanceRate ?? 0}%`, icon: Activity, gradient: 'from-emerald-500 to-teal-600', bg: 'bg-emerald-50', text: 'text-emerald-600', change: 'Marked today' },
+    { label: 'Pending Evaluations', value: stats.pendingEvaluations ?? 0, icon: FileText, gradient: 'from-amber-500 to-orange-600', bg: 'bg-amber-50', text: 'text-amber-600', change: 'Submissions pending' },
+    { label: 'Upcoming Events', value: stats.upcomingEvents ?? 0, icon: Calendar, gradient: 'from-violet-500 to-purple-600', bg: 'bg-violet-50', text: 'text-violet-600', change: 'Scheduled today' },
   ];
 
-  const colorClasses = {
-    blue: { bg: 'bg-blue-100', text: 'text-blue-600' },
-    green: { bg: 'bg-green-100', text: 'text-green-600' },
-    orange: { bg: 'bg-orange-100', text: 'text-orange-600' },
-    purple: { bg: 'bg-purple-100', text: 'text-purple-600' },
-    yellow: { bg: 'bg-yellow-100', text: 'text-yellow-600' },
-    red: { bg: 'bg-red-100', text: 'text-red-600' }
-  };
-
   const activityIconMap = {
-    assignment: { icon: FileText, color: 'blue' },
-    meeting: { icon: Calendar, color: 'purple' },
-    attendance: { icon: ClipboardCheck, color: 'green' },
-    announcement: { icon: Bell, color: 'yellow' },
-    performance: { icon: Award, color: 'green' }
+    assignment: { icon: FileText, bg: 'bg-blue-50', text: 'text-blue-600' },
+    meeting: { icon: Calendar, bg: 'bg-purple-50', text: 'text-purple-600' },
+    attendance: { icon: ClipboardCheck, bg: 'bg-emerald-50', text: 'text-emerald-600' },
+    announcement: { icon: Bell, bg: 'bg-amber-50', text: 'text-amber-600' },
+    performance: { icon: Award, bg: 'bg-green-50', text: 'text-green-600' },
   };
 
   const recentActivities = (dashboardData?.recentActivities || []).map((activity) => {
     const config = activityIconMap[activity.type] || activityIconMap.assignment;
-    return {
-      ...activity,
-      icon: config.icon,
-      color: config.color,
-      time: timeAgo(activity.time),
-    };
+    return { ...activity, icon: config.icon, bg: config.bg, text: config.text, time: timeAgo(activity.time) };
   });
 
   const upcomingClasses = dashboardData?.upcomingClasses || [];
   const performanceMetrics = dashboardData?.performanceMetrics || [];
-
-  // Quick Actions Data
-  const quickActions = [
-    {
-      id: 1,
-      label: 'Mark Attendance',
-      description: 'Take today\'s attendance',
-      icon: ClipboardCheck,
-      color: 'green'
-    },
-    {
-      id: 2,
-      label: 'Create Assignment',
-      description: 'New homework or project',
-      icon: FileText,
-      color: 'blue'
-    },
-    {
-      id: 3,
-      label: 'Schedule Meeting',
-      description: 'With parents or staff',
-      icon: Calendar,
-      color: 'purple'
-    },
-    {
-      id: 4,
-      label: 'Post Announcement',
-      description: 'Class updates or news',
-      icon: Bell,
-      color: 'yellow'
-    },
-    {
-      id: 5,
-      label: 'View Progress',
-      description: 'Student performance tracking',
-      icon: BarChart3,
-      color: 'purple'
-    },
-    {
-      id: 6,
-      label: 'Identify Weak Students',
-      description: 'AI-powered intervention',
-      icon: AlertTriangle,
-      color: 'red'
-    }
-  ];
-
-  // Student Performance Data
   const topStudents = dashboardData?.topStudents || [];
   const upcomingDeadlines = dashboardData?.upcomingDeadlines || [];
 
+  const quickActions = [
+    { id: 1, label: 'Mark Attendance', desc: "Take today's attendance", icon: ClipboardCheck, gradient: 'from-emerald-500 to-teal-600', path: '/teacher/attendance' },
+    { id: 2, label: 'Assignments', desc: 'Manage & create', icon: FileText, gradient: 'from-blue-500 to-indigo-600', path: '/teacher/assignments' },
+    { id: 3, label: 'Parent Meetings', desc: 'Schedule meetings', icon: Calendar, gradient: 'from-violet-500 to-purple-600', path: '/teacher/parent-meetings' },
+    { id: 4, label: 'Student Progress', desc: 'Performance tracking', icon: BarChart3, gradient: 'from-cyan-500 to-blue-600', path: '/teacher/progress' },
+    { id: 5, label: 'Weak Students', desc: 'AI-powered insight', icon: AlertTriangle, gradient: 'from-rose-500 to-red-600', path: '/teacher/weak-students' },
+    { id: 6, label: 'AI Teaching', desc: 'Smart tools', icon: Sparkles, gradient: 'from-amber-500 to-orange-600', path: '/teacher/ai-powered-teaching' },
+  ];
+
   return (
-    <div className="min-h-screen bg-gray-50 p-6">
-      {/* Header */}
-      <div className="bg-gradient-to-r from-blue-600 to-blue-700 rounded-2xl p-6 mb-6 text-white shadow-lg">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+    <div className="space-y-4 sm:space-y-6">
+
+      {/* Welcome Banner */}
+      <div className="relative overflow-hidden rounded-2xl bg-linear-to-br from-blue-600 via-indigo-600 to-violet-700 p-5 sm:p-7 text-white">
+        <div className="absolute -top-10 -right-10 w-40 h-40 bg-white/5 rounded-full blur-2xl" />
+        <div className="absolute bottom-0 left-0 w-60 h-32 bg-white/5 rounded-full blur-3xl" />
+        <div className="relative flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
-            <h1 className="text-3xl font-bold mb-2">
+            <h1 className="text-xl sm:text-2xl font-bold tracking-tight">
               {getGreeting()}, {dashboardData?.teacher?.name || 'Teacher'}
             </h1>
-            <p className="text-blue-100">Here's your teaching overview for {dateStr}</p>
+            <p className="mt-1 text-sm text-white/70">{dateStr}</p>
           </div>
-          <div className="flex items-center space-x-3">
-            {/* Notification Icon */}
-            <div className="relative">
-              <button className="bg-blue-500 hover:bg-blue-400 p-3 rounded-lg transition-colors">
-                <Bell className="w-5 h-5" />
-                {unreadNotifications > 0 && (
-                  <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center font-medium">
-                    {unreadNotifications}
-                  </span>
-                )}
-              </button>
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2 bg-white/10 backdrop-blur-sm px-4 py-2 rounded-xl border border-white/10">
+              <Clock size={16} className="text-white/70" />
+              <span className="font-semibold tabular-nums">{timeStr}</span>
             </div>
-            {/* Real-time Date and Time */}
-            <div className="bg-blue-500 px-4 py-2 rounded-lg flex flex-col items-center space-y-1">
-              <div className="flex items-center space-x-2">
-                <Clock className="w-4 h-4" />
-                <span className="font-semibold">{timeStr}</span>
-              </div>
-              <span className="text-xs text-blue-100">{currentDateTime.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}</span>
-            </div>
-            {/* Logout Button */}
-            <button
-              onClick={handleLogout}
-              className="bg-red-500 hover:bg-red-600 px-4 py-2 rounded-lg transition-colors flex items-center space-x-2"
-              title="Logout"
-            >
-              <LogOut className="w-5 h-5" />
-              <span className="hidden md:inline font-medium">Logout</span>
-            </button>
           </div>
         </div>
+        {classTeacherLabel && (
+          <div className="relative mt-4 inline-flex items-center rounded-xl border border-white/20 bg-white/10 px-3 py-2 text-xs font-medium text-white/95">
+            Class Teacher Of: {classTeacherLabel}
+          </div>
+        )}
       </div>
 
       {dashboardError && (
-        <div className="mb-6 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+        <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
           {dashboardError}
         </div>
       )}
 
       {dashboardLoading && (
-        <div className="mb-6 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-700">
-          Loading campus dashboard data...
+        <div className="flex items-center gap-3 rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-700">
+          <div className="h-4 w-4 animate-spin rounded-full border-2 border-blue-200 border-t-blue-600" />
+          Loading dashboard data...
         </div>
       )}
 
-      {/* Quick Stats Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
-        {quickStats.map((stat, index) => {
-          const IconComponent = stat.icon;
-          const statColors = colorClasses[stat.color] || colorClasses.blue;
+      {/* Stats Grid */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+        {quickStats.map((stat, i) => {
+          const Icon = stat.icon;
           return (
-            <div key={index} className="bg-white rounded-xl shadow-sm p-6 border border-gray-100 hover:shadow-md transition-shadow">
-              <div className="flex items-center justify-between mb-4">
-                <div className={`p-3 rounded-xl ${statColors.bg}`}>
-                  <IconComponent className={`w-6 h-6 ${statColors.text}`} />
+            <div key={i} className="group relative bg-white rounded-2xl border border-gray-100 p-4 sm:p-5 hover:shadow-lg hover:-translate-y-0.5 transition-all duration-300">
+              <div className="flex items-center justify-between mb-3">
+                <div className={`p-2.5 rounded-xl bg-linear-to-br ${stat.gradient} shadow-lg`}>
+                  <Icon size={18} className="text-white" />
                 </div>
-                {stat.trend === 'up' && <TrendingUp className="w-5 h-5 text-green-500" />}
               </div>
-              <div>
-                <p className="text-sm text-gray-500 font-medium">{stat.label}</p>
-                <p className="text-2xl font-bold text-gray-800 mt-1">{stat.value}</p>
-                <p className={`text-xs mt-2 ${stat.trend === 'up' ? 'text-green-600' : 'text-gray-500'}`}>
-                  {stat.change}
-                </p>
-              </div>
+              <p className="text-[22px] sm:text-2xl font-bold text-gray-900">{stat.value}</p>
+              <p className="text-xs font-medium text-gray-500 mt-0.5">{stat.label}</p>
+              <p className="text-[10px] text-gray-400 mt-1">{stat.change}</p>
             </div>
           );
         })}
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
-        {/* Upcoming Classes */}
-        <div className="lg:col-span-1 bg-white rounded-xl shadow-sm border border-gray-100">
-          <div className="p-5 border-b border-gray-100">
-            <h2 className="text-lg font-semibold text-gray-800 flex items-center">
-              <Clock className="w-5 h-5 mr-2 text-blue-600" />
-              Today's Schedule
-            </h2>
+      {/* Quick Actions */}
+      <div>
+        <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-3 px-1">Quick Actions</h2>
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+          {quickActions.map((action) => {
+            const Icon = action.icon;
+            return (
+              <Link
+                key={action.id}
+                to={action.path}
+                className="group flex flex-col items-center gap-2.5 bg-white rounded-2xl border border-gray-100 p-4 hover:shadow-lg hover:-translate-y-0.5 transition-all duration-300"
+              >
+                <div className={`p-3 rounded-xl bg-linear-to-br ${action.gradient} shadow-lg group-hover:scale-110 transition-transform duration-300`}>
+                  <Icon size={20} className="text-white" />
+                </div>
+                <div className="text-center">
+                  <p className="text-xs font-semibold text-gray-800">{action.label}</p>
+                  <p className="text-[10px] text-gray-400 mt-0.5">{action.desc}</p>
+                </div>
+              </Link>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Schedule + Activities */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-5">
+
+        {/* Today's Schedule */}
+        <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
+          <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <div className="p-1.5 rounded-lg bg-blue-50">
+                <Clock size={16} className="text-blue-600" />
+              </div>
+              <h2 className="text-sm font-bold text-gray-900">Today's Schedule</h2>
+            </div>
           </div>
           <div className="p-4">
-            <div className="space-y-4">
+            <div className="space-y-2.5">
               {upcomingClasses.length === 0 && (
-                <div className="rounded-lg border border-dashed border-gray-200 bg-gray-50 px-4 py-6 text-center text-sm text-gray-500">
-                  No classes scheduled for today.
+                <div className="flex flex-col items-center justify-center py-8 text-center">
+                  <div className="p-3 rounded-full bg-gray-50 mb-3">
+                    <Calendar size={24} className="text-gray-300" />
+                  </div>
+                  <p className="text-sm text-gray-400">No classes scheduled</p>
                 </div>
               )}
-              {upcomingClasses.map((classItem) => (
-                <div key={classItem.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors">
-                  <div className="flex-1">
-                    <h3 className="font-medium text-gray-800">{classItem.subject}</h3>
-                    <p className="text-sm text-gray-500">{classItem.class} - {classItem.room}</p>
+              {upcomingClasses.map((c) => (
+                <div key={c.id} className="flex items-center gap-3 p-3 rounded-xl bg-gray-50/80 hover:bg-gray-100/80 transition-colors group">
+                  <div className="w-1 h-10 rounded-full bg-linear-to-b from-blue-500 to-indigo-500 shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold text-gray-800 truncate">{c.subject}</p>
+                    <p className="text-[11px] text-gray-400">{c.class} &middot; {c.room}</p>
                   </div>
-                  <div className="text-right">
-                    <p className="font-medium text-gray-800">{classItem.time}</p>
-                    <span className="inline-block px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded-full mt-1">
-                      {classItem.status}
+                  <div className="text-right shrink-0">
+                    <p className="text-xs font-bold text-gray-700">{c.time}</p>
+                    <span className="inline-block mt-0.5 px-2 py-0.5 text-[10px] font-medium rounded-full bg-blue-100 text-blue-700">
+                      {c.status}
                     </span>
                   </div>
                 </div>
@@ -343,46 +271,47 @@ const TeacherDashboard = () => {
             </div>
             <Link
               to="/teacher/class-routine"
-              className="w-full mt-4 flex items-center justify-center space-x-2 py-2.5 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+              className="mt-4 flex items-center justify-center gap-1.5 py-2.5 text-xs font-semibold text-blue-600 hover:bg-blue-50 rounded-xl transition-colors"
             >
-              <span>View Full Schedule</span>
-              <ChevronRight className="w-4 h-4" />
+              View Full Schedule
+              <ChevronRight size={14} />
             </Link>
           </div>
         </div>
 
         {/* Recent Activities */}
-        <div className="lg:col-span-2 bg-white rounded-xl shadow-sm border border-gray-100">
-          <div className="p-5 border-b border-gray-100 flex justify-between items-center">
-            <h2 className="text-lg font-semibold text-gray-800 flex items-center">
-              <Bell className="w-5 h-5 mr-2 text-blue-600" />
-              Recent Activities
-            </h2>
-            <button className="text-sm text-blue-600 hover:text-blue-700 font-medium">
-              View All
-            </button>
+        <div className="lg:col-span-2 bg-white rounded-2xl border border-gray-100 overflow-hidden">
+          <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <div className="p-1.5 rounded-lg bg-amber-50">
+                <Bell size={16} className="text-amber-600" />
+              </div>
+              <h2 className="text-sm font-bold text-gray-900">Recent Activities</h2>
+            </div>
           </div>
           <div className="p-4">
-            <div className="space-y-4">
+            <div className="space-y-2.5">
               {recentActivities.length === 0 && (
-                <div className="rounded-lg border border-dashed border-gray-200 bg-gray-50 px-4 py-6 text-center text-sm text-gray-500">
-                  No recent activity yet.
+                <div className="flex flex-col items-center justify-center py-8 text-center">
+                  <div className="p-3 rounded-full bg-gray-50 mb-3">
+                    <Bell size={24} className="text-gray-300" />
+                  </div>
+                  <p className="text-sm text-gray-400">No recent activity</p>
                 </div>
               )}
-              {recentActivities.map((activity) => {
-                const IconComponent = activity.icon;
-                const activityColors = colorClasses[activity.color] || colorClasses.blue;
+              {recentActivities.map((a) => {
+                const Icon = a.icon;
                 return (
-                  <div key={activity.id} className="flex items-start space-x-4 p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors">
-                    <div className={`p-2 rounded-lg ${activityColors.bg}`}>
-                      <IconComponent className={`w-5 h-5 ${activityColors.text}`} />
+                  <div key={a.id} className="flex items-start gap-3 p-3 rounded-xl hover:bg-gray-50 transition-colors group">
+                    <div className={`p-2 rounded-xl ${a.bg} shrink-0`}>
+                      <Icon size={16} className={a.text} />
                     </div>
-                    <div className="flex-1">
-                      <p className="text-sm text-gray-800 font-medium">{activity.message}</p>
-                      <p className="text-xs text-gray-500 mt-1">{activity.time}</p>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-gray-800">{a.message}</p>
+                      <p className="text-[11px] text-gray-400 mt-0.5">{a.time}</p>
                     </div>
-                    <button className="text-gray-400 hover:text-gray-600">
-                      <Eye className="w-4 h-4" />
+                    <button className="shrink-0 p-1.5 rounded-lg opacity-0 group-hover:opacity-100 hover:bg-gray-100 transition-all">
+                      <Eye size={14} className="text-gray-400" />
                     </button>
                   </div>
                 );
@@ -392,175 +321,122 @@ const TeacherDashboard = () => {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
-        {/* Quick Actions */}
-        <div className="lg:col-span-1 bg-white rounded-xl shadow-sm border border-gray-100">
-          <div className="p-5 border-b border-gray-100">
-            <h2 className="text-lg font-semibold text-gray-800 flex items-center">
-              <ClipboardCheck className="w-5 h-5 mr-2 text-blue-600" />
-              Quick Actions
-            </h2>
-          </div>
-          <div className="p-4">
-            <div className="grid grid-cols-2 gap-4">
-              {quickActions.map((action) => {
-                const IconComponent = action.icon;
-                const actionColors = colorClasses[action.color] || colorClasses.blue;
-                const ButtonContent = () => (
-                  <>
-                    <div className={`p-3 rounded-xl ${actionColors.bg} mb-3 group-hover:scale-110 transition-transform`}>
-                      <IconComponent className={`w-6 h-6 ${actionColors.text}`} />
-                    </div>
-                    <span className="text-sm font-medium text-gray-800 text-center">{action.label}</span>
-                    <span className="text-xs text-gray-500 mt-1">{action.description}</span>
-                  </>
-                );
-
-                if (action.id === 5) {
-                  return (
-                    <Link
-                      key={action.id}
-                      to="/teacher/progress"
-                      className="flex flex-col items-center justify-center p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors group"
-                    >
-                      <ButtonContent />
-                    </Link>
-                  );
-                }
-
-                if (action.id === 6) {
-                  return (
-                    <Link
-                      key={action.id}
-                      to="/teacher/weak-students"
-                      className="flex flex-col items-center justify-center p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors group"
-                    >
-                      <ButtonContent />
-                    </Link>
-                  );
-                }
-
-                return (
-                  <button
-                    key={action.id}
-                    className="flex flex-col items-center justify-center p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors group"
-                  >
-                    <ButtonContent />
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        </div>
+      {/* Performance + Deadlines */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-5">
 
         {/* Performance Overview */}
-        <div className="lg:col-span-2 bg-white rounded-xl shadow-sm border border-gray-100">
-          <div className="p-5 border-b border-gray-100 flex justify-between items-center">
-            <h2 className="text-lg font-semibold text-gray-800 flex items-center">
-              <BarChart3 className="w-5 h-5 mr-2 text-blue-600" />
-              Performance Overview
-            </h2>
-            <div className="flex items-center space-x-2">
-              <select className="text-sm border border-gray-300 rounded-lg px-2 py-1 focus:outline-none focus:ring-2 focus:ring-blue-500">
-                <option>This Month</option>
-                <option>Last Month</option>
-                <option>This Semester</option>
-              </select>
+        <div className="lg:col-span-2 bg-white rounded-2xl border border-gray-100 overflow-hidden">
+          <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <div className="p-1.5 rounded-lg bg-violet-50">
+                <BarChart3 size={16} className="text-violet-600" />
+              </div>
+              <h2 className="text-sm font-bold text-gray-900">Performance Overview</h2>
+            </div>
+          </div>
+          <div className="p-5">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {/* Subject Averages */}
+              <div>
+                <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Subject Averages</h3>
+                <div className="space-y-3">
+                  {performanceMetrics.length === 0 && (
+                    <div className="flex flex-col items-center py-6 text-center">
+                      <div className="p-2.5 rounded-full bg-gray-50 mb-2">
+                        <BarChart3 size={20} className="text-gray-300" />
+                      </div>
+                      <p className="text-xs text-gray-400">Data appears after grading</p>
+                    </div>
+                  )}
+                  {performanceMetrics.map((s, i) => (
+                    <div key={i} className="group">
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="text-xs font-medium text-gray-600">{s.subject}</span>
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-xs font-bold text-gray-800">{s.average}%</span>
+                          {s.trend === 'up' && <TrendingUp size={12} className="text-emerald-500" />}
+                          {s.trend === 'down' && <TrendingUp size={12} className="text-red-500 rotate-180" />}
+                        </div>
+                      </div>
+                      <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                        <div
+                          className="h-full rounded-full bg-linear-to-r from-blue-500 to-indigo-500 transition-all duration-500"
+                          style={{ width: `${s.average}%` }}
+                        />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Top Students */}
+              <div>
+                <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Top Students</h3>
+                <div className="space-y-2">
+                  {topStudents.length === 0 && (
+                    <div className="flex flex-col items-center py-6 text-center">
+                      <div className="p-2.5 rounded-full bg-gray-50 mb-2">
+                        <Award size={20} className="text-gray-300" />
+                      </div>
+                      <p className="text-xs text-gray-400">Appears after grading</p>
+                    </div>
+                  )}
+                  {topStudents.map((st, i) => (
+                    <div key={i} className="flex items-center gap-3 p-2.5 rounded-xl hover:bg-gray-50 transition-colors">
+                      <div className="w-8 h-8 rounded-lg bg-linear-to-br from-amber-400 to-orange-500 text-white flex items-center justify-center text-xs font-bold shadow-sm">
+                        {i + 1}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-semibold text-gray-800 truncate">{st.name}</p>
+                        <p className="text-[10px] text-gray-400">{st.grade}</p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-sm font-bold text-gray-900">{st.score}%</p>
+                        <p className="text-[10px] text-emerald-600 font-medium">{st.improvement}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Upcoming Deadlines */}
+        <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
+          <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <div className="p-1.5 rounded-lg bg-rose-50">
+                <Calendar size={16} className="text-rose-600" />
+              </div>
+              <h2 className="text-sm font-bold text-gray-900">Deadlines</h2>
             </div>
           </div>
           <div className="p-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {/* Subject Performance */}
-              <div>
-                <h3 className="text-sm font-medium text-gray-700 mb-4">Subject Averages</h3>
-                <div className="space-y-4">
-                  {performanceMetrics.length === 0 && (
-                    <div className="rounded-lg border border-dashed border-gray-200 bg-gray-50 px-4 py-6 text-center text-sm text-gray-500">
-                      Performance data will appear once assessments are graded.
-                    </div>
-                  )}
-                  {performanceMetrics.map((subject, index) => (
-                    <div key={index} className="flex items-center justify-between">
-                      <span className="text-sm text-gray-600">{subject.subject}</span>
-                      <div className="flex items-center space-x-3">
-                        <div className="w-20 bg-gray-200 rounded-full h-2">
-                          <div 
-                            className="bg-blue-600 h-2 rounded-full" 
-                            style={{ width: `${subject.average}%` }}
-                          ></div>
-                        </div>
-                        <span className="text-sm font-medium text-gray-800 w-8">{subject.average}%</span>
-                        {subject.trend === 'up' ? (
-                          <TrendingUp className="w-4 h-4 text-green-500" />
-                        ) : subject.trend === 'down' ? (
-                          <TrendingUp className="w-4 h-4 text-red-500 transform rotate-180" />
-                        ) : null}
-                      </div>
-                    </div>
-                  ))}
+            <div className="space-y-2.5">
+              {upcomingDeadlines.length === 0 && (
+                <div className="flex flex-col items-center justify-center py-8 text-center">
+                  <div className="p-3 rounded-full bg-gray-50 mb-3">
+                    <Calendar size={24} className="text-gray-300" />
+                  </div>
+                  <p className="text-sm text-gray-400">No upcoming deadlines</p>
                 </div>
-              </div>
-
-              {/* Top Performers */}
-              <div>
-                <h3 className="text-sm font-medium text-gray-700 mb-4">Top Students</h3>
-                <div className="space-y-3">
-                  {topStudents.length === 0 && (
-                    <div className="rounded-lg border border-dashed border-gray-200 bg-gray-50 px-4 py-6 text-center text-sm text-gray-500">
-                      Top students will appear after grading.
-                    </div>
-                  )}
-                  {topStudents.map((student, index) => (
-                    <div key={index} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                      <div>
-                        <p className="text-sm font-medium text-gray-800">{student.name}</p>
-                        <p className="text-xs text-gray-500">{student.grade}</p>
-                      </div>
-                      <div className="text-right">
-                        <p className="text-sm font-bold text-gray-800">{student.score}%</p>
-                        <p className="text-xs text-green-600">{student.improvement}</p>
-                      </div>
-                    </div>
-                  ))}
+              )}
+              {upcomingDeadlines.map((item, idx) => (
+                <div key={`${item.title}-${idx}`} className="p-3.5 rounded-xl border border-gray-100 hover:border-blue-200 hover:bg-blue-50/30 transition-all group">
+                  <div className="flex items-center justify-between mb-1.5">
+                    <span className="text-[10px] font-semibold text-blue-600 uppercase tracking-wider">Upcoming</span>
+                    <span className="text-[10px] font-medium text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full">
+                      {item.dueDate ? new Date(item.dueDate).toLocaleDateString() : 'TBA'}
+                    </span>
+                  </div>
+                  <p className="text-sm font-semibold text-gray-800">{item.title}</p>
+                  <p className="text-[11px] text-gray-400 mt-0.5">
+                    {item.class || '-'}{item.subject ? ` · ${item.subject}` : ''}
+                  </p>
                 </div>
-              </div>
+              ))}
             </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Upcoming Deadlines */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-100 mb-6">
-        <div className="p-5 border-b border-gray-100 flex justify-between items-center">
-          <h2 className="text-lg font-semibold text-gray-800 flex items-center">
-            <Calendar className="w-5 h-5 mr-2 text-blue-600" />
-            Upcoming Deadlines
-          </h2>
-          <button className="text-sm text-blue-600 hover:text-blue-700 font-medium">
-            View All
-          </button>
-        </div>
-        <div className="p-4">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {upcomingDeadlines.length === 0 && (
-              <div className="col-span-full text-sm text-gray-500">
-                No upcoming deadlines available for this campus.
-              </div>
-            )}
-            {upcomingDeadlines.map((item, idx) => (
-              <div key={`${item.title}-${idx}`} className="p-4 bg-blue-50 rounded-lg border border-blue-200">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-sm font-medium text-blue-800">Upcoming</span>
-                  <span className="text-xs text-blue-600 bg-blue-100 px-2 py-1 rounded-full">
-                    {item.dueDate ? new Date(item.dueDate).toLocaleDateString() : 'TBA'}
-                  </span>
-                </div>
-                <h3 className="font-medium text-blue-900">{item.title}</h3>
-                <p className="text-sm text-blue-700 mt-1">
-                  {item.class || '-'} {item.subject ? ` - ${item.subject}` : ''}
-                </p>
-              </div>
-            ))}
           </div>
         </div>
       </div>

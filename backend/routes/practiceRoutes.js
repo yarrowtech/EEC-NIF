@@ -179,8 +179,8 @@ router.get('/teacher/questions', authTeacher, async (req, res) => {
 
     const filter = {
       schoolId,
-      campusId,
       teacherId,
+      ...buildCampusScope(campusId),
     };
 
     if (isValidId(req.query.classId)) filter.classId = req.query.classId;

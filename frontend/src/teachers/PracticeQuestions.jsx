@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { BookOpen, Trash2 } from 'lucide-react';
+import { BookOpen, Trash2, Edit3, Loader2, X, Plus, CheckCircle, HelpCircle } from 'lucide-react';
 
 const API_BASE = (import.meta.env.VITE_API_URL || 'http://localhost:5000').replace(/\/$/, '');
 
@@ -200,199 +200,258 @@ const PracticeQuestions = () => {
     }
   };
 
-  return (
-    <div className="space-y-6">
-      <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-        <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-100 text-amber-700">
-            <BookOpen size={20} />
-          </div>
-          <div>
-            <h2 className="text-xl font-semibold text-slate-900">Practice Question Bank</h2>
-            <p className="text-sm text-slate-500">Create practice questions for your assigned classes</p>
-          </div>
-        </div>
-      </div>
+  const inputClass = 'w-full px-3 py-2 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400 transition-colors';
 
+  return (
+    <div className="space-y-4 sm:space-y-5">
       {error && (
-        <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-          {error}
+        <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-red-50 border border-red-100">
+          <div className="w-1.5 h-1.5 rounded-full bg-red-500 shrink-0" />
+          <p className="text-xs text-red-600 font-medium flex-1">{error}</p>
+          <button onClick={() => setError('')} className="text-red-400 hover:text-red-600 p-1">
+            <X size={14} />
+          </button>
         </div>
       )}
 
-      <div className="grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
-        <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm space-y-4">
-          <div>
-            <label className="text-sm font-medium text-slate-700">Assigned Class & Subject</label>
-            <select
-              value={selectedAllocationId}
-              onChange={(e) => setSelectedAllocationId(e.target.value)}
-              className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-amber-400 focus:outline-none focus:ring-2 focus:ring-amber-200"
-            >
-              <option value="">All allocations (view only)</option>
-              {loadingAllocations && <option>Loading...</option>}
-              {!loadingAllocations && allocations.length === 0 && <option>No allocations found</option>}
-              {!loadingAllocations &&
-                allocations.map((alloc) => (
-                  <option key={alloc._id} value={alloc._id}>
-                    {allocationLabel(alloc)}
-                  </option>
-                ))}
-            </select>
-          </div>
-
-          <div>
-            <label className="text-sm font-medium text-slate-700">Question Type</label>
-            <select
-              value={questionType}
-              onChange={(e) => setQuestionType(e.target.value)}
-              className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-amber-400 focus:outline-none focus:ring-2 focus:ring-amber-200"
-            >
-              {QUESTION_TYPES.map((item) => (
-                <option key={item.value} value={item.value}>
-                  {item.label}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div>
-            <label className="text-sm font-medium text-slate-700">Question</label>
-            <textarea
-              value={questionText}
-              onChange={(e) => setQuestionText(e.target.value)}
-              rows={4}
-              placeholder="Type the question..."
-              className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-amber-400 focus:outline-none focus:ring-2 focus:ring-amber-200"
-            />
-          </div>
-
-          {questionType === 'mcq' && (
-            <div className="space-y-2">
-              <label className="text-sm font-medium text-slate-700">Options</label>
-              {options.map((opt, idx) => (
-                <input
-                  key={idx}
-                  value={opt}
-                  onChange={(e) => {
-                    const next = [...options];
-                    next[idx] = e.target.value;
-                    setOptions(next);
-                  }}
-                  placeholder={`Option ${idx + 1}`}
-                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-amber-400 focus:outline-none focus:ring-2 focus:ring-amber-200"
-                />
-              ))}
+      {/* Stats Row */}
+      <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
+        {[
+          { label: 'Questions', value: questions.length, icon: HelpCircle, gradient: 'from-indigo-500 to-violet-500' },
+          { label: 'Allocations', value: allocations.length, icon: BookOpen, gradient: 'from-amber-500 to-orange-500' },
+          { label: 'MCQ', value: questions.filter(q => q.type === 'mcq').length, icon: CheckCircle, gradient: 'from-emerald-500 to-green-500' },
+        ].map((stat) => (
+          <div key={stat.label} className="bg-white rounded-2xl p-4 border border-gray-100 hover:shadow-md hover:-translate-y-0.5 transition-all duration-200">
+            <div className="flex items-center gap-3">
+              <div className={`w-10 h-10 rounded-xl bg-linear-to-br ${stat.gradient} flex items-center justify-center shadow-lg`}>
+                <stat.icon size={18} className="text-white" />
+              </div>
               <div>
-                <label className="text-xs font-medium text-slate-500">Correct Answer</label>
+                <p className="text-2xl font-bold text-gray-900">{stat.value}</p>
+                <p className="text-xs text-gray-500">{stat.label}</p>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <div className="grid gap-4 lg:grid-cols-[1.1fr_0.9fr]">
+        {/* Create / Edit Form */}
+        <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
+          <div className="px-4 sm:px-5 py-3 border-b border-gray-100 flex items-center justify-between">
+            <h2 className="text-sm font-bold text-gray-900">
+              {editingId ? 'Edit Question' : 'Create Question'}
+            </h2>
+            {editingId && (
+              <span className="text-[11px] font-medium text-amber-600 bg-amber-50 px-2 py-0.5 rounded-md">Editing</span>
+            )}
+          </div>
+
+          <div className="p-4 sm:p-5 space-y-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-semibold text-gray-600 mb-1.5">Class & Subject</label>
                 <select
-                  value={correctAnswer}
-                  onChange={(e) => setCorrectAnswer(e.target.value)}
-                  className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-amber-400 focus:outline-none focus:ring-2 focus:ring-amber-200"
+                  value={selectedAllocationId}
+                  onChange={(e) => setSelectedAllocationId(e.target.value)}
+                  className={inputClass}
                 >
-                  <option value="">Select correct option</option>
-                  {options
-                    .map((opt) => opt.trim())
-                    .filter(Boolean)
-                    .map((opt, idx) => (
-                      <option key={`${opt}-${idx}`} value={opt}>
-                        {opt}
+                  <option value="">All allocations (view only)</option>
+                  {loadingAllocations && <option>Loading...</option>}
+                  {!loadingAllocations && allocations.length === 0 && <option>No allocations found</option>}
+                  {!loadingAllocations &&
+                    allocations.map((alloc) => (
+                      <option key={alloc._id} value={alloc._id}>
+                        {allocationLabel(alloc)}
                       </option>
                     ))}
                 </select>
               </div>
-            </div>
-          )}
 
-          {questionType === 'blank' && (
+              <div>
+                <label className="block text-xs font-semibold text-gray-600 mb-1.5">Question Type</label>
+                <select
+                  value={questionType}
+                  onChange={(e) => setQuestionType(e.target.value)}
+                  className={inputClass}
+                >
+                  {QUESTION_TYPES.map((item) => (
+                    <option key={item.value} value={item.value}>
+                      {item.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
             <div>
-              <label className="text-sm font-medium text-slate-700">Correct Answer</label>
-              <input
-                value={correctAnswer}
-                onChange={(e) => setCorrectAnswer(e.target.value)}
-                placeholder="Exact answer"
-                className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-amber-400 focus:outline-none focus:ring-2 focus:ring-amber-200"
+              <label className="block text-xs font-semibold text-gray-600 mb-1.5">Question</label>
+              <textarea
+                value={questionText}
+                onChange={(e) => setQuestionText(e.target.value)}
+                rows={3}
+                placeholder="Type the question..."
+                className={`${inputClass} resize-none`}
               />
             </div>
-          )}
 
-          <div>
-            <label className="text-sm font-medium text-slate-700">Explanation (optional)</label>
-            <textarea
-              value={explanation}
-              onChange={(e) => setExplanation(e.target.value)}
-              rows={3}
-              placeholder="Explain why this is correct..."
-              className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-amber-400 focus:outline-none focus:ring-2 focus:ring-amber-200"
-            />
-          </div>
+            {questionType === 'mcq' && (
+              <div className="space-y-2">
+                <label className="block text-xs font-semibold text-gray-600 mb-1">Options</label>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  {options.map((opt, idx) => (
+                    <div key={idx} className="relative">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[11px] font-bold text-gray-400">
+                        {String.fromCharCode(65 + idx)}.
+                      </span>
+                      <input
+                        value={opt}
+                        onChange={(e) => {
+                          const next = [...options];
+                          next[idx] = e.target.value;
+                          setOptions(next);
+                        }}
+                        placeholder={`Option ${idx + 1}`}
+                        className="w-full pl-8 pr-3 py-2 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400 transition-colors"
+                      />
+                    </div>
+                  ))}
+                </div>
+                <div>
+                  <label className="block text-[11px] font-semibold text-gray-500 mb-1">Correct Answer</label>
+                  <select
+                    value={correctAnswer}
+                    onChange={(e) => setCorrectAnswer(e.target.value)}
+                    className={inputClass}
+                  >
+                    <option value="">Select correct option</option>
+                    {options
+                      .map((opt) => opt.trim())
+                      .filter(Boolean)
+                      .map((opt, idx) => (
+                        <option key={`${opt}-${idx}`} value={opt}>
+                          {opt}
+                        </option>
+                      ))}
+                  </select>
+                </div>
+              </div>
+            )}
 
-          <div className="flex items-center gap-3">
-            <button
-              onClick={handleSave}
-              disabled={saving}
-              className="rounded-lg bg-amber-500 px-4 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-amber-600 disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              {saving ? 'Saving...' : editingId ? 'Update Question' : 'Save Question'}
-            </button>
-            <button
-              onClick={resetForm}
-              type="button"
-              className="rounded-lg border border-slate-200 px-4 py-2 text-sm text-slate-600 transition hover:bg-slate-50"
-            >
-              {editingId ? 'Cancel Edit' : 'Clear'}
-            </button>
+            {questionType === 'blank' && (
+              <div>
+                <label className="block text-xs font-semibold text-gray-600 mb-1.5">Correct Answer</label>
+                <input
+                  value={correctAnswer}
+                  onChange={(e) => setCorrectAnswer(e.target.value)}
+                  placeholder="Exact answer"
+                  className={inputClass}
+                />
+              </div>
+            )}
+
+            <div>
+              <label className="block text-xs font-semibold text-gray-600 mb-1.5">Explanation (optional)</label>
+              <textarea
+                value={explanation}
+                onChange={(e) => setExplanation(e.target.value)}
+                rows={2}
+                placeholder="Explain why this is correct..."
+                className={`${inputClass} resize-none`}
+              />
+            </div>
+
+            <div className="flex items-center gap-2 pt-2 border-t border-gray-100">
+              <button
+                onClick={handleSave}
+                disabled={saving}
+                className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-semibold text-white bg-linear-to-r from-indigo-600 to-violet-600 rounded-xl shadow-md shadow-indigo-500/20 hover:shadow-lg disabled:opacity-50 transition-all"
+              >
+                {saving ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />}
+                {saving ? 'Saving...' : editingId ? 'Update Question' : 'Save Question'}
+              </button>
+              <button
+                onClick={resetForm}
+                type="button"
+                className="px-4 py-2 text-xs font-semibold text-gray-600 bg-gray-50 border border-gray-200 rounded-xl hover:bg-gray-100 transition-colors"
+              >
+                {editingId ? 'Cancel Edit' : 'Clear'}
+              </button>
+            </div>
           </div>
         </div>
 
-        <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-          <div className="flex items-center justify-between">
+        {/* Saved Questions */}
+        <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
+          <div className="px-4 sm:px-5 py-3 border-b border-gray-100 flex items-center justify-between">
             <div>
-              <h3 className="text-lg font-semibold text-slate-900">Saved Questions</h3>
-              <p className="text-xs text-slate-500">
-                {selectedAllocation ? allocationLabel(selectedAllocation) : 'Select an allocation'}
+              <h2 className="text-sm font-bold text-gray-900">Saved Questions</h2>
+              <p className="text-[11px] text-gray-400">
+                {selectedAllocation ? allocationLabel(selectedAllocation) : 'All classes'}
               </p>
             </div>
+            <span className="text-[11px] font-semibold text-gray-400 bg-gray-50 px-2 py-0.5 rounded-md">
+              {questions.length}
+            </span>
           </div>
 
-          <div className="mt-4 space-y-3">
-            {loadingQuestions && (
-              <div className="text-sm text-slate-500">Loading questions...</div>
-            )}
-            {!loadingQuestions && questions.length === 0 && (
-              <div className="text-sm text-slate-500">No questions added yet.</div>
-            )}
-            {!loadingQuestions &&
-              questions.map((q) => (
-                <div key={q._id} className="rounded-xl border border-slate-200 p-3">
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <p className="text-sm font-medium text-slate-900">{q.question}</p>
-                      <p className="text-xs text-slate-500 mt-1">
-                        {q.type === 'mcq' ? 'MCQ' : 'Fill in the blank'}
-                      </p>
-                      <p className="text-xs text-slate-400 mt-1">
-                        {(q.classId?.name || 'Class')} - {(q.sectionId?.name || 'Section')} • {(q.subjectId?.name || 'Subject')}
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <button
-                        onClick={() => startEdit(q)}
-                        className="rounded-lg border border-slate-200 px-2 py-1 text-xs text-slate-600 hover:bg-slate-50"
-                      >
-                        Edit
-                      </button>
-                      <button
-                        onClick={() => handleDelete(q._id)}
-                        className="rounded-lg p-1 text-red-500 hover:bg-red-50"
-                        title="Delete"
-                      >
-                        <Trash2 size={16} />
-                      </button>
+          <div className="divide-y divide-gray-50 max-h-[520px] overflow-y-auto">
+            {loadingQuestions ? (
+              <div className="flex flex-col items-center justify-center py-14">
+                <Loader2 size={24} className="animate-spin text-indigo-500 mb-3" />
+                <p className="text-sm text-gray-500">Loading questions...</p>
+              </div>
+            ) : questions.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-14 text-center">
+                <div className="w-12 h-12 rounded-2xl bg-gray-100 flex items-center justify-center mb-3">
+                  <HelpCircle size={20} className="text-gray-400" />
+                </div>
+                <p className="text-sm font-medium text-gray-500">No questions yet</p>
+                <p className="text-xs text-gray-400 mt-1">Create your first question using the form</p>
+              </div>
+            ) : (
+              questions.map((q, index) => {
+                const typeBorder = q.type === 'mcq' ? 'border-l-indigo-500' : 'border-l-amber-500';
+                return (
+                  <div key={q._id} className={`px-4 sm:px-5 py-3 border-l-[3px] ${typeBorder} hover:bg-gray-50/50 transition-colors`}>
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-semibold text-gray-900 leading-snug">{q.question}</p>
+                        <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
+                          <span className={`inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-medium border ${
+                            q.type === 'mcq'
+                              ? 'bg-indigo-50 text-indigo-600 border-indigo-100'
+                              : 'bg-amber-50 text-amber-600 border-amber-100'
+                          }`}>
+                            {q.type === 'mcq' ? 'MCQ' : 'Fill in Blank'}
+                          </span>
+                          <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-medium bg-gray-50 text-gray-500 border border-gray-200">
+                            {(q.classId?.name || 'Class')} - {(q.sectionId?.name || 'Sec')}
+                          </span>
+                          <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-medium bg-emerald-50 text-emerald-600 border border-emerald-100">
+                            {(q.subjectId?.name || 'Subject')}
+                          </span>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-1 shrink-0">
+                        <button
+                          onClick={() => startEdit(q)}
+                          className="p-1.5 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
+                        >
+                          <Edit3 size={14} />
+                        </button>
+                        <button
+                          onClick={() => handleDelete(q._id)}
+                          className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
                     </div>
                   </div>
-                </div>
-              ))}
+                );
+              })
+            )}
           </div>
         </div>
       </div>

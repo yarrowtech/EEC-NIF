@@ -46,6 +46,7 @@ const teacherAllocationRoutes = require('./routes/teacherAllocationRoutes');
 const practiceRoutes = require('./routes/practiceRoutes');
 const excuseLetterRoutes = require('./routes/excuseLetterRoutes');
 const nifStudentRoutes = require('./routes/nifStudentRoutes');
+const lessonPlanRoutes = require('./routes/lessonPlanRoutes');
 const Principal = require('./models/Principal');
 const Admin = require('./models/Admin');
 const { isStrongPassword } = require('./utils/passwordPolicy');
@@ -277,6 +278,7 @@ app.use('/api/teacher-allocations', teacherAllocationRoutes);
 app.use('/api/practice', practiceRoutes);
 app.use('/api/excuse-letters', excuseLetterRoutes);
 app.use('/api/nif', nifStudentRoutes);
+app.use('/api/lesson-plans', lessonPlanRoutes);
 
 
 app.use("/api/uploads", uploadRoutes);

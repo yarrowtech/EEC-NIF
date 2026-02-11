@@ -4,8 +4,7 @@
       "Bash(test:*)",
       "Bash(find:*)",
       "Bash(node -e:*)",
-      "Bash(npx vite build:*)",
-      "Bash(npm run build:*)"
+      "Bash(npx vite build:*)"
     ]
   }
 }

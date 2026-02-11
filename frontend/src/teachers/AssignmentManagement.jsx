@@ -129,6 +129,21 @@ const AssignmentManagement = () => {
   const [showModal, setShowModal] = useState(false);
   const [selectedAssignment, setSelectedAssignment] = useState(null);
   const [showDetailModal, setShowDetailModal] = useState(false);
+  const [detailEditMode, setDetailEditMode] = useState(false);
+  const [detailSaving, setDetailSaving] = useState(false);
+  const [detailDraft, setDetailDraft] = useState({
+    title: '',
+    subject: '',
+    description: '',
+    classId: '',
+    sectionId: '',
+    dueDate: '',
+    marks: 100,
+    status: 'draft',
+    submissionFormat: 'text',
+    type: 'Assignment',
+    difficulty: 'Medium'
+  });
   const [viewMode, setViewMode] = useState('grid'); // 'grid' or 'list'
   const [filterStatus, setFilterStatus] = useState('all');
   const [filterSubject, setFilterSubject] = useState('all');
@@ -150,6 +165,10 @@ const AssignmentManagement = () => {
   });
   const [pdfFile, setPdfFile] = useState(null);
   const [uploadingPdf, setUploadingPdf] = useState(false);
+  const [showCreateSuccessModal, setShowCreateSuccessModal] = useState(false);
+  const [createSuccessMessage, setCreateSuccessMessage] = useState('');
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [pendingDeleteAssignment, setPendingDeleteAssignment] = useState(null);
 
   const [assignments, setAssignments] = useState([]);
   const [filteredAssignments, setFilteredAssignments] = useState([]);
@@ -287,6 +306,93 @@ const AssignmentManagement = () => {
     return diffDays;
   };
 
+  const formatDate = (value) => {
+    if (!value) return 'N/A';
+    const parsed = new Date(value);
+    return Number.isNaN(parsed.getTime()) ? 'N/A' : parsed.toLocaleDateString();
+  };
+
+  const toDateInputValue = (value) => {
+    if (!value) return '';
+    const parsed = new Date(value);
+    if (Number.isNaN(parsed.getTime())) return '';
+    return parsed.toISOString().slice(0, 10);
+  };
+
+  const resolveIdValue = (value) => {
+    if (!value) return '';
+    if (typeof value === 'string') return value;
+    if (typeof value === 'object') return String(value._id || value.id || '');
+    return '';
+  };
+
+  const getAssignmentClassName = (assignment) =>
+    assignment?.classId?.name || assignment?.className || assignment?.class || '';
+
+  const getAssignmentSectionName = (assignment) =>
+    assignment?.sectionId?.name || assignment?.sectionName || assignment?.section || '';
+
+  const openAssignmentDetail = (assignment) => {
+    setSelectedAssignment(assignment);
+    setDetailDraft({
+      title: assignment?.title || '',
+      subject: assignment?.subject || '',
+      description: assignment?.description || '',
+      classId: resolveIdValue(assignment?.classId),
+      sectionId: resolveIdValue(assignment?.sectionId),
+      dueDate: toDateInputValue(assignment?.dueDate),
+      marks: assignment?.marks ?? 100,
+      status: assignment?.status || 'draft',
+      submissionFormat: assignment?.submissionFormat === 'pdf' ? 'pdf' : 'text',
+      type: assignment?.type || 'Assignment',
+      difficulty: assignment?.difficulty || 'Medium'
+    });
+    setDetailEditMode(false);
+    setShowDetailModal(true);
+  };
+
+  const handleDetailDraftChange = (key, value) => {
+    setDetailDraft((prev) => ({ ...prev, [key]: value }));
+  };
+
+  const handleUpdateAssignment = async () => {
+    if (!selectedAssignment?._id) return;
+    try {
+      setDetailSaving(true);
+      const token = localStorage.getItem('token');
+      const payload = {
+        title: detailDraft.title,
+        subject: detailDraft.subject,
+        description: detailDraft.description,
+        classId: detailDraft.classId,
+        sectionId: detailDraft.sectionId,
+        dueDate: detailDraft.dueDate,
+        marks: Number(detailDraft.marks),
+        status: detailDraft.status,
+        submissionFormat: detailDraft.submissionFormat,
+        type: detailDraft.type,
+        difficulty: detailDraft.difficulty
+      };
+      const response = await axios.put(
+        `${API_BASE_URL}/api/assignment/teacher/update/${selectedAssignment._id}`,
+        payload,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      const updated = response?.data?.assignment;
+      if (!updated) {
+        throw new Error('Assignment updated but response was invalid');
+      }
+      setAssignments((prev) => prev.map((item) => (item._id === updated._id ? updated : item)));
+      setSelectedAssignment(updated);
+      setDetailEditMode(false);
+    } catch (err) {
+      console.error('Error updating assignment:', err);
+      setError(err.response?.data?.error || err.message || 'Failed to update assignment');
+    } finally {
+      setDetailSaving(false);
+    }
+  };
+
   const handleChange = (e) => {
     setNewAssignment({ ...newAssignment, [e.target.name]: e.target.value });
   };
@@ -382,33 +488,36 @@ const AssignmentManagement = () => {
           attachments: []
         });
         setPdfFile(null);
-        alert('Assignment created successfully!');
+        setCreateSuccessMessage('Assignment created successfully.');
+        setShowCreateSuccessModal(true);
       }
     } catch (err) {
       console.error('Error creating assignment:', err);
       setError(err.response?.data?.error || 'Failed to create assignment');
-      alert(err.response?.data?.error || 'Failed to create assignment');
     } finally {
       setLoading(false);
     }
   };
 
-  const handleDelete = async (assignmentId) => {
-    if (!window.confirm('Are you sure you want to delete this assignment?')) {
-      return;
-    }
+  const openDeleteModal = (assignment) => {
+    setPendingDeleteAssignment(assignment);
+    setShowDeleteModal(true);
+  };
 
+  const handleDelete = async () => {
+    if (!pendingDeleteAssignment?._id) return;
     try {
       setLoading(true);
       const token = localStorage.getItem('token');
-      await axios.delete(`${API_BASE_URL}/api/assignment/teacher/delete/${assignmentId}`, {
+      await axios.delete(`${API_BASE_URL}/api/assignment/teacher/delete/${pendingDeleteAssignment._id}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       await fetchAssignments();
-      alert('Assignment deleted successfully!');
+      setShowDeleteModal(false);
+      setPendingDeleteAssignment(null);
     } catch (err) {
       console.error('Error deleting assignment:', err);
-      alert(err.response?.data?.error || 'Failed to delete assignment');
+      setError(err.response?.data?.error || 'Failed to delete assignment');
     } finally {
       setLoading(false);
     }
@@ -420,9 +529,10 @@ const AssignmentManagement = () => {
 
     if (searchTerm) {
       filtered = filtered.filter(assignment =>
-        assignment.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        assignment.subject.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        assignment.class.toLowerCase().includes(searchTerm.toLowerCase())
+        String(assignment.title || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+        String(assignment.subject || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+        String(getAssignmentClassName(assignment)).toLowerCase().includes(searchTerm.toLowerCase()) ||
+        String(getAssignmentSectionName(assignment)).toLowerCase().includes(searchTerm.toLowerCase())
       );
     }
 
@@ -444,352 +554,322 @@ const AssignmentManagement = () => {
   const draftAssignments = assignments.filter(a => a.status === 'draft').length;
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <div className="bg-white shadow-sm border-b border-gray-200">
-        <div className="max-w-7xl mx-auto px-4 py-6 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-4">
-              <div className="p-3 bg-blue-100 rounded-xl">
-                <FileText className="h-8 w-8 text-blue-600" />
-              </div>
-              <div>
-                <h1 className="text-2xl font-bold text-gray-900">Assignment Management</h1>
-                <p className="text-sm text-gray-500">Create, manage and track student assignments</p>
-              </div>
-            </div>
-            <div className="flex items-center space-x-4">
-              <div className="text-right">
-                <p className="text-2xl font-bold text-blue-600">{totalAssignments}</p>
-                <p className="text-xs text-gray-500">Total Assignments</p>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div className="max-w-7xl mx-auto px-4 py-6 sm:px-6 lg:px-8">
-        {/* Error Display */}
+    <div className="space-y-4 sm:space-y-5">
         {error && (
-          <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg">
-            <div className="flex items-start">
-              <AlertCircle className="w-5 h-5 text-red-600 mt-0.5 mr-3" />
-              <div className="flex-1">
-                <h3 className="text-sm font-semibold text-red-800">Error</h3>
-                <p className="text-sm text-red-700 mt-1">{error}</p>
-              </div>
-              <button
-                onClick={() => setError('')}
-                className="text-red-400 hover:text-red-600"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
+          <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-red-50 border border-red-100">
+            <div className="w-1.5 h-1.5 rounded-full bg-red-500 shrink-0" />
+            <p className="text-xs text-red-600 font-medium flex-1">{error}</p>
+            <button onClick={() => setError('')} className="text-red-400 hover:text-red-600 p-1">
+              <X size={14} />
+            </button>
           </div>
         )}
 
-        {/* Stats Overview */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
-          <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-200">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-gray-500">Active</p>
-                <p className="text-2xl font-bold text-green-600">{activeAssignments}</p>
-                <p className="text-xs text-gray-400 mt-1">Currently ongoing</p>
-              </div>
-              <div className="p-3 bg-green-100 rounded-lg">
-                <CheckCircle className="h-5 w-5 text-green-600" />
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-200">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-gray-500">Drafts</p>
-                <p className="text-2xl font-bold text-yellow-600">{draftAssignments}</p>
-                <p className="text-xs text-gray-400 mt-1">Work in progress</p>
-              </div>
-              <div className="p-3 bg-yellow-100 rounded-lg">
-                <Edit3 className="h-5 w-5 text-yellow-600" />
+        {/* Stats Grid */}
+        <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
+          {[
+            { label: 'Active', value: activeAssignments, icon: CheckCircle, gradient: 'from-emerald-500 to-green-500' },
+            { label: 'Drafts', value: draftAssignments, icon: Edit3, gradient: 'from-amber-500 to-orange-500' },
+            { label: 'My Classes', value: myClasses.length, icon: Users, gradient: 'from-blue-500 to-indigo-500' },
+          ].map((stat) => (
+            <div key={stat.label} className="bg-white rounded-2xl p-4 border border-gray-100 hover:shadow-md hover:-translate-y-0.5 transition-all duration-200">
+              <div className="flex items-center gap-3">
+                <div className={`w-10 h-10 rounded-xl bg-linear-to-br ${stat.gradient} flex items-center justify-center shadow-lg`}>
+                  <stat.icon size={18} className="text-white" />
+                </div>
+                <div>
+                  <p className="text-2xl font-bold text-gray-900">{stat.value}</p>
+                  <p className="text-xs text-gray-500">{stat.label}</p>
+                </div>
               </div>
             </div>
-          </div>
-
-          <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-200">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-gray-500">My Classes</p>
-                <p className="text-2xl font-bold text-blue-600">{myClasses.length}</p>
-                <p className="text-xs text-gray-400 mt-1">Assigned classes</p>
-              </div>
-              <div className="p-3 bg-blue-100 rounded-lg">
-                <Users className="h-5 w-5 text-blue-600" />
-              </div>
-            </div>
-          </div>
+          ))}
         </div>
 
         {/* Controls */}
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-6">
-          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
-            <div className="flex flex-wrap items-center gap-4">
-              <div className="relative">
-                <Search className="w-5 h-5 absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
-                <input
-                  type="text"
-                  placeholder="Search assignments..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent w-64"
-                />
-              </div>
-              
-              <div className="flex items-center space-x-2">
-                <Filter className="w-4 h-4 text-gray-400" />
-                <select 
-                  value={filterStatus}
-                  onChange={(e) => setFilterStatus(e.target.value)}
-                  className="border border-gray-300 rounded-lg px-3 py-2.5 focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
-                >
-                  <option value="all">All Status</option>
-                  <option value="active">Active</option>
-                  <option value="draft">Draft</option>
-                  <option value="completed">Completed</option>
-                </select>
-                
-                <select 
-                  value={filterSubject}
-                  onChange={(e) => setFilterSubject(e.target.value)}
-                  className="border border-gray-300 rounded-lg px-3 py-2.5 focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
-                >
-                  <option value="all">All Subjects</option>
-                  {subjects.map(subject => (
-                    <option key={subject} value={subject}>{subject}</option>
-                  ))}
-                </select>
-              </div>
+        <div className="bg-white rounded-2xl p-3 sm:p-4 border border-gray-100 space-y-3">
+          <div className="flex flex-wrap items-center gap-2.5">
+            <div className="relative flex-1 min-w-[180px]">
+              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+              <input
+                type="text"
+                placeholder="Search assignments..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full pl-9 pr-3 py-2 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400 transition-colors"
+              />
             </div>
-
-            <div className="flex items-center space-x-3">
-              <div className="flex items-center bg-gray-100 rounded-lg p-1">
+            <select
+              value={filterStatus}
+              onChange={(e) => setFilterStatus(e.target.value)}
+              className="px-3 py-2 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400 transition-colors"
+            >
+              <option value="all">All Status</option>
+              <option value="active">Active</option>
+              <option value="draft">Draft</option>
+              <option value="completed">Completed</option>
+            </select>
+            <select
+              value={filterSubject}
+              onChange={(e) => setFilterSubject(e.target.value)}
+              className="px-3 py-2 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400 transition-colors"
+            >
+              <option value="all">All Subjects</option>
+              {subjects.map(subject => (
+                <option key={subject} value={subject}>{subject}</option>
+              ))}
+            </select>
+            <div className="flex items-center gap-2 ml-auto">
+              <div className="flex items-center gap-1 bg-gray-100 p-1 rounded-xl">
                 <button
                   onClick={() => setViewMode('grid')}
-                  className={`p-2 rounded-md ${viewMode === 'grid' ? 'bg-white shadow-sm text-blue-600' : 'text-gray-500'}`}
+                  className={`p-1.5 rounded-lg transition-all ${viewMode === 'grid' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-400'}`}
                 >
-                  <div className="w-4 h-4 grid grid-cols-2 gap-0.5">
-                    <div className="bg-current rounded-sm"></div>
-                    <div className="bg-current rounded-sm"></div>
-                    <div className="bg-current rounded-sm"></div>
-                    <div className="bg-current rounded-sm"></div>
+                  <div className="w-3.5 h-3.5 grid grid-cols-2 gap-0.5">
+                    <div className="bg-current rounded-sm" />
+                    <div className="bg-current rounded-sm" />
+                    <div className="bg-current rounded-sm" />
+                    <div className="bg-current rounded-sm" />
                   </div>
                 </button>
                 <button
                   onClick={() => setViewMode('list')}
-                  className={`p-2 rounded-md ${viewMode === 'list' ? 'bg-white shadow-sm text-blue-600' : 'text-gray-500'}`}
+                  className={`p-1.5 rounded-lg transition-all ${viewMode === 'list' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-400'}`}
                 >
-                  <div className="w-4 h-4 flex flex-col space-y-0.5">
-                    <div className="bg-current h-0.5 rounded"></div>
-                    <div className="bg-current h-0.5 rounded"></div>
-                    <div className="bg-current h-0.5 rounded"></div>
+                  <div className="w-3.5 h-3.5 flex flex-col justify-center gap-[3px]">
+                    <div className="bg-current h-[2px] rounded" />
+                    <div className="bg-current h-[2px] rounded" />
+                    <div className="bg-current h-[2px] rounded" />
                   </div>
                 </button>
               </div>
-              
-              <button 
+              <button
                 onClick={() => setShowModal(true)}
-                className="flex items-center space-x-2 px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors shadow-sm"
+                className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-semibold text-white bg-linear-to-r from-indigo-600 to-violet-600 rounded-xl shadow-md shadow-indigo-500/20 hover:shadow-lg transition-all"
               >
-                <Plus className="w-4 h-4" />
-                <span>Create Assignment</span>
+                <Plus size={14} />
+                Create
               </button>
             </div>
           </div>
         </div>
 
         {/* Assignment List */}
-        <div className="space-y-6">
-          <div className="flex items-center justify-between">
-            <h2 className="text-lg font-semibold text-gray-800">
-              Assignments ({filteredAssignments.length})
-            </h2>
-            {filteredAssignments.length > 0 && (
-              <p className="text-sm text-gray-500">
+        {loading ? (
+          <div className="bg-white rounded-2xl p-12 text-center border border-gray-100">
+            <div className="inline-flex items-center justify-center w-12 h-12 rounded-xl bg-indigo-50 mb-4">
+              <Clock className="w-6 h-6 text-indigo-500 animate-spin" />
+            </div>
+            <h3 className="text-base font-semibold text-gray-900 mb-1">Loading assignments...</h3>
+            <p className="text-sm text-gray-500">Fetching your assignment data</p>
+          </div>
+        ) : filteredAssignments.length === 0 ? (
+          <div className="bg-white rounded-2xl p-12 text-center border border-gray-100">
+            <div className="inline-flex items-center justify-center w-12 h-12 rounded-xl bg-gray-100 mb-4">
+              <FileText className="w-6 h-6 text-gray-400" />
+            </div>
+            <h3 className="text-base font-semibold text-gray-900 mb-1">No assignments found</h3>
+            <p className="text-sm text-gray-500 mb-4">Try adjusting your filters or create a new assignment</p>
+            <button
+              onClick={() => setShowModal(true)}
+              className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-semibold text-white bg-linear-to-r from-indigo-600 to-violet-600 rounded-xl shadow-md shadow-indigo-500/20 hover:shadow-lg transition-all"
+            >
+              <Plus size={14} />
+              Create First Assignment
+            </button>
+          </div>
+        ) : (
+          <div>
+            <div className="flex items-center justify-between mb-3">
+              <p className="text-xs font-medium text-gray-500">
                 Showing {filteredAssignments.length} of {totalAssignments} assignments
               </p>
-            )}
-          </div>
-
-          {loading ? (
-            <div className="bg-white rounded-xl p-12 text-center border border-gray-200">
-              <Clock className="w-12 h-12 text-blue-500 mx-auto mb-4 animate-spin" />
-              <h3 className="text-lg font-medium text-gray-900 mb-2">Loading assignments...</h3>
             </div>
-          ) : filteredAssignments.length === 0 ? (
-            <div className="bg-white rounded-xl p-12 text-center border border-gray-200">
-              <FileText className="w-12 h-12 text-gray-300 mx-auto mb-4" />
-              <h3 className="text-lg font-medium text-gray-900 mb-2">No assignments found</h3>
-              <p className="text-gray-500 mb-4">Try adjusting your search or filter criteria or create a new assignment</p>
-              <button
-                onClick={() => setShowModal(true)}
-                className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-              >
-                <Plus className="w-4 h-4 mr-2" />
-                Create First Assignment
-              </button>
-            </div>
-          ) : (
-            <div className={viewMode === 'grid' ? 'grid grid-cols-1 md:grid-cols-2 gap-6' : 'space-y-4'}>
+            <div className={viewMode === 'grid' ? 'grid grid-cols-1 md:grid-cols-2 gap-4' : 'space-y-3'}>
               {filteredAssignments.map((assignment) => {
                 const submissionFormat = assignment?.submissionFormat === 'pdf' ? 'pdf' : 'text';
+                const statusBorder = assignment.status === 'active' ? 'border-l-emerald-500' : assignment.status === 'draft' ? 'border-l-amber-500' : assignment.status === 'completed' ? 'border-l-blue-500' : 'border-l-red-500';
                 return (
-                <div
-                  key={assignment._id}
-                  className={`bg-white rounded-xl shadow-sm border border-gray-200 hover:shadow-md transition-all duration-200 ${
-                    viewMode === 'grid' ? 'p-6' : 'p-4'
-                  }`}
-                >
-                  <div className="flex items-start justify-between mb-4">
-                    <div className="flex-1">
-                      <div className="flex items-start justify-between mb-2">
-                        <h3 className="font-semibold text-gray-900 text-lg leading-tight">
-                          {assignment.title}
-                        </h3>
-                        <div className="flex items-center space-x-2 ml-4">
-                          <button
-                            onClick={() => {
-                              setSelectedAssignment(assignment);
-                              setShowDetailModal(true);
-                            }}
-                            className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                          >
-                            <Eye className="w-4 h-4" />
-                          </button>
-                          <button
-                            onClick={() => handleDelete(assignment._id)}
-                            className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        </div>
-                      </div>
-
-                      <div className="flex flex-wrap items-center gap-2 mb-3">
-                        <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium border ${getStatusColor(assignment.status)}`}>
-                          {assignment.status.charAt(0).toUpperCase() + assignment.status.slice(1)}
-                        </span>
-                        <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-700 border border-gray-200">
-                          {assignment.subject}
-                        </span>
-                        <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-700 border border-blue-200">
-                          {assignment.classId?.name || assignment.class} - {assignment.sectionId?.name}
-                        </span>
-                        <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium border ${submissionFormat === 'pdf' ? 'border-purple-200 bg-purple-50 text-purple-700' : 'border-green-200 bg-green-50 text-green-700'}`}>
-                          {submissionFormat === 'pdf' ? 'PDF Upload' : 'Text Only'}
-                        </span>
-                      </div>
-                      
-                      <p className="text-gray-600 text-sm mb-4 line-clamp-2">
-                        {assignment.description}
-                      </p>
-                      
-                      <div className="grid grid-cols-2 gap-4 mb-4">
-                        <div className="flex items-center space-x-2 text-sm">
-                          <Calendar className="w-4 h-4 text-gray-400" />
-                          <span className="text-gray-600">
-                            Due {new Date(assignment.dueDate).toLocaleDateString()}
-                          </span>
-                          {getDaysUntilDue(assignment.dueDate) <= 3 && getDaysUntilDue(assignment.dueDate) > 0 && (
-                            <AlertTriangle className="w-4 h-4 text-orange-500" />
-                          )}
-                        </div>
-                        <div className="flex items-center space-x-2 text-sm">
-                          <Award className="w-4 h-4 text-gray-400" />
-                          <span className="text-gray-600">{assignment.marks} marks</span>
-                        </div>
-                      </div>
-                      
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center space-x-4 text-sm text-gray-500">
-                          <div className="flex items-center space-x-1">
-                            <Calendar className="w-4 h-4" />
-                            <span>Created {new Date(assignment.createdAt).toLocaleDateString()}</span>
-                          </div>
-                        </div>
-
-                        <div className="flex items-center space-x-2">
-                          {assignment.attachments && assignment.attachments.length > 0 && (
-                            <div className="flex items-center space-x-1 text-xs text-gray-500">
-                              <FileText className="w-3 h-3" />
-                              <span>{assignment.attachments.length}</span>
-                            </div>
-                          )}
-                        </div>
+                  <div
+                    key={assignment._id}
+                    className={`bg-white rounded-2xl border border-gray-100 hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 border-l-4 ${statusBorder} ${viewMode === 'grid' ? 'p-5' : 'p-4'}`}
+                  >
+                    <div className="flex items-start justify-between mb-3">
+                      <h3 className="font-semibold text-gray-900 text-sm leading-snug flex-1 mr-3">
+                        {assignment.title}
+                      </h3>
+                      <div className="flex items-center gap-1 shrink-0">
+                        <button
+                          onClick={() => openAssignmentDetail(assignment)}
+                          className="p-1.5 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
+                        >
+                          <Eye size={14} />
+                        </button>
+                        <button
+                          onClick={() => openDeleteModal(assignment)}
+                          className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                        >
+                          <Trash2 size={14} />
+                        </button>
                       </div>
                     </div>
-                  </div>
-                </div>
-              )})}
-            </div>
-          )}
 
+                    <div className="flex flex-wrap items-center gap-1.5 mb-3">
+                      <span className={`inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-medium border ${getStatusColor(assignment.status)}`}>
+                        {assignment.status.charAt(0).toUpperCase() + assignment.status.slice(1)}
+                      </span>
+                      <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-medium bg-gray-50 text-gray-600 border border-gray-200">
+                        {assignment.subject}
+                      </span>
+                      <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-medium bg-indigo-50 text-indigo-600 border border-indigo-100">
+                        {`Class ${getAssignmentClassName(assignment) || 'N/A'}${getAssignmentSectionName(assignment) ? ` - ${getAssignmentSectionName(assignment)}` : ''}`}
+                      </span>
+                      <span className={`inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-medium border ${submissionFormat === 'pdf' ? 'border-purple-100 bg-purple-50 text-purple-600' : 'border-emerald-100 bg-emerald-50 text-emerald-600'}`}>
+                        {submissionFormat === 'pdf' ? 'PDF' : 'Text'}
+                      </span>
+                    </div>
+
+                    <p className="text-gray-500 text-xs mb-3 line-clamp-2 leading-relaxed">
+                      {assignment.description}
+                    </p>
+
+                    <div className="flex items-center gap-4 text-xs text-gray-500">
+                      <div className="flex items-center gap-1.5">
+                        <Calendar size={12} className="text-gray-400" />
+                        <span>Due {new Date(assignment.dueDate).toLocaleDateString()}</span>
+                        {getDaysUntilDue(assignment.dueDate) <= 3 && getDaysUntilDue(assignment.dueDate) > 0 && (
+                          <AlertTriangle size={12} className="text-orange-500" />
+                        )}
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <Award size={12} className="text-gray-400" />
+                        <span>{assignment.marks} marks</span>
+                      </div>
+                      {assignment.attachments && assignment.attachments.length > 0 && (
+                        <div className="flex items-center gap-1">
+                          <FileText size={12} className="text-gray-400" />
+                          <span>{assignment.attachments.length} files</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+      {showCreateSuccessModal && (
+        <div className="fixed inset-0 z-[60] bg-black/30 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white w-full max-w-sm rounded-2xl shadow-2xl border border-gray-100 overflow-hidden">
+            <div className="p-5">
+              <div className="w-11 h-11 rounded-xl bg-emerald-100 flex items-center justify-center mb-3">
+                <CheckCircle className="w-6 h-6 text-emerald-600" />
+              </div>
+              <h3 className="text-base font-bold text-gray-900 mb-1">Assignment Created</h3>
+              <p className="text-sm text-gray-600">{createSuccessMessage}</p>
+            </div>
+            <div className="px-5 py-3 border-t border-gray-100 flex justify-end">
+              <button
+                onClick={() => setShowCreateSuccessModal(false)}
+                className="px-4 py-2 text-xs font-semibold text-white bg-linear-to-r from-emerald-600 to-green-600 rounded-xl shadow-sm hover:shadow-md transition-all"
+              >
+                OK
+              </button>
+            </div>
+          </div>
         </div>
-      </div>
+      )}
+
+      {showDeleteModal && (
+        <div className="fixed inset-0 z-[60] bg-black/30 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white w-full max-w-md rounded-2xl shadow-2xl border border-gray-100 overflow-hidden">
+            <div className="p-5">
+              <div className="w-11 h-11 rounded-xl bg-red-100 flex items-center justify-center mb-3">
+                <Trash2 className="w-6 h-6 text-red-600" />
+              </div>
+              <h3 className="text-base font-bold text-gray-900 mb-1">Delete Assignment?</h3>
+              <p className="text-sm text-gray-600">
+                {`This will permanently delete "${pendingDeleteAssignment?.title || 'this assignment'}".`}
+              </p>
+            </div>
+            <div className="px-5 py-3 border-t border-gray-100 flex items-center justify-end gap-2">
+              <button
+                onClick={() => {
+                  setShowDeleteModal(false);
+                  setPendingDeleteAssignment(null);
+                }}
+                className="px-4 py-2 text-xs font-semibold text-gray-600 bg-gray-50 border border-gray-200 rounded-xl hover:bg-gray-100 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleDelete}
+                disabled={loading}
+                className="px-4 py-2 text-xs font-semibold text-white bg-linear-to-r from-red-600 to-rose-600 rounded-xl shadow-sm hover:shadow-md disabled:opacity-60 transition-all"
+              >
+                {loading ? 'Deleting...' : 'Delete'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Create Assignment Modal */}
       {showModal && (
-        <div className="fixed inset-0 z-50 bg-black bg-opacity-50 flex items-center justify-center p-4">
-          <div className="bg-white w-full max-w-3xl rounded-xl shadow-xl max-h-[90vh] overflow-y-auto">
-            <div className="p-6 border-b border-gray-200">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center space-x-3">
-                  <div className="p-2 bg-blue-100 rounded-lg">
-                    <Plus className="h-6 w-6 text-blue-600" />
-                  </div>
-                  <div>
-                    <h2 className="text-xl font-bold text-gray-900">Create New Assignment</h2>
-                    <p className="text-sm text-gray-500">Set up a new assignment for your students</p>
-                  </div>
+        <div className="fixed inset-0 z-50 bg-black/30 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white w-full max-w-2xl rounded-2xl shadow-2xl max-h-[90vh] overflow-y-auto border border-gray-100">
+            {/* Modal Header */}
+            <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-xl bg-linear-to-br from-indigo-500 to-violet-500 flex items-center justify-center shadow-lg shadow-indigo-500/20">
+                  <Plus size={18} className="text-white" />
                 </div>
-                <button
-                  onClick={() => setShowModal(false)}
-                  className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
-                >
-                  <X className="w-5 h-5" />
-                </button>
+                <div>
+                  <h2 className="text-sm font-bold text-gray-900">Create New Assignment</h2>
+                  <p className="text-[11px] text-gray-400">Set up a new assignment for your students</p>
+                </div>
               </div>
+              <button
+                onClick={() => setShowModal(false)}
+                className="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+              >
+                <X size={16} />
+              </button>
             </div>
-            
-            <div className="p-6">
+
+            {/* Modal Body */}
+            <div className="px-5 py-4">
               {error && (
-                <div className="mb-4 p-3 bg-red-100 border border-red-300 text-red-700 rounded-lg">
-                  {error}
+                <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-red-50 border border-red-100 mb-4">
+                  <div className="w-1.5 h-1.5 rounded-full bg-red-500 shrink-0" />
+                  <p className="text-xs text-red-600 font-medium flex-1">{error}</p>
                 </div>
               )}
-              <form onSubmit={handleCreate} className="space-y-6">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <form onSubmit={handleCreate} className="space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                   <div className="md:col-span-2">
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Assignment Title *</label>
+                    <label className="block text-xs font-semibold text-gray-600 mb-1.5">Assignment Title *</label>
                     <input
                       name="title"
                       value={newAssignment.title}
                       onChange={handleChange}
                       type="text"
                       placeholder="e.g., Quadratic Equations Problem Set"
-                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      className="w-full px-3 py-2 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400 transition-colors"
                       required
                     />
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Subject *</label>
+                    <label className="block text-xs font-semibold text-gray-600 mb-1.5">Subject *</label>
                     {subjectOptions.length > 0 ? (
                       <>
                         <select
                           name="subject"
                           value={newAssignment.subject}
                           onChange={handleChange}
-                          className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                          className="w-full px-3 py-2 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400 transition-colors"
                           required
                         >
                           <option value="">Select Subject</option>
@@ -799,7 +879,7 @@ const AssignmentManagement = () => {
                             </option>
                           ))}
                         </select>
-                        <p className="mt-1 text-xs text-gray-500">Subjects are pulled from your assigned timetable.</p>
+                        <p className="mt-1 text-[11px] text-gray-400">From your assigned timetable</p>
                       </>
                     ) : (
                       <>
@@ -809,16 +889,16 @@ const AssignmentManagement = () => {
                           onChange={handleChange}
                           type="text"
                           placeholder="e.g., Mathematics"
-                          className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                          className="w-full px-3 py-2 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400 transition-colors"
                           required
                         />
-                        <p className="mt-1 text-xs text-gray-500">No assigned subjects found. Please enter a subject.</p>
+                        <p className="mt-1 text-[11px] text-gray-400">No assigned subjects found</p>
                       </>
                     )}
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Class & Section *</label>
+                    <label className="block text-xs font-semibold text-gray-600 mb-1.5">Class & Section *</label>
                     <select
                       name="classSection"
                       value={newAssignment.classId && newAssignment.sectionId ? `${newAssignment.classId}-${newAssignment.sectionId}` : ''}
@@ -830,7 +910,7 @@ const AssignmentManagement = () => {
                         const [classId, sectionId] = e.target.value.split('-');
                         setNewAssignment(prev => ({ ...prev, classId, sectionId, subject: "" }));
                       }}
-                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      className="w-full px-3 py-2 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400 transition-colors"
                       required
                     >
                       <option value="">Select Class & Section</option>
@@ -843,19 +923,19 @@ const AssignmentManagement = () => {
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Due Date *</label>
+                    <label className="block text-xs font-semibold text-gray-600 mb-1.5">Due Date *</label>
                     <input
                       name="dueDate"
                       value={newAssignment.dueDate}
                       onChange={handleChange}
                       type="date"
-                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      className="w-full px-3 py-2 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400 transition-colors"
                       required
                     />
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Total Marks *</label>
+                    <label className="block text-xs font-semibold text-gray-600 mb-1.5">Total Marks *</label>
                     <input
                       name="marks"
                       value={newAssignment.marks}
@@ -863,33 +943,33 @@ const AssignmentManagement = () => {
                       type="number"
                       min="1"
                       placeholder="e.g., 100"
-                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      className="w-full px-3 py-2 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400 transition-colors"
                       required
                     />
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Submission Format *</label>
+                    <label className="block text-xs font-semibold text-gray-600 mb-1.5">Submission Format *</label>
                     <select
                       name="submissionFormat"
                       value={newAssignment.submissionFormat}
                       onChange={handleChange}
-                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      className="w-full px-3 py-2 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400 transition-colors"
                       required
                     >
                       <option value="text">Text Only</option>
                       <option value="pdf">PDF Upload</option>
                     </select>
-                    <p className="mt-1 text-xs text-gray-500">Choose how students should submit this assignment.</p>
+                    <p className="mt-1 text-[11px] text-gray-400">How students submit this assignment</p>
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Status</label>
+                    <label className="block text-xs font-semibold text-gray-600 mb-1.5">Status</label>
                     <select
                       name="status"
                       value={newAssignment.status}
                       onChange={handleChange}
-                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      className="w-full px-3 py-2 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400 transition-colors"
                     >
                       <option value="draft">Draft</option>
                       <option value="active">Active</option>
@@ -897,33 +977,33 @@ const AssignmentManagement = () => {
                   </div>
 
                   <div className="md:col-span-2">
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Description</label>
+                    <label className="block text-xs font-semibold text-gray-600 mb-1.5">Description</label>
                     <textarea
                       name="description"
                       value={newAssignment.description}
                       onChange={handleChange}
-                      rows="4"
+                      rows="3"
                       placeholder="Provide detailed instructions for the assignment..."
-                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
+                      className="w-full px-3 py-2 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400 transition-colors resize-none"
                     />
                   </div>
 
                   {/* PDF Upload Section */}
                   <div className="md:col-span-2">
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Attachment (PDF)
-                    </label>
-                    <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 hover:border-blue-400 transition-colors">
+                    <label className="block text-xs font-semibold text-gray-600 mb-1.5">Attachment (PDF)</label>
+                    <div className="border-2 border-dashed border-gray-200 rounded-xl p-5 hover:border-indigo-300 hover:bg-indigo-50/30 transition-colors">
                       {uploadingPdf ? (
                         <div className="flex flex-col items-center justify-center">
-                          <Loader className="w-8 h-8 text-blue-500 animate-spin mb-2" />
-                          <p className="text-sm text-gray-600">Uploading PDF...</p>
+                          <Loader className="w-6 h-6 text-indigo-500 animate-spin mb-2" />
+                          <p className="text-xs text-gray-500">Uploading PDF...</p>
                         </div>
                       ) : (
                         <div className="flex flex-col items-center justify-center">
-                          <Upload className="w-10 h-10 text-gray-400 mb-3" />
-                          <p className="text-sm text-gray-600 mb-2">
-                            Drag and drop a PDF file here, or click to select
+                          <div className="w-10 h-10 rounded-xl bg-gray-100 flex items-center justify-center mb-2">
+                            <Upload size={18} className="text-gray-400" />
+                          </div>
+                          <p className="text-xs text-gray-500 mb-2">
+                            Drag and drop a PDF file, or click to select
                           </p>
                           <input
                             type="file"
@@ -934,36 +1014,36 @@ const AssignmentManagement = () => {
                           />
                           <label
                             htmlFor="pdf-upload"
-                            className="px-4 py-2 bg-blue-50 text-blue-600 rounded-lg cursor-pointer hover:bg-blue-100 transition-colors text-sm font-medium"
+                            className="px-3 py-1.5 bg-indigo-50 text-indigo-600 rounded-lg cursor-pointer hover:bg-indigo-100 transition-colors text-xs font-semibold"
                           >
                             Select PDF
                           </label>
-                          <p className="text-xs text-gray-500 mt-2">Maximum file size: 20MB</p>
+                          <p className="text-[11px] text-gray-400 mt-1.5">Maximum file size: 20MB</p>
                         </div>
                       )}
                     </div>
 
                     {/* Show uploaded attachments */}
                     {newAssignment.attachments.length > 0 && (
-                      <div className="mt-4 space-y-2">
-                        <p className="text-sm font-medium text-gray-700">Uploaded Files:</p>
+                      <div className="mt-3 space-y-1.5">
+                        <p className="text-xs font-semibold text-gray-600">Uploaded Files:</p>
                         {newAssignment.attachments.map((attachment, index) => (
                           <div
                             key={index}
-                            className="flex items-center justify-between p-3 bg-green-50 border border-green-200 rounded-lg"
+                            className="flex items-center justify-between px-3 py-2 bg-emerald-50 border border-emerald-100 rounded-xl"
                           >
-                            <div className="flex items-center space-x-3">
-                              <FileText className="w-5 h-5 text-green-600" />
-                              <span className="text-sm text-green-800 truncate max-w-xs">
+                            <div className="flex items-center gap-2">
+                              <FileText size={14} className="text-emerald-600" />
+                              <span className="text-xs text-emerald-700 font-medium truncate max-w-xs">
                                 {attachment.name}
                               </span>
                             </div>
                             <button
                               type="button"
                               onClick={() => removePdfAttachment(index)}
-                              className="p-1 text-red-500 hover:text-red-700 hover:bg-red-50 rounded"
+                              className="p-1 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
                             >
-                              <X className="w-4 h-4" />
+                              <X size={12} />
                             </button>
                           </div>
                         ))}
@@ -972,18 +1052,18 @@ const AssignmentManagement = () => {
                   </div>
                 </div>
 
-                <div className="flex justify-end space-x-4 pt-6 border-t border-gray-200">
+                <div className="flex justify-end gap-2 pt-4 border-t border-gray-100">
                   <button
                     type="button"
                     onClick={() => setShowModal(false)}
-                    className="px-6 py-3 border border-gray-300 rounded-lg text-gray-700 font-medium hover:bg-gray-50 transition-colors"
+                    className="px-4 py-2 text-xs font-semibold text-gray-600 bg-gray-50 border border-gray-200 rounded-xl hover:bg-gray-100 transition-colors"
                     disabled={loading}
                   >
                     Cancel
                   </button>
                   <button
                     type="submit"
-                    className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors disabled:bg-gray-400"
+                    className="px-5 py-2 text-xs font-semibold text-white bg-linear-to-r from-indigo-600 to-violet-600 rounded-xl shadow-md shadow-indigo-500/20 hover:shadow-lg disabled:opacity-50 transition-all"
                     disabled={loading}
                   >
                     {loading ? 'Creating...' : 'Create Assignment'}
@@ -996,27 +1076,89 @@ const AssignmentManagement = () => {
       )}
 
       {/* Assignment Detail Modal */}
-      {showDetailModal && selectedAssignment && (
-        <div className="fixed inset-0 z-50 bg-black bg-opacity-50 flex items-center justify-center p-4">
+		      {showDetailModal && selectedAssignment && (
+		        (() => {
+		          const detailClass = getAssignmentClassName(selectedAssignment) || 'N/A';
+		          const detailSection = getAssignmentSectionName(selectedAssignment);
+		          const detailInstructions = detailDraft.description || selectedAssignment.instructions || selectedAssignment.description || 'No instructions provided.';
+	          const detailType = selectedAssignment.type || 'Assignment';
+	          const detailDifficulty = selectedAssignment.difficulty || 'Medium';
+	          const detailAttachments = Array.isArray(selectedAssignment.attachments) ? selectedAssignment.attachments : [];
+	          const detailTags = Array.isArray(selectedAssignment.tags) ? selectedAssignment.tags : [];
+	          const detailSubmissions = Number(selectedAssignment.submissions || 0);
+	          const detailTotalStudents = Number(selectedAssignment.totalStudents || 0);
+	          const detailAvgScore = Number(selectedAssignment.avgScore || 0);
+            const detailSubmissionRate = detailTotalStudents > 0
+              ? Math.round((detailSubmissions / detailTotalStudents) * 100)
+              : Number(selectedAssignment.submissionRate || 0);
+            const detailClassSectionOptions = myClasses || [];
+            const detailSubjectOptions = (() => {
+              if (!detailDraft.classId || !detailDraft.sectionId) return globalSubjectOptions;
+              const matched = detailClassSectionOptions.find(
+                (cs) => String(cs.classId) === String(detailDraft.classId) && String(cs.sectionId) === String(detailDraft.sectionId)
+              );
+              return matched?.subjects?.length ? matched.subjects : globalSubjectOptions;
+            })();
+
+          return (
+        <div className="fixed inset-0 z-50 bg-black/20 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-white w-full max-w-4xl rounded-xl shadow-xl max-h-[90vh] overflow-y-auto">
             <div className="p-6 border-b border-gray-200">
               <div className="flex items-center justify-between">
-                <div className="flex items-center space-x-3">
-                  <div className="p-2 bg-blue-100 rounded-lg">
-                    <FileText className="h-6 w-6 text-blue-600" />
-                  </div>
-                  <div>
-                    <h2 className="text-xl font-bold text-gray-900">{selectedAssignment.title}</h2>
-                    <p className="text-sm text-gray-500">{selectedAssignment.subject} • Class {selectedAssignment.class}</p>
-                  </div>
-                </div>
-                <div className="flex items-center space-x-3">
-                  <button className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors">
-                    <Edit3 className="w-5 h-5" />
-                  </button>
-                  <button className="p-2 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded-lg transition-colors">
-                    <Download className="w-5 h-5" />
-                  </button>
+	                <div className="flex items-center space-x-3">
+	                  <div className="p-2 bg-blue-100 rounded-lg">
+	                    <FileText className="h-6 w-6 text-blue-600" />
+	                  </div>
+	                  <div>
+	                      {detailEditMode ? (
+	                        <div className="space-y-2">
+	                          <input
+	                            type="text"
+	                            value={detailDraft.title}
+	                            onChange={(e) => handleDetailDraftChange('title', e.target.value)}
+	                            className="w-full rounded-lg border border-gray-300 px-3 py-1.5 text-sm font-semibold text-gray-900"
+	                          />
+	                        </div>
+	                      ) : (
+                        <>
+                          <h2 className="text-xl font-bold text-gray-900">{selectedAssignment.title}</h2>
+                          <p className="text-sm text-gray-500">
+                            {selectedAssignment.subject || 'Subject'} • Class {detailClass}{detailSection ? ` - ${detailSection}` : ''}
+                          </p>
+                        </>
+                      )}
+	                  </div>
+	                </div>
+	                <div className="flex items-center space-x-3">
+	                  {detailEditMode ? (
+                      <>
+                        <button
+                          onClick={handleUpdateAssignment}
+                          disabled={detailSaving}
+                          className="px-3 py-1.5 rounded-lg bg-blue-600 text-white text-sm hover:bg-blue-700 disabled:opacity-60"
+                        >
+                          {detailSaving ? 'Saving...' : 'Save'}
+                        </button>
+                        <button
+                          onClick={() => {
+                            openAssignmentDetail(selectedAssignment);
+                          }}
+                          className="px-3 py-1.5 rounded-lg border border-gray-300 text-sm text-gray-700 hover:bg-gray-50"
+                        >
+                          Cancel
+                        </button>
+                      </>
+                    ) : (
+                      <button
+                        onClick={() => setDetailEditMode(true)}
+                        className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                      >
+                        <Edit3 className="w-5 h-5" />
+                      </button>
+                    )}
+	                  <button className="p-2 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded-lg transition-colors">
+	                    <Download className="w-5 h-5" />
+	                  </button>
                   <button className="p-2 text-gray-400 hover:text-purple-600 hover:bg-purple-50 rounded-lg transition-colors">
                     <Share2 className="w-5 h-5" />
                   </button>
@@ -1033,76 +1175,200 @@ const AssignmentManagement = () => {
             <div className="p-6">
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                 <div className="lg:col-span-2 space-y-6">
-                  <div>
-                    <h3 className="text-lg font-semibold text-gray-900 mb-3">Assignment Details</h3>
-                    <p className="text-gray-700 leading-relaxed">{selectedAssignment.description}</p>
-                  </div>
+	                  <div>
+	                    <h3 className="text-lg font-semibold text-gray-900 mb-3">Assignment Details</h3>
+                      {detailEditMode ? (
+                        <div className="space-y-3">
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            <select
+                              value={detailDraft.classId && detailDraft.sectionId ? `${detailDraft.classId}::${detailDraft.sectionId}` : ''}
+                              onChange={(e) => {
+                                const [classId, sectionId] = String(e.target.value || '').split('::');
+                                setDetailDraft((prev) => ({
+                                  ...prev,
+                                  classId: classId || '',
+                                  sectionId: sectionId || '',
+                                  subject: ''
+                                }));
+                              }}
+                              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-700"
+                            >
+                              <option value="">Select Class & Section</option>
+                              {detailClassSectionOptions.map((cs) => (
+                                <option key={`${cs.classId}-${cs.sectionId}`} value={`${cs.classId}::${cs.sectionId}`}>
+                                  Class {cs.className} - Section {cs.sectionName}
+                                </option>
+                              ))}
+                            </select>
+                            <select
+                              value={detailDraft.subject}
+                              onChange={(e) => handleDetailDraftChange('subject', e.target.value)}
+                              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-700"
+                            >
+                              <option value="">Select Subject</option>
+                              {detailSubjectOptions.map((sub) => (
+                                <option key={String(sub.id || sub._id || sub.name)} value={sub.name}>
+                                  {sub.name}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            <input
+                              type="text"
+                              value={detailDraft.type}
+                              onChange={(e) => handleDetailDraftChange('type', e.target.value)}
+                              placeholder="Type"
+                              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-700"
+                            />
+                            <select
+                              value={detailDraft.difficulty}
+                              onChange={(e) => handleDetailDraftChange('difficulty', e.target.value)}
+                              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-700"
+                            >
+                              <option value="Easy">Easy</option>
+                              <option value="Medium">Medium</option>
+                              <option value="Hard">Hard</option>
+                            </select>
+                          </div>
+                          <textarea
+                            value={detailDraft.description}
+                            onChange={(e) => handleDetailDraftChange('description', e.target.value)}
+                            rows={5}
+                            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-700"
+                          />
+                        </div>
+                      ) : (
+		                        <p className="text-gray-700 leading-relaxed">{selectedAssignment.description}</p>
+                      )}
+	                  </div>
                   
                   <div>
                     <h3 className="text-lg font-semibold text-gray-900 mb-3">Instructions</h3>
-                    <p className="text-gray-700 leading-relaxed">{selectedAssignment.instructions}</p>
+                    <p className="text-gray-700 leading-relaxed">{detailInstructions}</p>
                   </div>
                   
-                  {selectedAssignment.attachments.length > 0 && (
+                  {detailAttachments.length > 0 && (
                     <div>
                       <h3 className="text-lg font-semibold text-gray-900 mb-3">Attachments</h3>
                       <div className="space-y-2">
-                        {selectedAssignment.attachments.map((attachment, index) => (
+                        {detailAttachments.map((attachment, index) => {
+                          const label = typeof attachment === 'string'
+                            ? attachment
+                            : (attachment?.name || attachment?.originalName || `Attachment ${index + 1}`);
+                          const link = typeof attachment === 'object' ? attachment?.url : '';
+                          return (
                           <div key={index} className="flex items-center space-x-3 p-3 border border-gray-200 rounded-lg">
                             <FileText className="w-5 h-5 text-blue-500" />
-                            <span className="text-gray-700 flex-1">{attachment}</span>
-                            <button className="text-blue-600 hover:text-blue-700 text-sm font-medium">
-                              Download
-                            </button>
+                            <span className="text-gray-700 flex-1">{label}</span>
+                            {link ? (
+                              <a
+                                href={link}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="text-blue-600 hover:text-blue-700 text-sm font-medium"
+                              >
+                                View
+                              </a>
+                            ) : (
+                              <span className="text-gray-400 text-sm">Attached</span>
+                            )}
                           </div>
-                        ))}
+                        )})}
                       </div>
                     </div>
                   )}
                   
-                  <div>
+                  {detailTags.length > 0 && (
+                    <div>
                     <h3 className="text-lg font-semibold text-gray-900 mb-3">Tags</h3>
                     <div className="flex flex-wrap gap-2">
-                      {selectedAssignment.tags.map((tag, index) => (
+                        {detailTags.map((tag, index) => (
                         <span key={index} className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-blue-100 text-blue-800">
                           {tag}
                         </span>
                       ))}
                     </div>
-                  </div>
+                    </div>
+                  )}
                 </div>
                 
                 <div className="space-y-6">
                   <div className="bg-gray-50 rounded-lg p-4">
                     <h3 className="text-sm font-semibold text-gray-900 mb-3">Assignment Info</h3>
                     <div className="space-y-3">
-                      <div className="flex justify-between text-sm">
-                        <span className="text-gray-500">Status:</span>
-                        <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium border ${getStatusColor(selectedAssignment.status)}`}>
-                          {selectedAssignment.status.charAt(0).toUpperCase() + selectedAssignment.status.slice(1)}
-                        </span>
-                      </div>
-                      <div className="flex justify-between text-sm">
-                        <span className="text-gray-500">Type:</span>
-                        <span className="text-gray-900">{selectedAssignment.type}</span>
-                      </div>
-                      <div className="flex justify-between text-sm">
-                        <span className="text-gray-500">Difficulty:</span>
-                        <span className={getDifficultyColor(selectedAssignment.difficulty)}>
-                          {selectedAssignment.difficulty}
-                        </span>
-                      </div>
-                      <div className="flex justify-between text-sm">
-                        <span className="text-gray-500">Total Marks:</span>
-                        <span className="text-gray-900">{selectedAssignment.marks}</span>
-                      </div>
-                      <div className="flex justify-between text-sm">
-                        <span className="text-gray-500">Due Date:</span>
-                        <span className="text-gray-900">{new Date(selectedAssignment.dueDate).toLocaleDateString()}</span>
-                      </div>
+	                      <div className="flex justify-between text-sm">
+	                        <span className="text-gray-500">Status:</span>
+                          {detailEditMode ? (
+	                            <select
+	                              value={detailDraft.status}
+	                              onChange={(e) => handleDetailDraftChange('status', e.target.value)}
+	                              className="rounded-lg border border-gray-300 px-2 py-1 text-xs"
+	                            >
+	                              <option value="draft">Draft</option>
+	                              <option value="active">Active</option>
+	                            </select>
+                          ) : (
+	                          <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium border ${getStatusColor(selectedAssignment.status)}`}>
+	                            {selectedAssignment.status.charAt(0).toUpperCase() + selectedAssignment.status.slice(1)}
+	                          </span>
+                          )}
+	                      </div>
+	                      <div className="flex justify-between text-sm">
+	                        <span className="text-gray-500">Type:</span>
+	                        <span className="text-gray-900">{detailEditMode ? detailDraft.type : detailType}</span>
+	                      </div>
+	                      <div className="flex justify-between text-sm">
+	                        <span className="text-gray-500">Difficulty:</span>
+	                        <span className={getDifficultyColor(detailEditMode ? detailDraft.difficulty : detailDifficulty)}>
+	                          {detailEditMode ? detailDraft.difficulty : detailDifficulty}
+	                        </span>
+	                      </div>
+	                      <div className="flex justify-between text-sm">
+	                        <span className="text-gray-500">Total Marks:</span>
+                          {detailEditMode ? (
+                            <input
+                              type="number"
+                              min="1"
+                              value={detailDraft.marks}
+                              onChange={(e) => handleDetailDraftChange('marks', e.target.value)}
+                              className="w-24 rounded-lg border border-gray-300 px-2 py-1 text-xs text-right"
+                            />
+                          ) : (
+	                          <span className="text-gray-900">{selectedAssignment.marks}</span>
+                          )}
+	                      </div>
+	                      <div className="flex justify-between text-sm">
+	                        <span className="text-gray-500">Due Date:</span>
+                          {detailEditMode ? (
+                            <input
+                              type="date"
+                              value={detailDraft.dueDate}
+                              onChange={(e) => handleDetailDraftChange('dueDate', e.target.value)}
+                              className="rounded-lg border border-gray-300 px-2 py-1 text-xs"
+                            />
+                          ) : (
+	                          <span className="text-gray-900">{formatDate(selectedAssignment.dueDate)}</span>
+                          )}
+	                      </div>
+                        <div className="flex justify-between text-sm">
+                          <span className="text-gray-500">Submission:</span>
+                          {detailEditMode ? (
+                            <select
+                              value={detailDraft.submissionFormat}
+                              onChange={(e) => handleDetailDraftChange('submissionFormat', e.target.value)}
+                              className="rounded-lg border border-gray-300 px-2 py-1 text-xs"
+                            >
+                              <option value="text">Text</option>
+                              <option value="pdf">PDF</option>
+                            </select>
+                          ) : (
+                            <span className="text-gray-900">{selectedAssignment.submissionFormat === 'pdf' ? 'PDF' : 'Text'}</span>
+                          )}
+                        </div>
                       <div className="flex justify-between text-sm">
                         <span className="text-gray-500">Created:</span>
-                        <span className="text-gray-900">{new Date(selectedAssignment.createdDate).toLocaleDateString()}</span>
+                        <span className="text-gray-900">{formatDate(selectedAssignment.createdDate || selectedAssignment.createdAt)}</span>
                       </div>
                     </div>
                   </div>
@@ -1113,22 +1379,26 @@ const AssignmentManagement = () => {
                       <div>
                         <div className="flex justify-between text-sm mb-1">
                           <span className="text-gray-500">Submissions</span>
-                          <span className="text-gray-900">{selectedAssignment.submissions}/{selectedAssignment.totalStudents}</span>
+                          <span className="text-gray-900">{detailSubmissions}/{detailTotalStudents}</span>
                         </div>
                         <div className="w-full bg-gray-200 rounded-full h-2">
                           <div 
                             className="bg-blue-600 h-2 rounded-full transition-all duration-300"
-                            style={{ width: `${getSubmissionPercentage(selectedAssignment.submissions, selectedAssignment.totalStudents)}%` }}
+                            style={{ width: `${getSubmissionPercentage(detailSubmissions, detailTotalStudents)}%` }}
                           ></div>
                         </div>
-                        <p className="text-xs text-gray-500 mt-1">
-                          {getSubmissionPercentage(selectedAssignment.submissions, selectedAssignment.totalStudents)}% completion rate
-                        </p>
-                      </div>
-                      {selectedAssignment.avgScore > 0 && (
+	                        <p className="text-xs text-gray-500 mt-1">
+	                          {getSubmissionPercentage(detailSubmissions, detailTotalStudents)}% completion rate
+	                        </p>
+	                      </div>
+                        <div className="flex justify-between text-sm">
+                          <span className="text-gray-500">Submitted Rate:</span>
+                          <span className="text-gray-900">{detailSubmissionRate}%</span>
+                        </div>
+	                      {detailAvgScore > 0 && (
                         <div className="flex justify-between text-sm">
                           <span className="text-gray-500">Average Score:</span>
-                          <span className="text-gray-900">{selectedAssignment.avgScore.toFixed(1)}%</span>
+                          <span className="text-gray-900">{detailAvgScore.toFixed(1)}%</span>
                         </div>
                       )}
                     </div>
@@ -1138,6 +1408,8 @@ const AssignmentManagement = () => {
             </div>
           </div>
         </div>
+          );
+        })()
       )}
     </div>
   );

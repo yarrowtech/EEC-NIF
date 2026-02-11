@@ -1,688 +1,496 @@
-import React, { useState, useEffect } from 'react';
-import { 
-  BookOpen, 
-  Plus, 
-  Search, 
-  Filter, 
-  Calendar, 
-  Clock, 
-  User, 
-  Eye, 
-  Edit3, 
-  Trash2, 
-  Download, 
-  Upload,
-  Target,
-  CheckCircle,
-  Users,
-  FileText,
-  Star,
-  Copy,
-  Share2
-} from 'lucide-react';
-import LessonPlanForm from '../components/LessonPlanForm';
+import React, { useEffect, useMemo, useState } from 'react';
+import { BookOpen, Plus, Search, Calendar, Target, Package, FileText, X } from 'lucide-react';
+
+const API_BASE = (import.meta.env.VITE_API_URL || 'http://localhost:5000').replace(/\/$/, '');
+
+const emptyForm = {
+  classId: '',
+  sectionId: '',
+  teacherId: '',
+  subjectId: '',
+  title: '',
+  subject: '',
+  date: '',
+  learningObjectives: [''],
+  materialsNeeded: [''],
+  additionalNotes: '',
+};
 
 const LessonPlanPage = ({ setShowAdminHeader }) => {
-  const [currentView, setCurrentView] = useState('grid');
-  const [selectedSubject, setSelectedSubject] = useState('all');
+  const [plans, setPlans] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
-  const [showCreateModal, setShowCreateModal] = useState(false);
-  const [editingPlan, setEditingPlan] = useState(null);
-  const [exporting, setExporting] = useState(false);
+
+  const [showModal, setShowModal] = useState(false);
+  const [editingPlanId, setEditingPlanId] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [form, setForm] = useState(emptyForm);
+
+  const [classes, setClasses] = useState([]);
+  const [sections, setSections] = useState([]);
+  const [allocations, setAllocations] = useState([]);
+  const [loadingOptions, setLoadingOptions] = useState(false);
 
   useEffect(() => {
     setShowAdminHeader?.(false);
   }, [setShowAdminHeader]);
 
-  // Sample lesson plans data
-  const lessonPlans = [
-    {
-      id: 1,
-      title: "Introduction to Quadratic Equations",
-      subject: "Mathematics",
-      grade: "Grade 10",
-      teacher: "Dr. Sarah Johnson",
-      duration: "45 minutes",
-      date: "2025-06-18",
-      status: "Published",
-      objectives: [
-        "Understand the definition of quadratic equations",
-        "Learn to identify quadratic equations",
-        "Solve simple quadratic equations"
-      ],
-      materials: ["Whiteboard", "Graphing calculator", "Worksheets"],
-      description: "This lesson introduces students to quadratic equations, covering basic concepts and solving techniques.",
-      tags: ["algebra", "equations", "mathematics"],
-      rating: 4.8,
-      views: 245,
-      lastModified: "2025-06-15"
-    },
-    {
-      id: 2,
-      title: "Newton's Laws of Motion",
-      subject: "Physics",
-      grade: "Grade 11",
-      teacher: "Prof. Michael Chen",
-      duration: "60 minutes",
-      date: "2025-06-19",
-      status: "Draft",
-      objectives: [
-        "Explain Newton's three laws of motion",
-        "Apply laws to real-world scenarios",
-        "Conduct practical experiments"
-      ],
-      materials: ["Lab equipment", "Demonstration props", "Video clips"],
-      description: "Comprehensive lesson on Newton's laws with hands-on experiments and real-world applications.",
-      tags: ["physics", "motion", "laws", "experiments"],
-      rating: 4.9,
-      views: 189,
-      lastModified: "2025-06-16"
-    },
-    {
-      id: 3,
-      title: "Shakespeare's Romeo and Juliet - Act 1",
-      subject: "English Literature",
-      grade: "Grade 12",
-      teacher: "Ms. Emily Davis",
-      duration: "50 minutes",
-      date: "2025-06-20",
-      status: "Published",
-      objectives: [
-        "Analyze character development in Act 1",
-        "Understand themes of love and conflict",
-        "Examine Shakespeare's language techniques"
-      ],
-      materials: ["Play text", "Audio recordings", "Character worksheets"],
-      description: "Deep dive into Act 1 of Romeo and Juliet, focusing on character analysis and thematic elements.",
-      tags: ["literature", "shakespeare", "drama", "analysis"],
-      rating: 4.7,
-      views: 312,
-      lastModified: "2025-06-14"
-    },
-    {
-      id: 4,
-      title: "Organic Chemistry: Hydrocarbons",
-      subject: "Chemistry",
-      grade: "Grade 12",
-      teacher: "Mr. David Wilson",
-      duration: "70 minutes",
-      date: "2025-06-21",
-      status: "Published",
-      objectives: [
-        "Classify different types of hydrocarbons",
-        "Understand molecular structures",
-        "Practice naming conventions"
-      ],
-      materials: ["Molecular models", "Periodic table", "Structure diagrams"],
-      description: "Comprehensive study of hydrocarbon compounds including alkanes, alkenes, and alkynes.",
-      tags: ["chemistry", "organic", "hydrocarbons", "molecules"],
-      rating: 4.6,
-      views: 156,
-      lastModified: "2025-06-13"
-    },
-    {
-      id: 5,
-      title: "Cell Division: Mitosis and Meiosis",
-      subject: "Biology",
-      grade: "Grade 11",
-      teacher: "Dr. Lisa Brown",
-      duration: "55 minutes",
-      date: "2025-06-22",
-      status: "Published",
-      objectives: [
-        "Compare mitosis and meiosis processes",
-        "Identify phases of cell division",
-        "Understand biological significance"
-      ],
-      materials: ["Microscopes", "Cell slides", "Diagrams", "Models"],
-      description: "Interactive lesson on cell division processes with microscope observations and detailed comparisons.",
-      tags: ["biology", "cells", "division", "mitosis", "meiosis"],
-      rating: 4.8,
-      views: 203,
-      lastModified: "2025-06-12"
-    },
-    {
-      id: 6,
-      title: "World War II: Causes and Consequences",
-      subject: "History",
-      grade: "Grade 10",
-      teacher: "Ms. Jennifer Lee",
-      duration: "45 minutes",
-      date: "2025-06-23",
-      status: "Draft",
-      objectives: [
-        "Analyze causes of World War II",
-        "Examine key events and turning points",
-        "Assess global consequences"
-      ],
-      materials: ["Historical maps", "Primary sources", "Timeline charts"],
-      description: "Comprehensive analysis of WWII covering political, social, and economic factors.",
-      tags: ["history", "world war", "global", "analysis"],
-      rating: 4.5,
-      views: 178,
-      lastModified: "2025-06-17"
-    }
-  ];
-
-  const subjects = ['all', 'Mathematics', 'Physics', 'English Literature', 'Chemistry', 'Biology', 'History'];
-
-  const getSubjectColor = (subject) => {
-    const colors = {
-      'Mathematics': 'bg-blue-100 border-blue-300 text-blue-800',
-      'Physics': 'bg-purple-100 border-purple-300 text-purple-800',
-      'English Literature': 'bg-green-100 border-green-300 text-green-800',
-      'Chemistry': 'bg-orange-100 border-orange-300 text-orange-800',
-      'Biology': 'bg-pink-100 border-pink-300 text-pink-800',
-      'History': 'bg-yellow-100 border-yellow-300 text-yellow-800'
+  const authHeaders = () => {
+    const token = localStorage.getItem('token');
+    return {
+      'Content-Type': 'application/json',
+      authorization: `Bearer ${token}`,
     };
-    return colors[subject] || 'bg-gray-100 border-gray-300 text-gray-800';
   };
 
-  const getStatusColor = (status) => {
-    return status === 'Published' 
-      ? 'bg-green-100 text-green-800' 
-      : 'bg-yellow-100 text-yellow-800';
-  };
-
-  const filteredLessonPlans = lessonPlans.filter(plan => {
-    const matchesSubject = selectedSubject === 'all' || plan.subject === selectedSubject;
-    const matchesSearch = plan.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         plan.description.toLowerCase().includes(searchTerm.toLowerCase());
-    return matchesSubject && matchesSearch;
-  });
-
-  const handleEditPlan = (plan) => {
-    setEditingPlan(plan);
-    setShowCreateModal(true);
-  };
-
-  const handleDeletePlan = (planId) => {
-    // Here you would typically make an API call to delete the lesson plan
-    console.log('Deleting plan:', planId);
-  };
-
-  const handleFormSubmit = (formData) => {
-    if (editingPlan) {
-      // Handle edit
-      console.log('Updating lesson plan:', formData);
-    } else {
-      // Handle create
-      console.log('Creating new lesson plan:', formData);
-    }
-    setShowCreateModal(false);
-    setEditingPlan(null);
-  };
-
-  const handleFormCancel = () => {
-    setShowCreateModal(false);
-    setEditingPlan(null);
-  };
-
-  const loadJsPdf = async () => {
-    const mod = await import('jspdf');
-    return mod.jsPDF || mod.default || mod;
-  };
-
-  const exportLessonPlansToPDF = async () => {
-    setExporting(true);
+  const loadPlans = async () => {
     try {
-      const JsPDF = await loadJsPdf();
-      const pdf = new JsPDF();
-    const pageWidth = pdf.internal.pageSize.width;
-    const currentDate = new Date().toLocaleDateString();
-    let yPosition = 20;
-    
-    // Title
-    pdf.setFontSize(20);
-    pdf.setFont(undefined, 'bold');
-    pdf.text('Lesson Plans Report', pageWidth / 2, yPosition, { align: 'center' });
-    
-    yPosition += 10;
-    pdf.setFontSize(12);
-    pdf.setFont(undefined, 'normal');
-    pdf.text(`Generated on: ${currentDate}`, pageWidth / 2, yPosition, { align: 'center' });
-    
-    if (selectedSubject !== 'all') {
-      yPosition += 6;
-      pdf.text(`Subject: ${selectedSubject}`, pageWidth / 2, yPosition, { align: 'center' });
-    }
-    
-    yPosition += 15;
-
-    // Summary
-    pdf.setFontSize(16);
-    pdf.setFont(undefined, 'bold');
-    pdf.text('Summary', 20, yPosition);
-    yPosition += 10;
-
-    pdf.setFontSize(10);
-    pdf.setFont(undefined, 'normal');
-    pdf.text(`Total Lesson Plans: ${lessonPlans.length}`, 25, yPosition);
-    yPosition += 6;
-    pdf.text(`Published: ${lessonPlans.filter(plan => plan.status === 'Published').length}`, 25, yPosition);
-    yPosition += 6;
-    pdf.text(`Draft: ${lessonPlans.filter(plan => plan.status === 'Draft').length}`, 25, yPosition);
-    yPosition += 6;
-    pdf.text(`Under Review: ${lessonPlans.filter(plan => plan.status === 'Under Review').length}`, 25, yPosition);
-    
-    yPosition += 15;
-
-    // Lesson Plans Details
-    pdf.setFontSize(16);
-    pdf.setFont(undefined, 'bold');
-    pdf.text('Lesson Plans Details', 20, yPosition);
-    yPosition += 12;
-
-    const plansToExport = filteredLessonPlans;
-    
-    plansToExport.forEach((plan, index) => {
-      if (yPosition > 250) { // Check if we need a new page
-        pdf.addPage();
-        yPosition = 20;
-      }
-      
-      // Plan header
-      pdf.setFontSize(12);
-      pdf.setFont(undefined, 'bold');
-      pdf.text(`${index + 1}. ${plan.title}`, 20, yPosition);
-      yPosition += 8;
-      
-      pdf.setFontSize(9);
-      pdf.setFont(undefined, 'normal');
-      
-      // Plan details
-      pdf.text(`Subject: ${plan.subject}`, 25, yPosition);
-      pdf.text(`Grade: ${plan.grade}`, 100, yPosition);
-      pdf.text(`Status: ${plan.status}`, 150, yPosition);
-      yPosition += 6;
-      
-      pdf.text(`Teacher: ${plan.teacher}`, 25, yPosition);
-      pdf.text(`Duration: ${plan.duration}`, 100, yPosition);
-      pdf.text(`Date: ${plan.date}`, 150, yPosition);
-      yPosition += 6;
-      
-      // Description
-      pdf.text(`Description: ${plan.description}`, 25, yPosition);
-      yPosition += 6;
-      
-      // Objectives
-      if (plan.objectives && plan.objectives.length > 0) {
-        pdf.text('Learning Objectives:', 25, yPosition);
-        yPosition += 4;
-        plan.objectives.forEach(objective => {
-          pdf.text(`  • ${objective}`, 30, yPosition);
-          yPosition += 4;
-        });
-      }
-      
-      // Activities
-      if (plan.activities && plan.activities.length > 0) {
-        yPosition += 2;
-        pdf.text('Activities:', 25, yPosition);
-        yPosition += 4;
-        plan.activities.forEach(activity => {
-          pdf.text(`  • ${activity.title} (${activity.duration})`, 30, yPosition);
-          yPosition += 4;
-        });
-      }
-      
-      // Assessment
-      if (plan.assessment) {
-        yPosition += 2;
-        pdf.text(`Assessment: ${plan.assessment}`, 25, yPosition);
-        yPosition += 6;
-      }
-      
-      // Resources
-      if (plan.resources && plan.resources.length > 0) {
-        pdf.text('Resources:', 25, yPosition);
-        yPosition += 4;
-        plan.resources.forEach(resource => {
-          pdf.text(`  • ${resource}`, 30, yPosition);
-          yPosition += 4;
-        });
-      }
-      
-      yPosition += 8; // Space between lesson plans
-    });
-
-    // Footer
-    pdf.setFontSize(8);
-    pdf.setFont(undefined, 'italic');
-    pdf.text('Generated by School Management System - Lesson Plan Module', pageWidth / 2, pdf.internal.pageSize.height - 10, { align: 'center' });
-
-    const subjectSuffix = selectedSubject === 'all' ? 'all-subjects' : selectedSubject.replace(/ /g, '-');
-      pdf.save(`lesson-plans-${subjectSuffix}-${currentDate.replace(/\//g, '-')}.pdf`);
+      setLoading(true);
+      setError('');
+      const res = await fetch(`${API_BASE}/api/lesson-plans/admin`, { headers: authHeaders() });
+      const data = await res.json().catch(() => []);
+      if (!res.ok) throw new Error(data?.error || 'Failed to load lesson plans');
+      setPlans(Array.isArray(data) ? data : []);
     } catch (err) {
-      console.error('Failed to export lesson plans', err);
-      alert('Failed to export lesson plans. Please try again.');
+      setError(err.message || 'Failed to load lesson plans');
     } finally {
-      setExporting(false);
+      setLoading(false);
     }
   };
 
-  const CreateLessonModal = () => (
-    showCreateModal && (
-      <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
-        <div className="bg-white rounded-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
-          <LessonPlanForm
-            onSubmit={handleFormSubmit}
-            onCancel={handleFormCancel}
-            initialData={editingPlan}
-          />
-        </div>
-      </div>
-    )
-  );
+  const loadOptions = async ({ classId = '', sectionId = '' } = {}) => {
+    try {
+      setLoadingOptions(true);
+      const query = new URLSearchParams();
+      if (classId) query.set('classId', classId);
+      if (sectionId) query.set('sectionId', sectionId);
+      const res = await fetch(`${API_BASE}/api/lesson-plans/admin/options?${query.toString()}`, {
+        headers: authHeaders(),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data?.error || 'Failed to load options');
+      setClasses(Array.isArray(data?.classes) ? data.classes : []);
+      setSections(Array.isArray(data?.sections) ? data.sections : []);
+      setAllocations(Array.isArray(data?.allocations) ? data.allocations : []);
+    } catch (err) {
+      setError(err.message || 'Failed to load form options');
+    } finally {
+      setLoadingOptions(false);
+    }
+  };
+
+  useEffect(() => {
+    loadPlans();
+  }, []);
+
+  const filteredPlans = useMemo(() => {
+    const q = searchTerm.trim().toLowerCase();
+    if (!q) return plans;
+    return plans.filter((plan) => {
+      return [plan.title, plan.subject, plan.className, plan.sectionName, plan.teacherName]
+        .filter(Boolean)
+        .some((val) => String(val).toLowerCase().includes(q));
+    });
+  }, [plans, searchTerm]);
+
+  const openCreateModal = () => {
+    setEditingPlanId('');
+    setForm(emptyForm);
+    setSections([]);
+    setAllocations([]);
+    setShowModal(true);
+    loadOptions();
+  };
+
+  const openEditModal = async (plan) => {
+    const classId = String(plan?.classId || '');
+    const sectionId = String(plan?.sectionId || '');
+    const teacherId = String(plan?.teacherId || '');
+    const subjectId = String(plan?.subjectId || '');
+
+    setEditingPlanId(String(plan?._id || ''));
+    setForm({
+      classId,
+      sectionId,
+      teacherId,
+      subjectId,
+      title: plan?.title || '',
+      subject: plan?.subject || '',
+      date: plan?.date ? new Date(plan.date).toISOString().slice(0, 10) : '',
+      learningObjectives: Array.isArray(plan?.learningObjectives) && plan.learningObjectives.length ? plan.learningObjectives : [''],
+      materialsNeeded: Array.isArray(plan?.materialsNeeded) && plan.materialsNeeded.length ? plan.materialsNeeded : [''],
+      additionalNotes: plan?.additionalNotes || '',
+    });
+    setShowModal(true);
+    await loadOptions({ classId, sectionId });
+  };
+
+  const closeModal = () => {
+    setShowModal(false);
+    setEditingPlanId('');
+    setForm(emptyForm);
+  };
+
+  const updateArrayField = (field, index, value) => {
+    setForm((prev) => {
+      const next = [...prev[field]];
+      next[index] = value;
+      return { ...prev, [field]: next };
+    });
+  };
+
+  const addArrayField = (field) => {
+    setForm((prev) => ({ ...prev, [field]: [...prev[field], ''] }));
+  };
+
+  const removeArrayField = (field, index) => {
+    setForm((prev) => {
+      const next = prev[field].filter((_, idx) => idx !== index);
+      return { ...prev, [field]: next.length ? next : [''] };
+    });
+  };
+
+  const onClassChange = async (classId) => {
+    setForm((prev) => ({
+      ...prev,
+      classId,
+      sectionId: '',
+      teacherId: '',
+      subjectId: '',
+      subject: '',
+    }));
+    setAllocations([]);
+    if (classId) {
+      await loadOptions({ classId });
+    } else {
+      setSections([]);
+    }
+  };
+
+  const onSectionChange = async (sectionId) => {
+    const classId = form.classId;
+    setForm((prev) => ({
+      ...prev,
+      sectionId,
+      teacherId: '',
+      subjectId: '',
+      subject: '',
+    }));
+    if (classId && sectionId) {
+      await loadOptions({ classId, sectionId });
+    } else {
+      setAllocations([]);
+    }
+  };
+
+  const onAllocationChange = (combo) => {
+    if (!combo) {
+      setForm((prev) => ({ ...prev, teacherId: '', subjectId: '', subject: '' }));
+      return;
+    }
+    const [teacherId, subjectId] = combo.split('::');
+    const selected = allocations.find((item) => item.teacherId === teacherId && item.subjectId === subjectId);
+    setForm((prev) => ({
+      ...prev,
+      teacherId,
+      subjectId,
+      subject: selected?.subjectName || '',
+    }));
+  };
+
+  const submitForm = async (e) => {
+    e.preventDefault();
+    try {
+      setSaving(true);
+      setError('');
+      const payload = {
+        ...form,
+        learningObjectives: form.learningObjectives.map((v) => String(v || '').trim()).filter(Boolean),
+        materialsNeeded: form.materialsNeeded.map((v) => String(v || '').trim()).filter(Boolean),
+      };
+      const isEdit = Boolean(editingPlanId);
+      const endpoint = isEdit
+        ? `${API_BASE}/api/lesson-plans/admin/${editingPlanId}`
+        : `${API_BASE}/api/lesson-plans/admin`;
+      const res = await fetch(endpoint, {
+        method: isEdit ? 'PUT' : 'POST',
+        headers: authHeaders(),
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data?.error || (isEdit ? 'Failed to update lesson plan' : 'Failed to create lesson plan'));
+      closeModal();
+      await loadPlans();
+    } catch (err) {
+      setError(err.message || (editingPlanId ? 'Failed to update lesson plan' : 'Failed to create lesson plan'));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const deletePlan = async (planId) => {
+    if (!window.confirm('Delete this lesson plan?')) return;
+    try {
+      setError('');
+      const res = await fetch(`${API_BASE}/api/lesson-plans/admin/${planId}`, {
+        method: 'DELETE',
+        headers: authHeaders(),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data?.error || 'Failed to delete lesson plan');
+      await loadPlans();
+    } catch (err) {
+      setError(err.message || 'Failed to delete lesson plan');
+    }
+  };
 
   return (
     <div className="min-h-screen bg-gray-50 p-6">
-      {/* Header */}
       <div className="bg-gradient-to-r from-red-400 to-red-500 rounded-xl p-6 mb-6 text-white">
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-3xl font-bold mb-2">Lesson Plans</h1>
-            <p className="text-red-100">Create, manage, and organize your teaching materials</p>
+            <p className="text-red-100">Create class-section-teacher specific lesson plans</p>
           </div>
-          <div className="flex items-center space-x-4">
-            <BookOpen className="w-12 h-12 text-red-200" />
-          </div>
+          <BookOpen className="w-12 h-12 text-red-200" />
         </div>
       </div>
 
-      {/* Controls */}
       <div className="bg-white rounded-xl p-6 mb-6 shadow-sm">
         <div className="flex flex-wrap items-center justify-between gap-4">
-          <div className="flex items-center space-x-4">
-            <div className="relative">
-              <Search className="w-5 h-5 absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
-              <input
-                type="text"
-                placeholder="Search lesson plans..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              />
-            </div>
-            
-            <div className="flex items-center space-x-2">
-              <Filter className="w-5 h-5 text-gray-500" />
-              <select 
-                value={selectedSubject} 
-                onChange={(e) => setSelectedSubject(e.target.value)}
-                className="border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              >
-                {subjects.map(subject => (
-                  <option key={subject} value={subject}>
-                    {subject === 'all' ? 'All Subjects' : subject}
-                  </option>
-                ))}
-              </select>
-            </div>
-            
-            <div className="flex items-center bg-gray-100 rounded-lg p-1">
-              <button
-                onClick={() => setCurrentView('grid')}
-                className={`px-3 py-1 rounded-md transition-all ${
-                  currentView === 'grid' 
-                    ? 'bg-white shadow-sm text-blue-600' 
-                    : 'text-gray-600 hover:text-blue-600'
-                }`}
-              >
-                Grid
-              </button>
-              <button
-                onClick={() => setCurrentView('list')}
-                className={`px-3 py-1 rounded-md transition-all ${
-                  currentView === 'list' 
-                    ? 'bg-white shadow-sm text-blue-600' 
-                    : 'text-gray-600 hover:text-blue-600'
-                }`}
-              >
-                List
-              </button>
-            </div>
+          <div className="relative">
+            <Search className="w-5 h-5 absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+            <input
+              type="text"
+              placeholder="Search lesson plans..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            />
           </div>
-
-          <div className="flex items-center space-x-3">
-            <button className="flex items-center space-x-2 border border-gray-300 px-4 py-2 rounded-lg hover:bg-gray-50 transition-colors">
-              <Upload className="w-4 h-4" />
-              <span>Import</span>
-            </button>
-            <button 
-              onClick={exportLessonPlansToPDF}
-              disabled={exporting}
-              className="flex items-center space-x-2 border border-gray-300 px-4 py-2 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-60"
-            >
-              <Download className="w-4 h-4" />
-              <span>{exporting ? 'Exporting...' : 'Export'}</span>
-            </button>
-            <button 
-              onClick={() => {
-                setEditingPlan(null);
-                setShowCreateModal(true);
-              }}
-              className="flex items-center space-x-2 bg-blue-600 text-black px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
-            >
-              <Plus className="w-4 h-4" />
-              <span>Create Lesson Plan</span>
-            </button>
-          </div>
+          <button
+            onClick={openCreateModal}
+            className="inline-flex items-center gap-2 bg-blue-600 text-black px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
+          >
+            <Plus className="w-4 h-4" />
+            Create Lesson Plan
+          </button>
         </div>
+        {error && <p className="mt-3 text-sm text-red-600">{error}</p>}
       </div>
 
-      {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-6">
-        <div className="bg-white rounded-xl p-6 shadow-sm">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-gray-600">Total Lesson Plans</p>
-              <p className="text-2xl font-bold text-gray-900">{lessonPlans.length}</p>
-            </div>
-            <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
-              <FileText className="w-6 h-6 text-blue-600" />
-            </div>
-          </div>
-        </div>
-        
-        <div className="bg-white rounded-xl p-6 shadow-sm">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-gray-600">Published</p>
-              <p className="text-2xl font-bold text-green-600">
-                {lessonPlans.filter(plan => plan.status === 'Published').length}
-              </p>
-            </div>
-            <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
-              <CheckCircle className="w-6 h-6 text-green-600" />
-            </div>
-          </div>
-        </div>
-        
-        <div className="bg-white rounded-xl p-6 shadow-sm">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-gray-600">Draft</p>
-              <p className="text-2xl font-bold text-yellow-600">
-                {lessonPlans.filter(plan => plan.status === 'Draft').length}
-              </p>
-            </div>
-            <div className="w-12 h-12 bg-yellow-100 rounded-lg flex items-center justify-center">
-              <Edit3 className="w-6 h-6 text-yellow-600" />
-            </div>
-          </div>
-        </div>
-        
-        <div className="bg-white rounded-xl p-6 shadow-sm">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-gray-600">Avg. Rating</p>
-              <p className="text-2xl font-bold text-purple-600">4.7</p>
-            </div>
-            <div className="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center">
-              <Star className="w-6 h-6 text-purple-600" />
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Lesson Plans Grid/List */}
       <div className="bg-white rounded-xl shadow-sm overflow-hidden">
-        {currentView === 'grid' ? (
-          <div className="p-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {filteredLessonPlans.map(plan => (
-                <div key={plan.id} className="border border-gray-200 rounded-xl p-6 hover:shadow-md transition-all cursor-pointer group">
-                  <div className="flex items-start justify-between mb-4">
-                    <div className="flex-1">
-                      <span className={`inline-block px-2 py-1 rounded-full text-xs font-medium ${getSubjectColor(plan.subject)} mb-2`}>
-                        {plan.subject}
-                      </span>
-                      <h3 className="font-semibold text-gray-900 mb-2 group-hover:text-blue-600 transition-colors">
-                        {plan.title}
-                      </h3>
-                      <p className="text-sm text-gray-600 mb-3 line-clamp-2">{plan.description}</p>
-                    </div>
-                    <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(plan.status)}`}>
-                      {plan.status}
-                    </span>
+        {loading ? (
+          <div className="p-8 text-sm text-gray-600">Loading lesson plans...</div>
+        ) : filteredPlans.length === 0 ? (
+          <div className="p-8 text-sm text-gray-600">No lesson plans found.</div>
+        ) : (
+          <div className="divide-y divide-gray-100">
+            {filteredPlans.map((plan) => (
+              <div key={plan._id} className="p-5">
+                <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-3">
+                  <div>
+                    <h3 className="text-lg font-semibold text-gray-900">{plan.title}</h3>
+                    <p className="text-sm text-gray-600 mt-1">
+                      {plan.subject} • Class {plan.className} - Section {plan.sectionName}
+                    </p>
+                    <p className="text-sm text-gray-600">Teacher: {plan.teacherName}</p>
                   </div>
-
-                  <div className="space-y-2 mb-4">
-                    <div className="flex items-center text-sm text-gray-600">
-                      <User className="w-4 h-4 mr-2" />
-                      <span>{plan.teacher}</span>
-                    </div>
-                    <div className="flex items-center text-sm text-gray-600">
-                      <Users className="w-4 h-4 mr-2" />
-                      <span>{plan.grade}</span>
-                    </div>
-                    <div className="flex items-center text-sm text-gray-600">
-                      <Clock className="w-4 h-4 mr-2" />
-                      <span>{plan.duration}</span>
-                    </div>
-                    <div className="flex items-center text-sm text-gray-600">
-                      <Calendar className="w-4 h-4 mr-2" />
-                      <span>{new Date(plan.date).toLocaleDateString()}</span>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center justify-between mb-4">
-                    <div className="flex items-center space-x-3 text-sm text-gray-500">
-                      <div className="flex items-center">
-                        <Star className="w-4 h-4 text-yellow-400 mr-1" />
-                        <span>{plan.rating}</span>
-                      </div>
-                      <div className="flex items-center">
-                        <Eye className="w-4 h-4 mr-1" />
-                        <span>{plan.views}</span>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center justify-between">
-                    <div className="flex space-x-2">
-                      <button className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all">
-                        <Eye className="w-4 h-4" />
-                      </button>
-                      <button 
-                        onClick={() => handleEditPlan(plan)}
-                        className="p-2 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded-lg transition-all"
-                      >
-                        <Edit3 className="w-4 h-4" />
-                      </button>
-                      <button className="p-2 text-gray-400 hover:text-purple-600 hover:bg-purple-50 rounded-lg transition-all">
-                        <Copy className="w-4 h-4" />
-                      </button>
-                      <button className="p-2 text-gray-400 hover:text-orange-600 hover:bg-orange-50 rounded-lg transition-all">
-                        <Share2 className="w-4 h-4" />
-                      </button>
-                    </div>
-                    <button 
-                      onClick={() => handleDeletePlan(plan.id)}
-                      className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"
+                  <div className="text-sm text-gray-500 flex items-center gap-2">
+                    <Calendar className="w-4 h-4" />
+                    {new Date(plan.date).toLocaleDateString()}
+                    <button
+                      onClick={() => openEditModal(plan)}
+                      className="ml-2 px-3 py-1 rounded-lg border border-blue-200 text-blue-700 hover:bg-blue-50"
                     >
-                      <Trash2 className="w-4 h-4" />
+                      Edit
+                    </button>
+                    <button
+                      onClick={() => deletePlan(plan._id)}
+                      className="px-3 py-1 rounded-lg border border-red-200 text-red-700 hover:bg-red-50"
+                    >
+                      Delete
                     </button>
                   </div>
                 </div>
-              ))}
-            </div>
-          </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="px-6 py-4 text-left text-sm font-medium text-gray-500">Title</th>
-                  <th className="px-6 py-4 text-left text-sm font-medium text-gray-500">Subject</th>
-                  <th className="px-6 py-4 text-left text-sm font-medium text-gray-500">Teacher</th>
-                  <th className="px-6 py-4 text-left text-sm font-medium text-gray-500">Grade</th>
-                  <th className="px-6 py-4 text-left text-sm font-medium text-gray-500">Date</th>
-                  <th className="px-6 py-4 text-left text-sm font-medium text-gray-500">Status</th>
-                  <th className="px-6 py-4 text-left text-sm font-medium text-gray-500">Rating</th>
-                  <th className="px-6 py-4 text-left text-sm font-medium text-gray-500">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-200">
-                {filteredLessonPlans.map(plan => (
-                  <tr key={plan.id} className="hover:bg-gray-50">
-                    <td className="px-6 py-4">
-                      <div>
-                        <h4 className="font-medium text-gray-900">{plan.title}</h4>
-                        <p className="text-sm text-gray-600">{plan.duration}</p>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4">
-                      <span className={`inline-block px-2 py-1 rounded-full text-xs font-medium ${getSubjectColor(plan.subject)}`}>
-                        {plan.subject}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 text-sm text-gray-900">{plan.teacher}</td>
-                    <td className="px-6 py-4 text-sm text-gray-900">{plan.grade}</td>
-                    <td className="px-6 py-4 text-sm text-gray-900">
-                      {new Date(plan.date).toLocaleDateString()}
-                    </td>
-                    <td className="px-6 py-4">
-                      <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(plan.status)}`}>
-                        {plan.status}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="flex items-center">
-                        <Star className="w-4 h-4 text-yellow-400 mr-1" />
-                        <span className="text-sm">{plan.rating}</span>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="flex space-x-2">
-                        <button className="p-1 text-gray-400 hover:text-blue-600 transition-colors">
-                          <Eye className="w-4 h-4" />
-                        </button>
-                        <button 
-                          onClick={() => handleEditPlan(plan)}
-                          className="p-1 text-gray-400 hover:text-green-600 transition-colors"
-                        >
-                          <Edit3 className="w-4 h-4" />
-                        </button>
-                        <button 
-                          onClick={() => handleDeletePlan(plan.id)}
-                          className="p-1 text-gray-400 hover:text-red-600 transition-colors"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+                <div className="mt-3 grid grid-cols-1 lg:grid-cols-3 gap-3 text-sm">
+                  <div className="bg-blue-50 border border-blue-100 rounded-lg p-3">
+                    <div className="flex items-center gap-2 text-blue-700 font-medium mb-2"><Target className="w-4 h-4" />Objectives</div>
+                    <ul className="list-disc ml-5 text-gray-700 space-y-1">
+                      {(plan.learningObjectives || []).map((item, idx) => <li key={idx}>{item}</li>)}
+                    </ul>
+                  </div>
+                  <div className="bg-emerald-50 border border-emerald-100 rounded-lg p-3">
+                    <div className="flex items-center gap-2 text-emerald-700 font-medium mb-2"><Package className="w-4 h-4" />Materials</div>
+                    <ul className="list-disc ml-5 text-gray-700 space-y-1">
+                      {(plan.materialsNeeded || []).map((item, idx) => <li key={idx}>{item}</li>)}
+                    </ul>
+                  </div>
+                  <div className="bg-amber-50 border border-amber-100 rounded-lg p-3">
+                    <div className="flex items-center gap-2 text-amber-700 font-medium mb-2"><FileText className="w-4 h-4" />Additional Notes</div>
+                    <p className="text-gray-700">{plan.additionalNotes || '—'}</p>
+                  </div>
+                </div>
+              </div>
+            ))}
           </div>
         )}
       </div>
 
-      {/* Create/Edit Lesson Modal */}
-      <CreateLessonModal />
+      {showModal && (
+        <div className="fixed inset-0 z-50 bg-black/20 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl w-full max-w-4xl max-h-[90vh] overflow-y-auto">
+            <div className="p-5 border-b border-gray-200 flex items-center justify-between">
+              <h2 className="text-xl font-semibold text-gray-900">{editingPlanId ? 'Edit Lesson Plan' : 'Create Lesson Plan'}</h2>
+              <button onClick={closeModal} className="p-2 rounded-lg hover:bg-gray-100">
+                <X className="w-5 h-5 text-gray-500" />
+              </button>
+            </div>
+
+            <form onSubmit={submitForm} className="p-5 space-y-5">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Class *</label>
+                  <select
+                    value={form.classId}
+                    onChange={(e) => onClassChange(e.target.value)}
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2"
+                    required
+                  >
+                    <option value="">Select Class</option>
+                    {classes.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Section *</label>
+                  <select
+                    value={form.sectionId}
+                    onChange={(e) => onSectionChange(e.target.value)}
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2"
+                    required
+                    disabled={!form.classId}
+                  >
+                    <option value="">Select Section</option>
+                    {sections.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Allocated Teacher (Subject) *</label>
+                  <select
+                    value={form.teacherId && form.subjectId ? `${form.teacherId}::${form.subjectId}` : ''}
+                    onChange={(e) => onAllocationChange(e.target.value)}
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2"
+                    required
+                    disabled={!form.sectionId || loadingOptions}
+                  >
+                    <option value="">Select Allocation</option>
+                    {allocations.map((item) => (
+                      <option key={`${item.teacherId}::${item.subjectId}`} value={`${item.teacherId}::${item.subjectId}`}>
+                        {item.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Title *</label>
+                  <input
+                    type="text"
+                    value={form.title}
+                    onChange={(e) => setForm((prev) => ({ ...prev, title: e.target.value }))}
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Subject *</label>
+                  <input
+                    type="text"
+                    value={form.subject}
+                    onChange={(e) => setForm((prev) => ({ ...prev, subject: e.target.value }))}
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Date *</label>
+                  <input
+                    type="date"
+                    value={form.date}
+                    onChange={(e) => setForm((prev) => ({ ...prev, date: e.target.value }))}
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2"
+                    required
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Learning Objectives *</label>
+                <div className="space-y-2">
+                  {form.learningObjectives.map((item, idx) => (
+                    <div key={`obj-${idx}`} className="flex gap-2">
+                      <input
+                        type="text"
+                        value={item}
+                        onChange={(e) => updateArrayField('learningObjectives', idx, e.target.value)}
+                        className="flex-1 border border-gray-300 rounded-lg px-3 py-2"
+                        required
+                      />
+                      <button type="button" onClick={() => removeArrayField('learningObjectives', idx)} className="px-3 border rounded-lg">-</button>
+                    </div>
+                  ))}
+                </div>
+                <button type="button" onClick={() => addArrayField('learningObjectives')} className="mt-2 text-sm text-blue-600">+ Add Objective</button>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Materials Needed *</label>
+                <div className="space-y-2">
+                  {form.materialsNeeded.map((item, idx) => (
+                    <div key={`mat-${idx}`} className="flex gap-2">
+                      <input
+                        type="text"
+                        value={item}
+                        onChange={(e) => updateArrayField('materialsNeeded', idx, e.target.value)}
+                        className="flex-1 border border-gray-300 rounded-lg px-3 py-2"
+                        required
+                      />
+                      <button type="button" onClick={() => removeArrayField('materialsNeeded', idx)} className="px-3 border rounded-lg">-</button>
+                    </div>
+                  ))}
+                </div>
+                <button type="button" onClick={() => addArrayField('materialsNeeded')} className="mt-2 text-sm text-blue-600">+ Add Material</button>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Additional Notes</label>
+                <textarea
+                  value={form.additionalNotes}
+                  onChange={(e) => setForm((prev) => ({ ...prev, additionalNotes: e.target.value }))}
+                  rows={4}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2"
+                />
+              </div>
+
+              <div className="flex justify-end gap-3 pt-2">
+                <button type="button" onClick={closeModal} className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700">Cancel</button>
+                <button
+                  type="submit"
+                  disabled={saving || loadingOptions}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-60"
+                >
+                  {saving ? 'Saving...' : editingPlanId ? 'Update Lesson Plan' : 'Create Lesson Plan'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

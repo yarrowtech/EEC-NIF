@@ -31,7 +31,7 @@ const Sidebar = ({ activeView, isOpen, setIsOpen }) => {
   const navigate = useNavigate();
   const [openGroups, setOpenGroups] = useState({});
   const collapsed = !isOpen;
-  const { profile } = useStudentDashboard();
+  const { profile, classTeacher } = useStudentDashboard();
   const studentData = profile || {
     name: 'Student',
     username: '',
@@ -111,6 +111,7 @@ const Sidebar = ({ activeView, isOpen, setIsOpen }) => {
       children: [
         { id: 'routine', name: 'Daily Routine', icon: Calendar },
         { id: 'attendance', name: 'Attendance', icon: Users },
+        { id: 'lesson-plan-status', name: 'Syllabus Status', icon: BookOpen },
       ]
     },
     { 
@@ -206,6 +207,11 @@ const Sidebar = ({ activeView, isOpen, setIsOpen }) => {
                     )}
                     {displayCampus && (
                       <div className="text-white/80 text-[11px]">Campus: {displayCampus}</div>
+                    )}
+                    {classTeacher?.name && (
+                      <div className="text-white/90 text-[11px]">
+                        Class Teacher: {classTeacher.name}
+                      </div>
                     )}
                   </div>
                 </div>

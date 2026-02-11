@@ -18,6 +18,7 @@ import ExcuseLetter from './ExcuseLetter';
 import AILearningDashboard from './AILearningDashboard';
 import AcademicAlcove from './AcademicAlcove';
 import StudentWellbeing from './StudentWellbeing';
+import LessonPlanStatusView from './LessonPlanStatusView';
 import { StudentDashboardProvider } from './StudentDashboardContext';
 
 const normalizeViewFromPath = (pathname) => {
@@ -64,6 +65,7 @@ const Dashboard = () => {
     attendance: AttendanceView,
     routine: RoutineView,
     schedule: RoutineView,
+    'lesson-plan-status': LessonPlanStatusView,
     assignments: (props) => <AssignmentView {...props} defaultType="school" />,
     'assignments-journal': (props) => <AssignmentView {...props} defaultType="journal" />,
     'assignments-academic-alcove': (props) => <AcademicAlcove {...props} />,

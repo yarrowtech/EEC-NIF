@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Calendar, Clock, MapPin, BookOpen, AlertCircle, Users, School } from 'lucide-react';
+import { Calendar, Clock, MapPin, BookOpen, AlertCircle, Users, School, RefreshCw } from 'lucide-react';
 
 const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 const DAY_LOOKUP = DAYS.reduce((acc, day) => {
@@ -101,6 +101,15 @@ const toScopeLabel = (scope) => {
   if (scope === 'dashboard-fallback') return 'Dashboard fallback';
   return 'School matched';
 };
+
+const CLASS_COLORS = [
+  { border: 'border-l-blue-500', bg: 'bg-blue-50/80', text: 'text-blue-600' },
+  { border: 'border-l-violet-500', bg: 'bg-violet-50/80', text: 'text-violet-600' },
+  { border: 'border-l-emerald-500', bg: 'bg-emerald-50/80', text: 'text-emerald-600' },
+  { border: 'border-l-amber-500', bg: 'bg-amber-50/80', text: 'text-amber-600' },
+  { border: 'border-l-rose-500', bg: 'bg-rose-50/80', text: 'text-rose-600' },
+  { border: 'border-l-teal-500', bg: 'bg-teal-50/80', text: 'text-teal-600' },
+];
 
 const ClassRoutine = () => {
   const [schedule, setSchedule] = useState({});
@@ -311,205 +320,261 @@ const ClassRoutine = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 p-6 space-y-4">
-        <div className="h-24 bg-white rounded-xl shadow animate-pulse" />
-        <div className="h-16 bg-white rounded-xl shadow animate-pulse" />
-        <div className="h-64 bg-white rounded-xl shadow animate-pulse" />
+      <div className="space-y-4">
+        <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
+          {[1, 2, 3].map((i) => (
+            <div key={i} className="h-24 bg-white rounded-2xl animate-pulse" />
+          ))}
+        </div>
+        <div className="h-14 bg-white rounded-2xl animate-pulse" />
+        <div className="h-64 bg-white rounded-2xl animate-pulse" />
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 p-6">
-      <div className="bg-gradient-to-r from-indigo-500 to-indigo-600 rounded-xl p-6 mb-6 text-white shadow-md">
-        <div className="flex flex-col gap-3">
-          <div>
-            <h1 className="text-3xl font-bold mb-2">Class Routine</h1>
-            <p className="text-indigo-100">
-              Teacher view only
-              {teacherClassLabels.length ? ` | Class ${teacherClassLabels.join(', ')}` : ''}
-              {teacherSectionLabels.length ? ` | Section ${teacherSectionLabels.join(', ')}` : ''}
-            </p>
-            {(teacherProfile?.subject || teacherProfile?.department) ? (
-              <p className="text-indigo-50 text-sm mt-1">
-                {teacherProfile?.subject || 'Subject not set'}
-                {teacherProfile?.department ? ` | ${teacherProfile.department}` : ''}
-              </p>
-            ) : null}
-          </div>
-          <div className="inline-flex items-center gap-2 text-sm text-indigo-50">
-            <School size={15} />
-            <span>
-              Campus: {teacherProfile?.campusName || 'N/A'}
-              {teacherProfile?.campusType ? ` (${teacherProfile.campusType})` : ''}
+    <div className="space-y-4 sm:space-y-5">
+      {/* Teacher context pills */}
+      {(teacherClassLabels.length > 0 || teacherSectionLabels.length > 0 || teacherProfile?.subject) && (
+        <div className="flex flex-wrap items-center gap-2">
+          {teacherProfile?.subject && (
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-indigo-50 text-indigo-600 text-xs font-medium">
+              <BookOpen size={12} />
+              {teacherProfile.subject}
             </span>
+          )}
+          {teacherClassLabels.length > 0 && (
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-blue-50 text-blue-600 text-xs font-medium">
+              <Users size={12} />
+              Class {teacherClassLabels.join(', ')}
+            </span>
+          )}
+          {teacherSectionLabels.length > 0 && (
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-50 text-emerald-600 text-xs font-medium">
+              Section {teacherSectionLabels.join(', ')}
+            </span>
+          )}
+          {teacherProfile?.campusName && (
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-gray-100 text-gray-600 text-xs font-medium">
+              <School size={12} />
+              {teacherProfile.campusName}
+            </span>
+          )}
+        </div>
+      )}
+
+      {/* Stats Grid */}
+      <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
+        {[
+          { label: 'Weekly Classes', value: totalClasses, icon: Calendar, gradient: 'from-blue-500 to-indigo-500' },
+          { label: `${selectedDay} Classes`, value: todayClasses.length, icon: Clock, gradient: 'from-violet-500 to-purple-500' },
+          { label: 'Timetable', value: routineMeta.campusScoped ? 'Campus' : 'School', icon: School, gradient: 'from-emerald-500 to-teal-500', sub: `${toScopeLabel(routineMeta.filterSource)} · ${routineMeta.timetableCount} matched` },
+        ].map((stat) => (
+          <div key={stat.label} className="bg-white rounded-2xl p-4 border border-gray-100 hover:shadow-md hover:-translate-y-0.5 transition-all duration-200">
+            <div className="flex items-center gap-3">
+              <div className={`w-10 h-10 rounded-xl bg-linear-to-br ${stat.gradient} flex items-center justify-center shadow-lg`}>
+                <stat.icon size={18} className="text-white" />
+              </div>
+              <div className="min-w-0">
+                <p className="text-2xl font-bold text-gray-900">{stat.value}</p>
+                <p className="text-xs text-gray-500 truncate">{stat.label}</p>
+                {stat.sub && <p className="text-[10px] text-gray-400 truncate">{stat.sub}</p>}
+              </div>
+            </div>
           </div>
-        </div>
+        ))}
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-        <div className="bg-white rounded-xl p-5 shadow-sm border border-gray-200">
-          <p className="text-sm text-gray-500">Weekly Classes</p>
-          <h3 className="text-2xl font-bold text-gray-800 mt-1">{totalClasses}</h3>
-        </div>
-        <div className="bg-white rounded-xl p-5 shadow-sm border border-gray-200">
-          <p className="text-sm text-gray-500">{selectedDay} Classes</p>
-          <h3 className="text-2xl font-bold text-gray-800 mt-1">{todayClasses.length}</h3>
-        </div>
-        <div className="bg-white rounded-xl p-5 shadow-sm border border-gray-200">
-          <p className="text-sm text-gray-500">Timetable Source</p>
-          <h3 className="text-2xl font-bold text-gray-800 mt-1">
-            {routineMeta.campusScoped ? 'Campus' : 'School'}
-          </h3>
-          <p className="text-xs text-gray-500 mt-1">
-            {toScopeLabel(routineMeta.filterSource)} | Matched timetables: {routineMeta.timetableCount}
-          </p>
-        </div>
-      </div>
-
-      <div className="bg-white rounded-xl p-4 mb-6 shadow-sm border border-gray-200 space-y-4">
-        <div className="flex items-center justify-between flex-wrap gap-3">
-          <div className="inline-flex rounded-lg border border-gray-200 bg-gray-50 p-1">
+      {/* View Controls */}
+      <div className="bg-white rounded-2xl p-3 sm:p-4 border border-gray-100 space-y-3">
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-1.5 bg-gray-100 p-1 rounded-xl">
             <button
               onClick={() => setViewMode('daily')}
-              className={`px-3 py-1.5 rounded-md text-sm font-medium ${
-                viewMode === 'daily' ? 'bg-indigo-600 text-white' : 'text-gray-700 hover:bg-gray-200'
+              className={`px-3.5 py-1.5 rounded-lg text-sm font-semibold transition-all duration-200 ${
+                viewMode === 'daily'
+                  ? 'bg-white text-gray-900 shadow-sm'
+                  : 'text-gray-500 hover:text-gray-700'
               }`}
             >
-              Daily View
+              Daily
             </button>
             <button
               onClick={() => setViewMode('weekly')}
-              className={`px-3 py-1.5 rounded-md text-sm font-medium ${
-                viewMode === 'weekly' ? 'bg-indigo-600 text-white' : 'text-gray-700 hover:bg-gray-200'
+              className={`px-3.5 py-1.5 rounded-lg text-sm font-semibold transition-all duration-200 ${
+                viewMode === 'weekly'
+                  ? 'bg-white text-gray-900 shadow-sm'
+                  : 'text-gray-500 hover:text-gray-700'
               }`}
             >
-              Weekly Sheet
+              Weekly
             </button>
           </div>
-          <div className="flex items-center gap-3">
-            <p className="text-xs text-gray-500">Use Weekly Sheet for full timetable layout</p>
-            <button
-              onClick={loadRoutine}
-              className="text-xs font-medium text-indigo-700 hover:text-indigo-800"
-            >
-              Reload
-            </button>
-          </div>
+          <button
+            onClick={loadRoutine}
+            className="flex items-center gap-1.5 text-xs font-medium text-gray-500 hover:text-indigo-600 px-3 py-1.5 rounded-lg hover:bg-indigo-50 transition-colors"
+          >
+            <RefreshCw size={13} />
+            Reload
+          </button>
         </div>
-        <div className="flex flex-wrap gap-2">
-          {DAYS.map((day) => (
-            <button
-              key={day}
-              onClick={() => setSelectedDay(day)}
-              className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                selectedDay === day ? 'bg-indigo-100 text-indigo-700' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-              }`}
-            >
-              {day}
-              {effectiveSchedule[day]?.length ? (
-                <span className="ml-2 text-xs rounded-full bg-indigo-500 text-white px-2 py-0.5">
-                  {effectiveSchedule[day].length}
-                </span>
-              ) : null}
-            </button>
-          ))}
+
+        {/* Day selector pills */}
+        <div className="flex gap-1.5 overflow-x-auto pb-0.5">
+          {DAYS.map((day) => {
+            const count = (effectiveSchedule[day] || []).length;
+            const active = selectedDay === day;
+            return (
+              <button
+                key={day}
+                onClick={() => setSelectedDay(day)}
+                className={`shrink-0 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all duration-200 ${
+                  active
+                    ? 'bg-linear-to-r from-indigo-600 to-violet-600 text-white shadow-md shadow-indigo-500/20'
+                    : 'bg-gray-50 text-gray-600 hover:bg-gray-100'
+                }`}
+              >
+                <span className="sm:hidden">{day.slice(0, 3)}</span>
+                <span className="hidden sm:inline">{day}</span>
+                {count > 0 && (
+                  <span className={`ml-1.5 text-[10px] px-1.5 py-0.5 rounded-full ${
+                    active ? 'bg-white/20' : 'bg-gray-200/80 text-gray-500'
+                  }`}>
+                    {count}
+                  </span>
+                )}
+              </button>
+            );
+          })}
         </div>
       </div>
 
+      {/* Schedule Content */}
       {error ? (
-        <div className="bg-red-50 border border-red-100 rounded-xl p-4 text-red-700 flex items-center gap-2">
-          <AlertCircle className="h-4 w-4" />
-          {error}
+        <div className="bg-red-50 rounded-2xl p-4 flex items-center gap-3 border border-red-100">
+          <div className="w-9 h-9 rounded-xl bg-red-100 flex items-center justify-center shrink-0">
+            <AlertCircle size={16} className="text-red-500" />
+          </div>
+          <p className="text-sm text-red-600 font-medium">{error}</p>
+        </div>
+      ) : totalClasses === 0 ? (
+        <div className="bg-white rounded-2xl border border-gray-100 flex flex-col items-center justify-center py-16 text-center">
+          <div className="w-14 h-14 rounded-2xl bg-gray-100 flex items-center justify-center mb-4">
+            <Calendar size={24} className="text-gray-400" />
+          </div>
+          <p className="text-sm font-medium text-gray-500">No classes assigned yet</p>
+          <p className="text-xs text-gray-400 mt-1">Check back later or contact administration</p>
+        </div>
+      ) : viewMode === 'weekly' ? (
+        <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
+          <div className="px-4 sm:px-5 py-3 border-b border-gray-100">
+            <h2 className="text-sm font-bold text-gray-900">Weekly Timetable</h2>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[920px] border-collapse">
+              <thead>
+                <tr>
+                  <th className="text-left px-3 py-3 text-[11px] font-bold uppercase tracking-wider text-gray-400 bg-gray-50/80">
+                    Time
+                  </th>
+                  {DAYS.map((day) => (
+                    <th
+                      key={`head-${day}`}
+                      className={`text-left px-3 py-3 text-[11px] font-bold uppercase tracking-wider bg-gray-50/80 ${
+                        selectedDay === day ? 'text-indigo-600' : 'text-gray-400'
+                      }`}
+                    >
+                      {day.slice(0, 3)}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {weeklySlots.map((slot, si) => (
+                  <tr key={`slot-${slot.slot}`} className="border-t border-gray-50">
+                    <td className="px-3 py-2.5 text-xs font-semibold text-gray-600 bg-gray-50/40 whitespace-nowrap">
+                      {slot.slot}
+                    </td>
+                    {DAYS.map((day) => {
+                      const entry = weeklyMatrix[day]?.[slot.slot];
+                      const color = CLASS_COLORS[si % CLASS_COLORS.length];
+                      return (
+                        <td key={`cell-${day}-${slot.slot}`} className={`px-2 py-2 ${selectedDay === day ? 'bg-indigo-50/30' : ''}`}>
+                          {entry ? (
+                            <div className={`rounded-lg ${color.bg} border border-gray-100 px-2.5 py-2`}>
+                              <p className="text-xs font-bold text-gray-900 truncate">{entry.subject || 'Subject'}</p>
+                              <p className="text-[10px] text-gray-500 mt-0.5 truncate">{entry.classLabel || entry.className || 'Class'}</p>
+                              <p className="text-[10px] text-gray-400 mt-0.5 truncate">{entry.room || 'TBA'}</p>
+                            </div>
+                          ) : (
+                            <div className="rounded-lg border border-dashed border-gray-100 px-2.5 py-2.5 text-center">
+                              <span className="text-[10px] text-gray-300">&mdash;</span>
+                            </div>
+                          )}
+                        </td>
+                      );
+                    })}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       ) : (
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-          <div className="p-6 border-b border-gray-200">
-            <h2 className="text-xl font-semibold text-gray-800">
-              {viewMode === 'weekly' ? 'Weekly Class Routine' : `${selectedDay} Schedule`}
-            </h2>
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <h2 className="text-sm font-bold text-gray-900">{selectedDay} Schedule</h2>
+            <span className="text-xs text-gray-400">{todayClasses.length} class{todayClasses.length !== 1 ? 'es' : ''}</span>
           </div>
-          <div className="p-6 space-y-4">
-            {totalClasses === 0 ? (
-              <div className="text-center py-10 text-gray-500">
-                <Calendar className="w-10 h-10 mx-auto mb-3 text-gray-300" />
-                No classes assigned yet for this teacher.
-              </div>
-            ) : viewMode === 'weekly' ? (
-              <div className="overflow-x-auto rounded-lg border border-gray-200">
-                <table className="w-full min-w-[920px] border-collapse">
-                  <thead>
-                    <tr className="bg-gray-50">
-                      <th className="text-left px-4 py-3 text-sm font-semibold text-gray-700 border-b">Time</th>
-                      {DAYS.map((day) => (
-                        <th key={`head-${day}`} className="text-left px-4 py-3 text-sm font-semibold text-gray-700 border-b">
-                          {day}
-                        </th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {weeklySlots.map((slot) => (
-                      <tr key={`slot-${slot.slot}`} className="align-top">
-                        <td className="px-4 py-3 text-sm font-medium text-gray-700 bg-gray-50 border-b">{slot.slot}</td>
-                        {DAYS.map((day) => {
-                          const entry = weeklyMatrix[day]?.[slot.slot];
-                          return (
-                            <td key={`cell-${day}-${slot.slot}`} className="px-3 py-3 border-b">
-                              {entry ? (
-                                <div className="rounded-lg border border-indigo-100 bg-indigo-50 px-3 py-2">
-                                  <p className="text-sm font-semibold text-gray-900">{entry.subject || 'Subject'}</p>
-                                  <p className="text-xs text-gray-600 mt-1">{entry.classLabel || entry.className || 'Class'}</p>
-                                  <p className="text-xs text-gray-500 mt-1">{entry.room || 'TBA'}</p>
-                                </div>
-                              ) : (
-                                <div className="rounded-lg border border-dashed border-gray-200 px-3 py-2 text-center text-xs text-gray-400">
-                                  --
-                                </div>
-                              )}
-                            </td>
-                          );
-                        })}
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            ) : todayClasses.length > 0 ? (
-              todayClasses.map((entry, index) => (
-                <div key={`${selectedDay}-${index}`} className="p-4 rounded-lg border border-gray-200 bg-gray-50">
-                  <div className="flex items-center justify-between gap-4">
-                    <div>
-                      <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
-                        <BookOpen className="h-4 w-4 text-indigo-600" />
-                        {entry.subject}
-                      </h3>
-                      <p className="text-sm text-gray-600 mt-1">{entry.classLabel}</p>
+          {todayClasses.length > 0 ? (
+            todayClasses.map((entry, index) => {
+              const color = CLASS_COLORS[index % CLASS_COLORS.length];
+              return (
+                <div
+                  key={`${selectedDay}-${index}`}
+                  className="bg-white rounded-2xl border border-gray-100 hover:shadow-md transition-all duration-200 overflow-hidden"
+                >
+                  <div className={`border-l-[3px] ${color.border} p-4`}>
+                    <div className="flex items-center justify-between gap-3 mb-2.5">
+                      <div className="flex items-center gap-2.5">
+                        <div className={`w-8 h-8 rounded-lg ${color.bg} flex items-center justify-center`}>
+                          <BookOpen size={14} className={color.text} />
+                        </div>
+                        <h3 className="text-sm font-bold text-gray-900">{entry.subject || 'Subject'}</h3>
+                      </div>
+                      {entry.period && (
+                        <span className="text-[10px] font-bold text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full">
+                          P{entry.period}
+                        </span>
+                      )}
                     </div>
-                    <div className="text-sm text-gray-600 flex flex-col gap-1">
-                      <span className="inline-flex items-center gap-1">
-                        <Clock className="h-4 w-4 text-indigo-600" />
+                    <div className="flex flex-wrap gap-x-4 gap-y-1.5 text-xs text-gray-500">
+                      <span className="inline-flex items-center gap-1.5">
+                        <Clock size={12} className={color.text} />
                         {formatSlot(entry)}
                       </span>
-                      <span className="inline-flex items-center gap-1">
-                        <MapPin className="h-4 w-4 text-indigo-600" />
+                      <span className="inline-flex items-center gap-1.5">
+                        <MapPin size={12} className={color.text} />
                         {entry.room || 'TBA'}
                       </span>
-                      <span className="inline-flex items-center gap-1">
-                        <Users className="h-4 w-4 text-indigo-600" />
+                      <span className="inline-flex items-center gap-1.5">
+                        <Users size={12} className={color.text} />
                         {entry.className}{entry.sectionName ? ` - ${entry.sectionName}` : ''}
                       </span>
                     </div>
                   </div>
                 </div>
-              ))
-            ) : (
-              <div className="text-center py-10 text-gray-500">
-                <Calendar className="w-10 h-10 mx-auto mb-3 text-gray-300" />
-                No classes scheduled for {selectedDay}.
+              );
+            })
+          ) : (
+            <div className="bg-white rounded-2xl border border-gray-100 flex flex-col items-center justify-center py-14 text-center">
+              <div className="w-12 h-12 rounded-2xl bg-gray-100 flex items-center justify-center mb-3">
+                <Calendar size={20} className="text-gray-400" />
               </div>
-            )}
-          </div>
+              <p className="text-sm font-medium text-gray-500">No classes on {selectedDay}</p>
+              <p className="text-xs text-gray-400 mt-1">Select a different day to view schedule</p>
+            </div>
+          )}
         </div>
       )}
     </div>

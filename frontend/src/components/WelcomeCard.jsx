@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Sun, Moon, Cloud, Lightbulb, Target, Star, Zap, Heart, Trophy, BookOpen, Rocket, Play, Pause, ChevronLeft, ChevronRight, School } from 'lucide-react';
+import { Sun, Moon, Cloud, Lightbulb, Target, Star, Zap, Heart, Trophy, BookOpen, Rocket, Play, Pause, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useStudentDashboard } from './StudentDashboardContext';
 
 const WelcomeCard = () => {
@@ -125,13 +125,6 @@ const WelcomeCard = () => {
   const [currentTip, setCurrentTip] = useState(0);
   const [isPaused, setIsPaused] = useState(false);
   const [isAnimating, setIsAnimating] = useState(false);
-
-  // Get daily tip based on date to ensure same tip for the day but changes daily
-  const getDailyTip = () => {
-    const today = new Date();
-    const dayOfYear = Math.floor((today - new Date(today.getFullYear(), 0, 0)) / (1000 * 60 * 60 * 24));
-    return quickTips[dayOfYear % quickTips.length];
-  };
 
   // Change tip every 10 seconds for dynamic experience
   useEffect(() => {

@@ -1,0 +1,682 @@
+const express = require('express');
+const router = express.Router();
+const adminAuth = require('../middleware/adminAuth');
+const authTeacher = require('../middleware/authTeacher');
+const authStudent = require('../middleware/authStudent');
+const LessonPlan = require('../models/LessonPlan');
+const LessonPlanCompletion = require('../models/LessonPlanCompletion');
+const ClassModel = require('../models/Class');
+const Section = require('../models/Section');
+const Timetable = require('../models/Timetable');
+const StudentUser = require('../models/StudentUser');
+
+const normalizeString = (value) => String(value || '').trim();
+const normalizeLower = (value) => String(value || '').trim().toLowerCase();
+const escapeRegex = (value) => String(value || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+const resolveSchoolId = (req) => req.schoolId || req.admin?.schoolId || req.user?.schoolId || null;
+
+const resolveCampusId = (req) => req.campusId || req.admin?.campusId || req.user?.campusId || null;
+
+const buildClassFilter = (schoolId, campusId) => {
+  const filter = { schoolId };
+  if (campusId) filter.campusId = campusId;
+  return filter;
+};
+
+const buildSectionFilter = (schoolId, campusId, classId) => {
+  const filter = { schoolId, classId };
+  if (campusId) filter.campusId = campusId;
+  return filter;
+};
+
+const buildTimetableFilter = (schoolId, campusId, classId, sectionId) => {
+  const filter = { schoolId, classId, sectionId };
+  if (campusId) filter.campusId = campusId;
+  return filter;
+};
+
+const parsePlanDate = (value) => {
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return null;
+  return parsed;
+};
+
+const toDayStart = (value) => {
+  const parsed = parsePlanDate(value);
+  if (!parsed) return null;
+  parsed.setHours(0, 0, 0, 0);
+  return parsed;
+};
+
+const normalizeCompletionPayload = ({ status, isCompleted, completionPercent }) => {
+  const explicitStatus = normalizeLower(status);
+  const normalizedPercent = Number.isFinite(Number(completionPercent))
+    ? Math.max(0, Math.min(100, Number(completionPercent)))
+    : null;
+  const normalizedCompleted = typeof isCompleted === 'boolean' ? isCompleted : null;
+
+  if (explicitStatus === 'completed') {
+    return { status: 'completed', isCompleted: true, completionPercent: 100 };
+  }
+  if (explicitStatus === 'in_progress') {
+    return {
+      status: 'in_progress',
+      isCompleted: false,
+      completionPercent: normalizedPercent === null ? 50 : normalizedPercent,
+    };
+  }
+  if (explicitStatus === 'pending') {
+    return { status: 'pending', isCompleted: false, completionPercent: 0 };
+  }
+
+  if (normalizedCompleted === true) {
+    return { status: 'completed', isCompleted: true, completionPercent: 100 };
+  }
+  if (normalizedPercent !== null) {
+    if (normalizedPercent >= 100) return { status: 'completed', isCompleted: true, completionPercent: 100 };
+    if (normalizedPercent > 0) return { status: 'in_progress', isCompleted: false, completionPercent: normalizedPercent };
+  }
+
+  return { status: 'pending', isCompleted: false, completionPercent: 0 };
+};
+
+const getAllocationCombos = async ({ schoolId, campusId, classId, sectionId, teacherId = null }) => {
+  const timetables = await Timetable.find(buildTimetableFilter(schoolId, campusId, classId, sectionId))
+    .populate('entries.teacherId', 'name')
+    .populate('entries.subjectId', 'name')
+    .lean();
+
+  const comboMap = new Map();
+  timetables.forEach((tt) => {
+    (tt.entries || []).forEach((entry) => {
+      const tid = entry.teacherId?._id;
+      const sid = entry.subjectId?._id;
+      const tname = entry.teacherId?.name;
+      const sname = entry.subjectId?.name;
+      if (!tid || !sid || !tname || !sname) return;
+      if (teacherId && String(tid) !== String(teacherId)) return;
+      const key = `${tid}::${sid}`;
+      if (!comboMap.has(key)) {
+        comboMap.set(key, {
+          teacherId: String(tid),
+          teacherName: String(tname),
+          subjectId: String(sid),
+          subjectName: String(sname),
+          label: `${tname} (${sname})`
+        });
+      }
+    });
+  });
+
+  return Array.from(comboMap.values()).sort((a, b) => a.label.localeCompare(b.label));
+};
+
+const resolvePlanPayload = async ({ schoolId, campusId, payload, forcedTeacherId = null }) => {
+  const {
+    classId,
+    sectionId,
+    teacherId: incomingTeacherId,
+    subjectId,
+    title,
+    subject,
+    date,
+    learningObjectives,
+    materialsNeeded,
+    additionalNotes,
+  } = payload || {};
+
+  const teacherId = forcedTeacherId || incomingTeacherId;
+
+  if (!classId || !sectionId || !teacherId || !subjectId || !title || !date) {
+    return { error: 'classId, sectionId, teacherId, subjectId, title and date are required' };
+  }
+
+  const classFilter = { schoolId, _id: classId };
+  if (campusId) classFilter.campusId = campusId;
+  const classDoc = await ClassModel.findOne(classFilter).lean();
+  if (!classDoc) return { error: 'Class not found', status: 404 };
+
+  const sectionFilter = { schoolId, classId, _id: sectionId };
+  if (campusId) sectionFilter.campusId = campusId;
+  const sectionDoc = await Section.findOne(sectionFilter).lean();
+  if (!sectionDoc) return { error: 'Section not found', status: 404 };
+
+  const combos = await getAllocationCombos({ schoolId, campusId, classId, sectionId, teacherId: forcedTeacherId || null });
+  const selectedCombo = combos.find((item) => String(item.teacherId) === String(teacherId) && String(item.subjectId) === String(subjectId));
+
+  if (!selectedCombo) {
+    return {
+      error: forcedTeacherId
+        ? 'You are not allocated to this class/section with this subject in timetable'
+        : 'Selected teacher is not allocated for this class/section with this subject in timetable',
+      status: 403,
+    };
+  }
+
+  const parsedDate = parsePlanDate(date);
+  if (!parsedDate) return { error: 'Invalid date' };
+
+  return {
+    data: {
+      classId,
+      sectionId,
+      teacherId,
+      subjectId,
+      className: classDoc.name || '',
+      sectionName: sectionDoc.name || '',
+      teacherName: selectedCombo.teacherName || 'Teacher',
+      subject: normalizeString(subject) || selectedCombo.subjectName,
+      title: normalizeString(title),
+      date: parsedDate,
+      learningObjectives: Array.isArray(learningObjectives)
+        ? learningObjectives.map((item) => normalizeString(item)).filter(Boolean)
+        : [],
+      materialsNeeded: Array.isArray(materialsNeeded)
+        ? materialsNeeded.map((item) => normalizeString(item)).filter(Boolean)
+        : [],
+      additionalNotes: normalizeString(additionalNotes),
+    },
+  };
+};
+
+router.get('/admin/options', adminAuth, async (req, res) => {
+  try {
+    const schoolId = resolveSchoolId(req);
+    const campusId = resolveCampusId(req);
+    if (!schoolId) return res.status(400).json({ error: 'schoolId is required' });
+
+    const requestedClassId = normalizeString(req.query?.classId);
+    const requestedSectionId = normalizeString(req.query?.sectionId);
+
+    const classes = await ClassModel.find(buildClassFilter(schoolId, campusId))
+      .select('name')
+      .sort({ name: 1 })
+      .lean();
+
+    let sections = [];
+    if (requestedClassId) {
+      sections = await Section.find(buildSectionFilter(schoolId, campusId, requestedClassId))
+        .select('name classId')
+        .sort({ name: 1 })
+        .lean();
+    }
+
+    const allocations = requestedClassId && requestedSectionId
+      ? await getAllocationCombos({ schoolId, campusId, classId: requestedClassId, sectionId: requestedSectionId })
+      : [];
+
+    res.json({
+      classes: classes.map((item) => ({ id: String(item._id), name: item.name })),
+      sections: sections.map((item) => ({ id: String(item._id), name: item.name, classId: String(item.classId) })),
+      allocations,
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.get('/teacher/options', authTeacher, async (req, res) => {
+  try {
+    const schoolId = resolveSchoolId(req);
+    const campusId = resolveCampusId(req);
+    const teacherId = req.user?.id || req.teacher?.id || null;
+    if (!schoolId) return res.status(400).json({ error: 'schoolId is required' });
+    if (!teacherId) return res.status(400).json({ error: 'teacherId is required' });
+
+    const requestedClassId = normalizeString(req.query?.classId);
+    const requestedSectionId = normalizeString(req.query?.sectionId);
+
+    const ttFilter = { schoolId, 'entries.teacherId': teacherId };
+    if (campusId) ttFilter.campusId = campusId;
+
+    const teacherTables = await Timetable.find(ttFilter)
+      .populate('classId', 'name')
+      .populate('sectionId', 'name')
+      .populate('entries.subjectId', 'name')
+      .lean();
+
+    const classMap = new Map();
+    const sectionMap = new Map();
+
+    teacherTables.forEach((tt) => {
+      const cid = String(tt.classId?._id || '');
+      const sid = String(tt.sectionId?._id || '');
+      if (!cid || !sid) return;
+      if (!classMap.has(cid)) classMap.set(cid, { id: cid, name: tt.classId?.name || '' });
+      const skey = `${cid}::${sid}`;
+      if (!sectionMap.has(skey)) sectionMap.set(skey, { id: sid, classId: cid, name: tt.sectionId?.name || '' });
+    });
+
+    const classes = Array.from(classMap.values()).sort((a, b) => a.name.localeCompare(b.name));
+    const sections = Array.from(sectionMap.values())
+      .filter((sec) => !requestedClassId || sec.classId === requestedClassId)
+      .sort((a, b) => a.name.localeCompare(b.name));
+
+    let subjects = [];
+    if (requestedClassId && requestedSectionId) {
+      const combos = await getAllocationCombos({
+        schoolId,
+        campusId,
+        classId: requestedClassId,
+        sectionId: requestedSectionId,
+        teacherId,
+      });
+      subjects = combos.map((combo) => ({
+        subjectId: combo.subjectId,
+        subjectName: combo.subjectName,
+      }));
+    }
+
+    res.json({ classes, sections, subjects });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.get('/admin', adminAuth, async (req, res) => {
+  try {
+    const schoolId = resolveSchoolId(req);
+    const campusId = resolveCampusId(req);
+    if (!schoolId) return res.status(400).json({ error: 'schoolId is required' });
+
+    const filter = { schoolId };
+    if (campusId) filter.campusId = campusId;
+
+    const plans = await LessonPlan.find(filter).sort({ date: -1, createdAt: -1 }).lean();
+    res.json(plans);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post('/admin', adminAuth, async (req, res) => {
+  try {
+    const schoolId = resolveSchoolId(req);
+    const campusId = resolveCampusId(req);
+    if (!schoolId) return res.status(400).json({ error: 'schoolId is required' });
+
+    const resolved = await resolvePlanPayload({ schoolId, campusId, payload: req.body });
+    if (resolved.error) return res.status(resolved.status || 400).json({ error: resolved.error });
+
+    const plan = await LessonPlan.create({
+      schoolId,
+      campusId: campusId || null,
+      ...resolved.data,
+      createdBy: req.admin?.id || null,
+      updatedBy: req.admin?.id || null,
+    });
+
+    res.status(201).json({ message: 'Lesson plan created', plan });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.put('/admin/:id', adminAuth, async (req, res) => {
+  try {
+    const schoolId = resolveSchoolId(req);
+    const campusId = resolveCampusId(req);
+    const id = req.params?.id;
+    if (!schoolId) return res.status(400).json({ error: 'schoolId is required' });
+
+    const filter = { _id: id, schoolId };
+    if (campusId) filter.campusId = campusId;
+
+    const existing = await LessonPlan.findOne(filter);
+    if (!existing) return res.status(404).json({ error: 'Lesson plan not found' });
+
+    const resolved = await resolvePlanPayload({ schoolId, campusId, payload: req.body });
+    if (resolved.error) return res.status(resolved.status || 400).json({ error: resolved.error });
+
+    Object.assign(existing, resolved.data, { updatedBy: req.admin?.id || null });
+    await existing.save();
+
+    res.json({ message: 'Lesson plan updated', plan: existing });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.delete('/admin/:id', adminAuth, async (req, res) => {
+  try {
+    const schoolId = resolveSchoolId(req);
+    const campusId = resolveCampusId(req);
+    const id = req.params?.id;
+    if (!schoolId) return res.status(400).json({ error: 'schoolId is required' });
+
+    const filter = { _id: id, schoolId };
+    if (campusId) filter.campusId = campusId;
+
+    const deleted = await LessonPlan.findOneAndDelete(filter);
+    if (!deleted) return res.status(404).json({ error: 'Lesson plan not found' });
+
+    res.json({ message: 'Lesson plan deleted' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.get('/teacher/my', authTeacher, async (req, res) => {
+  try {
+    const schoolId = resolveSchoolId(req);
+    const campusId = resolveCampusId(req);
+    const teacherId = req.user?.id || req.teacher?.id || null;
+    if (!schoolId) return res.status(400).json({ error: 'schoolId is required' });
+    if (!teacherId) return res.status(400).json({ error: 'teacherId is required' });
+
+    const filter = { schoolId, teacherId };
+    if (campusId) filter.campusId = campusId;
+
+    const plans = await LessonPlan.find(filter).sort({ date: -1, createdAt: -1 }).lean();
+    res.json(plans);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.get('/teacher/:lessonPlanId/status', authTeacher, async (req, res) => {
+  try {
+    const schoolId = resolveSchoolId(req);
+    const campusId = resolveCampusId(req);
+    const teacherId = req.user?.id || req.teacher?.id || null;
+    const lessonPlanId = req.params?.lessonPlanId;
+    if (!schoolId) return res.status(400).json({ error: 'schoolId is required' });
+    if (!teacherId) return res.status(400).json({ error: 'teacherId is required' });
+
+    const planFilter = { _id: lessonPlanId, schoolId, teacherId };
+    if (campusId) planFilter.campusId = campusId;
+    const plan = await LessonPlan.findOne(planFilter).lean();
+    if (!plan) return res.status(404).json({ error: 'Lesson plan not found' });
+
+    const statusFilter = { schoolId, lessonPlanId, teacherId };
+    if (campusId) statusFilter.campusId = campusId;
+    const statuses = await LessonPlanCompletion.find(statusFilter).sort({ date: -1, createdAt: -1 }).lean();
+
+    res.json(statuses);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post('/teacher/:lessonPlanId/status', authTeacher, async (req, res) => {
+  try {
+    const schoolId = resolveSchoolId(req);
+    const campusId = resolveCampusId(req);
+    const teacherId = req.user?.id || req.teacher?.id || null;
+    const lessonPlanId = req.params?.lessonPlanId;
+    if (!schoolId) return res.status(400).json({ error: 'schoolId is required' });
+    if (!teacherId) return res.status(400).json({ error: 'teacherId is required' });
+
+    const planFilter = { _id: lessonPlanId, schoolId, teacherId };
+    if (campusId) planFilter.campusId = campusId;
+    const plan = await LessonPlan.findOne(planFilter).lean();
+    if (!plan) return res.status(404).json({ error: 'Lesson plan not found' });
+
+    const dayDate = toDayStart(req.body?.date);
+    if (!dayDate) return res.status(400).json({ error: 'Valid date is required' });
+    const normalized = normalizeCompletionPayload({
+      status: req.body?.status,
+      isCompleted: req.body?.isCompleted,
+      completionPercent: req.body?.completionPercent,
+    });
+
+    const update = {
+      schoolId,
+      campusId: campusId || null,
+      lessonPlanId: plan._id,
+      classId: plan.classId,
+      sectionId: plan.sectionId,
+      teacherId: plan.teacherId,
+      subjectId: plan.subjectId,
+      className: plan.className || '',
+      sectionName: plan.sectionName || '',
+      teacherName: plan.teacherName || 'Teacher',
+      subject: plan.subject || '',
+      title: plan.title || '',
+      date: dayDate,
+      status: normalized.status,
+      isCompleted: normalized.isCompleted,
+      completionPercent: normalized.completionPercent,
+      remarks: String(req.body?.remarks || '').trim(),
+    };
+
+    const completion = await LessonPlanCompletion.findOneAndUpdate(
+      { schoolId, campusId: campusId || null, lessonPlanId: plan._id, date: dayDate },
+      { $set: update },
+      { new: true, upsert: true, setDefaultsOnInsert: true }
+    );
+
+    res.status(201).json({ message: 'Status saved', completion });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.put('/teacher/:lessonPlanId/status/:statusId', authTeacher, async (req, res) => {
+  try {
+    const schoolId = resolveSchoolId(req);
+    const campusId = resolveCampusId(req);
+    const teacherId = req.user?.id || req.teacher?.id || null;
+    const lessonPlanId = req.params?.lessonPlanId;
+    const statusId = req.params?.statusId;
+    if (!schoolId) return res.status(400).json({ error: 'schoolId is required' });
+    if (!teacherId) return res.status(400).json({ error: 'teacherId is required' });
+
+    const filter = { _id: statusId, schoolId, lessonPlanId, teacherId };
+    if (campusId) filter.campusId = campusId;
+    const existing = await LessonPlanCompletion.findOne(filter);
+    if (!existing) return res.status(404).json({ error: 'Status not found' });
+
+    if (req.body?.date) {
+      const nextDate = toDayStart(req.body.date);
+      if (!nextDate) return res.status(400).json({ error: 'Invalid date' });
+      existing.date = nextDate;
+    }
+    const normalized = normalizeCompletionPayload({
+      status: req.body?.status,
+      isCompleted: req.body?.isCompleted,
+      completionPercent: req.body?.completionPercent,
+    });
+    existing.status = normalized.status;
+    existing.isCompleted = normalized.isCompleted;
+    existing.completionPercent = normalized.completionPercent;
+    existing.remarks = String(req.body?.remarks || '').trim();
+    await existing.save();
+
+    res.json({ message: 'Status updated', completion: existing });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.delete('/teacher/:lessonPlanId/status/:statusId', authTeacher, async (req, res) => {
+  try {
+    const schoolId = resolveSchoolId(req);
+    const campusId = resolveCampusId(req);
+    const teacherId = req.user?.id || req.teacher?.id || null;
+    const lessonPlanId = req.params?.lessonPlanId;
+    const statusId = req.params?.statusId;
+    if (!schoolId) return res.status(400).json({ error: 'schoolId is required' });
+    if (!teacherId) return res.status(400).json({ error: 'teacherId is required' });
+
+    const filter = { _id: statusId, schoolId, lessonPlanId, teacherId };
+    if (campusId) filter.campusId = campusId;
+    const deleted = await LessonPlanCompletion.findOneAndDelete(filter);
+    if (!deleted) return res.status(404).json({ error: 'Status not found' });
+
+    res.json({ message: 'Status deleted' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.get('/student/status', authStudent, async (req, res) => {
+  try {
+    const schoolId = resolveSchoolId(req);
+    const campusId = resolveCampusId(req);
+    const studentId = req.user?.id || null;
+    if (!schoolId) return res.status(400).json({ error: 'schoolId is required' });
+    if (!studentId) return res.status(400).json({ error: 'studentId is required' });
+
+    const studentFilter = { _id: studentId, schoolId };
+    if (campusId) studentFilter.campusId = campusId;
+    const student = await StudentUser.findOne(studentFilter).lean();
+    if (!student) return res.status(404).json({ error: 'Student not found' });
+
+    const className = normalizeLower(student.grade);
+    const sectionName = normalizeLower(student.section);
+    if (!className || !sectionName) return res.json([]);
+
+    const planFilter = {
+      schoolId,
+      className: { $regex: `^${escapeRegex(className)}$`, $options: 'i' },
+      sectionName: { $regex: `^${escapeRegex(sectionName)}$`, $options: 'i' },
+    };
+    if (campusId) planFilter.campusId = campusId;
+
+    const plans = await LessonPlan.find(planFilter).sort({ date: -1, createdAt: -1 }).lean();
+    if (!plans.length) return res.json([]);
+
+    const planIds = plans.map((plan) => plan._id);
+    const statusFilter = { schoolId, lessonPlanId: { $in: planIds } };
+    if (campusId) statusFilter.campusId = campusId;
+    if (req.query?.fromDate || req.query?.toDate) {
+      statusFilter.date = {};
+      if (req.query?.fromDate) {
+        const from = toDayStart(req.query.fromDate);
+        if (from) statusFilter.date.$gte = from;
+      }
+      if (req.query?.toDate) {
+        const to = toDayStart(req.query.toDate);
+        if (to) {
+          to.setHours(23, 59, 59, 999);
+          statusFilter.date.$lte = to;
+        }
+      }
+      if (!Object.keys(statusFilter.date).length) {
+        delete statusFilter.date;
+      }
+    }
+
+    const statuses = await LessonPlanCompletion.find(statusFilter).sort({ date: -1, createdAt: -1 }).lean();
+    const planById = new Map(plans.map((plan) => [String(plan._id), plan]));
+    const statusKeySet = new Set(
+      statuses.map((row) => `${String(row.lessonPlanId)}::${toDayStart(row.date)?.toISOString() || ''}`)
+    );
+
+    const defaultPending = plans
+      .map((plan) => {
+        const date = toDayStart(plan.date);
+        const key = `${String(plan._id)}::${date?.toISOString() || ''}`;
+        if (!date || statusKeySet.has(key)) return null;
+        return {
+          _id: `pending-${plan._id}-${date.toISOString()}`,
+          lessonPlanId: plan._id,
+          title: plan.title,
+          subject: plan.subject,
+          className: plan.className,
+          sectionName: plan.sectionName,
+          teacherName: plan.teacherName,
+          date,
+          status: 'pending',
+          isCompleted: false,
+          completionPercent: 0,
+          remarks: '',
+        };
+      })
+      .filter(Boolean);
+
+    const normalizedStatuses = statuses.map((row) => {
+      const plan = planById.get(String(row.lessonPlanId));
+      return {
+        ...row,
+        title: row.title || plan?.title || '',
+        subject: row.subject || plan?.subject || '',
+        className: row.className || plan?.className || '',
+        sectionName: row.sectionName || plan?.sectionName || '',
+        teacherName: row.teacherName || plan?.teacherName || 'Teacher',
+      };
+    });
+
+    const data = [...normalizedStatuses, ...defaultPending].sort(
+      (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
+    );
+    res.json(data);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post('/teacher', authTeacher, async (req, res) => {
+  try {
+    const schoolId = resolveSchoolId(req);
+    const campusId = resolveCampusId(req);
+    const teacherId = req.user?.id || req.teacher?.id || null;
+    if (!schoolId) return res.status(400).json({ error: 'schoolId is required' });
+    if (!teacherId) return res.status(400).json({ error: 'teacherId is required' });
+
+    const resolved = await resolvePlanPayload({ schoolId, campusId, payload: req.body, forcedTeacherId: teacherId });
+    if (resolved.error) return res.status(resolved.status || 400).json({ error: resolved.error });
+
+    const plan = await LessonPlan.create({
+      schoolId,
+      campusId: campusId || null,
+      ...resolved.data,
+    });
+
+    res.status(201).json({ message: 'Lesson plan created', plan });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.put('/teacher/:id', authTeacher, async (req, res) => {
+  try {
+    const schoolId = resolveSchoolId(req);
+    const campusId = resolveCampusId(req);
+    const teacherId = req.user?.id || req.teacher?.id || null;
+    const id = req.params?.id;
+    if (!schoolId) return res.status(400).json({ error: 'schoolId is required' });
+    if (!teacherId) return res.status(400).json({ error: 'teacherId is required' });
+
+    const filter = { _id: id, schoolId, teacherId };
+    if (campusId) filter.campusId = campusId;
+
+    const existing = await LessonPlan.findOne(filter);
+    if (!existing) return res.status(404).json({ error: 'Lesson plan not found' });
+
+    const resolved = await resolvePlanPayload({ schoolId, campusId, payload: req.body, forcedTeacherId: teacherId });
+    if (resolved.error) return res.status(resolved.status || 400).json({ error: resolved.error });
+
+    Object.assign(existing, resolved.data);
+    await existing.save();
+
+    res.json({ message: 'Lesson plan updated', plan: existing });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.delete('/teacher/:id', authTeacher, async (req, res) => {
+  try {
+    const schoolId = resolveSchoolId(req);
+    const campusId = resolveCampusId(req);
+    const teacherId = req.user?.id || req.teacher?.id || null;
+    const id = req.params?.id;
+    if (!schoolId) return res.status(400).json({ error: 'schoolId is required' });
+    if (!teacherId) return res.status(400).json({ error: 'teacherId is required' });
+
+    const filter = { _id: id, schoolId, teacherId };
+    if (campusId) filter.campusId = campusId;
+
+    const deleted = await LessonPlan.findOneAndDelete(filter);
+    if (!deleted) return res.status(404).json({ error: 'Lesson plan not found' });
+
+    res.json({ message: 'Lesson plan deleted' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+module.exports = router;

@@ -7,6 +7,8 @@ const assignmentSchema = new mongoose.Schema({
   title: { type: String, required: true },
   description: { type: String, default: '' },
   subject: String,
+  type: { type: String, default: 'Assignment' },
+  difficulty: { type: String, enum: ['Easy', 'Medium', 'Hard'], default: 'Medium' },
   class: String,
   section: { type: String, default: '' },
   classId: { type: mongoose.Schema.Types.ObjectId, ref: 'Class' },

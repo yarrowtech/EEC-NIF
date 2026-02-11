@@ -24,6 +24,10 @@ const buildCampusFilter = (campusId) => (
         : {}
 );
 const normalizeSubmissionFormat = (value = 'text') => (value === 'pdf' ? 'pdf' : 'text');
+const normalizeDifficulty = (value = 'Medium') => {
+    const allowed = new Set(['Easy', 'Medium', 'Hard']);
+    return allowed.has(value) ? value : 'Medium';
+};
 
 const resolveSchoolId = (req, res) => {
     const schoolId = req.schoolId || req.admin?.schoolId || null;
@@ -206,7 +210,7 @@ router.get("/teacher/my-classes", authTeacher, async (req, res) => {
 router.post("/teacher/create", authTeacher, async (req, res) => {
   // #swagger.tags = ['Assignments']
     try {
-        const { title, description, subject, classId, sectionId, marks, dueDate, status, attachments, submissionFormat } = req.body;
+        const { title, description, subject, classId, sectionId, marks, dueDate, status, attachments, submissionFormat, type, difficulty } = req.body;
         const schoolId = req.schoolId || req.teacher?.schoolId || null;
         if (!schoolId) return res.status(400).json({ error: 'schoolId is required' });
 
@@ -231,6 +235,8 @@ router.post("/teacher/create", authTeacher, async (req, res) => {
             title,
             description: description || '',
             subject,
+            type: type || 'Assignment',
+            difficulty: normalizeDifficulty(difficulty),
             class: classDoc.name || '',
             section: sectionDoc.name || '',
             classId,
@@ -289,7 +295,57 @@ router.get("/teacher/my-assignments", authTeacher, async (req, res) => {
             .populate('sectionId', 'name')
             .sort({ createdAt: -1 });
 
-        res.json(assignments);
+        const assignmentIds = assignments.map((assignment) => assignment._id);
+        const progressDocs = assignmentIds.length
+            ? await StudentProgress.find({
+                schoolId,
+                'submissions.assignmentId': { $in: assignmentIds }
+            }).select('studentId submissions').lean()
+            : [];
+
+        const submittedByAssignment = new Map();
+        progressDocs.forEach((doc) => {
+            const studentId = String(doc.studentId || '');
+            (doc.submissions || []).forEach((sub) => {
+                const assignmentId = String(sub.assignmentId || '');
+                if (!assignmentId || !studentId) return;
+                if (!submittedByAssignment.has(assignmentId)) {
+                    submittedByAssignment.set(assignmentId, new Set());
+                }
+                submittedByAssignment.get(assignmentId).add(studentId);
+            });
+        });
+
+        const studentFilter = { schoolId };
+        if (req.campusId) {
+            studentFilter.campusId = req.campusId;
+        }
+        const students = await StudentUser.find(studentFilter)
+            .select('grade section')
+            .lean();
+        const classStrengthMap = new Map();
+        students.forEach((student) => {
+            const key = `${String(student.grade || '').trim().toLowerCase()}::${String(student.section || '').trim().toLowerCase()}`;
+            classStrengthMap.set(key, (classStrengthMap.get(key) || 0) + 1);
+        });
+
+        const assignmentsWithStats = assignments.map((assignment) => {
+            const assignmentId = String(assignment._id);
+            const className = String(assignment.class || assignment.classId?.name || '').trim();
+            const sectionName = String(assignment.section || assignment.sectionId?.name || '').trim();
+            const classKey = `${className.toLowerCase()}::${sectionName.toLowerCase()}`;
+            const totalStudents = classStrengthMap.get(classKey) || 0;
+            const submissions = submittedByAssignment.get(assignmentId)?.size || 0;
+            const submissionRate = totalStudents > 0 ? Math.round((submissions / totalStudents) * 100) : 0;
+            return {
+                ...assignment.toObject(),
+                submissions,
+                totalStudents,
+                submissionRate
+            };
+        });
+
+        res.json(assignmentsWithStats);
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
@@ -311,16 +367,38 @@ router.put("/teacher/update/:id", authTeacher, async (req, res) => {
             return res.status(404).json({ error: 'Assignment not found or unauthorized' });
         }
 
-        const { title, description, subject, marks, dueDate, status, attachments, submissionFormat } = req.body;
+        const { title, description, subject, marks, dueDate, status, attachments, submissionFormat, classId, sectionId, type, difficulty } = req.body;
 
         if (title) assignment.title = title;
         if (description !== undefined) assignment.description = description;
         if (subject) assignment.subject = subject;
+        if (type !== undefined) assignment.type = type || 'Assignment';
+        if (difficulty !== undefined) assignment.difficulty = normalizeDifficulty(difficulty);
         if (marks !== undefined) assignment.marks = marks;
         if (dueDate) assignment.dueDate = dueDate;
         if (status) assignment.status = status;
         if (submissionFormat) assignment.submissionFormat = normalizeSubmissionFormat(submissionFormat);
         if (attachments !== undefined) assignment.attachments = attachments;
+
+        if (classId || sectionId) {
+            const nextClassId = classId || assignment.classId;
+            const nextSectionId = sectionId || assignment.sectionId;
+
+            const classDoc = await Class.findOne({ _id: nextClassId, schoolId });
+            if (!classDoc) {
+                return res.status(404).json({ error: 'Class not found' });
+            }
+
+            const sectionDoc = await Section.findOne({ _id: nextSectionId, schoolId, classId: classDoc._id });
+            if (!sectionDoc) {
+                return res.status(404).json({ error: 'Section not found or does not belong to this class' });
+            }
+
+            assignment.classId = classDoc._id;
+            assignment.sectionId = sectionDoc._id;
+            assignment.class = classDoc.name || assignment.class;
+            assignment.section = sectionDoc.name || assignment.section;
+        }
 
         await assignment.save();
 

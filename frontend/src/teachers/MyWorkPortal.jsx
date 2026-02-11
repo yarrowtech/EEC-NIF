@@ -784,7 +784,7 @@ const MyWorkPortal = () => {
       </div>
 
       {/* Today's Attendance Card */}
-      <div className="bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500 rounded-2xl p-6 text-white shadow-lg">
+      <div className="bg-linear-to-br from-indigo-500 via-purple-500 to-pink-500 rounded-2xl p-6 text-white shadow-lg">
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-6">
           <div className="flex items-center gap-4">
             <div className="bg-white/20 backdrop-blur-sm p-4 rounded-xl">
@@ -858,7 +858,7 @@ const MyWorkPortal = () => {
 
       {/* Stats Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="bg-gradient-to-br from-green-50 to-emerald-50 p-5 rounded-xl border border-green-100 shadow-sm">
+        <div className="bg-linear-to-br from-green-50 to-emerald-50 p-5 rounded-xl border border-green-100 shadow-sm">
           <div className="flex items-center justify-between">
             <div>
               <div className="text-3xl font-bold text-green-600">{attendanceStats.presentDays}</div>
@@ -869,7 +869,7 @@ const MyWorkPortal = () => {
             </div>
           </div>
         </div>
-        <div className="bg-gradient-to-br from-amber-50 to-yellow-50 p-5 rounded-xl border border-amber-100 shadow-sm">
+        <div className="bg-linear-to-br from-amber-50 to-yellow-50 p-5 rounded-xl border border-amber-100 shadow-sm">
           <div className="flex items-center justify-between">
             <div>
               <div className="text-3xl font-bold text-amber-600">{attendanceStats.lateDays}</div>
@@ -880,7 +880,7 @@ const MyWorkPortal = () => {
             </div>
           </div>
         </div>
-        <div className="bg-gradient-to-br from-red-50 to-rose-50 p-5 rounded-xl border border-red-100 shadow-sm">
+        <div className="bg-linear-to-br from-red-50 to-rose-50 p-5 rounded-xl border border-red-100 shadow-sm">
           <div className="flex items-center justify-between">
             <div>
               <div className="text-3xl font-bold text-red-600">{attendanceStats.absentDays}</div>
@@ -891,7 +891,7 @@ const MyWorkPortal = () => {
             </div>
           </div>
         </div>
-        <div className="bg-gradient-to-br from-blue-50 to-indigo-50 p-5 rounded-xl border border-blue-100 shadow-sm">
+        <div className="bg-linear-to-br from-blue-50 to-indigo-50 p-5 rounded-xl border border-blue-100 shadow-sm">
           <div className="flex items-center justify-between">
             <div>
               <div className="text-3xl font-bold text-blue-600">{attendanceStats.attendanceRate}%</div>
@@ -906,7 +906,7 @@ const MyWorkPortal = () => {
 
       {/* Attendance Records */}
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-        <div className="p-5 border-b border-gray-100 bg-gradient-to-r from-gray-50 to-slate-50">
+        <div className="p-5 border-b border-gray-100 bg-linear-to-r from-gray-50 to-slate-50">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
               <div className="bg-indigo-100 p-2 rounded-lg">
@@ -1030,7 +1030,7 @@ const MyWorkPortal = () => {
 
       {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="bg-gradient-to-br from-green-50 to-emerald-50 p-5 rounded-xl border border-green-100 shadow-sm">
+        <div className="bg-linear-to-br from-green-50 to-emerald-50 p-5 rounded-xl border border-green-100 shadow-sm">
           <div className="flex items-center justify-between">
             <div>
               <div className="text-3xl font-bold text-green-600">{leaveStats.availableDays}</div>
@@ -1041,7 +1041,7 @@ const MyWorkPortal = () => {
             </div>
           </div>
         </div>
-        <div className="bg-gradient-to-br from-amber-50 to-yellow-50 p-5 rounded-xl border border-amber-100 shadow-sm">
+        <div className="bg-linear-to-br from-amber-50 to-yellow-50 p-5 rounded-xl border border-amber-100 shadow-sm">
           <div className="flex items-center justify-between">
             <div>
               <div className="text-3xl font-bold text-amber-600">{leaveStats.usedDays}</div>
@@ -1052,7 +1052,7 @@ const MyWorkPortal = () => {
             </div>
           </div>
         </div>
-        <div className="bg-gradient-to-br from-blue-50 to-indigo-50 p-5 rounded-xl border border-blue-100 shadow-sm">
+        <div className="bg-linear-to-br from-blue-50 to-indigo-50 p-5 rounded-xl border border-blue-100 shadow-sm">
           <div className="flex items-center justify-between">
             <div>
               <div className="text-3xl font-bold text-blue-600">{leaveStats.pendingRequests}</div>
@@ -1550,7 +1550,7 @@ const MyWorkPortal = () => {
           {/* Profile Card */}
           <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
             {/* Profile Header with Gradient */}
-            <div className="bg-gradient-to-r from-blue-600 via-blue-700 to-indigo-700 px-6 py-8">
+            <div className="bg-linear-to-r from-blue-600 via-blue-700 to-indigo-700 px-6 py-8">
               <div className="flex flex-col sm:flex-row items-center gap-6">
                 {/* Avatar */}
                 <div className="relative">
@@ -1919,7 +1919,7 @@ const MyWorkPortal = () => {
 
       {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="bg-gradient-to-br from-green-50 to-emerald-50 p-5 rounded-xl border border-green-100 shadow-sm">
+        <div className="bg-linear-to-br from-green-50 to-emerald-50 p-5 rounded-xl border border-green-100 shadow-sm">
           <div className="flex items-center justify-between">
             <div>
               <div className="text-3xl font-bold text-green-600 flex items-center">
@@ -1933,7 +1933,7 @@ const MyWorkPortal = () => {
             </div>
           </div>
         </div>
-        <div className="bg-gradient-to-br from-amber-50 to-yellow-50 p-5 rounded-xl border border-amber-100 shadow-sm">
+        <div className="bg-linear-to-br from-amber-50 to-yellow-50 p-5 rounded-xl border border-amber-100 shadow-sm">
           <div className="flex items-center justify-between">
             <div>
               <div className="text-3xl font-bold text-amber-600 flex items-center">
@@ -1947,7 +1947,7 @@ const MyWorkPortal = () => {
             </div>
           </div>
         </div>
-        <div className="bg-gradient-to-br from-red-50 to-rose-50 p-5 rounded-xl border border-red-100 shadow-sm">
+        <div className="bg-linear-to-br from-red-50 to-rose-50 p-5 rounded-xl border border-red-100 shadow-sm">
           <div className="flex items-center justify-between">
             <div>
               <div className="text-3xl font-bold text-red-600 flex items-center">
@@ -2193,7 +2193,7 @@ const MyWorkPortal = () => {
             style={{ animation: 'slideUp 0.3s ease-out' }}
           >
             {/* Header */}
-            <div className="bg-gradient-to-r from-emerald-600 to-teal-600 rounded-t-2xl px-6 py-4">
+            <div className="bg-linear-to-r from-emerald-600 to-teal-600 rounded-t-2xl px-6 py-4">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
                   <div className="bg-white/20 p-2 rounded-lg">
@@ -2426,43 +2426,35 @@ const MyWorkPortal = () => {
   );
 
   return (
-    <div className="min-h-screen bg-gray-50 p-6">
-      <div className="max-w-7xl mx-auto">
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900">My Work Portal</h1>
-          <p className="text-gray-600 mt-2">Manage your work-related activities and information</p>
-        </div>
-
-        {/* Tab Navigation */}
-        <div className="border-b border-gray-200 mb-8">
-          <nav className="-mb-px flex space-x-8 overflow-x-auto">
-            {tabs.map((tab) => (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
-                className={`flex items-center space-x-2 py-4 px-1 border-b-2 font-medium text-sm whitespace-nowrap ${
-                  activeTab === tab.id
-                    ? 'border-blue-500 text-blue-600'
-                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                }`}
-              >
-                <tab.icon className="w-5 h-5" />
-                <span>{tab.label}</span>
-              </button>
-            ))}
-          </nav>
-        </div>
-
-        {/* Tab Content */}
-        <div className="tab-content">
-          {activeTab === 'attendance' && renderAttendance()}
-          {activeTab === 'leave' && renderLeaveManagement()}
-          {activeTab === 'profile' && renderProfile()}
-          {activeTab === 'notifications' && renderNotifications()}
-          {activeTab === 'documents' && renderDocuments()}
-          {activeTab === 'expenses' && renderExpenses()}
-        </div>
+    <div className="space-y-5">
+      {/* Tab Navigation — pill style */}
+      <div className="flex items-center gap-2 overflow-x-auto pb-1">
+        {tabs.map((tab) => {
+          const active = activeTab === tab.id;
+          return (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold whitespace-nowrap transition-all duration-200 ${
+                active
+                  ? 'bg-linear-to-r from-blue-600 to-indigo-600 text-white shadow-lg shadow-blue-500/20'
+                  : 'bg-white text-gray-600 border border-gray-200 hover:border-gray-300 hover:bg-gray-50 hover:shadow-sm'
+              }`}
+            >
+              <tab.icon size={16} />
+              {tab.label}
+            </button>
+          );
+        })}
       </div>
+
+      {/* Tab Content */}
+      {activeTab === 'attendance' && renderAttendance()}
+      {activeTab === 'leave' && renderLeaveManagement()}
+      {activeTab === 'profile' && renderProfile()}
+      {activeTab === 'notifications' && renderNotifications()}
+      {activeTab === 'documents' && renderDocuments()}
+      {activeTab === 'expenses' && renderExpenses()}
     </div>
   );
 };

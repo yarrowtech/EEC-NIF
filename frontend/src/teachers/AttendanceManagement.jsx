@@ -2,13 +2,10 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Calendar,
   Search,
-  Check,
-  X,
   Users,
   TrendingUp,
   BarChart3,
   Save,
-  Filter,
   Loader2,
   Download,
 } from 'lucide-react';
@@ -19,6 +16,16 @@ const STATUS = Object.freeze({
   PRESENT: 'present',
   ABSENT: 'absent',
 });
+
+const parseRollForSort = (roll) => {
+  if (roll === null || roll === undefined) return Number.POSITIVE_INFINITY;
+  const text = String(roll).trim();
+  if (!text) return Number.POSITIVE_INFINITY;
+  const direct = Number(text);
+  if (Number.isFinite(direct)) return direct;
+  const match = text.match(/\d+/);
+  return match ? Number(match[0]) : Number.POSITIVE_INFINITY;
+};
 
 const AttendanceManagement = () => {
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().slice(0, 10));
@@ -73,14 +80,20 @@ const AttendanceManagement = () => {
       }
 
       const nextStudents = Array.isArray(data.students) ? data.students : [];
-      setStudents(nextStudents);
+      const sortedStudents = [...nextStudents].sort((a, b) => {
+        const rollA = parseRollForSort(a?.roll);
+        const rollB = parseRollForSort(b?.roll);
+        if (rollA !== rollB) return rollA - rollB;
+        return String(a?.name || '').localeCompare(String(b?.name || ''), undefined, { numeric: true });
+      });
+      setStudents(sortedStudents);
       setSessionOptions(Array.isArray(data?.options?.sessions) ? data.options.sessions : []);
       setClassOptions(Array.isArray(data?.options?.classes) ? data.options.classes : []);
       setSectionOptions(Array.isArray(data?.options?.sections) ? data.options.sections : []);
 
       const nextState = {};
-      nextStudents.forEach((student) => {
-        nextState[student._id] = student?.selectedDateRecord?.status || STATUS.PRESENT;
+      sortedStudents.forEach((student) => {
+        nextState[student._id] = student?.selectedDateRecord?.status || STATUS.ABSENT;
       });
       setAttendanceData(nextState);
     } catch (err) {
@@ -94,8 +107,11 @@ const AttendanceManagement = () => {
     loadAttendance();
   }, [loadAttendance]);
 
-  const setStudentStatus = (studentId, status) => {
-    setAttendanceData((prev) => ({ ...prev, [studentId]: status }));
+  const toggleStudentPresent = (studentId, checked) => {
+    setAttendanceData((prev) => ({
+      ...prev,
+      [studentId]: checked ? STATUS.PRESENT : STATUS.ABSENT,
+    }));
   };
 
   const saveAttendance = async () => {
@@ -110,7 +126,7 @@ const AttendanceManagement = () => {
         date: selectedDate,
         entries: students.map((student) => ({
           studentId: student._id,
-          status: attendanceData[student._id] || STATUS.PRESENT,
+          status: attendanceData[student._id] || STATUS.ABSENT,
           subject: subject.trim(),
         })),
       };
@@ -163,7 +179,7 @@ const AttendanceManagement = () => {
       pdf.text(String(student.name || ''), 14, y);
       pdf.text(String(student.className || student.grade || ''), 74, y);
       pdf.text(String(student.section || ''), 104, y);
-      pdf.text(String(attendanceData[student._id] || STATUS.PRESENT).toUpperCase(), 134, y);
+      pdf.text(String(attendanceData[student._id] || STATUS.ABSENT).toUpperCase(), 134, y);
       y += 7;
       if (y > 280) {
         pdf.addPage();
@@ -187,194 +203,185 @@ const AttendanceManagement = () => {
     return total > 0 ? Math.round((presentCount / total) * 100) : 0;
   }, [presentCount, absentCount]);
 
-  return (
-    <div className="min-h-screen bg-gray-50 p-4 sm:p-6">
-      <div className="bg-gradient-to-r from-amber-500 to-yellow-600 rounded-xl p-6 mb-6 text-white shadow-md">
-        <h1 className="text-2xl sm:text-3xl font-bold mb-2">Student Attendance Management</h1>
-        <p className="text-yellow-100">Class Teacher: CRUD attendance | Filter by Session, Class, Section</p>
-      </div>
+  const inputClass = 'w-full px-3 py-2 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400 transition-colors';
 
-      <div className="bg-white rounded-xl p-4 sm:p-6 mb-6 shadow-sm border border-gray-100">
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-7 gap-3">
-          <div className="relative xl:col-span-2">
-            <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+  return (
+    <div className="space-y-4 sm:space-y-5">
+      {/* Filters */}
+      <div className="bg-white rounded-2xl p-3 sm:p-4 border border-gray-100 space-y-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-2.5">
+          <div className="relative sm:col-span-2 xl:col-span-1">
+            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
             <input
               type="text"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="Search student name"
-              className="w-full pl-9 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+              placeholder="Search student..."
+              className="w-full pl-9 pr-3 py-2 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400 transition-colors"
             />
           </div>
+          <select
+            value={selectedSession}
+            onChange={(e) => { setSelectedSession(e.target.value); setSelectedClass(''); setSelectedSection(''); }}
+            className={inputClass}
+          >
+            <option value="">All Sessions</option>
+            {sessionOptions.map((s) => <option key={s} value={s}>{s}</option>)}
+          </select>
+          <select
+            value={selectedClass}
+            onChange={(e) => { setSelectedClass(e.target.value); setSelectedSection(''); }}
+            className={inputClass}
+          >
+            <option value="">All Classes</option>
+            {classOptions.map((c) => <option key={c} value={c}>{c}</option>)}
+          </select>
+          <select
+            value={selectedSection}
+            onChange={(e) => setSelectedSection(e.target.value)}
+            className={inputClass}
+          >
+            <option value="">All Sections</option>
+            {sectionOptions.map((s) => <option key={s} value={s}>{s}</option>)}
+          </select>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2.5">
           <div className="relative">
-            <Filter className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-            <select
-              value={selectedSession}
-              onChange={(e) => {
-                setSelectedSession(e.target.value);
-                setSelectedClass('');
-                setSelectedSection('');
-              }}
-              className="w-full pl-9 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent"
-            >
-              <option value="">All Sessions</option>
-              {sessionOptions.map((session) => (
-                <option key={session} value={session}>{session}</option>
-              ))}
-            </select>
-          </div>
-          <div className="relative">
-            <Filter className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-            <select
-              value={selectedClass}
-              onChange={(e) => {
-                setSelectedClass(e.target.value);
-                setSelectedSection('');
-              }}
-              className="w-full pl-9 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent"
-            >
-              <option value="">All Classes</option>
-              {classOptions.map((className) => (
-                <option key={className} value={className}>{className}</option>
-              ))}
-            </select>
-          </div>
-          <div className="relative">
-            <Filter className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-            <select
-              value={selectedSection}
-              onChange={(e) => setSelectedSection(e.target.value)}
-              className="w-full pl-9 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent"
-            >
-              <option value="">All Sections</option>
-              {sectionOptions.map((section) => (
-                <option key={section} value={section}>{section}</option>
-              ))}
-            </select>
-          </div>
-          <div className="relative">
-            <Calendar className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+            <Calendar size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
             <input
               type="date"
               value={selectedDate}
               onChange={(e) => setSelectedDate(e.target.value)}
-              className="w-full pl-9 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+              className="pl-9 pr-3 py-2 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400 transition-colors"
             />
           </div>
           <input
             type="month"
             value={selectedMonth}
             onChange={(e) => setSelectedMonth(e.target.value)}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+            className="px-3 py-2 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400 transition-colors"
           />
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mt-3">
           <input
             type="text"
             value={subject}
             onChange={(e) => setSubject(e.target.value)}
-            placeholder="Subject (optional, saved for all)"
-            className="md:col-span-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+            placeholder="Subject (optional)"
+            className="flex-1 min-w-[140px] px-3 py-2 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400 transition-colors"
           />
-          <button
-            type="button"
-            onClick={exportToPDF}
-            className="inline-flex items-center justify-center gap-2 px-4 py-2 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
-          >
-            <Download className="w-4 h-4" />
-            Export
-          </button>
-          <button
-            type="button"
-            onClick={saveAttendance}
-            disabled={saving || loading || students.length === 0}
-            className="inline-flex items-center justify-center gap-2 px-4 py-2 bg-amber-500 text-black rounded-lg hover:bg-amber-600 disabled:opacity-60"
-          >
-            {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-            Save Attendance
-          </button>
+          <div className="flex items-center gap-2 ml-auto">
+            <button
+              type="button"
+              onClick={exportToPDF}
+              className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-gray-600 bg-gray-50 border border-gray-200 rounded-xl hover:bg-gray-100 transition-colors"
+            >
+              <Download size={14} />
+              Export
+            </button>
+            <button
+              type="button"
+              onClick={saveAttendance}
+              disabled={saving || loading || students.length === 0}
+              className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-semibold text-white bg-linear-to-r from-indigo-600 to-violet-600 rounded-xl shadow-md shadow-indigo-500/20 hover:shadow-lg disabled:opacity-50 transition-all"
+            >
+              {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
+              Save
+            </button>
+          </div>
         </div>
-        {error ? <p className="text-sm text-red-600 mt-2">{error}</p> : null}
-        {success ? <p className="text-sm text-green-700 mt-2">{success}</p> : null}
+
+        {error && (
+          <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-red-50 border border-red-100">
+            <div className="w-1.5 h-1.5 rounded-full bg-red-500 shrink-0" />
+            <p className="text-xs text-red-600 font-medium">{error}</p>
+          </div>
+        )}
+        {success && (
+          <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-emerald-50 border border-emerald-100">
+            <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" />
+            <p className="text-xs text-emerald-600 font-medium">{success}</p>
+          </div>
+        )}
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 mb-6">
-        <div className="bg-white rounded-xl p-5 border border-gray-100 shadow-sm">
-          <div className="flex justify-between items-center">
-            <h3 className="text-sm text-gray-600">Present</h3>
-            <Users className="w-4 h-4 text-green-600" />
+      {/* Stats Grid */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+        {[
+          { label: 'Present', value: presentCount, icon: Users, gradient: 'from-emerald-500 to-green-500' },
+          { label: 'Absent', value: absentCount, icon: Users, gradient: 'from-red-500 to-rose-500' },
+          { label: 'Attendance', value: `${attendanceRate}%`, icon: TrendingUp, gradient: 'from-blue-500 to-indigo-500' },
+          { label: 'Students', value: students.length, icon: BarChart3, gradient: 'from-amber-500 to-orange-500' },
+        ].map((stat) => (
+          <div key={stat.label} className="bg-white rounded-2xl p-4 border border-gray-100 hover:shadow-md hover:-translate-y-0.5 transition-all duration-200">
+            <div className="flex items-center gap-3">
+              <div className={`w-10 h-10 rounded-xl bg-linear-to-br ${stat.gradient} flex items-center justify-center shadow-lg`}>
+                <stat.icon size={18} className="text-white" />
+              </div>
+              <div>
+                <p className="text-2xl font-bold text-gray-900">{stat.value}</p>
+                <p className="text-xs text-gray-500">{stat.label}</p>
+              </div>
+            </div>
           </div>
-          <p className="text-3xl font-bold text-green-600 mt-2">{presentCount}</p>
-        </div>
-        <div className="bg-white rounded-xl p-5 border border-gray-100 shadow-sm">
-          <div className="flex justify-between items-center">
-            <h3 className="text-sm text-gray-600">Absent</h3>
-            <Users className="w-4 h-4 text-red-600" />
-          </div>
-          <p className="text-3xl font-bold text-red-600 mt-2">{absentCount}</p>
-        </div>
-        <div className="bg-white rounded-xl p-5 border border-gray-100 shadow-sm">
-          <div className="flex justify-between items-center">
-            <h3 className="text-sm text-gray-600">Attendance %</h3>
-            <TrendingUp className="w-4 h-4 text-blue-600" />
-          </div>
-          <p className="text-3xl font-bold text-blue-600 mt-2">{attendanceRate}%</p>
-        </div>
-        <div className="bg-white rounded-xl p-5 border border-gray-100 shadow-sm">
-          <div className="flex justify-between items-center">
-            <h3 className="text-sm text-gray-600">Students</h3>
-            <BarChart3 className="w-4 h-4 text-amber-600" />
-          </div>
-          <p className="text-3xl font-bold text-amber-600 mt-2">{students.length}</p>
-        </div>
+        ))}
       </div>
 
-      <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-        <div className="p-4 border-b border-gray-100 bg-gray-50">
-          <h2 className="font-semibold text-gray-800">Mark Attendance ({selectedDate})</h2>
+      {/* Student List */}
+      <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
+        <div className="px-4 sm:px-5 py-3 border-b border-gray-100 flex items-center justify-between">
+          <h2 className="text-sm font-bold text-gray-900">Mark Attendance</h2>
+          <span className="text-[11px] text-gray-400 font-medium">{selectedDate}</span>
         </div>
-        <div className="p-4 space-y-3 max-h-[520px] overflow-y-auto">
+        <div className="divide-y divide-gray-50 max-h-[520px] overflow-y-auto">
           {loading ? (
-            <div className="flex items-center justify-center py-8 text-gray-500">
-              <Loader2 className="w-5 h-5 animate-spin mr-2" /> Loading students...
+            <div className="flex flex-col items-center justify-center py-14">
+              <Loader2 size={24} className="animate-spin text-indigo-500 mb-3" />
+              <p className="text-sm text-gray-500">Loading students...</p>
             </div>
           ) : students.length === 0 ? (
-            <p className="text-gray-500 text-center py-8">No students found for selected filters.</p>
+            <div className="flex flex-col items-center justify-center py-14 text-center">
+              <div className="w-12 h-12 rounded-2xl bg-gray-100 flex items-center justify-center mb-3">
+                <Users size={20} className="text-gray-400" />
+              </div>
+              <p className="text-sm font-medium text-gray-500">No students found</p>
+              <p className="text-xs text-gray-400 mt-1">Try adjusting your filters</p>
+            </div>
           ) : (
-            students.map((student) => {
-              const status = attendanceData[student._id] || STATUS.PRESENT;
+            students.map((student, index) => {
+              const status = attendanceData[student._id] || STATUS.ABSENT;
+              const isPresent = status === STATUS.PRESENT;
               return (
-                <div key={student._id} className="p-3 rounded-lg bg-gray-50 border border-gray-100">
-                  <div className="flex items-center justify-between gap-3">
-                    <div>
-                      <p className="font-medium text-gray-900">{student.name}</p>
-                      <p className="text-xs text-gray-500">
-                        {student.className || '-'} {student.section ? `- ${student.section}` : ''} {student.roll ? `| Roll ${student.roll}` : ''}
+                <div
+                  key={student._id}
+                  className={`flex items-center justify-between gap-3 px-4 sm:px-5 py-3 transition-colors ${
+                    isPresent ? 'bg-emerald-50/40' : ''
+                  }`}
+                >
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-xs font-bold shrink-0 ${
+                      isPresent
+                        ? 'bg-emerald-100 text-emerald-700'
+                        : 'bg-red-50 text-red-600'
+                    }`}>
+                      {student.roll || (index + 1)}
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold text-gray-900 truncate">{student.name}</p>
+                      <p className="text-[11px] text-gray-400">
+                        {student.className || '-'}{student.section ? ` · ${student.section}` : ''}
                       </p>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <button
-                        type="button"
-                        onClick={() => setStudentStatus(student._id, STATUS.PRESENT)}
-                        className={`px-3 py-1.5 rounded-md text-sm inline-flex items-center gap-1 ${
-                          status === STATUS.PRESENT ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'
-                        }`}
-                      >
-                        <Check className="w-4 h-4" />
-                        Present
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setStudentStatus(student._id, STATUS.ABSENT)}
-                        className={`px-3 py-1.5 rounded-md text-sm inline-flex items-center gap-1 ${
-                          status === STATUS.ABSENT ? 'bg-red-100 text-red-700' : 'bg-gray-100 text-gray-600'
-                        }`}
-                      >
-                        <X className="w-4 h-4" />
-                        Absent
-                      </button>
-                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <input
+                      type="checkbox"
+                      checked={isPresent}
+                      onChange={(e) => toggleStudentPresent(student._id, e.target.checked)}
+                      className="h-4 w-4 rounded border-gray-300 text-emerald-600 focus:ring-emerald-500"
+                    />
+                    <span className={`text-[11px] font-semibold ${isPresent ? 'text-emerald-700' : 'text-red-600'}`}>
+                      {isPresent ? 'Present' : 'Absent'}
+                    </span>
                   </div>
                 </div>
               );

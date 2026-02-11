@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Calendar, ChevronLeft, ChevronRight, Clock, Plus, X, Edit3, Trash2, AlertCircle } from 'lucide-react';
+import { Calendar, ChevronLeft, ChevronRight, Clock, X, Edit3, Trash2, AlertCircle } from 'lucide-react';
+import { useStudentDashboard } from './StudentDashboardContext';
 
 const statusStyles = {
   present: { label: 'Present', color: 'bg-green-500' },
@@ -34,21 +35,49 @@ const defaultEvent = {
   color: 'bg-blue-500'
 };
 
+const mapAttendanceEvents = (records = []) =>
+  records.flatMap((record, index) => {
+    const parsedDate = new Date(record.date);
+    if (Number.isNaN(parsedDate.getTime())) return [];
+    const style = statusStyles[record.status] || { color: 'bg-blue-500', label: 'Class' };
+    return {
+      id: record._id || `attendance-${index}`,
+      title: style.label,
+      date: parsedDate.toISOString().split('T')[0],
+      time: record.time || '',
+      type: record.status || 'class',
+      color: style.color,
+      description: record.subject ? record.subject : 'Attendance entry',
+      notes: record.notes,
+      readOnly: true
+    };
+  });
+
 const CalendarWidget = () => {
+  const { recentAttendance } = useStudentDashboard();
+  const seedEvents = useMemo(() => mapAttendanceEvents(recentAttendance || []), [recentAttendance]);
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState(null);
   const [showEventModal, setShowEventModal] = useState(false);
   const [editingEvent, setEditingEvent] = useState(null);
-  const [events, setEvents] = useState([]);
+  const [events, setEvents] = useState(seedEvents);
   const [newEvent, setNewEvent] = useState(defaultEvent);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(seedEvents.length === 0);
   const [error, setError] = useState(null);
-  const [lastSynced, setLastSynced] = useState(null);
+  const [lastSynced, setLastSynced] = useState(seedEvents.length > 0 ? new Date() : null);
 
   useEffect(() => {
+    if (events.length > 0 || seedEvents.length === 0) return;
+    setEvents(seedEvents);
+    setLoading(false);
+    setLastSynced(new Date());
+  }, [events.length, seedEvents]);
+
+  useEffect(() => {
+    const controller = new AbortController();
     const fetchAttendanceEvents = async () => {
       try {
-        setLoading(true);
+        setLoading(seedEvents.length === 0);
         setError(null);
         const token = localStorage.getItem('token');
         const userType = localStorage.getItem('userType');
@@ -59,6 +88,7 @@ const CalendarWidget = () => {
         }
 
         const response = await fetch(`${import.meta.env.VITE_API_URL}/api/student/auth/attendance`, {
+          signal: controller.signal,
           headers: {
             'Authorization': `Bearer ${token}`,
             'Content-Type': 'application/json'
@@ -70,24 +100,10 @@ const CalendarWidget = () => {
         }
 
         const data = await response.json();
-        const attendanceEvents = (data.attendance || []).map((record, index) => {
-          const style = statusStyles[record.status] || { color: 'bg-blue-500', label: 'Class' };
-          return {
-            id: record._id || `attendance-${index}`,
-            title: style.label,
-            date: new Date(record.date).toISOString().split('T')[0],
-            time: record.time || '',
-            type: record.status || 'class',
-            color: style.color,
-            description: record.subject ? record.subject : 'Attendance entry',
-            notes: record.notes,
-            readOnly: true
-          };
-        });
-
-        setEvents(attendanceEvents);
+        setEvents(mapAttendanceEvents(data.attendance || []));
         setLastSynced(new Date());
       } catch (err) {
+        if (err.name === 'AbortError') return;
         console.error('Failed to fetch attendance calendar:', err);
         setError(err.message);
       } finally {
@@ -96,7 +112,8 @@ const CalendarWidget = () => {
     };
 
     fetchAttendanceEvents();
-  }, []);
+    return () => controller.abort();
+  }, [seedEvents.length]);
 
   const monthNames = useMemo(() => ([
     'January', 'February', 'March', 'April', 'May', 'June',

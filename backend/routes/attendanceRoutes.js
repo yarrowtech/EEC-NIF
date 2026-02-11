@@ -125,12 +125,15 @@ const buildClassSectionScope = async ({ schoolId, campusId, teacherId }) => {
 };
 
 const isStudentAllowedForScope = (student, scope) => {
-  if (!scope?.hasAssignment) return true;
+  if (!scope?.hasAssignment) return false;
   const className = resolveStudentClass(student).toLowerCase();
   const sectionName = resolveStudentSection(student).toLowerCase();
   if (!className) return false;
   return scope.classSectionKeys.has(`${className}::*`) || scope.classSectionKeys.has(`${className}::${sectionName}`);
 };
+
+const teacherHasRoutineScope = (scope) =>
+  Boolean(scope?.hasAssignment && scope?.classSectionKeys instanceof Set && scope.classSectionKeys.size > 0);
 
 const buildStudentAttendancePayload = (student, monthRange, selectedDate) => {
   const attendance = Array.isArray(student?.attendance) ? student.attendance : [];
@@ -237,6 +240,9 @@ router.get('/teacher/students', authTeacher, async (req, res) => {
       .lean();
 
     const scope = await buildClassSectionScope({ schoolId, campusId, teacherId });
+    if (!teacherHasRoutineScope(scope)) {
+      return res.status(403).json({ error: 'Attendance access denied. You are not allocated in routine for any class/section.' });
+    }
     const scopedStudents = scopeStudents.filter((student) => isStudentAllowedForScope(student, scope));
     const normalized = scopedStudents.map((student) =>
       buildStudentAttendancePayload(student, monthRange, selectedDate)
@@ -306,6 +312,9 @@ router.post('/teacher/bulk-upsert', authTeacher, async (req, res) => {
 
     const stats = { updated: 0, created: 0, skipped: 0 };
     const scope = await buildClassSectionScope({ schoolId, campusId, teacherId });
+    if (!teacherHasRoutineScope(scope)) {
+      return res.status(403).json({ error: 'Attendance access denied. You are not allocated in routine for any class/section.' });
+    }
 
     for (const item of entries) {
       const studentId = item?.studentId;
@@ -361,6 +370,7 @@ router.put('/teacher/student/:studentId/entry/:entryId', authTeacher, async (req
   try {
     const schoolId = req.schoolId || req.user?.schoolId || null;
     const campusId = req.campusId || req.user?.campusId || null;
+    const teacherId = req.user?.id || null;
     const { studentId, entryId } = req.params || {};
     const status = normalizeStatus(req.body?.status);
     const subject = String(req.body?.subject || '').trim();
@@ -369,12 +379,21 @@ router.put('/teacher/student/:studentId/entry/:entryId', authTeacher, async (req
     if (!VALID_STATUSES.has(status)) {
       return res.status(400).json({ error: 'status must be present or absent' });
     }
+    if (!teacherId) return res.status(400).json({ error: 'teacherId is required' });
+
+    const scope = await buildClassSectionScope({ schoolId, campusId, teacherId });
+    if (!teacherHasRoutineScope(scope)) {
+      return res.status(403).json({ error: 'Attendance access denied. You are not allocated in routine for any class/section.' });
+    }
 
     const filter = { _id: studentId, schoolId };
     if (campusId) filter.campusId = campusId;
 
     const student = await StudentUser.findOne(filter);
     if (!student) return res.status(404).json({ error: 'Student not found' });
+    if (!isStudentAllowedForScope(student, scope)) {
+      return res.status(403).json({ error: 'Attendance access denied for this class/section.' });
+    }
 
     const record = (student.attendance || []).id(entryId);
     if (!record) return res.status(404).json({ error: 'Attendance record not found' });
@@ -396,13 +415,23 @@ router.delete('/teacher/student/:studentId/entry/:entryId', authTeacher, async (
   try {
     const schoolId = req.schoolId || req.user?.schoolId || null;
     const campusId = req.campusId || req.user?.campusId || null;
+    const teacherId = req.user?.id || null;
     const { studentId, entryId } = req.params || {};
+    if (!teacherId) return res.status(400).json({ error: 'teacherId is required' });
+
+    const scope = await buildClassSectionScope({ schoolId, campusId, teacherId });
+    if (!teacherHasRoutineScope(scope)) {
+      return res.status(403).json({ error: 'Attendance access denied. You are not allocated in routine for any class/section.' });
+    }
 
     const filter = { _id: studentId, schoolId };
     if (campusId) filter.campusId = campusId;
 
     const student = await StudentUser.findOne(filter);
     if (!student) return res.status(404).json({ error: 'Student not found' });
+    if (!isStudentAllowedForScope(student, scope)) {
+      return res.status(403).json({ error: 'Attendance access denied for this class/section.' });
+    }
 
     const record = (student.attendance || []).id(entryId);
     if (!record) return res.status(404).json({ error: 'Attendance record not found' });
@@ -665,4 +694,3 @@ router.get('/admin/all', adminAuth, async (req, res) => {
   }
 });
 module.exports = router;
-

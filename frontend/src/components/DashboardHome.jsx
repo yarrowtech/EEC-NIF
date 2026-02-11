@@ -46,7 +46,6 @@ const DashboardHome = () => {
   };
 
   const addPet = (petType) => {
-    console.log('DashboardHome addPet called with:', petType); // Debug log
     const names = petNames[petType];
     const randomName = names[Math.floor(Math.random() * names.length)];
     
@@ -57,11 +56,8 @@ const DashboardHome = () => {
       createdAt: Date.now()
     };
     
-    console.log('Creating new pet:', newPet); // Debug log
     setPets(prevPets => {
-      const newPets = [...prevPets, newPet];
-      console.log('Updated pets array:', newPets); // Debug log
-      return newPets;
+      return [...prevPets, newPet];
     });
   };
 
