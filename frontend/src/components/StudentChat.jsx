@@ -1,186 +1,85 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { 
-  MessageSquare, 
-  Send, 
-  Search, 
-  Users, 
-  Paperclip, 
-  Mic, 
-  Smile, 
-  MoreVertical,
-  ChevronLeft,
-  Video,
-  Phone,
-  Info
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { io } from 'socket.io-client';
+import {
+  MessageSquare, Send, Search, Users, ChevronLeft,
+  Info, PlusCircle, X, Loader2
 } from 'lucide-react';
 
-const STORAGE_KEY = 'eec_student_chat_v2';
+const API_URL = (import.meta.env.VITE_API_URL || 'http://localhost:5000').replace(/\/$/, '');
 
-const defaultConversations = [
-  { 
-    id: 'class-group', 
-    name: 'Class 10-A Group', 
-    type: 'class', 
-    unread: 1,
-    lastMessage: 'Anyone finished Q5 of the assignment?',
-    lastTime: Date.now() - 3400_000,
-    members: 32,
-    avatarColor: 'bg-amber-500'
-  },
-  { 
-    id: 'math-teacher', 
-    name: 'Ms. Johnson - Math', 
-    type: 'teacher', 
-    unread: 0,
-    lastMessage: 'Reminder: submit by 6 PM today.',
-    lastTime: Date.now() - 7200_000,
-    members: 2,
-    avatarColor: 'bg-blue-500',
-    isOnline: true
-  },
-  { 
-    id: 'office', 
-    name: 'School Office', 
-    type: 'admin', 
-    unread: 0,
-    lastMessage: 'PTM next Monday at 10 AM.',
-    lastTime: Date.now() - 5400_000,
-    members: 4,
-    avatarColor: 'bg-purple-500'
-  },
-  { 
-    id: 'study-group', 
-    name: 'Science Study Group', 
-    type: 'group', 
-    unread: 3,
-    lastMessage: "Let's meet at the library tomorrow",
-    lastTime: Date.now() - 1800_000,
-    members: 5,
-    avatarColor: 'bg-green-500'
-  },
-];
+const authHeader = () => ({ Authorization: `Bearer ${localStorage.getItem('token')}` });
 
-const defaultMessages = {
-  'class-group': [
-    { id: 'm1', sender: 'student-other', senderName: 'Alex Kim', text: 'Anyone finished Q5 of the assignment?', ts: Date.now() - 3600_000 },
-    { id: 'm2', sender: 'student-other', senderName: 'Maria Lopez', text: "Still working on it. It's tricky!", ts: Date.now() - 3400_000 },
-    { id: 'm3', sender: 'student-other', senderName: 'James Wilson', text: "I think I got it. The answer should be 42.", ts: Date.now() - 3200_000 },
-    { id: 'm4', sender: 'student', senderName: 'You', text: "Thanks James! That helps a lot.", ts: Date.now() - 3000_000 },
-  ],
-  'math-teacher': [
-    { id: 'm5', sender: 'teacher', senderName: 'Ms. Johnson', text: 'Reminder: Assignment due by 6 PM today.', ts: Date.now() - 7200_000 },
-    { id: 'm6', sender: 'student', senderName: 'You', text: "Understood, I'll submit it soon.", ts: Date.now() - 7000_000 },
-  ],
-  'office': [
-    { id: 'm7', sender: 'admin', senderName: 'School Office', text: 'Parent-Teacher Meeting next Monday at 10 AM.', ts: Date.now() - 5400_000 },
-    { id: 'm8', sender: 'student', senderName: 'You', text: "Noted, I'll inform my parents.", ts: Date.now() - 5200_000 },
-  ],
-  'study-group': [
-    { id: 'm9', sender: 'student-other', senderName: 'Tom Chen', text: "Does anyone understand Newton's Third Law?", ts: Date.now() - 10800_000 },
-    { id: 'm10', sender: 'student-other', senderName: 'Lisa Park', text: "I can explain it during our study session.", ts: Date.now() - 10600_000 },
-    { id: 'm11', sender: 'student', senderName: 'You', text: "When are we meeting next?", ts: Date.now() - 10400_000 },
-    { id: 'm12', sender: 'student-other', senderName: 'Tom Chen', text: "Let's meet at the library tomorrow after school", ts: Date.now() - 10200_000 },
-    { id: 'm13', sender: 'student-other', senderName: 'Maria Lopez', text: "Works for me! I'll bring snacks.", ts: Date.now() - 10000_000 },
-  ],
+const apiFetch = async (path, options = {}) => {
+  const res = await fetch(`${API_URL}${path}`, {
+    ...options,
+    headers: { 'Content-Type': 'application/json', ...authHeader(), ...(options.headers || {}) },
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || 'Request failed');
+  return data;
 };
 
-function loadState() {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return { conversations: defaultConversations, messages: defaultMessages };
-    const parsed = JSON.parse(raw);
-    return {
-      conversations: parsed.conversations?.length ? parsed.conversations : defaultConversations,
-      messages: parsed.messages || defaultMessages,
-    };
-  } catch {
-    return { conversations: defaultConversations, messages: defaultMessages };
+const formatTime = (ts) => {
+  if (!ts) return '';
+  const d = new Date(ts);
+  const now = new Date();
+  const diff = now - d;
+  if (diff < 86400000 && d.getDate() === now.getDate()) {
+    return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   }
-}
+  if (diff < 172800000) return 'Yesterday';
+  return d.toLocaleDateString([], { month: 'short', day: 'numeric' });
+};
 
-function saveState(state) {
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-  } catch {}
-}
+const getInitials = (name = '') =>
+  name.split(' ').slice(0, 2).map(w => w[0]).join('').toUpperCase() || '?';
 
-const ChatMessage = ({ message, isMine, showSender }) => {
-  const formatTime = (timestamp) => {
-    return new Date(timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-  };
-
-  return (
-    <div className={`flex ${isMine ? 'justify-end' : 'justify-start'} mb-4`}>
-      <div className={`max-w-[80%] flex flex-col ${isMine ? 'items-end' : 'items-start'}`}>
-        {!isMine && showSender && (
-          <span className="text-xs text-gray-500 mb-1 ml-1">{message.senderName}</span>
-        )}
-        <div className={`rounded-2xl px-4 py-2 text-sm ${isMine ? 'bg-amber-600 text-white rounded-br-md' : 'bg-white text-gray-800 rounded-bl-md shadow-sm'}`}>
-          {message.type === 'file' ? (
-            <div className="flex items-center gap-2">
-              <Paperclip className={`h-4 w-4 ${isMine ? 'text-amber-100' : 'text-gray-600'}`} />
-              <span className="underline break-all">{message.fileName || 'Attachment'}</span>
-            </div>
-          ) : message.type === 'voice' ? (
-            <div className="flex items-center gap-2">
-              <Mic className={`h-4 w-4 ${isMine ? 'text-amber-100' : 'text-gray-600'}`} />
-              <span>Voice message</span>
-            </div>
-          ) : (
-            <div className="whitespace-pre-wrap">{message.text}</div>
-          )}
-          <div className={`text-xs mt-1 ${isMine ? 'text-amber-100' : 'text-gray-500'} text-right`}>
-            {formatTime(message.ts)}
-          </div>
-        </div>
+// ── ChatMessage component ──────────────────────────────────────────────────────
+const ChatMessage = ({ msg, isMine }) => (
+  <div className={`flex ${isMine ? 'justify-end' : 'justify-start'} mb-3`}>
+    <div className={`max-w-[78%] rounded-2xl px-4 py-2.5 text-sm shadow-sm
+      ${isMine ? 'bg-amber-500 text-white rounded-br-sm' : 'bg-white text-gray-800 rounded-bl-sm'}`}>
+      {!isMine && (
+        <div className="text-xs font-semibold text-amber-600 mb-1">{msg.senderName}</div>
+      )}
+      <div className="whitespace-pre-wrap leading-relaxed">{msg.text}</div>
+      <div className={`text-xs mt-1 text-right ${isMine ? 'text-amber-100' : 'text-gray-400'}`}>
+        {formatTime(msg.createdAt || msg.ts)}
       </div>
     </div>
-  );
-};
+  </div>
+);
 
-const ConversationItem = ({ conversation, isActive, onClick }) => {
-  const formatTime = (timestamp) => {
-    const now = Date.now();
-    const diff = now - timestamp;
-    const days = Math.floor(diff / (1000 * 60 * 60 * 24));
-    
-    if (days === 0) {
-      return new Date(timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-    } else if (days === 1) {
-      return 'Yesterday';
-    } else {
-      return new Date(timestamp).toLocaleDateString([], { month: 'short', day: 'numeric' });
-    }
-  };
+// ── ConversationItem component ─────────────────────────────────────────────────
+const ConversationItem = ({ thread, isActive, onClick, myId }) => {
+  const other = thread.otherParticipant;
+  const name = other?.name || 'Unknown';
+  const initials = getInitials(name);
+  const unread = thread.unreadCount || 0;
 
   return (
     <button
       onClick={onClick}
-      className={`w-full text-left p-3 flex items-center gap-3 transition-colors ${isActive ? 'bg-amber-50' : 'hover:bg-gray-50'} border-b`}
+      className={`w-full text-left px-4 py-3 flex items-center gap-3 transition-colors border-b border-gray-100
+        ${isActive ? 'bg-amber-50 border-l-4 border-l-amber-500' : 'hover:bg-gray-50'}`}
     >
-      <div className={`h-12 w-12 rounded-full flex items-center justify-center text-white ${conversation.avatarColor}`}>
-        {conversation.type === 'class' || conversation.type === 'group' ? (
-          <Users className="h-5 w-5" />
-        ) : (
-          <MessageSquare className="h-5 w-5" />
-        )}
+      <div className="relative flex-shrink-0">
+        <div className="h-11 w-11 rounded-full bg-gradient-to-br from-amber-400 to-amber-600 flex items-center justify-center text-white font-semibold text-sm">
+          {initials}
+        </div>
       </div>
       <div className="flex-1 min-w-0">
         <div className="flex items-center justify-between">
-          <span className="font-medium text-gray-800 truncate">{conversation.name}</span>
-          {conversation.unread > 0 && (
-            <span className="inline-flex items-center justify-center h-5 w-5 rounded-full bg-amber-500 text-white text-xs">
-              {conversation.unread}
-            </span>
-          )}
+          <span className={`text-sm truncate ${unread > 0 ? 'font-semibold text-gray-900' : 'font-medium text-gray-700'}`}>
+            {name}
+          </span>
+          <span className="text-xs text-gray-400 ml-2 flex-shrink-0">{formatTime(thread.lastMessageAt)}</span>
         </div>
-        <div className="text-xs text-gray-500 truncate">{conversation.lastMessage}</div>
-        <div className="flex items-center justify-between mt-1">
-          <span className="text-xs text-gray-400">{formatTime(conversation.lastTime)}</span>
-          {conversation.type === 'teacher' && conversation.isOnline && (
-            <span className="text-xs text-green-500 flex items-center">
-              <span className="h-2 w-2 rounded-full bg-green-500 mr-1"></span>
-              Online
+        <div className="flex items-center justify-between mt-0.5">
+          <span className="text-xs text-gray-500 truncate">{thread.lastMessage || 'No messages yet'}</span>
+          {unread > 0 && (
+            <span className="ml-2 flex-shrink-0 h-5 min-w-[20px] px-1.5 rounded-full bg-amber-500 text-white text-xs flex items-center justify-center">
+              {unread}
             </span>
           )}
         </div>
@@ -189,321 +88,529 @@ const ConversationItem = ({ conversation, isActive, onClick }) => {
   );
 };
 
+// ── ContactItem for new conversation ──────────────────────────────────────────
+const ContactItem = ({ contact, onClick }) => {
+  const initials = getInitials(contact.name);
+  return (
+    <button
+      onClick={onClick}
+      className="w-full text-left px-4 py-3 flex items-center gap-3 hover:bg-amber-50 transition-colors border-b border-gray-100"
+    >
+      <div className="h-10 w-10 rounded-full bg-gradient-to-br from-blue-400 to-blue-600 flex items-center justify-center text-white font-semibold text-sm flex-shrink-0">
+        {initials}
+      </div>
+      <div className="flex-1 min-w-0">
+        <div className="text-sm font-medium text-gray-800 truncate">{contact.name}</div>
+        <div className="text-xs text-gray-500">{contact.subtitle}</div>
+      </div>
+      <MessageSquare className="h-4 w-4 text-gray-400 flex-shrink-0" />
+    </button>
+  );
+};
+
+// ── Main StudentChat ───────────────────────────────────────────────────────────
 const StudentChat = () => {
-  const [{ conversations, messages }, setStore] = useState(loadState);
-  const [activeId, setActiveId] = useState(conversations[0]?.id || null);
-  const [query, setQuery] = useState('');
+  const [me, setMe] = useState(null);
+  const [threads, setThreads] = useState([]);
+  const [activeThreadId, setActiveThreadId] = useState(null);
+  const [messages, setMessages] = useState([]);
   const [draft, setDraft] = useState('');
-  const [messageType, setMessageType] = useState('text'); // 'text' | 'voice' | 'file'
-  const [selectedFile, setSelectedFile] = useState(null);
-  const [recording, setRecording] = useState(false);
+  const [query, setQuery] = useState('');
+  const [contacts, setContacts] = useState([]);
+  const [showContacts, setShowContacts] = useState(false);
+  const [contactQuery, setContactQuery] = useState('');
+  const [loadingThreads, setLoadingThreads] = useState(true);
+  const [loadingMessages, setLoadingMessages] = useState(false);
+  const [typingUsers, setTypingUsers] = useState({});
   const [isMobileView, setIsMobileView] = useState(false);
+
+  const socketRef = useRef(null);
+  const activeThreadIdRef = useRef(null);
   const messagesEndRef = useRef(null);
-  const messagesContainerRef = useRef(null);
+  const typingTimers = useRef({});
+  const typingDebounce = useRef(null);
+  const isTyping = useRef(false);
 
-  const activeMessages = useMemo(() => messages[activeId] || [], [messages, activeId]);
-  const activeConversation = useMemo(() => conversations.find(c => c.id === activeId), [conversations, activeId]);
+  const activeThread = useMemo(() => threads.find(t => String(t._id) === activeThreadId), [threads, activeThreadId]);
 
-  useEffect(() => { saveState({ conversations, messages }); }, [conversations, messages]);
-  
+  // ── Bootstrap: load me + threads + socket ─────────────────────────────────
   useEffect(() => {
-    if (!activeId) return;
-    setStore(prev => ({
-      ...prev,
-      conversations: prev.conversations.map(c => c.id === activeId ? { ...c, unread: 0 } : c)
-    }));
-  }, [activeId]);
+    const token = localStorage.getItem('token');
+    if (!token) return;
 
-  // Scroll to bottom when messages change
-  useEffect(() => {
-    if (messagesContainerRef.current) {
-      messagesContainerRef.current.scrollTop = messagesContainerRef.current.scrollHeight;
-    }
-  }, [activeMessages]);
+    let mounted = true;
 
-  const filteredConversations = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    if (!q) return conversations;
-    return conversations.filter(c => c.name.toLowerCase().includes(q) || c.lastMessage.toLowerCase().includes(q));
-  }, [conversations, query]);
-
-  const sendMessage = () => {
-    if (!activeId) return;
-    let newMsg;
-    if (messageType === 'text') {
-      const text = draft.trim();
-      if (!text) return;
-      newMsg = { id: crypto.randomUUID(), sender: 'student', senderName: 'You', text, ts: Date.now(), type: 'text' };
-    } else if (messageType === 'file') {
-      if (!selectedFile) return;
-      newMsg = { id: crypto.randomUUID(), sender: 'student', senderName: 'You', ts: Date.now(), type: 'file', fileName: selectedFile.name };
-    } else if (messageType === 'voice') {
-      newMsg = { id: crypto.randomUUID(), sender: 'student', senderName: 'You', ts: Date.now(), type: 'voice' };
-    }
-    const lastPreview = newMsg.type === 'text' ? (newMsg.text || '') : (newMsg.type === 'file' ? `[File] ${newMsg.fileName}` : '[Voice message]');
-
-    setStore(prev => ({
-      conversations: prev.conversations.map(c => 
-        c.id === activeId ? { 
-          ...c, 
-          lastMessage: lastPreview,
-          lastTime: Date.now() 
-        } : c
-      ),
-      messages: { 
-        ...prev.messages, 
-        [activeId]: [...(prev.messages[activeId] || []), newMsg] 
+    const init = async () => {
+      try {
+        const [meData, threadsData] = await Promise.all([
+          apiFetch('/api/chat/me'),
+          apiFetch('/api/chat/threads'),
+        ]);
+        if (!mounted) return;
+        setMe(meData);
+        setThreads(threadsData);
+      } catch {
+        // ignore
+      } finally {
+        if (mounted) setLoadingThreads(false);
       }
-    }));
-    setDraft('');
-    setSelectedFile(null);
-    setRecording(false);
-  };
+    };
 
-  // Check if we should show mobile view
-  useEffect(() => {
-    const checkMobile = () => setIsMobileView(window.innerWidth < 768);
-    checkMobile();
-    window.addEventListener('resize', checkMobile);
-    return () => window.removeEventListener('resize', checkMobile);
+    init();
+
+    // Setup socket
+    const socket = io(API_URL, {
+      auth: { token },
+      transports: ['websocket', 'polling'],
+      reconnectionAttempts: 5,
+    });
+    socketRef.current = socket;
+
+    socket.on('new-message', (msg) => {
+      const threadId = String(msg.threadId);
+      setMessages(prev => {
+        if (activeThreadIdRef.current === threadId) {
+          if (prev.find(m => String(m._id) === String(msg._id))) return prev;
+          return [...prev, msg];
+        }
+        return prev;
+      });
+      setThreads(prev => prev.map(t =>
+        String(t._id) === threadId
+          ? {
+              ...t,
+              lastMessage: msg.text,
+              lastMessageAt: msg.createdAt,
+              unreadCount: activeThreadIdRef.current === threadId ? 0 : (t.unreadCount || 0) + 1,
+            }
+          : t
+      ));
+    });
+
+    socket.on('thread-updated', ({ threadId, lastMessage, lastMessageAt }) => {
+      setThreads(prev => prev.map(t =>
+        String(t._id) === threadId
+          ? { ...t, lastMessage, lastMessageAt, unreadCount: activeThreadIdRef.current === threadId ? 0 : (t.unreadCount || 0) + 1 }
+          : t
+      ));
+    });
+
+    socket.on('typing', ({ threadId, isTyping: typing, userName }) => {
+      if (String(activeThreadIdRef.current) !== String(threadId)) return;
+      const key = String(threadId);
+      if (typing) {
+        setTypingUsers(prev => ({ ...prev, [key]: userName }));
+        clearTimeout(typingTimers.current[key]);
+        typingTimers.current[key] = setTimeout(() => {
+          setTypingUsers(prev => { const n = { ...prev }; delete n[key]; return n; });
+        }, 3000);
+      } else {
+        setTypingUsers(prev => { const n = { ...prev }; delete n[key]; return n; });
+      }
+    });
+
+    return () => {
+      mounted = false;
+      socket.disconnect();
+    };
   }, []);
 
+  // ── Resize handler ────────────────────────────────────────────────────────
+  useEffect(() => {
+    const check = () => setIsMobileView(window.innerWidth < 768);
+    check();
+    window.addEventListener('resize', check);
+    return () => window.removeEventListener('resize', check);
+  }, []);
+
+  // ── Scroll to bottom ──────────────────────────────────────────────────────
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages]);
+
+  // ── Select a thread ───────────────────────────────────────────────────────
+  const selectThread = useCallback(async (threadId) => {
+    const socket = socketRef.current;
+
+    if (activeThreadIdRef.current && activeThreadIdRef.current !== threadId) {
+      socket?.emit('leave-thread', { threadId: activeThreadIdRef.current });
+    }
+
+    activeThreadIdRef.current = threadId;
+    setActiveThreadId(threadId);
+    setMessages([]);
+    setLoadingMessages(true);
+
+    // Mark as read in state
+    setThreads(prev => prev.map(t => String(t._id) === threadId ? { ...t, unreadCount: 0 } : t));
+
+    socket?.emit('join-thread', { threadId });
+    socket?.emit('mark-seen', { threadId });
+
+    try {
+      const msgs = await apiFetch(`/api/chat/threads/${threadId}/messages`);
+      setMessages(msgs);
+    } catch {
+      setMessages([]);
+    } finally {
+      setLoadingMessages(false);
+    }
+  }, []);
+
+  // ── Start conversation with a contact ─────────────────────────────────────
+  const startConversation = useCallback(async (contact) => {
+    setShowContacts(false);
+    setContactQuery('');
+    try {
+      const thread = await apiFetch('/api/chat/threads/direct', {
+        method: 'POST',
+        body: JSON.stringify({ targetId: contact._id, targetType: contact.userType }),
+      });
+      setThreads(prev => {
+        const exists = prev.find(t => String(t._id) === String(thread._id));
+        if (exists) return prev;
+        return [thread, ...prev];
+      });
+      selectThread(String(thread._id));
+    } catch { /* ignore */ }
+  }, [selectThread]);
+
+  // ── Load contacts ─────────────────────────────────────────────────────────
+  const openContacts = useCallback(async () => {
+    if (contacts.length === 0) {
+      try {
+        const data = await apiFetch('/api/chat/contacts');
+        setContacts(data);
+      } catch { /* ignore */ }
+    }
+    setShowContacts(true);
+  }, [contacts]);
+
+  // ── Send message ──────────────────────────────────────────────────────────
+  const sendMessage = useCallback(() => {
+    const text = draft.trim();
+    if (!text || !activeThreadId) return;
+    setDraft('');
+
+    // Optimistic
+    const optimisticId = `opt-${Date.now()}`;
+    const optimistic = {
+      _id: optimisticId,
+      threadId: activeThreadId,
+      senderId: me?.id,
+      senderType: 'student',
+      senderName: me?.name || 'You',
+      text,
+      createdAt: new Date().toISOString(),
+      _optimistic: true,
+    };
+    setMessages(prev => [...prev, optimistic]);
+
+    // Emit via socket
+    if (socketRef.current?.connected) {
+      socketRef.current.emit('send-message', { threadId: activeThreadId, text });
+    } else {
+      // Fallback to REST
+      apiFetch(`/api/chat/threads/${activeThreadId}/messages`, {
+        method: 'POST',
+        body: JSON.stringify({ text }),
+      }).then(msg => {
+        setMessages(prev => prev.map(m => m._id === optimisticId ? msg : m));
+      }).catch(() => {
+        setMessages(prev => prev.filter(m => m._id !== optimisticId));
+      });
+    }
+
+    // Update thread preview
+    setThreads(prev => prev.map(t =>
+      String(t._id) === activeThreadId
+        ? { ...t, lastMessage: text, lastMessageAt: new Date().toISOString() }
+        : t
+    ));
+
+    if (isTyping.current) {
+      isTyping.current = false;
+      socketRef.current?.emit('typing-stop', { threadId: activeThreadId });
+    }
+  }, [draft, activeThreadId, me]);
+
+  // ── Typing indicators ──────────────────────────────────────────────────────
+  const handleDraftChange = useCallback((val) => {
+    setDraft(val);
+    if (!activeThreadId || !socketRef.current) return;
+    if (!isTyping.current) {
+      isTyping.current = true;
+      socketRef.current.emit('typing-start', { threadId: activeThreadId });
+    }
+    clearTimeout(typingDebounce.current);
+    typingDebounce.current = setTimeout(() => {
+      isTyping.current = false;
+      socketRef.current?.emit('typing-stop', { threadId: activeThreadId });
+    }, 2000);
+  }, [activeThreadId]);
+
+  // ── Filtered data ─────────────────────────────────────────────────────────
+  const filteredThreads = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return threads;
+    return threads.filter(t => {
+      const name = t.otherParticipant?.name || '';
+      return name.toLowerCase().includes(q) || t.lastMessage?.toLowerCase().includes(q);
+    });
+  }, [threads, query]);
+
+  const filteredContacts = useMemo(() => {
+    const q = contactQuery.trim().toLowerCase();
+    if (!q) return contacts;
+    return contacts.filter(c => c.name.toLowerCase().includes(q) || c.subtitle?.toLowerCase().includes(q));
+  }, [contacts, contactQuery]);
+
+  const isTypingInActive = activeThreadId ? typingUsers[activeThreadId] : null;
+
+  const showSidebar = !isMobileView || !activeThreadId;
+  const showMain = !isMobileView || activeThreadId;
+
   return (
-    <div className="h-full min-h-0 bg-gray-50 flex w-full">
-      {/* Sidebar - Hidden on mobile when conversation is active */}
-      <div className={`w-full md:w-80 bg-white border-r flex flex-col h-full min-h-0 ${isMobileView && activeId ? 'hidden' : 'flex'}`}>
-        <div className="p-4 border-b">
-          <div className="flex items-center gap-3">
-            <div className="h-10 w-10 rounded-full bg-amber-100 flex items-center justify-center">
-              <MessageSquare className="h-5 w-5 text-amber-600" />
+    <div className="h-full flex bg-gray-50 overflow-hidden">
+      {/* ── Sidebar ── */}
+      {showSidebar && (
+        <div className="w-full md:w-[320px] flex-shrink-0 bg-white border-r border-gray-200 flex flex-col h-full">
+          {/* Header */}
+          <div className="px-4 py-4 border-b border-gray-100">
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-2.5">
+                <div className="h-9 w-9 rounded-xl bg-amber-100 flex items-center justify-center">
+                  <MessageSquare className="h-5 w-5 text-amber-600" />
+                </div>
+                <div>
+                  <h1 className="font-bold text-gray-900 text-sm">Messages</h1>
+                  <p className="text-xs text-gray-500">Chat with your teachers</p>
+                </div>
+              </div>
+              <button
+                onClick={openContacts}
+                className="h-8 w-8 rounded-lg bg-amber-50 hover:bg-amber-100 flex items-center justify-center transition-colors"
+                title="Start new conversation"
+              >
+                <PlusCircle className="h-4 w-4 text-amber-600" />
+              </button>
             </div>
-            <div>
-              <h1 className="font-bold text-gray-800">Student Chat</h1>
-              <p className="text-xs text-gray-500">Connect with classmates and teachers</p>
-            </div>
-          </div>
-          
-          <div className="mt-4 flex items-center gap-2 bg-gray-100 rounded-lg px-3 py-2">
-            <Search className="h-4 w-4 text-gray-500" />
-            <input
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search conversations..."
-              className="bg-transparent outline-none text-sm flex-1 placeholder-gray-500"
-            />
-          </div>
-        </div>
-        
-        <div className="flex-1 overflow-y-auto custom-scrollbar">
-          <div className="px-3 py-2">
-            <div className="text-xs font-medium text-gray-500 uppercase tracking-wider px-2 mb-1">Conversations</div>
-            {filteredConversations.map(c => (
-              <ConversationItem 
-                key={c.id} 
-                conversation={c} 
-                isActive={activeId === c.id} 
-                onClick={() => {
-                  setActiveId(c.id);
-                  if (isMobileView) {
-                    // In mobile view, we'll hide the sidebar when a conversation is selected
-                  }
-                }}
+            <div className="flex items-center gap-2 bg-gray-100 rounded-lg px-3 py-2">
+              <Search className="h-3.5 w-3.5 text-gray-400 flex-shrink-0" />
+              <input
+                value={query}
+                onChange={e => setQuery(e.target.value)}
+                placeholder="Search conversations..."
+                className="bg-transparent outline-none text-xs flex-1 placeholder-gray-400"
               />
-            ))}
-            {filteredConversations.length === 0 && (
-              <div className="p-4 text-center text-sm text-gray-500">
-                No conversations found
-              </div>
-            )}
-          </div>
-        </div>
-        
-        <div className="p-4 border-t bg-gray-50">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <div className="h-8 w-8 rounded-full bg-amber-200 flex items-center justify-center">
-                <span className="text-xs font-medium text-amber-800">You</span>
-              </div>
-              <span className="text-sm font-medium text-gray-700">Student</span>
             </div>
-            <span className="text-xs px-2 py-1 rounded-full bg-green-100 text-green-800">Online</span>
           </div>
-        </div>
-      </div>
-      
-      {/* Main Chat Area - Hidden on mobile when no conversation is selected */}
-      <div className={`flex-1 flex flex-col h-full min-h-0 ${isMobileView && !activeId ? 'hidden' : 'flex'}`}>
-        {activeId ? (
-          <>
-            <div className="px-6 py-4 border-b bg-white flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                {isMobileView && (
-                  <button 
-                    onClick={() => setActiveId(null)}
-                    className="md:hidden h-10 w-10 rounded-full flex items-center justify-center hover:bg-gray-100"
-                  >
-                    <ChevronLeft className="h-5 w-5 text-gray-600" />
+
+          {/* Contacts overlay */}
+          {showContacts && (
+            <div className="absolute left-0 top-0 w-full md:w-[320px] h-full bg-white z-20 flex flex-col shadow-xl" style={{ zIndex: 50 }}>
+              <div className="px-4 py-3 border-b flex items-center justify-between">
+                <h2 className="font-semibold text-gray-800 text-sm">New Conversation</h2>
+                <button onClick={() => { setShowContacts(false); setContactQuery(''); }}
+                  className="h-7 w-7 rounded-full hover:bg-gray-100 flex items-center justify-center">
+                  <X className="h-4 w-4 text-gray-500" />
+                </button>
+              </div>
+              <div className="px-4 py-2 border-b">
+                <div className="flex items-center gap-2 bg-gray-100 rounded-lg px-3 py-1.5">
+                  <Search className="h-3.5 w-3.5 text-gray-400" />
+                  <input
+                    autoFocus
+                    value={contactQuery}
+                    onChange={e => setContactQuery(e.target.value)}
+                    placeholder="Search teachers..."
+                    className="bg-transparent outline-none text-xs flex-1 placeholder-gray-400"
+                  />
+                </div>
+              </div>
+              <div className="flex-1 overflow-y-auto">
+                {filteredContacts.length === 0 ? (
+                  <div className="p-6 text-center text-sm text-gray-500">
+                    {contacts.length === 0 ? 'No teachers found' : 'No results'}
+                  </div>
+                ) : (
+                  filteredContacts.map(c => (
+                    <ContactItem key={c._id} contact={c} onClick={() => startConversation(c)} />
+                  ))
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Thread list */}
+          <div className="flex-1 overflow-y-auto">
+            {loadingThreads ? (
+              <div className="flex items-center justify-center py-12">
+                <Loader2 className="h-5 w-5 text-amber-400 animate-spin" />
+              </div>
+            ) : filteredThreads.length === 0 ? (
+              <div className="p-6 text-center">
+                <MessageSquare className="h-10 w-10 text-gray-200 mx-auto mb-2" />
+                <p className="text-sm text-gray-500">
+                  {query ? 'No results found' : 'No conversations yet'}
+                </p>
+                {!query && (
+                  <button onClick={openContacts}
+                    className="mt-3 text-xs text-amber-600 hover:underline font-medium">
+                    Start a conversation
                   </button>
                 )}
-                <div className="h-10 w-10 rounded-full bg-amber-100 flex items-center justify-center">
-                  {activeConversation.type === 'class' || activeConversation.type === 'group' ? (
-                    <Users className="h-5 w-5 text-amber-600" />
-                  ) : (
-                    <MessageSquare className="h-5 w-5 text-amber-600" />
-                  )}
-                </div>
-                <div>
-                  <div className="font-semibold text-gray-800">{activeConversation.name}</div>
-                  <div className="text-xs text-gray-500 capitalize">
-                    {activeConversation.type === 'teacher' && activeConversation.isOnline ? (
-                      <span className="text-green-500 flex items-center">
-                        <span className="h-2 w-2 rounded-full bg-green-500 mr-1"></span>
-                        Online
-                      </span>
-                    ) : (
-                      `${activeConversation.members} members`
-                    )}
-                  </div>
-                </div>
               </div>
-              <div className="flex items-center gap-2">
-                {activeConversation.type === 'teacher' && (
-                  <>
-                    <button className="h-9 w-9 rounded-lg hover:bg-gray-100 flex items-center justify-center">
-                      <Phone className="h-5 w-5 text-gray-600" />
-                    </button>
-                    <button className="h-9 w-9 rounded-lg hover:bg-gray-100 flex items-center justify-center">
-                      <Video className="h-5 w-5 text-gray-600" />
-                    </button>
-                  </>
-                )}
-                <button className="h-9 w-9 rounded-lg hover:bg-gray-100 flex items-center justify-center">
-                  <Info className="h-5 w-5 text-gray-600" />
-                </button>
+            ) : (
+              filteredThreads.map(t => (
+                <ConversationItem
+                  key={t._id}
+                  thread={t}
+                  isActive={String(t._id) === activeThreadId}
+                  onClick={() => selectThread(String(t._id))}
+                  myId={me?.id}
+                />
+              ))
+            )}
+          </div>
+
+          {/* Footer */}
+          <div className="px-4 py-3 border-t border-gray-100 bg-gray-50">
+            <div className="flex items-center gap-2.5">
+              <div className="h-7 w-7 rounded-full bg-amber-200 flex items-center justify-center text-xs font-semibold text-amber-800">
+                {getInitials(me?.name || 'S')}
               </div>
-            </div>
-            
-            <div 
-              ref={messagesContainerRef}
-              className="flex-1 overflow-y-auto p-6 bg-gray-50 flex flex-col-reverse custom-scrollbar"
-              style={{ display: 'flex', flexDirection: 'column-reverse' }}
-            >
-              {activeMessages.length ? (
-                <div>
-                  {activeMessages.map((message, index) => {
-                    const isMine = message.sender === 'student';
-                    const showSender = !isMine && (
-                      index === 0 || 
-                      activeMessages[index - 1].sender !== message.sender ||
-                      message.ts - activeMessages[index - 1].ts > 600000 // 10 minutes
-                    );
-                    
-                    return (
-                      <ChatMessage 
-                        key={message.id} 
-                        message={message} 
-                        isMine={isMine}
-                        showSender={showSender}
-                      />
-                    );
-                  })}
-                </div>
-              ) : (
-                <div className="h-full flex items-center justify-center">
-                  <div className="text-center text-gray-500">
-                    <MessageSquare className="h-12 w-12 mx-auto text-gray-300 mb-3" />
-                    <p className="font-medium">No messages yet</p>
-                    <p className="text-sm mt-1">Send a message to start the conversation</p>
-                  </div>
-                </div>
-              )}
-            </div>
-            
-            <div className="border-t bg-white p-4">
-              <div className="flex items-end gap-2">
-                <div className="flex-1 bg-gray-100 rounded-2xl">
-                  <div className="flex items-center justify-between px-3 pt-2">
-                    <div className="flex items-center gap-2 text-xs">
-                      <span className="text-gray-500">Type:</span>
-                      <div className="inline-flex rounded-md overflow-hidden border border-gray-300">
-                        {['text','voice','file'].map(t => (
-                          <button
-                            key={t}
-                            onClick={() => setMessageType(t)}
-                            className={`px-2 py-1 ${messageType===t ? 'bg-white text-gray-800' : 'text-gray-600 hover:bg-white/60'}`}
-                          >
-                            {t.charAt(0).toUpperCase()+t.slice(1)}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-1 text-xs text-gray-500">
-                      {messageType === 'voice' && (
-                        <button
-                          onClick={() => setRecording(r=>!r)}
-                          className={`px-2 py-1 rounded-md ${recording ? 'bg-red-500 text-white' : 'bg-white text-gray-700'}`}
-                        >
-                          {recording ? 'Stop Recording' : 'Record'}
-                        </button>
-                      )}
-                      {messageType === 'file' && (
-                        <label className="px-2 py-1 rounded-md bg-white text-gray-700 cursor-pointer">
-                          <input type="file" className="hidden" onChange={(e)=>setSelectedFile(e.target.files?.[0]||null)} />
-                          Choose File
-                        </label>
-                      )}
-                    </div>
-                  </div>
-                  <div className="flex items-end">
-                    {messageType === 'text' && (
-                      <textarea
-                        rows={1}
-                        value={draft}
-                        onChange={(e) => setDraft(e.target.value)}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter' && !e.shiftKey) {
-                            e.preventDefault();
-                            sendMessage();
-                          }
-                        }}
-                        placeholder="Type your message..."
-                        className="flex-1 resize-none bg-transparent px-3 py-3 text-sm focus:outline-none min-h-[44px] max-h-32"
-                      />
-                    )}
-                    {messageType === 'file' && (
-                      <div className="flex-1 px-3 py-3 text-sm text-gray-700">
-                        {selectedFile ? `Selected: ${selectedFile.name}` : 'No file selected'}
-                      </div>
-                    )}
-                    {messageType === 'voice' && (
-                      <div className="flex-1 px-3 py-3 text-sm text-gray-700">
-                        {recording ? 'Recording...' : 'Press Record to capture voice message'}
-                      </div>
-                    )}
-                  </div>
-                </div>
-                <button
-                  onClick={sendMessage}
-                  disabled={(messageType==='text' && !draft.trim()) || (messageType==='file' && !selectedFile)}
-                  className="h-12 w-12 rounded-full bg-amber-600 text-white flex items-center justify-center hover:bg-amber-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  <Send className="h-5 w-5" />
-                </button>
+              <div className="flex-1 min-w-0">
+                <p className="text-xs font-medium text-gray-700 truncate">{me?.name || 'Student'}</p>
+                <p className="text-xs text-gray-400">Student</p>
               </div>
-            </div>
-          </>
-        ) : (
-          <div className="flex-1 flex flex-col items-center justify-center bg-gray-50 p-6">
-            <div className="text-center max-w-md">
-              <MessageSquare className="h-16 w-16 mx-auto text-gray-300 mb-4" />
-              <h2 className="text-xl font-semibold text-gray-700 mb-2">Welcome to Student Chat</h2>
-              <p className="text-gray-500 mb-6">
-                Select a conversation from the sidebar to start messaging with your classmates, teachers, or school administration.
-              </p>
+              <span className="text-xs px-2 py-0.5 rounded-full bg-green-100 text-green-700 font-medium">Online</span>
             </div>
           </div>
-        )}
-      </div>
+        </div>
+      )}
+
+      {/* ── Main Chat Area ── */}
+      {showMain && (
+        <div className="flex-1 flex flex-col h-full min-w-0">
+          {activeThreadId ? (
+            <>
+              {/* Chat header */}
+              <div className="px-4 py-3 border-b border-gray-200 bg-white flex items-center justify-between flex-shrink-0">
+                <div className="flex items-center gap-3">
+                  {isMobileView && (
+                    <button onClick={() => { setActiveThreadId(null); activeThreadIdRef.current = null; }}
+                      className="h-8 w-8 rounded-lg hover:bg-gray-100 flex items-center justify-center">
+                      <ChevronLeft className="h-5 w-5 text-gray-500" />
+                    </button>
+                  )}
+                  <div className="h-9 w-9 rounded-full bg-gradient-to-br from-amber-400 to-amber-600 flex items-center justify-center text-white font-semibold text-sm flex-shrink-0">
+                    {getInitials(activeThread?.otherParticipant?.name || '')}
+                  </div>
+                  <div>
+                    <div className="font-semibold text-gray-900 text-sm">
+                      {activeThread?.otherParticipant?.name || 'Teacher'}
+                    </div>
+                    <div className="text-xs text-gray-500">
+                      {isTypingInActive ? (
+                        <span className="text-amber-500 font-medium">typing...</span>
+                      ) : 'Teacher'}
+                    </div>
+                  </div>
+                </div>
+                <button className="h-8 w-8 rounded-lg hover:bg-gray-100 flex items-center justify-center">
+                  <Info className="h-4 w-4 text-gray-500" />
+                </button>
+              </div>
+
+              {/* Messages */}
+              <div className="flex-1 overflow-y-auto px-4 py-4 bg-gray-50">
+                {loadingMessages ? (
+                  <div className="flex items-center justify-center h-full">
+                    <Loader2 className="h-5 w-5 text-amber-400 animate-spin" />
+                  </div>
+                ) : messages.length === 0 ? (
+                  <div className="flex items-center justify-center h-full">
+                    <div className="text-center">
+                      <MessageSquare className="h-10 w-10 text-gray-200 mx-auto mb-2" />
+                      <p className="text-sm text-gray-500">No messages yet. Say hello!</p>
+                    </div>
+                  </div>
+                ) : (
+                  <>
+                    {messages.map(msg => (
+                      <ChatMessage
+                        key={msg._id}
+                        msg={msg}
+                        isMine={String(msg.senderId) === String(me?.id)}
+                      />
+                    ))}
+                    {isTypingInActive && (
+                      <div className="flex justify-start mb-3">
+                        <div className="bg-white rounded-2xl rounded-bl-sm px-4 py-2.5 shadow-sm">
+                          <div className="flex gap-1 items-center h-4">
+                            <span className="h-2 w-2 rounded-full bg-gray-400 animate-bounce" style={{ animationDelay: '0ms' }} />
+                            <span className="h-2 w-2 rounded-full bg-gray-400 animate-bounce" style={{ animationDelay: '150ms' }} />
+                            <span className="h-2 w-2 rounded-full bg-gray-400 animate-bounce" style={{ animationDelay: '300ms' }} />
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                    <div ref={messagesEndRef} />
+                  </>
+                )}
+              </div>
+
+              {/* Input */}
+              <div className="border-t border-gray-200 bg-white px-4 py-3 flex-shrink-0">
+                <div className="flex items-end gap-2">
+                  <div className="flex-1 bg-gray-100 rounded-2xl px-4 py-2.5">
+                    <textarea
+                      rows={1}
+                      value={draft}
+                      onChange={e => handleDraftChange(e.target.value)}
+                      onKeyDown={e => {
+                        if (e.key === 'Enter' && !e.shiftKey) {
+                          e.preventDefault();
+                          sendMessage();
+                        }
+                      }}
+                      placeholder="Type a message..."
+                      className="w-full resize-none bg-transparent text-sm focus:outline-none placeholder-gray-400 min-h-[20px] max-h-28"
+                    />
+                  </div>
+                  <button
+                    onClick={sendMessage}
+                    disabled={!draft.trim()}
+                    className="h-10 w-10 rounded-full bg-amber-500 text-white flex items-center justify-center hover:bg-amber-600 disabled:opacity-40 disabled:cursor-not-allowed transition-colors flex-shrink-0"
+                  >
+                    <Send className="h-4 w-4" />
+                  </button>
+                </div>
+              </div>
+            </>
+          ) : (
+            <div className="flex-1 flex flex-col items-center justify-center bg-gray-50 p-8">
+              <div className="text-center max-w-xs">
+                <div className="h-16 w-16 rounded-2xl bg-amber-100 flex items-center justify-center mx-auto mb-4">
+                  <MessageSquare className="h-8 w-8 text-amber-500" />
+                </div>
+                <h2 className="text-lg font-semibold text-gray-800 mb-2">Student Chat</h2>
+                <p className="text-sm text-gray-500 mb-5">
+                  Select a conversation or start a new one with your teachers.
+                </p>
+                <button
+                  onClick={openContacts}
+                  className="inline-flex items-center gap-2 px-4 py-2 bg-amber-500 text-white text-sm font-medium rounded-lg hover:bg-amber-600 transition-colors"
+                >
+                  <PlusCircle className="h-4 w-4" />
+                  New Conversation
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 };

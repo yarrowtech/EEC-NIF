@@ -1,10 +1,13 @@
 // Legacy bootstrap block retained for reference.
 // (Use the active block below.)
 
+const http = require('http');
 const express = require('express');
 const mongoose = require('mongoose');
 const dotenv = require('dotenv');
 const cors = require('cors');
+const { Server: SocketServer } = require('socket.io');
+const jwt = require('jsonwebtoken');
 const swaggerUi = require('swagger-ui-express');
 let swaggerDocument;
 
@@ -47,6 +50,11 @@ const practiceRoutes = require('./routes/practiceRoutes');
 const excuseLetterRoutes = require('./routes/excuseLetterRoutes');
 const nifStudentRoutes = require('./routes/nifStudentRoutes');
 const lessonPlanRoutes = require('./routes/lessonPlanRoutes');
+const chatRoutes = require('./routes/chatRoutes');
+const ChatThread = require('./models/ChatThread');
+const ChatMessage = require('./models/ChatMessage');
+const StudentUser = require('./models/StudentUser');
+const TeacherUser = require('./models/TeacherUser');
 const Principal = require('./models/Principal');
 const Admin = require('./models/Admin');
 const { isStrongPassword } = require('./utils/passwordPolicy');
@@ -279,7 +287,7 @@ app.use('/api/practice', practiceRoutes);
 app.use('/api/excuse-letters', excuseLetterRoutes);
 app.use('/api/nif', nifStudentRoutes);
 app.use('/api/lesson-plans', lessonPlanRoutes);
-
+app.use('/api/chat', chatRoutes);
 
 app.use("/api/uploads", uploadRoutes);
 
@@ -290,4 +298,146 @@ app.use((err, _req, res, _next) => {
 });
 
 const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+const httpServer = http.createServer(app);
+
+const io = new SocketServer(httpServer, {
+  cors: {
+    origin: allowedOrigins && allowedOrigins.length > 0 ? allowedOrigins : '*',
+    methods: ['GET', 'POST'],
+  },
+});
+
+// Socket.io auth middleware
+io.use((socket, next) => {
+  const token = socket.handshake.auth?.token || socket.handshake.query?.token;
+  if (!token) return next(new Error('Authentication required'));
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    if (!decoded.campusId) return next(new Error('campusId required'));
+    socket.user = decoded;
+    next();
+  } catch {
+    next(new Error('Invalid token'));
+  }
+});
+
+io.on('connection', (socket) => {
+  const user = socket.user;
+  const userId = user.id?.toString();
+
+  // Join personal room for direct notifications
+  socket.join(`user:${userId}`);
+
+  socket.on('join-thread', async ({ threadId }) => {
+    try {
+      const thread = await ChatThread.findOne({
+        _id: threadId,
+        schoolId: user.schoolId,
+        campusId: user.campusId,
+        'participants.userId': userId,
+      }).lean();
+      if (!thread) return;
+      socket.join(`thread:${threadId}`);
+
+      // Mark as read when joining
+      await ChatThread.updateOne(
+        { _id: threadId, 'unreadCounts.userId': userId },
+        { $set: { 'unreadCounts.$.count': 0 } }
+      );
+    } catch { /* ignore */ }
+  });
+
+  socket.on('leave-thread', ({ threadId }) => {
+    socket.leave(`thread:${threadId}`);
+  });
+
+  socket.on('send-message', async ({ threadId, text }) => {
+    try {
+      if (!text || !String(text).trim()) return;
+
+      const thread = await ChatThread.findOne({
+        _id: threadId,
+        schoolId: user.schoolId,
+        campusId: user.campusId,
+        'participants.userId': userId,
+      }).lean();
+
+      if (!thread) return;
+
+      const myParticipant = thread.participants?.find(p => p.userId?.toString() === userId);
+      const senderName = myParticipant?.name || user.userType || 'User';
+
+      const msg = await ChatMessage.create({
+        threadId,
+        senderId: userId,
+        senderType: user.userType,
+        senderName,
+        text: String(text).trim(),
+        schoolId: user.schoolId,
+        campusId: user.campusId,
+        seenBy: [{ userId, seenAt: new Date() }],
+      });
+
+      // Update thread and increment unread for others
+      const bulkOps = [];
+      for (const p of thread.participants) {
+        if (p.userId?.toString() === userId) continue;
+        bulkOps.push({
+          updateOne: {
+            filter: { _id: threadId, 'unreadCounts.userId': p.userId },
+            update: { $inc: { 'unreadCounts.$.count': 1 } },
+          },
+        });
+      }
+
+      await Promise.all([
+        ChatThread.updateOne(
+          { _id: threadId },
+          { $set: { lastMessage: msg.text, lastMessageAt: msg.createdAt, lastSenderId: userId } }
+        ),
+        bulkOps.length ? ChatThread.bulkWrite(bulkOps) : Promise.resolve(),
+      ]);
+
+      const payload = msg.toObject();
+
+      // Broadcast to thread room
+      io.to(`thread:${threadId}`).emit('new-message', payload);
+
+      // Notify other participants who may not be in the room
+      for (const p of thread.participants) {
+        if (p.userId?.toString() === userId) continue;
+        io.to(`user:${p.userId}`).emit('thread-updated', {
+          threadId,
+          lastMessage: msg.text,
+          lastMessageAt: msg.createdAt,
+        });
+      }
+    } catch (err) {
+      socket.emit('error', { message: err.message });
+    }
+  });
+
+  socket.on('typing-start', ({ threadId }) => {
+    socket.to(`thread:${threadId}`).emit('typing', { threadId, userId, userName: socket.user.userType, isTyping: true });
+  });
+
+  socket.on('typing-stop', ({ threadId }) => {
+    socket.to(`thread:${threadId}`).emit('typing', { threadId, userId, userName: socket.user.userType, isTyping: false });
+  });
+
+  socket.on('mark-seen', async ({ threadId }) => {
+    try {
+      await ChatThread.updateOne(
+        { _id: threadId, 'unreadCounts.userId': userId },
+        { $set: { 'unreadCounts.$.count': 0 } }
+      );
+      socket.to(`thread:${threadId}`).emit('message-seen', { threadId, userId });
+    } catch { /* ignore */ }
+  });
+
+  socket.on('disconnect', () => {
+    // cleanup handled by socket.io
+  });
+});
+
+httpServer.listen(PORT, () => console.log(`Server running on port ${PORT}`));
