@@ -8,7 +8,7 @@ const seenBySchema = new mongoose.Schema({
 const chatMessageSchema = new mongoose.Schema({
   threadId: { type: mongoose.Schema.Types.ObjectId, ref: 'ChatThread', required: true },
   senderId: { type: mongoose.Schema.Types.ObjectId, required: true },
-  senderType: { type: String, enum: ['student', 'teacher'], required: true },
+  senderType: { type: String, enum: ['student', 'teacher', 'parent'], required: true },
   senderName: { type: String, default: '' },
   text: { type: String, required: true, trim: true },
   seenBy: [seenBySchema],

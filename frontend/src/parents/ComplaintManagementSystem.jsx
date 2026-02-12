@@ -14,6 +14,14 @@ const PRIORITY_OPTIONS = [
   { value: 'critical', label: 'Critical' },
 ];
 const CATEGORY_OPTIONS = ['Technical', 'Academic', 'Transport', 'Fees', 'Wellbeing', 'General', 'Other'];
+const resolveAssignee = (complaint) => {
+  if (!complaint) return 'School Admin';
+  return (
+    complaint.assignedTo ||
+    complaint.owner ||
+    (complaint.targetRole === 'teacher' ? 'Class Teacher' : 'School Admin')
+  );
+};
 
 const ComplaintManagementSystem = () => {
   const [complaints, setComplaints] = useState([]);
@@ -262,6 +270,11 @@ const ComplaintManagementSystem = () => {
                   </option>
                 ))}
               </select>
+              <p className="text-xs text-gray-500">
+                {isAcademicCategory
+                  ? 'Academic complaints are routed directly to your child’s class teacher.'
+                  : 'Other categories are sent to the school administration team.'}
+              </p>
             </div>
             <div className="space-y-1">
               <label className="text-sm font-medium text-gray-600">Priority</label>
@@ -365,32 +378,51 @@ const ComplaintManagementSystem = () => {
             <div className="text-sm text-gray-500">No complaints found.</div>
           ) : (
             <div className="space-y-3 max-h-[420px] overflow-y-auto pr-1">
-              {filteredComplaints.map((complaint) => (
-                <article key={complaint.id} className="border border-gray-200 rounded-lg p-4 hover:border-amber-200 transition-colors">
-                  <div className="flex items-center justify-between gap-3 flex-wrap">
-                    <div>
-                      <p className="text-xs text-gray-500">Ticket #{complaint.ticketNumber}</p>
-                      <h3 className="text-base font-semibold text-gray-900">{complaint.title}</h3>
+              {filteredComplaints.map((complaint) => {
+                const assigneeLabel = resolveAssignee(complaint);
+                return (
+                  <article key={complaint.id} className="border border-gray-200 rounded-lg p-4 hover:border-amber-200 transition-colors">
+                    <div className="flex items-center justify-between gap-3 flex-wrap">
+                      <div>
+                        <p className="text-xs text-gray-500">Ticket #{complaint.ticketNumber}</p>
+                        <h3 className="text-base font-semibold text-gray-900">{complaint.title}</h3>
+                      </div>
+                      <div className="flex gap-2">
+                        <span className={`text-xs font-medium px-2.5 py-1 rounded-full ${getStatusBadgeClass(complaint.status)}`}>
+                          {STATUS_LABELS[complaint.status] || complaint.status}
+                        </span>
+                        <span className={`text-xs font-medium px-2.5 py-1 rounded-full ${getPriorityBadgeClass(complaint.priority)}`}>
+                          {complaint.priority?.charAt(0).toUpperCase() + complaint.priority?.slice(1)}
+                        </span>
+                      </div>
                     </div>
-                    <div className="flex gap-2">
-                      <span className={`text-xs font-medium px-2.5 py-1 rounded-full ${getStatusBadgeClass(complaint.status)}`}>
-                        {STATUS_LABELS[complaint.status] || complaint.status}
-                      </span>
-                      <span className={`text-xs font-medium px-2.5 py-1 rounded-full ${getPriorityBadgeClass(complaint.priority)}`}>
-                        {complaint.priority?.charAt(0).toUpperCase() + complaint.priority?.slice(1)}
-                      </span>
+                    <p className="text-sm text-gray-600 mt-2">{complaint.description}</p>
+                    <div className="flex flex-wrap items-center gap-3 text-xs text-gray-500 mt-3">
+                      <span className="px-2 py-1 bg-gray-100 rounded-md">{complaint.category}</span>
+                      <span>Updated {complaint.updatedAt ? new Date(complaint.updatedAt).toLocaleDateString() : '-'}</span>
+                      {assigneeLabel && (
+                        <span className="px-2 py-1 bg-amber-50 rounded-md text-amber-700">
+                          Assigned to {assigneeLabel}
+                        </span>
+                      )}
+                      {complaint.studentName && (
+                        <span className="px-2 py-1 bg-blue-50 rounded-md text-blue-700">
+                          {complaint.studentName}
+                          {(complaint.studentGrade || complaint.studentSection) && (
+                            <>
+                              {' '}
+                              ({complaint.studentGrade || ''} {complaint.studentSection || ''})
+                            </>
+                          )}
+                        </span>
+                      )}
+                      {complaint.resolutionNotes && (
+                        <span className="text-emerald-600">Note: {complaint.resolutionNotes}</span>
+                      )}
                     </div>
-                  </div>
-                  <p className="text-sm text-gray-600 mt-2">{complaint.description}</p>
-                  <div className="flex flex-wrap items-center gap-3 text-xs text-gray-500 mt-3">
-                    <span className="px-2 py-1 bg-gray-100 rounded-md">{complaint.category}</span>
-                    <span>Updated {complaint.updatedAt ? new Date(complaint.updatedAt).toLocaleDateString() : '-'}</span>
-                    {complaint.resolutionNotes && (
-                      <span className="text-emerald-600">Note: {complaint.resolutionNotes}</span>
-                    )}
-                  </div>
-                </article>
-              ))}
+                  </article>
+                );
+              })}
             </div>
           )}
         </div>

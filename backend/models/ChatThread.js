@@ -2,7 +2,7 @@ const mongoose = require('mongoose');
 
 const participantSchema = new mongoose.Schema({
   userId: { type: mongoose.Schema.Types.ObjectId, required: true },
-  userType: { type: String, enum: ['student', 'teacher'], required: true },
+  userType: { type: String, enum: ['student', 'teacher', 'parent'], required: true },
   name: { type: String, default: '' },
 }, { _id: false });
 

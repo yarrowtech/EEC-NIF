@@ -130,6 +130,7 @@ const StudentChat = () => {
   const typingTimers = useRef({});
   const typingDebounce = useRef(null);
   const isTyping = useRef(false);
+  const meRef = useRef(null);
 
   const activeThread = useMemo(() => threads.find(t => String(t._id) === activeThreadId), [threads, activeThreadId]);
 
@@ -148,6 +149,7 @@ const StudentChat = () => {
         ]);
         if (!mounted) return;
         setMe(meData);
+        meRef.current = meData;
         setThreads(threadsData);
       } catch {
         // ignore
@@ -169,11 +171,19 @@ const StudentChat = () => {
     socket.on('new-message', (msg) => {
       const threadId = String(msg.threadId);
       setMessages(prev => {
-        if (activeThreadIdRef.current === threadId) {
-          if (prev.find(m => String(m._id) === String(msg._id))) return prev;
-          return [...prev, msg];
+        if (activeThreadIdRef.current !== threadId) return prev;
+        // Sender already has an optimistic copy — replace it, don't append
+        if (String(msg.senderId) === String(meRef.current?.id)) {
+          const optIdx = prev.findLastIndex(m => m._optimistic);
+          if (optIdx !== -1) {
+            const next = [...prev];
+            next[optIdx] = msg;
+            return next;
+          }
         }
-        return prev;
+        // Message from someone else — guard against duplicates
+        if (prev.find(m => String(m._id) === String(msg._id))) return prev;
+        return [...prev, msg];
       });
       setThreads(prev => prev.map(t =>
         String(t._id) === threadId
@@ -374,7 +384,7 @@ const StudentChat = () => {
     <div className="h-full flex bg-gray-50 overflow-hidden">
       {/* ── Sidebar ── */}
       {showSidebar && (
-        <div className="w-full md:w-[320px] flex-shrink-0 bg-white border-r border-gray-200 flex flex-col h-full">
+        <div className="w-full md:w-[320px] flex-shrink-0 bg-white border-r border-gray-200 flex flex-col h-full relative">
           {/* Header */}
           <div className="px-4 py-4 border-b border-gray-100">
             <div className="flex items-center justify-between mb-3">
@@ -408,7 +418,7 @@ const StudentChat = () => {
 
           {/* Contacts overlay */}
           {showContacts && (
-            <div className="absolute left-0 top-0 w-full md:w-[320px] h-full bg-white z-20 flex flex-col shadow-xl" style={{ zIndex: 50 }}>
+            <div className="absolute inset-0 w-full h-full bg-white z-50 flex flex-col shadow-xl">
               <div className="px-4 py-3 border-b flex items-center justify-between">
                 <h2 className="font-semibold text-gray-800 text-sm">New Conversation</h2>
                 <button onClick={() => { setShowContacts(false); setContactQuery(''); }}

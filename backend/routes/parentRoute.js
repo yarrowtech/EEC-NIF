@@ -135,6 +135,9 @@ const findClassTeacherForStudent = async ({ student, schoolId }) => {
 
 const formatComplaintResponse = (complaint) => {
   if (!complaint) return null;
+  const assignedTo =
+    complaint.requestDetails?.assignedTo ||
+    (complaint.targetRole === 'teacher' ? 'Class Teacher' : 'School Admin');
   return {
     id: complaint._id,
     ticketNumber: complaint.ticketNumber,
@@ -146,7 +149,17 @@ const formatComplaintResponse = (complaint) => {
     createdAt: complaint.createdAt,
     updatedAt: complaint.updatedAt,
     resolutionNotes: complaint.resolutionNotes || '',
-    owner: complaint.owner || 'Support Desk',
+    owner: complaint.owner || assignedTo || 'Support Desk',
+    assignedTo,
+    targetRole: complaint.targetRole || (assignedTo === 'Class Teacher' ? 'teacher' : 'admin'),
+    studentId: complaint.requestDetails?.studentId,
+    studentName: complaint.requestDetails?.studentName || '',
+    studentGrade: complaint.requestDetails?.studentGrade || '',
+    studentSection: complaint.requestDetails?.studentSection || '',
+    teacherId: complaint.requestDetails?.teacherId,
+    teacherName: complaint.requestDetails?.teacherName || '',
+    teacherEmail: complaint.requestDetails?.teacherEmail || '',
+    parentName: complaint.requestDetails?.parentName || '',
     lastActivity: complaint.auditTrail && complaint.auditTrail.length > 0 ? complaint.auditTrail[complaint.auditTrail.length - 1].note : '',
   };
 };

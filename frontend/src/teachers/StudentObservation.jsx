@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { 
   Eye, 
   Calendar, 
@@ -16,22 +16,60 @@ import {
   Activity
 } from 'lucide-react';
 
+const API_BASE_URL = (import.meta.env.VITE_API_URL || 'http://localhost:5000').replace(/\/$/, '');
+
 const StudentObservation = () => {
   const [selectedClass, setSelectedClass] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
   const [observations, setObservations] = useState([]);
   const [submitted, setSubmitted] = useState(false);
+  const [students, setStudents] = useState([]);
+  const [classOptions, setClassOptions] = useState([]);
+  const [studentsLoading, setStudentsLoading] = useState(true);
+  const [studentsError, setStudentsError] = useState('');
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [historyError, setHistoryError] = useState('');
+  const [parentInsights, setParentInsights] = useState({ stats: null, recent: [] });
+  const [parentInsightsLoading, setParentInsightsLoading] = useState(true);
+  const [parentInsightsError, setParentInsightsError] = useState('');
 
-  const classes = ['Class 5A', 'Class 5B', 'Class 6A', 'Class 6B', 'Class 7A', 'Class 7B'];
-  
-  const students = [
-    { id: 1, name: 'Emma Johnson', class: 'Class 5A', rollNo: '001' },
-    { id: 2, name: 'Liam Smith', class: 'Class 5A', rollNo: '002' },
-    { id: 3, name: 'Sophia Brown', class: 'Class 5A', rollNo: '003' },
-    { id: 4, name: 'Noah Davis', class: 'Class 5B', rollNo: '004' },
-    { id: 5, name: 'Olivia Wilson', class: 'Class 5B', rollNo: '005' },
-    { id: 6, name: 'Mason Taylor', class: 'Class 6A', rollNo: '006' }
-  ];
+  useEffect(() => {
+    const loadStudents = async () => {
+      setStudentsLoading(true);
+      setStudentsError('');
+      try {
+        const token = localStorage.getItem('token');
+        const userType = localStorage.getItem('userType');
+        if (!token || userType !== 'Teacher') {
+          setStudentsError('Teacher session not found. Please log in again.');
+          setStudents([]);
+          setClassOptions([]);
+          setStudentsLoading(false);
+          return;
+        }
+        const res = await fetch(`${API_BASE_URL}/api/attendance/teacher/students`, {
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+        });
+        const payload = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          throw new Error(payload?.error || 'Unable to load students');
+        }
+        setStudents(Array.isArray(payload?.students) ? payload.students : []);
+        setClassOptions(Array.isArray(payload?.options?.classes) ? payload.options.classes : []);
+      } catch (err) {
+        console.error('Teacher observation students error:', err);
+        setStudents([]);
+        setClassOptions([]);
+        setStudentsError(err.message || 'Unable to load students');
+      } finally {
+        setStudentsLoading(false);
+      }
+    };
+    loadStudents();
+  }, []);
 
   const healthCategories = [
     'Physical Symptoms',
@@ -89,12 +127,19 @@ const StudentObservation = () => {
     parentNotification: false
   });
 
-  const filteredStudents = students.filter(student => {
-    const matchesSearch = student.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         student.rollNo.includes(searchTerm);
-    const matchesClass = selectedClass === '' || student.class === selectedClass;
-    return matchesSearch && matchesClass;
-  });
+  const filteredStudents = useMemo(() => {
+    if (!students.length) return [];
+    return students.filter((student) => {
+      const studentName = (student.name || '').toLowerCase();
+      const rollValue = String(student.roll || student.rollNo || '');
+      const classLabel = student.className || student.grade || '';
+      const matchesSearch =
+        studentName.includes(searchTerm.toLowerCase()) ||
+        rollValue.toLowerCase().includes(searchTerm.toLowerCase());
+      const matchesClass = selectedClass ? classLabel === selectedClass : true;
+      return matchesSearch && matchesClass;
+    });
+  }, [students, searchTerm, selectedClass]);
 
   const handleObservationChange = (type, category, value) => {
     setObservationForm(prev => ({
@@ -106,34 +151,115 @@ const StudentObservation = () => {
     }));
   };
 
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    const newObservation = {
-      ...observationForm,
-      id: observations.length + 1,
-      timestamp: new Date().toISOString(),
-      studentName: students.find(s => s.id === parseInt(observationForm.studentId))?.name || ''
-    };
-    
-    setObservations(prev => [newObservation, ...prev]);
-    setSubmitted(true);
-    
-    // Reset form
-    setObservationForm({
-      studentId: '',
-      date: new Date().toISOString().split('T')[0],
-      time: new Date().toTimeString().slice(0, 5),
-      healthObservations: {},
-      emotionObservations: {},
-      additionalNotes: '',
-      urgencyLevel: 'normal',
-      followUpRequired: false,
-      parentNotification: false
-    });
+  const fetchObservationHistory = useCallback(async () => {
+    setHistoryLoading(true);
+    setHistoryError('');
+    try {
+      const token = localStorage.getItem('token');
+      const userType = localStorage.getItem('userType');
+      if (!token || userType !== 'Teacher') {
+        setHistoryError('Teacher session not found. Please log in again.');
+        setObservations([]);
+        setHistoryLoading(false);
+        return;
+      }
+      const res = await fetch(`${API_BASE_URL}/api/observations/teacher?limit=5`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const payload = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(payload?.error || 'Unable to load observations');
+      }
+      setObservations(Array.isArray(payload?.observations) ? payload.observations : []);
+    } catch (err) {
+      console.error('Observation history error:', err);
+      setObservations([]);
+      setHistoryError(err.message || 'Unable to load observations');
+    } finally {
+      setHistoryLoading(false);
+    }
+  }, []);
 
-    setTimeout(() => {
+  useEffect(() => {
+    fetchObservationHistory();
+  }, [fetchObservationHistory]);
+
+  useEffect(() => {
+    const fetchParentInsights = async () => {
+      setParentInsightsLoading(true);
+      setParentInsightsError('');
+      try {
+        const token = localStorage.getItem('token');
+        const userType = localStorage.getItem('userType');
+        if (!token || userType !== 'Teacher') {
+          setParentInsightsError('Teacher session not found. Please log in again.');
+          setParentInsights({ stats: null, recent: [] });
+          setParentInsightsLoading(false);
+          return;
+        }
+        const res = await fetch(`${API_BASE_URL}/api/observations/teacher/parent-insights`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const payload = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          throw new Error(payload?.error || 'Unable to load parent observations');
+        }
+        setParentInsights({
+          stats: payload.stats || null,
+          recent: Array.isArray(payload.recent) ? payload.recent : [],
+        });
+      } catch (err) {
+        console.error('Parent insights error:', err);
+        setParentInsightsError(err.message || 'Unable to load parent observations');
+        setParentInsights({ stats: null, recent: [] });
+      } finally {
+        setParentInsightsLoading(false);
+      }
+    };
+    fetchParentInsights();
+  }, []);
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    const token = localStorage.getItem('token');
+    if (!token) {
+      setHistoryError('Please login to record observations.');
+      return;
+    }
+    try {
       setSubmitted(false);
-    }, 3000);
+      const response = await fetch(`${API_BASE_URL}/api/observations/teacher`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          ...observationForm,
+        }),
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data?.error || 'Unable to save observation');
+      }
+      setObservations((prev) => [data, ...prev].slice(0, 5));
+      setSubmitted(true);
+      setObservationForm({
+        studentId: '',
+        date: new Date().toISOString().split('T')[0],
+        time: new Date().toTimeString().slice(0, 5),
+        healthObservations: {},
+        emotionObservations: {},
+        additionalNotes: '',
+        urgencyLevel: 'normal',
+        followUpRequired: false,
+        parentNotification: false,
+      });
+      setTimeout(() => setSubmitted(false), 2500);
+    } catch (err) {
+      console.error('Observation submit error:', err);
+      setHistoryError(err.message || 'Unable to save observation');
+    }
   };
 
   const getUrgencyColor = (level) => {
@@ -209,11 +335,15 @@ const StudentObservation = () => {
                     required
                   >
                     <option value="">Choose a student</option>
-                    {filteredStudents.map(student => (
-                      <option key={student.id} value={student.id}>
-                        {student.name} - {student.rollNo} ({student.class})
-                      </option>
-                    ))}
+                    {filteredStudents.map((student) => {
+                      const classLabel = student.className || student.grade || 'Class';
+                      const rollLabel = student.roll || student.rollNo || '—';
+                      return (
+                        <option key={student._id || student.id} value={student._id || student.id}>
+                          {student.name} • {classLabel} ({rollLabel})
+                        </option>
+                      );
+                    })}
                   </select>
                 </div>
 
@@ -374,8 +504,73 @@ const StudentObservation = () => {
             </form>
           </div>
 
-          {/* Student Search and Recent Observations */}
+          {/* Student Search, Parent Insights and Recent Observations */}
           <div className="space-y-6">
+            {/* Parent Insights Board */}
+            <div className="bg-white rounded-lg shadow-sm p-6">
+              <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+                <Eye className="w-5 h-5 mr-2 text-indigo-500" />
+                Parent Observation Board
+              </h3>
+              {parentInsightsError && (
+                <p className="text-sm text-red-600 mb-3">{parentInsightsError}</p>
+              )}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
+                {['Total Notes', 'High Concern', 'Follow-ups', 'Avg Mood'].map((label, index) => {
+                  const stats = parentInsights.stats || {};
+                  const values = [
+                    parentInsightsLoading ? '—' : stats.total ?? 0,
+                    parentInsightsLoading ? '—' : stats.high ?? 0,
+                    parentInsightsLoading ? '—' : stats.followUps ?? 0,
+                    parentInsightsLoading ? '—' : stats.averageMood ?? '—',
+                  ];
+                  return (
+                    <div key={label} className="border border-gray-200 rounded-lg p-3">
+                      <p className="text-xs text-gray-500">{label}</p>
+                      <p className="text-xl font-semibold text-gray-900 mt-1">{values[index]}</p>
+                    </div>
+                  );
+                })}
+              </div>
+              <div className="space-y-3 max-h-56 overflow-y-auto">
+                {parentInsightsLoading ? (
+                  <div className="text-center py-4 text-sm text-gray-500">
+                    Loading parent observations...
+                  </div>
+                ) : parentInsights.recent.length === 0 ? (
+                  <div className="text-center py-4 text-sm text-gray-500">
+                    No parent observations available yet.
+                  </div>
+                ) : (
+                  parentInsights.recent.map((entry) => (
+                    <div key={entry.id} className="border border-gray-200 rounded-lg p-3">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <User className="w-4 h-4 text-gray-400" />
+                          <p className="text-sm font-medium text-gray-900">{entry.studentName}</p>
+                        </div>
+                        <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${
+                          entry.concernLevel === 'high' || entry.concernLevel === 'urgent'
+                            ? 'bg-red-100 text-red-700'
+                            : entry.concernLevel === 'medium'
+                            ? 'bg-yellow-100 text-yellow-700'
+                            : 'bg-gray-100 text-gray-600'
+                        }`}>
+                          {entry.concernLevel || 'low'}
+                        </span>
+                      </div>
+                      <p className="text-xs text-gray-500 mt-1 flex items-center gap-1">
+                        <Clock className="w-3 h-3" />
+                        {entry.recordedAt ? new Date(entry.recordedAt).toLocaleDateString() : '—'}
+                      </p>
+                      {entry.observationText && (
+                        <p className="text-sm text-gray-700 mt-2">{entry.observationText}</p>
+                      )}
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
             {/* Student Filter */}
             <div className="bg-white rounded-lg shadow-sm p-6">
               <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
@@ -392,10 +587,15 @@ const StudentObservation = () => {
                     className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                   >
                     <option value="">All Classes</option>
-                    {classes.map(cls => (
-                      <option key={cls} value={cls}>{cls}</option>
+                    {classOptions.map((cls) => (
+                      <option key={cls} value={cls}>
+                        {cls}
+                      </option>
                     ))}
                   </select>
+                  {studentsError && (
+                    <p className="text-xs text-red-600 mt-1">{studentsError}</p>
+                  )}
                 </div>
 
                 <div>
@@ -422,7 +622,16 @@ const StudentObservation = () => {
               </h3>
               
               <div className="space-y-3 max-h-96 overflow-y-auto">
-                {observations.length > 0 ? observations.slice(0, 5).map(obs => (
+                {historyError && (
+                  <div className="text-sm text-red-600 mb-2">{historyError}</div>
+                )}
+                {historyLoading ? (
+                  <div className="text-center py-6">
+                    <Activity className="w-8 h-8 text-gray-400 mx-auto mb-2 animate-spin" />
+                    <p className="text-gray-500 text-sm">Loading observations...</p>
+                  </div>
+                ) : observations.length > 0 ? (
+                  observations.map((obs) => (
                   <div key={obs.id} className="border border-gray-200 rounded-lg p-3">
                     <div className="flex items-start justify-between mb-2">
                       <div className="flex items-center space-x-2">
@@ -434,18 +643,24 @@ const StudentObservation = () => {
                       </div>
                       <div className="flex items-center space-x-1 text-xs text-gray-500">
                         <Clock className="w-3 h-3" />
-                        <span>{obs.date}</span>
+                        <span>{obs.recordedAt ? new Date(obs.recordedAt).toLocaleDateString() : ''}</span>
                       </div>
                     </div>
                     
                     <div className="grid grid-cols-2 gap-2 mb-2">
                       <div className="text-xs">
                         <span className="text-gray-500">Health Score:</span>
-                        <span className="ml-1 font-medium">{getHealthScore(obs.healthObservations)}/5</span>
+                        <span className="ml-1 font-medium">
+                          {obs.healthScore ?? getHealthScore(obs.healthObservations) ?? '-'}
+                          {obs.healthScore ? '/5' : ''}
+                        </span>
                       </div>
                       <div className="text-xs">
                         <span className="text-gray-500">Emotion Score:</span>
-                        <span className="ml-1 font-medium">{getHealthScore(obs.emotionObservations)}/5</span>
+                        <span className="ml-1 font-medium">
+                          {obs.emotionScore ?? getHealthScore(obs.emotionObservations) ?? '-'}
+                          {obs.emotionScore ? '/5' : ''}
+                        </span>
                       </div>
                     </div>
                     
@@ -462,7 +677,8 @@ const StudentObservation = () => {
                       )}
                     </div>
                   </div>
-                )) : (
+                ))
+                ) : (
                   <div className="text-center py-6">
                     <Activity className="w-8 h-8 text-gray-400 mx-auto mb-2" />
                     <p className="text-gray-500 text-sm">No observations recorded yet</p>

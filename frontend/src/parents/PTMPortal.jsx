@@ -1,41 +1,12 @@
-import React, { useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Calendar, Clock, Video, Phone, Users, Bell, Check, X, ArrowLeftRight, MessageSquareMore, Star, ExternalLink, Copy } from 'lucide-react';
 
 const PTMPortal = () => {
   const [activeTab, setActiveTab] = useState('meetings'); // meetings | requests | video | history
   const [selectedMeeting, setSelectedMeeting] = useState(null);
-  const [meetings, setMeetings] = useState([
-    {
-      id: 1,
-      teacherName: "Ms. Johnson",
-      subject: "Mathematics",
-      date: "2025-09-12",
-      time: "10:00 AM",
-      type: "Video Call",
-      status: "pending",
-      topic: "Academic Progress Discussion",
-      agenda: ["Homework completion", "Exam preparation"],
-      notification: {
-        read: false,
-        timestamp: "2025-09-01T10:30:00"
-      }
-    },
-    {
-      id: 2,
-      teacherName: "Mr. Smith",
-      subject: "Science",
-      date: "2025-09-15",
-      time: "2:30 PM",
-      type: "In Person",
-      status: "confirmed",
-      topic: "Project Discussion",
-      agenda: ["Project timeline", "Lab safety"],
-      notification: {
-        read: true,
-        timestamp: "2025-09-02T15:45:00"
-      }
-    }
-  ]);
+  const [meetings, setMeetings] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
 
   const [rescheduleForm, setRescheduleForm] = useState({ date: '', time: '', reason: '' });
   const [feedbackForm, setFeedbackForm] = useState({ rating: 0, comment: '' });
@@ -44,6 +15,85 @@ const PTMPortal = () => {
   const [videoRoom, setVideoRoom] = useState('');
   const [jitsiActive, setJitsiActive] = useState(false);
   const jitsiUrl = useMemo(() => (videoRoom ? `https://meet.jit.si/${encodeURIComponent(videoRoom)}` : ''), [videoRoom]);
+  const API_BASE_URL = (import.meta.env.VITE_API_URL || 'http://localhost:5000').replace(/\/$/, '');
+
+  const getMeetingId = (meeting) => meeting?._id || meeting?.id;
+  const getTeacherName = (meeting) => meeting?.teacherId?.name || meeting?.teacherName || 'Teacher';
+  const getMeetingSubject = (meeting) =>
+    meeting?.topic ||
+    meeting?.title ||
+    (meeting?.studentId?.name ? `Discussion about ${meeting.studentId.name}` : 'Parent-Teacher Meeting');
+  const getMeetingTypeLabel = (meeting) => meeting?.meetingType || meeting?.type || 'In Person';
+  const getMeetingDate = (meeting) => meeting?.meetingDate || meeting?.date || '';
+  const getMeetingTime = (meeting) => meeting?.meetingTime || meeting?.time || '';
+  const getMeetingAgenda = (meeting) => meeting?.agenda || (meeting?.description ? [meeting.description] : null);
+  const getStudentLabel = (meeting) => {
+    if (!meeting?.studentId) return '';
+    const { name, grade, section } = meeting.studentId;
+    const gradeLabel = grade ? `Grade ${grade}${section ? ` - ${section}` : ''}` : '';
+    if (name && gradeLabel) return `${name} • ${gradeLabel}`;
+    return name || gradeLabel || '';
+  };
+  const normalizeStatus = (status) => String(status || 'scheduled').toLowerCase();
+  const isPendingStatus = (status) => {
+    const value = normalizeStatus(status);
+    return value === 'scheduled' || value === 'pending';
+  };
+  const isConfirmedStatus = (status) => normalizeStatus(status) === 'confirmed';
+  const isRescheduleStatus = (status) => normalizeStatus(status) === 'reschedule_requested';
+  const isHistoryStatus = (status) => !isPendingStatus(status) && !isConfirmedStatus(status);
+
+  const fetchMeetings = useCallback(async () => {
+    try {
+      setLoading(true);
+      setError('');
+      const token = localStorage.getItem('token');
+      const userType = localStorage.getItem('userType');
+      if (!token || userType !== 'Parent') {
+        setMeetings([]);
+        setLoading(false);
+        return;
+      }
+
+      const response = await fetch(`${API_BASE_URL}/api/meeting/parent/my-meetings`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        const payload = await response.json().catch(() => ({}));
+        throw new Error(payload?.error || 'Unable to load meetings');
+      }
+
+      const data = await response.json();
+      setMeetings(Array.isArray(data) ? data : []);
+    } catch (err) {
+      console.error('Parent meetings fetch error:', err);
+      setError(err.message || 'Failed to load meetings');
+      setMeetings([]);
+    } finally {
+      setLoading(false);
+    }
+  }, [API_BASE_URL]);
+
+  useEffect(() => {
+    fetchMeetings();
+  }, [fetchMeetings]);
+
+  const upcomingMeetings = useMemo(
+    () => meetings.filter((m) => isPendingStatus(m.status) || isConfirmedStatus(m.status)),
+    [meetings]
+  );
+  const pendingRequests = useMemo(
+    () => meetings.filter((m) => isPendingStatus(m.status) || isRescheduleStatus(m.status)),
+    [meetings]
+  );
+  const historyMeetings = useMemo(
+    () => meetings.filter((m) => isHistoryStatus(m.status)),
+    [meetings]
+  );
 
   const getMeetingTypeIcon = (type) => {
     switch (type) {
@@ -56,8 +106,37 @@ const PTMPortal = () => {
     }
   };
 
-  const handleResponse = (meetingId, response) => {
-    setMeetings(prev => prev.map(m => m.id === meetingId ? { ...m, status: response === 'accept' ? 'confirmed' : 'declined' } : m));
+  const confirmMeeting = async (meetingId) => {
+    try {
+      setLoading(true);
+      setError('');
+      const token = localStorage.getItem('token');
+      const response = await fetch(`${API_BASE_URL}/api/meeting/parent/confirm/${meetingId}`, {
+        method: 'PUT',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+      if (!response.ok) {
+        const payload = await response.json().catch(() => ({}));
+        throw new Error(payload?.error || 'Unable to confirm meeting');
+      }
+      await fetchMeetings();
+    } catch (err) {
+      console.error('Confirm meeting error:', err);
+      setError(err.message || 'Failed to confirm meeting');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleResponse = (meeting, response) => {
+    if (response === 'accept') {
+      confirmMeeting(meeting._id || meeting.id);
+      return;
+    }
+    alert('Please contact the teacher to reschedule or decline this meeting.');
   };
 
   const handleRescheduleRequest = (meeting) => {
@@ -67,7 +146,7 @@ const PTMPortal = () => {
 
   const submitReschedule = () => {
     if (!selectedMeeting) return;
-    setMeetings(prev => prev.map(m => m.id === selectedMeeting.id ? { ...m, status: 'reschedule_requested', requested: { ...rescheduleForm } } : m));
+    setMeetings(prev => prev.map(m => getMeetingId(m) === getMeetingId(selectedMeeting) ? { ...m, status: 'reschedule_requested', requested: { ...rescheduleForm } } : m));
     setSelectedMeeting(null);
   };
 
@@ -78,7 +157,7 @@ const PTMPortal = () => {
 
   const submitFeedback = () => {
     if (!selectedMeeting) return;
-    setMeetings(prev => prev.map(m => m.id === selectedMeeting.id ? { ...m, feedback: feedbackForm } : m));
+    setMeetings(prev => prev.map(m => getMeetingId(m) === getMeetingId(selectedMeeting) ? { ...m, feedback: feedbackForm } : m));
     setSelectedMeeting(null);
   };
 
@@ -93,6 +172,12 @@ const PTMPortal = () => {
         <h1 className="text-3xl font-bold mb-2">Parent-Teacher Meetings</h1>
         <p className="text-yellow-100">View and respond to meeting requests</p>
       </div>
+
+      {error && (
+        <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
+          {error}
+        </div>
+      )}
 
       {/* Tabs */}
       <div className="flex flex-wrap gap-2 mb-4">
@@ -117,81 +202,100 @@ const PTMPortal = () => {
               <h2 className="text-lg font-semibold text-gray-800">Upcoming Meetings</h2>
             </div>
             <div className="p-4 space-y-4">
-              {meetings.filter(m => m.status === 'pending' || m.status === 'confirmed').map((meeting) => (
-                <div
-                  key={meeting.id}
-                  className="bg-white border border-gray-200 rounded-lg p-4 hover:border-yellow-500 transition-colors"
-                >
-                  <div className="flex items-start justify-between">
-                    <div className="space-y-2">
-                      <div className="flex items-center space-x-2">
-                        <h3 className="font-medium text-gray-800">
-                          Meeting with {meeting.teacherName}
-                        </h3>
-                        {!meeting.notification.read && (
-                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
-                            New
-                          </span>
+              {loading && upcomingMeetings.length === 0 && (
+                <div className="py-6 text-center text-gray-500">Loading meetings...</div>
+              )}
+              {!loading && upcomingMeetings.length === 0 && (
+                <div className="py-6 text-center text-gray-500">No meetings scheduled yet.</div>
+              )}
+              {upcomingMeetings.map((meeting) => {
+                  const meetingId = getMeetingId(meeting);
+                  const pending = isPendingStatus(meeting.status);
+                  const confirmed = isConfirmedStatus(meeting.status);
+                  const agendaItems = getMeetingAgenda(meeting);
+                  const meetingType = getMeetingTypeLabel(meeting);
+                  const meetingDateLabel = getMeetingDate(meeting);
+                  const meetingTimeLabel = getMeetingTime(meeting);
+                  const teacherName = getTeacherName(meeting);
+                  const subjectLabel = getMeetingSubject(meeting);
+                  const studentLabel = getStudentLabel(meeting);
+
+                  return (
+                    <div
+                      key={meetingId || subjectLabel}
+                      className="bg-white border border-gray-200 rounded-lg p-4 hover:border-yellow-500 transition-colors"
+                    >
+                      <div className="flex items-start justify-between">
+                        <div className="space-y-2">
+                          <div className="flex items-center space-x-2">
+                            <h3 className="font-medium text-gray-800">
+                              Meeting with {teacherName}
+                            </h3>
+                            {pending && (
+                              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
+                                New
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-sm text-gray-500">{subjectLabel}</p>
+                          {studentLabel && (
+                            <p className="text-xs text-gray-400">{studentLabel}</p>
+                          )}
+                          <div className="flex flex-wrap items-center gap-4 text-sm text-gray-500">
+                            <div className="flex items-center space-x-1">
+                              <Calendar className="w-4 h-4" />
+                              <span>{meetingDateLabel || 'TBA'}</span>
+                            </div>
+                            <div className="flex items-center space-x-1">
+                              <Clock className="w-4 h-4" />
+                              <span>{meetingTimeLabel || 'TBA'}</span>
+                            </div>
+                            <div className="flex items-center space-x-1">
+                              {getMeetingTypeIcon(meetingType)}
+                              <span>{meetingType}</span>
+                            </div>
+                          </div>
+                          {agendaItems?.length ? (
+                            <div className="text-sm text-gray-600">
+                              <span className="font-medium">Agenda:</span> {agendaItems.join(', ')}
+                            </div>
+                          ) : null}
+                        </div>
+
+                        {pending && (
+                          <div className="flex space-x-2">
+                            <button
+                              onClick={() => handleResponse(meeting, 'accept')}
+                              className="p-2 rounded-full bg-green-100 text-green-600 hover:bg-green-200 transition-colors"
+                            >
+                              <Check className="w-4 h-4" />
+                            </button>
+                            <button
+                              onClick={() => handleResponse(meeting, 'decline')}
+                              className="p-2 rounded-full bg-red-100 text-red-600 hover:bg-red-200 transition-colors"
+                            >
+                              <X className="w-4 h-4" />
+                            </button>
+                          </div>
+                        )}
+
+                        {confirmed && (
+                          <div className="flex items-center gap-2">
+                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                              Confirmed
+                            </span>
+                            <button onClick={() => handleRescheduleRequest(meeting)} className="inline-flex items-center gap-1 text-xs px-2.5 py-1 rounded-full bg-blue-50 text-blue-700 border border-blue-200">
+                              <ArrowLeftRight className="w-3.5 h-3.5" /> Reschedule
+                            </button>
+                            <button onClick={() => openFeedback(meeting)} className="inline-flex items-center gap-1 text-xs px-2.5 py-1 rounded-full bg-yellow-50 text-yellow-700 border border-yellow-200">
+                              <Star className="w-3.5 h-3.5" /> Feedback
+                            </button>
+                          </div>
                         )}
                       </div>
-                      <p className="text-sm text-gray-500">{meeting.subject}</p>
-                      <div className="flex items-center space-x-4 text-sm text-gray-500">
-                        <div className="flex items-center space-x-1">
-                          <Calendar className="w-4 h-4" />
-                          <span>{meeting.date}</span>
-                        </div>
-                        <div className="flex items-center space-x-1">
-                          <Clock className="w-4 h-4" />
-                          <span>{meeting.time}</span>
-                        </div>
-                        <div className="flex items-center space-x-1">
-                          {getMeetingTypeIcon(meeting.type)}
-                          <span>{meeting.type}</span>
-                        </div>
-                      </div>
-                      <p className="text-sm text-gray-600">
-                        Topic: {meeting.topic}
-                      </p>
-                      {meeting.agenda?.length ? (
-                        <div className="text-sm text-gray-600">
-                          <span className="font-medium">Agenda:</span> {meeting.agenda.join(', ')}
-                        </div>
-                      ) : null}
                     </div>
-
-                    {meeting.status === 'pending' && (
-                      <div className="flex space-x-2">
-                        <button
-                          onClick={() => handleResponse(meeting.id, 'accept')}
-                          className="p-2 rounded-full bg-green-100 text-green-600 hover:bg-green-200 transition-colors"
-                        >
-                          <Check className="w-4 h-4" />
-                        </button>
-                        <button
-                          onClick={() => handleResponse(meeting.id, 'decline')}
-                          className="p-2 rounded-full bg-red-100 text-red-600 hover:bg-red-200 transition-colors"
-                        >
-                          <X className="w-4 h-4" />
-                        </button>
-                      </div>
-                    )}
-
-                    {meeting.status === 'confirmed' && (
-                      <div className="flex items-center gap-2">
-                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                          Confirmed
-                        </span>
-                        <button onClick={() => handleRescheduleRequest(meeting)} className="inline-flex items-center gap-1 text-xs px-2.5 py-1 rounded-full bg-blue-50 text-blue-700 border border-blue-200">
-                          <ArrowLeftRight className="w-3.5 h-3.5" /> Reschedule
-                        </button>
-                        <button onClick={() => openFeedback(meeting)} className="inline-flex items-center gap-1 text-xs px-2.5 py-1 rounded-full bg-yellow-50 text-yellow-700 border border-yellow-200">
-                          <Star className="w-3.5 h-3.5" /> Feedback
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              ))}
+                  );
+                })}
             </div>
           </div>
           )}
@@ -202,23 +306,38 @@ const PTMPortal = () => {
                 <h2 className="text-lg font-semibold text-gray-800">Pending Requests</h2>
               </div>
               <div className="p-4 space-y-4">
-                {meetings.filter(m => m.status === 'pending' || m.status === 'reschedule_requested').map((m) => (
-                  <div key={m.id} className="border rounded-lg p-4">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="font-medium text-gray-800">{m.teacherName} • {m.subject}</p>
-                        <p className="text-sm text-gray-600">{m.date} at {m.time} • {m.type}</p>
-                        {m.requested && (
-                          <p className="text-xs text-blue-700 mt-1">Reschedule requested: {m.requested.date} at {m.requested.time} — {m.requested.reason}</p>
-                        )}
+                {pendingRequests.length === 0 && (
+                  <p className="text-sm text-gray-500">No pending requests.</p>
+                )}
+                {pendingRequests.map((m) => {
+                    const meetingId = getMeetingId(m);
+                    const meetingType = getMeetingTypeLabel(m);
+                    const meetingDateLabel = getMeetingDate(m);
+                    const meetingTimeLabel = getMeetingTime(m);
+                    const subjectLabel = getMeetingSubject(m);
+                    const teacherName = getTeacherName(m);
+                    return (
+                      <div key={meetingId || subjectLabel} className="border rounded-lg p-4">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <p className="font-medium text-gray-800">{teacherName} • {subjectLabel}</p>
+                            <p className="text-sm text-gray-600">
+                              {meetingDateLabel || 'TBA'} at {meetingTimeLabel || 'TBA'} • {meetingType}
+                            </p>
+                            {m.requested && (
+                              <p className="text-xs text-blue-700 mt-1">
+                                Reschedule requested: {m.requested.date} at {m.requested.time} — {m.requested.reason}
+                              </p>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <button onClick={() => handleResponse(m, 'accept')} className="px-3 py-1 rounded-lg bg-green-600 text-white text-sm">Accept</button>
+                            <button onClick={() => handleResponse(m, 'decline')} className="px-3 py-1 rounded-lg bg-red-600 text-white text-sm">Decline</button>
+                          </div>
+                        </div>
                       </div>
-                      <div className="flex items-center gap-2">
-                        <button onClick={() => handleResponse(m.id, 'accept')} className="px-3 py-1 rounded-lg bg-green-600 text-white text-sm">Accept</button>
-                        <button onClick={() => handleResponse(m.id, 'decline')} className="px-3 py-1 rounded-lg bg-red-600 text-white text-sm">Decline</button>
-                      </div>
-                    </div>
-                  </div>
-                ))}
+                    );
+                  })}
               </div>
             </div>
           )}
@@ -262,20 +381,30 @@ const PTMPortal = () => {
                 <h2 className="text-lg font-semibold text-gray-800">Past Meetings</h2>
               </div>
               <div className="p-4 space-y-3">
-                {meetings.filter(m => m.status === 'declined' || m.status === 'completed').map((m) => (
-                  <div key={m.id} className="border rounded-lg p-3">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="font-medium text-gray-800">{m.teacherName} • {m.subject}</p>
-                        <p className="text-sm text-gray-600">{m.date} at {m.time}</p>
-                        {m.feedback && (
-                          <p className="text-xs text-yellow-700">Your rating: {m.feedback.rating}/5 — {m.feedback.comment}</p>
-                        )}
+                {historyMeetings.length === 0 && (
+                  <p className="text-sm text-gray-500">No past meetings recorded.</p>
+                )}
+                {historyMeetings.map((m) => {
+                  const meetingId = getMeetingId(m);
+                  const meetingDateLabel = getMeetingDate(m);
+                  const meetingTimeLabel = getMeetingTime(m);
+                  const subjectLabel = getMeetingSubject(m);
+                  const statusLabel = normalizeStatus(m.status).replace(/_/g, ' ');
+                  return (
+                    <div key={meetingId || subjectLabel} className="border rounded-lg p-3">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="font-medium text-gray-800">{getTeacherName(m)} • {subjectLabel}</p>
+                          <p className="text-sm text-gray-600">{meetingDateLabel || 'TBA'} at {meetingTimeLabel || 'TBA'}</p>
+                          {m.feedback && (
+                            <p className="text-xs text-yellow-700">Your rating: {m.feedback.rating}/5 — {m.feedback.comment}</p>
+                          )}
+                        </div>
+                        <span className="text-xs px-2 py-1 rounded-full bg-gray-100 text-gray-700 capitalize">{statusLabel}</span>
                       </div>
-                      <span className="text-xs px-2 py-1 rounded-full bg-gray-100 text-gray-700 capitalize">{m.status}</span>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
           )}
@@ -290,26 +419,35 @@ const PTMPortal = () => {
             </div>
             <div className="p-4">
               <div className="space-y-4">
-                {meetings.map((meeting) => (
-                  <div
-                    key={meeting.id}
-                    className={`flex items-start space-x-3 p-3 rounded-lg ${
-                      !meeting.notification.read ? 'bg-yellow-50' : 'bg-gray-50'
-                    }`}
-                  >
-                    <Bell className={`w-5 h-5 ${
-                      !meeting.notification.read ? 'text-yellow-500' : 'text-gray-400'
-                    }`} />
-                    <div>
-                      <p className="text-sm text-gray-800">
-                        New meeting request from {meeting.teacherName}
-                      </p>
-                      <p className="text-xs text-gray-500">
-                        {new Date(meeting.notification.timestamp).toLocaleString()}
-                      </p>
+                {meetings.slice(0, 5).map((meeting) => {
+                  const meetingId = getMeetingId(meeting);
+                  const pending = isPendingStatus(meeting.status);
+                  const meetingDateLabel = getMeetingDate(meeting);
+                  const meetingTimeLabel = getMeetingTime(meeting);
+                  return (
+                    <div
+                      key={meetingId || meetingDateLabel}
+                      className={`flex items-start space-x-3 p-3 rounded-lg ${
+                        pending ? 'bg-yellow-50' : 'bg-gray-50'
+                      }`}
+                    >
+                      <Bell className={`w-5 h-5 ${
+                        pending ? 'text-yellow-500' : 'text-gray-400'
+                      }`} />
+                      <div>
+                        <p className="text-sm text-gray-800">
+                          {pending ? 'New meeting scheduled' : 'Meeting update'} from {getTeacherName(meeting)}
+                        </p>
+                        <p className="text-xs text-gray-500">
+                          {meetingDateLabel || 'Date TBA'} {meetingTimeLabel ? `• ${meetingTimeLabel}` : ''}
+                        </p>
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
+                {meetings.length === 0 && (
+                  <p className="text-sm text-gray-500 text-center py-4">No notifications yet.</p>
+                )}
               </div>
             </div>
           </div>
@@ -321,13 +459,13 @@ const PTMPortal = () => {
               <div>
                 <p className="text-sm text-gray-500">Upcoming</p>
                 <p className="text-2xl font-semibold text-yellow-600">
-                  {meetings.filter(m => m.status === 'confirmed').length}
+                  {upcomingMeetings.length}
                 </p>
               </div>
               <div>
                 <p className="text-sm text-gray-500">Pending</p>
                 <p className="text-2xl font-semibold text-yellow-600">
-                  {meetings.filter(m => m.status === 'pending').length}
+                  {pendingRequests.length}
                 </p>
               </div>
             </div>
@@ -342,7 +480,7 @@ const PTMPortal = () => {
           <div className="relative bg-white w-full max-w-lg rounded-xl shadow-xl border p-5">
             <div className="mb-3">
               <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2"><ArrowLeftRight className="w-5 h-5"/> Request Reschedule</h3>
-              <p className="text-sm text-gray-600">{selectedMeeting.teacherName} • {selectedMeeting.subject}</p>
+              <p className="text-sm text-gray-600">{getTeacherName(selectedMeeting)} • {getMeetingSubject(selectedMeeting)}</p>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
               <div>
@@ -373,7 +511,7 @@ const PTMPortal = () => {
           <div className="relative bg-white w-full max-w-lg rounded-xl shadow-xl border p-5">
             <div className="mb-3">
               <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2"><Star className="w-5 h-5"/> Meeting Feedback</h3>
-              <p className="text-sm text-gray-600">{selectedMeeting.teacherName} • {selectedMeeting.subject}</p>
+              <p className="text-sm text-gray-600">{getTeacherName(selectedMeeting)} • {getMeetingSubject(selectedMeeting)}</p>
             </div>
             <div className="grid grid-cols-1 gap-3 mb-3">
               <div className="flex items-center gap-2">

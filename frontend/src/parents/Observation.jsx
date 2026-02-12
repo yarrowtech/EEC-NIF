@@ -1,4 +1,11 @@
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
+import { Activity, AlertTriangle, Clock, Eye, User } from 'lucide-react';
+
+const API_BASE_URL = (import.meta.env.VITE_API_URL || 'http://localhost:5000').replace(/\/$/, '');
+const formatDate = (value) => {
+  if (!value) return '—';
+  return new Date(value).toLocaleDateString();
+};
 
 const Observation = () => {
   const [formData, setFormData] = useState({
@@ -15,6 +22,11 @@ const Observation = () => {
   });
 
   const [submitted, setSubmitted] = useState(false);
+  const [teacherObservations, setTeacherObservations] = useState([]);
+  const [teacherStats, setTeacherStats] = useState(null);
+  const [teacherChildren, setTeacherChildren] = useState([]);
+  const [teacherLoading, setTeacherLoading] = useState(true);
+  const [teacherError, setTeacherError] = useState('');
 
   const questions = [
     {
@@ -93,9 +105,179 @@ const Observation = () => {
     return Object.values(formData).every(value => value !== null);
   };
 
+  useEffect(() => {
+    const fetchTeacherObservations = async () => {
+      setTeacherLoading(true);
+      setTeacherError('');
+      try {
+        const token = localStorage.getItem('token');
+        const userType = localStorage.getItem('userType');
+        if (!token || userType !== 'Parent') {
+          setTeacherError('Please login as a parent to view teacher observations.');
+          setTeacherObservations([]);
+          setTeacherChildren([]);
+          setTeacherStats(null);
+          return;
+        }
+        const res = await fetch(`${API_BASE_URL}/api/observations/parent`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          throw new Error(data?.error || 'Unable to load teacher observations');
+        }
+        setTeacherObservations(Array.isArray(data.observations) ? data.observations : []);
+        setTeacherStats(data.stats || null);
+        setTeacherChildren(Array.isArray(data.children) ? data.children : []);
+      } catch (err) {
+        console.error('Parent observation dashboard error:', err);
+        setTeacherError(err.message || 'Unable to load teacher observations');
+        setTeacherObservations([]);
+        setTeacherChildren([]);
+        setTeacherStats(null);
+      } finally {
+        setTeacherLoading(false);
+      }
+    };
+    fetchTeacherObservations();
+  }, []);
+
+  const latestTeacherObservations = useMemo(
+    () => teacherObservations.slice(0, 4),
+    [teacherObservations]
+  );
+
   return (
     <div className="min-h-screen bg-gray-50 py-5">
       <div className="w-full px-3 sm:px-3 md:px-4 lg:px-4">
+        <div className="mb-6">
+          <div className="bg-white rounded-lg shadow p-6">
+            <div className="flex items-center gap-3 mb-4">
+              <Eye className="w-6 h-6 text-blue-500" />
+              <div>
+                <h2 className="text-xl font-semibold text-gray-900">Teacher Observation Dashboard</h2>
+                <p className="text-sm text-gray-600">
+                  See the latest wellbeing notes teachers recorded for your child.
+                </p>
+              </div>
+            </div>
+
+            {teacherError && (
+              <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                {teacherError}
+              </div>
+            )}
+
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              <div className="rounded-lg border border-gray-200 p-4">
+                <p className="text-sm text-gray-500">Total Notes</p>
+                <p className="text-2xl font-semibold text-gray-900">
+                  {teacherStats?.total ?? (teacherLoading ? '—' : 0)}
+                </p>
+              </div>
+              <div className="rounded-lg border border-gray-200 p-4">
+                <p className="text-sm text-gray-500">Urgent Alerts</p>
+                <p className="text-2xl font-semibold text-red-600">
+                  {teacherStats?.urgent ?? (teacherLoading ? '—' : 0)}
+                </p>
+              </div>
+              <div className="rounded-lg border border-gray-200 p-4">
+                <p className="text-sm text-gray-500">Follow-ups</p>
+                <p className="text-2xl font-semibold text-amber-600">
+                  {teacherStats?.followUps ?? (teacherLoading ? '—' : 0)}
+                </p>
+              </div>
+              <div className="rounded-lg border border-gray-200 p-4">
+                <p a className="text-sm text-gray-500">Last Updated</p>
+                <p className="text-2xl font-semibold text-gray-900">
+                  {teacherStats?.lastUpdated ? formatDate(teacherStats.lastUpdated) : '—'}
+                </p>
+              </div>
+            </div>
+
+            <div className="mt-6 grid gap-4 lg:grid-cols-2">
+              <div className="rounded-lg border border-gray-200 p-4">
+                <h3 className="mb-3 text-sm font-semibold text-gray-800">By Child</h3>
+                {teacherLoading ? (
+                  <p className="text-sm text-gray-500">Loading...</p>
+                ) : teacherChildren.length === 0 ? (
+                  <p className="text-sm text-gray-500">No teacher notes available yet.</p>
+                ) : (
+                  <div className="space-y-3">
+                    {teacherChildren.map((child) => (
+                      <div key={child.studentId} className="flex items-center justify-between rounded-md border border-gray-100 px-3 py-2">
+                        <div>
+                          <p className="text-sm font-medium text-gray-900">{child.studentName}</p>
+                          <p className="text-xs text-gray-500">
+                            Grade {child.grade} {child.section}
+                          </p>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-sm font-semibold text-gray-900">{child.totalEntries}</p>
+                          <p className="text-xs text-gray-500">entries</p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div className="rounded-lg border border-gray-200 p-4">
+                <h3 className="mb-3 text-sm font-semibold text-gray-800">Recent Teacher Notes</h3>
+                {teacherLoading ? (
+                  <p className="text-sm text-gray-500">Loading...</p>
+                ) : latestTeacherObservations.length === 0 ? (
+                  <p className="text-sm text-gray-500">No recent observations.</p>
+                ) : (
+                  <div className="space-y-3">
+                    {latestTeacherObservations.map((item) => (
+                      <div key={item.id} className="rounded-md border border-gray-100 px-3 py-2">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2 text-sm font-medium text-gray-900">
+                            <User className="h-4 w-4 text-gray-400" />
+                            <span>{item.studentName}</span>
+                          </div>
+                          <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${
+                            item.urgencyLevel === 'urgent'
+                              ? 'bg-red-100 text-red-700'
+                              : item.urgencyLevel === 'high'
+                              ? 'bg-amber-100 text-amber-700'
+                              : 'bg-gray-100 text-gray-600'
+                          }`}>
+                            {item.urgencyLevel}
+                          </span>
+                        </div>
+                        <div className="mt-1 flex items-center gap-2 text-xs text-gray-500">
+                          <Clock className="h-3 w-3" />
+                          <span>{formatDate(item.recordedAt)}</span>
+                          {item.teacher?.name && (
+                            <>
+                              <span>•</span>
+                              <span>{item.teacher.name}</span>
+                            </>
+                          )}
+                        </div>
+                        {item.additionalNotes && (
+                          <p className="mt-2 text-sm text-gray-700">{item.additionalNotes}</p>
+                        )}
+                        <div className="mt-2 flex gap-2 text-xs text-gray-500">
+                          <span>Health Score: {item.healthScore ?? '-'}</span>
+                          <span>Emotion Score: {item.emotionScore ?? '-'}</span>
+                        </div>
+                        {item.followUpRequired && (
+                          <div className="mt-2 inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700">
+                            <AlertTriangle className="h-3 w-3" /> Follow-up recommended
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+
         <div className="bg-white rounded-lg shadow-lg p-6 md:p-8">
           <div className="text-center mb-8">
             <h1 className="text-3xl font-bold text-gray-900 mb-2">

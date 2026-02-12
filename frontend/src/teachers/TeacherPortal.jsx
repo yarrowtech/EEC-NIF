@@ -104,6 +104,7 @@ const TeacherPortal = () => {
   const [openGroups, setOpenGroups] = useState({});
   const location = useLocation();
   const navigate = useNavigate();
+  const isChatRoute = location.pathname.startsWith('/teacher/chat');
 
   useEffect(() => {
     if (!location.pathname.startsWith('/teachers')) return;
@@ -416,7 +417,7 @@ const TeacherPortal = () => {
         </div>
       </aside>
 
-      <div className="flex-1 min-w-0">
+      <div className="flex-1 min-w-0 flex flex-col h-screen">
         <header className="sticky top-0 z-20 w-full bg-white/80 backdrop-blur-xl border-b border-gray-100">
           <div className="px-3 sm:px-5">
             <div className="flex items-center justify-between h-14 sm:h-16 gap-2 sm:gap-4">
@@ -519,30 +520,32 @@ const TeacherPortal = () => {
           </div>
         </header>
 
-        <main className="p-2 sm:p-4">
-          <Routes>
-            <Route index element={<Navigate to="/teacher/dashboard" replace />} />
-            <Route path="dashboard" element={<TeacherDashboard />} />
-            <Route path="test" element={<TestTeacherPortal />} />
-            <Route path="my-work-portal" element={<MyWorkPortal />} />
-            <Route path="class-routine" element={<ClassRoutine />} />
-            <Route path="attendance" element={<AttendanceManagement />} />
-            <Route path="progress" element={<StudentProgress />} />
-            <Route path="weak-students" element={<WeakStudentIdentification />} />
-            <Route path="ai-powered-teaching" element={<AIPoweredTeaching />} />
-            <Route path="ai-learning/:studentId/:subject" element={<AILearningPath />} />
-            <Route path="health-updates" element={<HealthUpdates />} />
-            <Route path="student-observations" element={<StudentObservation />} />
-            <Route path="parent-meetings" element={<ParentMeetings />} />
-            <Route path="assignments" element={<AssignmentManagement />} />
-            <Route path="practice-questions" element={<PracticeQuestions />} />
-            <Route path="evaluation" element={<AssignmentEvaluation />} />
-            <Route path="chat" element={<TeacherChat />} />
-            <Route path="lesson-plans" element={<LessonPlanDashboard />} />
-            <Route path="class-notes" element={<ClassNotes />} />
-            <Route path="excuse-letters" element={<ExcuseLetters />} />
-            <Route path="feedback" element={<TeacherFeedbackPortal />} />
-          </Routes>
+        <main className={`flex-1 min-h-0 p-2 sm:p-4 ${isChatRoute ? 'overflow-hidden' : 'overflow-y-auto'}`}>
+          <div className={isChatRoute ? 'h-full flex flex-col' : undefined}>
+            <Routes>
+              <Route index element={<Navigate to="/teacher/dashboard" replace />} />
+              <Route path="dashboard" element={<TeacherDashboard />} />
+              <Route path="test" element={<TestTeacherPortal />} />
+              <Route path="my-work-portal" element={<MyWorkPortal />} />
+              <Route path="class-routine" element={<ClassRoutine />} />
+              <Route path="attendance" element={<AttendanceManagement />} />
+              <Route path="progress" element={<StudentProgress />} />
+              <Route path="weak-students" element={<WeakStudentIdentification />} />
+              <Route path="ai-powered-teaching" element={<AIPoweredTeaching />} />
+              <Route path="ai-learning/:studentId/:subject" element={<AILearningPath />} />
+              <Route path="health-updates" element={<HealthUpdates />} />
+              <Route path="student-observations" element={<StudentObservation />} />
+              <Route path="parent-meetings" element={<ParentMeetings />} />
+              <Route path="assignments" element={<AssignmentManagement />} />
+              <Route path="practice-questions" element={<PracticeQuestions />} />
+              <Route path="evaluation" element={<AssignmentEvaluation />} />
+              <Route path="chat" element={<TeacherChat />} />
+              <Route path="lesson-plans" element={<LessonPlanDashboard />} />
+              <Route path="class-notes" element={<ClassNotes />} />
+              <Route path="excuse-letters" element={<ExcuseLetters />} />
+              <Route path="feedback" element={<TeacherFeedbackPortal />} />
+            </Routes>
+          </div>
         </main>
       </div>
     </div>

@@ -130,6 +130,7 @@ const TeacherChat = () => {
   const typingTimers = useRef({});
   const typingDebounce = useRef(null);
   const isTyping = useRef(false);
+  const meRef = useRef(null);
 
   const activeThread = useMemo(() => threads.find(t => String(t._id) === activeThreadId), [threads, activeThreadId]);
 
@@ -148,6 +149,7 @@ const TeacherChat = () => {
         ]);
         if (!mounted) return;
         setMe(meData);
+        meRef.current = meData;
         setThreads(threadsData);
       } catch {
         // ignore
@@ -165,14 +167,28 @@ const TeacherChat = () => {
     });
     socketRef.current = socket;
 
+    socket.on('connect', () => {
+      if (activeThreadIdRef.current) {
+        socket.emit('join-thread', { threadId: activeThreadIdRef.current });
+      }
+    });
+
     socket.on('new-message', (msg) => {
       const threadId = String(msg.threadId);
       setMessages(prev => {
-        if (activeThreadIdRef.current === threadId) {
-          if (prev.find(m => String(m._id) === String(msg._id))) return prev;
-          return [...prev, msg];
+        if (activeThreadIdRef.current !== threadId) return prev;
+        // Sender already has an optimistic copy — replace it, don't append
+        if (String(msg.senderId) === String(meRef.current?.id)) {
+          const optIdx = prev.findLastIndex(m => m._optimistic);
+          if (optIdx !== -1) {
+            const next = [...prev];
+            next[optIdx] = msg;
+            return next;
+          }
         }
-        return prev;
+        // Message from someone else — guard against duplicates
+        if (prev.find(m => String(m._id) === String(msg._id))) return prev;
+        return [...prev, msg];
       });
       setThreads(prev => prev.map(t =>
         String(t._id) === threadId

@@ -32,6 +32,7 @@ const aiLearningRouter = require("./routes/aiLearningRoute");
 const studentAILearningRouter = require("./routes/studentAILearningRoute");
 const alcoveRouter = require("./routes/alcoveRoute");
 const meetingRouter = require("./routes/meetingRoute");
+const studentObservationRouter = require("./routes/studentObservationRoutes");
 
 const uploadRoutes = require("./routes/uploadRoutes");
 const schoolRoutes = require("./routes/schoolRoutes");
@@ -268,6 +269,7 @@ app.use('/api/ai-learning', aiLearningRouter);
 app.use('/api/student-ai-learning', studentAILearningRouter);
 app.use('/api/alcove', alcoveRouter);
 app.use('/api/meeting', meetingRouter);
+app.use('/api/observations', studentObservationRouter);
 
 
 
@@ -333,7 +335,7 @@ io.on('connection', (socket) => {
       const thread = await ChatThread.findOne({
         _id: threadId,
         schoolId: user.schoolId,
-        campusId: user.campusId,
+        ...(user.campusId ? { campusId: user.campusId } : {}),
         'participants.userId': userId,
       }).lean();
       if (!thread) return;
@@ -358,7 +360,7 @@ io.on('connection', (socket) => {
       const thread = await ChatThread.findOne({
         _id: threadId,
         schoolId: user.schoolId,
-        campusId: user.campusId,
+        ...(user.campusId ? { campusId: user.campusId } : {}),
         'participants.userId': userId,
       }).lean();
 
@@ -374,7 +376,7 @@ io.on('connection', (socket) => {
         senderName,
         text: String(text).trim(),
         schoolId: user.schoolId,
-        campusId: user.campusId,
+        campusId: thread.campusId || user.campusId,
         seenBy: [{ userId, seenAt: new Date() }],
       });
 
