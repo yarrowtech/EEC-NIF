@@ -12,6 +12,10 @@ const School = require('../models/School');
 const TeacherLeave = require('../models/TeacherLeave');
 const TeacherExpense = require('../models/TeacherExpense');
 const TeacherAttendance = require('../models/TeacherAttendance');
+const FeeStructure = require('../models/FeeStructure');
+const FeeInvoice = require('../models/FeeInvoice');
+const AcademicYear = require('../models/AcademicYear');
+const ClassModel = require('../models/Class');
 const { generatePassword } = require('../utils/generator');
 const {
   getNextStudentSequence,
@@ -661,6 +665,76 @@ const deleteByScope = async (Model, req, res) => {
   return res.json({ message: 'Deleted successfully' });
 };
 
+const resolveActiveAcademicYear = async (schoolId) => {
+  return AcademicYear.findOne({ schoolId, isActive: true })
+    .sort({ createdAt: -1 })
+    .lean();
+};
+
+const resolveClassForGrade = async ({ schoolId, campusId, grade }) => {
+  if (!grade) return null;
+  return ClassModel.findOne({
+    schoolId,
+    ...(campusId ? { campusId } : {}),
+    name: { $regex: `^${String(grade).trim()}$`, $options: 'i' },
+  })
+    .select('_id name')
+    .lean();
+};
+
+const autoGeneratePromotionInvoice = async ({ student, oldGrade, schoolId }) => {
+  const newGrade = String(student?.grade || '').trim();
+  if (!newGrade || String(oldGrade || '').trim() === newGrade) {
+    return;
+  }
+  const campusId = student?.campusId || null;
+  if (!campusId) {
+    return;
+  }
+  const classDoc = await resolveClassForGrade({ schoolId, campusId, grade: newGrade });
+  if (!classDoc) return;
+  const activeYear = await resolveActiveAcademicYear(schoolId);
+  if (!activeYear) return;
+
+  const structure = await FeeStructure.findOne({
+    schoolId,
+    classId: classDoc._id,
+    academicYearId: activeYear._id,
+    isActive: true,
+  })
+    .sort({ createdAt: -1 })
+    .lean();
+  if (!structure) return;
+
+  const existing = await FeeInvoice.findOne({
+    schoolId,
+    studentId: student._id,
+    feeStructureId: structure._id,
+  })
+    .select('_id')
+    .lean();
+  if (existing) return;
+
+  await FeeInvoice.create({
+    schoolId,
+    academicYearId: structure.academicYearId || activeYear._id,
+    classId: structure.classId,
+    className: student.grade || classDoc.name || structure.className || '',
+    section: student.section || '',
+    studentId: student._id,
+    feeStructureId: structure._id,
+    title: structure.name || 'Fee Invoice',
+    totalAmount: structure.totalAmount,
+    paidAmount: 0,
+    balanceAmount: structure.totalAmount,
+    discountAmount: 0,
+    discountNote: '',
+    feeHeadsSnapshot: structure.feeHeads || [],
+    installmentsSnapshot: structure.installments || [],
+    status: 'due',
+  });
+};
+
 router.put('/teachers/:id', adminAuth, async (req, res) => {
   // #swagger.tags = ['Admin Users']
   try {
@@ -708,7 +782,33 @@ router.delete('/teachers/:id', adminAuth, async (req, res) => {
 router.put('/students/:id', adminAuth, async (req, res) => {
   // #swagger.tags = ['Admin Users']
   try {
-    await updateByScope(StudentUser, req, res);
+    const filter = buildScopedIdFilter(req, req.params.id);
+    if (!filter) {
+      return res.status(400).json({ error: 'Invalid id' });
+    }
+    const existing = await StudentUser.findOne(filter);
+    if (!existing) {
+      return res.status(404).json({ error: 'Record not found' });
+    }
+    const oldGrade = existing.grade;
+    const payload = sanitizeUpdatePayload(req);
+    const updated = await StudentUser.findOneAndUpdate(filter, payload, {
+      new: true,
+      runValidators: true,
+    });
+    if (!updated) {
+      return res.status(404).json({ error: 'Record not found' });
+    }
+    try {
+      await autoGeneratePromotionInvoice({
+        student: updated,
+        oldGrade,
+        schoolId: updated.schoolId || req.schoolId,
+      });
+    } catch (err) {
+      console.error('Auto invoice failed after promotion:', err.message);
+    }
+    return res.json(updated);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -745,6 +845,31 @@ router.put('/staff/:id', adminAuth, async (req, res) => {
   // #swagger.tags = ['Admin Users']
   try {
     await updateByScope(StaffUser, req, res);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post('/staff/:id/credentials', adminAuth, async (req, res) => {
+  // #swagger.tags = ['Admin Users']
+  try {
+    const filter = buildScopedIdFilter(req, req.params.id);
+    if (!filter) {
+      return res.status(400).json({ error: 'Invalid id' });
+    }
+    const staff = await StaffUser.findOne(filter);
+    if (!staff) {
+      return res.status(404).json({ error: 'Staff not found' });
+    }
+    const password = generatePassword();
+    staff.password = password;
+    await staff.save();
+    res.json({
+      staffId: staff._id,
+      username: staff.username,
+      employeeCode: staff.employeeCode,
+      password,
+    });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

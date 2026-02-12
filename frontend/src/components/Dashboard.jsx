@@ -18,7 +18,7 @@ import ExcuseLetter from './ExcuseLetter';
 import AILearningDashboard from './AILearningDashboard';
 import AcademicAlcove from './AcademicAlcove';
 import StudentWellbeing from './StudentWellbeing';
-import LessonPlanStatusView from './LessonPlanStatusView';
+import StudentFees from './StudentFees';
 import { StudentDashboardProvider } from './StudentDashboardContext';
 
 const normalizeViewFromPath = (pathname) => {
@@ -78,6 +78,7 @@ const Dashboard = () => {
     'excuse-letter': ExcuseLetter,
     wellness: StudentWellbeing,
     wellbeing: StudentWellbeing,
+    fees: StudentFees,
     achievements: AchievementsView,
     profile: ProfileUpdate,
     themecustomizer: ThemeCustomizer,

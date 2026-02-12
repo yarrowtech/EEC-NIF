@@ -7,6 +7,7 @@ const { generateUsername, generatePassword } = require('../utils/generator');
 const { generateEmployeeCode } = require('../utils/codeGenerator');
 const adminAuth = require('../middleware/adminAuth');
 const rateLimit = require('../middleware/rateLimit');
+const authStaff = require('../middleware/authStaff');
 
 // Register Staff (admin only)
 router.post('/register', adminAuth, async (req, res) => {
@@ -27,8 +28,13 @@ router.post('/register', adminAuth, async (req, res) => {
     salary,
   } = req.body;
   const mobile = req.body.mobile || req.body.phone;
+  const normalizedSalary =
+    salary === '' || salary === null || salary === undefined ? undefined : Number(salary);
 
   try {
+    if (normalizedSalary !== undefined && Number.isNaN(normalizedSalary)) {
+      return res.status(400).json({ error: 'salary must be a valid number' });
+    }
     const username = await generateUsername(name || 'staff', 'staff');
     const password = generatePassword();
     const empId = await generateEmpId();
@@ -59,7 +65,7 @@ router.post('/register', adminAuth, async (req, res) => {
       address,
       pinCode,
       joiningDate: joiningDate || joinDate,
-      salary,
+      salary: normalizedSalary,
     });
 
     await user.save();
@@ -75,7 +81,13 @@ router.post('/login', rateLimit({ windowMs: 60 * 1000, max: 10 }), async (req, r
   const { username, password } = req.body;
 
   try {
-    const user = await StaffUser.findOne({ username });
+    const loginId = String(username || '').trim();
+    if (!loginId) {
+      return res.status(400).json({ error: 'username is required' });
+    }
+    const user = await StaffUser.findOne({
+      $or: [{ username: loginId }, { employeeCode: loginId }],
+    });
     if (!user || !(await bcrypt.compare(password, user.password))) {
       return res.status(401).json({ error: 'Invalid credentials' });
     }
@@ -85,14 +97,82 @@ router.post('/login', rateLimit({ windowMs: 60 * 1000, max: 10 }), async (req, r
     }
 
     const token = jwt.sign(
-      { id: user._id, type: 'staff', schoolId: user.schoolId || null, campusId: user.campusId || null },
+      { id: user._id, type: 'staff', userType: 'staff', schoolId: user.schoolId || null, campusId: user.campusId || null },
       process.env.JWT_SECRET,
       { expiresIn: process.env.JWT_EXPIRES_IN || '24h' }
     );
 
-    res.json({ token });
+    res.json({
+      token,
+      user: {
+        id: user._id,
+        name: user.name || '',
+        username: user.username,
+        employeeCode: user.employeeCode || '',
+        userType: 'staff',
+      },
+    });
   } catch (err) {
     res.status(400).json({ error: err.message });
+  }
+});
+
+router.get('/profile', authStaff, async (req, res) => {
+  // #swagger.tags = ['Staff']
+  try {
+    if ((req.user?.userType || req.user?.type) !== 'staff') {
+      return res.status(403).json({ error: 'Forbidden - not a staff user' });
+    }
+    const staff = await StaffUser.findById(req.user.id).select('-password').lean();
+    if (!staff) {
+      return res.status(404).json({ error: 'Staff not found' });
+    }
+    res.json({
+      ...staff,
+      employeeId: staff.employeeCode || staff.username || '',
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message || 'Unable to load staff profile' });
+  }
+});
+
+router.put('/profile', authStaff, async (req, res) => {
+  // #swagger.tags = ['Staff']
+  try {
+    if ((req.user?.userType || req.user?.type) !== 'staff') {
+      return res.status(403).json({ error: 'Forbidden - not a staff user' });
+    }
+    const payload = {
+      name: req.body?.name,
+      email: req.body?.email,
+      mobile: req.body?.mobile || req.body?.phone,
+      position: req.body?.position,
+      department: req.body?.department,
+      qualification: req.body?.qualification,
+      experience: req.body?.experience,
+      address: req.body?.address,
+      pinCode: req.body?.pinCode,
+      joiningDate: req.body?.joiningDate || req.body?.joinDate,
+      profilePic: req.body?.profilePic,
+      gender: req.body?.gender,
+    };
+    Object.keys(payload).forEach((key) => payload[key] === undefined && delete payload[key]);
+    const staff = await StaffUser.findByIdAndUpdate(req.user.id, payload, {
+      new: true,
+      runValidators: true,
+    }).select('-password').lean();
+    if (!staff) {
+      return res.status(404).json({ error: 'Staff not found' });
+    }
+    res.json({
+      message: 'Profile updated successfully',
+      staff: {
+        ...staff,
+        employeeId: staff.employeeCode || staff.username || '',
+      },
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message || 'Unable to update staff profile' });
   }
 });
 

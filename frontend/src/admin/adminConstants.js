@@ -119,24 +119,24 @@ export const ADMIN_MENU_ITEMS = [
   },
   { 
     icon: IndianRupee, 
-    label: 'Fees Collection', 
-    path: '/admin/fees',
+    label: 'Fees Management', 
+    path: '/admin/fees/collection',
     hasSubmenu: true,
     submenu: [
+      {
+        icon: Layers,
+        label: 'Fees Manage',
+        path: '/admin/fees/manage'
+      },
+      {
+        icon: Receipt,
+        label: 'Fees Collection',
+        path: '/admin/fees/collection'
+      },
       {
         icon: BarChart4,
         label: 'Fees Dashboard',
         path: '/admin/fees/dashboard'
-      },
-      {
-        icon: Receipt,
-        label: 'Fee Collection',
-        path: '/admin/fees'
-      },
-      {
-        icon: UserSearch,
-        label: 'Student Fee Details',
-        path: '/admin/fees/student-details'
       }
     ]
   },

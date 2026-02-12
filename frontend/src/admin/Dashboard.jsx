@@ -216,9 +216,12 @@ const Dashboard = ({ setShowAdminHeader }) => {
       setFinancialError('');
       setFinancialLoading(true);
       try {
+        const authHeaders = {
+          authorization: `Bearer ${localStorage.getItem('token')}`,
+        };
         const [invoiceRes, paymentRes] = await Promise.all([
-          fetch(`${import.meta.env.VITE_API_URL}/api/fees/invoices`),
-          fetch(`${import.meta.env.VITE_API_URL}/api/fees/payments`),
+          fetch(`${import.meta.env.VITE_API_URL}/api/fees/invoices`, { headers: authHeaders }),
+          fetch(`${import.meta.env.VITE_API_URL}/api/fees/payments`, { headers: authHeaders }),
         ]);
         const invoicesData = await invoiceRes.json().catch(() => []);
         const paymentsData = await paymentRes.json().catch(() => []);

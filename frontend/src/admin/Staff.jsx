@@ -72,6 +72,7 @@ const Staff = ({ setShowAdminHeader }) => {
   const [showEditForm, setShowEditForm] = useState(false);
   const [editingStaff, setEditingStaff] = useState(null);
   const [submitStatus, setSubmitStatus] = useState(null);
+  const [credentialLoadingId, setCredentialLoadingId] = useState(null);
   const [credentialView, setCredentialView] = useState(null);
   const [deletingStaffId, setDeletingStaffId] = useState(null);
   const [newStaffMember, setNewStaffMember] = useState({
@@ -242,13 +243,22 @@ const Staff = ({ setShowAdminHeader }) => {
     // Here you would send newStaffMember to backend or update state
     try {
       setSubmitStatus(null);
+      const payload = {
+        ...newStaffMember,
+        salary: newStaffMember.salary ? Number(newStaffMember.salary) : undefined,
+      };
+      Object.keys(payload).forEach((key) => {
+        if (payload[key] === '' || payload[key] === undefined || payload[key] === null) {
+          delete payload[key];
+        }
+      });
       const res = await fetch(`${import.meta.env.VITE_API_URL}/api/staff/auth/register`,{
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
             'authorization': `Bearer ${localStorage.getItem('token')}`
           },
-          body: JSON.stringify(newStaffMember)
+          body: JSON.stringify(payload)
         })
         const data = await res.json();
         if (!res.ok) { 
@@ -357,6 +367,39 @@ const Staff = ({ setShowAdminHeader }) => {
       setSubmitStatus({ type: 'error', message: error.message || 'Unable to delete staff member' });
     } finally {
       setDeletingStaffId(null);
+    }
+  };
+
+  const handleViewCredentials = async (staffMember) => {
+    const staffId = staffMember?._id || staffMember?.id;
+    if (!staffId) return;
+    const confirmReset = window.confirm(
+      `This will reset ${staffMember.name || 'the staff member'}'s password and generate a new one. Continue?`
+    );
+    if (!confirmReset) return;
+    setCredentialLoadingId(staffId);
+    try {
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/admin/users/staff/${staffId}/credentials`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'authorization': `Bearer ${localStorage.getItem('token')}`
+        }
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data?.error || 'Unable to generate credentials');
+      }
+      setCredentialView({
+        name: staffMember.name,
+        username: data.username,
+        employeeCode: data.employeeCode || data.username,
+        password: data.password
+      });
+    } catch (error) {
+      setSubmitStatus({ type: 'error', message: error.message || 'Unable to generate credentials' });
+    } finally {
+      setCredentialLoadingId(null);
     }
   };
 
@@ -589,7 +632,7 @@ const Staff = ({ setShowAdminHeader }) => {
                     />
                   </div>
                   <div>
-                    <label className="text-sm font-medium text-gray-700">Salary</label>
+                    <label className="text-sm font-medium text-gray-700">Basic Salary (Optional)</label>
                     <input
                       type="number"
                       name="salary"
@@ -1087,10 +1130,12 @@ const Staff = ({ setShowAdminHeader }) => {
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-1">
                         <button 
-                          className="text-blue-600 hover:text-blue-800 p-1 hover:bg-blue-50 rounded" 
-                          title="View Performance Analytics"
+                          className="text-blue-600 hover:text-blue-800 p-1 hover:bg-blue-50 rounded disabled:opacity-50" 
+                          title="View Login Credentials (resets password)"
+                          onClick={() => handleViewCredentials(staffMember)}
+                          disabled={credentialLoadingId === (staffMember._id || staffMember.id)}
                         >
-                          <BarChart3 size={14} />
+                          <Eye size={14} />
                         </button>
                         <button 
                           className="text-purple-600 hover:text-purple-800 p-1 hover:bg-purple-50 rounded" 

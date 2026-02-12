@@ -2,9 +2,6 @@ import React, { useState, useEffect, useMemo } from 'react';
 import {
   Calendar,
   Download,
-  Bell,
-  TrendingUp,
-  DollarSign,
   Users,
   AlertCircle,
   School,
@@ -33,7 +30,7 @@ const FeesDashboard = ({ setShowAdminHeader }) => {
       setError('');
       setLoading(true);
       try {
-        const res = await fetch(`${API_BASE}/api/nif/fees/dashboard-summary`, {
+        const res = await fetch(`${API_BASE}/api/fees/admin/summary`, {
           headers: {
             'Content-Type': 'application/json',
             authorization: `Bearer ${localStorage.getItem('token')}`,
@@ -42,7 +39,7 @@ const FeesDashboard = ({ setShowAdminHeader }) => {
         });
         const data = await res.json().catch(() => ({}));
         if (!res.ok) {
-          throw new Error(data.message || 'Failed to load fees dashboard data');
+          throw new Error(data?.error || data?.message || 'Failed to load fees dashboard data');
         }
         setSummary(data);
       } catch (err) {
@@ -61,10 +58,10 @@ const FeesDashboard = ({ setShowAdminHeader }) => {
 
   const totals = summary?.totals || {
     totalOutstanding: 0,
-    monthlyCollection: 0,
-    overduePayments: 0,
-    totalEnrolled: 0,
     totalCollected: 0,
+    totalInvoiced: 0,
+    totalStudents: 0,
+    overdueInvoices: 0,
   };
   const enrollmentData = summary?.enrollment || [];
   const outstandingFeesData = summary?.outstandingSegments || [];
@@ -73,8 +70,8 @@ const FeesDashboard = ({ setShowAdminHeader }) => {
   const filteredPayments = useMemo(() => {
     return recentPayments.filter(
       (payment) =>
-        payment.studentName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        payment.program.toLowerCase().includes(searchTerm.toLowerCase())
+        (payment.studentName || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (payment.className || '').toLowerCase().includes(searchTerm.toLowerCase())
     );
   }, [recentPayments, searchTerm]);
 
@@ -127,9 +124,9 @@ const FeesDashboard = ({ setShowAdminHeader }) => {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center text-gray-600">
-          <div className="animate-spin h-10 w-10 border-2 border-blue-600 border-t-transparent rounded-full mx-auto mb-4" />
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
+        <div className="text-center text-slate-600">
+          <div className="animate-spin h-10 w-10 border-2 border-amber-500 border-t-transparent rounded-full mx-auto mb-4" />
           Loading the latest fee analytics...
         </div>
       </div>
@@ -137,41 +134,64 @@ const FeesDashboard = ({ setShowAdminHeader }) => {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <div className="p-8">
+    <div className="min-h-screen bg-slate-50">
+      <div className="px-6 py-8 lg:px-10">
         {error && (
           <div className="mb-6 rounded-lg border border-red-200 bg-red-50 text-red-700 px-4 py-3 text-sm">
             {error}
           </div>
         )}
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-          <div className="bg-white p-5 rounded-xl border border-gray-200 shadow-sm">
+        <div className="mb-8 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.3em] text-amber-500">
+              Fees Control Center
+            </p>
+            <h1 className="text-3xl font-semibold text-slate-900 mt-2">
+              Fees Dashboard
+            </h1>
+            <p className="text-sm text-slate-500 mt-2">
+              Monitor collection health, overdue invoices, and cash flow trends.
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-3">
+            <button
+              onClick={generateReport}
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-slate-900 text-white text-sm font-semibold hover:bg-slate-800 transition-colors"
+            >
+              <Download size={16} />
+              Export Snapshot
+            </button>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+          <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
             <div className="flex items-center justify-between">
-              <p className="text-sm font-medium text-gray-500">
+              <p className="text-sm font-medium text-slate-500">
                 Total Outstanding
               </p>
               <div className="w-10 h-10 flex items-center justify-center bg-amber-100 rounded-full">
                 <Clock className="w-5 h-5 text-amber-600" />
               </div>
             </div>
-            <p className="text-3xl font-bold text-gray-900 mt-2">
+            <p className="text-3xl font-semibold text-slate-900 mt-2">
               {formatCurrency(totals.totalOutstanding)}
             </p>
-            <p className="text-xs text-gray-500 mt-1">
+            <p className="text-xs text-slate-500 mt-1">
               Live balance pending across all records
             </p>
           </div>
 
-          <div className="bg-white p-5 rounded-xl border border-gray-200 shadow-sm">
+          <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
             <div className="flex items-center justify-between">
-              <p className="text-sm font-medium text-gray-500">Overdue Payments</p>
+              <p className="text-sm font-medium text-slate-500">Overdue Invoices</p>
               <div className="w-10 h-10 flex items-center justify-center bg-red-100 rounded-full">
                 <AlertCircle className="w-5 h-5 text-red-600" />
               </div>
             </div>
-            <p className="text-3xl font-bold text-gray-900 mt-2">
-              {totals.overduePayments} Students
+            <p className="text-3xl font-semibold text-slate-900 mt-2">
+              {totals.overdueInvoices} Invoices
             </p>
             <p className="text-xs text-red-600 mt-1 flex items-center">
               <ArrowUp className="w-3 h-3 mr-1" />
@@ -179,36 +199,51 @@ const FeesDashboard = ({ setShowAdminHeader }) => {
             </p>
           </div>
 
-          <div className="bg-white p-5 rounded-xl border border-gray-200 shadow-sm">
+          <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
             <div className="flex items-center justify-between">
-              <p className="text-sm font-medium text-gray-500">Total Enrolled</p>
+              <p className="text-sm font-medium text-slate-500">Students with Invoices</p>
               <div className="w-10 h-10 flex items-center justify-center bg-blue-100 rounded-full">
                 <School className="w-5 h-5 text-blue-600" />
               </div>
             </div>
-            <p className="text-3xl font-bold text-gray-900 mt-2">
-              {totals.totalEnrolled.toLocaleString()} Students
+            <p className="text-3xl font-semibold text-slate-900 mt-2">
+              {totals.totalStudents.toLocaleString()} Students
             </p>
-            <p className="text-xs text-gray-500 mt-1">
+            <p className="text-xs text-slate-500 mt-1">
               Students linked to fee records
+            </p>
+          </div>
+
+          <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
+            <div className="flex items-center justify-between">
+              <p className="text-sm font-medium text-slate-500">Total Collected</p>
+              <div className="w-10 h-10 flex items-center justify-center bg-emerald-100 rounded-full">
+                <CheckCircle className="w-5 h-5 text-emerald-600" />
+              </div>
+            </div>
+            <p className="text-3xl font-semibold text-slate-900 mt-2">
+              {formatCurrency(totals.totalCollected)}
+            </p>
+            <p className="text-xs text-slate-500 mt-1">
+              Amount received so far
             </p>
           </div>
         </div>
 
         <div className="mt-8 grid grid-cols-1 xl:grid-cols-3 gap-6">
           <div className="xl:col-span-2 space-y-6">
-            <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
+            <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
                 <div>
-                  <h2 className="text-xl font-semibold text-gray-900">
+                  <h2 className="text-xl font-semibold text-slate-900">
                     Collection Trend
                   </h2>
-                  <p className="text-sm text-gray-500">
+                  <p className="text-sm text-slate-500">
                     Daily collections over the last 7 days.
                   </p>
                 </div>
-                <div className="flex items-center gap-3 text-sm text-gray-500">
-                  <Calendar className="w-4 h-4 text-gray-500" />
+                <div className="flex items-center gap-3 text-sm text-slate-500">
+                  <Calendar className="w-4 h-4 text-slate-500" />
                   <span>{dateRange}</span>
                 </div>
               </div>
@@ -217,48 +252,48 @@ const FeesDashboard = ({ setShowAdminHeader }) => {
                   <div key={entry.key} className="flex flex-col items-center w-full">
                     <div className="w-full flex-1 flex items-end">
                       <div
-                        className="w-full rounded-t-lg bg-gradient-to-t from-blue-500 to-emerald-400 shadow"
+                        className="w-full rounded-t-lg bg-gradient-to-t from-amber-500 to-orange-400 shadow"
                         style={{
                           height: `${(entry.value / peakCollection) * 100}%`,
                         }}
                       />
                     </div>
                     <div className="mt-2 text-center">
-                      <p className="text-xs font-medium text-gray-700">
+                      <p className="text-xs font-medium text-slate-700">
                         {formatCurrency(entry.value)}
                       </p>
-                      <p className="text-xs text-gray-500">{entry.label}</p>
+                      <p className="text-xs text-slate-500">{entry.label}</p>
                     </div>
                   </div>
                 ))}
               </div>
             </div>
 
-            <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
+            <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
               <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
                 <div>
-                  <h2 className="text-xl font-semibold text-gray-900">
+                  <h2 className="text-xl font-semibold text-slate-900">
                     Recent Payments
                   </h2>
-                  <p className="text-sm text-gray-500">
-                    Payments logged directly from fee records.
+                  <p className="text-sm text-slate-500">
+                    Payments logged directly from fee invoices.
                   </p>
                 </div>
                 <div className="flex items-center gap-3">
                   <div className="flex items-center gap-2">
-                    <Search className="w-4 h-4 text-gray-500" />
+                    <Search className="w-4 h-4 text-slate-500" />
                     <input
                       type="text"
                       value={searchTerm}
                       onChange={(e) => setSearchTerm(e.target.value)}
                       placeholder="Search students..."
-                      className="text-sm border border-gray-300 rounded-lg px-3 py-1.5 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                      className="text-sm border border-slate-300 rounded-lg px-3 py-1.5 focus:ring-2 focus:ring-amber-500 focus:outline-none"
                     />
                   </div>
                   <select
                     value={dateRange}
                     onChange={(e) => setDateRange(e.target.value)}
-                    className="text-sm border border-gray-300 rounded-lg px-3 py-1.5 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                    className="text-sm border border-slate-300 rounded-lg px-3 py-1.5 focus:ring-2 focus:ring-amber-500 focus:outline-none"
                   >
                     <option>Last 30 Days</option>
                     <option>Last 7 Days</option>
@@ -266,7 +301,7 @@ const FeesDashboard = ({ setShowAdminHeader }) => {
                   </select>
                   <button
                     onClick={generateReport}
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 transition-colors"
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-900 text-white text-sm rounded-lg hover:bg-slate-800 transition-colors"
                   >
                     <Download size={16} />
                     Report
@@ -279,24 +314,24 @@ const FeesDashboard = ({ setShowAdminHeader }) => {
                   filteredPayments.map((payment, idx) => (
                     <div
                       key={`${payment.studentName}-${idx}`}
-                      className="bg-gray-50 rounded-2xl border border-gray-200 p-4 flex items-center justify-between"
+                      className="bg-slate-50 rounded-2xl border border-slate-200 p-4 flex items-center justify-between"
                     >
                       <div className="space-y-1">
-                        <p className="text-lg font-semibold text-gray-900">
+                        <p className="text-lg font-semibold text-slate-900">
                           {payment.studentName}
                         </p>
-                        <p className="text-sm text-gray-500">
-                          {payment.program}
+                        <p className="text-sm text-slate-500">
+                          {payment.className || 'Class'} {payment.section ? `- ${payment.section}` : ''}
                         </p>
                       </div>
                       <div className="text-right space-y-1">
-                        <p className="text-xl font-semibold text-gray-900">
+                        <p className="text-xl font-semibold text-slate-900">
                           {formatCurrency(payment.amount)}
                         </p>
-                        <p className="text-sm text-gray-500">
+                        <p className="text-sm text-slate-500">
                           {payment.paidOn
                             ? new Date(payment.paidOn).toLocaleDateString()
-                            : '—'}
+                            : '-'}
                         </p>
                         <div
                           className={`inline-flex items-center px-3 py-1 rounded-full text-sm ${getStatusColor(
@@ -309,7 +344,7 @@ const FeesDashboard = ({ setShowAdminHeader }) => {
                     </div>
                   ))
                 ) : (
-                  <p className="text-sm text-gray-500 text-center py-6">
+                  <p className="text-sm text-slate-500 text-center py-6">
                     No recent payments match your search.
                   </p>
                 )}
@@ -318,36 +353,36 @@ const FeesDashboard = ({ setShowAdminHeader }) => {
           </div>
 
           <div className="space-y-6">
-            <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
+            <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
               <div className="flex items-center justify-between mb-6">
                 <div>
-                  <h2 className="text-xl font-semibold text-gray-900">
-                    Enrollment by Program
+                  <h2 className="text-xl font-semibold text-slate-900">
+                    Enrollment by Class
                   </h2>
-                  <p className="text-sm text-gray-500">
-                    Distribution of students with fee records.
+                  <p className="text-sm text-slate-500">
+                    Distribution of students with fee invoices.
                   </p>
                 </div>
-                <Users className="w-6 h-6 text-blue-600" />
+                <Users className="w-6 h-6 text-amber-600" />
               </div>
               {enrollmentData.length ? (
                 <div className="grid gap-4">
-                  {enrollmentData.map((program, index) => (
+                  {enrollmentData.map((program) => (
                     <div
-                      key={program.program}
-                      className="bg-gray-50 rounded-xl border border-gray-200 p-4 flex items-center justify-between"
+                      key={program.label}
+                      className="bg-slate-50 rounded-xl border border-slate-200 p-4 flex items-center justify-between"
                     >
                       <div>
-                        <p className="text-sm text-gray-500">
-                          {program.program}
+                        <p className="text-sm text-slate-500">
+                          {program.label}
                         </p>
-                        <p className="text-2xl font-semibold text-gray-900">
+                        <p className="text-2xl font-semibold text-slate-900">
                           {program.students}
                         </p>
                       </div>
                       <div className="text-right">
-                        <p className="text-sm text-gray-500">Share</p>
-                        <p className="text-lg font-semibold text-gray-900">
+                        <p className="text-sm text-slate-500">Share</p>
+                        <p className="text-lg font-semibold text-slate-900">
                           {program.percentage}%
                         </p>
                       </div>
@@ -355,39 +390,39 @@ const FeesDashboard = ({ setShowAdminHeader }) => {
                   ))}
                 </div>
               ) : (
-                <p className="text-sm text-gray-500">
+                <p className="text-sm text-slate-500">
                   No enrollment data available.
                 </p>
               )}
             </div>
 
-            <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
+            <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
               <div className="flex items-center justify-between mb-6">
                 <div>
-                  <h2 className="text-xl font-semibold text-gray-900">
+                  <h2 className="text-xl font-semibold text-slate-900">
                     Outstanding Overview
                   </h2>
-                  <p className="text-sm text-gray-500">
-                    Top programs and batches with outstanding dues.
+                  <p className="text-sm text-slate-500">
+                    Top classes with outstanding dues.
                   </p>
                 </div>
-                <CheckCircle className="w-6 h-6 text-green-600" />
+                <CheckCircle className="w-6 h-6 text-emerald-600" />
               </div>
               {outstandingFeesData.length ? (
                 <div className="space-y-4">
                   {outstandingFeesData.map((segment) => (
                     <div key={segment.label}>
                       <div className="flex items-center justify-between mb-2">
-                        <p className="text-sm font-medium text-gray-700">
+                        <p className="text-sm font-medium text-slate-700">
                           {segment.label}
                         </p>
-                        <span className="text-sm text-gray-500">
+                        <span className="text-sm text-slate-500">
                           {segment.percentage}%
                         </span>
                       </div>
-                      <div className="w-full bg-gray-200 rounded-full h-2">
+                      <div className="w-full bg-slate-200 rounded-full h-2">
                         <div
-                          className="bg-gradient-to-r from-amber-400 to-amber-500 h-2 rounded-full"
+                          className="bg-gradient-to-r from-amber-400 to-orange-500 h-2 rounded-full"
                           style={{ width: `${segment.percentage}%` }}
                         />
                       </div>
@@ -395,7 +430,7 @@ const FeesDashboard = ({ setShowAdminHeader }) => {
                   ))}
                 </div>
               ) : (
-                <p className="text-sm text-gray-500">
+                <p className="text-sm text-slate-500">
                   No outstanding data to display.
                 </p>
               )}

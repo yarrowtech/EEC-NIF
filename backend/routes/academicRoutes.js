@@ -6,6 +6,9 @@ const AcademicYear = require('../models/AcademicYear');
 const ClassModel = require('../models/Class');
 const Section = require('../models/Section');
 const Subject = require('../models/Subject');
+const FeeStructure = require('../models/FeeStructure');
+const FeeInvoice = require('../models/FeeInvoice');
+const StudentUser = require('../models/StudentUser');
 
 const router = express.Router();
 
@@ -37,6 +40,88 @@ const buildCampusFilter = (schoolId, campusId) => {
   return filter;
 };
 
+const generateInvoicesForAcademicYear = async ({ schoolId, campusId, academicYearId }) => {
+  const classFilter = buildCampusFilter(schoolId, campusId);
+  const classDocs = await ClassModel.find(classFilter).select('_id name campusId').lean();
+  if (classDocs.length === 0) {
+    return { created: 0, skipped: 0, classes: 0 };
+  }
+
+  let created = 0;
+  let skipped = 0;
+
+  for (const classDoc of classDocs) {
+    const structure = await FeeStructure.findOne({
+      schoolId,
+      classId: classDoc._id,
+      academicYearId,
+      isActive: true,
+    })
+      .sort({ createdAt: -1 })
+      .lean();
+    if (!structure) {
+      continue;
+    }
+
+    const studentFilter = {
+      schoolId,
+      grade: classDoc.name,
+      isArchived: false,
+    };
+    if (classDoc.campusId) {
+      studentFilter.campusId = classDoc.campusId;
+    } else if (campusId) {
+      studentFilter.campusId = campusId;
+    }
+
+    const students = await StudentUser.find(studentFilter)
+      .select('_id name grade section')
+      .lean();
+    if (students.length === 0) {
+      continue;
+    }
+
+    const studentIds = students.map((student) => student._id);
+    const existingInvoices = await FeeInvoice.find({
+      schoolId,
+      feeStructureId: structure._id,
+      studentId: { $in: studentIds },
+    })
+      .select('studentId')
+      .lean();
+    const existingSet = new Set(existingInvoices.map((inv) => String(inv.studentId)));
+
+    const invoicesToCreate = students
+      .filter((student) => !existingSet.has(String(student._id)))
+      .map((student) => ({
+        schoolId,
+        academicYearId,
+        classId: structure.classId,
+        className: student.grade || classDoc.name || structure.className || '',
+        section: student.section || '',
+        studentId: student._id,
+        feeStructureId: structure._id,
+        title: structure.name || 'Fee Invoice',
+        totalAmount: structure.totalAmount,
+        paidAmount: 0,
+        balanceAmount: structure.totalAmount,
+        discountAmount: 0,
+        discountNote: '',
+        feeHeadsSnapshot: structure.feeHeads || [],
+        installmentsSnapshot: structure.installments || [],
+        status: 'due',
+      }));
+
+    if (invoicesToCreate.length > 0) {
+      await FeeInvoice.insertMany(invoicesToCreate);
+      created += invoicesToCreate.length;
+    }
+    skipped += students.length - invoicesToCreate.length;
+  }
+
+  return { created, skipped, classes: classDocs.length };
+};
+
 // Academic Years
 router.post('/years', adminAuth, async (req, res) => {
   // #swagger.tags = ['Academics']
@@ -55,6 +140,21 @@ router.post('/years', adminAuth, async (req, res) => {
       endDate: endDate ? new Date(endDate) : undefined,
       isActive: Boolean(isActive),
     });
+    if (created.isActive) {
+      await AcademicYear.updateMany(
+        { schoolId, _id: { $ne: created._id } },
+        { $set: { isActive: false } }
+      );
+      try {
+        await generateInvoicesForAcademicYear({
+          schoolId,
+          campusId: resolveCampusId(req),
+          academicYearId: created._id,
+        });
+      } catch (err) {
+        console.error('Invoice generation failed for new academic year:', err.message);
+      }
+    }
     res.status(201).json(created);
   } catch (err) {
     res.status(400).json({ error: err.message });
@@ -105,6 +205,22 @@ router.put('/years/:id', adminAuth, async (req, res) => {
       },
       { new: true, runValidators: true }
     ).lean();
+
+    if (updated.isActive) {
+      await AcademicYear.updateMany(
+        { schoolId, _id: { $ne: updated._id } },
+        { $set: { isActive: false } }
+      );
+      try {
+        await generateInvoicesForAcademicYear({
+          schoolId,
+          campusId: resolveCampusId(req),
+          academicYearId: updated._id,
+        });
+      } catch (err) {
+        console.error('Invoice generation failed for academic year update:', err.message);
+      }
+    }
 
     res.json(updated);
   } catch (err) {

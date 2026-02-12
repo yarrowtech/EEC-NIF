@@ -15,6 +15,7 @@ import {
   Bell,
   MessageCircle,
   MessageSquare,
+  CreditCard,
   Brain,
   X,
   GraduationCap,
@@ -114,6 +115,13 @@ const Sidebar = ({ activeView, isOpen, setIsOpen }) => {
         { id: 'attendance', name: 'Attendance', icon: Users },
         { id: 'lesson-plan-status', name: 'Syllabus Status', icon: BookOpen },
       ]
+    },
+    { 
+      id: 'fees', 
+      name: 'Fees', 
+      icon: CreditCard,
+      gradient: 'from-amber-500 to-amber-600',
+      description: 'Invoices & Dues'
     },
     { 
       id: 'communication', 

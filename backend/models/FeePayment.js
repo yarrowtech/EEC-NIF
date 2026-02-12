@@ -9,6 +9,11 @@ const feePaymentSchema = new mongoose.Schema(
     method: { type: String, default: 'cash' },
     paidOn: { type: Date, default: Date.now },
     notes: { type: String, trim: true },
+    gateway: { type: String, default: null },
+    gatewayOrderId: { type: String, default: null },
+    gatewayPaymentId: { type: String, default: null },
+    gatewaySignature: { type: String, default: null },
+    gatewayStatus: { type: String, default: null },
   },
   { timestamps: true }
 );

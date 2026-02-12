@@ -49,6 +49,7 @@ const studentSections = [
   "schedule",
   "routine",
   "attendance",
+  "fees",
   "communication",
   "chat",
   "teacherfeedback",

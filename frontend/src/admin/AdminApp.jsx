@@ -20,6 +20,7 @@ import Result from './pages/Result';
 import FeesCollection from './pages/FeesCollection';
 import FeesDashboard from './pages/FeesDashboard';
 import StudentFeeDetails from './pages/StudentFeeDetails';
+import FeesManagement from './pages/FeesManagement';
 import HR from './pages/HR';
 import SchoolRegistrations from './pages/SchoolRegistrations';
 import SuperAdminDashboard from './pages/SuperAdminDashboard';
@@ -135,6 +136,8 @@ const AdminApp = () => {
         <Route path="lesson-plans" element={<LessonPlanPage setShowAdminHeader={setShowAdminHeader} />} />
         <Route path="result" element={<Result setShowAdminHeader={setShowAdminHeader} />} />
         <Route path="fees" element={<FeesCollection setShowAdminHeader={setShowAdminHeader} />} />
+        <Route path="fees/collection" element={<FeesCollection setShowAdminHeader={setShowAdminHeader} />} />
+        <Route path="fees/manage" element={<FeesManagement setShowAdminHeader={setShowAdminHeader} />} />
         <Route path="fees/dashboard" element={<FeesDashboard setShowAdminHeader={setShowAdminHeader} />} />
         <Route path="fees/student-details" element={<StudentFeeDetails setShowAdminHeader={setShowAdminHeader} />} />
         <Route path="hr" element={<HR setShowAdminHeader={setShowAdminHeader} />} />
