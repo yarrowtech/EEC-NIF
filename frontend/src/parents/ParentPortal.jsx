@@ -11,7 +11,6 @@ import {
   X,
   Award,
   GraduationCap,
-  FileText,
   Video,
   ChevronLeft,
   ChevronRight,
@@ -26,7 +25,6 @@ import HealthReport from './HealthReport';
 import ComplaintManagementSystem from './ComplaintManagementSystem';
 import ResultsView from './ResultsView';
 import AchievementsView from './AchievementsView';
-import CoursesView from './CoursesView';
 import PTMPortal from './PTMPortal';
 import ParentDashboard from './ParentDashboard';
 import Observation from './Observation';
@@ -96,7 +94,6 @@ const ParentPortal = () => {
     { icon: Eye, label: 'Parent Observation', description: 'Share feedback', path: '/parents/parent-observation' },
     { icon: GraduationCap, label: 'Results', description: 'Performance summary', path: '/parents/results' },
     { icon: Award, label: 'Achievements', description: 'Celebrate wins', path: '/parents/achievements' },
-    { icon: FileText, label: 'Courses', description: 'Curriculum view', path: '/parents/courses' }
   ];
 
   const normalizePath = (path) => {
@@ -301,7 +298,6 @@ const ParentPortal = () => {
           <Route path="parent-observation" element={<ParentObservation />} />
           <Route path="results" element={<ResultsView />} />
           <Route path="achievements" element={<AchievementsView />} />
-          <Route path="courses" element={<CoursesView />} />
         </Routes>
       </div>
     </div>
