@@ -404,9 +404,10 @@ const Result = ({ setShowAdminHeader }) => {
         body: JSON.stringify(examForm)
       });
 
-      if (!response.ok) throw new Error('Failed to add exam');
-
       const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data?.error || 'Failed to add exam');
+      }
       toast.success('Exam created successfully');
       setShowAddExamModal(false);
       setExamForm({
@@ -423,7 +424,7 @@ const Result = ({ setShowAdminHeader }) => {
       fetchExams();
     } catch (error) {
       console.error('Error adding exam:', error);
-      toast.error('Failed to create exam');
+      toast.error(error.message || 'Failed to create exam');
     }
   };
 
