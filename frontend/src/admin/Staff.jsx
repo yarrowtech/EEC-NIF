@@ -1,37 +1,32 @@
 import React, { useEffect, useState } from 'react';
-import { 
-  Search, 
-  Filter, 
-  Plus, 
-  Edit3, 
-  Trash2, 
-  Mail, 
-  Phone, 
-  MapPin, 
+import {
+  Search,
+  Plus,
+  Edit2,
+  Trash2,
+  Mail,
+  Phone,
   Calendar,
-  BookOpen,
   Users,
   Star,
   Award,
   Eye,
-  MoreVertical,
-  Edit2,
   Clock,
-  TrendingUp,
   Target,
   CheckCircle,
-  AlertCircle,
   FileText,
   GraduationCap,
-  BarChart3,
   Activity,
   DollarSign,
-  Timer,
   Briefcase,
-  Shield,
   CheckCircle2,
   XCircle,
-  AlertTriangle
+  AlertTriangle,
+  KeyRound,
+  Copy,
+  Check,
+  MapPin,
+  Building2
 } from 'lucide-react';
 
 const normalizeAttendance = (value) => {
@@ -52,15 +47,29 @@ const normalizePaymentStatus = (value) => {
 };
 
 const getInitials = (name = '') => {
-  const parts = name
-    .trim()
-    .split(/\s+/)
-    .filter(Boolean)
-    .map((part) => part[0]?.toUpperCase())
-    .filter(Boolean);
+  const parts = name.trim().split(/\s+/).filter(Boolean).map((p) => p[0]?.toUpperCase()).filter(Boolean);
   if (parts.length === 0) return 'S';
   return parts.slice(0, 2).join('');
 };
+
+const AVATAR_COLORS = [
+  { bg: 'bg-blue-100', text: 'text-blue-700' },
+  { bg: 'bg-indigo-100', text: 'text-indigo-700' },
+  { bg: 'bg-sky-100', text: 'text-sky-700' },
+  { bg: 'bg-cyan-100', text: 'text-cyan-700' },
+  { bg: 'bg-violet-100', text: 'text-violet-700' },
+  { bg: 'bg-teal-100', text: 'text-teal-700' },
+  { bg: 'bg-emerald-100', text: 'text-emerald-700' },
+  { bg: 'bg-blue-200', text: 'text-blue-800' },
+];
+
+const getAvatarColor = (name) => {
+  const hash = (name || '').split('').reduce((acc, c) => acc + c.charCodeAt(0), 0);
+  return AVATAR_COLORS[hash % AVATAR_COLORS.length];
+};
+
+const inputClass =
+  'w-full rounded-xl border border-blue-100 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent transition-all bg-white';
 
 const Staff = ({ setShowAdminHeader }) => {
   const [searchTerm, setSearchTerm] = useState('');
@@ -74,88 +83,62 @@ const Staff = ({ setShowAdminHeader }) => {
   const [submitStatus, setSubmitStatus] = useState(null);
   const [credentialLoadingId, setCredentialLoadingId] = useState(null);
   const [credentialView, setCredentialView] = useState(null);
+  const [copiedField, setCopiedField] = useState(null);
   const [deletingStaffId, setDeletingStaffId] = useState(null);
+  const [viewStaff, setViewStaff] = useState(null);
+
   const [newStaffMember, setNewStaffMember] = useState({
-    name: '',
-    email: '',
-    phone: '',
-    position: '',
-    department: '',
-    experience: '',
-    qualification: '',
-    salary: '',
-    rating: '',
-    status: 'Active',
-    joinDate: '',
-    location: '',
-    avatar: ''
+    name: '', email: '', phone: '', position: '', department: '',
+    experience: '', qualification: '', salary: '', rating: '',
+    status: 'Active', joinDate: '', location: '', avatar: ''
   });
   const [editStaffMember, setEditStaffMember] = useState({
-    name: '',
-    email: '',
-    phone: '',
-    position: '',
-    department: '',
-    experience: '',
-    qualification: '',
-    salary: '',
-    status: 'Active',
-    joinDate: '',
-    location: '',
-    avatar: ''
+    name: '', email: '', phone: '', position: '', department: '',
+    experience: '', qualification: '', salary: '',
+    status: 'Active', joinDate: '', location: '', avatar: ''
   });
 
-  // Filter staff based on search and status
-  const filteredStaff = staff.filter(staffMember => {
-    const matchesSearch = staffMember.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         staffMember.position.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         staffMember.email.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesStatus = filterStatus === 'All' || staffMember.status === filterStatus;
+  const filteredStaff = staff.filter(m => {
+    const matchesSearch =
+      m.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      m.position.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      m.email.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesStatus = filterStatus === 'All' || m.status === filterStatus;
     return matchesSearch && matchesStatus;
   });
 
-  // Helper functions for enhanced features
-  const getPerformanceMetrics = () => {
-    // Mock performance data - integrate with actual metrics
-    return {
-      taskCompletionRate: Math.floor(Math.random() * 20) + 80, // 80-100
-      attendanceRate: Math.floor(Math.random() * 15) + 85, // 85-100
-      projectsCompleted: Math.floor(Math.random() * 10) + 5, // 5-15
-      avgResponseTime: Math.floor(Math.random() * 20) + 10, // 10-30 hours
-      totalTasks: Math.floor(Math.random() * 50) + 20, // 20-70
-      activeProjects: Math.floor(Math.random() * 5) + 1 // 1-6
-    };
-  };
+  const getPerformanceMetrics = () => ({
+    taskCompletionRate: Math.floor(Math.random() * 20) + 80,
+    attendanceRate: Math.floor(Math.random() * 15) + 85,
+    totalTasks: Math.floor(Math.random() * 50) + 20,
+  });
 
   const getTodaySchedule = () => {
     const schedules = [
-      { time: '09:00-10:00', task: 'Admin Meeting', location: 'Conference Room A' },
-      { time: '10:00-11:00', task: 'Budget Review', location: 'Office 205' },
-      { time: '11:30-12:30', task: 'Staff Training', location: 'Training Room' },
-      { time: '14:00-15:00', task: 'Facilities Inspection', location: 'Ground Floor' }
+      { time: '09:00-10:00', task: 'Admin Meeting' },
+      { time: '10:00-11:00', task: 'Budget Review' },
+      { time: '11:30-12:30', task: 'Staff Training' },
+      { time: '14:00-15:00', task: 'Facilities Check' },
     ];
     return schedules.slice(0, Math.floor(Math.random() * 3) + 1);
   };
 
   const getCertifications = () => {
     const allCerts = [
-      { name: 'Administrative Management', year: '2018', status: 'verified' },
-      { name: 'Safety Training Certificate', year: '2020', status: 'verified' },
-      { name: 'Leadership Development', year: '2022', status: 'pending' },
-      { name: 'Digital Workflow Management', year: '2023', status: 'verified' }
+      { name: 'Admin Management', year: '2018', status: 'verified' },
+      { name: 'Safety Training', year: '2020', status: 'verified' },
+      { name: 'Leadership Dev', year: '2022', status: 'pending' },
+      { name: 'Digital Workflow', year: '2023', status: 'verified' },
     ];
     return allCerts.slice(0, Math.floor(Math.random() * 3) + 1);
   };
 
-  const getRecentEvaluations = () => {
-    return {
-      lastEvaluation: '2024-01-15',
-      overallRating: Math.floor(Math.random() * 2) + 4, // 4-5 stars
-      evaluatedBy: 'HR Manager',
-      nextEvaluation: '2024-07-15',
-      improvements: Math.floor(Math.random() * 3) + 1
-    };
-  };
+  const getRecentEvaluations = () => ({
+    lastEvaluation: '2024-01-15',
+    overallRating: Math.floor(Math.random() * 2) + 4,
+    evaluatedBy: 'HR Manager',
+    nextEvaluation: '2024-07-15',
+  });
 
   const fetchStaff = async () => {
     setError('');
@@ -168,9 +151,7 @@ const Staff = ({ setShowAdminHeader }) => {
         },
       });
       const data = await res.json().catch(() => []);
-      if (!res.ok) {
-        throw new Error(data?.error || 'Failed to fetch staff');
-      }
+      if (!res.ok) throw new Error(data?.error || 'Failed to fetch staff');
       const normalized = (Array.isArray(data) ? data : []).map((member, idx) => ({
         _id: member._id,
         id: member._id || member.id || idx,
@@ -202,7 +183,6 @@ const Staff = ({ setShowAdminHeader }) => {
     }
   };
 
-  // making the admin header invisible
   useEffect(() => {
     setShowAdminHeader(false);
     fetchStaff();
@@ -233,70 +213,34 @@ const Staff = ({ setShowAdminHeader }) => {
       status: staffMember.status || 'Active',
       joinDate: staffMember.joiningDate || '',
       location: staffMember.location || '',
-      avatar: staffMember.avatar || ''
+      avatar: staffMember.avatar || '',
     });
     setShowEditForm(true);
   };
 
   const handleAddStaffSubmit = async (e) => {
     e.preventDefault();
-    // Here you would send newStaffMember to backend or update state
     try {
       setSubmitStatus(null);
-      const payload = {
-        ...newStaffMember,
-        salary: newStaffMember.salary ? Number(newStaffMember.salary) : undefined,
-      };
+      const payload = { ...newStaffMember, salary: newStaffMember.salary ? Number(newStaffMember.salary) : undefined };
       Object.keys(payload).forEach((key) => {
-        if (payload[key] === '' || payload[key] === undefined || payload[key] === null) {
-          delete payload[key];
-        }
+        if (payload[key] === '' || payload[key] === undefined || payload[key] === null) delete payload[key];
       });
-      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/staff/auth/register`,{
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'authorization': `Bearer ${localStorage.getItem('token')}`
-          },
-          body: JSON.stringify(payload)
-        })
-        const data = await res.json();
-        if (!res.ok) { 
-          console.error('Registration failed:', data);
-          throw new Error(data?.error || 'Registration failed');
-        }
-      setSubmitStatus({
-        type: 'success',
-        message: 'Staff member added successfully.'
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/staff/auth/register`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'authorization': `Bearer ${localStorage.getItem('token')}` },
+        body: JSON.stringify(payload),
       });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error || 'Registration failed');
+      setSubmitStatus({ type: 'success', message: 'Staff member added successfully.' });
       if (data?.username && data?.password) {
-        setCredentialView({
-          name: newStaffMember.name,
-          username: data.username,
-          employeeCode: data.employeeCode || data.username,
-          password: data.password
-        });
+        setCredentialView({ name: newStaffMember.name, username: data.username, employeeCode: data.employeeCode || data.username, password: data.password });
       }
       setShowAddForm(false);
-      // Optionally reset form
-      setNewStaffMember({
-        name: '',
-        email: '',
-        phone: '',
-        position: '',
-        department: '',
-        experience: '',
-        qualification: '',
-        salary: '',
-        rating: '',
-        status: 'Active',
-        joinDate: '',
-        location: '',
-        avatar: ''
-      });
+      setNewStaffMember({ name: '', email: '', phone: '', position: '', department: '', experience: '', qualification: '', salary: '', rating: '', status: 'Active', joinDate: '', location: '', avatar: '' });
       fetchStaff();
-    }
-    catch (error) {
+    } catch (error) {
       console.error('Error adding staff member:', error);
       setSubmitStatus({ type: 'error', message: error.message || 'Unable to add staff member' });
     }
@@ -309,29 +253,19 @@ const Staff = ({ setShowAdminHeader }) => {
       setSubmitStatus(null);
       const staffId = editingStaff._id || editingStaff.id;
       const payload = {
-        name: editStaffMember.name,
-        email: editStaffMember.email,
-        mobile: editStaffMember.phone,
-        position: editStaffMember.position,
-        department: editStaffMember.department,
-        experience: editStaffMember.experience,
-        qualification: editStaffMember.qualification,
+        name: editStaffMember.name, email: editStaffMember.email, mobile: editStaffMember.phone,
+        position: editStaffMember.position, department: editStaffMember.department,
+        experience: editStaffMember.experience, qualification: editStaffMember.qualification,
         salary: editStaffMember.salary ? Number(editStaffMember.salary) : undefined,
-        status: editStaffMember.status,
-        joiningDate: editStaffMember.joinDate
+        status: editStaffMember.status, joiningDate: editStaffMember.joinDate,
       };
       const res = await fetch(`${import.meta.env.VITE_API_URL}/api/admin/users/staff/${staffId}`, {
         method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          'authorization': `Bearer ${localStorage.getItem('token')}`
-        },
-        body: JSON.stringify(payload)
+        headers: { 'Content-Type': 'application/json', 'authorization': `Bearer ${localStorage.getItem('token')}` },
+        body: JSON.stringify(payload),
       });
       const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        throw new Error(data?.error || 'Unable to update staff member');
-      }
+      if (!res.ok) throw new Error(data?.error || 'Unable to update staff member');
       setSubmitStatus({ type: 'success', message: 'Staff member updated successfully.' });
       setShowEditForm(false);
       setEditingStaff(null);
@@ -351,15 +285,10 @@ const Staff = ({ setShowAdminHeader }) => {
     try {
       const res = await fetch(`${import.meta.env.VITE_API_URL}/api/admin/users/staff/${staffId}`, {
         method: 'DELETE',
-        headers: {
-          'Content-Type': 'application/json',
-          'authorization': `Bearer ${localStorage.getItem('token')}`
-        }
+        headers: { 'Content-Type': 'application/json', 'authorization': `Bearer ${localStorage.getItem('token')}` },
       });
       const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        throw new Error(data?.error || data?.message || 'Unable to delete staff member');
-      }
+      if (!res.ok) throw new Error(data?.error || data?.message || 'Unable to delete staff member');
       setStaff((prev) => prev.filter((item) => String(item._id || item.id) !== String(staffId)));
       setSubmitStatus({ type: 'success', message: 'Staff member deleted successfully.' });
     } catch (error) {
@@ -373,29 +302,17 @@ const Staff = ({ setShowAdminHeader }) => {
   const handleViewCredentials = async (staffMember) => {
     const staffId = staffMember?._id || staffMember?.id;
     if (!staffId) return;
-    const confirmReset = window.confirm(
-      `This will reset ${staffMember.name || 'the staff member'}'s password and generate a new one. Continue?`
-    );
+    const confirmReset = window.confirm(`This will reset ${staffMember.name || 'the staff member'}'s password and generate a new one. Continue?`);
     if (!confirmReset) return;
     setCredentialLoadingId(staffId);
     try {
       const res = await fetch(`${import.meta.env.VITE_API_URL}/api/admin/users/staff/${staffId}/credentials`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'authorization': `Bearer ${localStorage.getItem('token')}`
-        }
+        headers: { 'Content-Type': 'application/json', 'authorization': `Bearer ${localStorage.getItem('token')}` },
       });
       const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        throw new Error(data?.error || 'Unable to generate credentials');
-      }
-      setCredentialView({
-        name: staffMember.name,
-        username: data.username,
-        employeeCode: data.employeeCode || data.username,
-        password: data.password
-      });
+      if (!res.ok) throw new Error(data?.error || 'Unable to generate credentials');
+      setCredentialView({ name: staffMember.name, username: data.username, employeeCode: data.employeeCode || data.username, password: data.password });
     } catch (error) {
       setSubmitStatus({ type: 'error', message: error.message || 'Unable to generate credentials' });
     } finally {
@@ -403,802 +320,644 @@ const Staff = ({ setShowAdminHeader }) => {
     }
   };
 
-  const copyCredential = async (value) => {
+  const copyCredential = async (value, field) => {
     if (!value) return;
     try {
       await navigator.clipboard.writeText(value);
+      setCopiedField(field);
+      setTimeout(() => setCopiedField(null), 2000);
     } catch (err) {
       console.error('Failed to copy credential:', err);
     }
   };
 
   const formatDate = (value) => {
-    if (!value) return '-';
+    if (!value) return '—';
     const dt = new Date(value);
-    if (Number.isNaN(dt.getTime())) return '-';
-    return dt.toLocaleDateString();
+    if (Number.isNaN(dt.getTime())) return '—';
+    return dt.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
   };
 
   const formatMoney = (value) => {
-    if (value == null || Number.isNaN(Number(value))) return '-';
-    return Number(value).toLocaleString();
+    if (value == null || Number.isNaN(Number(value)) || Number(value) === 0) return '—';
+    return `₹${Number(value).toLocaleString('en-IN')}`;
   };
 
+  // ─── shared form fields renderer ────────────────────────────────────
+  const renderFormFields = (data, onChange, isEdit = false) => (
+    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+      {[
+        { label: 'Full Name', name: 'name', type: 'text', required: true },
+        { label: 'Email', name: 'email', type: 'email', required: true },
+        { label: 'Contact Number', name: 'phone', type: 'tel', required: !isEdit },
+        { label: 'Position', name: 'position', type: 'text' },
+        { label: 'Department', name: 'department', type: 'text' },
+        { label: 'Qualification', name: 'qualification', type: 'text' },
+        { label: 'Experience (years)', name: 'experience', type: 'number' },
+        { label: isEdit ? 'Salary' : 'Basic Salary (Optional)', name: 'salary', type: 'number' },
+        { label: 'Join Date', name: 'joinDate', type: 'date' },
+      ].map(({ label, name, type, required }) => (
+        <div key={name}>
+          <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wide mb-1.5">{label}{required && ' *'}</label>
+          <input type={type} name={name} value={data[name] || ''} onChange={onChange} className={inputClass} required={required} min={type === 'number' ? '0' : undefined} />
+        </div>
+      ))}
+      <div>
+        <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wide mb-1.5">Status</label>
+        <select name="status" value={data.status || 'Active'} onChange={onChange} className={inputClass}>
+          <option value="Active">Active</option>
+          <option value="On Leave">On Leave</option>
+          <option value="Inactive">Inactive</option>
+        </select>
+      </div>
+    </div>
+  );
 
   return (
-    <div className="h-screen bg-gradient-to-br from-blue-50 via-blue-100 to-indigo-100 flex flex-col">
-      <div className="flex-1 flex flex-col  mx-auto w-full bg-white/90 shadow-2xlborder border-blue-200 overflow-hidden p-5">
-        
-        {/* Fixed Header Section */}
-        <div className="flex-shrink-0 p- bg-white/90 border-b border-blue-100">
-          {/* Header */}
-          <div className="flex justify-between items-center mb-8">
-            <div className="flex items-center gap-75">
-              <div>
-                <h1 className="text-3xl font-bold text-blue-700">Staff Management</h1>
-                <p className="text-gray-600 mt-2">Manage administrative staff performance, schedules, and evaluations</p>
-              </div>
-              <div className="flex items-center gap-6">
-                <div className="flex flex-col items-center">
-                  <Users className="w-8 h-8 text-blue-500" />
-                  <span className="text-sm font-semibold text-blue-600 mt-1">{staff.length}</span>
-                  <span className="text-xs text-gray-500">Total Staff</span>
-                </div>
-                <div className="flex flex-col items-center">
-                  <CheckCircle2 className="w-8 h-8 text-green-500" />
-                  <span className="text-sm font-semibold text-green-600 mt-1">{staff.filter(s => s.attendanceToday === 'Present').length}</span>
-                  <span className="text-xs text-gray-500">Present Today</span>
-                </div>
-                <div className="flex flex-col items-center">
-                  <XCircle className="w-8 h-8 text-red-500" />
-                  <span className="text-sm font-semibold text-red-600 mt-1">{staff.filter(s => s.attendanceToday === 'Absent').length}</span>
-                  <span className="text-xs text-gray-500">Absent Today</span>
-                </div>
-                <div className="flex flex-col items-center">
-                  <DollarSign className="w-8 h-8 text-green-500" />
-                  <span className="text-sm font-semibold text-green-600 mt-1">{staff.filter(s => s.paymentStatus === 'Paid').length}</span>
-                  <span className="text-xs text-gray-500">Payments Paid</span>
-                </div>
-                <div className="flex flex-col items-center">
-                  <AlertTriangle className="w-8 h-8 text-orange-500" />
-                  <span className="text-sm font-semibold text-orange-600 mt-1">{staff.filter(s => s.paymentStatus === 'Due').length}</span>
-                  <span className="text-xs text-gray-500">Payments Due</span>
-                </div>
-              </div>
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-sky-50/40 to-indigo-50/30">
+      <div className="max-w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
+
+        {/* ── Header ── */}
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center shadow-lg shadow-blue-200 flex-shrink-0">
+              <Users size={24} className="text-white" />
             </div>
-            <div className="flex items-center gap-3">
-              <button
-                onClick={() => setShowAddForm(true)}
-                className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
-              >
-                <Plus size={18} />
-                Add Staff
-              </button>
+            <div>
+              <h1 className="text-2xl font-bold text-blue-900">Staff Management</h1>
+              <p className="text-sm text-blue-500/80 mt-0.5">Manage staff performance, schedules &amp; evaluations</p>
             </div>
           </div>
+          <button
+            onClick={() => setShowAddForm(true)}
+            className="inline-flex items-center gap-2 bg-gradient-to-r from-blue-600 to-indigo-600 text-white px-4 py-2.5 rounded-xl hover:from-blue-700 hover:to-indigo-700 transition-all shadow-md shadow-blue-200 text-sm font-medium self-start sm:self-auto"
+          >
+            <Plus size={18} />
+            Add Staff
+          </button>
+        </div>
 
-          {submitStatus && (
-            <div
-              className={`mb-4 rounded-lg border px-4 py-3 text-sm ${
-                submitStatus.type === 'success'
-                  ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
-                  : 'border-red-200 bg-red-50 text-red-700'
-              }`}
-            >
-              {submitStatus.message}
+        {/* ── Status alert ── */}
+        {submitStatus && (
+          <div className={`rounded-xl border px-4 py-3 text-sm flex items-center gap-2 ${
+            submitStatus.type === 'success'
+              ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
+              : 'border-red-200 bg-red-50 text-red-700'
+          }`}>
+            {submitStatus.type === 'success'
+              ? <CheckCircle2 size={15} className="flex-shrink-0" />
+              : <XCircle size={15} className="flex-shrink-0" />}
+            {submitStatus.message}
+          </div>
+        )}
+
+        {/* ── Stats ── */}
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+          <div className="bg-white rounded-2xl p-4 border border-blue-100/60 shadow-sm hover:shadow-md transition-shadow">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Total Staff</p>
+                <p className="text-2xl font-bold text-blue-700 mt-1">{staff.length}</p>
+              </div>
+              <div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center">
+                <Users size={20} className="text-blue-600" />
+              </div>
             </div>
-          )}
+          </div>
+          <div className="bg-white rounded-2xl p-4 border border-blue-100/60 shadow-sm hover:shadow-md transition-shadow">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Present Today</p>
+                <p className="text-2xl font-bold text-emerald-600 mt-1">{staff.filter(s => s.attendanceToday === 'Present').length}</p>
+              </div>
+              <div className="w-10 h-10 rounded-xl bg-emerald-50 flex items-center justify-center">
+                <CheckCircle2 size={20} className="text-emerald-600" />
+              </div>
+            </div>
+          </div>
+          <div className="bg-white rounded-2xl p-4 border border-blue-100/60 shadow-sm hover:shadow-md transition-shadow">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Absent Today</p>
+                <p className="text-2xl font-bold text-red-500 mt-1">{staff.filter(s => s.attendanceToday === 'Absent').length}</p>
+              </div>
+              <div className="w-10 h-10 rounded-xl bg-red-50 flex items-center justify-center">
+                <XCircle size={20} className="text-red-500" />
+              </div>
+            </div>
+          </div>
+          <div className="bg-white rounded-2xl p-4 border border-blue-100/60 shadow-sm hover:shadow-md transition-shadow">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Paid</p>
+                <p className="text-2xl font-bold text-green-600 mt-1">{staff.filter(s => s.paymentStatus === 'Paid').length}</p>
+              </div>
+              <div className="w-10 h-10 rounded-xl bg-green-50 flex items-center justify-center">
+                <DollarSign size={20} className="text-green-600" />
+              </div>
+            </div>
+          </div>
+          <div className="bg-white rounded-2xl p-4 border border-blue-100/60 shadow-sm hover:shadow-md transition-shadow col-span-2 sm:col-span-1">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Payment Due</p>
+                <p className="text-2xl font-bold text-orange-500 mt-1">{staff.filter(s => s.paymentStatus === 'Due').length}</p>
+              </div>
+              <div className="w-10 h-10 rounded-xl bg-orange-50 flex items-center justify-center">
+                <AlertTriangle size={20} className="text-orange-500" />
+              </div>
+            </div>
+          </div>
+        </div>
 
-          {/* Search and Filter */}
-          <div className="mb-6 flex gap-4">
+        {/* ── Search & Filters ── */}
+        <div className="bg-white rounded-2xl border border-blue-100/60 shadow-sm p-4">
+          <div className="flex flex-col sm:flex-row gap-3">
             <div className="flex-1 relative">
-              <Search size={20} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+              <Search size={17} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-blue-400 pointer-events-none" />
               <input
                 type="text"
-                placeholder="Search staff..."
-                className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                placeholder="Search by name, position or email..."
+                className="w-full pl-10 pr-4 py-2.5 border border-blue-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent bg-white text-sm"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
               />
             </div>
-            <select 
-              className="border border-gray-200 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-              value={filterStatus}
-              onChange={(e) => setFilterStatus(e.target.value)}
-            >
-              <option value="All">All Status</option>
-              <option value="Active">Active</option>
-              <option value="On Leave">On Leave</option>
-            </select>
-            <select className="border border-gray-200 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500">
-              <option value="">All Departments</option>
-              <option value="Administration">Administration</option>
-              <option value="Human Resources">Human Resources</option>
-              <option value="Finance">Finance</option>
-              <option value="Maintenance">Maintenance</option>
-              <option value="IT Support">IT Support</option>
-              <option value="Security">Security</option>
-              <option value="Library">Library</option>
-              <option value="Cafeteria">Cafeteria</option>
-            </select>
-            <select className="border border-gray-200 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500">
-              <option value="">Performance Rating</option>
-              <option value="excellent">Excellent (90%+)</option>
-              <option value="good">Good (80-89%)</option>
-              <option value="average">Average (70-79%)</option>
-              <option value="needs-improvement">Needs Improvement</option>
-            </select>
-            <select className="border border-gray-200 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500">
-              <option value="">Attendance</option>
-              <option value="present">Present</option>
-              <option value="absent">Absent</option>
-            </select>
-            <select className="border border-gray-200 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500">
-              <option value="">Payment Status</option>
-              <option value="paid">Paid</option>
-              <option value="due">Due</option>
-            </select>
+            <div className="flex flex-wrap gap-2">
+              {[
+                { value: filterStatus, onChange: (e) => setFilterStatus(e.target.value), options: [['All','All Status'],['Active','Active'],['On Leave','On Leave']] },
+              ].map((sel, i) => (
+                <select key={i} className="border border-blue-100 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 bg-white text-gray-700 min-w-[130px]" value={sel.value} onChange={sel.onChange}>
+                  {sel.options.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+                </select>
+              ))}
+              <select className="border border-blue-100 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 bg-white text-gray-700 min-w-[150px]">
+                <option value="">All Departments</option>
+                {['Administration','Human Resources','Finance','Maintenance','IT Support','Security','Library','Cafeteria'].map(d => <option key={d} value={d}>{d}</option>)}
+              </select>
+              <select className="border border-blue-100 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 bg-white text-gray-700 min-w-[130px]">
+                <option value="">Attendance</option>
+                <option value="present">Present</option>
+                <option value="absent">Absent</option>
+              </select>
+              <select className="border border-blue-100 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 bg-white text-gray-700 min-w-[140px]">
+                <option value="">Payment Status</option>
+                <option value="paid">Paid</option>
+                <option value="due">Due</option>
+              </select>
+            </div>
           </div>
         </div>
 
-        {showAddForm && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
-            <div className="w-full max-w-3xl rounded-2xl bg-white shadow-2xl border border-blue-100">
-              <div className="flex items-center justify-between px-6 py-4 border-b border-blue-100">
-                <div>
-                  <h2 className="text-xl font-semibold text-blue-700">Add New Staff</h2>
-                  <p className="text-sm text-gray-500">Create staff profile and send login credentials</p>
-                </div>
-                <button
-                  onClick={() => setShowAddForm(false)}
-                  className="text-gray-500 hover:text-gray-700"
-                >
-                  <XCircle size={20} />
-                </button>
-              </div>
-              <form onSubmit={handleAddStaffSubmit} className="px-6 py-5 space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="text-sm font-medium text-gray-700">Full Name</label>
-                    <input
-                      type="text"
-                      name="name"
-                      value={newStaffMember.name}
-                      onChange={handleAddStaffChange}
-                      className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
-                      required
-                    />
-                  </div>
-                  <div>
-                    <label className="text-sm font-medium text-gray-700">Email</label>
-                    <input
-                      type="email"
-                      name="email"
-                      value={newStaffMember.email}
-                      onChange={handleAddStaffChange}
-                      className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
-                      required
-                    />
-                  </div>
-                  <div>
-                    <label className="text-sm font-medium text-gray-700">Contact Number</label>
-                    <input
-                      type="tel"
-                      name="phone"
-                      value={newStaffMember.phone}
-                      onChange={handleAddStaffChange}
-                      className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
-                      required
-                    />
-                  </div>
-                  <div>
-                    <label className="text-sm font-medium text-gray-700">Position</label>
-                    <input
-                      type="text"
-                      name="position"
-                      value={newStaffMember.position}
-                      onChange={handleAddStaffChange}
-                      className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-sm font-medium text-gray-700">Department</label>
-                    <input
-                      type="text"
-                      name="department"
-                      value={newStaffMember.department}
-                      onChange={handleAddStaffChange}
-                      className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-sm font-medium text-gray-700">Qualification</label>
-                    <input
-                      type="text"
-                      name="qualification"
-                      value={newStaffMember.qualification}
-                      onChange={handleAddStaffChange}
-                      className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-sm font-medium text-gray-700">Experience (years)</label>
-                    <input
-                      type="number"
-                      name="experience"
-                      value={newStaffMember.experience}
-                      onChange={handleAddStaffChange}
-                      className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-sm font-medium text-gray-700">Basic Salary (Optional)</label>
-                    <input
-                      type="number"
-                      name="salary"
-                      value={newStaffMember.salary}
-                      onChange={handleAddStaffChange}
-                      className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-sm font-medium text-gray-700">Join Date</label>
-                    <input
-                      type="date"
-                      name="joinDate"
-                      value={newStaffMember.joinDate}
-                      onChange={handleAddStaffChange}
-                      className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-sm font-medium text-gray-700">Status</label>
-                    <select
-                      name="status"
-                      value={newStaffMember.status}
-                      onChange={handleAddStaffChange}
-                      className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
-                    >
-                      <option value="Active">Active</option>
-                      <option value="On Leave">On Leave</option>
-                      <option value="Inactive">Inactive</option>
-                    </select>
-                  </div>
-                </div>
-                <div className="flex items-center justify-end gap-3 pt-4 border-t border-blue-100">
-                  <button
-                    type="button"
-                    onClick={() => setShowAddForm(false)}
-                    className="px-4 py-2 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    className="px-5 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700"
-                  >
-                    Save & Send Credentials
-                  </button>
-                </div>
-              </form>
-            </div>
-          </div>
-        )}
-
-        {showEditForm && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
-            <div className="w-full max-w-3xl rounded-2xl bg-white shadow-2xl border border-blue-100">
-              <div className="flex items-center justify-between px-6 py-4 border-b border-blue-100">
-                <div>
-                  <h2 className="text-xl font-semibold text-blue-700">Edit Staff</h2>
-                  <p className="text-sm text-gray-500">Update staff profile details</p>
-                </div>
-                <button
-                  onClick={() => setShowEditForm(false)}
-                  className="text-gray-500 hover:text-gray-700"
-                >
-                  <XCircle size={20} />
-                </button>
-              </div>
-              <form onSubmit={handleEditStaffSubmit} className="px-6 py-5 space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="text-sm font-medium text-gray-700">Full Name</label>
-                    <input
-                      type="text"
-                      name="name"
-                      value={editStaffMember.name}
-                      onChange={handleEditStaffChange}
-                      className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
-                      required
-                    />
-                  </div>
-                  <div>
-                    <label className="text-sm font-medium text-gray-700">Email</label>
-                    <input
-                      type="email"
-                      name="email"
-                      value={editStaffMember.email}
-                      onChange={handleEditStaffChange}
-                      className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
-                      required
-                    />
-                  </div>
-                  <div>
-                    <label className="text-sm font-medium text-gray-700">Contact Number</label>
-                    <input
-                      type="tel"
-                      name="phone"
-                      value={editStaffMember.phone}
-                      onChange={handleEditStaffChange}
-                      className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-sm font-medium text-gray-700">Position</label>
-                    <input
-                      type="text"
-                      name="position"
-                      value={editStaffMember.position}
-                      onChange={handleEditStaffChange}
-                      className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-sm font-medium text-gray-700">Department</label>
-                    <input
-                      type="text"
-                      name="department"
-                      value={editStaffMember.department}
-                      onChange={handleEditStaffChange}
-                      className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-sm font-medium text-gray-700">Qualification</label>
-                    <input
-                      type="text"
-                      name="qualification"
-                      value={editStaffMember.qualification}
-                      onChange={handleEditStaffChange}
-                      className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-sm font-medium text-gray-700">Experience (years)</label>
-                    <input
-                      type="number"
-                      name="experience"
-                      value={editStaffMember.experience}
-                      onChange={handleEditStaffChange}
-                      className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-sm font-medium text-gray-700">Salary</label>
-                    <input
-                      type="number"
-                      name="salary"
-                      value={editStaffMember.salary}
-                      onChange={handleEditStaffChange}
-                      className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-sm font-medium text-gray-700">Join Date</label>
-                    <input
-                      type="date"
-                      name="joinDate"
-                      value={editStaffMember.joinDate}
-                      onChange={handleEditStaffChange}
-                      className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-sm font-medium text-gray-700">Status</label>
-                    <select
-                      name="status"
-                      value={editStaffMember.status}
-                      onChange={handleEditStaffChange}
-                      className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
-                    >
-                      <option value="Active">Active</option>
-                      <option value="On Leave">On Leave</option>
-                      <option value="Inactive">Inactive</option>
-                    </select>
-                  </div>
-                </div>
-                <div className="flex items-center justify-end gap-3 pt-4 border-t border-blue-100">
-                  <button
-                    type="button"
-                    onClick={() => setShowEditForm(false)}
-                    className="px-4 py-2 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    className="px-5 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700"
-                  >
-                    Save Changes
-                  </button>
-                </div>
-              </form>
-            </div>
-          </div>
-        )}
-
-        {credentialView && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
-            <div className="w-full max-w-lg rounded-2xl bg-white shadow-2xl border border-blue-100">
-              <div className="flex items-center justify-between px-6 py-4 border-b border-blue-100">
-                <div>
-                  <h2 className="text-lg font-semibold text-blue-700">Staff Login Credentials</h2>
-                  <p className="text-sm text-gray-500">Share these credentials securely</p>
-                </div>
-                <button
-                  onClick={() => setCredentialView(null)}
-                  className="text-gray-500 hover:text-gray-700"
-                >
-                  <XCircle size={20} />
-                </button>
-              </div>
-              <div className="px-6 py-5 space-y-4">
-                <div>
-                  <p className="text-sm text-gray-600">Staff Member</p>
-                  <p className="text-base font-semibold text-gray-900">{credentialView.name || 'Staff'}</p>
-                </div>
-                <div className="space-y-3">
-                  <div>
-                    <p className="text-xs font-semibold text-blue-700 uppercase">Login ID</p>
-                    <div className="mt-1 flex items-center justify-between rounded-lg border border-blue-100 bg-blue-50 px-3 py-2">
-                      <code className="text-sm font-mono text-gray-800">
-                        {credentialView.employeeCode || credentialView.username}
-                      </code>
-                      <button
-                        onClick={() => copyCredential(credentialView.employeeCode || credentialView.username)}
-                        className="text-xs bg-blue-500 hover:bg-blue-600 text-white px-2 py-1 rounded"
-                        title="Copy ID"
-                      >
-                        Copy
-                      </button>
-                    </div>
-                  </div>
-                  <div>
-                    <p className="text-xs font-semibold text-blue-700 uppercase">Password</p>
-                    <div className="mt-1 flex items-center justify-between rounded-lg border border-blue-100 bg-blue-50 px-3 py-2">
-                      <code className="text-sm font-mono text-gray-800">{credentialView.password}</code>
-                      <button
-                        onClick={() => copyCredential(credentialView.password)}
-                        className="text-xs bg-blue-500 hover:bg-blue-600 text-white px-2 py-1 rounded"
-                        title="Copy Password"
-                      >
-                        Copy
-                      </button>
-                    </div>
-                  </div>
-                </div>
-                <p className="text-xs text-gray-500">Please ask the staff member to reset the password after first login.</p>
-              </div>
-              <div className="px-6 py-4 border-t border-blue-100 flex justify-end">
-                <button
-                  onClick={() => setCredentialView(null)}
-                  className="px-4 py-2 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50"
-                >
-                  Close
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Scrollable Table Container */}
-        <div className="flex-1 overflow-hidden">
+        {/* ── Table ── */}
+        <div className="bg-white rounded-2xl border border-blue-100/60 shadow-sm overflow-hidden">
           {error && (
-            <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-              {error}
-            </div>
+            <div className="mx-4 mt-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>
           )}
+
           {loading ? (
-            <div className="flex h-full items-center justify-center text-gray-500">
-              Loading staff records...
+            <div className="flex flex-col items-center justify-center py-20 gap-3">
+              <div className="w-12 h-12 rounded-2xl bg-blue-50 flex items-center justify-center animate-pulse">
+                <Users size={24} className="text-blue-400" />
+              </div>
+              <p className="text-blue-500 text-sm font-medium">Loading staff records…</p>
             </div>
           ) : (
-            <div className="h-full overflow-y-auto">
-              <table className="w-full border-collapse">
-                <thead className="sticky top-0 bg-blue-50 z-10">
-                  <tr>
-                    <th className="border-b border-blue-100 px-6 py-3 text-left text-sm font-semibold text-blue-800">Staff Member</th>
-                  <th className="border-b border-blue-100 px-6 py-3 text-left text-sm font-semibold text-blue-800">Attendance</th>
-                  <th className="border-b border-blue-100 px-6 py-3 text-left text-sm font-semibold text-blue-800">Payment Status</th>
-                  <th className="border-b border-blue-100 px-6 py-3 text-left text-sm font-semibold text-blue-800">Performance</th>
-                  <th className="border-b border-blue-100 px-6 py-3 text-left text-sm font-semibold text-blue-800">Schedule Today</th>
-                  <th className="border-b border-blue-100 px-6 py-3 text-left text-sm font-semibold text-blue-800">Position & Dept</th>
-                  <th className="border-b border-blue-100 px-6 py-3 text-left text-sm font-semibold text-blue-800">Qualifications</th>
-                  <th className="border-b border-blue-100 px-6 py-3 text-left text-sm font-semibold text-blue-800">Experience</th>
-                  <th className="border-b border-blue-100 px-6 py-3 text-left text-sm font-semibold text-blue-800">Actions</th>
-                </tr>
-              </thead>
-                <tbody className="bg-white">
-                  {filteredStaff.map((staffMember) => (
-                    <tr 
-                      key={staffMember.id}
-                      className="hover:bg-blue-50 transition-colors border-b border-gray-100"
-                    >
-                    {/* Staff Info */}
-                    <td className="px-6 py-4">
-                      <div className="flex items-center gap-3">
-                        <div className="w-12 h-12 rounded-full bg-blue-200 flex items-center justify-center font-semibold text-blue-700 flex-shrink-0">
-                          {getInitials(staffMember.name)}
-                        </div>
-                        <div className="min-w-0">
-                          <div className="font-medium text-gray-900 truncate">{staffMember.name}</div>
-                          <div className="text-xs text-gray-500 font-mono">ID: {staffMember.empId}</div>
-                          <div className="flex items-center gap-3 mt-1">
-                            <a href={`mailto:${staffMember.email}`} className="text-sm text-gray-500 hover:text-blue-600 flex items-center gap-1 truncate">
-                              <Mail size={12} className="flex-shrink-0" />
-                              <span className="truncate max-w-[120px]">{staffMember.email}</span>
-                            </a>
-                            <a href={`tel:${staffMember.mobile}`} className="text-sm text-gray-500 hover:text-blue-600 flex items-center gap-1 flex-shrink-0">
-                              <Phone size={12} />
-                              {staffMember.mobile}
-                            </a>
-                          </div>
-                        </div>
-                      </div>
-                    </td>
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[900px]">
+                <thead>
+                  <tr className="bg-gradient-to-r from-blue-50 to-indigo-50/60 border-b border-blue-100">
+                    {['Staff Member', 'Role & Dept', 'Attendance', 'Payment', 'Performance', 'Schedule', 'Actions'].map(h => (
+                      <th key={h} className="px-5 py-3.5 text-left text-xs font-semibold text-blue-700 uppercase tracking-wider whitespace-nowrap">{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-blue-50">
+                  {filteredStaff.map((staffMember) => {
+                    const avatarColor = getAvatarColor(staffMember.name);
+                    const metrics = getPerformanceMetrics();
+                    const schedule = getTodaySchedule();
+                    const evaluation = getRecentEvaluations();
+                    return (
+                      <tr key={staffMember.id} className="hover:bg-blue-50/40 transition-colors">
 
-                    {/* Attendance Status */}
-                    <td className="px-6 py-4">
-                      <div className="flex items-center gap-2">
-                        {staffMember.attendanceToday === 'Present' ? (
-                          <>
-                            <CheckCircle2 size={16} className="text-green-600" />
-                            <span className="text-sm font-semibold text-green-600">Present</span>
-                          </>
-                        ) : (
-                          <>
-                            <XCircle size={16} className="text-red-600" />
-                            <span className="text-sm font-semibold text-red-600">Absent</span>
-                          </>
-                        )}
-                      </div>
-                      <div className="text-xs text-gray-500 mt-1">
-                        Today's Status
-                      </div>
-                    </td>
-
-                    {/* Payment Status */}
-                    <td className="px-6 py-4">
-                      <div className="space-y-2">
-                        <div className="flex items-center gap-2">
-                          {staffMember.paymentStatus === 'Paid' ? (
-                            <>
-                              <CheckCircle2 size={14} className="text-green-600" />
-                              <span className="text-sm font-semibold text-green-600">Paid</span>
-                            </>
-                          ) : (
-                            <>
-                              <AlertTriangle size={14} className="text-orange-600" />
-                              <span className="text-sm font-semibold text-orange-600">Due</span>
-                            </>
-                          )}
-                        </div>
-                        <div className="text-xs text-gray-600">
-                          Last: {formatDate(staffMember.lastSalaryDate)}
-                        </div>
-                        <div className="text-xs text-gray-500">
-                          Next: {formatDate(staffMember.nextPaymentDue)}
-                        </div>
-                        <div className="flex items-center gap-1">
-                          <span className="text-xs font-semibold text-gray-600">INR</span>
-                          <span className="text-xs text-gray-600">{formatMoney(staffMember.salary)}</span>
-                        </div>
-                      </div>
-                    </td>
-
-                    {/* Performance Metrics */}
-                    <td className="px-6 py-4">
-                      {(() => {
-                        const metrics = getPerformanceMetrics();
-                        return (
-                          <div className="space-y-2">
-                            <div className="flex items-center gap-2">
-                              <div className="flex items-center gap-1">
-                                <Target size={14} className="text-green-600" />
-                                <span className="text-sm font-semibold text-green-600">{metrics.taskCompletionRate}%</span>
-                              </div>
-                              <span className="text-xs text-gray-500">Task Completion</span>
+                        {/* Staff Member */}
+                        <td className="px-5 py-4">
+                          <div className="flex items-center gap-3">
+                            <div className={`w-10 h-10 rounded-xl flex-shrink-0 flex items-center justify-center text-sm font-bold ${avatarColor.bg} ${avatarColor.text}`}>
+                              {getInitials(staffMember.name)}
                             </div>
-                            <div className="flex items-center gap-2">
-                              <div className="flex items-center gap-1">
-                                <Activity size={14} className="text-blue-600" />
-                                <span className="text-sm font-semibold text-blue-600">{metrics.attendanceRate}%</span>
-                              </div>
-                              <span className="text-xs text-gray-500">Attendance</span>
-                            </div>
-                            <div className="text-xs text-gray-600">{metrics.totalTasks} tasks handled</div>
-                          </div>
-                        );
-                      })()}
-                    </td>
-
-                    {/* Schedule Today */}
-                    <td className="px-6 py-4">
-                      {(() => {
-                        const schedule = getTodaySchedule();
-                        if (schedule.length === 0) {
-                          return <span className="text-sm text-gray-400 italic">No tasks today</span>;
-                        }
-                        return (
-                          <div className="space-y-1 max-w-[200px]">
-                            {schedule.slice(0, 2).map((slot, idx) => (
-                              <div key={idx} className="flex items-center gap-2">
-                                <Clock size={12} className="text-purple-600" />
-                                <span className="text-xs text-gray-700">{slot.time}</span>
-                                <span className="text-xs bg-purple-100 text-purple-800 px-1 rounded">{slot.task}</span>
-                              </div>
-                            ))}
-                            {schedule.length > 2 && (
-                              <div className="text-xs text-gray-500">+{schedule.length - 2} more</div>
-                            )}
-                          </div>
-                        );
-                      })()}
-                    </td>
-
-                    {/* Position & Department */}
-                    <td className="px-6 py-4">
-                      <div className="space-y-1">
-                        <div className="flex items-center gap-2">
-                          <Briefcase size={14} className="text-blue-600" />
-                          <span className="font-medium text-gray-900">{staffMember.position}</span>
-                        </div>
-                        <div className="text-sm text-gray-600">{staffMember.department}</div>
-                        <div className="text-xs text-gray-500">
-                          Joined: {formatDate(staffMember.joiningDate)}
-                        </div>
-                      </div>
-                    </td>
-
-                    {/* Qualifications */}
-                    <td className="px-6 py-4">
-                      {(() => {
-                        const certs = getCertifications();
-                        return (
-                          <div className="space-y-1">
-                            <div className="flex items-center gap-2">
-                              <GraduationCap size={14} className="text-indigo-600" />
-                              <span className="font-medium text-gray-900">{staffMember.qualification}</span>
-                            </div>
-                            {certs.slice(0, 2).map((cert, idx) => (
-                              <div key={idx} className="flex items-center gap-2">
-                                <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${
-                                  cert.status === 'verified' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'
-                                }`}>
-                                  {cert.status === 'verified' ? 'Verified' : 'Pending'}
+                            <div className="min-w-0">
+                              <p className="text-sm font-semibold text-gray-900 truncate">{staffMember.name}</p>
+                              <p className="text-xs font-mono text-gray-400">#{staffMember.empId}</p>
+                              <div className="flex items-center gap-2 mt-1">
+                                <span className="flex items-center gap-1 text-xs text-gray-500">
+                                  <Mail size={11} className="text-blue-400" />
+                                  <span className="truncate max-w-[110px]">{staffMember.email}</span>
                                 </span>
-                                <span className="text-xs text-gray-600 truncate">{cert.name}</span>
                               </div>
-                            ))}
+                              <span className="flex items-center gap-1 text-xs text-gray-500 mt-0.5">
+                                <Phone size={11} className="text-emerald-400" />
+                                {staffMember.mobile}
+                              </span>
+                            </div>
                           </div>
-                        );
-                      })()}
-                    </td>
+                        </td>
 
-                    {/* Evaluation */}
-                    <td className="px-6 py-4">
-                      {(() => {
-                        const evaluation = getRecentEvaluations();
-                        return (
-                          <div className="space-y-2">
-                            <div className="flex items-center gap-1">
+                        {/* Role & Dept */}
+                        <td className="px-5 py-4">
+                          <div className="space-y-1.5">
+                            <div className="flex items-center gap-1.5">
+                              <Briefcase size={13} className="text-blue-500 flex-shrink-0" />
+                              <span className="text-sm font-semibold text-gray-800">{staffMember.position}</span>
+                            </div>
+                            <span className="inline-block text-xs bg-blue-50 text-blue-700 px-2 py-0.5 rounded-full font-medium">{staffMember.department}</span>
+                            <p className="text-xs text-gray-400">Joined: {formatDate(staffMember.joiningDate)}</p>
+                          </div>
+                        </td>
+
+                        {/* Attendance */}
+                        <td className="px-5 py-4">
+                          {staffMember.attendanceToday === 'Present' ? (
+                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-700">
+                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                              Present
+                            </span>
+                          ) : staffMember.attendanceToday === 'Absent' ? (
+                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-red-100 text-red-600">
+                              <span className="w-1.5 h-1.5 rounded-full bg-red-500" />
+                              Absent
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-gray-100 text-gray-500">
+                              <span className="w-1.5 h-1.5 rounded-full bg-gray-400" />
+                              Unknown
+                            </span>
+                          )}
+                          <p className="text-xs text-gray-400 mt-1">Today's status</p>
+                        </td>
+
+                        {/* Payment */}
+                        <td className="px-5 py-4">
+                          <div className="space-y-1">
+                            {staffMember.paymentStatus === 'Paid' ? (
+                              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-green-100 text-green-700">
+                                <span className="w-1.5 h-1.5 rounded-full bg-green-500" />
+                                Paid
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-orange-100 text-orange-600">
+                                <span className="w-1.5 h-1.5 rounded-full bg-orange-500" />
+                                {staffMember.paymentStatus}
+                              </span>
+                            )}
+                            <p className="text-xs font-semibold text-gray-700">{formatMoney(staffMember.salary)}</p>
+                            <p className="text-xs text-gray-400">Last: {formatDate(staffMember.lastSalaryDate)}</p>
+                          </div>
+                        </td>
+
+                        {/* Performance */}
+                        <td className="px-5 py-4">
+                          <div className="space-y-1.5">
+                            <div className="flex items-center gap-1.5">
+                              <Target size={12} className="text-green-500" />
+                              <span className="text-xs font-semibold text-green-600">{metrics.taskCompletionRate}%</span>
+                              <span className="text-xs text-gray-400">tasks</span>
+                            </div>
+                            <div className="flex items-center gap-1.5">
+                              <Activity size={12} className="text-blue-500" />
+                              <span className="text-xs font-semibold text-blue-600">{metrics.attendanceRate}%</span>
+                              <span className="text-xs text-gray-400">attend.</span>
+                            </div>
+                            <div className="flex items-center gap-0.5">
                               {[...Array(5)].map((_, i) => (
-                                <Star 
-                                  key={i} 
-                                  size={14} 
-                                  className={i < evaluation.overallRating ? 'text-yellow-400 fill-current' : 'text-gray-300'} 
-                                />
+                                <Star key={i} size={11} className={i < evaluation.overallRating ? 'text-yellow-400 fill-current' : 'text-gray-200'} />
                               ))}
-                              <span className="text-sm font-semibold ml-1">{evaluation.overallRating}/5</span>
-                            </div>
-                            <div className="text-xs text-gray-600">
-                              Last: {new Date(evaluation.lastEvaluation).toLocaleDateString()}
-                            </div>
-                            <div className="text-xs text-gray-500">
-                              By: {evaluation.evaluatedBy}
                             </div>
                           </div>
-                        );
-                      })()}
-                    </td>
+                        </td>
 
-                    {/* Experience */}
-                    <td className="px-6 py-4">
-                      <div className="space-y-1">
-                        <div className="flex items-center gap-2">
-                          <Award size={14} className="text-orange-600" />
-                          <span className="font-semibold text-gray-900">{staffMember.experience} years</span>
-                        </div>
-                        <div className="text-xs text-gray-600">
-                          Since {new Date().getFullYear() - staffMember.experience}
-                        </div>
-                      </div>
-                    </td>
+                        {/* Schedule */}
+                        <td className="px-5 py-4">
+                          {schedule.length === 0 ? (
+                            <span className="text-xs text-gray-400 italic">No tasks today</span>
+                          ) : (
+                            <div className="space-y-1.5">
+                              {schedule.slice(0, 2).map((slot, idx) => (
+                                <div key={idx} className="flex items-center gap-1.5">
+                                  <Clock size={11} className="text-indigo-400 flex-shrink-0" />
+                                  <span className="text-xs text-gray-500 whitespace-nowrap">{slot.time}</span>
+                                  <span className="text-xs bg-indigo-50 text-indigo-700 px-1.5 py-0.5 rounded-full truncate max-w-[80px]">{slot.task}</span>
+                                </div>
+                              ))}
+                              {schedule.length > 2 && (
+                                <p className="text-xs text-gray-400">+{schedule.length - 2} more</p>
+                              )}
+                            </div>
+                          )}
+                        </td>
 
-                    {/* Enhanced Actions */}
-                    <td className="px-6 py-4">
-                      <div className="flex items-center gap-1">
-                        <button 
-                          className="text-blue-600 hover:text-blue-800 p-1 hover:bg-blue-50 rounded disabled:opacity-50" 
-                          title="View Login Credentials (resets password)"
-                          onClick={() => handleViewCredentials(staffMember)}
-                          disabled={credentialLoadingId === (staffMember._id || staffMember.id)}
-                        >
-                          <Eye size={14} />
-                        </button>
-                        <button 
-                          className="text-purple-600 hover:text-purple-800 p-1 hover:bg-purple-50 rounded" 
-                          title="View Schedule"
-                        >
-                          <Clock size={14} />
-                        </button>
-                        <button 
-                          className="text-green-600 hover:text-green-800 p-1 hover:bg-green-50 rounded" 
-                          title="Conduct Evaluation"
-                        >
-                          <FileText size={14} />
-                        </button>
-                        <button 
-                          className="text-indigo-600 hover:text-indigo-800 p-1 hover:bg-indigo-50 rounded" 
-                          title="Manage Certifications"
-                        >
-                          <GraduationCap size={14} />
-                        </button>
-                        <button 
-                          className="text-orange-600 hover:text-orange-800 p-1 hover:bg-orange-50 rounded" 
-                          title="Edit Staff Member"
-                          onClick={() => openEditForm(staffMember)}
-                        >
-                          <Edit2 size={14} />
-                        </button>
-                        <button 
-                          className="text-red-600 hover:text-red-800 p-1 hover:bg-red-50 rounded disabled:opacity-50" 
-                          title="Delete Staff Member"
-                          onClick={() => handleDeleteStaff(staffMember)}
-                          disabled={deletingStaffId === (staffMember._id || staffMember.id)}
-                        >
-                          <Trash2 size={14} />
-                        </button>
-                        <button 
-                          className="text-gray-600 hover:text-gray-800 p-1 hover:bg-gray-50 rounded" 
-                          title="More Options"
-                        >
-                          <MoreVertical size={14} />
-                        </button>
-                      </div>
-                    </td>
-                    </tr>
-                  ))}
+                        {/* Actions */}
+                        <td className="px-5 py-4">
+                          <div className="flex items-center gap-1">
+                            <button
+                              className="p-1.5 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-all"
+                              title="View Details"
+                              onClick={() => setViewStaff(staffMember)}
+                            >
+                              <Eye size={15} />
+                            </button>
+                            <button
+                              className="p-1.5 rounded-lg text-slate-400 hover:text-teal-600 hover:bg-teal-50 transition-all"
+                              title="Generate Credentials"
+                              onClick={() => handleViewCredentials(staffMember)}
+                              disabled={credentialLoadingId === (staffMember._id || staffMember.id)}
+                            >
+                              <KeyRound size={15} />
+                            </button>
+                            <button
+                              className="p-1.5 rounded-lg text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 transition-all"
+                              title="Edit"
+                              onClick={() => openEditForm(staffMember)}
+                            >
+                              <Edit2 size={15} />
+                            </button>
+                            <button
+                              className="p-1.5 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 transition-all disabled:opacity-40"
+                              title="Delete"
+                              onClick={() => handleDeleteStaff(staffMember)}
+                              disabled={deletingStaffId === (staffMember._id || staffMember.id)}
+                            >
+                              <Trash2 size={15} />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
+
+              {filteredStaff.length === 0 && !loading && (
+                <div className="text-center py-16">
+                  <div className="w-16 h-16 rounded-2xl bg-blue-50 flex items-center justify-center mx-auto mb-4">
+                    <Users size={28} className="text-blue-400" />
+                  </div>
+                  <p className="text-gray-600 font-semibold">No staff found</p>
+                  <p className="text-gray-400 text-sm mt-1">Try adjusting your search or filters</p>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Footer count */}
+          {!loading && filteredStaff.length > 0 && (
+            <div className="px-5 py-3.5 border-t border-blue-100 bg-blue-50/30 flex items-center justify-between">
+              <p className="text-sm text-gray-500">
+                Showing <span className="font-semibold text-gray-700">{filteredStaff.length}</span> of{' '}
+                <span className="font-semibold text-gray-700">{staff.length}</span> staff members
+              </p>
             </div>
           )}
         </div>
+      </div>
 
-        {/* Fixed Footer Section */}
-        <div className="flex-shrink-0 pt-7 bg-white/90 border-t border-blue-100">
-          <div className="flex items-center justify-between">
-            <div className="text-black">
-              Showing {filteredStaff.length} of {staff.length} staff members
+      {/* ── Add Staff Modal ── */}
+      {showAddForm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+            <div className="sticky top-0 bg-white border-b border-blue-100 px-6 py-4 flex items-center justify-between rounded-t-2xl z-10">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center shadow-md shadow-blue-200">
+                  <Plus size={18} className="text-white" />
+                </div>
+                <div>
+                  <h2 className="text-base font-bold text-blue-900">Add New Staff</h2>
+                  <p className="text-xs text-gray-500">Create staff profile and send login credentials</p>
+                </div>
+              </div>
+              <button onClick={() => setShowAddForm(false)} className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-all">
+                <XCircle size={18} />
+              </button>
             </div>
-            <div className="flex gap-2">
-              <button className="px-4 py-2 border text-black rounded-2xl transition-colors">Previous</button>
-              <button className="px-4 py-2 border text-black rounded-2xl transition-colors">Next</button>
+            <form onSubmit={handleAddStaffSubmit} className="p-6">
+              {renderFormFields(newStaffMember, handleAddStaffChange, false)}
+              <div className="mt-6 flex items-center justify-end gap-3 border-t border-blue-100 pt-4">
+                <button type="button" onClick={() => setShowAddForm(false)} className="px-4 py-2 rounded-xl border border-gray-200 text-gray-700 hover:bg-gray-50 transition-colors text-sm font-medium">Cancel</button>
+                <button type="submit" className="px-5 py-2 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 text-white hover:from-blue-700 hover:to-indigo-700 transition-all shadow-md shadow-blue-200 text-sm font-medium">Save & Send Credentials</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ── Edit Staff Modal ── */}
+      {showEditForm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+            <div className="sticky top-0 bg-white border-b border-blue-100 px-6 py-4 flex items-center justify-between rounded-t-2xl z-10">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-indigo-500 to-blue-600 flex items-center justify-center shadow-md shadow-indigo-200">
+                  <Edit2 size={16} className="text-white" />
+                </div>
+                <div>
+                  <h2 className="text-base font-bold text-blue-900">Edit Staff Member</h2>
+                  <p className="text-xs text-gray-500">Update profile details</p>
+                </div>
+              </div>
+              <button onClick={() => setShowEditForm(false)} className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-all">
+                <XCircle size={18} />
+              </button>
+            </div>
+            <form onSubmit={handleEditStaffSubmit} className="p-6">
+              {renderFormFields(editStaffMember, handleEditStaffChange, true)}
+              <div className="mt-6 flex items-center justify-end gap-3 border-t border-blue-100 pt-4">
+                <button type="button" onClick={() => setShowEditForm(false)} className="px-4 py-2 rounded-xl border border-gray-200 text-gray-700 hover:bg-gray-50 transition-colors text-sm font-medium">Cancel</button>
+                <button type="submit" className="px-5 py-2 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 text-white hover:from-blue-700 hover:to-indigo-700 transition-all shadow-md shadow-blue-200 text-sm font-medium">Save Changes</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ── Staff Details Modal ── */}
+      {viewStaff && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden max-h-[90vh] flex flex-col">
+            {/* Gradient header */}
+            <div className="bg-gradient-to-r from-blue-600 to-indigo-600 px-6 pt-6 pb-10 relative flex-shrink-0">
+              <button onClick={() => setViewStaff(null)} className="absolute top-4 right-4 w-8 h-8 flex items-center justify-center rounded-lg bg-white/10 text-white hover:bg-white/20 transition-all">
+                <XCircle size={18} />
+              </button>
+              <div className="flex items-center gap-4">
+                <div className={`w-16 h-16 rounded-2xl flex items-center justify-center text-2xl font-bold shadow-lg flex-shrink-0 ${getAvatarColor(viewStaff.name).bg} ${getAvatarColor(viewStaff.name).text}`}>
+                  {getInitials(viewStaff.name)}
+                </div>
+                <div>
+                  <h2 className="text-xl font-bold text-white">{viewStaff.name}</h2>
+                  <p className="text-blue-200 text-sm font-mono mt-0.5">#{viewStaff.empId}</p>
+                  <span className={`inline-flex items-center gap-1.5 mt-2 px-2.5 py-0.5 rounded-full text-xs font-semibold ${
+                    viewStaff.status === 'Active' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'
+                  }`}>
+                    <span className={`w-1.5 h-1.5 rounded-full ${viewStaff.status === 'Active' ? 'bg-emerald-500' : 'bg-amber-500'}`} />
+                    {viewStaff.status}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Body */}
+            <div className="overflow-y-auto -mt-5">
+              <div className="bg-white rounded-t-2xl px-6 pt-5 pb-6 space-y-5">
+                {/* Contact */}
+                <div>
+                  <p className="text-xs font-semibold text-gray-400 uppercase tracking-widest mb-3">Contact</p>
+                  <div className="space-y-2.5">
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center flex-shrink-0"><Mail size={14} className="text-blue-500" /></div>
+                      <div><p className="text-xs text-gray-400">Email</p><p className="text-sm font-medium text-gray-800">{viewStaff.email || '—'}</p></div>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-lg bg-emerald-50 flex items-center justify-center flex-shrink-0"><Phone size={14} className="text-emerald-500" /></div>
+                      <div><p className="text-xs text-gray-400">Mobile</p><p className="text-sm font-medium text-gray-800">{viewStaff.mobile || '—'}</p></div>
+                    </div>
+                    {viewStaff.address && (
+                      <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 rounded-lg bg-rose-50 flex items-center justify-center flex-shrink-0"><MapPin size={14} className="text-rose-500" /></div>
+                        <div><p className="text-xs text-gray-400">Address</p><p className="text-sm font-medium text-gray-800">{viewStaff.address}</p></div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <div className="border-t border-gray-100" />
+
+                {/* Professional */}
+                <div>
+                  <p className="text-xs font-semibold text-gray-400 uppercase tracking-widest mb-3">Professional</p>
+                  <div className="grid grid-cols-2 gap-3">
+                    {[
+                      { icon: <Briefcase size={14} className="text-blue-500" />, bg: 'bg-blue-50', label: 'Position', value: viewStaff.position },
+                      { icon: <Building2 size={14} className="text-indigo-500" />, bg: 'bg-indigo-50', label: 'Department', value: viewStaff.department },
+                      { icon: <GraduationCap size={14} className="text-violet-500" />, bg: 'bg-violet-50', label: 'Qualification', value: viewStaff.qualification },
+                      { icon: <Award size={14} className="text-orange-500" />, bg: 'bg-orange-50', label: 'Experience', value: viewStaff.experience ? `${viewStaff.experience} yrs` : '—' },
+                      { icon: <Calendar size={14} className="text-pink-500" />, bg: 'bg-pink-50', label: 'Joining Date', value: formatDate(viewStaff.joiningDate) },
+                      { icon: <DollarSign size={14} className="text-green-500" />, bg: 'bg-green-50', label: 'Salary', value: formatMoney(viewStaff.salary) },
+                    ].map(({ icon, bg, label, value }) => (
+                      <div key={label} className="flex items-start gap-2.5">
+                        <div className={`w-8 h-8 rounded-lg ${bg} flex items-center justify-center flex-shrink-0`}>{icon}</div>
+                        <div><p className="text-xs text-gray-400">{label}</p><p className="text-sm font-medium text-gray-800">{value || '—'}</p></div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Attendance & Payment */}
+                <div className="border-t border-gray-100 pt-5">
+                  <p className="text-xs font-semibold text-gray-400 uppercase tracking-widest mb-3">Today's Overview</p>
+                  <div className="flex gap-3">
+                    <div className="flex-1 rounded-xl bg-gray-50 px-4 py-3 border border-gray-100">
+                      <p className="text-xs text-gray-400 mb-1">Attendance</p>
+                      <span className={`inline-flex items-center gap-1.5 text-xs font-semibold px-2 py-0.5 rounded-full ${
+                        viewStaff.attendanceToday === 'Present' ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-600'
+                      }`}>
+                        <span className={`w-1.5 h-1.5 rounded-full ${viewStaff.attendanceToday === 'Present' ? 'bg-emerald-500' : 'bg-red-500'}`} />
+                        {viewStaff.attendanceToday}
+                      </span>
+                    </div>
+                    <div className="flex-1 rounded-xl bg-gray-50 px-4 py-3 border border-gray-100">
+                      <p className="text-xs text-gray-400 mb-1">Payment</p>
+                      <span className={`inline-flex items-center gap-1.5 text-xs font-semibold px-2 py-0.5 rounded-full ${
+                        viewStaff.paymentStatus === 'Paid' ? 'bg-green-100 text-green-700' : 'bg-orange-100 text-orange-600'
+                      }`}>
+                        <span className={`w-1.5 h-1.5 rounded-full ${viewStaff.paymentStatus === 'Paid' ? 'bg-green-500' : 'bg-orange-500'}`} />
+                        {viewStaff.paymentStatus}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="border-t border-gray-100 pt-1 flex items-center justify-between gap-3">
+                  <button
+                    onClick={() => { setViewStaff(null); handleViewCredentials(viewStaff); }}
+                    className="flex items-center gap-2 px-4 py-2 rounded-xl bg-blue-50 text-blue-700 hover:bg-blue-100 transition-colors text-sm font-medium"
+                  >
+                    <KeyRound size={15} />
+                    Generate Credentials
+                  </button>
+                  <button onClick={() => setViewStaff(null)} className="px-4 py-2 rounded-xl border border-gray-200 text-gray-700 hover:bg-gray-50 transition-colors text-sm font-medium">
+                    Close
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
         </div>
-      </div>
+      )}
+
+      {/* ── Credentials Modal ── */}
+      {credentialView && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
+            <div className="bg-gradient-to-r from-blue-600 to-indigo-600 px-6 py-5">
+              <div className="flex items-start justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center">
+                    <KeyRound size={20} className="text-white" />
+                  </div>
+                  <div>
+                    <h2 className="text-base font-bold text-white">Login Credentials</h2>
+                    <p className="text-blue-200 text-xs mt-0.5">Share these securely with the staff member</p>
+                  </div>
+                </div>
+                <button onClick={() => setCredentialView(null)} className="w-8 h-8 flex items-center justify-center rounded-lg bg-white/10 text-white hover:bg-white/20 transition-all">
+                  <XCircle size={18} />
+                </button>
+              </div>
+            </div>
+
+            <div className="p-6 space-y-4">
+              <div className="flex items-center gap-3 p-3 bg-blue-50 rounded-xl">
+                <div className={`w-9 h-9 rounded-xl flex items-center justify-center text-sm font-bold flex-shrink-0 ${getAvatarColor(credentialView.name).bg} ${getAvatarColor(credentialView.name).text}`}>
+                  {getInitials(credentialView.name || '')}
+                </div>
+                <div>
+                  <p className="text-xs text-blue-500 font-medium">Staff Member</p>
+                  <p className="text-sm font-semibold text-blue-900">{credentialView.name || 'Staff'}</p>
+                </div>
+              </div>
+
+              <div className="space-y-3">
+                {[
+                  { label: 'Login ID', value: credentialView.employeeCode || credentialView.username, field: 'id' },
+                  { label: 'Password', value: credentialView.password, field: 'pass' },
+                ].map(({ label, value, field }) => (
+                  <div key={field}>
+                    <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">{label}</p>
+                    <div className="flex items-center justify-between rounded-xl border border-gray-200 bg-gray-50 px-4 py-3">
+                      <code className="text-sm font-mono text-gray-800">{value}</code>
+                      <button
+                        onClick={() => copyCredential(value, field)}
+                        className={`flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-lg transition-all font-medium ${
+                          copiedField === field ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-200 hover:bg-blue-100 hover:text-blue-700 text-gray-600'
+                        }`}
+                      >
+                        {copiedField === field ? <Check size={12} /> : <Copy size={12} />}
+                        {copiedField === field ? 'Copied' : 'Copy'}
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <p className="text-xs text-gray-400">Please ask the staff member to reset their password after first login.</p>
+            </div>
+
+            <div className="border-t border-gray-100 px-6 py-4 flex justify-end bg-gray-50/50">
+              <button onClick={() => setCredentialView(null)} className="px-4 py-2 rounded-xl border border-gray-200 text-gray-700 hover:bg-gray-100 transition-colors text-sm font-medium">Close</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
