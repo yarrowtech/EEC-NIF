@@ -11,8 +11,7 @@
       "Bash(python3:*)",
       "Bash(pip show:*)",
       "Bash(pip3 list:*)",
-      "Bash(fc-list:*)",
-      "WebFetch(domain:localhost)"
+      "Bash(fc-list:*)"
     ]
   }
 }

@@ -158,6 +158,30 @@ const getModelByRole = (role) => {
   }
 };
 
+const PASSWORD_RESET_DEFAULT = 'Pass@123';
+const PASSWORD_RESET_ALLOWED_ROLES = new Set(['teacher', 'student', 'parent']);
+
+const getPasswordResetModelByRole = (role) => {
+  switch (String(role || '').toLowerCase()) {
+    case 'teacher':
+      return TeacherUser;
+    case 'student':
+      return StudentUser;
+    case 'parent':
+      return ParentUser;
+    default:
+      return null;
+  }
+};
+
+const getUserIdentifier = (role, user) => {
+  if (!user) return '';
+  const resolvedRole = String(role || '').toLowerCase();
+  if (resolvedRole === 'teacher') return user.employeeCode || user.username || '';
+  if (resolvedRole === 'student') return user.studentCode || user.username || '';
+  return user.username || '';
+};
+
 // Admin creates a user (student/teacher/parent)
 router.post('/create-user', adminAuth, async (req, res) => {
   // #swagger.tags = ['Admin Users']
@@ -499,6 +523,96 @@ router.get("/get-principals", adminAuth, async (req, res) => {
     res.status(200).json(principals);
   } catch (err) {
     res.status(500).json({ error: err.message });
+  }
+});
+
+router.get('/password-reset/users', adminAuth, async (req, res) => {
+  // #swagger.tags = ['Admin Users']
+  try {
+    const role = String(req.query?.role || '').trim().toLowerCase();
+    if (!PASSWORD_RESET_ALLOWED_ROLES.has(role)) {
+      return res.status(400).json({ error: 'role must be one of teacher, student, parent' });
+    }
+
+    const Model = getPasswordResetModelByRole(role);
+    const filter = buildScopedFilter(req);
+    if (role === 'student') {
+      filter.isArchived = { $ne: true };
+    }
+
+    const q = String(req.query?.q || '').trim();
+    if (q) {
+      const pattern = new RegExp(q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
+      const or = [{ name: pattern }, { username: pattern }];
+      if (role === 'teacher') or.push({ employeeCode: pattern });
+      if (role === 'student') or.push({ studentCode: pattern });
+      filter.$and = [...(filter.$and || []), { $or: or }];
+    }
+
+    const users = await Model.find(filter)
+      .select('name username employeeCode studentCode')
+      .sort({ name: 1, username: 1 })
+      .limit(200)
+      .lean();
+
+    return res.json({
+      users: users.map((user) => ({
+        id: user._id,
+        name: user.name || 'Unnamed User',
+        userId: getUserIdentifier(role, user),
+      })),
+    });
+  } catch (err) {
+    return res.status(500).json({ error: err.message || 'Unable to load users for password reset' });
+  }
+});
+
+router.post('/password-reset/reset', adminAuth, async (req, res) => {
+  // #swagger.tags = ['Admin Users']
+  try {
+    const role = String(req.body?.role || '').trim().toLowerCase();
+    const userId = String(req.body?.userId || '').trim();
+
+    if (!PASSWORD_RESET_ALLOWED_ROLES.has(role)) {
+      return res.status(400).json({ error: 'role must be one of teacher, student, parent' });
+    }
+    if (!mongoose.isValidObjectId(userId)) {
+      return res.status(400).json({ error: 'Valid userId is required' });
+    }
+
+    const Model = getPasswordResetModelByRole(role);
+    const filter = buildScopedIdFilter(req, userId);
+    if (!filter) {
+      return res.status(400).json({ error: 'Invalid userId' });
+    }
+    if (role === 'student') {
+      filter.isArchived = { $ne: true };
+    }
+
+    const user = await Model.findOne(filter);
+    if (!user) {
+      return res.status(404).json({ error: 'User not found for this institution/campus' });
+    }
+
+    user.password = PASSWORD_RESET_DEFAULT;
+    if (Object.prototype.hasOwnProperty.call(user, 'initialPassword')) {
+      user.initialPassword = PASSWORD_RESET_DEFAULT;
+    }
+    if (Object.prototype.hasOwnProperty.call(user, 'lastLoginAt')) {
+      user.lastLoginAt = null;
+    }
+    await user.save();
+
+    return res.json({
+      message: 'Password reset successful',
+      role,
+      userId: user._id,
+      name: user.name || 'Unnamed User',
+      loginId: getUserIdentifier(role, user),
+      password: PASSWORD_RESET_DEFAULT,
+    });
+  } catch (err) {
+    return res.status(500).json({ error: err.message || 'Unable to reset password' });
   }
 });
 
