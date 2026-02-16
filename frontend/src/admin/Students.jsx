@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo } from "react";
+import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   Mail,
@@ -31,6 +31,9 @@ import {
   Trash2,
   Eye,
   KeyRound,
+  Loader2,
+  CalendarDays,
+  Wallet,
 } from "lucide-react";
 import Swal from "sweetalert2";
 import * as XLSX from "xlsx";
@@ -78,6 +81,15 @@ const Students = ({ setShowAdminHeader, setShowAdminBreadcrumb }) => {
   const [parentDirectory, setParentDirectory] = useState([]);
   const [parentSearchTerm, setParentSearchTerm] = useState("");
   const [selectedExistingParent, setSelectedExistingParent] = useState(null);
+
+  // View modal state
+  const [showViewModal, setShowViewModal] = useState(false);
+  const [viewStudent, setViewStudent] = useState(null);
+  const [viewAttendance, setViewAttendance] = useState([]);
+  const [viewFees, setViewFees] = useState([]);
+  const [viewParent, setViewParent] = useState(null);
+  const [loadingViewData, setLoadingViewData] = useState(false);
+  const [viewTab, setViewTab] = useState("overview");
 
   const [newStudent, setNewStudent] = useState({
     // core
@@ -404,7 +416,7 @@ const Students = ({ setShowAdminHeader, setShowAdminBreadcrumb }) => {
   };
 
   const refreshStudents = async () => {
-    const [studentsResult, parentsResult] = await Promise.allSettled([
+    const [studentsResult, parentsResult, invoicesResult] = await Promise.allSettled([
       fetch(`${API_BASE}/api/admin/users/get-students`, {
         method: "GET",
         headers: {
@@ -413,6 +425,13 @@ const Students = ({ setShowAdminHeader, setShowAdminBreadcrumb }) => {
         },
       }).then((res) => (res.ok ? res.json() : [])),
       fetchParents(),
+      fetch(`${API_BASE}/api/fees/invoices`, {
+        method: "GET",
+        headers: {
+          "Content-Type": "application/json",
+          authorization: `Bearer ${localStorage.getItem("token")}`,
+        },
+      }).then((res) => (res.ok ? res.json() : [])),
     ]);
 
     const students =
@@ -420,10 +439,54 @@ const Students = ({ setShowAdminHeader, setShowAdminBreadcrumb }) => {
         ? studentsResult.value
         : [];
     const parents = parentsResult.status === "fulfilled" ? parentsResult.value : [];
+    const invoices =
+      invoicesResult.status === "fulfilled" && Array.isArray(invoicesResult.value)
+        ? invoicesResult.value
+        : [];
     setParentDirectory(parents);
 
+    const feeSummaryByStudentId = new Map();
+    invoices.forEach((invoice) => {
+      const key = String(invoice?.studentId || "");
+      if (!key) return;
+      const total = Number(invoice?.totalAmount || 0);
+      const paid = Number(invoice?.paidAmount || 0);
+      const balance = Number(invoice?.balanceAmount || 0);
+      if (!feeSummaryByStudentId.has(key)) {
+        feeSummaryByStudentId.set(key, {
+          totalFee: 0,
+          paidAmount: 0,
+          dueAmount: 0,
+        });
+      }
+      const current = feeSummaryByStudentId.get(key);
+      current.totalFee += Number.isFinite(total) ? total : 0;
+      current.paidAmount += Number.isFinite(paid) ? paid : 0;
+      current.dueAmount += Number.isFinite(balance) ? balance : 0;
+    });
+
     if (!parents.length) {
-      setStudentData(students);
+      const withFees = students.map((student) => {
+        const fee = feeSummaryByStudentId.get(String(student?._id || "")) || {
+          totalFee: 0,
+          paidAmount: 0,
+          dueAmount: 0,
+        };
+        return {
+          ...student,
+          feeSummary: {
+            ...fee,
+            status: fee.totalFee === 0
+              ? "N/A"
+              : fee.dueAmount <= 0
+                ? "paid"
+                : fee.paidAmount > 0
+                  ? "partial"
+                  : "due",
+          },
+        };
+      });
+      setStudentData(withFees);
       return;
     }
 
@@ -445,10 +508,27 @@ const Students = ({ setShowAdminHeader, setShowAdminBreadcrumb }) => {
         (portalUserId && parentByStudentUserId.get(portalUserId)) ||
         null;
 
-      if (!parent) return student;
+      const fee = feeSummaryByStudentId.get(studentId || "") || {
+        totalFee: 0,
+        paidAmount: 0,
+        dueAmount: 0,
+      };
+      const feeSummary = {
+        ...fee,
+        status: fee.totalFee === 0
+          ? "N/A"
+          : fee.dueAmount <= 0
+            ? "paid"
+            : fee.paidAmount > 0
+              ? "partial"
+              : "due",
+      };
+
+      if (!parent) return { ...student, feeSummary };
 
       return {
         ...student,
+        feeSummary,
         parent,
         guardianName: student.guardianName || parent.name || student.guardianName,
         guardianEmail: student.guardianEmail || parent.email || student.guardianEmail,
@@ -1511,6 +1591,77 @@ const Students = ({ setShowAdminHeader, setShowAdminBreadcrumb }) => {
     }
   };
 
+  const openViewModal = useCallback(async (student) => {
+    if (!student?._id) return;
+    const normalized = normalizeStudentForEdit(student);
+    setViewStudent(normalized);
+    setShowViewModal(true);
+    setViewTab("overview");
+    setViewAttendance([]);
+    setViewFees([]);
+    setViewParent(null);
+    setLoadingViewData(true);
+
+    const token = localStorage.getItem("token");
+    const headers = {
+      "Content-Type": "application/json",
+      authorization: `Bearer ${token}`,
+    };
+
+    try {
+      const [attendanceRes, feesRes] = await Promise.allSettled([
+        fetch(`${API_BASE}/api/attendance/admin/students?studentId=${student._id}`, { headers }),
+        fetch(`${API_BASE}/api/fees/invoices?studentId=${student._id}`, { headers }),
+      ]);
+
+      if (attendanceRes.status === "fulfilled" && attendanceRes.value.ok) {
+        const attData = await attendanceRes.value.json();
+        let records = [];
+
+        // New admin attendance shape: { students: [{ attendanceByDate: {...}, selectedDateRecord: {...} }] }
+        if (Array.isArray(attData?.students)) {
+          const studentAttendance = attData.students.find(
+            (item) => String(item?._id) === String(student._id)
+          );
+          if (studentAttendance?.attendanceByDate && typeof studentAttendance.attendanceByDate === "object") {
+            records = Object.values(studentAttendance.attendanceByDate);
+          }
+        } else if (Array.isArray(attData)) {
+          // Legacy array shape fallback
+          records = attData.flatMap((s) => s.attendance || []);
+        } else if (Array.isArray(attData?.attendance)) {
+          // Legacy object shape fallback
+          records = attData.attendance;
+        }
+
+        // Final fallback: use attendance already present on the selected student payload.
+        if ((!records || records.length === 0) && Array.isArray(normalized?.attendance)) {
+          records = normalized.attendance;
+        }
+
+        setViewAttendance(Array.isArray(records) ? records : []);
+      }
+
+      if (feesRes.status === "fulfilled" && feesRes.value.ok) {
+        const feeData = await feesRes.value.json();
+        setViewFees(Array.isArray(feeData) ? feeData : []);
+      }
+
+      // Find linked parent
+      if (parentDirectory.length > 0) {
+        const linked = parentDirectory.find((p) => {
+          const ids = Array.isArray(p.childrenIds) ? p.childrenIds : [];
+          return ids.some((id) => String(id) === String(student._id));
+        });
+        if (linked) setViewParent(linked);
+      }
+    } catch (err) {
+      console.error("Failed to load view data:", err);
+    } finally {
+      setLoadingViewData(false);
+    }
+  }, [parentDirectory]);
+
   const handleUnarchiveStudent = async (studentId) => {
     if (!studentId) return;
     if (!window.confirm("Restore this student from archive?")) return;
@@ -2455,12 +2606,22 @@ const Students = ({ setShowAdminHeader, setShowAdminBreadcrumb }) => {
                               <button
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  loadStudentForEdit(student);
+                                  openViewModal(student);
                                 }}
                                 className="inline-flex items-center px-2 py-1 bg-blue-50 text-blue-700 hover:bg-blue-100 rounded text-xs transition-colors"
-                                title="Edit Student"
+                                title="View Details"
                               >
                                 <Eye size={12} />
+                              </button>
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  loadStudentForEdit(student);
+                                }}
+                                className="inline-flex items-center px-2 py-1 bg-yellow-50 text-yellow-700 hover:bg-yellow-100 rounded text-xs transition-colors"
+                                title="Edit Student"
+                              >
+                                <Edit2 size={12} />
                               </button>
                               <button
                                 onClick={(e) => {
@@ -3498,6 +3659,439 @@ const Students = ({ setShowAdminHeader, setShowAdminBreadcrumb }) => {
             </div>
           </div>
         )}
+        {/* Student View Modal */}
+        {showViewModal && viewStudent && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 overflow-y-auto">
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl my-8 border border-gray-200 flex flex-col max-h-[90vh]">
+              {/* Header */}
+              <div className="px-6 py-4 border-b border-gray-200 bg-gradient-to-r from-yellow-50 to-amber-50 rounded-t-2xl flex-shrink-0">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-4">
+                    <div className="w-14 h-14 rounded-full overflow-hidden bg-gradient-to-br from-yellow-400 to-amber-500 flex items-center justify-center text-white text-xl font-bold shadow-lg">
+                      {viewStudent.profilePic ? (
+                        <img src={viewStudent.profilePic} alt={viewStudent.name || "Student"} className="w-full h-full object-cover" />
+                      ) : (
+                        viewStudent.name?.charAt(0) || "?"
+                      )}
+                    </div>
+                    <div>
+                      <h3 className="text-xl font-bold text-gray-900">{viewStudent.name}</h3>
+                      <p className="text-sm text-gray-500">
+                        Roll: {viewStudent.roll} | {viewStudent.class || viewStudent.grade} - {viewStudent.section}
+                        {viewStudent.admissionNumber ? ` | Adm: ${viewStudent.admissionNumber}` : ""}
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => { setShowViewModal(false); setViewStudent(null); }}
+                    className="text-gray-500 hover:text-gray-700 p-2 rounded-lg hover:bg-white/50 transition"
+                  >
+                    <X size={22} />
+                  </button>
+                </div>
+              </div>
+
+              {/* Tabs */}
+              <div className="flex gap-1 px-6 pt-3 pb-0 bg-white flex-shrink-0 overflow-x-auto">
+                {[
+                  { key: "overview", label: "Overview", icon: Users },
+                  { key: "attendance", label: "Attendance", icon: CalendarDays },
+                  { key: "fees", label: "Fees", icon: Wallet },
+                ].map((tab) => (
+                  <button
+                    key={tab.key}
+                    onClick={() => setViewTab(tab.key)}
+                    className={`inline-flex items-center gap-1.5 px-4 py-2 text-sm font-medium rounded-t-lg border-b-2 transition ${
+                      viewTab === tab.key
+                        ? "border-amber-500 text-amber-700 bg-amber-50"
+                        : "border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50"
+                    }`}
+                  >
+                    <tab.icon size={15} />
+                    {tab.label}
+                  </button>
+                ))}
+              </div>
+
+              {/* Tab Content */}
+              <div className="overflow-y-auto flex-1 p-6">
+                {loadingViewData && (
+                  <div className="flex items-center justify-center py-12">
+                    <Loader2 className="h-6 w-6 animate-spin text-amber-500" />
+                    <span className="ml-2 text-sm text-gray-500">Loading details...</span>
+                  </div>
+                )}
+
+                {!loadingViewData && viewTab === "overview" && (
+                  <div className="space-y-5">
+                    {/* Quick Stats Row */}
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                      <div className="rounded-xl bg-blue-50 p-3 text-center">
+                        <p className="text-xs text-blue-500 font-medium">Class</p>
+                        <p className="text-lg font-bold text-blue-700">{viewStudent.class || viewStudent.grade || "-"} - {viewStudent.section || "-"}</p>
+                      </div>
+                      <div className="rounded-xl bg-green-50 p-3 text-center">
+                        <p className="text-xs text-green-500 font-medium">Status</p>
+                        <p className="text-lg font-bold text-green-700">{viewStudent.status || "Active"}</p>
+                      </div>
+                      <div className="rounded-xl bg-amber-50 p-3 text-center">
+                        <p className="text-xs text-amber-500 font-medium">Attendance</p>
+                        <p className="text-lg font-bold text-amber-700">
+                          {viewAttendance.length > 0
+                            ? `${Math.round((viewAttendance.filter((a) => a.status === "present").length / viewAttendance.length) * 100)}%`
+                            : "-"}
+                        </p>
+                      </div>
+                      <div className="rounded-xl bg-purple-50 p-3 text-center">
+                        <p className="text-xs text-purple-500 font-medium">Fees Due</p>
+                        <p className="text-lg font-bold text-purple-700">
+                          {viewFees.length > 0
+                            ? `₹${viewFees.reduce((sum, inv) => sum + (inv.balanceAmount || 0), 0).toLocaleString("en-IN")}`
+                            : "-"}
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Personal Info */}
+                    <div className="rounded-xl border border-gray-100 bg-gray-50 p-4">
+                      <h4 className="text-sm font-semibold text-gray-800 mb-3 flex items-center gap-2">
+                        <Users size={16} className="text-yellow-600" />
+                        Personal Information
+                      </h4>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+                        {[
+                          { label: "Email", value: viewStudent.email },
+                          { label: "Mobile", value: viewStudent.mobile },
+                          { label: "Gender", value: viewStudent.gender },
+                          { label: "Date of Birth", value: viewStudent.dob?.split("T")[0] },
+                          { label: "Blood Group", value: viewStudent.bloodGroup },
+                          { label: "Nationality", value: viewStudent.nationality },
+                          { label: "Religion", value: viewStudent.religion },
+                          { label: "Category", value: viewStudent.category },
+                          { label: "Aadhar", value: viewStudent.aadharNumber },
+                        ]
+                          .filter((f) => f.value)
+                          .map((field) => (
+                            <div key={field.label}>
+                              <p className="text-xs text-gray-400">{field.label}</p>
+                              <p className="text-sm font-medium text-gray-800 capitalize">{field.value}</p>
+                            </div>
+                          ))}
+                      </div>
+                      {(viewStudent.address || viewStudent.permanentAddress) && (
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-3 pt-3 border-t border-gray-200">
+                          {viewStudent.address && (
+                            <div>
+                              <p className="text-xs text-gray-400">Current Address</p>
+                              <p className="text-sm text-gray-700">{viewStudent.address}</p>
+                            </div>
+                          )}
+                          {viewStudent.permanentAddress && (
+                            <div>
+                              <p className="text-xs text-gray-400">Permanent Address</p>
+                              <p className="text-sm text-gray-700">{viewStudent.permanentAddress}</p>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Academic Info */}
+                    <div className="rounded-xl border border-gray-100 bg-blue-50/50 p-4">
+                      <h4 className="text-sm font-semibold text-gray-800 mb-3 flex items-center gap-2">
+                        <BookOpen size={16} className="text-blue-600" />
+                        Academic Information
+                      </h4>
+                      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+                        {[
+                          { label: "Admission No.", value: viewStudent.admissionNumber },
+                          { label: "Roll Number", value: viewStudent.roll },
+                          { label: "Class", value: viewStudent.class || viewStudent.grade },
+                          { label: "Section", value: viewStudent.section },
+                          { label: "Academic Year", value: viewStudent.academicYear },
+                          { label: "Admission Date", value: viewStudent.admissionDate?.split("T")[0] },
+                        ]
+                          .filter((f) => f.value)
+                          .map((field) => (
+                            <div key={field.label}>
+                              <p className="text-xs text-gray-400">{field.label}</p>
+                              <p className="text-sm font-medium text-gray-800">{field.value}</p>
+                            </div>
+                          ))}
+                      </div>
+                    </div>
+
+                    {/* Parent / Guardian Info */}
+                    <div className="rounded-xl border border-gray-100 bg-green-50/50 p-4">
+                      <h4 className="text-sm font-semibold text-gray-800 mb-3 flex items-center gap-2">
+                        <Phone size={16} className="text-green-600" />
+                        Parent / Guardian Information
+                      </h4>
+                      {viewParent && (
+                        <div className="mb-3 rounded-lg bg-white border border-green-100 p-3">
+                          <p className="text-xs text-green-600 font-semibold uppercase tracking-wide mb-1">Linked Parent Account</p>
+                          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                            <div>
+                              <p className="text-xs text-gray-400">Name</p>
+                              <p className="text-sm font-medium text-gray-800">{viewParent.name || "-"}</p>
+                            </div>
+                            <div>
+                              <p className="text-xs text-gray-400">Mobile</p>
+                              <p className="text-sm font-medium text-gray-800">{viewParent.mobile || "-"}</p>
+                            </div>
+                            <div>
+                              <p className="text-xs text-gray-400">Email</p>
+                              <p className="text-sm font-medium text-gray-800">{viewParent.email || "-"}</p>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                        {[
+                          { label: "Father's Name", value: viewStudent.fatherName },
+                          { label: "Father's Phone", value: viewStudent.fatherPhone },
+                          { label: "Father's Occupation", value: viewStudent.fatherOccupation },
+                          { label: "Mother's Name", value: viewStudent.motherName },
+                          { label: "Mother's Phone", value: viewStudent.motherPhone },
+                          { label: "Mother's Occupation", value: viewStudent.motherOccupation },
+                          { label: "Guardian Name", value: viewStudent.guardianName },
+                          { label: "Guardian Phone", value: viewStudent.guardianPhone },
+                          { label: "Guardian Email", value: viewStudent.guardianEmail },
+                        ]
+                          .filter((f) => f.value)
+                          .map((field) => (
+                            <div key={field.label}>
+                              <p className="text-xs text-gray-400">{field.label}</p>
+                              <p className="text-sm font-medium text-gray-800">{field.value}</p>
+                            </div>
+                          ))}
+                      </div>
+                      {!viewParent && !viewStudent.fatherName && !viewStudent.motherName && !viewStudent.guardianName && (
+                        <p className="text-sm text-gray-400">No parent/guardian information available.</p>
+                      )}
+                    </div>
+
+                    {/* Medical */}
+                    {(viewStudent.knownHealthIssues || viewStudent.allergies) && (
+                      <div className="rounded-xl border border-gray-100 bg-red-50/50 p-4">
+                        <h4 className="text-sm font-semibold text-gray-800 mb-3 flex items-center gap-2">
+                          <Heart size={16} className="text-red-500" />
+                          Medical Information
+                        </h4>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          {viewStudent.knownHealthIssues && (
+                            <div>
+                              <p className="text-xs text-gray-400">Known Health Issues</p>
+                              <p className="text-sm text-gray-700">{viewStudent.knownHealthIssues}</p>
+                            </div>
+                          )}
+                          {viewStudent.allergies && (
+                            <div>
+                              <p className="text-xs text-gray-400">Allergies</p>
+                              <p className="text-sm text-gray-700">{viewStudent.allergies}</p>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Attendance Tab */}
+                {!loadingViewData && viewTab === "attendance" && (
+                  <div className="space-y-4">
+                    {/* Summary Cards */}
+                    {viewAttendance.length > 0 ? (
+                      <>
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                          {(() => {
+                            const total = viewAttendance.length;
+                            const present = viewAttendance.filter((a) => a.status === "present").length;
+                            const absent = total - present;
+                            const pct = total > 0 ? Math.round((present / total) * 100) : 0;
+                            return (
+                              <>
+                                <div className="rounded-xl bg-gray-50 border border-gray-100 p-3 text-center">
+                                  <p className="text-xs text-gray-400 font-medium">Total Days</p>
+                                  <p className="text-2xl font-bold text-gray-800">{total}</p>
+                                </div>
+                                <div className="rounded-xl bg-green-50 border border-green-100 p-3 text-center">
+                                  <p className="text-xs text-green-500 font-medium">Present</p>
+                                  <p className="text-2xl font-bold text-green-700">{present}</p>
+                                </div>
+                                <div className="rounded-xl bg-red-50 border border-red-100 p-3 text-center">
+                                  <p className="text-xs text-red-500 font-medium">Absent</p>
+                                  <p className="text-2xl font-bold text-red-700">{absent}</p>
+                                </div>
+                                <div className="rounded-xl bg-amber-50 border border-amber-100 p-3 text-center">
+                                  <p className="text-xs text-amber-500 font-medium">Percentage</p>
+                                  <p className={`text-2xl font-bold ${pct >= 75 ? "text-green-700" : pct >= 50 ? "text-amber-700" : "text-red-700"}`}>{pct}%</p>
+                                </div>
+                              </>
+                            );
+                          })()}
+                        </div>
+
+                        {/* Attendance Table */}
+                        <div className="rounded-xl border border-gray-200 overflow-hidden">
+                          <table className="w-full text-sm">
+                            <thead>
+                              <tr className="bg-gray-50">
+                                <th className="px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Date</th>
+                                <th className="px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Status</th>
+                                <th className="px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Subject</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-gray-100">
+                              {[...viewAttendance]
+                                .sort((a, b) => new Date(b.date) - new Date(a.date))
+                                .slice(0, 30)
+                                .map((record, idx) => (
+                                  <tr key={record._id || idx} className="hover:bg-gray-50">
+                                    <td className="px-4 py-2 text-gray-700">
+                                      {new Date(record.date).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}
+                                    </td>
+                                    <td className="px-4 py-2">
+                                      <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold ${
+                                        record.status === "present"
+                                          ? "bg-green-50 text-green-700"
+                                          : "bg-red-50 text-red-700"
+                                      }`}>
+                                        {record.status === "present" ? <CheckCircle size={12} /> : <AlertCircle size={12} />}
+                                        {record.status}
+                                      </span>
+                                    </td>
+                                    <td className="px-4 py-2 text-gray-500">{record.subject || "-"}</td>
+                                  </tr>
+                                ))}
+                            </tbody>
+                          </table>
+                          {viewAttendance.length > 30 && (
+                            <div className="px-4 py-2 bg-gray-50 text-xs text-gray-400 text-center">
+                              Showing latest 30 of {viewAttendance.length} records
+                            </div>
+                          )}
+                        </div>
+                      </>
+                    ) : (
+                      <div className="text-center py-12">
+                        <CalendarDays size={40} className="mx-auto text-gray-300 mb-3" />
+                        <p className="text-sm text-gray-400">No attendance records found.</p>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Fees Tab */}
+                {!loadingViewData && viewTab === "fees" && (
+                  <div className="space-y-4">
+                    {viewFees.length > 0 ? (
+                      <>
+                        {/* Fee Summary */}
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                          {(() => {
+                            const totalInvoiced = viewFees.reduce((s, i) => s + (i.totalAmount || 0), 0);
+                            const totalPaid = viewFees.reduce((s, i) => s + (i.paidAmount || 0), 0);
+                            const totalBalance = viewFees.reduce((s, i) => s + (i.balanceAmount || 0), 0);
+                            const paidCount = viewFees.filter((i) => i.status === "paid").length;
+                            return (
+                              <>
+                                <div className="rounded-xl bg-gray-50 border border-gray-100 p-3 text-center">
+                                  <p className="text-xs text-gray-400 font-medium">Total Invoiced</p>
+                                  <p className="text-xl font-bold text-gray-800">₹{totalInvoiced.toLocaleString("en-IN")}</p>
+                                </div>
+                                <div className="rounded-xl bg-green-50 border border-green-100 p-3 text-center">
+                                  <p className="text-xs text-green-500 font-medium">Paid</p>
+                                  <p className="text-xl font-bold text-green-700">₹{totalPaid.toLocaleString("en-IN")}</p>
+                                </div>
+                                <div className="rounded-xl bg-red-50 border border-red-100 p-3 text-center">
+                                  <p className="text-xs text-red-500 font-medium">Outstanding</p>
+                                  <p className="text-xl font-bold text-red-700">₹{totalBalance.toLocaleString("en-IN")}</p>
+                                </div>
+                                <div className="rounded-xl bg-amber-50 border border-amber-100 p-3 text-center">
+                                  <p className="text-xs text-amber-500 font-medium">Invoices Paid</p>
+                                  <p className="text-2xl font-bold text-amber-700">{paidCount}/{viewFees.length}</p>
+                                </div>
+                              </>
+                            );
+                          })()}
+                        </div>
+
+                        {/* Invoice Table */}
+                        <div className="rounded-xl border border-gray-200 overflow-hidden">
+                          <table className="w-full text-sm">
+                            <thead>
+                              <tr className="bg-gray-50">
+                                <th className="px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Title</th>
+                                <th className="px-4 py-2.5 text-right text-xs font-semibold uppercase tracking-wider text-gray-500">Total</th>
+                                <th className="px-4 py-2.5 text-right text-xs font-semibold uppercase tracking-wider text-gray-500">Paid</th>
+                                <th className="px-4 py-2.5 text-right text-xs font-semibold uppercase tracking-wider text-gray-500">Balance</th>
+                                <th className="px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Due Date</th>
+                                <th className="px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Status</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-gray-100">
+                              {viewFees.map((invoice) => (
+                                <tr key={invoice._id} className="hover:bg-gray-50">
+                                  <td className="px-4 py-2.5 text-gray-800 font-medium">{invoice.title || "-"}</td>
+                                  <td className="px-4 py-2.5 text-right text-gray-700">₹{(invoice.totalAmount || 0).toLocaleString("en-IN")}</td>
+                                  <td className="px-4 py-2.5 text-right text-green-700">₹{(invoice.paidAmount || 0).toLocaleString("en-IN")}</td>
+                                  <td className="px-4 py-2.5 text-right text-red-700">₹{(invoice.balanceAmount || 0).toLocaleString("en-IN")}</td>
+                                  <td className="px-4 py-2.5 text-gray-500">
+                                    {invoice.dueDate ? new Date(invoice.dueDate).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }) : "-"}
+                                  </td>
+                                  <td className="px-4 py-2.5">
+                                    <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-semibold ${
+                                      invoice.status === "paid"
+                                        ? "bg-green-50 text-green-700"
+                                        : invoice.status === "partial"
+                                        ? "bg-amber-50 text-amber-700"
+                                        : "bg-red-50 text-red-700"
+                                    }`}>
+                                      {invoice.status || "due"}
+                                    </span>
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      </>
+                    ) : (
+                      <div className="text-center py-12">
+                        <Wallet size={40} className="mx-auto text-gray-300 mb-3" />
+                        <p className="text-sm text-gray-400">No fee invoices found for this student.</p>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* Footer */}
+              <div className="px-6 py-3 border-t border-gray-200 bg-gray-50 flex justify-end gap-3 flex-shrink-0 rounded-b-2xl">
+                <button
+                  type="button"
+                  onClick={() => { setShowViewModal(false); setViewStudent(null); }}
+                  className="px-5 py-2 border border-gray-300 rounded-lg text-sm text-gray-700 hover:bg-gray-100 transition"
+                >
+                  Close
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowViewModal(false);
+                    loadStudentForEdit(viewStudent);
+                  }}
+                  className="px-5 py-2 bg-gradient-to-r from-yellow-500 to-amber-500 text-white text-sm rounded-lg hover:from-yellow-600 hover:to-amber-600 flex items-center gap-2 transition"
+                >
+                  <Edit2 size={14} />
+                  Edit Student
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
         {showDetailModal && editingStudent && (
           <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 overflow-y-auto">
             <div className="bg-white rounded-2xl shadow-2xl w-full max-w-5xl my-8 border border-gray-200">

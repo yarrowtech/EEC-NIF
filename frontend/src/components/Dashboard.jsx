@@ -19,6 +19,7 @@ import AILearningDashboard from './AILearningDashboard';
 import AcademicAlcove from './AcademicAlcove';
 import StudentWellbeing from './StudentWellbeing';
 import StudentFees from './StudentFees';
+import LessonPlanStatusView from './LessonPlanStatusView';
 import { StudentDashboardProvider } from './StudentDashboardContext';
 
 const normalizeViewFromPath = (pathname) => {
