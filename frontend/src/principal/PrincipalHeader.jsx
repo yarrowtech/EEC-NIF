@@ -20,6 +20,7 @@ import {
   ChevronRight
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { AUTH_NOTICE, logoutAndRedirect } from '../utils/authSession';
 
 const PrincipalHeader = ({ sidebarOpen, setSidebarOpen, notifications }) => {
   const [showNotifications, setShowNotifications] = useState(false);
@@ -62,9 +63,7 @@ const PrincipalHeader = ({ sidebarOpen, setSidebarOpen, notifications }) => {
   };
 
   const handleLogout = () => {
-    localStorage.removeItem('token');
-    localStorage.removeItem('userType');
-    navigate('/');
+    logoutAndRedirect({ navigate, notice: AUTH_NOTICE.LOGGED_OUT });
   };
 
   const quickSearchSuggestions = [

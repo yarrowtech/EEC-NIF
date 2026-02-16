@@ -26,6 +26,7 @@ import {
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useStudentDashboard } from './StudentDashboardContext';
+import { AUTH_NOTICE, logoutAndRedirect } from '../utils/authSession';
 
 const Sidebar = ({ activeView, isOpen, setIsOpen }) => {
   const navigate = useNavigate();
@@ -141,10 +142,7 @@ const Sidebar = ({ activeView, isOpen, setIsOpen }) => {
   ];
 
   const handleLogout = () => {
-    // Clear any auth tokens or user data here if needed
-    localStorage.removeItem('token'); // Example: remove JWT token
-    // Redirect to login page
-    navigate('/');
+    logoutAndRedirect({ navigate, notice: AUTH_NOTICE.LOGGED_OUT });
   };
 
   // Close sidebar on mobile when clicking outside

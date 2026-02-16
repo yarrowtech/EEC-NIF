@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { LogOut, ChevronDown, Settings, User } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { AUTH_NOTICE, logoutAndRedirect } from '../utils/authSession';
 
 const TeacherHeader = () => {
   const [showProfileMenu, setShowProfileMenu] = useState(false);
@@ -22,9 +23,7 @@ const TeacherHeader = () => {
   }, []);
 
   const handleLogout = () => {
-    localStorage.removeItem('token');
-    localStorage.removeItem('userType');
-    navigate('/');
+    logoutAndRedirect({ navigate, notice: AUTH_NOTICE.LOGGED_OUT });
   };
 
   const teacherInfo = {

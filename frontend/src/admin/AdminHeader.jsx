@@ -14,6 +14,7 @@ import {
   Activity
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { AUTH_NOTICE, logoutAndRedirect } from '../utils/authSession';
 
 const AdminHeader = ({ adminUser }) => {
   const [showProfileMenu, setShowProfileMenu] = useState(false);
@@ -27,8 +28,7 @@ const AdminHeader = ({ adminUser }) => {
   }, []);
 
   const handleLogout = () => {
-    localStorage.removeItem('token');
-    navigate('/');
+    logoutAndRedirect({ navigate, notice: AUTH_NOTICE.LOGGED_OUT });
   };
 
   return (

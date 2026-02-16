@@ -3,6 +3,7 @@ import { Bell, Search, Menu, CalendarDays, X, ChevronDown, User, LogOut } from '
 import { useNavigate } from 'react-router-dom';
 import { useStudentDashboard } from './StudentDashboardContext';
 import { useNotifications } from '../hooks/useNotifications';
+import { AUTH_NOTICE, logoutAndRedirect } from '../utils/authSession';
 
 const Header = ({ sidebarOpen, setSidebarOpen, onOpenProfile }) => {
   const navigate = useNavigate();
@@ -93,9 +94,7 @@ const Header = ({ sidebarOpen, setSidebarOpen, onOpenProfile }) => {
   }, []);
 
   const handleLogout = () => {
-    localStorage.removeItem('token');
-    localStorage.removeItem('userType');
-    navigate('/');
+    logoutAndRedirect({ navigate, notice: AUTH_NOTICE.LOGGED_OUT });
   };
 
   const runSearch = () => {

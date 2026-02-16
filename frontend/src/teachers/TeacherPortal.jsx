@@ -46,6 +46,7 @@ import ClassNotes from './ClassNotes';
 import PracticeQuestions from './PracticeQuestions';
 import TeacherFeedbackPortal from './TeacherFeedbackPortal';
 import ExcuseLetters from './ExcuseLetters';
+import { AUTH_NOTICE, logoutAndRedirect } from '../utils/authSession';
 
 const PORTAL_BASE = '/teacher';
 
@@ -152,9 +153,7 @@ const TeacherPortal = () => {
   }, [location.pathname, menuItems]);
 
   const handleLogout = () => {
-    localStorage.removeItem('token');
-    localStorage.removeItem('userType');
-    navigate('/');
+    logoutAndRedirect({ navigate, notice: AUTH_NOTICE.LOGGED_OUT });
   };
 
   // Teacher profile state for header

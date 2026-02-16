@@ -31,6 +31,7 @@ import Observation from './Observation';
 import ParentObservation from './ParentObservation';
 import ParentChat from './ParentChat';
 import ClassRoutine from './ClassRoutine';
+import { AUTH_NOTICE, logoutAndRedirect } from '../utils/authSession';
 
 const ParentPortal = () => {
   const [sidebarOpen, setSidebarOpen] = useState(true);
@@ -62,9 +63,7 @@ const ParentPortal = () => {
   }, [API_BASE]);
 
   const handleLogout = () => {
-    localStorage.removeItem('token');
-    localStorage.removeItem('userType');
-    navigate('/');
+    logoutAndRedirect({ navigate, notice: AUTH_NOTICE.LOGGED_OUT });
   };
 
   useEffect(() => {

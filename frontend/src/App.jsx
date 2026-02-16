@@ -1,9 +1,11 @@
 import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { Toaster } from "react-hot-toast";
 import "./App.css";
 import LoginForm from "./components/LoginForm";
 import SignupForm from "./components/SignupForm";
 import Dashboard from "./components/Dashboard";
 import ProtectedRoute from "./components/ProtectedRoute";
+import AuthSessionManager from "./components/AuthSessionManager";
 import ComplaintManagementSystem from "./parents/ComplaintManagementSystem";
 import AdminApp from "./admin/AdminApp";
 import PrincipalDashboard from "./principal/PrincipalDashboard";
@@ -69,6 +71,7 @@ const studentDashboardPaths = studentBasePaths.flatMap((basePath) => [
 function App() {
   return (
     <BrowserRouter>
+      <AuthSessionManager />
       <Routes>
         {/* Public routes */}
         <Route path="/" element={<LoginForm />} />
@@ -168,6 +171,12 @@ function App() {
       </Routes>
 
       <FloatingGamesButton />
+      <Toaster
+        position="bottom-right"
+        toastOptions={{
+          duration: 3000,
+        }}
+      />
     </BrowserRouter>
   );
 }

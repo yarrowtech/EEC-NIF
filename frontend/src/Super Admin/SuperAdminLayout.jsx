@@ -15,6 +15,7 @@ import {
   ChevronRight,
   ChevronLeft
 } from 'lucide-react';
+import { AUTH_NOTICE, logoutAndRedirect } from '../utils/authSession';
 
 const navLinks = [
   { to: '/super-admin/overview', label: 'Overview', icon: LayoutDashboard },
@@ -33,9 +34,7 @@ const SuperAdminLayout = ({ children, sidebarCollapsed, onToggleSidebar, insight
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const handleLogout = () => {
-    localStorage.removeItem('token');
-    localStorage.removeItem('userType');
-    navigate('/');
+    logoutAndRedirect({ navigate, notice: AUTH_NOTICE.LOGGED_OUT });
   };
 
   const initials = profile?.name ? profile.name.trim().charAt(0).toUpperCase() : 'S';

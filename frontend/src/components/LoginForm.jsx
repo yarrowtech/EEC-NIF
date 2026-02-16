@@ -1,6 +1,8 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Eye, EyeOff, Lock, User } from 'lucide-react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
+import toast from 'react-hot-toast';
+import { AUTH_NOTICE, consumeAuthNotice } from '../utils/authSession';
 
 const API_BASE = (import.meta.env.VITE_API_URL || 'http://localhost:5000').replace(/\/$/, '');
 
@@ -20,6 +22,22 @@ const LoginForm = () => {
   const [resetNotice, setResetNotice] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
+  const location = useLocation();
+
+  useEffect(() => {
+    const noticeFromState = location.state?.authNotice;
+    const storedNotice = consumeAuthNotice();
+    const notice = noticeFromState || storedNotice;
+    if (!notice) return;
+
+    if (notice === AUTH_NOTICE.EXPIRED) {
+      toast.error('Session time expired. Login again.');
+      return;
+    }
+    if (notice === AUTH_NOTICE.LOGGED_OUT) {
+      toast.success('Logged out successfully');
+    }
+  }, [location.state]);
 
   const handleInputChange = (e) => {
     const { name, value, type, checked } = e.target;
@@ -151,93 +169,57 @@ const LoginForm = () => {
         const loginData = await loginRes.json();
         localStorage.setItem('token', loginData.token);
         localStorage.setItem('userType', resetUserType);
+        toast.success('Login successful');
         navigate(resetConfig.redirect);
         return;
       }
 
-      const loginOptions = [
-        { userType: 'Student', url: '/api/student/auth/login', redirect: '/student' },
-        { userType: 'Teacher', url: '/api/teacher/auth/login', redirect: '/teacher/dashboard' },
-        { userType: 'Parent', url: '/api/parent/auth/login', redirect: '/parent' },
-        { userType: 'Principal', url: '/api/principal/auth/login', redirect: '/principal' },
-        { userType: 'Admin', url: '/api/admin/auth/login', redirect: '/admin/dashboard' }
-      ];
+      const res = await fetch(`${API_BASE}/api/auth/login`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          username: sanitizedUsername,
+          password: formData.password
+        })
+      });
 
-      let loggedIn = false;
-      let lastErrorMessage = '';
-      for (const option of loginOptions) {
-        const res = await fetch(`${API_BASE}${option.url}`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({
-            username: sanitizedUsername,
-            password: formData.password
-          })
-        });
-
-        if (!res.ok) {
-          if (option.userType === 'Admin' && res.status === 403) {
-            const data = await res.json().catch(() => ({}));
-            throw new Error(data?.error || 'Account inactive. Contact EEC admin.');
-          }
-          const data = await res.json().catch(() => ({}));
-          if (data?.error || data?.message) {
-            lastErrorMessage = data.error || data.message;
-          }
-          continue;
-        }
-
-        const data = await res.json();
-        if (data?.requiresPasswordReset) {
-          setResetMode(true);
-          setResetUserType(option.userType);
-          setFormData((prev) => ({
-            ...prev,
-            username: data.username || prev.username,
-            password: '',
-            newPassword: '',
-            confirmPassword: ''
-          }));
-          setResetNotice('First login detected. Please reset your password.');
-          loggedIn = true;
-          break;
-        }
-        localStorage.setItem('token', data.token);
-        if (option.userType === 'Admin') {
-          let resolvedUserType = option.userType;
-          let redirectTo = option.redirect;
-          try {
-            const profileRes = await fetch(`${API_BASE}/api/admin/auth/profile`, {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                authorization: `Bearer ${data.token}`,
-              },
-            });
-            if (profileRes.ok) {
-              const profile = await profileRes.json();
-              if (profile?.role === 'super_admin') {
-                resolvedUserType = 'SuperAdmin';
-                redirectTo = '/super-admin/overview';
-              }
-            }
-          } catch (profileError) {
-            console.error('Failed to load admin profile', profileError);
-          }
-          localStorage.setItem('userType', resolvedUserType);
-          navigate(redirectTo);
-        } else {
-          localStorage.setItem('userType', option.userType);
-          navigate(option.redirect);
-        }
-        loggedIn = true;
-        break;
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data?.error || data?.message || 'Invalid credentials. Please check your User ID and password.');
       }
 
-      if (!loggedIn) {
-        throw new Error(lastErrorMessage || 'Invalid credentials. Please check your User ID and password.');
+      if (data?.requiresPasswordReset) {
+        setResetMode(true);
+        setResetUserType(data.userType);
+        setFormData((prev) => ({
+          ...prev,
+          username: data.username || prev.username,
+          password: '',
+          newPassword: '',
+          confirmPassword: ''
+        }));
+        setResetNotice('First login detected. Please reset your password.');
+        return;
+      }
+
+      localStorage.setItem('token', data.token);
+      localStorage.setItem('userType', data.userType);
+      toast.success('Login successful');
+
+      const redirectByUserType = {
+        Student: '/student',
+        Teacher: '/teacher/dashboard',
+        Parent: '/parent',
+        Principal: '/principal',
+        Admin: '/admin/dashboard',
+        SuperAdmin: '/super-admin/overview',
+      };
+
+      navigate(redirectByUserType[data.userType] || '/');
+      if (!redirectByUserType[data.userType]) {
+        console.warn('Unknown userType from auth response:', data.userType);
       }
     } catch (error) {
       console.error('Login failed:', error);

@@ -2,6 +2,7 @@
 // (Use the active block below.)
 
 const http = require('http');
+const path = require('path');
 const express = require('express');
 const mongoose = require('mongoose');
 const dotenv = require('dotenv');
@@ -11,7 +12,8 @@ const jwt = require('jsonwebtoken');
 const swaggerUi = require('swagger-ui-express');
 let swaggerDocument;
 
-dotenv.config();
+dotenv.config({ path: path.join(__dirname, '.env') });
+// console.log(`[auth] JWT_EXPIRES_IN=${process.env.JWT_EXPIRES_IN || '24h (default)'}`);
 
 const adminAuthRoutes = require('./routes/adminRoutes');
 const teacherAuthRoutes = require('./routes/teacherRoute');
@@ -20,6 +22,7 @@ const staffAuthRoutes = require('./routes/staffRoutes');
 const studentAuthRoutes = require('./routes/studentRoute');
 const parentAuthRoutes = require('./routes/parentRoute');
 const principalAuthRoutes = require('./routes/principalRoutes');
+const unifiedAuthRoutes = require('./routes/authRoutes');
 const attendanceRoutes = require('./routes/attendanceRoutes');
 const adminUserManagementRoutes = require('./routes/adminUserManagement');
 const subjectRouter = require("./routes/subjectRoute");
@@ -256,6 +259,7 @@ app.use('/api/staff/auth', staffAuthRoutes);
 app.use('/api/student/auth', studentAuthRoutes);
 app.use('/api/parent/auth', parentAuthRoutes);
 app.use('/api/principal/auth', principalAuthRoutes);
+app.use('/api/auth', unifiedAuthRoutes);
 app.use('/api/principal', principalDashboardRoutes);
 app.use('/api/attendance', attendanceRoutes);
 app.use('/api/student', require('./routes/student'));

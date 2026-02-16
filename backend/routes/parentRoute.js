@@ -350,7 +350,7 @@ router.post('/login', rateLimit({ windowMs: 60 * 1000, max: 10 }), async (req, r
     const token = jwt.sign(
       { id: user._id, userType: 'parent', schoolId: user.schoolId || null, campusId: user.campusId || null },
       process.env.JWT_SECRET,
-      { expiresIn: '1d' }
+      { expiresIn: process.env.JWT_EXPIRES_IN || '24h' }
     );
 
     res.json({ token });
