@@ -5,6 +5,10 @@ import {
   Phone,
   Calendar,
   ChevronDown,
+  ChevronLeft,
+  ChevronRight,
+  ChevronsLeft,
+  ChevronsRight,
   Hash,
   BookOpen,
   Search,
@@ -40,6 +44,7 @@ import * as XLSX from "xlsx";
 import CredentialGeneratorButton from "./components/CredentialGeneratorButton";
 
 const API_BASE = import.meta.env.VITE_API_URL;
+const STUDENTS_CACHE_PREFIX = "admin_students_cache_v1";
 
 const STUDENTS_PER_PAGE = 10;
 
@@ -47,6 +52,7 @@ const Students = ({ setShowAdminHeader, setShowAdminBreadcrumb }) => {
   const navigate = useNavigate(); 
 
   const [studentData, setStudentData] = useState([]);
+  const [studentsLoading, setStudentsLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [showAddForm, setShowAddForm] = useState(false);
   const [showWellbeingModal, setShowWellbeingModal] = useState(false);
@@ -400,6 +406,21 @@ const Students = ({ setShowAdminHeader, setShowAdminBreadcrumb }) => {
     setShowWellbeingModal(true);
   };
 
+  const getStudentsCacheKey = useCallback(() => {
+    const token = localStorage.getItem("token");
+    if (!token) return `${STUDENTS_CACHE_PREFIX}_anonymous`;
+    try {
+      const base64 = token.split(".")[1]?.replace(/-/g, "+").replace(/_/g, "/");
+      const payload = JSON.parse(atob(base64));
+      const adminId = payload?.id || "unknown";
+      const schoolId = payload?.schoolId || "school";
+      const campusId = payload?.campusId || "campus";
+      return `${STUDENTS_CACHE_PREFIX}_${adminId}_${schoolId}_${campusId}`;
+    } catch {
+      return `${STUDENTS_CACHE_PREFIX}_fallback`;
+    }
+  }, []);
+
   const fetchParents = async () => {
     const res = await fetch(`${API_BASE}/api/admin/users/get-parents`, {
       method: "GET",
@@ -415,7 +436,26 @@ const Students = ({ setShowAdminHeader, setShowAdminBreadcrumb }) => {
     return Array.isArray(data) ? data : [];
   };
 
-  const refreshStudents = async () => {
+  const refreshStudents = async ({ useCache = false, showLoader = false } = {}) => {
+    if (showLoader) setStudentsLoading(true);
+    if (useCache) {
+      try {
+        const cachedRaw = sessionStorage.getItem(getStudentsCacheKey());
+        if (cachedRaw) {
+          const cached = JSON.parse(cachedRaw);
+          if (Array.isArray(cached?.students)) {
+            setStudentData(cached.students);
+            setParentDirectory(Array.isArray(cached?.parents) ? cached.parents : []);
+            if (showLoader) setStudentsLoading(false);
+            return;
+          }
+        }
+      } catch (err) {
+        console.warn("Unable to read students cache", err);
+      }
+    }
+
+    try {
     const [studentsResult, parentsResult, invoicesResult] = await Promise.allSettled([
       fetch(`${API_BASE}/api/admin/users/get-students`, {
         method: "GET",
@@ -487,6 +527,14 @@ const Students = ({ setShowAdminHeader, setShowAdminBreadcrumb }) => {
         };
       });
       setStudentData(withFees);
+      try {
+        sessionStorage.setItem(
+          getStudentsCacheKey(),
+          JSON.stringify({ students: withFees, parents, cachedAt: Date.now() })
+        );
+      } catch (err) {
+        console.warn("Unable to cache students data", err);
+      }
       return;
     }
 
@@ -537,6 +585,17 @@ const Students = ({ setShowAdminHeader, setShowAdminBreadcrumb }) => {
     });
 
     setStudentData(enriched);
+    try {
+      sessionStorage.setItem(
+        getStudentsCacheKey(),
+        JSON.stringify({ students: enriched, parents, cachedAt: Date.now() })
+      );
+    } catch (err) {
+      console.warn("Unable to cache students data", err);
+    }
+    } finally {
+      if (showLoader) setStudentsLoading(false);
+    }
   };
 
   const matchedParents = useMemo(() => {
@@ -687,8 +746,8 @@ const Students = ({ setShowAdminHeader, setShowAdminBreadcrumb }) => {
   const refreshArchivedStudents = async () => {
     try {
       const token = localStorage.getItem("token");
-      console.log("Fetching archived students from:", `${API_BASE}/api/nif/students/archived`);
-      console.log("Using token:", token ? "Present" : "Missing");
+      // console.log("Fetching archived students from:", `${API_BASE}/api/nif/students/archived`);
+      // console.log("Using token:", token ? "Present" : "Missing");
       
       const res = await fetch(`${API_BASE}/api/nif/students/archived`, {
         method: "GET",
@@ -697,10 +756,10 @@ const Students = ({ setShowAdminHeader, setShowAdminBreadcrumb }) => {
           authorization: `Bearer ${token}`,
         },
       });
-      console.log("Response status:", res.status);
+      // console.log("Response status:", res.status);
       if (res.ok) {
         const data = await res.json();
-        console.log("Archived students data:", data);
+        // console.log("Archived students data:", data);
         setArchivedStudents(Array.isArray(data) ? data : []);
       } else {
         const errorText = await res.text();
@@ -717,7 +776,7 @@ const Students = ({ setShowAdminHeader, setShowAdminBreadcrumb }) => {
   useEffect(() => {
     setShowAdminHeader?.(true);
     setShowAdminBreadcrumb?.(false);
-    refreshStudents().catch(console.error);
+    refreshStudents({ useCache: true, showLoader: true }).catch(console.error);
     refreshArchivedStudents().catch(console.error);
     refreshEnrollContext().catch(console.error);
     refreshAcademicCatalog().catch(console.error);
@@ -725,7 +784,7 @@ const Students = ({ setShowAdminHeader, setShowAdminBreadcrumb }) => {
     return () => {
       setShowAdminBreadcrumb?.(true);
     };
-  }, [setShowAdminHeader, setShowAdminBreadcrumb]);
+  }, [setShowAdminHeader, setShowAdminBreadcrumb, getStudentsCacheKey]);
 
   /* -------------------- Archive Student -------------------- */
   const handleArchiveStudent = async (student) => {
@@ -2281,25 +2340,31 @@ const Students = ({ setShowAdminHeader, setShowAdminBreadcrumb }) => {
 
   /* -------------------- UI -------------------- */
   return (
-    <div className="flex-1 bg-white overflow-hidden flex flex-col">
-      <div className="w-full flex-1 flex flex-col p-2 md:p-4 lg:p-6 overflow-hidden text-sm md:text-base">
+    <div className="flex-1 bg-gray-50 overflow-hidden flex flex-col">
+      <div className="w-full flex-1 flex flex-col p-3 md:p-5 lg:p-6 overflow-hidden text-sm md:text-base">
+        {studentsLoading && (
+          <div className="mb-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-amber-700 text-sm inline-flex items-center gap-2 w-fit">
+            <Loader2 size={15} className="animate-spin" />
+            Loading students...
+          </div>
+        )}
         {/* Header */}
-        <div className="flex flex-col sm:flex-row sm:flex-wrap gap-3 sm:justify-between sm:items-center mb-4 md:mb-6 flex-shrink-0">
+        <div className="flex flex-col sm:flex-row sm:flex-wrap gap-3 sm:justify-between sm:items-center mb-4 flex-shrink-0">
           <div>
-            <h1 className="text-xl md:text-2xl lg:text-3xl font-bold text-yellow-700">
+            <h1 className="text-xl md:text-2xl font-bold text-gray-900">
               Student Management
             </h1>
-            <p className="text-gray-600 mt-1 md:mt-2 text-sm md:text-base">
-              Manage Students
+            <p className="text-gray-500 mt-1 text-sm">
+              Manage and monitor all enrolled students
             </p>
           </div>
-          <div className="flex flex-wrap gap-2 md:gap-3 w-full sm:w-auto justify-stretch sm:justify-start">
+          <div className="flex flex-wrap gap-2 w-full sm:w-auto justify-stretch sm:justify-start">
             <button
               onClick={() => fileInputRef.current?.click()}
               disabled={isImporting}
-              className="bg-amber-600 text-white px-3 md:px-4 py-2 rounded-lg hover:bg-amber-700 disabled:opacity-60 flex items-center gap-2 text-sm md:text-base flex-1 sm:flex-none justify-center"
+              className="border border-gray-200 bg-white text-gray-700 px-3 py-2 rounded-lg hover:bg-gray-50 disabled:opacity-60 flex items-center gap-2 text-sm flex-1 sm:flex-none justify-center transition"
             >
-              <Upload size={16} />
+              <Upload size={15} />
               {isImporting ? "Importing..." : "Bulk Upload"}
             </button>
             <input
@@ -2313,46 +2378,33 @@ const Students = ({ setShowAdminHeader, setShowAdminBreadcrumb }) => {
               }}
             />
 
-            {/* <button
-              onClick={handleBulkCredentialGeneration}
-              disabled={isBulkGenerating}
-              className="bg-emerald-600 text-white px-3 md:px-4 py-2 rounded-lg hover:bg-emerald-700 disabled:opacity-60 flex items-center gap-2 text-sm md:text-base flex-1 sm:flex-none justify-center"
-              title="Generate credentials for all students without portal access and export to CSV"
-            >
-              <FileDown size={16} />
-              {isBulkGenerating ? "Generating..." : "Generate All IDs"}
-            </button> */}
-
             <button
               onClick={() => setShowAddForm(true)}
-              className="bg-yellow-600 text-white px-3 md:px-4 py-2 rounded-lg hover:bg-yellow-700 flex items-center gap-2 text-sm md:text-base flex-1 sm:flex-none justify-center"
+              className="bg-amber-500 text-white px-3 py-2 rounded-lg hover:bg-amber-600 flex items-center gap-2 text-sm flex-1 sm:flex-none justify-center transition"
             >
-              <Plus size={16} /> Add Student
+              <Plus size={15} /> Add Student
             </button>
-            <button
-              onClick={handleBulkDeleteStudents}
-              disabled={selectedStudentIds.length === 0}
-              className="bg-red-600 text-white px-3 md:px-4 py-2 rounded-lg hover:bg-red-700 disabled:opacity-60 flex items-center gap-2 text-sm md:text-base flex-1 sm:flex-none justify-center"
-              title={
-                selectedStudentIds.length
-                  ? `Delete ${selectedStudentIds.length} selected student(s)`
-                  : "Select students to delete"
-              }
-            >
-              <Trash2 size={16} />
-              {selectedStudentIds.length ? `Delete (${selectedStudentIds.length})` : "Delete Selected"}
-            </button>
+            {selectedStudentIds.length > 0 && (
+              <button
+                onClick={handleBulkDeleteStudents}
+                className="bg-red-500 text-white px-3 py-2 rounded-lg hover:bg-red-600 flex items-center gap-2 text-sm flex-1 sm:flex-none justify-center transition"
+                title={`Delete ${selectedStudentIds.length} selected student(s)`}
+              >
+                <Trash2 size={15} />
+                Delete ({selectedStudentIds.length})
+              </button>
+            )}
             <button
               onClick={() => setShowArchiveModal(true)}
-              className="bg-purple-600 text-white px-3 md:px-4 py-2 rounded-lg hover:bg-purple-700 flex items-center gap-2 text-sm md:text-base flex-1 sm:flex-none justify-center"
+              className="border border-gray-200 bg-white text-gray-700 px-3 py-2 rounded-lg hover:bg-gray-50 flex items-center gap-2 text-sm flex-1 sm:flex-none justify-center transition"
             >
-              <Archive size={16} /> View Archived
+              <Archive size={15} /> Archived
             </button>
           </div>
         </div>
         <div className="flex-1 flex flex-col min-h-0">
           {/* Filter Bar */}
-          <div className="mb-3 md:mb-4 bg-white rounded-xl border border-gray-200 p-3 md:p-4 flex-shrink-0">
+          <div className="mb-3 bg-white rounded-xl border border-gray-200 p-3 md:p-4 flex-shrink-0 shadow-sm">
             <div className="flex flex-wrap items-center gap-3">
               {/* Search */}
               <div className="flex-1 min-w-[200px] relative">
@@ -2436,11 +2488,11 @@ const Students = ({ setShowAdminHeader, setShowAdminBreadcrumb }) => {
 
           {/* Students Table */}
           <>
-            <div className="flex-1 overflow-y-auto rounded-lg border border-gray-200">
+            <div className="flex-1 overflow-y-auto rounded-xl border border-gray-200 bg-white shadow-sm">
               <table className="w-full border-collapse table-fixed">
-                  <thead>
-                    <tr className="bg-yellow-50">
-                      <th className="border-b border-yellow-100 px-2 py-2 text-left text-xs font-semibold text-yellow-800 w-[4%]">
+                  <thead className="sticky top-0 z-10">
+                    <tr className="bg-gray-50">
+                      <th className="border-b border-gray-200 px-2 py-2.5 text-left text-xs font-semibold uppercase tracking-wider text-gray-500 w-[4%]">
                         <input
                           type="checkbox"
                           className="h-4 w-4 accent-yellow-600"
@@ -2450,22 +2502,22 @@ const Students = ({ setShowAdminHeader, setShowAdminBreadcrumb }) => {
                           aria-label="Select all visible students"
                         />
                       </th>
-                      <th className="border-b border-yellow-100 px-2 py-2 text-left text-xs font-semibold text-yellow-800 w-[20%]">
+                      <th className="border-b border-gray-200 px-2 py-2.5 text-left text-xs font-semibold uppercase tracking-wider text-gray-500 w-[20%]">
                         Student
                       </th>
-                      <th className="border-b border-yellow-100 px-2 py-2 text-left text-xs font-semibold text-yellow-800 w-[12%]">
+                      <th className="border-b border-gray-200 px-2 py-2.5 text-left text-xs font-semibold uppercase tracking-wider text-gray-500 w-[12%]">
                         Academic
                       </th>
-                      <th className="border-b border-yellow-100 px-2 py-2 text-left text-xs font-semibold text-yellow-800 w-[15%]">
+                      <th className="border-b border-gray-200 px-2 py-2.5 text-left text-xs font-semibold uppercase tracking-wider text-gray-500 w-[15%]">
                         Course
                       </th>
-                      <th className="border-b border-yellow-100 px-2 py-2 text-left text-xs font-semibold text-yellow-800 w-[12%]">
+                      <th className="border-b border-gray-200 px-2 py-2.5 text-left text-xs font-semibold uppercase tracking-wider text-gray-500 w-[12%]">
                         Contact
                       </th>
-                      <th className="border-b border-yellow-100 px-2 py-2 text-left text-xs font-semibold text-yellow-800 w-[18%]">
+                      <th className="border-b border-gray-200 px-2 py-2.5 text-left text-xs font-semibold uppercase tracking-wider text-gray-500 w-[18%]">
                         Fees
                       </th>
-                      <th className="border-b border-yellow-100 px-2 py-2 text-center text-xs font-semibold text-yellow-800 w-[23%]">
+                      <th className="border-b border-gray-200 px-2 py-2.5 text-center text-xs font-semibold uppercase tracking-wider text-gray-500 w-[23%]">
                         Actions
                       </th>
                     </tr>
@@ -2492,10 +2544,10 @@ const Students = ({ setShowAdminHeader, setShowAdminBreadcrumb }) => {
                       return (
                         <tr
                           key={studentKey}
-                          className="hover:bg-yellow-50 transition-all duration-200"
+                          className="hover:bg-amber-50/30 transition-colors"
                         >
                           <td
-                            className="border-b border-yellow-100 px-2 py-2"
+                            className="border-b border-gray-100 px-2 py-2.5"
                             onClick={(e) => e.stopPropagation()}
                           >
                             <input
@@ -2508,34 +2560,32 @@ const Students = ({ setShowAdminHeader, setShowAdminBreadcrumb }) => {
                           </td>
                           {/* Student Info */}
                           <td
-                            className="border-b border-yellow-100 px-2 py-2 cursor-pointer"
+                            className="border-b border-gray-100 px-2 py-2.5 cursor-pointer"
                             onClick={() => {
-                              loadStudentForEdit(student);
+                              openViewModal(student);
                             }}
                           >
                             <div className="flex items-center gap-2">
-                              <div className="w-6 h-6 rounded-full bg-yellow-200 flex items-center justify-center text-xs flex-shrink-0">
+                              <div className="w-7 h-7 rounded-full bg-gradient-to-br from-amber-100 to-yellow-200 flex items-center justify-center text-xs font-semibold text-amber-700 flex-shrink-0">
                                 {student.name?.charAt(0) || "?"}
                               </div>
                               <div className="min-w-0 flex-1">
-                                <div className="font-medium text-gray-900 text-xs truncate hover:text-yellow-600">
+                                <div className="font-medium text-gray-900 text-xs truncate hover:text-amber-600 transition">
                                   {student.name}
                                 </div>
-                                <div className="text-xs text-gray-500 truncate">
+                                <div className="text-[11px] text-gray-400 truncate">
                                   {student.email || "No email"}
                                 </div>
-                                <div className="text-[11px] text-emerald-700 truncate">
-                                  Student ID: {student.username || student.studentCode || student.portalAccess?.username || "-"}
-                                </div>
-                                <div className="text-[11px] text-purple-700 truncate">
-                                  Parent ID: {student.parent?.username || "-"}
+                                <div className="text-[11px] text-gray-400 truncate">
+                                  ID: {student.username || student.studentCode || student.portalAccess?.username || "-"}
+                                  {student.parent?.username ? ` · Parent: ${student.parent.username}` : ""}
                                 </div>
                               </div>
                             </div>
                           </td>
 
                           {/* Academic Info */}
-                          <td className="border-b border-yellow-100 px-2 py-2">
+                          <td className="border-b border-gray-100 px-2 py-2.5">
                             <div className="text-xs text-gray-600">
                               <div className="font-medium">Session: {student.academicYear || "-"}</div>
                               <div className="text-gray-500">
@@ -2546,7 +2596,7 @@ const Students = ({ setShowAdminHeader, setShowAdminBreadcrumb }) => {
                           </td>
 
                           {/* Course Info */}
-                          <td className="border-b border-yellow-100 px-2 py-2">
+                          <td className="border-b border-gray-100 px-2 py-2.5">
                             <div className="text-xs text-gray-600">
                               <div className="font-medium truncate" title={student.grade}>{student.grade}</div>
                               <div className="text-gray-500 truncate" title={student.course}>{student.course}</div>
@@ -2554,12 +2604,12 @@ const Students = ({ setShowAdminHeader, setShowAdminBreadcrumb }) => {
                           </td>
 
                           {/* Contact */}
-                          <td className="border-b border-yellow-100 px-2 py-2 text-xs text-gray-600">
+                          <td className="border-b border-gray-100 px-2 py-2.5 text-xs text-gray-600">
                             {student.mobile}
                           </td>
 
                           {/* Fees */}
-                          <td className="border-b border-yellow-100 px-2 py-2">
+                          <td className="border-b border-gray-100 px-2 py-2.5">
                             <div className="text-xs">
                               <div className="text-gray-600">
                                 {formatCurrency(student.feeSummary?.paidAmount)}/{formatCurrency(student.feeSummary?.totalFee)}
@@ -2581,7 +2631,7 @@ const Students = ({ setShowAdminHeader, setShowAdminBreadcrumb }) => {
 
                           {/* Actions */}
                           <td
-                            className="border-b border-yellow-100 px-2 py-2"
+                            className="border-b border-gray-100 px-2 py-2.5"
                             onClick={(e) => e.stopPropagation()}
                           >
                             <div className="flex items-center gap-1 justify-center flex-wrap">
@@ -2591,11 +2641,11 @@ const Students = ({ setShowAdminHeader, setShowAdminBreadcrumb }) => {
                                   e.stopPropagation();
                                   handleViewStudentCredentials(student);
                                 }}
-                                className="inline-flex items-center gap-2 rounded-lg font-medium bg-yellow-600 text-white hover:bg-yellow-700 transition-colors px-3 py-1 text-xs disabled:opacity-60 disabled:cursor-not-allowed"
+                                className="inline-flex items-center gap-1.5 rounded-md font-medium bg-amber-500 text-white hover:bg-amber-600 transition px-2.5 py-1 text-xs disabled:opacity-60 disabled:cursor-not-allowed"
                                 disabled={isCredentialLoading}
                                 title="View Credentials"
                               >
-                                <KeyRound size={14} />
+                                <KeyRound size={13} />
                                 Credentials
                               </button>
                               {portalReady && (
@@ -2608,20 +2658,20 @@ const Students = ({ setShowAdminHeader, setShowAdminBreadcrumb }) => {
                                   e.stopPropagation();
                                   openViewModal(student);
                                 }}
-                                className="inline-flex items-center px-2 py-1 bg-blue-50 text-blue-700 hover:bg-blue-100 rounded text-xs transition-colors"
+                                className="inline-flex items-center px-1.5 py-1 text-blue-600 hover:bg-blue-50 rounded-md text-xs transition"
                                 title="View Details"
                               >
-                                <Eye size={12} />
+                                <Eye size={14} />
                               </button>
                               <button
                                 onClick={(e) => {
                                   e.stopPropagation();
                                   loadStudentForEdit(student);
                                 }}
-                                className="inline-flex items-center px-2 py-1 bg-yellow-50 text-yellow-700 hover:bg-yellow-100 rounded text-xs transition-colors"
+                                className="inline-flex items-center px-1.5 py-1 text-gray-500 hover:bg-gray-100 rounded-md text-xs transition"
                                 title="Edit Student"
                               >
-                                <Edit2 size={12} />
+                                <Edit2 size={14} />
                               </button>
                               <button
                                 onClick={(e) => {
@@ -2629,10 +2679,10 @@ const Students = ({ setShowAdminHeader, setShowAdminBreadcrumb }) => {
                                   handleArchiveStudent(student);
                                 }}
                                 disabled={isArchiving}
-                                className="inline-flex items-center px-2 py-1 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded text-xs transition-colors disabled:opacity-50"
+                                className="inline-flex items-center px-1.5 py-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600 rounded-md text-xs transition disabled:opacity-50"
                                 title="Archive Student"
                               >
-                                <Archive size={12} />
+                                <Archive size={14} />
                               </button>
                               <button
                                 onClick={(e) => {
@@ -2640,10 +2690,10 @@ const Students = ({ setShowAdminHeader, setShowAdminBreadcrumb }) => {
                                   handleDeleteStudent(student);
                                 }}
                                 disabled={!!deletingId}
-                                className="inline-flex items-center px-2 py-1 bg-red-50 text-red-700 hover:bg-red-100 rounded text-xs transition-colors disabled:opacity-50"
+                                className="inline-flex items-center px-1.5 py-1 text-gray-400 hover:bg-red-50 hover:text-red-600 rounded-md text-xs transition disabled:opacity-50"
                                 title="Delete Student"
                               >
-                                <Trash2 size={12} />
+                                <Trash2 size={14} />
                               </button>
                             </div>
                           </td>
@@ -2665,43 +2715,106 @@ const Students = ({ setShowAdminHeader, setShowAdminBreadcrumb }) => {
               </div>
 
               {/* Pagination */}
-              <div className="mt-3 md:mt-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between flex-shrink-0 pt-3 md:pt-4 border-t border-yellow-100">
-                <div className="text-gray-600 text-xs md:text-sm">
+              <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between flex-shrink-0 pt-3 border-t border-gray-100 px-1">
+                <p className="text-gray-500 text-xs">
                   {filteredStudents.length === 0
                     ? "No students to display"
-                    : `Showing ${startItem}-${endItem} of ${filteredStudents.length} students`}
-                </div>
-                <div className="flex items-center gap-2 flex-wrap">
-                  <button
-                    className="px-2 md:px-3 py-1 md:py-1.5 border border-gray-200 rounded-lg text-xs md:text-sm hover:bg-yellow-50 disabled:opacity-50 text-black"
-                    onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
-                    disabled={currentPage === 1}
-                  >
-                    Previous
-                  </button>
-                  {pageNumbers.map((page) => (
+                    : `Showing ${startItem}\u2013${endItem} of ${filteredStudents.length} students`}
+                </p>
+
+                {totalPages > 1 && (
+                  <div className="flex items-center gap-1">
+                    {/* First */}
                     <button
-                      key={page}
-                      onClick={() => setCurrentPage(page)}
-                      className={`px-2 md:px-3 py-1 md:py-1.5 rounded-lg text-xs md:text-sm border ${
-                        page === currentPage
-                          ? "bg-yellow-500 text-white border-yellow-500"
-                          : "border-gray-200 text-black hover:bg-yellow-50"
-                      }`}
+                      className="p-1.5 rounded-md border border-gray-200 text-gray-500 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition"
+                      onClick={() => setCurrentPage(1)}
+                      disabled={currentPage === 1}
+                      title="First page"
                     >
-                      {page}
+                      <ChevronsLeft size={14} />
                     </button>
-                  ))}
-                  <button
-                    className="px-2 md:px-3 py-1 md:py-1.5 border border-gray-200 rounded-lg text-xs md:text-sm hover:bg-yellow-50 disabled:opacity-50 text-black"
-                    onClick={() =>
-                      setCurrentPage((prev) => Math.min(prev + 1, totalPages))
-                    }
-                    disabled={currentPage === totalPages}
-                  >
-                    Next
-                  </button>
-                </div>
+
+                    {/* Prev */}
+                    <button
+                      className="p-1.5 rounded-md border border-gray-200 text-gray-500 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition"
+                      onClick={() => setCurrentPage((p) => Math.max(p - 1, 1))}
+                      disabled={currentPage === 1}
+                      title="Previous page"
+                    >
+                      <ChevronLeft size={14} />
+                    </button>
+
+                    {/* Page numbers with smart truncation */}
+                    {(() => {
+                      const pages = [];
+                      const showMax = 5;
+
+                      if (totalPages <= showMax + 2) {
+                        for (let i = 1; i <= totalPages; i++) pages.push(i);
+                      } else {
+                        pages.push(1);
+                        let rangeStart = Math.max(2, currentPage - 1);
+                        let rangeEnd = Math.min(totalPages - 1, currentPage + 1);
+
+                        if (currentPage <= 3) {
+                          rangeStart = 2;
+                          rangeEnd = Math.min(showMax, totalPages - 1);
+                        } else if (currentPage >= totalPages - 2) {
+                          rangeStart = Math.max(2, totalPages - showMax + 1);
+                          rangeEnd = totalPages - 1;
+                        }
+
+                        if (rangeStart > 2) pages.push("start-ellipsis");
+                        for (let i = rangeStart; i <= rangeEnd; i++) pages.push(i);
+                        if (rangeEnd < totalPages - 1) pages.push("end-ellipsis");
+                        pages.push(totalPages);
+                      }
+
+                      return pages.map((page) => {
+                        if (typeof page === "string") {
+                          return (
+                            <span key={page} className="px-1 text-gray-400 text-xs select-none">
+                              &hellip;
+                            </span>
+                          );
+                        }
+                        return (
+                          <button
+                            key={page}
+                            onClick={() => setCurrentPage(page)}
+                            className={`min-w-[28px] h-7 rounded-md text-xs font-medium transition ${
+                              page === currentPage
+                                ? "bg-amber-500 text-white shadow-sm"
+                                : "text-gray-600 hover:bg-gray-100"
+                            }`}
+                          >
+                            {page}
+                          </button>
+                        );
+                      });
+                    })()}
+
+                    {/* Next */}
+                    <button
+                      className="p-1.5 rounded-md border border-gray-200 text-gray-500 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition"
+                      onClick={() => setCurrentPage((p) => Math.min(p + 1, totalPages))}
+                      disabled={currentPage === totalPages}
+                      title="Next page"
+                    >
+                      <ChevronRight size={14} />
+                    </button>
+
+                    {/* Last */}
+                    <button
+                      className="p-1.5 rounded-md border border-gray-200 text-gray-500 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition"
+                      onClick={() => setCurrentPage(totalPages)}
+                      disabled={currentPage === totalPages}
+                      title="Last page"
+                    >
+                      <ChevronsRight size={14} />
+                    </button>
+                  </div>
+                )}
               </div>
           </>
         </div>
