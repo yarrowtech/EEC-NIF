@@ -81,6 +81,7 @@ const Students = ({ setShowAdminHeader, setShowAdminBreadcrumb }) => {
   const [academicClasses, setAcademicClasses] = useState([]);
   const [academicSections, setAcademicSections] = useState([]);
   const [selectedClassId, setSelectedClassId] = useState("");
+  const [editSelectedClassId, setEditSelectedClassId] = useState("");
   const [sessionFilter, setSessionFilter] = useState("");
   const [classFilter, setClassFilter] = useState("");
   const [sectionFilter, setSectionFilter] = useState("");
@@ -302,6 +303,38 @@ const Students = ({ setShowAdminHeader, setShowAdminBreadcrumb }) => {
       })),
     [filteredAcademicSections]
   );
+  const editFormSectionOptions = useMemo(() => {
+    if (!editSelectedClassId) return [];
+    return academicSections
+      .filter((section) => String(section.classId) === String(editSelectedClassId))
+      .map((item) => ({
+        id: String(item._id),
+        name: item.name,
+      }));
+  }, [academicSections, editSelectedClassId]);
+  const editRollOptions = useMemo(() => {
+    if (!editingStudent) return [];
+    const targetClass = String(editingStudent.class || editingStudent.grade || "").trim();
+    const targetSection = String(editingStudent.section || "").trim();
+    const targetYear = String(editingStudent.academicYear || "").trim();
+    const rolls = studentData
+      .filter((student) => {
+        const sameClass = String(student.class || student.grade || "").trim() === targetClass;
+        const sameSection = String(student.section || "").trim() === targetSection;
+        const sameYear = !targetYear || String(student.academicYear || "").trim() === targetYear;
+        return sameClass && sameSection && sameYear;
+      })
+      .map((student) => Number(student.roll))
+      .filter((roll) => Number.isFinite(roll) && roll > 0);
+
+    const currentRoll = Number(editingStudent.roll);
+    if (Number.isFinite(currentRoll) && currentRoll > 0) {
+      rolls.push(currentRoll);
+    }
+    const normalized = Array.from(new Set(rolls)).sort((a, b) => a - b);
+    if (normalized.length > 0) return normalized;
+    return Array.from({ length: 100 }, (_, idx) => idx + 1);
+  }, [editingStudent, studentData]);
   useEffect(() => {
     setCurrentPage((prev) => {
       const next = Math.min(prev, totalPages);
@@ -1002,6 +1035,24 @@ const Students = ({ setShowAdminHeader, setShowAdminBreadcrumb }) => {
     }));
   };
 
+  const handleEditClassChange = (e) => {
+    const nextClassId = e.target.value;
+    const selectedClass = academicClasses.find(
+      (item) => String(item._id) === String(nextClassId)
+    );
+    setEditSelectedClassId(nextClassId);
+    setEditingStudent((prev) =>
+      prev
+        ? {
+            ...prev,
+            class: selectedClass?.name || "",
+            grade: selectedClass?.name || "",
+            section: "",
+          }
+        : prev
+    );
+  };
+
   const handleAddStudentSubmit = async (e) => {
     e.preventDefault();
     const requiredFields = [
@@ -1604,6 +1655,7 @@ const Students = ({ setShowAdminHeader, setShowAdminBreadcrumb }) => {
         await refreshStudents();
         setShowDetailModal(false);
         setEditingStudent(null);
+        setEditSelectedClassId("");
         Swal.fire({
           title: "Success!",
           text: "Student details updated successfully",
@@ -1627,7 +1679,14 @@ const Students = ({ setShowAdminHeader, setShowAdminBreadcrumb }) => {
 
   const loadStudentForEdit = async (student) => {
     if (!student?._id) return;
-    setEditingStudent(normalizeStudentForEdit(student));
+    const normalizedStudent = normalizeStudentForEdit(student);
+    setEditingStudent(normalizedStudent);
+    const matchedClass = academicClasses.find(
+      (item) =>
+        String(item?.name || "").trim() ===
+        String(normalizedStudent?.class || normalizedStudent?.grade || "").trim()
+    );
+    setEditSelectedClassId(matchedClass ? String(matchedClass._id) : "");
     setShowDetailModal(true);
 
     try {
@@ -1643,12 +1702,30 @@ const Students = ({ setShowAdminHeader, setShowAdminBreadcrumb }) => {
       if (!Array.isArray(data)) return;
       const fresh = data.find((s) => String(s?._id) === String(student._id));
       if (fresh) {
-        setEditingStudent(normalizeStudentForEdit(fresh));
+        const normalizedFresh = normalizeStudentForEdit(fresh);
+        setEditingStudent(normalizedFresh);
+        const matchedFreshClass = academicClasses.find(
+          (item) =>
+            String(item?.name || "").trim() ===
+            String(normalizedFresh?.class || normalizedFresh?.grade || "").trim()
+        );
+        setEditSelectedClassId(matchedFreshClass ? String(matchedFreshClass._id) : "");
       }
     } catch (err) {
       console.error("Failed to fetch student details:", err);
     }
   };
+
+  useEffect(() => {
+    if (!editingStudent || !academicClasses.length) return;
+    const className = String(editingStudent.class || editingStudent.grade || "").trim();
+    const matchedClass = academicClasses.find(
+      (item) => String(item?.name || "").trim() === className
+    );
+    if (matchedClass) {
+      setEditSelectedClassId(String(matchedClass._id));
+    }
+  }, [editingStudent, academicClasses]);
 
   const openViewModal = useCallback(async (student) => {
     if (!student?._id) return;
@@ -4235,6 +4312,7 @@ const Students = ({ setShowAdminHeader, setShowAdminBreadcrumb }) => {
                     onClick={() => {
                       setShowDetailModal(false);
                       setEditingStudent(null);
+                      setEditSelectedClassId("");
                     }}
                     className="text-gray-500 hover:text-gray-700 p-2 rounded-lg hover:bg-white/50 transition"
                   >
@@ -4401,43 +4479,60 @@ const Students = ({ setShowAdminHeader, setShowAdminBreadcrumb }) => {
                         <label className="block text-sm font-medium text-gray-700 mb-1">
                           Roll Number <span className="text-red-500">*</span>
                         </label>
-                        <input
-                          type="text"
+                        <select
                           value={editingStudent.roll || ""}
                           onChange={(e) =>
                             setEditingStudent({ ...editingStudent, roll: e.target.value })
                           }
                           className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:outline-none"
                           required
-                        />
+                        >
+                          <option value="">Select Roll Number</option>
+                          {editRollOptions.map((roll) => (
+                            <option key={roll} value={roll}>
+                              {roll}
+                            </option>
+                          ))}
+                        </select>
                       </div>
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1">
                           Class <span className="text-red-500">*</span>
                         </label>
-                        <input
-                          type="text"
-                          value={editingStudent.class || ""}
-                          onChange={(e) =>
-                            setEditingStudent({ ...editingStudent, class: e.target.value })
-                          }
+                        <select
+                          value={editSelectedClassId}
+                          onChange={handleEditClassChange}
                           className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:outline-none"
                           required
-                        />
+                        >
+                          <option value="">Select Class</option>
+                          {academicClasses.map((classItem) => (
+                            <option key={classItem._id} value={classItem._id}>
+                              {classItem.name}
+                            </option>
+                          ))}
+                        </select>
                       </div>
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1">
                           Section <span className="text-red-500">*</span>
                         </label>
-                        <input
-                          type="text"
+                        <select
                           value={editingStudent.section || ""}
                           onChange={(e) =>
                             setEditingStudent({ ...editingStudent, section: e.target.value })
                           }
                           className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                          disabled={!editSelectedClassId}
                           required
-                        />
+                        >
+                          <option value="">Select Section</option>
+                          {editFormSectionOptions.map((section) => (
+                            <option key={section.id} value={section.name}>
+                              {section.name}
+                            </option>
+                          ))}
+                        </select>
                       </div>
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -4456,14 +4551,20 @@ const Students = ({ setShowAdminHeader, setShowAdminBreadcrumb }) => {
                         <label className="block text-sm font-medium text-gray-700 mb-1">
                           Academic Year
                         </label>
-                        <input
-                          type="text"
+                        <select
                           value={editingStudent.academicYear || ""}
                           onChange={(e) =>
                             setEditingStudent({ ...editingStudent, academicYear: e.target.value })
                           }
                           className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:outline-none"
-                        />
+                        >
+                          <option value="">Select Academic Year</option>
+                          {academicYears.map((year) => (
+                            <option key={year._id} value={year.name}>
+                              {year.name}
+                            </option>
+                          ))}
+                        </select>
                       </div>
                     </div>
                   </div>
@@ -4639,6 +4740,49 @@ const Students = ({ setShowAdminHeader, setShowAdminBreadcrumb }) => {
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Status
+                        </label>
+                        <select
+                          value={editingStudent.status || "Active"}
+                          onChange={(e) =>
+                            setEditingStudent({ ...editingStudent, status: e.target.value })
+                          }
+                          className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-purple-500 focus:outline-none"
+                        >
+                          <option value="Active">Active</option>
+                          <option value="Inactive">Inactive</option>
+                          <option value="Alumni">Alumni</option>
+                          <option value="Dropped">Dropped</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Pincode
+                        </label>
+                        <input
+                          type="text"
+                          value={editingStudent.pincode || editingStudent.pinCode || ""}
+                          onChange={(e) =>
+                            setEditingStudent({ ...editingStudent, pincode: e.target.value, pinCode: e.target.value })
+                          }
+                          className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-purple-500 focus:outline-none"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Birth Place
+                        </label>
+                        <input
+                          type="text"
+                          value={editingStudent.birthPlace || ""}
+                          onChange={(e) =>
+                            setEditingStudent({ ...editingStudent, birthPlace: e.target.value })
+                          }
+                          className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-purple-500 focus:outline-none"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
                           Nationality
                         </label>
                         <input
@@ -4678,6 +4822,45 @@ const Students = ({ setShowAdminHeader, setShowAdminBreadcrumb }) => {
                       </div>
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Caste
+                        </label>
+                        <input
+                          type="text"
+                          value={editingStudent.caste || ""}
+                          onChange={(e) =>
+                            setEditingStudent({ ...editingStudent, caste: e.target.value })
+                          }
+                          className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-purple-500 focus:outline-none"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Immunization Status
+                        </label>
+                        <input
+                          type="text"
+                          value={editingStudent.immunizationStatus || ""}
+                          onChange={(e) =>
+                            setEditingStudent({ ...editingStudent, immunizationStatus: e.target.value })
+                          }
+                          className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-purple-500 focus:outline-none"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Learning Disabilities
+                        </label>
+                        <input
+                          type="text"
+                          value={editingStudent.learningDisabilities || ""}
+                          onChange={(e) =>
+                            setEditingStudent({ ...editingStudent, learningDisabilities: e.target.value })
+                          }
+                          className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-purple-500 focus:outline-none"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
                           Aadhar Number
                         </label>
                         <input
@@ -4688,6 +4871,75 @@ const Students = ({ setShowAdminHeader, setShowAdminBreadcrumb }) => {
                           }
                           className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-purple-500 focus:outline-none"
                         />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Birth Certificate No.
+                        </label>
+                        <input
+                          type="text"
+                          value={editingStudent.birthCertificateNo || ""}
+                          onChange={(e) =>
+                            setEditingStudent({ ...editingStudent, birthCertificateNo: e.target.value })
+                          }
+                          className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-purple-500 focus:outline-none"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Serial No.
+                        </label>
+                        <input
+                          type="number"
+                          value={editingStudent.serialNo || ""}
+                          onChange={(e) =>
+                            setEditingStudent({ ...editingStudent, serialNo: e.target.value })
+                          }
+                          className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-purple-500 focus:outline-none"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Application ID
+                        </label>
+                        <input
+                          type="text"
+                          value={editingStudent.applicationId || ""}
+                          onChange={(e) =>
+                            setEditingStudent({ ...editingStudent, applicationId: e.target.value })
+                          }
+                          className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-purple-500 focus:outline-none"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Application Date
+                        </label>
+                        <input
+                          type="date"
+                          value={editingStudent.applicationDate?.split("T")[0] || ""}
+                          onChange={(e) =>
+                            setEditingStudent({ ...editingStudent, applicationDate: e.target.value })
+                          }
+                          className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-purple-500 focus:outline-none"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Approval Status
+                        </label>
+                        <select
+                          value={editingStudent.approvalStatus || "Pending"}
+                          onChange={(e) =>
+                            setEditingStudent({ ...editingStudent, approvalStatus: e.target.value })
+                          }
+                          className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-purple-500 focus:outline-none"
+                        >
+                          <option value="Pending">Pending</option>
+                          <option value="Under Review">Under Review</option>
+                          <option value="Approved">Approved</option>
+                          <option value="Rejected">Rejected</option>
+                        </select>
                       </div>
                     </div>
                     <div className="mt-4">
@@ -4713,6 +4965,7 @@ const Students = ({ setShowAdminHeader, setShowAdminBreadcrumb }) => {
                     onClick={() => {
                       setShowDetailModal(false);
                       setEditingStudent(null);
+                      setEditSelectedClassId("");
                     }}
                     className="px-6 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-100 transition"
                   >
