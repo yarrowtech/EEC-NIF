@@ -68,6 +68,7 @@ const Students = ({ setShowAdminHeader, setShowAdminBreadcrumb }) => {
   const [archivedStudents, setArchivedStudents] = useState([]);
   const [showArchiveModal, setShowArchiveModal] = useState(false);
   const [archiveActionLoading, setArchiveActionLoading] = useState(false);
+  const [selectedArchivedStudentIds, setSelectedArchivedStudentIds] = useState([]);
   const [isArchiving, setIsArchiving] = useState(false);
   const [deletingId, setDeletingId] = useState(null);
   const [credentialLoadingId, setCredentialLoadingId] = useState(null);
@@ -360,6 +361,8 @@ const Students = ({ setShowAdminHeader, setShowAdminBreadcrumb }) => {
   useEffect(() => {
     if (showArchiveModal) {
       refreshArchivedStudents();
+    } else {
+      setSelectedArchivedStudentIds([]);
     }
   }, [showArchiveModal]);
 
@@ -1045,6 +1048,72 @@ const Students = ({ setShowAdminHeader, setShowAdminBreadcrumb }) => {
       title: "Students Deleted",
       text: `${successCount} student(s) deleted successfully.`,
     });
+  };
+
+  const handleBulkArchiveStudents = async () => {
+    if (!selectedStudentIds.length || isArchiving) return;
+
+    const confirm = await Swal.fire({
+      icon: "warning",
+      title: "Archive selected students?",
+      html: `<p>This will move <strong>${selectedStudentIds.length}</strong> student(s) to archive.</p>`,
+      showCancelButton: true,
+      confirmButtonText: "Yes, Archive",
+      cancelButtonText: "Cancel",
+      confirmButtonColor: "#2563EB",
+    });
+    if (!confirm.isConfirmed) return;
+
+    setIsArchiving(true);
+    try {
+      const results = await Promise.allSettled(
+        selectedStudentIds.map((id) =>
+          fetch(`${API_BASE}/api/nif/students/${id}/archive`, {
+            method: "PUT",
+            headers: {
+              authorization: `Bearer ${localStorage.getItem("token")}`,
+            },
+          }).then(async (res) => {
+            if (!res.ok) {
+              const data = await res.json().catch(() => ({}));
+              throw new Error(data.error || data.message || res.statusText);
+            }
+            return true;
+          })
+        )
+      );
+
+      const failed = results.filter((r) => r.status === "rejected");
+      const successCount = results.length - failed.length;
+
+      setSelectedStudentIds([]);
+      await refreshStudents();
+      await refreshArchivedStudents();
+
+      if (failed.length) {
+        Swal.fire({
+          icon: "warning",
+          title: "Bulk Archive Completed",
+          html: `<p><strong>${successCount}</strong> archived, <strong>${failed.length}</strong> failed.</p>`,
+        });
+        return;
+      }
+
+      Swal.fire({
+        icon: "success",
+        title: "Students Archived",
+        text: `${successCount} student(s) archived successfully.`,
+      });
+    } catch (err) {
+      console.error(err);
+      Swal.fire({
+        icon: "error",
+        title: "Archive failed",
+        text: err.message || "Unable to archive selected students.",
+      });
+    } finally {
+      setIsArchiving(false);
+    }
   };
 
   /* -------------------- Add Student -------------------- */
@@ -1866,6 +1935,104 @@ const Students = ({ setShowAdminHeader, setShowAdminBreadcrumb }) => {
     }
   };
 
+  const toggleArchivedStudentSelection = (studentId) => {
+    if (!studentId) return;
+    const id = String(studentId);
+    setSelectedArchivedStudentIds((prev) => {
+      const set = new Set(prev.map((value) => String(value)));
+      if (set.has(id)) {
+        set.delete(id);
+      } else {
+        set.add(id);
+      }
+      return Array.from(set);
+    });
+  };
+
+  const toggleSelectAllArchived = () => {
+    const archivedIds = archivedStudents
+      .map((student) => String(student?._id || ""))
+      .filter(Boolean);
+    setSelectedArchivedStudentIds((prev) => {
+      const set = new Set(prev.map((value) => String(value)));
+      const allSelected =
+        archivedIds.length > 0 && archivedIds.every((id) => set.has(id));
+      if (allSelected) {
+        archivedIds.forEach((id) => set.delete(id));
+      } else {
+        archivedIds.forEach((id) => set.add(id));
+      }
+      return Array.from(set);
+    });
+  };
+
+  const handleBulkUnarchiveStudents = async () => {
+    if (!selectedArchivedStudentIds.length || archiveActionLoading) return;
+
+    const confirm = await Swal.fire({
+      icon: "question",
+      title: "Restore selected students?",
+      html: `<p>This will restore <strong>${selectedArchivedStudentIds.length}</strong> student(s).</p>`,
+      showCancelButton: true,
+      confirmButtonText: "Yes, Restore",
+      cancelButtonText: "Cancel",
+      confirmButtonColor: "#16A34A",
+    });
+    if (!confirm.isConfirmed) return;
+
+    try {
+      setArchiveActionLoading(true);
+      const results = await Promise.allSettled(
+        selectedArchivedStudentIds.map((studentId) =>
+          fetch(`${API_BASE}/api/nif/students/${studentId}/unarchive`, {
+            method: "PATCH",
+            headers: {
+              "Content-Type": "application/json",
+              authorization: `Bearer ${localStorage.getItem("token")}`,
+            },
+          }).then(async (res) => {
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok) {
+              throw new Error(data.message || "Failed to restore student");
+            }
+            return true;
+          })
+        )
+      );
+
+      const failed = results.filter((item) => item.status === "rejected");
+      const successCount = results.length - failed.length;
+
+      setSelectedArchivedStudentIds([]);
+      await refreshStudents();
+      await refreshArchivedStudents();
+
+      if (failed.length) {
+        Swal.fire({
+          icon: "warning",
+          title: "Bulk Restore Completed",
+          html: `<p><strong>${successCount}</strong> restored, <strong>${failed.length}</strong> failed.</p>`,
+        });
+        return;
+      }
+
+      Swal.fire({
+        icon: "success",
+        title: "Students restored",
+        text: `${successCount} student(s) restored successfully.`,
+      });
+    } catch (err) {
+      console.error(err);
+      Swal.fire({
+        icon: "error",
+        title: "Restore failed",
+        text: err.message || "Failed to restore selected students",
+      });
+    } finally {
+      setArchiveActionLoading(false);
+    }
+  };
+
   /* -------------------- Bulk Upload -------------------- */
   // These match the required fields in the manual "Add Student" form
   // Simple normalization - remove spaces, underscores, hyphens and lowercase
@@ -2492,6 +2659,17 @@ const Students = ({ setShowAdminHeader, setShowAdminBreadcrumb }) => {
             >
               <Plus size={15} /> Add Student
             </button>
+            {selectedStudentIds.length > 0 && (
+              <button
+                onClick={handleBulkArchiveStudents}
+                disabled={isArchiving}
+                className="bg-blue-600 text-white px-3 py-2 rounded-lg hover:bg-blue-700 disabled:opacity-60 flex items-center gap-2 text-sm flex-1 sm:flex-none justify-center transition"
+                title={`Archive ${selectedStudentIds.length} selected student(s)`}
+              >
+                <Archive size={15} />
+                {isArchiving ? "Archiving..." : `Archive (${selectedStudentIds.length})`}
+              </button>
+            )}
             {selectedStudentIds.length > 0 && (
               <button
                 onClick={handleBulkDeleteStudents}
@@ -5029,20 +5207,46 @@ const Students = ({ setShowAdminHeader, setShowAdminBreadcrumb }) => {
           <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
             <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[80vh] overflow-hidden border border-gray-200">
               <div className="px-6 py-4 border-b flex items-center justify-between">
-                <h3 className="text-xl font-semibold text-gray-900">
-                  Archived Students
-                </h3>
-                <button
-                  onClick={() => setShowArchiveModal(false)}
-                  className="text-gray-500 hover:text-gray-700"
-                >
-                  <X size={20} />
-                </button>
+                <h3 className="text-xl font-semibold text-gray-900">Archived Students</h3>
+                <div className="flex items-center gap-2">
+                  {selectedArchivedStudentIds.length > 0 && (
+                    <button
+                      onClick={handleBulkUnarchiveStudents}
+                      disabled={archiveActionLoading}
+                      className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-green-100 text-green-700 hover:bg-green-200 text-sm disabled:opacity-50"
+                    >
+                      <RotateCcw size={14} />
+                      {archiveActionLoading
+                        ? "Restoring..."
+                        : `Restore Selected (${selectedArchivedStudentIds.length})`}
+                    </button>
+                  )}
+                  <button
+                    onClick={() => setShowArchiveModal(false)}
+                    className="text-gray-500 hover:text-gray-700"
+                  >
+                    <X size={20} />
+                  </button>
+                </div>
               </div>
               <div className="overflow-auto">
                 <table className="w-full text-sm">
                   <thead className="bg-gray-50 text-xs uppercase text-gray-500">
                     <tr>
+                      <th className="px-4 py-3 text-left">
+                        <input
+                          type="checkbox"
+                          className="h-4 w-4 accent-yellow-600"
+                          checked={
+                            archivedStudents.length > 0 &&
+                            archivedStudents.every((student) =>
+                              selectedArchivedStudentIds.includes(String(student?._id || ""))
+                            )
+                          }
+                          onChange={toggleSelectAllArchived}
+                          aria-label="Select all archived students"
+                        />
+                      </th>
                       <th className="px-4 py-3 text-left">Name</th>
                       <th className="px-4 py-3 text-left">Roll</th>
                       <th className="px-4 py-3 text-left">Program</th>
@@ -5055,6 +5259,15 @@ const Students = ({ setShowAdminHeader, setShowAdminBreadcrumb }) => {
                   <tbody>
                     {archivedStudents.map((student) => (
                       <tr key={student._id} className="border-t">
+                        <td className="px-4 py-3">
+                          <input
+                            type="checkbox"
+                            className="h-4 w-4 accent-yellow-600"
+                            checked={selectedArchivedStudentIds.includes(String(student?._id || ""))}
+                            onChange={() => toggleArchivedStudentSelection(student?._id)}
+                            aria-label={`Select archived ${student.name || "student"}`}
+                          />
+                        </td>
                         <td className="px-4 py-3 text-gray-900 font-medium">
                           {student.name || student.studentName || '-'}
                         </td>
@@ -5088,7 +5301,7 @@ const Students = ({ setShowAdminHeader, setShowAdminBreadcrumb }) => {
                     {!archivedStudents.length && (
                       <tr>
                         <td
-                          colSpan={7}
+                          colSpan={8}
                           className="px-4 py-10 text-center text-gray-500"
                         >
                           No archived students.
