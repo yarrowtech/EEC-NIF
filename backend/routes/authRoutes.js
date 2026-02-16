@@ -89,6 +89,9 @@ const tryStudent = async ({ username, password }) => {
   });
   if (!user) return null;
   if (!(await bcrypt.compare(password, user.password))) return null;
+  if (user.isArchived) {
+    return { errorStatus: 403, error: 'You have been blocked by your organization.' };
+  }
   if (!user.campusId) return { errorStatus: 400, error: 'campusId is required for this account' };
   if (!user.lastLoginAt) {
     return { requiresPasswordReset: true, username: user.username || user.studentCode, userType: 'Student' };

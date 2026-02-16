@@ -335,6 +335,16 @@ const Students = ({ setShowAdminHeader, setShowAdminBreadcrumb }) => {
     if (normalized.length > 0) return normalized;
     return Array.from({ length: 100 }, (_, idx) => idx + 1);
   }, [editingStudent, studentData]);
+  const editAcademicYearOptions = useMemo(() => {
+    const catalogYears = academicYears
+      .map((year) => String(year?.name || "").trim())
+      .filter(Boolean);
+    const currentYear = String(editingStudent?.academicYear || "").trim();
+
+    return Array.from(
+      new Set([...catalogYears, ...(currentYear ? [currentYear] : [])])
+    ).sort();
+  }, [academicYears, editingStudent]);
   useEffect(() => {
     setCurrentPage((prev) => {
       const next = Math.min(prev, totalPages);
@@ -384,6 +394,27 @@ const Students = ({ setShowAdminHeader, setShowAdminBreadcrumb }) => {
 
   const formatCurrency = (value = 0) =>
     `₹${Number(value || 0).toLocaleString()}`;
+
+  const toDateInputValue = (value) => {
+    const text = String(value || "").trim();
+    if (!text) return "";
+    if (/^\d{4}-\d{2}-\d{2}$/.test(text)) return text;
+
+    const dayFirst = text.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{4})$/);
+    if (dayFirst) {
+      const day = String(dayFirst[1]).padStart(2, "0");
+      const month = String(dayFirst[2]).padStart(2, "0");
+      const year = dayFirst[3];
+      return `${year}-${month}-${day}`;
+    }
+
+    const parsed = new Date(text);
+    if (Number.isNaN(parsed.getTime())) return "";
+    const year = parsed.getFullYear();
+    const month = String(parsed.getMonth() + 1).padStart(2, "0");
+    const day = String(parsed.getDate()).padStart(2, "0");
+    return `${year}-${month}-${day}`;
+  };
 
   const getMoodIcon = (mood) => {
     const moodIcons = {
@@ -3953,7 +3984,7 @@ const Students = ({ setShowAdminHeader, setShowAdminBreadcrumb }) => {
                           { label: "Email", value: viewStudent.email },
                           { label: "Mobile", value: viewStudent.mobile },
                           { label: "Gender", value: viewStudent.gender },
-                          { label: "Date of Birth", value: viewStudent.dob?.split("T")[0] },
+                          { label: "Date of Birth", value: toDateInputValue(viewStudent.dob) },
                           { label: "Blood Group", value: viewStudent.bloodGroup },
                           { label: "Nationality", value: viewStudent.nationality },
                           { label: "Religion", value: viewStudent.religion },
@@ -3999,7 +4030,7 @@ const Students = ({ setShowAdminHeader, setShowAdminBreadcrumb }) => {
                           { label: "Class", value: viewStudent.class || viewStudent.grade },
                           { label: "Section", value: viewStudent.section },
                           { label: "Academic Year", value: viewStudent.academicYear },
-                          { label: "Admission Date", value: viewStudent.admissionDate?.split("T")[0] },
+                          { label: "Admission Date", value: toDateInputValue(viewStudent.admissionDate) },
                         ]
                           .filter((f) => f.value)
                           .map((field) => (
@@ -4395,7 +4426,7 @@ const Students = ({ setShowAdminHeader, setShowAdminBreadcrumb }) => {
                         </label>
                         <input
                           type="date"
-                          value={editingStudent.dob?.split("T")[0] || ""}
+                          value={toDateInputValue(editingStudent.dob)}
                           onChange={(e) =>
                             setEditingStudent({ ...editingStudent, dob: e.target.value })
                           }
@@ -4540,7 +4571,7 @@ const Students = ({ setShowAdminHeader, setShowAdminBreadcrumb }) => {
                         </label>
                         <input
                           type="date"
-                          value={editingStudent.admissionDate?.split("T")[0] || ""}
+                          value={toDateInputValue(editingStudent.admissionDate)}
                           onChange={(e) =>
                             setEditingStudent({ ...editingStudent, admissionDate: e.target.value })
                           }
@@ -4559,9 +4590,9 @@ const Students = ({ setShowAdminHeader, setShowAdminBreadcrumb }) => {
                           className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:outline-none"
                         >
                           <option value="">Select Academic Year</option>
-                          {academicYears.map((year) => (
-                            <option key={year._id} value={year.name}>
-                              {year.name}
+                          {editAcademicYearOptions.map((yearName) => (
+                            <option key={yearName} value={yearName}>
+                              {yearName}
                             </option>
                           ))}
                         </select>
@@ -4917,7 +4948,7 @@ const Students = ({ setShowAdminHeader, setShowAdminBreadcrumb }) => {
                         </label>
                         <input
                           type="date"
-                          value={editingStudent.applicationDate?.split("T")[0] || ""}
+                          value={toDateInputValue(editingStudent.applicationDate)}
                           onChange={(e) =>
                             setEditingStudent({ ...editingStudent, applicationDate: e.target.value })
                           }

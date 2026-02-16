@@ -490,6 +490,9 @@ router.post('/login', rateLimit({ windowMs: 60 * 1000, max: 10 }), async (req, r
     if (!user || !(await bcrypt.compare(password, user.password))) {
       return res.status(401).json({ error: 'Invalid credentials' });
     }
+    if (user.isArchived) {
+      return res.status(403).json({ error: 'You have been blocked by your organization.' });
+    }
     if (!user.campusId) {
       return res.status(400).json({ error: 'campusId is required for this account' });
     }
