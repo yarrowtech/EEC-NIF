@@ -1,35 +1,49 @@
 import React, { useEffect, useState } from 'react';
-import { 
-  Search, 
-  Filter, 
-  Plus, 
-  Edit3, 
-  Trash2, 
-  Mail, 
-  Phone, 
-  MapPin, 
-  Calendar,
-  BookOpen,
-  Users,
-  Star,
-  Award,
-  Eye,
-  MoreVertical,
+import {
+  Search,
+  Plus,
   Edit2,
+  Trash2,
+  Mail,
+  Phone,
+  BookOpen,
+  Eye,
+  XCircle,
+  Users,
+  UserCheck,
   Clock,
-  TrendingUp,
-  Target,
-  CheckCircle,
-  AlertCircle,
-  FileText,
+  Building2,
+  KeyRound,
+  Copy,
+  Check,
   GraduationCap,
-  BarChart3,
-  Activity,
-  DollarSign,
-  Timer,
-  XCircle
+  MapPin,
+  Briefcase,
+  Calendar,
+  User,
+  Award,
+  Hash
 } from 'lucide-react';
 import CredentialGeneratorButton from './components/CredentialGeneratorButton';
+
+const AVATAR_COLORS = [
+  { bg: 'bg-violet-100', text: 'text-violet-700' },
+  { bg: 'bg-blue-100', text: 'text-blue-700' },
+  { bg: 'bg-emerald-100', text: 'text-emerald-700' },
+  { bg: 'bg-orange-100', text: 'text-orange-700' },
+  { bg: 'bg-pink-100', text: 'text-pink-700' },
+  { bg: 'bg-teal-100', text: 'text-teal-700' },
+  { bg: 'bg-indigo-100', text: 'text-indigo-700' },
+  { bg: 'bg-rose-100', text: 'text-rose-700' },
+];
+
+const getAvatarColor = (name) => {
+  const hash = (name || '').split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+  return AVATAR_COLORS[hash % AVATAR_COLORS.length];
+};
+
+const inputClass =
+  'w-full rounded-xl border border-gray-200 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:border-transparent transition-all bg-white';
 
 const Teachers = ({setShowAdminHeader}) => {
   const [searchTerm, setSearchTerm] = useState('');
@@ -40,6 +54,13 @@ const Teachers = ({setShowAdminHeader}) => {
   const [credentialLoadingId, setCredentialLoadingId] = useState(null);
   const [deletingTeacherId, setDeletingTeacherId] = useState(null);
   const [credentialView, setCredentialView] = useState(null);
+  const [copiedField, setCopiedField] = useState(null);
+  const [viewTeacher, setViewTeacher] = useState(null);
+
+  // Pagination states
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage] = useState(10);
+
   const [newTeacher, setNewTeacher] = useState({
     name: '',
     email: '',
@@ -48,8 +69,6 @@ const Teachers = ({setShowAdminHeader}) => {
     department: '',
     experience: '',
     qualification: '',
-    students: '',
-    rating: '',
     status: 'Active',
     joiningDate: '',
     gender: '',
@@ -71,48 +90,16 @@ const Teachers = ({setShowAdminHeader}) => {
     return matchesSearch && matchesStatus;
   });
 
-  // Helper functions for enhanced features
-  const getPerformanceMetrics = () => {
-    // Mock performance data - integrate with actual metrics
-    return {
-      studentSatisfaction: Math.floor(Math.random() * 20) + 80, // 80-100
-      classAttendance: Math.floor(Math.random() * 15) + 85, // 85-100
-      lessonCompletionRate: Math.floor(Math.random() * 10) + 90, // 90-100
-      avgGradeImprovement: Math.floor(Math.random() * 20) + 10, // 10-30%
-      totalStudents: Math.floor(Math.random() * 50) + 20, // 20-70
-      activeClasses: Math.floor(Math.random() * 5) + 3 // 3-8
-    };
-  };
+  // Pagination logic
+  const indexOfLastItem = currentPage * itemsPerPage;
+  const indexOfFirstItem = indexOfLastItem - itemsPerPage;
+  const currentTeachers = filteredTeachers.slice(indexOfFirstItem, indexOfLastItem);
+  const totalPages = Math.ceil(filteredTeachers.length / itemsPerPage);
 
-  const getTodaySchedule = () => {
-    const schedules = [
-      { time: '09:00-10:00', subject: 'Mathematics', class: 'X-A', room: '101' },
-      { time: '10:00-11:00', subject: 'Physics', class: 'XI-B', room: '205' },
-      { time: '11:30-12:30', subject: 'Chemistry', class: 'XII-A', room: '301' },
-      { time: '14:00-15:00', subject: 'Biology', class: 'IX-C', room: '102' }
-    ];
-    return schedules.slice(0, Math.floor(Math.random() * 3) + 1);
-  };
-
-  const getCertifications = () => {
-    const allCerts = [
-      { name: 'M.Ed in Mathematics', year: '2018', status: 'verified' },
-      { name: 'B.Ed', year: '2015', status: 'verified' },
-      { name: 'Teaching Excellence Certificate', year: '2022', status: 'pending' },
-      { name: 'Digital Teaching Methods', year: '2023', status: 'verified' }
-    ];
-    return allCerts.slice(0, Math.floor(Math.random() * 3) + 1);
-  };
-
-  const getRecentEvaluations = () => {
-    return {
-      lastEvaluation: '2024-01-15',
-      overallRating: Math.floor(Math.random() * 2) + 4, // 4-5 stars
-      evaluatedBy: 'Principal',
-      nextEvaluation: '2024-07-15',
-      improvements: Math.floor(Math.random() * 3) + 1
-    };
-  };
+  // Change page
+  const paginate = (pageNumber) => setCurrentPage(pageNumber);
+  const nextPage = () => setCurrentPage(prev => Math.min(prev + 1, totalPages));
+  const prevPage = () => setCurrentPage(prev => Math.max(prev - 1, 1));
 
   const fetchTeachers = async () => {
     const res = await fetch(`${import.meta.env.VITE_API_URL}/api/admin/users/get-teachers`, {
@@ -142,10 +129,14 @@ const Teachers = ({setShowAdminHeader}) => {
     setTeachers(normalized);
   };
 
+  // Reset pagination when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, filterStatus]);
+
   // making the admin header invisible
   useEffect(() => {
     setShowAdminHeader(false)
-
     fetchTeachers().catch(err => {
       console.error("Error fetching teachers:", err);
     });
@@ -158,7 +149,6 @@ const Teachers = ({setShowAdminHeader}) => {
 
   const handleAddTeacherSubmit = async (e) => {
     e.preventDefault();
-    // Here you would send newTeacher to backend or update state
     try {
       setSubmitStatus(null);
       const res = await fetch(`${import.meta.env.VITE_API_URL}/api/teacher/auth/register`,{
@@ -170,7 +160,7 @@ const Teachers = ({setShowAdminHeader}) => {
           body: JSON.stringify(newTeacher)
         })
         const data = await res.json();
-        if (!res.ok) { 
+        if (!res.ok) {
           console.error('Registration failed:', data);
           throw new Error(data?.error || 'Registration failed');
         }
@@ -190,7 +180,7 @@ const Teachers = ({setShowAdminHeader}) => {
       }
       setShowAddForm(false);
       await fetchTeachers();
-      // Optionally reset form
+      // Reset form
       setNewTeacher({
         name: '', email: '', mobile: '', subject: '', department: '', experience: '', qualification: '', joiningDate: '', address: '', pinCode: '', gender: ''
       });
@@ -234,10 +224,12 @@ const Teachers = ({setShowAdminHeader}) => {
     }
   };
 
-  const copyCredential = async (value) => {
+  const copyCredential = async (value, field) => {
     if (!value) return;
     try {
       await navigator.clipboard.writeText(value);
+      setCopiedField(field);
+      setTimeout(() => setCopiedField(null), 2000);
     } catch (err) {
       console.error('Failed to copy credential:', err);
     }
@@ -273,47 +265,33 @@ const Teachers = ({setShowAdminHeader}) => {
     }
   };
 
-
   return (
-    <div className="h-screen bg-gradient-to-br from-yellow-50 via-yellow-100 to-amber-100 flex flex-col">
-      <div className="flex-1 flex flex-col  mx-auto w-full bg-white/90 border border-yellow-200 overflow-hidden">
-        
-        {/* Fixed Header Section */}
-        <div className="flex-shrink-0 p-8 bg-white/90 border-b border-yellow-100">
-          {/* Header */}
-          <div className="flex justify-between items-center mb-8">
-            <div className="flex items-center gap-6">
-              <div>
-                <h1 className="text-3xl font-bold text-yellow-700">Teacher Management</h1>
-                <p className="text-gray-600 mt-2">Manage teaching staff performance, schedules, and evaluations</p>
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50/20 to-indigo-50/30">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+
+        {/* Header */}
+        <div className="mb-8">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-lg shadow-indigo-200">
+                <GraduationCap size={24} className="text-white" />
               </div>
-              <div className="flex items-center gap-6">
-                <div className="flex flex-col items-center">
-                  <Users className="w-8 h-8 text-blue-500" />
-                  <span className="text-sm font-semibold text-blue-600 mt-1">{teachers.length}</span>
-                  <span className="text-xs text-gray-500">Total Teachers</span>
-                </div>
-                <div className="flex flex-col items-center">
-                  <TrendingUp className="w-8 h-8 text-green-500" />
-                  <span className="text-sm font-semibold text-green-600 mt-1">88%</span>
-                  <span className="text-xs text-gray-500">Avg Performance</span>
-                </div>
-                <div className="flex flex-col items-center">
-                  <Clock className="w-8 h-8 text-purple-500" />
-                  <span className="text-sm font-semibold text-purple-600 mt-1">{teachers.filter(t => t.status === 'Active').length}</span>
-                  <span className="text-xs text-gray-500">Teaching Today</span>
-                </div>
-                <div className="flex flex-col items-center">
-                  <FileText className="w-8 h-8 text-orange-500" />
-                  <span className="text-sm font-semibold text-orange-600 mt-1">{Math.floor(teachers.length * 0.3)}</span>
-                  <span className="text-xs text-gray-500">Due Evaluations</span>
-                </div>
+              <div>
+                <h1 className="text-2xl font-bold text-gray-900">Teachers</h1>
+                <p className="text-sm text-gray-500 mt-0.5">Manage your teaching staff</p>
               </div>
             </div>
             <div className="flex items-center gap-3">
+              <CredentialGeneratorButton
+                buttonText="Generate Teacher ID"
+                defaultRole="Teacher"
+                allowRoleSelection={false}
+                size="sm"
+                buttonClassName="bg-white text-gray-700 border border-gray-200 hover:bg-gray-50 shadow-sm"
+              />
               <button
                 onClick={() => setShowAddForm(true)}
-                className="flex items-center gap-2 bg-yellow-600 text-white px-4 py-2 rounded-lg hover:bg-yellow-700 transition-colors"
+                className="inline-flex items-center gap-2 bg-gradient-to-r from-indigo-600 to-purple-600 text-white px-4 py-2.5 rounded-xl hover:from-indigo-700 hover:to-purple-700 transition-all shadow-md shadow-indigo-200 text-sm font-medium"
               >
                 <Plus size={18} />
                 Add Teacher
@@ -321,32 +299,83 @@ const Teachers = ({setShowAdminHeader}) => {
             </div>
           </div>
 
+          {/* Stats */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mt-6">
+            <div className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm hover:shadow-md transition-shadow">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Total</p>
+                  <p className="text-2xl font-bold text-gray-900 mt-1">{teachers.length}</p>
+                </div>
+                <div className="w-10 h-10 rounded-xl bg-indigo-50 flex items-center justify-center">
+                  <Users size={20} className="text-indigo-600" />
+                </div>
+              </div>
+            </div>
+            <div className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm hover:shadow-md transition-shadow">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Active</p>
+                  <p className="text-2xl font-bold text-emerald-600 mt-1">{teachers.filter(t => t.status === 'Active').length}</p>
+                </div>
+                <div className="w-10 h-10 rounded-xl bg-emerald-50 flex items-center justify-center">
+                  <UserCheck size={20} className="text-emerald-600" />
+                </div>
+              </div>
+            </div>
+            <div className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm hover:shadow-md transition-shadow">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">On Leave</p>
+                  <p className="text-2xl font-bold text-amber-500 mt-1">{teachers.filter(t => t.status === 'On Leave').length}</p>
+                </div>
+                <div className="w-10 h-10 rounded-xl bg-amber-50 flex items-center justify-center">
+                  <Clock size={20} className="text-amber-500" />
+                </div>
+              </div>
+            </div>
+            <div className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm hover:shadow-md transition-shadow">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Departments</p>
+                  <p className="text-2xl font-bold text-violet-600 mt-1">{new Set(teachers.map(t => t.department)).size}</p>
+                </div>
+                <div className="w-10 h-10 rounded-xl bg-violet-50 flex items-center justify-center">
+                  <Building2 size={20} className="text-violet-600" />
+                </div>
+              </div>
+            </div>
+          </div>
+
           {submitStatus && (
             <div
-              className={`mb-4 rounded-lg border px-4 py-3 text-sm ${
+              className={`mt-4 rounded-xl border px-4 py-3 text-sm flex items-center gap-2 ${
                 submitStatus.type === 'success'
                   ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
                   : 'border-red-200 bg-red-50 text-red-700'
               }`}
             >
+              {submitStatus.type === 'success'
+                ? <Check size={15} className="flex-shrink-0" />
+                : <XCircle size={15} className="flex-shrink-0" />}
               {submitStatus.message}
             </div>
           )}
 
           {/* Search and Filter */}
-          <div className="mb-6 flex flex-wrap gap-4 items-center">
+          <div className="mt-6 flex flex-col sm:flex-row gap-3">
             <div className="flex-1 relative">
-              <Search size={20} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+              <Search size={17} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
               <input
                 type="text"
-                placeholder="Search teachers..."
-                className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-500"
+                placeholder="Search by name, subject or email..."
+                className="w-full pl-10 pr-4 py-2.5 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:border-transparent bg-white shadow-sm text-sm"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
               />
             </div>
-            <select 
-              className="border border-gray-200 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-yellow-500"
+            <select
+              className="sm:w-44 border border-gray-200 rounded-xl px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:border-transparent bg-white shadow-sm text-sm text-gray-700"
               value={filterStatus}
               onChange={(e) => setFilterStatus(e.target.value)}
             >
@@ -354,518 +383,545 @@ const Teachers = ({setShowAdminHeader}) => {
               <option value="Active">Active</option>
               <option value="On Leave">On Leave</option>
             </select>
-            <select className="border border-gray-200 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-yellow-500">
-              <option value="">All Departments</option>
-              <option value="Mathematics">Mathematics</option>
-              <option value="Physics">Physics</option>
-              <option value="Chemistry">Chemistry</option>
-              <option value="Biology">Biology</option>
-              <option value="Computer Science">Computer Science</option>
-              <option value="English">English</option>
-              <option value="History">History</option>
-              <option value="Fine Arts">Fine Arts</option>
-            </select>
-            <select className="border border-gray-200 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-yellow-500">
-              <option value="">Performance Rating</option>
-              <option value="excellent">Excellent (90%+)</option>
-              <option value="good">Good (80-89%)</option>
-              <option value="average">Average (70-79%)</option>
-              <option value="needs-improvement">Needs Improvement</option>
-            </select>
-            <select className="border border-gray-200 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-yellow-500">
-              <option value="">Schedule Status</option>
-              <option value="teaching-now">Teaching Now</option>
-              <option value="free-now">Free Now</option>
-              <option value="on-break">On Break</option>
-            </select>
-            <CredentialGeneratorButton
-              buttonText="Generate Teacher ID"
-              defaultRole="Teacher"
-              allowRoleSelection={false}
-              size="sm"
-              buttonClassName="bg-indigo-600 hover:bg-indigo-700"
-            />
           </div>
         </div>
 
-        {showAddForm && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
-            <div className="w-full max-w-3xl rounded-2xl bg-white shadow-2xl border border-yellow-100">
-              <div className="flex items-center justify-between px-6 py-4 border-b border-yellow-100">
-                <div>
-                  <h2 className="text-xl font-semibold text-yellow-700">Add New Teacher</h2>
-                  <p className="text-sm text-gray-500">Create teacher profile and send login credentials</p>
-                </div>
-                <button
-                  onClick={() => setShowAddForm(false)}
-                  className="text-gray-500 hover:text-gray-700"
-                >
-                  <XCircle size={20} />
-                </button>
-              </div>
-              <form onSubmit={handleAddTeacherSubmit} className="px-6 py-5 space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="text-sm font-medium text-gray-700">Full Name</label>
-                    <input
-                      type="text"
-                      name="name"
-                      value={newTeacher.name}
-                      onChange={handleAddTeacherChange}
-                      className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 focus:border-yellow-500 focus:ring-2 focus:ring-yellow-200"
-                      required
-                    />
-                  </div>
-                  <div>
-                    <label className="text-sm font-medium text-gray-700">Email</label>
-                    <input
-                      type="email"
-                      name="email"
-                      value={newTeacher.email}
-                      onChange={handleAddTeacherChange}
-                      className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 focus:border-yellow-500 focus:ring-2 focus:ring-yellow-200"
-                      required
-                    />
-                  </div>
-                  <div>
-                    <label className="text-sm font-medium text-gray-700">Contact Number</label>
-                    <input
-                      type="tel"
-                      name="mobile"
-                      value={newTeacher.mobile}
-                      onChange={handleAddTeacherChange}
-                      className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 focus:border-yellow-500 focus:ring-2 focus:ring-yellow-200"
-                      required
-                    />
-                  </div>
-                  <div>
-                    <label className="text-sm font-medium text-gray-700">Gender</label>
-                    <select
-                      name="gender"
-                      value={newTeacher.gender}
-                      onChange={handleAddTeacherChange}
-                      className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 focus:border-yellow-500 focus:ring-2 focus:ring-yellow-200"
-                    >
-                      <option value="">Select</option>
-                      <option value="male">Male</option>
-                      <option value="female">Female</option>
-                      <option value="other">Other</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="text-sm font-medium text-gray-700">Qualification</label>
-                    <input
-                      type="text"
-                      name="qualification"
-                      value={newTeacher.qualification}
-                      onChange={handleAddTeacherChange}
-                      className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 focus:border-yellow-500 focus:ring-2 focus:ring-yellow-200"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-sm font-medium text-gray-700">Subject</label>
-                    <input
-                      type="text"
-                      name="subject"
-                      value={newTeacher.subject}
-                      onChange={handleAddTeacherChange}
-                      className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 focus:border-yellow-500 focus:ring-2 focus:ring-yellow-200"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-sm font-medium text-gray-700">Department</label>
-                    <input
-                      type="text"
-                      name="department"
-                      value={newTeacher.department}
-                      onChange={handleAddTeacherChange}
-                      className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 focus:border-yellow-500 focus:ring-2 focus:ring-yellow-200"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-sm font-medium text-gray-700">Experience (years)</label>
-                    <input
-                      type="text"
-                      name="experience"
-                      value={newTeacher.experience}
-                      onChange={handleAddTeacherChange}
-                      className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 focus:border-yellow-500 focus:ring-2 focus:ring-yellow-200"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-sm font-medium text-gray-700">Joining Date</label>
-                    <input
-                      type="date"
-                      name="joiningDate"
-                      value={newTeacher.joiningDate}
-                      onChange={handleAddTeacherChange}
-                      className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 focus:border-yellow-500 focus:ring-2 focus:ring-yellow-200"
-                    />
-                  </div>
-                  <div className="md:col-span-2">
-                    <label className="text-sm font-medium text-gray-700">Address</label>
-                    <input
-                      type="text"
-                      name="address"
-                      value={newTeacher.address}
-                      onChange={handleAddTeacherChange}
-                      className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 focus:border-yellow-500 focus:ring-2 focus:ring-yellow-200"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-sm font-medium text-gray-700">Pin Code</label>
-                    <input
-                      type="text"
-                      name="pinCode"
-                      value={newTeacher.pinCode}
-                      onChange={handleAddTeacherChange}
-                      className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 focus:border-yellow-500 focus:ring-2 focus:ring-yellow-200"
-                    />
-                  </div>
-                </div>
-                <div className="flex items-center justify-end gap-3 pt-4 border-t border-yellow-100">
-                  <button
-                    type="button"
-                    onClick={() => setShowAddForm(false)}
-                    className="px-4 py-2 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    className="px-5 py-2 rounded-lg bg-yellow-600 text-white hover:bg-yellow-700"
-                  >
-                    Save & Send Credentials
-                  </button>
-                </div>
-              </form>
-            </div>
-          </div>
-        )}
-
-        {credentialView && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
-            <div className="w-full max-w-lg rounded-2xl bg-white shadow-2xl border border-yellow-100">
-              <div className="flex items-center justify-between px-6 py-4 border-b border-yellow-100">
-                <div>
-                  <h2 className="text-lg font-semibold text-yellow-700">Teacher Login Credentials</h2>
-                  <p className="text-sm text-gray-500">Share these credentials securely</p>
-                </div>
-                <button
-                  onClick={() => setCredentialView(null)}
-                  className="text-gray-500 hover:text-gray-700"
-                >
-                  <XCircle size={20} />
-                </button>
-              </div>
-              <div className="px-6 py-5 space-y-4">
-                <div>
-                  <p className="text-sm text-gray-600">Teacher</p>
-                  <p className="text-base font-semibold text-gray-900">{credentialView.name || 'Teacher'}</p>
-                </div>
-                <div className="space-y-3">
-                  <div>
-                    <p className="text-xs font-semibold text-yellow-700 uppercase">Login ID</p>
-                    <div className="mt-1 flex items-center justify-between rounded-lg border border-yellow-100 bg-yellow-50 px-3 py-2">
-                      <code className="text-sm font-mono text-gray-800">
-                        {credentialView.employeeCode || credentialView.username}
-                      </code>
-                      <button
-                        onClick={() => copyCredential(credentialView.employeeCode || credentialView.username)}
-                        className="text-xs bg-yellow-500 hover:bg-yellow-600 text-white px-2 py-1 rounded"
-                        title="Copy ID"
-                      >
-                        Copy
-                      </button>
-                    </div>
-                  </div>
-                  <div>
-                    <p className="text-xs font-semibold text-yellow-700 uppercase">Password</p>
-                    <div className="mt-1 flex items-center justify-between rounded-lg border border-yellow-100 bg-yellow-50 px-3 py-2">
-                      <code className="text-sm font-mono text-gray-800">{credentialView.password}</code>
-                      <button
-                        onClick={() => copyCredential(credentialView.password)}
-                        className="text-xs bg-yellow-500 hover:bg-yellow-600 text-white px-2 py-1 rounded"
-                        title="Copy Password"
-                      >
-                        Copy
-                      </button>
-                    </div>
-                  </div>
-                </div>
-                <p className="text-xs text-gray-500">Please ask the teacher to reset the password after first login.</p>
-              </div>
-              <div className="px-6 py-4 border-t border-yellow-100 flex justify-end">
-                <button
-                  onClick={() => setCredentialView(null)}
-                  className="px-4 py-2 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50"
-                >
-                  Close
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Scrollable Table Container */}
-        <div className="flex-1 overflow-hidden">
-          <div className="h-full overflow-y-auto">
-            <table className="w-full border-collapse">
-              <thead className="sticky top-0 bg-yellow-50 z-10">
-                <tr>
-                  <th className="border-b border-yellow-100 px-6 py-3 text-left text-sm font-semibold text-yellow-800">Teacher</th>
-                  <th className="border-b border-yellow-100 px-6 py-3 text-left text-sm font-semibold text-yellow-800">Performance</th>
-                  <th className="border-b border-yellow-100 px-6 py-3 text-left text-sm font-semibold text-yellow-800">Schedule Today</th>
-                  <th className="border-b border-yellow-100 px-6 py-3 text-left text-sm font-semibold text-yellow-800">Subject & Dept</th>
-                  <th className="border-b border-yellow-100 px-6 py-3 text-left text-sm font-semibold text-yellow-800">Qualifications</th>
-                  <th className="border-b border-yellow-100 px-6 py-3 text-left text-sm font-semibold text-yellow-800">Evaluation</th>
-                  <th className="border-b border-yellow-100 px-6 py-3 text-left text-sm font-semibold text-yellow-800">Experience</th>
-                  <th className="border-b border-yellow-100 px-6 py-3 text-left text-sm font-semibold text-yellow-800">Actions</th>
+        {/* Teachers Table */}
+        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead>
+                <tr className="bg-gradient-to-r from-gray-50 to-slate-50/80 border-b border-gray-100">
+                  <th className="px-6 py-3.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Teacher</th>
+                  <th className="px-6 py-3.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Contact</th>
+                  <th className="px-6 py-3.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Subject & Dept</th>
+                  <th className="px-6 py-3.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Qualification</th>
+                  <th className="px-6 py-3.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Status</th>
+                  <th className="px-6 py-3.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Actions</th>
                 </tr>
               </thead>
-              <tbody className="bg-white">
-                {filteredTeachers.map((teacher) => (
-                  <tr 
-                    key={teacher._id || teacher.id}
-                    className="hover:bg-yellow-50 transition-colors border-b border-gray-100"
-                  >
-                    {/* Teacher Info */}
-                    <td className="px-6 py-4">
-                      <div className="flex items-center gap-3">
-                        <div className="w-12 h-12 rounded-full bg-yellow-200 flex items-center justify-center font-semibold text-yellow-700 flex-shrink-0">
-                          {(teacher.name || 'NA').split(' ').map(n => n[0]).join('')}
-                        </div>
-                        <div className="min-w-0">
-                          <div className="font-medium text-gray-900 truncate">{teacher.name}</div>
-                          <div className="text-xs text-gray-500 font-mono">Login ID: {teacher.empId}</div>
-                          <div className="flex items-center gap-3 mt-1">
-                            <a href={`mailto:${teacher.email}`} className="text-sm text-gray-500 hover:text-yellow-600 flex items-center gap-1 truncate">
-                              <Mail size={12} className="flex-shrink-0" />
-                              <span className="truncate max-w-[120px]">{teacher.email}</span>
-                            </a>
-                            <a href={`tel:${teacher.mobile}`} className="text-sm text-gray-500 hover:text-yellow-600 flex items-center gap-1 flex-shrink-0">
-                              <Phone size={12} />
-                              {teacher.mobile}
-                            </a>
+              <tbody className="divide-y divide-gray-50">
+                {currentTeachers.map((teacher) => {
+                  const avatarColor = getAvatarColor(teacher.name);
+                  return (
+                    <tr key={teacher._id || teacher.id} className="hover:bg-indigo-50/30 transition-colors">
+                      <td className="px-6 py-4">
+                        <div className="flex items-center gap-3">
+                          <div className={`w-9 h-9 rounded-xl ${avatarColor.bg} flex items-center justify-center text-sm font-bold ${avatarColor.text} flex-shrink-0`}>
+                            {(teacher.name || 'NA').split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()}
+                          </div>
+                          <div>
+                            <div className="text-sm font-semibold text-gray-900">{teacher.name}</div>
+                            <div className="text-xs text-gray-400 font-mono">#{teacher.empId}</div>
                           </div>
                         </div>
-                      </div>
-                    </td>
-
-                    {/* Performance Metrics */}
-                    <td className="px-6 py-4">
-                      {(() => {
-                        const metrics = getPerformanceMetrics();
-                        return (
-                          <div className="space-y-2">
-                            <div className="flex items-center gap-2">
-                              <div className="flex items-center gap-1">
-                                <Target size={14} className="text-green-600" />
-                                <span className="text-sm font-semibold text-green-600">{metrics.studentSatisfaction}%</span>
-                              </div>
-                              <span className="text-xs text-gray-500">Satisfaction</span>
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <div className="flex items-center gap-1">
-                                <Activity size={14} className="text-blue-600" />
-                                <span className="text-sm font-semibold text-blue-600">{metrics.classAttendance}%</span>
-                              </div>
-                              <span className="text-xs text-gray-500">Attendance</span>
-                            </div>
-                            <div className="text-xs text-gray-600">{metrics.totalStudents} students</div>
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="space-y-1.5">
+                          <div className="flex items-center text-sm text-gray-600">
+                            <Mail size={13} className="mr-2 text-indigo-400 flex-shrink-0" />
+                            <span className="truncate max-w-[180px]">{teacher.email}</span>
                           </div>
-                        );
-                      })()}
-                    </td>
-
-                    {/* Schedule Today */}
-                    <td className="px-6 py-4">
-                      {(() => {
-                        const schedule = getTodaySchedule();
-                        if (schedule.length === 0) {
-                          return <span className="text-sm text-gray-400 italic">No classes today</span>;
-                        }
-                        return (
-                          <div className="space-y-1 max-w-[200px]">
-                            {schedule.slice(0, 2).map((slot, idx) => (
-                              <div key={idx} className="flex items-center gap-2">
-                                <Clock size={12} className="text-purple-600" />
-                                <span className="text-xs text-gray-700">{slot.time}</span>
-                                <span className="text-xs bg-purple-100 text-purple-800 px-1 rounded">{slot.class}</span>
-                              </div>
-                            ))}
-                            {schedule.length > 2 && (
-                              <div className="text-xs text-gray-500">+{schedule.length - 2} more</div>
-                            )}
+                          <div className="flex items-center text-sm text-gray-600">
+                            <Phone size={13} className="mr-2 text-emerald-400 flex-shrink-0" />
+                            <span>{teacher.mobile}</span>
                           </div>
-                        );
-                      })()}
-                    </td>
-
-                    {/* Subject & Department */}
-                    <td className="px-6 py-4">
-                      <div className="space-y-1">
-                        <div className="flex items-center gap-2">
-                          <BookOpen size={14} className="text-blue-600" />
-                          <span className="font-medium text-gray-900">{teacher.subject}</span>
                         </div>
-                        <div className="text-sm text-gray-600">{teacher.department}</div>
-                        <div className="text-xs text-gray-500">
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="space-y-1.5">
+                          <div className="flex items-center text-sm font-medium text-gray-800">
+                            <BookOpen size={13} className="mr-2 text-violet-400 flex-shrink-0" />
+                            {teacher.subject}
+                          </div>
+                          <span className="inline-block text-xs bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full font-medium">
+                            {teacher.department}
+                          </span>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="text-sm font-medium text-gray-800">{teacher.qualification || '-'}</div>
+                        <div className="text-xs text-gray-400 mt-0.5">
                           Joined: {teacher.joiningDate ? new Date(teacher.joiningDate).toLocaleDateString() : '-'}
                         </div>
-                      </div>
-                    </td>
-
-                    {/* Qualifications */}
-                    <td className="px-6 py-4">
-                      {(() => {
-                        const certs = getCertifications();
-                        return (
-                          <div className="space-y-1">
-                            <div className="flex items-center gap-2">
-                              <GraduationCap size={14} className="text-indigo-600" />
-                              <span className="font-medium text-gray-900">{teacher.qualification}</span>
-                            </div>
-                            {certs.slice(0, 2).map((cert, idx) => (
-                              <div key={idx} className="flex items-center gap-2">
-                                <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${
-                                  cert.status === 'verified' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'
-                                }`}>
-                                  {cert.status === 'verified' ? 'Verified' : 'Pending'}
-                                </span>
-                                <span className="text-xs text-gray-600 truncate">{cert.name}</span>
-                              </div>
-                            ))}
-                          </div>
-                        );
-                      })()}
-                    </td>
-
-                    {/* Evaluation */}
-                    <td className="px-6 py-4">
-                      {(() => {
-                        const evaluation = getRecentEvaluations();
-                        return (
-                          <div className="space-y-2">
-                            <div className="flex items-center gap-1">
-                              {[...Array(5)].map((_, i) => (
-                                <Star 
-                                  key={i} 
-                                  size={14} 
-                                  className={i < evaluation.overallRating ? 'text-yellow-400 fill-current' : 'text-gray-300'} 
-                                />
-                              ))}
-                              <span className="text-sm font-semibold ml-1">{evaluation.overallRating}/5</span>
-                            </div>
-                            <div className="text-xs text-gray-600">
-                              Last: {new Date(evaluation.lastEvaluation).toLocaleDateString()}
-                            </div>
-                            <div className="text-xs text-gray-500">
-                              By: {evaluation.evaluatedBy}
-                            </div>
-                          </div>
-                        );
-                      })()}
-                    </td>
-
-                    {/* Experience */}
-                    <td className="px-6 py-4">
-                      <div className="space-y-1">
-                        <div className="flex items-center gap-2">
-                          <Award size={14} className="text-orange-600" />
-                          <span className="font-semibold text-gray-900">5 years</span>
+                      </td>
+                      <td className="px-6 py-4">
+                        <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold
+                          ${teacher.status === 'Active'
+                            ? 'bg-emerald-100 text-emerald-700'
+                            : 'bg-amber-100 text-amber-700'}`}>
+                          <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${teacher.status === 'Active' ? 'bg-emerald-500' : 'bg-amber-500'}`} />
+                          {teacher.status}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="flex items-center gap-1">
+                          <button
+                            className="p-1.5 rounded-lg text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 transition-all"
+                            title="View Details"
+                            onClick={() => setViewTeacher(teacher)}
+                          >
+                            <Eye size={15} />
+                          </button>
+                          <button
+                            className="p-1.5 rounded-lg text-slate-400 hover:text-teal-600 hover:bg-teal-50 transition-all"
+                            title="Generate Credentials"
+                            onClick={() => handleViewCredentials(teacher)}
+                            disabled={credentialLoadingId === (teacher._id || teacher.id)}
+                          >
+                            <KeyRound size={15} />
+                          </button>
+                          <button
+                            className="p-1.5 rounded-lg text-slate-400 hover:text-amber-600 hover:bg-amber-50 transition-all"
+                            title="Edit"
+                          >
+                            <Edit2 size={15} />
+                          </button>
+                          <button
+                            className="p-1.5 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 transition-all disabled:opacity-40"
+                            title="Delete"
+                            onClick={() => handleDeleteTeacher(teacher)}
+                            disabled={deletingTeacherId === (teacher._id || teacher.id)}
+                          >
+                            <Trash2 size={15} />
+                          </button>
                         </div>
-                        <div className="text-xs text-gray-600">
-                          Since {new Date().getFullYear() - 5}
-                        </div>
-                      </div>
-                    </td>
-                    {/* <td className="px-6 py-4">
-                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium
-                        ${teacher.status === 'Active' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
-                        {teacher.status}
-                      </span>
-                    </td> */}
-                    {/* Enhanced Actions */}
-                    <td className="px-6 py-4">
-                      <div className="flex items-center gap-1">
-                        <button 
-                          className="text-yellow-700 hover:text-yellow-800 p-1 hover:bg-yellow-50 rounded" 
-                          title="View Login Credentials (resets password)"
-                          onClick={() => handleViewCredentials(teacher)}
-                          disabled={credentialLoadingId === (teacher._id || teacher.id)}
-                        >
-                          <Eye size={14} />
-                        </button>
-                        <button 
-                          className="text-blue-600 hover:text-blue-800 p-1 hover:bg-blue-50 rounded" 
-                          title="View Performance Analytics"
-                        >
-                          <BarChart3 size={14} />
-                        </button>
-                        <button 
-                          className="text-purple-600 hover:text-purple-800 p-1 hover:bg-purple-50 rounded" 
-                          title="View Schedule"
-                        >
-                          <Clock size={14} />
-                        </button>
-                        <button 
-                          className="text-green-600 hover:text-green-800 p-1 hover:bg-green-50 rounded" 
-                          title="Conduct Evaluation"
-                        >
-                          <FileText size={14} />
-                        </button>
-                        <button 
-                          className="text-indigo-600 hover:text-indigo-800 p-1 hover:bg-indigo-50 rounded" 
-                          title="Manage Qualifications"
-                        >
-                          <GraduationCap size={14} />
-                        </button>
-                        <button 
-                          className="text-orange-600 hover:text-orange-800 p-1 hover:bg-orange-50 rounded" 
-                          title="Edit Teacher"
-                        >
-                          <Edit2 size={14} />
-                        </button>
-                        <button
-                          className="text-red-600 hover:text-red-800 p-1 hover:bg-red-50 rounded disabled:opacity-50"
-                          title="Delete Teacher"
-                          onClick={() => handleDeleteTeacher(teacher)}
-                          disabled={deletingTeacherId === (teacher._id || teacher.id)}
-                        >
-                          <Trash2 size={14} />
-                        </button>
-                        <button 
-                          className="text-gray-600 hover:text-gray-800 p-1 hover:bg-gray-50 rounded" 
-                          title="More Options"
-                        >
-                          <MoreVertical size={14} />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
-        </div>
 
-        {/* Fixed Footer Section */}
-        <div className="flex-shrink-0 p-8 pt-4 bg-white/90 border-t border-yellow-100">
-          <div className="flex items-center justify-between">
-            <div className="text-gray-600">
-              Showing {filteredTeachers.length} of {teachers.length} teachers
+          {/* Pagination */}
+          {filteredTeachers.length > 0 && (
+            <div className="px-6 py-4 border-t border-gray-100 bg-gray-50/50">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                <div className="text-sm text-gray-500">
+                  Showing{' '}
+                  <span className="font-semibold text-gray-700">{indexOfFirstItem + 1}</span>
+                  {' '}–{' '}
+                  <span className="font-semibold text-gray-700">{Math.min(indexOfLastItem, filteredTeachers.length)}</span>
+                  {' '}of{' '}
+                  <span className="font-semibold text-gray-700">{filteredTeachers.length}</span> teachers
+                </div>
+                <div className="flex gap-1.5">
+                  <button
+                    onClick={prevPage}
+                    disabled={currentPage === 1}
+                    className="px-3 py-1.5 border border-gray-200 rounded-lg text-sm font-medium text-gray-600 bg-white hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                  >
+                    Previous
+                  </button>
+                  <div className="flex gap-1">
+                    {[...Array(totalPages)].map((_, i) => (
+                      <button
+                        key={i + 1}
+                        onClick={() => paginate(i + 1)}
+                        className={`w-8 h-8 rounded-lg text-sm font-medium transition-all
+                          ${currentPage === i + 1
+                            ? 'bg-indigo-600 text-white shadow-sm shadow-indigo-200'
+                            : 'border border-gray-200 text-gray-600 bg-white hover:bg-indigo-50 hover:text-indigo-600 hover:border-indigo-200'
+                          }`}
+                      >
+                        {i + 1}
+                      </button>
+                    )).slice(Math.max(0, currentPage - 3), Math.min(totalPages, currentPage + 2))}
+                  </div>
+                  <button
+                    onClick={nextPage}
+                    disabled={currentPage === totalPages}
+                    className="px-3 py-1.5 border border-gray-200 rounded-lg text-sm font-medium text-gray-600 bg-white hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                  >
+                    Next
+                  </button>
+                </div>
+              </div>
             </div>
-            <div className="flex gap-2">
-              <button className="px-4 py-2 border border-gray-200 rounded-lg hover:bg-yellow-50 transition-colors">Previous</button>
-              <button className="px-4 py-2 border border-gray-200 rounded-lg hover:bg-yellow-50 transition-colors">Next</button>
+          )}
+
+          {filteredTeachers.length === 0 && (
+            <div className="text-center py-16">
+              <div className="w-16 h-16 rounded-2xl bg-indigo-50 flex items-center justify-center mx-auto mb-4">
+                <GraduationCap size={28} className="text-indigo-400" />
+              </div>
+              <p className="text-gray-600 font-semibold">No teachers found</p>
+              <p className="text-gray-400 text-sm mt-1">Try adjusting your search or filters</p>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Add Teacher Modal */}
+      {showAddForm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+            <div className="sticky top-0 bg-white border-b border-gray-100 px-6 py-4 flex items-center justify-between rounded-t-2xl z-10">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-md shadow-indigo-200">
+                  <Plus size={18} className="text-white" />
+                </div>
+                <div>
+                  <h2 className="text-base font-bold text-gray-900">Add New Teacher</h2>
+                  <p className="text-xs text-gray-500">Fill in the teacher's information</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowAddForm(false)}
+                className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-all"
+              >
+                <XCircle size={18} />
+              </button>
+            </div>
+
+            <form onSubmit={handleAddTeacherSubmit} className="p-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">Full Name *</label>
+                  <input type="text" name="name" value={newTeacher.name} onChange={handleAddTeacherChange} className={inputClass} required />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">Email *</label>
+                  <input type="email" name="email" value={newTeacher.email} onChange={handleAddTeacherChange} className={inputClass} required />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">Contact Number *</label>
+                  <input type="tel" name="mobile" value={newTeacher.mobile} onChange={handleAddTeacherChange} className={inputClass} required />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">Gender</label>
+                  <select name="gender" value={newTeacher.gender} onChange={handleAddTeacherChange} className={inputClass}>
+                    <option value="">Select</option>
+                    <option value="male">Male</option>
+                    <option value="female">Female</option>
+                    <option value="other">Other</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">Qualification</label>
+                  <input type="text" name="qualification" value={newTeacher.qualification} onChange={handleAddTeacherChange} className={inputClass} placeholder="e.g., M.Sc, B.Ed" />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">Subject</label>
+                  <input type="text" name="subject" value={newTeacher.subject} onChange={handleAddTeacherChange} className={inputClass} placeholder="e.g., Mathematics" />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">Department</label>
+                  <input type="text" name="department" value={newTeacher.department} onChange={handleAddTeacherChange} className={inputClass} />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">Experience (years)</label>
+                  <input type="number" name="experience" value={newTeacher.experience} onChange={handleAddTeacherChange} className={inputClass} min="0" />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">Joining Date</label>
+                  <input type="date" name="joiningDate" value={newTeacher.joiningDate} onChange={handleAddTeacherChange} className={inputClass} />
+                </div>
+
+                <div className="md:col-span-2">
+                  <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">Address</label>
+                  <input type="text" name="address" value={newTeacher.address} onChange={handleAddTeacherChange} className={inputClass} />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">Pin Code</label>
+                  <input type="text" name="pinCode" value={newTeacher.pinCode} onChange={handleAddTeacherChange} className={inputClass} />
+                </div>
+              </div>
+
+              <div className="mt-6 flex items-center justify-end gap-3 border-t border-gray-100 pt-4">
+                <button
+                  type="button"
+                  onClick={() => setShowAddForm(false)}
+                  className="px-4 py-2 rounded-xl border border-gray-200 text-gray-700 hover:bg-gray-50 transition-colors text-sm font-medium"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 text-white hover:from-indigo-700 hover:to-purple-700 transition-all shadow-md shadow-indigo-200 text-sm font-medium"
+                >
+                  Add Teacher
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Teacher Details Modal */}
+      {viewTeacher && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden max-h-[90vh] flex flex-col">
+
+            {/* Gradient Profile Header */}
+            <div className="bg-gradient-to-r from-indigo-600 to-purple-600 px-6 pt-6 pb-10 relative flex-shrink-0">
+              <button
+                onClick={() => setViewTeacher(null)}
+                className="absolute top-4 right-4 w-8 h-8 flex items-center justify-center rounded-lg bg-white/10 text-white hover:bg-white/20 transition-all"
+              >
+                <XCircle size={18} />
+              </button>
+              <div className="flex items-center gap-4">
+                <div className={`w-16 h-16 rounded-2xl flex items-center justify-center text-2xl font-bold shadow-lg flex-shrink-0 ${getAvatarColor(viewTeacher.name).bg} ${getAvatarColor(viewTeacher.name).text}`}>
+                  {(viewTeacher.name || 'NA').split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()}
+                </div>
+                <div>
+                  <h2 className="text-xl font-bold text-white">{viewTeacher.name}</h2>
+                  <p className="text-indigo-200 text-sm mt-0.5 font-mono">#{viewTeacher.empId}</p>
+                  <span className={`inline-flex items-center gap-1.5 mt-2 px-2.5 py-0.5 rounded-full text-xs font-semibold
+                    ${viewTeacher.status === 'Active'
+                      ? 'bg-emerald-100 text-emerald-700'
+                      : 'bg-amber-100 text-amber-700'}`}>
+                    <span className={`w-1.5 h-1.5 rounded-full ${viewTeacher.status === 'Active' ? 'bg-emerald-500' : 'bg-amber-500'}`} />
+                    {viewTeacher.status}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Body — pulls up over the gradient */}
+            <div className="overflow-y-auto -mt-5">
+              <div className="bg-white rounded-t-2xl px-6 pt-5 pb-6 space-y-5">
+
+                {/* Contact Info */}
+                <div>
+                  <p className="text-xs font-semibold text-gray-400 uppercase tracking-widest mb-3">Contact</p>
+                  <div className="space-y-2.5">
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-lg bg-indigo-50 flex items-center justify-center flex-shrink-0">
+                        <Mail size={14} className="text-indigo-500" />
+                      </div>
+                      <div>
+                        <p className="text-xs text-gray-400">Email</p>
+                        <p className="text-sm font-medium text-gray-800">{viewTeacher.email || '—'}</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-lg bg-emerald-50 flex items-center justify-center flex-shrink-0">
+                        <Phone size={14} className="text-emerald-500" />
+                      </div>
+                      <div>
+                        <p className="text-xs text-gray-400">Mobile</p>
+                        <p className="text-sm font-medium text-gray-800">{viewTeacher.mobile || '—'}</p>
+                      </div>
+                    </div>
+                    {(viewTeacher.address || viewTeacher.pinCode) && (
+                      <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 rounded-lg bg-rose-50 flex items-center justify-center flex-shrink-0">
+                          <MapPin size={14} className="text-rose-500" />
+                        </div>
+                        <div>
+                          <p className="text-xs text-gray-400">Address</p>
+                          <p className="text-sm font-medium text-gray-800">
+                            {[viewTeacher.address, viewTeacher.pinCode].filter(Boolean).join(', ') || '—'}
+                          </p>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <div className="border-t border-gray-100" />
+
+                {/* Professional Info */}
+                <div>
+                  <p className="text-xs font-semibold text-gray-400 uppercase tracking-widest mb-3">Professional</p>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="flex items-start gap-3">
+                      <div className="w-8 h-8 rounded-lg bg-violet-50 flex items-center justify-center flex-shrink-0">
+                        <BookOpen size={14} className="text-violet-500" />
+                      </div>
+                      <div>
+                        <p className="text-xs text-gray-400">Subject</p>
+                        <p className="text-sm font-medium text-gray-800">{viewTeacher.subject || '—'}</p>
+                      </div>
+                    </div>
+                    <div className="flex items-start gap-3">
+                      <div className="w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center flex-shrink-0">
+                        <Building2 size={14} className="text-blue-500" />
+                      </div>
+                      <div>
+                        <p className="text-xs text-gray-400">Department</p>
+                        <p className="text-sm font-medium text-gray-800">{viewTeacher.department || '—'}</p>
+                      </div>
+                    </div>
+                    <div className="flex items-start gap-3">
+                      <div className="w-8 h-8 rounded-lg bg-amber-50 flex items-center justify-center flex-shrink-0">
+                        <Award size={14} className="text-amber-500" />
+                      </div>
+                      <div>
+                        <p className="text-xs text-gray-400">Qualification</p>
+                        <p className="text-sm font-medium text-gray-800">{viewTeacher.qualification || '—'}</p>
+                      </div>
+                    </div>
+                    <div className="flex items-start gap-3">
+                      <div className="w-8 h-8 rounded-lg bg-teal-50 flex items-center justify-center flex-shrink-0">
+                        <Briefcase size={14} className="text-teal-500" />
+                      </div>
+                      <div>
+                        <p className="text-xs text-gray-400">Experience</p>
+                        <p className="text-sm font-medium text-gray-800">
+                          {viewTeacher.experience ? `${viewTeacher.experience} yrs` : '—'}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-start gap-3">
+                      <div className="w-8 h-8 rounded-lg bg-pink-50 flex items-center justify-center flex-shrink-0">
+                        <Calendar size={14} className="text-pink-500" />
+                      </div>
+                      <div>
+                        <p className="text-xs text-gray-400">Joining Date</p>
+                        <p className="text-sm font-medium text-gray-800">
+                          {viewTeacher.joiningDate ? new Date(viewTeacher.joiningDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-start gap-3">
+                      <div className="w-8 h-8 rounded-lg bg-slate-50 flex items-center justify-center flex-shrink-0">
+                        <User size={14} className="text-slate-500" />
+                      </div>
+                      <div>
+                        <p className="text-xs text-gray-400">Gender</p>
+                        <p className="text-sm font-medium text-gray-800 capitalize">{viewTeacher.gender || '—'}</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="border-t border-gray-100" />
+
+                {/* Footer Actions */}
+                <div className="flex items-center justify-between gap-3 pt-1">
+                  <button
+                    onClick={() => {
+                      setViewTeacher(null);
+                      handleViewCredentials(viewTeacher);
+                    }}
+                    className="flex items-center gap-2 px-4 py-2 rounded-xl bg-indigo-50 text-indigo-700 hover:bg-indigo-100 transition-colors text-sm font-medium"
+                  >
+                    <KeyRound size={15} />
+                    Generate Credentials
+                  </button>
+                  <button
+                    onClick={() => setViewTeacher(null)}
+                    className="px-4 py-2 rounded-xl border border-gray-200 text-gray-700 hover:bg-gray-50 transition-colors text-sm font-medium"
+                  >
+                    Close
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
         </div>
-      </div>
+      )}
+
+      {/* Credentials Modal */}
+      {credentialView && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
+            {/* Gradient Header */}
+            <div className="bg-gradient-to-r from-indigo-600 to-purple-600 px-6 py-5">
+              <div className="flex items-start justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center">
+                    <KeyRound size={20} className="text-white" />
+                  </div>
+                  <div>
+                    <h2 className="text-base font-bold text-white">Login Credentials</h2>
+                    <p className="text-indigo-200 text-xs mt-0.5">Share these securely with the teacher</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setCredentialView(null)}
+                  className="w-8 h-8 flex items-center justify-center rounded-lg bg-white/10 text-white hover:bg-white/20 transition-all"
+                >
+                  <XCircle size={18} />
+                </button>
+              </div>
+            </div>
+
+            <div className="p-6 space-y-4">
+              {/* Teacher identity */}
+              <div className="flex items-center gap-3 p-3 bg-indigo-50 rounded-xl">
+                <div className={`w-9 h-9 rounded-xl flex items-center justify-center text-sm font-bold flex-shrink-0 ${getAvatarColor(credentialView.name).bg} ${getAvatarColor(credentialView.name).text}`}>
+                  {(credentialView.name || 'T').split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()}
+                </div>
+                <div>
+                  <p className="text-xs text-indigo-500 font-medium">Teacher</p>
+                  <p className="text-sm font-semibold text-indigo-900">{credentialView.name || 'Teacher'}</p>
+                </div>
+              </div>
+
+              <div className="space-y-3">
+                {/* Login ID */}
+                <div>
+                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Login ID</p>
+                  <div className="flex items-center justify-between rounded-xl border border-gray-200 bg-gray-50 px-4 py-3">
+                    <code className="text-sm font-mono text-gray-800">
+                      {credentialView.employeeCode || credentialView.username}
+                    </code>
+                    <button
+                      onClick={() => copyCredential(credentialView.employeeCode || credentialView.username, 'id')}
+                      className={`flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-lg transition-all font-medium ${
+                        copiedField === 'id'
+                          ? 'bg-emerald-100 text-emerald-700'
+                          : 'bg-gray-200 hover:bg-indigo-100 hover:text-indigo-700 text-gray-600'
+                      }`}
+                    >
+                      {copiedField === 'id' ? <Check size={12} /> : <Copy size={12} />}
+                      {copiedField === 'id' ? 'Copied' : 'Copy'}
+                    </button>
+                  </div>
+                </div>
+
+                {/* Password */}
+                <div>
+                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Password</p>
+                  <div className="flex items-center justify-between rounded-xl border border-gray-200 bg-gray-50 px-4 py-3">
+                    <code className="text-sm font-mono text-gray-800">{credentialView.password}</code>
+                    <button
+                      onClick={() => copyCredential(credentialView.password, 'pass')}
+                      className={`flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-lg transition-all font-medium ${
+                        copiedField === 'pass'
+                          ? 'bg-emerald-100 text-emerald-700'
+                          : 'bg-gray-200 hover:bg-indigo-100 hover:text-indigo-700 text-gray-600'
+                      }`}
+                    >
+                      {copiedField === 'pass' ? <Check size={12} /> : <Copy size={12} />}
+                      {copiedField === 'pass' ? 'Copied' : 'Copy'}
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <p className="text-xs text-gray-400">
+                Please ask the teacher to reset their password after first login.
+              </p>
+            </div>
+
+            <div className="border-t border-gray-100 px-6 py-4 flex justify-end bg-gray-50/50">
+              <button
+                onClick={() => setCredentialView(null)}
+                className="px-4 py-2 rounded-xl border border-gray-200 text-gray-700 hover:bg-gray-100 transition-colors text-sm font-medium"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
 
-export default Teachers
-
+export default Teachers;
