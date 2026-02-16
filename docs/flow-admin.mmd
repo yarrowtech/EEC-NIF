@@ -1,0 +1,28 @@
+flowchart TD
+    A([🛡️ School Admin]) --> B[Login Page\nPOST /api/admin/auth/login]
+    B --> C{First Login?}
+    C -->|Yes| D[Reset Password\n/reset-first-password]
+    D --> E
+    C -->|No| E[JWT Token • 1 day]
+    E --> F[[Admin Dashboard]]
+    F --> G[User Management\nCreate Student·Teacher·Parent\nPOST /admin/user-management]
+    F --> H[Fee Management\nStructures·Invoices·Payments\nGET·POST /fees]
+    F --> I[Timetable\nGET·POST /timetable]
+    F --> J[Exam Management\nCreate · Publish Results\nGET·POST /exams]
+    F --> K[Archived Students\nGET /students/archived]
+    F --> L[Wellbeing Tracking\nGET /wellbeing]
+    F --> M[Notifications\nGET /notifications]
+
+    style A fill:#1b5e20,color:#fff,stroke:#2e7d32
+    style B fill:#1565c0,color:#fff,stroke:#0d47a1
+    style C fill:#e65100,color:#fff,stroke:#bf360c
+    style D fill:#bf360c,color:#fff,stroke:#b71c1c
+    style E fill:#2e7d32,color:#fff,stroke:#1b5e20
+    style F fill:#4527a0,color:#fff,stroke:#311b92
+    style G fill:#263238,color:#cfd8dc,stroke:#546e7a
+    style H fill:#263238,color:#cfd8dc,stroke:#546e7a
+    style I fill:#263238,color:#cfd8dc,stroke:#546e7a
+    style J fill:#263238,color:#cfd8dc,stroke:#546e7a
+    style K fill:#263238,color:#cfd8dc,stroke:#546e7a
+    style L fill:#263238,color:#cfd8dc,stroke:#546e7a
+    style M fill:#263238,color:#cfd8dc,stroke:#546e7a

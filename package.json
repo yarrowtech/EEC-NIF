@@ -5,5 +5,11 @@
     "claude": "^0.1.1",
     "code": "^5.2.4",
     "three": "^0.179.1"
+  },
+  "devDependencies": {
+    "@mermaid-js/mermaid-cli": "^10.9.1",
+    "@resvg/resvg-js": "^2.6.1",
+    "jsdom": "^24.1.0",
+    "mermaid": "^10.9.1"
   }
 }

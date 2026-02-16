@@ -12,7 +12,14 @@
       "Bash(pip show:*)",
       "Bash(pip3 list:*)",
       "Bash(fc-list:*)",
-      "WebFetch(domain:localhost)"
+      "Bash(npx --yes @mermaid-js/mermaid-cli:*)",
+      "Bash(node scripts/render-mermaid.mjs:*)",
+      "Bash(mmdc:*)",
+      "Bash(npx mmdc:*)",
+      "Bash(npx mmdc --help:*)",
+      "Bash(for role in student teacher parent admin principal superadmin)",
+      "Bash(do npx mmdc -i \"docs/flow-$role.mmd\" -o \"docs/flow-$role.png\" -p \"docs/puppeteer-config.json\" -w 900 -H 1400 -s 2 -b white --quiet)",
+      "Bash(ls:*)"
     ]
   }
 }

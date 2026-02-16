@@ -1,0 +1,30 @@
+sequenceDiagram
+    autonumber
+    participant Admin as Admin Client
+    participant API as POST /admin/user-management/create-user
+    participant Auth as adminAuth middleware
+    participant Handler as Route handler
+    participant Policy as passwordPolicy.js
+    participant Codes as codeGenerator.js
+    participant Model as Mongoose User Model
+    participant Mongo as MongoDB
+
+    Admin->>API: role, username/password, schoolId?, campusId?, profile data
+    API->>Auth: Validate Bearer token
+    Auth-->>API: Attach admin, schoolId, campusId\n(or mark request as super admin)
+    API->>Handler: Invoke role-specific handler
+    Handler->>Policy: Validate password strength
+    Policy-->>Handler: ok / error
+    alt validation fails
+        Handler-->>Admin: 400 Bad Request
+    else validation ok
+        opt student/staff/teacher code paths
+            Handler->>Codes: getNextStudentSequence / getNextEmployeeSequence / getTeacherPrefix
+            Codes-->>Handler: Next sequence + generated code
+        end
+        Handler->>Model: new Model(payload)
+        Model->>Model: pre-save hook hashes password
+        Model->>Mongo: insertOne
+        Mongo-->>Handler: success
+        Handler-->>Admin: 201 Created
+    end

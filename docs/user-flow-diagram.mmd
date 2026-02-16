@@ -1,0 +1,107 @@
+flowchart TD
+    START([User opens App]) --> LOGIN_PAGE[Login Page\nSelect Role]
+
+    LOGIN_PAGE --> SA_LOGIN[Super Admin Login\nPOST /api/admin/auth/login]
+    LOGIN_PAGE --> ADMIN_LOGIN[School Admin Login\nPOST /api/admin/auth/login]
+    LOGIN_PAGE --> PRINCIPAL_LOGIN[Principal Login\nPOST /api/principal/auth/login]
+    LOGIN_PAGE --> TEACHER_LOGIN[Teacher Login\nPOST /api/teacher/auth/login]
+    LOGIN_PAGE --> PARENT_LOGIN[Parent Login\nPOST /api/parent/auth/login]
+    LOGIN_PAGE --> STUDENT_LOGIN[Student Login\nPOST /api/student/auth/login]
+
+    %% ─── SUPER ADMIN ───
+    SA_LOGIN --> SA_FIRST{First Login?}
+    SA_FIRST -->|Yes| SA_RESET[Reset Password\n/reset-first-password]
+    SA_FIRST -->|No| SA_TOKEN[JWT Token issued]
+    SA_TOKEN --> SA_DASH[Super Admin Dashboard]
+    SA_DASH --> SA_SCHOOLS[Manage Schools\nGET/POST /schools]
+    SA_DASH --> SA_ADMINS[Manage School Admins\nGET/POST /school-admins]
+    SA_DASH --> SA_NOTIFY[Send Credentials Email\nPOST /school-admins/notify-credentials]
+    SA_DASH --> SA_ANALYTICS[Platform Analytics\nGET /analytics]
+
+    %% ─── SCHOOL ADMIN ───
+    ADMIN_LOGIN --> ADMIN_FIRST{First Login?}
+    ADMIN_FIRST -->|Yes| ADMIN_RESET[Reset Password\n/reset-first-password]
+    ADMIN_FIRST -->|No| ADMIN_TOKEN[JWT Token issued]
+    ADMIN_TOKEN --> ADMIN_DASH[Admin Dashboard]
+    ADMIN_DASH --> ADMIN_USERS[User Management\nCreate Student / Teacher / Parent\nPOST /admin/user-management/create-user]
+    ADMIN_DASH --> ADMIN_FEES[Fee Management\nFee Structures · Invoices · Payments\nGET/POST /fees]
+    ADMIN_DASH --> ADMIN_TIMETABLE[Timetable Management\nGET/POST /timetable]
+    ADMIN_DASH --> ADMIN_EXAMS[Exam Management\nCreate · Publish Results\nGET/POST /exams]
+    ADMIN_DASH --> ADMIN_ARCHIVE[Archived Students\nGET /students/archived]
+    ADMIN_DASH --> ADMIN_WELLBEING[Wellbeing Tracking\nGET /wellbeing]
+
+    %% ─── PRINCIPAL ───
+    PRINCIPAL_LOGIN --> PRIN_TOKEN[JWT Token issued]
+    PRIN_TOKEN --> PRIN_DASH[Principal Dashboard\nSchool Overview]
+    PRIN_DASH --> PRIN_ACADEMIC[Academic Analytics\nGET /principal/academic-analytics]
+    PRIN_DASH --> PRIN_STUDENTS[Student Analytics\nGET /principal/student-analytics]
+    PRIN_DASH --> PRIN_STAFF[Staff Management\nGET /principal/staff]
+    PRIN_DASH --> PRIN_FINANCE[Financial Dashboard\nGET /principal/financial]
+    PRIN_DASH --> PRIN_COMMS[Communications\nNotification Centre]
+
+    %% ─── TEACHER ───
+    TEACHER_LOGIN --> TEACH_FIRST{First Login?}
+    TEACH_FIRST -->|Yes| TEACH_RESET[Reset Password\n/reset-first-password]
+    TEACH_FIRST -->|No| TEACH_TOKEN[JWT Token issued]
+    TEACH_TOKEN --> TEACH_DASH[Teacher Dashboard]
+    TEACH_DASH --> TEACH_PROFILE[My Profile\nGET/PUT /teacher/profile]
+    TEACH_DASH --> TEACH_ATTENDANCE[Mark Attendance\nPOST /attendance]
+    TEACH_DASH --> TEACH_ASSIGNMENT[Manage Assignments\nCreate · Grade\nGET/POST /assignments]
+    TEACH_DASH --> TEACH_LESSON[Lesson Plans\nCreate · Complete\nGET/POST /lesson-plans]
+    TEACH_DASH --> TEACH_PROGRESS[Student Progress\nGET /progress]
+    TEACH_DASH --> TEACH_OBSERVE[Student Observations\nPOST /observations]
+    TEACH_DASH --> TEACH_FEEDBACK[View My Feedback\nGET /teacher-feedback]
+    TEACH_DASH --> TEACH_AI[AI Teaching Tools\nLesson AI · Weak Student Detector]
+    TEACH_DASH --> TEACH_CHAT[Chat / Messages\nSocket.io Threads]
+
+    %% ─── PARENT ───
+    PARENT_LOGIN --> PAR_FIRST{First Login?}
+    PAR_FIRST -->|Yes| PAR_RESET[Reset Password\n/reset-first-password]
+    PAR_FIRST -->|No| PAR_TOKEN[JWT Token issued]
+    PAR_TOKEN --> PAR_DASH[Parent Dashboard]
+    PAR_DASH --> PAR_PROFILE[My Profile\nGET /parent/profile]
+    PAR_DASH --> PAR_ACADEMICS[Child Academics\nResults · Assignments\nGET /parent/academics]
+    PAR_DASH --> PAR_ROUTINE[Child Schedule\nGET /parent/routine]
+    PAR_DASH --> PAR_HEALTH[Health Reports\nGET /health-report]
+    PAR_DASH --> PAR_COMPLAINTS[Complaints\nView · Submit\nGET/POST /parent/complaints]
+    PAR_DASH --> PAR_CHAT[Chat with Teachers\nSocket.io Threads]
+    PAR_DASH --> PAR_NOTIFY[Notifications\nGET /notifications]
+
+    %% ─── STUDENT ───
+    STUDENT_LOGIN --> STU_FIRST{First Login?}
+    STU_FIRST -->|Yes| STU_RESET[Reset Password\n/reset-first-password]
+    STU_FIRST -->|No| STU_TOKEN[JWT Token issued\nHS256 · 1 day]
+    STU_TOKEN --> STU_DASH[Student Dashboard\nGET /student/dashboard]
+    STU_DASH --> STU_PROFILE[My Profile\nGET /student/profile]
+    STU_DASH --> STU_ATTENDANCE[My Attendance\nGET /student/attendance]
+    STU_DASH --> STU_ASSIGNMENTS[My Assignments\nGET /student/assignments]
+    STU_DASH --> STU_RESULTS[Exam Results\nGET /student/results]
+    STU_DASH --> STU_SCHEDULE[Class Schedule\nGET /student/schedule]
+    STU_DASH --> STU_JOURNAL[Personal Journal\nGET/POST/PUT/DELETE /student/journal]
+    STU_DASH --> STU_FEEDBACK[Rate My Teacher\nPOST /student/teacher-feedback]
+    STU_DASH --> STU_AI[AI Learning Tools\nQuiz Generator · Study AI\nPractice Tests · Flashcards]
+    STU_DASH --> STU_GAMES[Gamification\nMemory · Word Scramble\nQuick Math · Mind Maps]
+    STU_DASH --> STU_CHAT[Chat / Messages\nSocket.io Threads]
+
+    %% ─── STYLES ───
+    classDef startNode fill:#2d6a4f,color:#fff,stroke:#1b4332,stroke-width:2px
+    classDef loginNode fill:#1565c0,color:#fff,stroke:#0d47a1,stroke-width:2px
+    classDef tokenNode fill:#558b2f,color:#fff,stroke:#33691e,stroke-width:2px
+    classDef dashNode fill:#4527a0,color:#fff,stroke:#311b92,stroke-width:2px
+    classDef featureNode fill:#263238,color:#cfd8dc,stroke:#546e7a,stroke-width:1px
+    classDef resetNode fill:#e65100,color:#fff,stroke:#bf360c,stroke-width:2px
+    classDef decisionNode fill:#f57f17,color:#fff,stroke:#e65100,stroke-width:2px
+
+    class START startNode
+    class SA_LOGIN,ADMIN_LOGIN,PRINCIPAL_LOGIN,TEACHER_LOGIN,PARENT_LOGIN,STUDENT_LOGIN loginNode
+    class SA_TOKEN,ADMIN_TOKEN,PRIN_TOKEN,TEACH_TOKEN,PAR_TOKEN,STU_TOKEN tokenNode
+    class SA_DASH,ADMIN_DASH,PRIN_DASH,TEACH_DASH,PAR_DASH,STU_DASH dashNode
+    class SA_SCHOOLS,SA_ADMINS,SA_NOTIFY,SA_ANALYTICS featureNode
+    class ADMIN_USERS,ADMIN_FEES,ADMIN_TIMETABLE,ADMIN_EXAMS,ADMIN_ARCHIVE,ADMIN_WELLBEING featureNode
+    class PRIN_ACADEMIC,PRIN_STUDENTS,PRIN_STAFF,PRIN_FINANCE,PRIN_COMMS featureNode
+    class TEACH_PROFILE,TEACH_ATTENDANCE,TEACH_ASSIGNMENT,TEACH_LESSON,TEACH_PROGRESS,TEACH_OBSERVE,TEACH_FEEDBACK,TEACH_AI,TEACH_CHAT featureNode
+    class PAR_PROFILE,PAR_ACADEMICS,PAR_ROUTINE,PAR_HEALTH,PAR_COMPLAINTS,PAR_CHAT,PAR_NOTIFY featureNode
+    class STU_PROFILE,STU_ATTENDANCE,STU_ASSIGNMENTS,STU_RESULTS,STU_SCHEDULE,STU_JOURNAL,STU_FEEDBACK,STU_AI,STU_GAMES,STU_CHAT featureNode
+    class SA_FIRST,ADMIN_FIRST,TEACH_FIRST,PAR_FIRST,STU_FIRST decisionNode
+    class SA_RESET,ADMIN_RESET,TEACH_RESET,PAR_RESET,STU_RESET resetNode
+    class LOGIN_PAGE loginNode
