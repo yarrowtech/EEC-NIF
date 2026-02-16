@@ -283,12 +283,12 @@ const LoginForm = () => {
           <div className="space-y-2">
             <div className="flex justify-between items-center">
               <label className="text-sm font-semibold text-gray-700">Password</label>
-              <button
+              {/* <button
                 type="button"
                 className="text-sm text-yellow-600 hover:text-amber-700 transition-colors duration-200"
               >
                 Forgot password?
-              </button>
+              </button> */}
             </div>
             <div className="relative">
               <Lock className="absolute left-3 top-3 w-5 h-5 text-gray-400" />
