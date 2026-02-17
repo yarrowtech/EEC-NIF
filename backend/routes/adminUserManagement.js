@@ -501,7 +501,12 @@ router.get("/get-parents", adminAuth, async (req, res) => {
   // #swagger.tags = ['Admin Users']
   try {
     const filter = buildScopedFilter(req);
-    const parents = await ParentUser.find(filter);
+    const parents = await ParentUser.find(filter)
+      .populate({
+        path: 'childrenIds',
+        select: 'name grade section performance address pinCode',
+      })
+      .lean();
     res.status(200).json(parents);
   } catch (err) {
     res.status(500).json({ error: err.message });
