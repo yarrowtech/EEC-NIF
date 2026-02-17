@@ -34,7 +34,8 @@ import {
   ChevronLeft,
   ChevronRight,
   ChevronsLeft,
-  ChevronsRight
+  ChevronsRight,
+  X
 } from 'lucide-react';
 import CredentialGeneratorButton from '../components/CredentialGeneratorButton';
 import { useNavigate } from 'react-router-dom';
@@ -56,6 +57,10 @@ const ParentsManagement = ({setShowAdminHeader}) => {
   const [childActionLoadingId, setChildActionLoadingId] = useState('');
   const [parentActionLoadingId, setParentActionLoadingId] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editForm, setEditForm] = useState(null);
+  const [editSaving, setEditSaving] = useState(false);
+  const [editSaveError, setEditSaveError] = useState('');
 
   // Filter parents based on search and filters
   const filteredParents = parents.filter(parent => {
@@ -231,38 +236,53 @@ const ParentsManagement = ({setShowAdminHeader}) => {
     }
   };
 
-  const handleEditParent = async (parent) => {
-    if (!parent?.id) return;
-    const nextName = window.prompt('Edit parent name:', parent.name || '');
-    if (nextName === null) return;
-    const nextMobile = window.prompt('Edit parent mobile:', parent.mobile === '—' ? '' : parent.mobile || '');
-    if (nextMobile === null) return;
-    const nextEmail = window.prompt('Edit parent email:', parent.email === '—' ? '' : parent.email || '');
-    if (nextEmail === null) return;
+  const openEditModal = (parent) => {
+    setEditForm({
+      id: parent.id,
+      name: parent.name === '—' ? '' : parent.name || '',
+      email: parent.email === '—' ? '' : parent.email || '',
+      mobile: parent.mobile === '—' ? '' : parent.mobile || '',
+      relationship: parent.relationship === 'Parent' || parent.relationship === '—' ? '' : parent.relationship || '',
+      occupation: parent.occupation === '—' ? '' : parent.occupation || '',
+      address: parent.address === '—' ? '' : parent.address || '',
+      emergencyContact: parent.emergencyContact === '—' ? '' : parent.emergencyContact || '',
+      contactPreference: parent.contactPreference === '—' ? '' : parent.contactPreference || '',
+    });
+    setEditSaveError('');
+    setShowEditModal(true);
+  };
 
-    setParentActionLoadingId(String(parent.id));
+  const handleSaveEdit = async () => {
+    if (!editForm?.id) return;
+    setEditSaving(true);
+    setEditSaveError('');
     try {
-      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/admin/users/parents/${parent.id}`, {
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/admin/users/parents/${editForm.id}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
           authorization: `Bearer ${localStorage.getItem('token')}`,
         },
         body: JSON.stringify({
-          name: nextName.trim(),
-          mobile: nextMobile.trim(),
-          email: nextEmail.trim().toLowerCase(),
+          name: editForm.name.trim(),
+          email: editForm.email.trim().toLowerCase(),
+          mobile: editForm.mobile.trim(),
+          relationship: editForm.relationship,
+          occupation: editForm.occupation.trim(),
+          address: editForm.address.trim(),
+          emergencyContact: editForm.emergencyContact.trim(),
+          contactPreference: editForm.contactPreference,
         }),
       });
       const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        throw new Error(data?.error || 'Failed to update parent');
-      }
+      if (!res.ok) throw new Error(data?.error || 'Failed to update parent');
       await fetchParents();
+      setShowEditModal(false);
+      setEditForm(null);
     } catch (err) {
-      alert(err.message || 'Failed to update parent');
+      setEditSaveError(err.message || 'Failed to update parent');
     } finally {
-      setParentActionLoadingId('');
+      setEditSaving(false);
     }
   };
 
@@ -406,7 +426,6 @@ const ParentsManagement = ({setShowAdminHeader}) => {
                 <tr>
                   <th className="border-b border-green-100 px-6 py-3 text-left text-sm font-semibold text-green-800">Parent Info</th>
                   <th className="border-b border-green-100 px-6 py-3 text-left text-sm font-semibold text-green-800">Engagement</th>
-                  <th className="border-b border-green-100 px-6 py-3 text-left text-sm font-semibold text-green-800">Recent Activity</th>
                   <th className="border-b border-green-100 px-6 py-3 text-left text-sm font-semibold text-green-800">Children & Grades</th>
                   <th className="border-b border-green-100 px-6 py-3 text-left text-sm font-semibold text-green-800">Contact Info</th>
                   <th className="border-b border-green-100 px-6 py-3 text-left text-sm font-semibold text-green-800">Communication</th>
@@ -416,14 +435,14 @@ const ParentsManagement = ({setShowAdminHeader}) => {
               <tbody className="bg-white">
                 {isLoading ? (
                   <tr>
-                    <td colSpan={7} className="px-6 py-6 text-center text-sm text-gray-500">
+                    <td colSpan={6} className="px-6 py-6 text-center text-sm text-gray-500">
                       Loading parents...
                     </td>
                   </tr>
                 ) : null}
                 {!isLoading && filteredParents.length === 0 ? (
                   <tr>
-                    <td colSpan={7} className="px-6 py-6 text-center text-sm text-gray-500">
+                    <td colSpan={6} className="px-6 py-6 text-center text-sm text-gray-500">
                       No parents found.
                     </td>
                   </tr>
@@ -454,15 +473,6 @@ const ParentsManagement = ({setShowAdminHeader}) => {
                       <div className="space-y-2">
                         <div className="flex items-center gap-2">
                           <div className="flex items-center gap-1">
-                            <Activity size={14} className="text-green-600" />
-                            <span className="text-sm font-semibold text-green-600">
-                              {parent.engagementMetrics.communicationRate}%
-                            </span>
-                          </div>
-                          <span className="text-xs text-gray-500">Communication</span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <div className="flex items-center gap-1">
                             <Target size={14} className="text-blue-600" />
                             <span className="text-sm font-semibold text-blue-600">
                               {parent.engagementMetrics.eventAttendance}%
@@ -474,32 +484,6 @@ const ParentsManagement = ({setShowAdminHeader}) => {
                           {parent.engagementMetrics.totalInteractions} interactions
                         </div>
                       </div>
-                    </td>
-
-                    {/* Recent Activity */}
-                    <td className="px-6 py-4">
-                      {(() => {
-                        const activities = parent.recentActivities;
-                        if (activities.length === 0) {
-                          return <span className="text-sm text-gray-400 italic">No recent activity</span>;
-                        }
-                        return (
-                          <div className="space-y-1 max-w-[180px]">
-                            {activities.slice(0, 2).map((activity, idx) => (
-                              <div key={idx} className="flex items-center gap-2">
-                                <CheckCircle size={12} className="text-green-600" />
-                                <span className="text-xs text-gray-700">{activity.type}</span>
-                                {activity.status ? (
-                                  <span className="text-xs bg-green-100 text-green-800 px-1 rounded">{activity.status}</span>
-                                ) : null}
-                              </div>
-                            ))}
-                            {activities.length > 2 && (
-                              <div className="text-xs text-gray-500">+{activities.length - 2} more</div>
-                            )}
-                          </div>
-                        );
-                      })()}
                     </td>
 
                     {/* Children & Grades */}
@@ -605,9 +589,9 @@ const ParentsManagement = ({setShowAdminHeader}) => {
                         </button>
                         <button
                           type="button"
-                          onClick={() => handleEditParent(parent)}
+                          onClick={() => openEditModal(parent)}
                           disabled={parentActionLoadingId === String(parent.id)}
-                          className="text-orange-600 hover:text-orange-800 p-1 hover:bg-orange-50 rounded disabled:opacity-60" 
+                          className="text-orange-600 hover:text-orange-800 p-1 hover:bg-orange-50 rounded disabled:opacity-60"
                           title="Edit Parent Info"
                         >
                           <Edit2 size={14} />
@@ -741,6 +725,161 @@ const ParentsManagement = ({setShowAdminHeader}) => {
           </div>
         </div>
       </div>
+
+      {/* Edit Parent Modal */}
+      {showEditModal && editForm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-2xl rounded-xl bg-white shadow-xl border border-gray-200 overflow-hidden">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between px-6 py-4 bg-gradient-to-r from-green-600 to-emerald-600">
+              <div>
+                <h3 className="text-lg font-semibold text-white">Edit Parent</h3>
+                <p className="text-sm text-green-100 mt-0.5">Update parent information</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => { setShowEditModal(false); setEditForm(null); setEditSaveError(''); }}
+                className="p-1.5 rounded-lg text-white/80 hover:text-white hover:bg-white/20 transition"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="p-6 max-h-[70vh] overflow-y-auto">
+              {editSaveError && (
+                <div className="mb-4 px-4 py-3 rounded-lg bg-red-50 border border-red-200 text-sm text-red-700">
+                  {editSaveError}
+                </div>
+              )}
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {/* Full Name */}
+                <div className="sm:col-span-2">
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Full Name</label>
+                  <input
+                    type="text"
+                    value={editForm.name}
+                    onChange={(e) => setEditForm(f => ({ ...f, name: e.target.value }))}
+                    className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+                    placeholder="Parent full name"
+                  />
+                </div>
+
+                {/* Email */}
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Email</label>
+                  <input
+                    type="email"
+                    value={editForm.email}
+                    onChange={(e) => setEditForm(f => ({ ...f, email: e.target.value }))}
+                    className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+                    placeholder="email@example.com"
+                  />
+                </div>
+
+                {/* Mobile */}
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Mobile</label>
+                  <input
+                    type="text"
+                    value={editForm.mobile}
+                    onChange={(e) => setEditForm(f => ({ ...f, mobile: e.target.value }))}
+                    className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+                    placeholder="+91 XXXXX XXXXX"
+                  />
+                </div>
+
+                {/* Relationship */}
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Relationship</label>
+                  <select
+                    value={editForm.relationship}
+                    onChange={(e) => setEditForm(f => ({ ...f, relationship: e.target.value }))}
+                    className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-500 bg-white"
+                  >
+                    <option value="">Select relationship</option>
+                    <option value="Father">Father</option>
+                    <option value="Mother">Mother</option>
+                    <option value="Guardian">Guardian</option>
+                  </select>
+                </div>
+
+                {/* Occupation */}
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Occupation</label>
+                  <input
+                    type="text"
+                    value={editForm.occupation}
+                    onChange={(e) => setEditForm(f => ({ ...f, occupation: e.target.value }))}
+                    className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+                    placeholder="e.g. Engineer, Teacher..."
+                  />
+                </div>
+
+                {/* Emergency Contact */}
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Emergency Contact</label>
+                  <input
+                    type="text"
+                    value={editForm.emergencyContact}
+                    onChange={(e) => setEditForm(f => ({ ...f, emergencyContact: e.target.value }))}
+                    className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+                    placeholder="Emergency phone number"
+                  />
+                </div>
+
+                {/* Contact Preference */}
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Contact Preference</label>
+                  <select
+                    value={editForm.contactPreference}
+                    onChange={(e) => setEditForm(f => ({ ...f, contactPreference: e.target.value }))}
+                    className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-500 bg-white"
+                  >
+                    <option value="">Select preference</option>
+                    <option value="Phone">Phone</option>
+                    <option value="Email">Email</option>
+                    <option value="SMS">SMS</option>
+                    <option value="WhatsApp">WhatsApp</option>
+                  </select>
+                </div>
+
+                {/* Address */}
+                <div className="sm:col-span-2">
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Address</label>
+                  <textarea
+                    value={editForm.address}
+                    onChange={(e) => setEditForm(f => ({ ...f, address: e.target.value }))}
+                    rows={2}
+                    className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-500 resize-none"
+                    placeholder="Full address"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="px-6 py-4 bg-gray-50 border-t border-gray-100 flex items-center justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => { setShowEditModal(false); setEditForm(null); setEditSaveError(''); }}
+                className="px-4 py-2 text-sm rounded-lg border border-gray-200 text-gray-700 hover:bg-gray-100 transition"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleSaveEdit}
+                disabled={editSaving}
+                className="px-5 py-2 text-sm rounded-lg bg-green-600 text-white font-medium hover:bg-green-700 disabled:opacity-60 disabled:cursor-not-allowed transition"
+              >
+                {editSaving ? 'Saving...' : 'Save Changes'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {showChildrenModal && selectedParent && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">

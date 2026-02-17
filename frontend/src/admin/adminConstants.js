@@ -9,7 +9,6 @@ import {
   FileText,
   IndianRupee,
   Briefcase,
-  UserPlus,
   Brain,
   Settings,
   Receipt,
@@ -24,102 +23,20 @@ import {
 } from 'lucide-react';
 
 export const ADMIN_MENU_ITEMS = [
-  { 
-    icon: Home, 
-    label: 'Dashboard', 
+  {
+    icon: Home,
+    label: 'Dashboard',
     path: '/admin/dashboard',
-    active: true 
+    active: true
   },
-  { 
-    icon: BarChart3, 
-    label: 'Analytics', 
-    path: '/admin/analytics' 
+  {
+    icon: BarChart3,
+    label: 'Analytics',
+    path: '/admin/analytics'
   },
-  { 
-    icon: Building2, 
-    label: 'Schools', 
-    path: '/admin/schools',
-    scope: 'super'
-  },
-  { 
-    icon: Shield, 
-    label: 'School Admins', 
-    path: '/admin/school-admins',
-    scope: 'super'
-  },
-  { 
-    icon: Users, 
-    label: 'Teachers', 
-    path: '/admin/teachers' 
-  },
-  { 
-    icon: UserPlus, 
-    label: 'Staff', 
-    path: '/admin/staff' 
-  },
-  { 
-    icon: GraduationCap, 
-    label: 'Students', 
-    path: '/admin/students' 
-  },
-  { 
-    icon: Brain, 
-    label: 'Student Wellbeing', 
-    path: '/admin/wellbeing' 
-  },
-  { 
-    icon: UserCheck, 
-    label: 'Parents', 
-    path: '/admin/parents' 
-  },
-  { 
-    icon: Layers, 
-    label: 'Academic Setup', 
-    path: '/admin/academics' 
-  },
-  { 
-    icon: Calendar, 
-    label: 'Subjects', 
-    path: '/admin/subjects' 
-  },
-  { 
-    icon: ClipboardList, 
-    label: 'Student Attendance', 
-    path: '/admin/attendance' 
-  },
-  { 
-    icon: Calendar, 
-    label: 'Examination Management', 
-    path: '/admin/examination'
-  },
-  { 
-    icon: Calendar, 
-    label: 'Routines', 
-    path: '/admin/routine' 
-  },
-  { 
-    icon: Bell, 
-    label: 'Notices', 
-    path: '/admin/notices' 
-  },
-  { 
-    icon: Calendar, 
-    label: 'Teacher Timetable', 
-    path: '/admin/timetable' 
-  },
-  { 
-    icon: ClipboardList, 
-    label: 'Lesson Plan', 
-    path: '/admin/lesson-plans'
-  },
-  { 
-    icon: FileText, 
-    label: 'Result', 
-    path: '/admin/result' 
-  },
-  { 
-    icon: IndianRupee, 
-    label: 'Fees Management', 
+  {
+    icon: IndianRupee,
+    label: 'Fees Management',
     path: '/admin/fees/collection',
     hasSubmenu: true,
     submenu: [
@@ -140,16 +57,93 @@ export const ADMIN_MENU_ITEMS = [
       }
     ]
   },
-  { 
-    icon: Briefcase, 
-    label: 'HR', 
-    path: '/admin/hr' 
+  {
+    icon: Bell,
+    label: 'Notices',
+    path: '/admin/notices'
   },
-  { 
-    icon: LifeBuoy, 
-    label: 'Support', 
+  {
+    icon: GraduationCap,
+    label: 'Students',
+    path: '/admin/students'
+  },
+  {
+    icon: ClipboardList,
+    label: 'Student Attendance',
+    path: '/admin/attendance'
+  },
+  {
+    icon: Brain,
+    label: 'Student Wellbeing',
+    path: '/admin/wellbeing'
+  },
+  {
+    icon: Users,
+    label: 'Teachers',
+    path: '/admin/teachers'
+  },
+  {
+    icon: Calendar,
+    label: 'Teacher Timetable',
+    path: '/admin/timetable'
+  },
+  {
+    icon: UserCheck,
+    label: 'Parents',
+    path: '/admin/parents'
+  },
+  {
+    icon: Layers,
+    label: 'Academic Setup',
+    path: '/admin/academics'
+  },
+  {
+    icon: Calendar,
+    label: 'Subjects',
+    path: '/admin/subjects'
+  },
+  {
+    icon: Calendar,
+    label: 'Routines',
+    path: '/admin/routine'
+  },
+  {
+    icon: ClipboardList,
+    label: 'Lesson Plan',
+    path: '/admin/lesson-plans'
+  },
+  {
+    icon: Calendar,
+    label: 'Examination Management',
+    path: '/admin/examination'
+  },
+  {
+    icon: FileText,
+    label: 'Result',
+    path: '/admin/result'
+  },
+  {
+    icon: Briefcase,
+    label: 'HR',
+    path: '/admin/hr'
+  },
+  {
+    icon: LifeBuoy,
+    label: 'Support',
     path: '/admin/support'
-  }
+  },
+  {
+    icon: Building2,
+    label: 'Schools',
+    path: '/admin/schools',
+    scope: 'super'
+  },
+  {
+    icon: Shield,
+    label: 'School Admins',
+    path: '/admin/school-admins',
+    scope: 'super'
+  },
 ];
 
 export const ADMIN_EMPLOYEE_DATA = [
