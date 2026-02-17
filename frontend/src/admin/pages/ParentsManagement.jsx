@@ -916,7 +916,7 @@ const ParentsManagement = ({ setShowAdminHeader }) => {
             </div>
 
             {/* Body */}
-            <div className="flex-1 overflow-y-auto -mt-5">
+            <div className="flex-1 overflow-y-auto mt-5">
               <div className="bg-white rounded-t-2xl px-6 pt-5 pb-6">
                 {(selectedParent.childrenDetails || []).length === 0 ? (
                   <div className="text-center py-10">
