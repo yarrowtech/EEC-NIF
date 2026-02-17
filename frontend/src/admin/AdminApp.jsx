@@ -26,11 +26,21 @@ import SchoolRegistrations from './pages/SchoolRegistrations';
 import SuperAdminDashboard from './pages/SuperAdminDashboard';
 import Support from './pages/Support';
 import NoticeManagement from './pages/NoticeManagement';
+import AdminSettings from './pages/AdminSettings';
 import { useState, useEffect, useMemo } from 'react';
 import { ADMIN_MENU_ITEMS } from './adminConstants';
 import { ensureAdminFetchScope, syncScopeFromProfile } from './utils/adminScope';
 
 ensureAdminFetchScope();
+
+const resolveLogoUrl = (logo) => {
+  if (!logo) return '';
+  if (typeof logo === 'string') return logo;
+  if (typeof logo === 'object') {
+    return logo.secure_url || logo.url || logo.path || '';
+  }
+  return '';
+};
 
 const AdminApp = () => {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
@@ -59,8 +69,38 @@ const AdminApp = () => {
         });
         if (!res.ok) return;
         const data = await res.json();
-        setAdminProfile(data);
-        syncScopeFromProfile(data);
+        let schoolDetails = {};
+
+        if (data?.role === 'admin') {
+          try {
+            const schoolRes = await fetch(`${import.meta.env.VITE_API_URL}/api/schools`, {
+              method: 'GET',
+              headers: {
+                authorization: `Bearer ${token}`,
+              },
+            });
+
+            if (schoolRes.ok) {
+              const schoolList = await schoolRes.json();
+              const schools = Array.isArray(schoolList) ? schoolList : [];
+              const matchedSchool =
+                schools.find((school) => String(school?._id) === String(data?.schoolId)) || schools[0];
+
+              if (matchedSchool) {
+                schoolDetails = {
+                  schoolName: matchedSchool.name || '',
+                  schoolLogo: resolveLogoUrl(matchedSchool.logo),
+                };
+              }
+            }
+          } catch (schoolErr) {
+            console.error('Failed to load school details', schoolErr);
+          }
+        }
+
+        const profileWithSchool = { ...data, ...schoolDetails };
+        setAdminProfile(profileWithSchool);
+        syncScopeFromProfile(profileWithSchool);
       } catch (err) {
         console.error('Failed to load admin profile', err);
       }
@@ -86,6 +126,8 @@ const AdminApp = () => {
     name: adminProfile?.name || 'Admin User',
     role: isSuperAdmin ? 'SUPER ADMIN' : 'School Admin',
     avatar: adminProfile?.avatar || '',
+    schoolName: adminProfile?.schoolName || '',
+    schoolLogo: adminProfile?.schoolLogo || '',
     campusName: adminProfile?.campusName || '',
     campusType: adminProfile?.campusType || ''
   };
@@ -144,6 +186,7 @@ const AdminApp = () => {
         <Route path="support" element={<Support setShowAdminHeader={setShowAdminHeader} />} />
         <Route path="notices" element={<NoticeManagement setShowAdminHeader={setShowAdminHeader} />} />
         <Route path="school-registrations" element={<SchoolRegistrations setShowAdminHeader={setShowAdminHeader} />} />
+        <Route path="settings" element={<AdminSettings setShowAdminHeader={setShowAdminHeader} />} />
       </Routes>
     </AdminLayout>
   );

@@ -21,6 +21,10 @@ const AdminHeader = ({ adminUser }) => {
   const [showNotifications, setShowNotifications] = useState(false);
   const navigate = useNavigate();
   const [now, setNow] = useState(new Date());
+  const isSuperAdmin = String(adminUser?.role || '').toLowerCase() === 'super admin';
+  const schoolLogoSrc = adminUser?.schoolLogo || '';
+  const schoolName = adminUser?.schoolName || '';
+  const profileInitial = adminUser?.name?.charAt(0) || 'A';
 
   useEffect(() => {
     const t = setInterval(() => setNow(new Date()), 1000);
@@ -67,6 +71,22 @@ const AdminHeader = ({ adminUser }) => {
                 {now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
               </span>
             </div>
+
+            {!isSuperAdmin && (schoolLogoSrc || schoolName) && (
+              <div className="hidden lg:flex items-center gap-2 px-3 py-2 rounded-xl bg-gray-50 border border-gray-100">
+                <div className="w-8 h-8 rounded-lg bg-white border border-gray-200 overflow-hidden flex items-center justify-center">
+                  {schoolLogoSrc ? (
+                    <img src={schoolLogoSrc} alt={schoolName || 'School logo'} className="w-full h-full object-cover" />
+                  ) : (
+                    <span className="text-xs font-semibold text-gray-500">
+                      {(schoolName || 'SC').slice(0, 2).toUpperCase()}
+                    </span>
+                  )}
+                </div>
+                <span className="text-sm font-medium text-gray-700 max-w-[180px] truncate">{schoolName}</span>
+              </div>
+            )}
+
             <div className="relative">
               <button 
                 className="p-3 hover:bg-gray-100 rounded-xl text-gray-600 relative border border-gray-100"
@@ -105,10 +125,18 @@ const AdminHeader = ({ adminUser }) => {
                 className="flex items-center gap-2 hover:bg-gray-50 rounded-2xl py-2 px-3 border border-gray-100"
                 onClick={() => setShowProfileMenu(!showProfileMenu)}
               >
-                <div className="w-8 h-8 rounded-full bg-yellow-100 flex items-center justify-center">
-                  <span className="text-yellow-700 font-semibold text-sm">
-                    {adminUser?.name?.charAt(0) || 'A'}
-                  </span>
+                <div className="w-8 h-8 rounded-full bg-yellow-100 flex items-center justify-center overflow-hidden border border-white">
+                  {!isSuperAdmin && schoolLogoSrc ? (
+                    <img
+                      src={schoolLogoSrc}
+                      alt={schoolName || 'School logo'}
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <span className="text-yellow-700 font-semibold text-sm">
+                      {profileInitial}
+                    </span>
+                  )}
                 </div>
                 <div className="hidden md:block text-left">
                   <p className="text-sm font-medium text-gray-700">
@@ -121,7 +149,13 @@ const AdminHeader = ({ adminUser }) => {
 
               {showProfileMenu && (
                 <div className="absolute right-0 mt-2 w-48 bg-white rounded-xl shadow-lg border border-gray-200 py-2 z-50">
-                  <button className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2">
+                  <button
+                    className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2"
+                    onClick={() => {
+                      setShowProfileMenu(false);
+                      navigate('/admin/settings');
+                    }}
+                  >
                     <Settings size={16} className="text-gray-400" />
                     Settings
                   </button>

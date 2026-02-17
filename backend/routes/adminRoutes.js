@@ -205,6 +205,132 @@ router.post("/profile", adminAuth, async (req, res) => {
     }
 })
 
+router.get('/settings', adminAuth, async (req, res) => {
+  // #swagger.tags = ['Admin Auth']
+  try {
+    const admin = await Admin.findById(req.admin.id).select('-password').lean();
+    if (!admin) {
+      return res.status(404).json({ error: 'Admin not found' });
+    }
+
+    let school = null;
+    if (admin.role === 'admin' && admin.schoolId) {
+      school = await School.findById(admin.schoolId).lean();
+    }
+
+    return res.json({ admin, school });
+  } catch (err) {
+    return res.status(500).json({ error: err.message || 'Server error' });
+  }
+});
+
+router.put('/settings', adminAuth, async (req, res) => {
+  // #swagger.tags = ['Admin Auth']
+  try {
+    const admin = await Admin.findById(req.admin.id);
+    if (!admin) {
+      return res.status(404).json({ error: 'Admin not found' });
+    }
+
+    const adminPayload = req.body?.admin || {};
+    const schoolPayload = req.body?.school || {};
+
+    const nextUsername = typeof adminPayload.username === 'string' ? adminPayload.username.trim() : undefined;
+    const nextName = typeof adminPayload.name === 'string' ? adminPayload.name.trim() : undefined;
+    const nextEmail = typeof adminPayload.email === 'string' ? adminPayload.email.trim() : undefined;
+    const nextAvatar = typeof adminPayload.avatar === 'string' ? adminPayload.avatar.trim() : undefined;
+    const nextCampusName = typeof adminPayload.campusName === 'string' ? adminPayload.campusName.trim() : undefined;
+    const nextCampusType = typeof adminPayload.campusType === 'string' ? adminPayload.campusType.trim() : undefined;
+    const currentPassword = typeof adminPayload.currentPassword === 'string'
+      ? adminPayload.currentPassword
+      : (typeof req.body?.currentPassword === 'string' ? req.body.currentPassword : '');
+    const newPassword = typeof adminPayload.newPassword === 'string'
+      ? adminPayload.newPassword
+      : (typeof req.body?.newPassword === 'string' ? req.body.newPassword : '');
+
+    if (nextUsername !== undefined && nextUsername !== admin.username) {
+      if (!nextUsername) {
+        return res.status(400).json({ error: 'Username cannot be empty' });
+      }
+      const usernameTaken = await Admin.exists({ username: nextUsername, _id: { $ne: admin._id } });
+      if (usernameTaken) {
+        return res.status(409).json({ error: 'Username already in use' });
+      }
+      admin.username = nextUsername;
+    }
+
+    if (nextName !== undefined) admin.name = nextName;
+    if (nextEmail !== undefined) admin.email = nextEmail;
+    if (nextAvatar !== undefined) admin.avatar = nextAvatar;
+    if (nextCampusName !== undefined) admin.campusName = nextCampusName || null;
+    if (nextCampusType !== undefined) admin.campusType = nextCampusType || null;
+
+    if (newPassword) {
+      if (!currentPassword) {
+        return res.status(400).json({ error: 'Current password is required to set a new password' });
+      }
+      const validCurrentPassword = await bcrypt.compare(currentPassword, admin.password);
+      if (!validCurrentPassword) {
+        return res.status(401).json({ error: 'Current password is incorrect' });
+      }
+      if (!isStrongPassword(newPassword)) {
+        return res.status(400).json({ error: passwordPolicyMessage });
+      }
+      admin.password = newPassword;
+    }
+
+    await admin.save();
+
+    let updatedSchool = null;
+    if (admin.role === 'admin' && admin.schoolId) {
+      const school = await School.findById(admin.schoolId);
+      if (school) {
+        const assignIfString = (key) => {
+          if (typeof schoolPayload[key] === 'string') {
+            school[key] = schoolPayload[key].trim();
+          }
+        };
+
+        assignIfString('name');
+        assignIfString('address');
+        assignIfString('contactEmail');
+        assignIfString('contactPhone');
+        assignIfString('officialEmail');
+        assignIfString('contactPersonName');
+        assignIfString('schoolType');
+        assignIfString('board');
+        assignIfString('boardOther');
+        assignIfString('academicYearStructure');
+        assignIfString('estimatedUsers');
+        assignIfString('websiteURL');
+        assignIfString('campusName');
+
+        if (schoolPayload.logo !== undefined) {
+          if (typeof schoolPayload.logo === 'string') {
+            school.logo = {
+              ...(school.logo || {}),
+              secure_url: schoolPayload.logo.trim(),
+            };
+          } else if (schoolPayload.logo && typeof schoolPayload.logo === 'object') {
+            school.logo = {
+              ...(school.logo || {}),
+              ...schoolPayload.logo,
+            };
+          }
+        }
+
+        await school.save();
+        updatedSchool = school.toObject();
+      }
+    }
+
+    const updatedAdmin = await Admin.findById(admin._id).select('-password').lean();
+    return res.json({ admin: updatedAdmin, school: updatedSchool });
+  } catch (err) {
+    return res.status(500).json({ error: err.message || 'Unable to update settings' });
+  }
+});
+
 // Create a school admin (super admin only)
 const resolveAvatarValue = (avatar) => {
   if (!avatar) return undefined;

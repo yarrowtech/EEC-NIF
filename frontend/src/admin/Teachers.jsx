@@ -26,6 +26,8 @@ import {
 } from 'lucide-react';
 import CredentialGeneratorButton from './components/CredentialGeneratorButton';
 
+const TEACHERS_CACHE_PREFIX = 'admin_teachers_cache_v1';
+
 const AVATAR_COLORS = [
   { bg: 'bg-violet-100', text: 'text-violet-700' },
   { bg: 'bg-blue-100', text: 'text-blue-700' },
@@ -42,8 +44,41 @@ const getAvatarColor = (name) => {
   return AVATAR_COLORS[hash % AVATAR_COLORS.length];
 };
 
+const resolveImageUrl = (value) => {
+  if (!value) return '';
+  if (typeof value === 'string') return value;
+  if (typeof value === 'object') {
+    return value.secure_url || value.url || value.path || '';
+  }
+  return '';
+};
+
+const getTodayDayName = () =>
+  new Date().toLocaleDateString('en-US', { weekday: 'long' });
+
+const getTodayCacheDateKey = () => {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+};
+
+const formatScheduleMeta = (entry) => {
+  const classLabel = [entry?.className, entry?.sectionName].filter(Boolean).join('-');
+  const timeLabel = [entry?.startTime, entry?.endTime].filter(Boolean).join('-');
+  return [classLabel, timeLabel].filter(Boolean).join(' ');
+};
+
 const inputClass =
   'w-full rounded-xl border border-gray-200 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:border-transparent transition-all bg-white';
+
+const resolveTeacherStatus = (teacher, todayCheckedInTeacherIds, attendanceLoaded) => {
+  if (attendanceLoaded) {
+    const teacherId = String(teacher?._id || teacher?.id || '');
+    return todayCheckedInTeacherIds.has(teacherId) ? 'Active' : 'On Leave';
+  }
+  const rawStatus = String(teacher?.status || '').trim().toLowerCase();
+  if (rawStatus === 'on leave' || rawStatus === 'leave' || rawStatus === 'absent') return 'On Leave';
+  return 'Active';
+};
 
 const Teachers = ({setShowAdminHeader}) => {
   const [searchTerm, setSearchTerm] = useState('');
@@ -53,9 +88,11 @@ const Teachers = ({setShowAdminHeader}) => {
   const [submitStatus, setSubmitStatus] = useState(null);
   const [credentialLoadingId, setCredentialLoadingId] = useState(null);
   const [deletingTeacherId, setDeletingTeacherId] = useState(null);
+  const [deleteConfirmTeacher, setDeleteConfirmTeacher] = useState(null);
   const [credentialView, setCredentialView] = useState(null);
   const [copiedField, setCopiedField] = useState(null);
   const [viewTeacher, setViewTeacher] = useState(null);
+  const [scheduleModal, setScheduleModal] = useState(null);
 
   // Pagination states
   const [currentPage, setCurrentPage] = useState(1);
@@ -101,18 +138,99 @@ const Teachers = ({setShowAdminHeader}) => {
   const nextPage = () => setCurrentPage(prev => Math.min(prev + 1, totalPages));
   const prevPage = () => setCurrentPage(prev => Math.max(prev - 1, 1));
 
-  const fetchTeachers = async () => {
-    const res = await fetch(`${import.meta.env.VITE_API_URL}/api/admin/users/get-teachers`, {
-      method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-        'authorization': `Bearer ${localStorage.getItem('token')}`
+  const getTeachersCacheKey = () => {
+    const token = localStorage.getItem('token');
+    const dayKey = getTodayCacheDateKey();
+    if (!token) return `${TEACHERS_CACHE_PREFIX}_anonymous_${dayKey}`;
+    try {
+      const base64 = token.split('.')[1]?.replace(/-/g, '+').replace(/_/g, '/');
+      const payload = JSON.parse(atob(base64));
+      const adminId = payload?.id || 'unknown';
+      const schoolId = payload?.schoolId || 'school';
+      const campusId = payload?.campusId || 'campus';
+      return `${TEACHERS_CACHE_PREFIX}_${adminId}_${schoolId}_${campusId}_${dayKey}`;
+    } catch {
+      return `${TEACHERS_CACHE_PREFIX}_fallback_${dayKey}`;
+    }
+  };
+
+  const fetchTeachers = async ({ useCache = false } = {}) => {
+    if (useCache) {
+      try {
+        const cachedRaw = sessionStorage.getItem(getTeachersCacheKey());
+        if (cachedRaw) {
+          const cached = JSON.parse(cachedRaw);
+          if (Array.isArray(cached?.teachers)) {
+            setTeachers(cached.teachers);
+            return;
+          }
+        }
+      } catch (err) {
+        console.warn('Unable to read teachers cache', err);
       }
-    });
-    if (!res.ok) {
+    }
+
+    const token = localStorage.getItem('token');
+    const headers = {
+      'Content-Type': 'application/json',
+      authorization: `Bearer ${token}`
+    };
+
+    const now = new Date();
+    const monthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    const todayKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+    const todayDayName = getTodayDayName();
+
+    const [teachersRes, attendanceRes, timetableRes] = await Promise.all([
+      fetch(`${import.meta.env.VITE_API_URL}/api/admin/users/get-teachers`, {
+        method: 'GET',
+        headers
+      }),
+      fetch(`${import.meta.env.VITE_API_URL}/api/admin/users/teacher-attendance?month=${encodeURIComponent(monthKey)}`, {
+        method: 'GET',
+        headers
+      }),
+      fetch(`${import.meta.env.VITE_API_URL}/api/timetable/all`, {
+        method: 'GET',
+        headers
+      })
+    ]);
+
+    if (!teachersRes.ok) {
       throw new Error('Failed to fetch teachers');
     }
-    const data = await res.json();
+
+    const data = await teachersRes.json();
+    const attendanceData = attendanceRes.ok ? await attendanceRes.json().catch(() => ({})) : {};
+    const timetableData = timetableRes.ok ? await timetableRes.json().catch(() => []) : [];
+    const todayCheckedInTeacherIds = new Set(
+      (Array.isArray(attendanceData?.records) ? attendanceData.records : [])
+        .filter((record) => record?.date === todayKey && record?.checkInAt)
+        .map((record) => String(record?.teacherId))
+    );
+    const attendanceLoaded = attendanceRes.ok;
+    const scheduleByTeacherId = new Map();
+
+    (Array.isArray(timetableData) ? timetableData : []).forEach((timetable) => {
+      const className = timetable?.classId?.name || '';
+      const sectionName = timetable?.sectionId?.name || '';
+      (Array.isArray(timetable?.entries) ? timetable.entries : []).forEach((entry) => {
+        if (!entry?.teacherId || !entry?.dayOfWeek) return;
+        if (String(entry.dayOfWeek).toLowerCase() !== todayDayName.toLowerCase()) return;
+        const teacherId = String(entry.teacherId?._id || entry.teacherId);
+        if (!teacherId) return;
+        if (!scheduleByTeacherId.has(teacherId)) scheduleByTeacherId.set(teacherId, []);
+        scheduleByTeacherId.get(teacherId).push({
+          period: entry.period,
+          startTime: entry.startTime || '',
+          endTime: entry.endTime || '',
+          subjectName: entry?.subjectId?.name || '',
+          className,
+          sectionName,
+        });
+      });
+    });
+
     const normalized = (Array.isArray(data) ? data : []).map((teacher, idx) => ({
       ...teacher,
       id: teacher._id || teacher.id || idx,
@@ -124,9 +242,20 @@ const Teachers = ({setShowAdminHeader}) => {
       qualification: teacher.qualification || '-',
       joiningDate: teacher.joiningDate || teacher.joinDate || '',
       empId: teacher.employeeCode || teacher.empId || '-',
-      status: teacher.status || 'Active'
+      profilePic: resolveImageUrl(teacher.profilePic || teacher.avatar || teacher.photo),
+      scheduleTodayEntries: [...(scheduleByTeacherId.get(String(teacher._id || teacher.id || '')) || [])]
+        .sort((a, b) => (Number(a.period) || 0) - (Number(b.period) || 0)),
+      status: resolveTeacherStatus(teacher, todayCheckedInTeacherIds, attendanceLoaded)
     }));
     setTeachers(normalized);
+    try {
+      sessionStorage.setItem(
+        getTeachersCacheKey(),
+        JSON.stringify({ teachers: normalized, cachedAt: Date.now() })
+      );
+    } catch (err) {
+      console.warn('Unable to cache teachers data', err);
+    }
   };
 
   // Reset pagination when filters change
@@ -137,7 +266,7 @@ const Teachers = ({setShowAdminHeader}) => {
   // making the admin header invisible
   useEffect(() => {
     setShowAdminHeader(false)
-    fetchTeachers().catch(err => {
+    fetchTeachers({ useCache: true }).catch(err => {
       console.error("Error fetching teachers:", err);
     });
   }, [setShowAdminHeader])
@@ -238,8 +367,6 @@ const Teachers = ({setShowAdminHeader}) => {
   const handleDeleteTeacher = async (teacher) => {
     const teacherId = teacher?._id || teacher?.id;
     if (!teacherId || deletingTeacherId) return;
-    const confirmed = window.confirm(`Delete teacher ${teacher.name || ''}?`);
-    if (!confirmed) return;
 
     setDeletingTeacherId(teacherId);
     try {
@@ -262,6 +389,7 @@ const Teachers = ({setShowAdminHeader}) => {
       setSubmitStatus({ type: 'error', message: error.message || 'Unable to delete teacher' });
     } finally {
       setDeletingTeacherId(null);
+      setDeleteConfirmTeacher(null);
     }
   };
 
@@ -282,13 +410,13 @@ const Teachers = ({setShowAdminHeader}) => {
               </div>
             </div>
             <div className="flex items-center gap-3">
-              <CredentialGeneratorButton
+              {/* <CredentialGeneratorButton
                 buttonText="Generate Teacher ID"
                 defaultRole="Teacher"
                 allowRoleSelection={false}
                 size="sm"
                 buttonClassName="bg-white text-gray-700 border border-gray-200 hover:bg-gray-50 shadow-sm"
-              />
+              /> */}
               <button
                 onClick={() => setShowAddForm(true)}
                 className="inline-flex items-center gap-2 bg-gradient-to-r from-indigo-600 to-purple-600 text-white px-4 py-2.5 rounded-xl hover:from-indigo-700 hover:to-purple-700 transition-all shadow-md shadow-indigo-200 text-sm font-medium"
@@ -395,7 +523,8 @@ const Teachers = ({setShowAdminHeader}) => {
                   <th className="px-6 py-3.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Teacher</th>
                   <th className="px-6 py-3.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Contact</th>
                   <th className="px-6 py-3.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Subject & Dept</th>
-                  <th className="px-6 py-3.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Qualification</th>
+                  <th className="px-6 py-3.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Scheduled Today</th>
+                  {/* <th className="px-6 py-3.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Qualification</th> */}
                   <th className="px-6 py-3.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Status</th>
                   <th className="px-6 py-3.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Actions</th>
                 </tr>
@@ -403,12 +532,21 @@ const Teachers = ({setShowAdminHeader}) => {
               <tbody className="divide-y divide-gray-50">
                 {currentTeachers.map((teacher) => {
                   const avatarColor = getAvatarColor(teacher.name);
+                  const teacherInitials = (teacher.name || 'NA').split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase();
                   return (
                     <tr key={teacher._id || teacher.id} className="hover:bg-indigo-50/30 transition-colors">
                       <td className="px-6 py-4">
                         <div className="flex items-center gap-3">
-                          <div className={`w-9 h-9 rounded-xl ${avatarColor.bg} flex items-center justify-center text-sm font-bold ${avatarColor.text} flex-shrink-0`}>
-                            {(teacher.name || 'NA').split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()}
+                          <div className={`w-9 h-9 rounded-xl ${avatarColor.bg} flex items-center justify-center text-sm font-bold ${avatarColor.text} flex-shrink-0 overflow-hidden`}>
+                            {teacher.profilePic ? (
+                              <img
+                                src={teacher.profilePic}
+                                alt={teacher.name || 'Teacher'}
+                                className="w-full h-full object-cover"
+                              />
+                            ) : (
+                              teacherInitials
+                            )}
                           </div>
                           <div>
                             <div className="text-sm font-semibold text-gray-900">{teacher.name}</div>
@@ -440,11 +578,34 @@ const Teachers = ({setShowAdminHeader}) => {
                         </div>
                       </td>
                       <td className="px-6 py-4">
+                        {teacher.scheduleTodayEntries?.length ? (
+                          <div className="space-y-2 min-w-[250px]">
+                            {teacher.scheduleTodayEntries.slice(0, 1).map((entry, idx) => (
+                              <div key={`${teacher.id || teacher._id}-sched-${idx}`} className="text-sm">
+                                <div className="font-medium text-gray-800">{entry.subjectName || 'Class'}</div>
+                                <div className="text-xs text-gray-500">({formatScheduleMeta(entry)})</div>
+                              </div>
+                            ))}
+                            {teacher.scheduleTodayEntries.length > 1 && (
+                              <button
+                                type="button"
+                                onClick={() => setScheduleModal({ teacherName: teacher.name, entries: teacher.scheduleTodayEntries })}
+                                className="text-xs font-semibold text-indigo-600 hover:text-indigo-700 hover:underline"
+                              >
+                                More ({teacher.scheduleTodayEntries.length - 1})
+                              </button>
+                            )}
+                          </div>
+                        ) : (
+                          <div className="text-sm text-gray-400">No classes scheduled</div>
+                        )}
+                      </td>
+                      {/* <td className="px-6 py-4">
                         <div className="text-sm font-medium text-gray-800">{teacher.qualification || '-'}</div>
                         <div className="text-xs text-gray-400 mt-0.5">
                           Joined: {teacher.joiningDate ? new Date(teacher.joiningDate).toLocaleDateString() : '-'}
                         </div>
-                      </td>
+                      </td> */}
                       <td className="px-6 py-4">
                         <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold
                           ${teacher.status === 'Active'
@@ -463,14 +624,14 @@ const Teachers = ({setShowAdminHeader}) => {
                           >
                             <Eye size={15} />
                           </button>
-                          <button
+                          {/* <button
                             className="p-1.5 rounded-lg text-slate-400 hover:text-teal-600 hover:bg-teal-50 transition-all"
                             title="Generate Credentials"
                             onClick={() => handleViewCredentials(teacher)}
                             disabled={credentialLoadingId === (teacher._id || teacher.id)}
                           >
                             <KeyRound size={15} />
-                          </button>
+                          </button> */}
                           <button
                             className="p-1.5 rounded-lg text-slate-400 hover:text-amber-600 hover:bg-amber-50 transition-all"
                             title="Edit"
@@ -480,7 +641,7 @@ const Teachers = ({setShowAdminHeader}) => {
                           <button
                             className="p-1.5 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 transition-all disabled:opacity-40"
                             title="Delete"
-                            onClick={() => handleDeleteTeacher(teacher)}
+                            onClick={() => setDeleteConfirmTeacher(teacher)}
                             disabled={deletingTeacherId === (teacher._id || teacher.id)}
                           >
                             <Trash2 size={15} />
@@ -672,8 +833,16 @@ const Teachers = ({setShowAdminHeader}) => {
                 <XCircle size={18} />
               </button>
               <div className="flex items-center gap-4">
-                <div className={`w-16 h-16 rounded-2xl flex items-center justify-center text-2xl font-bold shadow-lg flex-shrink-0 ${getAvatarColor(viewTeacher.name).bg} ${getAvatarColor(viewTeacher.name).text}`}>
-                  {(viewTeacher.name || 'NA').split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()}
+                <div className={`w-16 h-16 rounded-2xl flex items-center justify-center text-2xl font-bold shadow-lg flex-shrink-0 ${getAvatarColor(viewTeacher.name).bg} ${getAvatarColor(viewTeacher.name).text} overflow-hidden`}>
+                  {viewTeacher.profilePic ? (
+                    <img
+                      src={viewTeacher.profilePic}
+                      alt={viewTeacher.name || 'Teacher'}
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    (viewTeacher.name || 'NA').split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()
+                  )}
                 </div>
                 <div>
                   <h2 className="text-xl font-bold text-white">{viewTeacher.name}</h2>
@@ -690,7 +859,7 @@ const Teachers = ({setShowAdminHeader}) => {
             </div>
 
             {/* Body — pulls up over the gradient */}
-            <div className="overflow-y-auto -mt-5">
+            <div className="overflow-y-auto mt-5">
               <div className="bg-white rounded-t-2xl px-6 pt-5 pb-6 space-y-5">
 
                 {/* Contact Info */}
@@ -801,8 +970,8 @@ const Teachers = ({setShowAdminHeader}) => {
                 <div className="border-t border-gray-100" />
 
                 {/* Footer Actions */}
-                <div className="flex items-center justify-between gap-3 pt-1">
-                  <button
+                <div className="flex items-center justify-end gap-3 pt-1">
+                  {/* <button
                     onClick={() => {
                       setViewTeacher(null);
                       handleViewCredentials(viewTeacher);
@@ -811,7 +980,7 @@ const Teachers = ({setShowAdminHeader}) => {
                   >
                     <KeyRound size={15} />
                     Generate Credentials
-                  </button>
+                  </button> */}
                   <button
                     onClick={() => setViewTeacher(null)}
                     className="px-4 py-2 rounded-xl border border-gray-200 text-gray-700 hover:bg-gray-50 transition-colors text-sm font-medium"
@@ -825,7 +994,89 @@ const Teachers = ({setShowAdminHeader}) => {
         </div>
       )}
 
+      {/* Schedule Details Modal */}
+      {scheduleModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden max-h-[90vh] flex flex-col">
+            <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
+              <div>
+                <h2 className="text-lg font-bold text-gray-900">Today's Schedule</h2>
+                <p className="text-sm text-gray-500">{scheduleModal.teacherName}</p>
+              </div>
+              <button
+                onClick={() => setScheduleModal(null)}
+                className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-all"
+              >
+                <XCircle size={18} />
+              </button>
+            </div>
+
+            <div className="p-6 overflow-y-auto">
+              <div className="space-y-3">
+                {scheduleModal.entries.map((entry, idx) => (
+                  <div key={`schedule-modal-${idx}`} className="rounded-xl border border-gray-200 bg-gray-50 px-4 py-3">
+                    <div className="text-sm font-semibold text-gray-900">{entry.subjectName || 'Class'}</div>
+                    <div className="text-xs text-gray-500 mt-1">({formatScheduleMeta(entry)})</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="px-6 py-4 border-t border-gray-100 flex justify-end">
+              <button
+                onClick={() => setScheduleModal(null)}
+                className="px-4 py-2 rounded-xl border border-gray-200 text-gray-700 hover:bg-gray-50 transition-colors text-sm font-medium"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Credentials Modal */}
+      {/* Delete Confirmation Modal */}
+      {deleteConfirmTeacher && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden">
+            <div className="px-6 pt-6 pb-4 text-center">
+              <div className="w-14 h-14 rounded-2xl bg-red-50 flex items-center justify-center mx-auto mb-4">
+                <Trash2 size={24} className="text-red-500" />
+              </div>
+              <h3 className="text-lg font-bold text-gray-900">Delete Teacher</h3>
+              <p className="text-sm text-gray-500 mt-2">
+                Are you sure you want to delete <span className="font-semibold text-gray-700">{deleteConfirmTeacher.name || 'this teacher'}</span>? This action cannot be undone.
+              </p>
+            </div>
+            <div className="px-6 pb-6 flex items-center gap-3">
+              <button
+                type="button"
+                onClick={() => setDeleteConfirmTeacher(null)}
+                disabled={!!deletingTeacherId}
+                className="flex-1 px-4 py-2.5 rounded-xl border border-gray-200 text-gray-700 hover:bg-gray-50 transition-colors text-sm font-medium disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => handleDeleteTeacher(deleteConfirmTeacher)}
+                disabled={!!deletingTeacherId}
+                className="flex-1 px-4 py-2.5 rounded-xl bg-red-600 text-white hover:bg-red-700 transition-colors text-sm font-medium disabled:opacity-60 inline-flex items-center justify-center gap-2"
+              >
+                {deletingTeacherId ? (
+                  <>
+                    <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    Deleting...
+                  </>
+                ) : (
+                  'Delete'
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {credentialView && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">

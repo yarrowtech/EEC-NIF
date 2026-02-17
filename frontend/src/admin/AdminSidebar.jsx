@@ -11,6 +11,8 @@ const AdminSidebar = ({
   adminUser
 }) => {
   const [expandedMenus, setExpandedMenus] = useState({});
+  const footerLogoSrc = adminUser?.schoolLogo || '';
+  const footerInitial = adminUser?.name?.charAt(0) || 'A';
 
   const toggleSubmenu = (menuLabel) => {
     if (collapsed) return; // Don't expand submenus when sidebar is collapsed
@@ -152,10 +154,18 @@ const AdminSidebar = ({
         {/* Admin Info Footer */}
         <div className="p-4 border-t border-gray-200 bg-gray-50 hover:bg-gradient-to-r hover:from-gray-50 hover:to-blue-50 transition-all duration-200 cursor-pointer group">
           <div className={`flex items-center ${collapsed ? 'justify-center space-x-0' : 'space-x-3'}`}>
-            <div className="w-10 h-10 rounded-full bg-yellow-100 group-hover:bg-blue-100 flex items-center justify-center transition-all duration-200 group-hover:shadow-sm">
-              <span className="text-yellow-600 group-hover:text-blue-600 font-semibold transition-colors duration-200">
-                {adminUser?.name?.charAt(0) || 'A'}
-              </span>
+            <div className="w-10 h-10 rounded-full bg-yellow-100 group-hover:bg-blue-100 flex items-center justify-center transition-all duration-200 group-hover:shadow-sm overflow-hidden border border-white">
+              {footerLogoSrc ? (
+                <img
+                  src={footerLogoSrc}
+                  alt={adminUser?.schoolName || 'School logo'}
+                  className="w-full h-full object-cover"
+                />
+              ) : (
+                <span className="text-yellow-600 group-hover:text-blue-600 font-semibold transition-colors duration-200">
+                  {footerInitial}
+                </span>
+              )}
             </div>
             {!collapsed && (
               <div className="opacity-100 transition-opacity duration-200">
