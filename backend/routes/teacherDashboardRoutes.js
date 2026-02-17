@@ -1232,14 +1232,15 @@ router.get('/feedback', authTeacher, async (req, res) => {
 
     const feedback = feedbackDocs.map((doc) => ({
       id: doc._id,
-      studentName: doc.studentName || 'Student',
+      studentName: doc.isAnonymous ? 'Anonymous Student' : doc.studentName || 'Student',
       className: doc.className || '',
       sectionName: doc.sectionName || '',
       subjectName: doc.subjectName,
       ratings: doc.ratings || {},
       overallRating: Number(doc.overallRating) || 0,
       comments: doc.comments || '',
-      createdAt: doc.createdAt
+      createdAt: doc.createdAt,
+      isAnonymous: Boolean(doc.isAnonymous)
     }));
 
     res.json({ stats, feedback });

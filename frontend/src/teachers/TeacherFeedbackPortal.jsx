@@ -322,9 +322,16 @@ const TeacherFeedbackPortal = () => {
                       </p>
 
                       <div className="flex flex-wrap gap-3 text-xs text-slate-500">
-                        <span className="inline-flex items-center gap-1">
-                          <User className="w-3.5 h-3.5" />
-                          {item.studentName || 'Student'}
+                        <span className="inline-flex items-center gap-2">
+                          <span className="inline-flex items-center gap-1">
+                            <User className="w-3.5 h-3.5" />
+                            {item.studentName || 'Student'}
+                          </span>
+                          {item.isAnonymous && (
+                            <span className="px-2 py-0.5 rounded-full bg-purple-50 text-purple-700 font-medium">
+                              Anonymous
+                            </span>
+                          )}
                         </span>
                         {item.createdAt && (
                           <span className="inline-flex items-center gap-1">

@@ -1177,7 +1177,8 @@ router.get('/teacher-feedback', authStudent, async (req, res) => {
       ratings: doc.ratings || {},
       overallRating: doc.overallRating || 0,
       comments: doc.comments || '',
-      createdAt: doc.createdAt
+      createdAt: doc.createdAt,
+      isAnonymous: Boolean(doc.isAnonymous)
     }));
 
     res.json(formatted);
@@ -1199,11 +1200,12 @@ router.post('/teacher-feedback', authStudent, async (req, res) => {
       return res.status(404).json({ error: 'Student not found' });
     }
 
-    const { teacherId, subjectId, subjectName, ratings = {}, comments = '' } = req.body || {};
+    const { teacherId, subjectId, subjectName, ratings = {}, comments = '', anonymous = false } = req.body || {};
     if (!teacherId || !subjectName) {
       return res.status(400).json({ error: 'Teacher and subject are required' });
     }
     const normalizedSubjectName = normalizeString(subjectName);
+    const isAnonymous = Boolean(anonymous);
 
     const normalizedRatings = {};
     Object.entries(ratings || {}).forEach(([key, value]) => {
@@ -1250,7 +1252,8 @@ router.post('/teacher-feedback', authStudent, async (req, res) => {
       schoolId: student.schoolId,
       campusId: student.campusId || req.campusId || null,
       studentId: req.user.id,
-      studentName: student.name || '',
+      studentName: isAnonymous ? '' : student.name || '',
+      isAnonymous,
       classId: selectedContext.classId || classDoc?._id || null,
       className: selectedContext.className || student.grade || '',
       sectionId: selectedContext.sectionId || null,
@@ -1278,7 +1281,8 @@ router.post('/teacher-feedback', authStudent, async (req, res) => {
         ratings: feedbackDoc.ratings,
         overallRating: feedbackDoc.overallRating,
         comments: feedbackDoc.comments,
-        createdAt: feedbackDoc.createdAt
+        createdAt: feedbackDoc.createdAt,
+        isAnonymous: Boolean(feedbackDoc.isAnonymous)
       }
     });
   } catch (err) {

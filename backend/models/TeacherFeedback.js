@@ -6,6 +6,7 @@ const teacherFeedbackSchema = new mongoose.Schema(
     campusId: { type: String, default: null },
     studentId: { type: mongoose.Schema.Types.ObjectId, ref: 'StudentUser', required: true, index: true },
     studentName: { type: String, default: '' },
+    isAnonymous: { type: Boolean, default: false },
     classId: { type: mongoose.Schema.Types.ObjectId, ref: 'Class', default: null },
     className: { type: String, default: '' },
     sectionId: { type: mongoose.Schema.Types.ObjectId, ref: 'Section', default: null },
