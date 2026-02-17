@@ -380,7 +380,7 @@ const StudentWellbeing = () => {
       </div> */}
       <div className="bg-white shadow-sm p-6 h-[90vh]">
         <div className="text-center flex justify-center items-center h-full">
-          <p className="text-gray-600">Emmotional Wellbeing coming soon!</p>
+          <p className="text-gray-600">Emotional Wellbeing coming soon!</p>
         </div>
       </div>
     </>

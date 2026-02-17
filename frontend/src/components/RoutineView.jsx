@@ -1,6 +1,7 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import { Calendar, Clock, MapPin, BookOpen, AlertCircle } from 'lucide-react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { Calendar, Clock, MapPin, BookOpen, AlertCircle, RefreshCcw } from 'lucide-react';
 import { useStudentDashboard } from './StudentDashboardContext';
+import { clearCacheEntry, readCacheEntry, writeCacheEntry } from '../utils/studentCache';
 
 const dayOrder = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
 const dayLabels = {
@@ -12,6 +13,9 @@ const dayLabels = {
   saturday: 'Saturday',
   sunday: 'Sunday',
 };
+
+const ROUTINE_CACHE_KEY = 'studentRoutineCacheV1';
+const ROUTINE_CACHE_TTL_MS = 10 * 60 * 1000;
 
 const normalizeDay = (value) => {
   if (!value) return null;
@@ -197,77 +201,98 @@ const RoutineView = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [lastUpdated, setLastUpdated] = useState(null);
+  const [silentRefreshing, setSilentRefreshing] = useState(false);
 
-  useEffect(() => {
-    const fetchSchedule = async () => {
-      try {
-        setLoading(true);
-        setError(null);
+  const fetchSchedule = useCallback(async ({ silent = false } = {}) => {
+    try {
+      if (silent) setSilentRefreshing(true);
+      else setLoading(true);
+      setError(null);
 
-        const token = localStorage.getItem('token');
-        const userType = localStorage.getItem('userType');
-        if (!token || userType !== 'Student') {
-          setError('Only students can view this routine.');
-          return;
-        }
+      const token = localStorage.getItem('token');
+      const userType = localStorage.getItem('userType');
+      if (!token || userType !== 'Student') {
+        clearCacheEntry(ROUTINE_CACHE_KEY);
+        setSchedule({});
+        throw new Error('Only students can view this routine.');
+      }
 
-        const headers = {
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        };
+      const headers = {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      };
 
-        const tryFetchSchedule = async (url) => {
-          const response = await fetch(url, { headers });
-          if (!response.ok) return null;
-          const data = await response.json().catch(() => null);
-          if (!data) return null;
-          const normalized = normalizeSchedule(data.schedule || data.routine || data.data?.schedule);
-          return hasScheduleEntries(normalized) ? normalized : null;
-        };
+      const tryFetchSchedule = async (url) => {
+        const response = await fetch(url, { headers });
+        if (!response.ok) return null;
+        const data = await response.json().catch(() => null);
+        if (!data) return null;
+        const normalized = normalizeSchedule(data.schedule || data.routine || data.data?.schedule);
+        return hasScheduleEntries(normalized) ? normalized : null;
+      };
 
-        let normalized =
-          (await tryFetchSchedule(`${import.meta.env.VITE_API_URL}/api/student/auth/schedule`)) ||
-          (await tryFetchSchedule(`${import.meta.env.VITE_API_URL}/api/student/dashboard/routine`)) ||
-          (await tryFetchSchedule(`${import.meta.env.VITE_API_URL}/api/student/routine`));
+      let normalized =
+        (await tryFetchSchedule(`${import.meta.env.VITE_API_URL}/api/student/auth/schedule`)) ||
+        (await tryFetchSchedule(`${import.meta.env.VITE_API_URL}/api/student/dashboard/routine`)) ||
+        (await tryFetchSchedule(`${import.meta.env.VITE_API_URL}/api/student/routine`));
 
-        if (!normalized) {
-          const classId = pickId(profile?.classId || profile?.class || profile?.currentClass);
-          const sectionId = pickId(profile?.sectionId || profile?.section || profile?.currentSection);
+      if (!normalized) {
+        const classId = pickId(profile?.classId || profile?.class || profile?.currentClass);
+        const sectionId = pickId(profile?.sectionId || profile?.section || profile?.currentSection);
 
-          if (classId) {
-            const params = new URLSearchParams({ classId });
-            if (sectionId) params.append('sectionId', sectionId);
+        if (classId) {
+          const params = new URLSearchParams({ classId });
+          if (sectionId) params.append('sectionId', sectionId);
 
-            const timetableResponse = await fetch(
-              `${import.meta.env.VITE_API_URL}/api/timetable?${params.toString()}`,
-              { headers }
-            );
+          const timetableResponse = await fetch(
+            `${import.meta.env.VITE_API_URL}/api/timetable?${params.toString()}`,
+            { headers }
+          );
 
-            if (timetableResponse.ok) {
-              const timetableData = await timetableResponse.json().catch(() => null);
-              normalized = normalizeTimetablePayload(timetableData);
-            }
+          if (timetableResponse.ok) {
+            const timetableData = await timetableResponse.json().catch(() => null);
+            normalized = normalizeTimetablePayload(timetableData);
           }
         }
-
-        if (!normalized) {
-          setSchedule({});
-          setLastUpdated(new Date());
-          setError('No routine has been assigned yet for your class/section.');
-          return;
-        }
-
-        setSchedule(normalized);
-        setLastUpdated(new Date());
-      } catch (err) {
-        setError(err.message || 'Failed to load routine');
-      } finally {
-        setLoading(false);
       }
-    };
 
-    fetchSchedule();
+      if (!normalized) {
+        setSchedule({});
+        const now = new Date();
+        setLastUpdated(now);
+        setError('No routine has been assigned yet for your class/section.');
+        clearCacheEntry(ROUTINE_CACHE_KEY);
+        return;
+      }
+
+      const now = new Date();
+      setSchedule(normalized);
+      setLastUpdated(now);
+      writeCacheEntry(
+        ROUTINE_CACHE_KEY,
+        { schedule: normalized, lastUpdated: now.toISOString() },
+        ROUTINE_CACHE_TTL_MS
+      );
+    } catch (err) {
+      setError(err.message || 'Failed to load routine');
+    } finally {
+      if (silent) setSilentRefreshing(false);
+      else setLoading(false);
+    }
   }, [profile]);
+
+  useEffect(() => {
+    const cachedEntry = readCacheEntry(ROUTINE_CACHE_KEY);
+    if (cachedEntry?.data?.schedule) {
+      setSchedule(cachedEntry.data.schedule);
+      const cachedDate = cachedEntry.data.lastUpdated
+        ? new Date(cachedEntry.data.lastUpdated)
+        : new Date(cachedEntry.timestamp);
+      setLastUpdated(cachedDate);
+      setLoading(false);
+    }
+    fetchSchedule({ silent: Boolean(cachedEntry?.data?.schedule) });
+  }, [fetchSchedule]);
 
   const studentClassValues = useMemo(
     () =>
@@ -381,11 +406,32 @@ const RoutineView = () => {
                 ` | Section ${profile?.sectionName || profile?.section}`}
             </p>
           </div>
-          <div className="text-right text-sm text-slate-500">
+          <div className="flex flex-col items-end gap-2 text-right text-sm text-slate-500">
             <p>
-              Total sessions this week: <span className="font-semibold text-slate-900">{totalSessions}</span>
+              Total sessions this week:{' '}
+              <span className="font-semibold text-slate-900">{totalSessions}</span>
             </p>
-            {lastUpdated && <p>Updated {lastUpdated.toLocaleDateString()}</p>}
+            <p className="text-xs text-slate-400">
+              {lastUpdated
+                ? `Updated ${lastUpdated.toLocaleString(undefined, {
+                    month: 'short',
+                    day: 'numeric',
+                    hour: 'numeric',
+                    minute: '2-digit',
+                  })}`
+                : 'Waiting for the first sync...'}
+            </p>
+            <button
+              type="button"
+              onClick={() => fetchSchedule({ silent: true })}
+              disabled={silentRefreshing}
+              className="inline-flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              <RefreshCcw
+                className={`h-3.5 w-3.5 ${silentRefreshing ? 'animate-spin text-indigo-600' : 'text-slate-500'}`}
+              />
+              {silentRefreshing ? 'Refreshing' : 'Refresh routine'}
+            </button>
           </div>
         </div>
         {error && (

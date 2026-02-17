@@ -1,10 +1,11 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Calendar, CheckCircle2, XCircle, TrendingUp, Loader2, Clock,
   ChevronLeft, ChevronRight, Target, BarChart3, Eye, BookOpen,
-  Flame, CalendarDays, LayoutGrid, List, ChevronDown, ChevronUp,
+  Flame, CalendarDays, LayoutGrid, List, ChevronDown, ChevronUp, RefreshCcw,
 } from 'lucide-react';
 import { useLocation } from 'react-router-dom';
+import { clearCacheEntry, readCacheEntry, writeCacheEntry } from '../utils/studentCache';
 
 const STATUS_COLORS = {
   present: 'bg-emerald-500',
@@ -83,6 +84,10 @@ const TabBtn = ({ active, icon: Icon, label, onClick }) => (
   </button>
 );
 
+const ATTENDANCE_CACHE_KEY = 'studentAttendanceCacheV1';
+const ATTENDANCE_CACHE_TTL_MS = 5 * 60 * 1000;
+const EMPTY_STATS = { totalClasses: 0, attended: 0, absent: 0, percentage: 0 };
+
 const AttendanceView = () => {
   const location = useLocation();
   const [currentDate, setCurrentDate] = useState(new Date());
@@ -92,10 +97,10 @@ const AttendanceView = () => {
   const [activeTab, setActiveTab] = useState('overview');
   const [dailyFilter, setDailyFilter] = useState('all');
   const [expandedWeek, setExpandedWeek] = useState(null);
-  const [attendanceStats, setAttendanceStats] = useState({
-    totalClasses: 0, attended: 0, absent: 0, percentage: 0,
-  });
+  const [attendanceStats, setAttendanceStats] = useState(EMPTY_STATS);
   const [attendanceRecords, setAttendanceRecords] = useState([]);
+  const [lastSynced, setLastSynced] = useState(null);
+  const [silentRefreshing, setSilentRefreshing] = useState(false);
 
   useEffect(() => {
     const params = new URLSearchParams(location.search);
@@ -106,46 +111,70 @@ const AttendanceView = () => {
     }
   }, [location.search]);
 
-  useEffect(() => {
-    const fetchAttendance = async () => {
-      try {
-        const token = localStorage.getItem('token');
-        const userType = localStorage.getItem('userType');
-        if (!token || userType !== 'Student') {
-          throw new Error('Student session not found. Please login again.');
-        }
-        const response = await fetch(
-          `${import.meta.env.VITE_API_URL}/api/student/auth/attendance`,
-          { headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' } },
-        );
-        const data = await response.json();
-        if (!response.ok) throw new Error(data?.error || 'Failed to fetch attendance');
-
-        const summary = data?.summary || {};
-        const normalizedRecords = Array.isArray(data?.attendance)
-          ? data.attendance.map((record) => ({
-              id: record._id || `${record.date}-${record.subject}`,
-              date: toLocalDateKey(record.date),
-              subject: record.subject || 'General',
-              status: normalizeStatus(record.status),
-            }))
-          : [];
-
-        setAttendanceStats({
-          totalClasses: summary.totalClasses || normalizedRecords.length || 0,
-          attended: summary.presentDays || normalizedRecords.filter((r) => r.status === 'present').length || 0,
-          absent: summary.absentDays || normalizedRecords.filter((r) => r.status === 'absent').length || 0,
-          percentage: summary.attendancePercentage || 0,
-        });
-        setAttendanceRecords(normalizedRecords);
-      } catch (err) {
-        setError(err.message || 'Unable to fetch attendance');
-      } finally {
-        setLoading(false);
+  const fetchAttendance = useCallback(async ({ silent = false } = {}) => {
+    try {
+      if (silent) setSilentRefreshing(true);
+      else setLoading(true);
+      setError('');
+      const token = localStorage.getItem('token');
+      const userType = localStorage.getItem('userType');
+      if (!token || userType !== 'Student') {
+        clearCacheEntry(ATTENDANCE_CACHE_KEY);
+        throw new Error('Student session not found. Please login again.');
       }
-    };
-    fetchAttendance();
+      const response = await fetch(
+        `${import.meta.env.VITE_API_URL}/api/student/auth/attendance`,
+        { headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' } },
+      );
+      const data = await response.json();
+      if (!response.ok) throw new Error(data?.error || 'Failed to fetch attendance');
+
+      const summary = data?.summary || {};
+      const normalizedRecords = Array.isArray(data?.attendance)
+        ? data.attendance.map((record) => ({
+            id: record._id || `${record.date}-${record.subject}`,
+            date: toLocalDateKey(record.date),
+            subject: record.subject || 'General',
+            status: normalizeStatus(record.status),
+          }))
+        : [];
+
+      const nextStats = {
+        totalClasses: summary.totalClasses || normalizedRecords.length || 0,
+        attended: summary.presentDays || normalizedRecords.filter((r) => r.status === 'present').length || 0,
+        absent: summary.absentDays || normalizedRecords.filter((r) => r.status === 'absent').length || 0,
+        percentage: summary.attendancePercentage || 0,
+      };
+
+      setAttendanceStats(nextStats);
+      setAttendanceRecords(normalizedRecords);
+      const now = new Date();
+      setLastSynced(now);
+      writeCacheEntry(
+        ATTENDANCE_CACHE_KEY,
+        { stats: nextStats, records: normalizedRecords },
+        ATTENDANCE_CACHE_TTL_MS,
+      );
+    } catch (err) {
+      setError(err.message || 'Unable to fetch attendance');
+    } finally {
+      if (silent) setSilentRefreshing(false);
+      else setLoading(false);
+    }
   }, []);
+
+  useEffect(() => {
+    const cachedEntry = readCacheEntry(ATTENDANCE_CACHE_KEY);
+    if (cachedEntry?.data) {
+      const cachedStats = { ...EMPTY_STATS, ...(cachedEntry.data.stats || {}) };
+      const cachedRecords = Array.isArray(cachedEntry.data.records) ? cachedEntry.data.records : [];
+      setAttendanceStats(cachedStats);
+      setAttendanceRecords(cachedRecords);
+      setLastSynced(new Date(cachedEntry.timestamp));
+      setLoading(false);
+    }
+    fetchAttendance({ silent: Boolean(cachedEntry) });
+  }, [fetchAttendance]);
 
   /* ─── Derived data ─── */
   const monthNames = ['January','February','March','April','May','June','July','August','September','October','November','December'];
@@ -318,6 +347,29 @@ const AttendanceView = () => {
                 {attendanceStats.percentage >= 75 ? 'On Track' : 'Needs Attention'}
               </div>
             </div>
+          </div>
+          <div className="mt-4 flex flex-wrap items-center justify-between gap-3 text-xs text-slate-500">
+            <p>
+              {lastSynced
+                ? `Last updated ${lastSynced.toLocaleString(undefined, {
+                    month: 'short',
+                    day: 'numeric',
+                    hour: 'numeric',
+                    minute: '2-digit',
+                  })}`
+                : 'Waiting for the first sync...'}
+            </p>
+            <button
+              type="button"
+              onClick={() => fetchAttendance({ silent: true })}
+              disabled={silentRefreshing}
+              className="inline-flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-1.5 font-semibold text-slate-600 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              <RefreshCcw
+                className={`h-3.5 w-3.5 ${silentRefreshing ? 'animate-spin text-indigo-600' : 'text-slate-500'}`}
+              />
+              {silentRefreshing ? 'Refreshing' : 'Refresh data'}
+            </button>
           </div>
           {error && <p className="mt-3 rounded-lg bg-rose-50 p-3 text-sm text-rose-600">{error}</p>}
         </div>

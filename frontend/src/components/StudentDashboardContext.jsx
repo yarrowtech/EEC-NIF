@@ -1,4 +1,5 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
+import { clearCacheEntry, readCacheEntry, writeCacheEntry } from '../utils/studentCache';
 
 const StudentDashboardContext = createContext({
   loading: true,
@@ -22,36 +23,9 @@ const emptyData = {
   recentAttendance: [],
 };
 
-const readDashboardCache = () => {
-  try {
-    const raw = sessionStorage.getItem(DASHBOARD_CACHE_KEY);
-    if (!raw) return null;
-    const parsed = JSON.parse(raw);
-    if (!parsed?.timestamp || !parsed?.data) return null;
-    if (Date.now() - parsed.timestamp > DASHBOARD_CACHE_TTL_MS) return null;
-    return parsed.data;
-  } catch {
-    return null;
-  }
-};
-
-const writeDashboardCache = (data) => {
-  try {
-    sessionStorage.setItem(
-      DASHBOARD_CACHE_KEY,
-      JSON.stringify({
-        timestamp: Date.now(),
-        data,
-      })
-    );
-  } catch {
-    // Ignore storage failures; network fetch remains source of truth.
-  }
-};
-
 export const StudentDashboardProvider = ({ children }) => {
-  const initialCachedDataRef = useRef(readDashboardCache());
-  const initialCachedData = initialCachedDataRef.current;
+  const initialCachedEntryRef = useRef(readCacheEntry(DASHBOARD_CACHE_KEY));
+  const initialCachedData = initialCachedEntryRef.current?.data || null;
   const [loading, setLoading] = useState(!initialCachedData);
   const [error, setError] = useState('');
   const [data, setData] = useState(initialCachedData || emptyData);
@@ -68,7 +42,7 @@ export const StudentDashboardProvider = ({ children }) => {
       const token = localStorage.getItem('token');
       const userType = localStorage.getItem('userType');
       if (!token || userType !== 'Student') {
-        sessionStorage.removeItem(DASHBOARD_CACHE_KEY);
+        clearCacheEntry(DASHBOARD_CACHE_KEY);
         if (!isMountedRef.current) return;
         setData(emptyData);
         setLoading(false);
@@ -109,7 +83,7 @@ export const StudentDashboardProvider = ({ children }) => {
         course: payload.course || null,
         recentAttendance: payload.recentAttendance || [],
       };
-      writeDashboardCache(nextData);
+      writeCacheEntry(DASHBOARD_CACHE_KEY, nextData, DASHBOARD_CACHE_TTL_MS);
       if (!isMountedRef.current) return;
       setData(nextData);
     } catch (err) {
