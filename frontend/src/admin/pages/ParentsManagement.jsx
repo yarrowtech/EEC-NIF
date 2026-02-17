@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { 
   Search, 
   Filter, 
@@ -30,10 +30,16 @@ import {
   Briefcase,
   Shield,
   UserCheck,
-  Baby
+  Baby,
+  ChevronLeft,
+  ChevronRight,
+  ChevronsLeft,
+  ChevronsRight
 } from 'lucide-react';
 import CredentialGeneratorButton from '../components/CredentialGeneratorButton';
 import { useNavigate } from 'react-router-dom';
+
+const PARENTS_PER_PAGE = 10;
 
 const ParentsManagement = ({setShowAdminHeader}) => {
   const navigate = useNavigate();
@@ -49,6 +55,7 @@ const ParentsManagement = ({setShowAdminHeader}) => {
   const [selectedParent, setSelectedParent] = useState(null);
   const [childActionLoadingId, setChildActionLoadingId] = useState('');
   const [parentActionLoadingId, setParentActionLoadingId] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
 
   // Filter parents based on search and filters
   const filteredParents = parents.filter(parent => {
@@ -74,6 +81,21 @@ const ParentsManagement = ({setShowAdminHeader}) => {
 
     return matchesSearch && matchesGrade && matchesRelationship && matchesEngagement && matchesCommunication;
   });
+
+  const totalPages = Math.max(1, Math.ceil(filteredParents.length / PARENTS_PER_PAGE));
+  const paginatedParents = useMemo(() => {
+    const start = (currentPage - 1) * PARENTS_PER_PAGE;
+    return filteredParents.slice(start, start + PARENTS_PER_PAGE);
+  }, [filteredParents, currentPage]);
+  const startItem = filteredParents.length > 0 ? (currentPage - 1) * PARENTS_PER_PAGE + 1 : 0;
+  const endItem = Math.min(currentPage * PARENTS_PER_PAGE, filteredParents.length);
+
+  // Reset to page 1 when filters or search change
+  const handleSearchChange = (val) => { setSearchTerm(val); setCurrentPage(1); };
+  const handleFilterGrade = (val) => { setFilterGrade(val); setCurrentPage(1); };
+  const handleFilterRelationship = (val) => { setFilterRelationship(val); setCurrentPage(1); };
+  const handleFilterEngagement = (val) => { setFilterEngagement(val); setCurrentPage(1); };
+  const handleFilterCommunication = (val) => { setFilterCommunication(val); setCurrentPage(1); };
 
   const fetchParents = async () => {
     setIsLoading(true);
@@ -317,13 +339,13 @@ const ParentsManagement = ({setShowAdminHeader}) => {
                 placeholder="Search parents or children..."
                 className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
                 value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
+                onChange={(e) => handleSearchChange(e.target.value)}
               />
             </div>
             <select 
               className="border border-gray-200 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-green-500"
               value={filterGrade}
-              onChange={(e) => setFilterGrade(e.target.value)}
+              onChange={(e) => handleFilterGrade(e.target.value)}
             >
               <option value="All">All Grades</option>
               <option value="Grade 9">Grade 9</option>
@@ -334,7 +356,7 @@ const ParentsManagement = ({setShowAdminHeader}) => {
             <select
               className="border border-gray-200 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-green-500"
               value={filterRelationship}
-              onChange={(e) => setFilterRelationship(e.target.value)}
+              onChange={(e) => handleFilterRelationship(e.target.value)}
             >
               <option value="All">All Relationships</option>
               <option value="Father">Fathers</option>
@@ -344,7 +366,7 @@ const ParentsManagement = ({setShowAdminHeader}) => {
             <select
               className="border border-gray-200 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-green-500"
               value={filterEngagement}
-              onChange={(e) => setFilterEngagement(e.target.value)}
+              onChange={(e) => handleFilterEngagement(e.target.value)}
             >
               <option value="All">Engagement Level</option>
               <option value="high">High (90%+)</option>
@@ -354,7 +376,7 @@ const ParentsManagement = ({setShowAdminHeader}) => {
             <select
               className="border border-gray-200 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-green-500"
               value={filterCommunication}
-              onChange={(e) => setFilterCommunication(e.target.value)}
+              onChange={(e) => handleFilterCommunication(e.target.value)}
             >
               <option value="All">Communication Status</option>
               <option value="recent">Recent Contact</option>
@@ -406,7 +428,7 @@ const ParentsManagement = ({setShowAdminHeader}) => {
                     </td>
                   </tr>
                 ) : null}
-                {filteredParents.map((parent) => (
+                {paginatedParents.map((parent) => (
                   <tr 
                     key={parent.id}
                     className="hover:bg-green-50 transition-colors border-b border-gray-100"
@@ -616,14 +638,106 @@ const ParentsManagement = ({setShowAdminHeader}) => {
 
         {/* Fixed Footer Section */}
         <div className="flex-shrink-0 p-8 pt-4 bg-white/90 border-t border-green-100">
-          <div className="flex items-center justify-between">
-            <div className="text-gray-600">
-              Showing {filteredParents.length} of {parents.length} parents
-            </div>
-            <div className="flex gap-2">
-              <button className="px-4 py-2 border text-black border-black rounded-lg  transition-colors">Previous</button>
-              <button className="px-4 py-2 border text-black border-black rounded-lg  transition-colors">Next</button>
-            </div>
+          <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between flex-shrink-0 pt-3 border-t border-gray-100 px-1">
+            <p className="text-gray-500 text-xs">
+              {filteredParents.length === 0
+                ? 'No parents to display'
+                : `Showing ${startItem}\u2013${endItem} of ${filteredParents.length} parents`}
+            </p>
+
+            {totalPages > 1 && (
+              <div className="flex items-center gap-1">
+                {/* First */}
+                <button
+                  className="p-1.5 rounded-md border border-gray-200 text-gray-500 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition"
+                  onClick={() => setCurrentPage(1)}
+                  disabled={currentPage === 1}
+                  title="First page"
+                >
+                  <ChevronsLeft size={14} />
+                </button>
+
+                {/* Prev */}
+                <button
+                  className="p-1.5 rounded-md border border-gray-200 text-gray-500 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition"
+                  onClick={() => setCurrentPage((p) => Math.max(p - 1, 1))}
+                  disabled={currentPage === 1}
+                  title="Previous page"
+                >
+                  <ChevronLeft size={14} />
+                </button>
+
+                {/* Page numbers with smart truncation */}
+                {(() => {
+                  const pages = [];
+                  const showMax = 5;
+
+                  if (totalPages <= showMax + 2) {
+                    for (let i = 1; i <= totalPages; i++) pages.push(i);
+                  } else {
+                    pages.push(1);
+                    let rangeStart = Math.max(2, currentPage - 1);
+                    let rangeEnd = Math.min(totalPages - 1, currentPage + 1);
+
+                    if (currentPage <= 3) {
+                      rangeStart = 2;
+                      rangeEnd = Math.min(showMax, totalPages - 1);
+                    } else if (currentPage >= totalPages - 2) {
+                      rangeStart = Math.max(2, totalPages - showMax + 1);
+                      rangeEnd = totalPages - 1;
+                    }
+
+                    if (rangeStart > 2) pages.push('start-ellipsis');
+                    for (let i = rangeStart; i <= rangeEnd; i++) pages.push(i);
+                    if (rangeEnd < totalPages - 1) pages.push('end-ellipsis');
+                    pages.push(totalPages);
+                  }
+
+                  return pages.map((page) => {
+                    if (typeof page === 'string') {
+                      return (
+                        <span key={page} className="px-1 text-gray-400 text-xs select-none">
+                          &hellip;
+                        </span>
+                      );
+                    }
+                    return (
+                      <button
+                        key={page}
+                        onClick={() => setCurrentPage(page)}
+                        className={`min-w-[28px] h-7 rounded-md text-xs font-medium transition ${
+                          page === currentPage
+                            ? 'bg-amber-500 text-white shadow-sm'
+                            : 'text-gray-600 hover:bg-gray-100'
+                        }`}
+                      >
+                        {page}
+                      </button>
+                    );
+                  });
+                })()}
+
+                {/* Next */}
+                <button
+                  className="p-1.5 rounded-md border border-gray-200 text-gray-500 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition"
+                  onClick={() => setCurrentPage((p) => Math.min(p + 1, totalPages))}
+                  disabled={currentPage === totalPages}
+                  title="Next page"
+                >
+                  <ChevronRight size={14} />
+                </button>
+
+                {/* Last */}
+                <button
+                  className="p-1.5 rounded-md border border-gray-200 text-gray-500 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition"
+                  onClick={() => setCurrentPage(totalPages)}
+                  disabled={currentPage === totalPages}
+                  title="Last page"
+                >
+                  <ChevronsRight size={14} />
+                </button>
+              </div>
+            )}
           </div>
         </div>
       </div>
