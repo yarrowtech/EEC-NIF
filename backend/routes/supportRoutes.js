@@ -22,6 +22,7 @@ const roleModelMap = {
   admin: Admin
 };
 const SETTINGS_KEY = 'global';
+const SCHOOL_ADMIN_ONLY_SUPPORT_TYPES = ['complaint', 'feedback'];
 
 const ensureSuperAdmin = (req, res, next) => {
   if (!req.isSuperAdmin) {
@@ -291,6 +292,17 @@ router.get('/requests', adminAuth, async (req, res) => {
     }
     if (supportType) {
       filter.supportType = supportType;
+    }
+
+    if (req.isSuperAdmin) {
+      if (supportType && SCHOOL_ADMIN_ONLY_SUPPORT_TYPES.includes(supportType)) {
+        filter.createdByRole = { $ne: 'parent' };
+      } else {
+        filter.$or = [
+          { supportType: { $nin: SCHOOL_ADMIN_ONLY_SUPPORT_TYPES } },
+          { createdByRole: { $ne: 'parent' } }
+        ];
+      }
     }
 
     const query = SupportRequest.find(filter).sort({ createdAt: -1 });
