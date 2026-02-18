@@ -331,6 +331,22 @@ io.on('connection', (socket) => {
   const user = socket.user;
   const userId = user.id?.toString();
 
+  const markThreadMessagesSeenSocket = async ({ threadId, schoolId, campusId, currentUserId }) => {
+    if (!threadId || !schoolId || !currentUserId) return;
+    await ChatMessage.updateMany(
+      {
+        threadId,
+        schoolId,
+        ...(campusId ? { campusId } : {}),
+        senderId: { $ne: currentUserId },
+        'seenBy.userId': { $ne: currentUserId },
+      },
+      {
+        $push: { seenBy: { userId: currentUserId, seenAt: new Date() } },
+      }
+    );
+  };
+
   // Join personal room for direct notifications
   socket.join(`user:${userId}`);
 
@@ -350,6 +366,13 @@ io.on('connection', (socket) => {
         { _id: threadId, 'unreadCounts.userId': userId },
         { $set: { 'unreadCounts.$.count': 0 } }
       );
+      await markThreadMessagesSeenSocket({
+        threadId,
+        schoolId: user.schoolId,
+        campusId: user.campusId,
+        currentUserId: userId,
+      });
+      socket.to(`thread:${threadId}`).emit('message-seen', { threadId, userId });
     } catch { /* ignore */ }
   });
 
@@ -437,6 +460,12 @@ io.on('connection', (socket) => {
         { _id: threadId, 'unreadCounts.userId': userId },
         { $set: { 'unreadCounts.$.count': 0 } }
       );
+      await markThreadMessagesSeenSocket({
+        threadId,
+        schoolId: user.schoolId,
+        campusId: user.campusId,
+        currentUserId: userId,
+      });
       socket.to(`thread:${threadId}`).emit('message-seen', { threadId, userId });
     } catch { /* ignore */ }
   });

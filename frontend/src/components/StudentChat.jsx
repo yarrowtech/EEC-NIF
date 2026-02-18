@@ -3,7 +3,7 @@ import { io } from 'socket.io-client';
 import {
   MessageSquare, Send, Search, ChevronLeft,
   PlusCircle, X, Loader2, Eye, Mail, BookOpen,
-  GraduationCap, Phone, User
+  GraduationCap, Phone, User, Check, CheckCheck
 } from 'lucide-react';
 
 const API_URL = (import.meta.env.VITE_API_URL || 'http://localhost:5000').replace(/\/$/, '');
@@ -32,19 +32,43 @@ const formatTime = (ts) => {
   return d.toLocaleDateString([], { month: 'short', day: 'numeric' });
 };
 
+const dayKey = (ts) => {
+  const d = new Date(ts);
+  return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+};
+
+const formatDaySeparator = (ts) => {
+  if (!ts) return '';
+  const d = new Date(ts);
+  const now = new Date();
+  const todayKey = dayKey(now);
+  const msgKey = dayKey(d);
+  const yesterday = new Date(now);
+  yesterday.setDate(now.getDate() - 1);
+  const yesterdayKey = dayKey(yesterday);
+  if (msgKey === todayKey) return 'Today';
+  if (msgKey === yesterdayKey) return 'Yesterday';
+  return d.toLocaleDateString([], { day: '2-digit', month: 'short', year: 'numeric' });
+};
+
 const getInitials = (name = '') =>
   name.split(' ').slice(0, 2).map(w => w[0]).join('').toUpperCase() || '?';
 
 /* resolve relative image paths from the server */
 const resolveImg = (src) => {
   if (!src) return null;
-  if (src.startsWith('http://') || src.startsWith('https://') || src.startsWith('blob:')) return src;
+  if (src.startsWith('http://') || src.startsWith('https://') || src.startsWith('blob:') || src.startsWith('data:')) return src;
   return `${API_URL}${src.startsWith('/') ? '' : '/'}${src}`;
 };
 
 /* pick whichever image field the server returns */
-const pickImg = (obj) =>
-  obj?.profilePic || obj?.profileImage || obj?.photo || obj?.avatar || obj?.image || null;
+const pickImg = (obj) => {
+  const raw = obj?.profilePic || obj?.profileImage || obj?.photo || obj?.avatar || obj?.image || null;
+  if (!raw) return null;
+  // Handle case where field is a Cloudinary response object
+  if (typeof raw === 'object') return raw.secure_url || raw.url || raw.path || null;
+  return raw;
+};
 
 // ── Avatar: shows real image or coloured initials ──────────────────────────────
 const SIZES = {
@@ -115,7 +139,7 @@ const TeacherModal = ({ teacher, onClose }) => {
         {/* Avatar overlapping banner */}
         <div className="flex justify-center -mt-12 mb-3">
           <Avatar src={img} name={name} size="xl"
-            className="ring-4 ring-white shadow-lg" />
+            className="ring-4 ring-white shadow-lg z-50" />
         </div>
 
         {/* Name + role */}
@@ -168,7 +192,16 @@ const TeacherModal = ({ teacher, onClose }) => {
 };
 
 // ── ChatMessage ────────────────────────────────────────────────────────────────
-const ChatMessage = ({ msg, isMine }) => (
+const isSeenByOther = (msg, myId) =>
+  Array.isArray(msg?.seenBy) &&
+  msg.seenBy.some((entry) => String(entry?.userId) !== String(myId));
+
+const ChatMessage = ({ msg, isMine, myId }) => {
+  const optimistic = Boolean(msg?._optimistic);
+  const seen = isMine && isSeenByOther(msg, myId);
+  const delivered = isMine && !optimistic;
+
+  return (
   <div className={`flex ${isMine ? 'justify-end' : 'justify-start'} mb-3`}>
     <div className={`max-w-[78%] rounded-2xl px-4 py-2.5 text-sm shadow-sm
       ${isMine ? 'bg-amber-500 text-white rounded-br-sm' : 'bg-white text-gray-800 rounded-bl-sm'}`}>
@@ -176,12 +209,24 @@ const ChatMessage = ({ msg, isMine }) => (
         <div className="text-xs font-semibold text-amber-600 mb-1">{msg.senderName}</div>
       )}
       <div className="whitespace-pre-wrap leading-relaxed">{msg.text}</div>
-      <div className={`text-xs mt-1 text-right ${isMine ? 'text-amber-100' : 'text-gray-400'}`}>
-        {formatTime(msg.createdAt || msg.ts)}
+      <div className={`text-xs mt-1 flex items-center justify-end gap-1 ${isMine ? 'text-amber-100' : 'text-gray-400'}`}>
+        <span>{formatTime(msg.createdAt || msg.ts)}</span>
+        {isMine && (
+          <span className={`inline-flex items-center ${seen ? 'text-sky-300' : 'text-amber-100'}`}>
+            {seen ? (
+              <CheckCheck className="h-3.5 w-3.5" />
+            ) : delivered ? (
+              <CheckCheck className="h-3.5 w-3.5" />
+            ) : (
+              <Check className="h-3.5 w-3.5" />
+            )}
+          </span>
+        )}
       </div>
     </div>
   </div>
-);
+  );
+};
 
 // ── ConversationItem ──────────────────────────────────────────────────────────
 const ConversationItem = ({ thread, isActive, onClick }) => {
@@ -298,6 +343,8 @@ const StudentChat = () => {
 
     socket.on('new-message', (msg) => {
       const threadId = String(msg.threadId);
+      const isActiveThread = String(activeThreadIdRef.current) === threadId;
+      const isIncomingForMe = String(msg.senderId) !== String(meRef.current?.id);
       setMessages(prev => {
         if (activeThreadIdRef.current !== threadId) return prev;
         if (String(msg.senderId) === String(meRef.current?.id)) {
@@ -309,13 +356,27 @@ const StudentChat = () => {
           }
         }
         if (prev.find(m => String(m._id) === String(msg._id))) return prev;
-        return [...prev, msg];
+        const hydratedMsg = isIncomingForMe
+          ? {
+              ...msg,
+              seenBy: [
+                ...(Array.isArray(msg.seenBy) ? msg.seenBy : []),
+                { userId: meRef.current?.id, seenAt: new Date().toISOString() }
+              ]
+            }
+          : msg;
+        return [...prev, hydratedMsg];
       });
       setThreads(prev => prev.map(t =>
         String(t._id) === threadId
           ? { ...t, lastMessage: msg.text, lastMessageAt: msg.createdAt, unreadCount: activeThreadIdRef.current === threadId ? 0 : (t.unreadCount || 0) + 1 }
           : t
       ));
+
+      // Real-time seen: if this thread is open and message is incoming, mark seen immediately.
+      if (isActiveThread && isIncomingForMe) {
+        socket.emit('mark-seen', { threadId });
+      }
     });
 
     socket.on('thread-updated', ({ threadId, lastMessage, lastMessageAt }) => {
@@ -338,6 +399,22 @@ const StudentChat = () => {
       } else {
         setTypingUsers(prev => { const n = { ...prev }; delete n[key]; return n; });
       }
+    });
+
+    socket.on('message-seen', ({ threadId, userId }) => {
+      if (String(activeThreadIdRef.current) !== String(threadId)) return;
+      setMessages((prev) =>
+        prev.map((msg) => {
+          if (String(msg.senderId) !== String(meRef.current?.id)) return msg;
+          if (Array.isArray(msg.seenBy) && msg.seenBy.some((entry) => String(entry?.userId) === String(userId))) {
+            return msg;
+          }
+          return {
+            ...msg,
+            seenBy: [...(Array.isArray(msg.seenBy) ? msg.seenBy : []), { userId, seenAt: new Date().toISOString() }]
+          };
+        })
+      );
     });
 
     return () => {
@@ -412,7 +489,9 @@ const StudentChat = () => {
       _id: optimisticId, threadId: activeThreadId,
       senderId: me?.id, senderType: 'student',
       senderName: me?.name || 'You', text,
-      createdAt: new Date().toISOString(), _optimistic: true,
+      createdAt: new Date().toISOString(),
+      seenBy: [{ userId: me?.id, seenAt: new Date().toISOString() }],
+      _optimistic: true,
     };
     setMessages(prev => [...prev, optimistic]);
 
@@ -673,13 +752,27 @@ const StudentChat = () => {
                     </div>
                   ) : (
                     <>
-                      {messages.map(msg => (
-                        <ChatMessage
-                          key={msg._id}
-                          msg={msg}
-                          isMine={String(msg.senderId) === String(me?.id)}
-                        />
-                      ))}
+                      {messages.map((msg, index) => {
+                        const currentTs = msg.createdAt || msg.ts;
+                        const prevTs = index > 0 ? (messages[index - 1].createdAt || messages[index - 1].ts) : null;
+                        const showDateSeparator = index === 0 || dayKey(currentTs) !== dayKey(prevTs);
+                        return (
+                          <React.Fragment key={msg._id}>
+                            {showDateSeparator && (
+                              <div className="flex justify-center my-3">
+                                <span className="text-[11px] px-3 py-1 rounded-full bg-gray-200 text-gray-600 font-medium">
+                                  {formatDaySeparator(currentTs)}
+                                </span>
+                              </div>
+                            )}
+                            <ChatMessage
+                              msg={msg}
+                              isMine={String(msg.senderId) === String(me?.id)}
+                              myId={me?.id}
+                            />
+                          </React.Fragment>
+                        );
+                      })}
                       {isTypingInActive && (
                         <div className="flex justify-start mb-3">
                           <div className="bg-white rounded-2xl rounded-bl-sm px-4 py-2.5 shadow-sm">

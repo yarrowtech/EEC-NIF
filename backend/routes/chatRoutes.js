@@ -365,6 +365,23 @@ const ensureTeacherAccessToThread = async (req, thread) => {
   return ensureTeacherCanAccessStudent(req, other.userId);
 };
 
+const markThreadMessagesSeen = async ({ threadId, schoolId, campusId, userId }) => {
+  if (!threadId || !schoolId || !userId) return;
+  const seenEntry = { userId, seenAt: new Date() };
+  await ChatMessage.updateMany(
+    {
+      threadId,
+      schoolId,
+      ...(campusId !== null && campusId !== undefined ? { campusId } : {}),
+      senderId: { $ne: userId },
+      'seenBy.userId': { $ne: userId },
+    },
+    {
+      $push: { seenBy: seenEntry },
+    }
+  );
+};
+
 // GET /api/chat/me — current user's display info
 router.get('/me', async (req, res) => {
   try {
@@ -736,6 +753,7 @@ router.get('/threads/:threadId/messages', async (req, res) => {
       { _id: threadId, 'unreadCounts.userId': userId },
       { $set: { 'unreadCounts.$.count': 0 } }
     );
+    await markThreadMessagesSeen({ threadId, schoolId, campusId, userId });
 
     res.json(messages);
   } catch (err) {
@@ -838,6 +856,7 @@ router.put('/threads/:threadId/seen', async (req, res) => {
       { _id: threadId, 'unreadCounts.userId': userId },
       { $set: { 'unreadCounts.$.count': 0 } }
     );
+    await markThreadMessagesSeen({ threadId, schoolId, campusId, userId });
 
     res.json({ ok: true });
   } catch (err) {
