@@ -1,5 +1,5 @@
-import { useMemo, useState } from 'react';
-import { Send, Activity, ShieldCheck, Bell, ClipboardList } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
+import { Send, Activity, ShieldCheck, Bell, ClipboardList, Phone, Mail, Clock } from 'lucide-react';
 
 const statusStyle = {
   pending: 'bg-amber-100 text-amber-700',
@@ -12,7 +12,12 @@ const Operations = ({
   onCreateAnnouncement,
   complianceItems,
   onComplianceUpdate,
-  activityFeed
+  activityFeed,
+  supportSettings,
+  supportSettingsLoading,
+  supportSettingsSaving,
+  supportSettingsError,
+  onSaveSupportSettings
 }) => {
   const [form, setForm] = useState({
     title: '',
@@ -20,11 +25,29 @@ const Operations = ({
     audience: 'All schools'
   });
   const [sending, setSending] = useState(false);
+  const [supportForm, setSupportForm] = useState({
+    phoneNumber: '+91 90420 56789',
+    email: 'support@eecschools.com',
+    availableDays: 'Mon - Fri',
+    availableTime: '8 AM - 6 PM IST',
+    onCall24x7: true
+  });
 
   const pendingCompliance = useMemo(
     () => complianceItems.filter((item) => item.status !== 'completed').length,
     [complianceItems]
   );
+
+  useEffect(() => {
+    if (!supportSettings) return;
+    setSupportForm({
+      phoneNumber: supportSettings.phoneNumber || '+91 90420 56789',
+      email: supportSettings.email || 'support@eecschools.com',
+      availableDays: supportSettings.availableDays || 'Mon - Fri',
+      availableTime: supportSettings.availableTime || '8 AM - 6 PM IST',
+      onCall24x7: supportSettings.onCall24x7 !== false
+    });
+  }, [supportSettings]);
 
   const handleSubmit = (event) => {
     event.preventDefault();
@@ -35,6 +58,17 @@ const Operations = ({
       setForm({ title: '', message: '', audience: 'All schools' });
       setSending(false);
     }, 400);
+  };
+
+  const handleSupportSubmit = (event) => {
+    event.preventDefault();
+    onSaveSupportSettings({
+      phoneNumber: supportForm.phoneNumber,
+      email: supportForm.email,
+      availableDays: supportForm.availableDays,
+      availableTime: supportForm.availableTime,
+      onCall24x7: supportForm.onCall24x7
+    });
   };
 
   return (
@@ -61,6 +95,93 @@ const Operations = ({
       </div>
 
       <div className="grid gap-6 lg:grid-cols-2">
+        <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6 space-y-5">
+          <div className="flex items-center gap-3">
+            <div className="p-2 rounded-lg bg-emerald-50 text-emerald-600">
+              <Phone size={18} />
+            </div>
+            <div>
+              <p className="text-xs uppercase text-slate-400">Support desk</p>
+              <h3 className="text-lg font-semibold text-slate-800">Contact settings</h3>
+            </div>
+          </div>
+          {supportSettingsError && (
+            <div className="rounded-xl border border-rose-100 bg-rose-50 px-3 py-2 text-sm text-rose-700">
+              {supportSettingsError}
+            </div>
+          )}
+          <form onSubmit={handleSupportSubmit} className="space-y-4">
+            <div>
+              <label className="text-xs uppercase text-slate-500">Phone number</label>
+              <div className="relative mt-1">
+                <Phone size={14} className="absolute left-3 top-3 text-slate-400" />
+                <input
+                  className="w-full border border-slate-200 rounded-lg pl-8 pr-3 py-2 text-sm"
+                  value={supportForm.phoneNumber}
+                  onChange={(event) => setSupportForm((prev) => ({ ...prev, phoneNumber: event.target.value }))}
+                  placeholder="+91 90420 56789"
+                />
+              </div>
+            </div>
+            <div>
+              <label className="text-xs uppercase text-slate-500">Support email</label>
+              <div className="relative mt-1">
+                <Mail size={14} className="absolute left-3 top-3 text-slate-400" />
+                <input
+                  className="w-full border border-slate-200 rounded-lg pl-8 pr-3 py-2 text-sm"
+                  value={supportForm.email}
+                  onChange={(event) => setSupportForm((prev) => ({ ...prev, email: event.target.value }))}
+                  placeholder="support@eecschools.com"
+                />
+              </div>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="text-xs uppercase text-slate-500">Available days</label>
+                <input
+                  className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm mt-1"
+                  value={supportForm.availableDays}
+                  onChange={(event) => setSupportForm((prev) => ({ ...prev, availableDays: event.target.value }))}
+                  placeholder="Mon - Fri"
+                />
+              </div>
+              <div>
+                <label className="text-xs uppercase text-slate-500">Available time</label>
+                <div className="relative mt-1">
+                  <Clock size={14} className="absolute left-3 top-3 text-slate-400" />
+                  <input
+                    className="w-full border border-slate-200 rounded-lg pl-8 pr-3 py-2 text-sm"
+                    value={supportForm.availableTime}
+                    onChange={(event) => setSupportForm((prev) => ({ ...prev, availableTime: event.target.value }))}
+                    placeholder="8 AM - 6 PM IST"
+                  />
+                </div>
+              </div>
+            </div>
+            <div>
+              <label className="text-xs uppercase text-slate-500">On-call team availability</label>
+              <select
+                className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm mt-1"
+                value={supportForm.onCall24x7 ? 'yes' : 'no'}
+                onChange={(event) =>
+                  setSupportForm((prev) => ({ ...prev, onCall24x7: event.target.value === 'yes' }))
+                }
+              >
+                <option value="yes">Available 24/7</option>
+                <option value="no">Not 24/7</option>
+              </select>
+            </div>
+            <button
+              type="submit"
+              className="flex items-center justify-center gap-2 w-full rounded-lg bg-emerald-600 text-white py-2 text-sm disabled:opacity-60"
+              disabled={supportSettingsSaving || supportSettingsLoading}
+            >
+              <Send size={16} />
+              {supportSettingsSaving ? 'Saving...' : 'Save support settings'}
+            </button>
+          </form>
+        </div>
+
         <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6 space-y-5">
           <div className="flex items-center gap-3">
             <div className="p-2 rounded-lg bg-sky-50 text-sky-500">

@@ -108,6 +108,16 @@ const SuperAdminApp = () => {
   const [announcements, setAnnouncements] = useState(initialAnnouncements);
   const [complianceItems, setComplianceItems] = useState(initialComplianceItems);
   const [activityFeed, setActivityFeed] = useState(initialActivityFeed);
+  const [supportSettings, setSupportSettings] = useState({
+    phoneNumber: '+91 90420 56789',
+    email: 'support@eecschools.com',
+    availableDays: 'Mon - Fri',
+    availableTime: '8 AM - 6 PM IST',
+    onCall24x7: true
+  });
+  const [supportSettingsLoading, setSupportSettingsLoading] = useState(false);
+  const [supportSettingsSaving, setSupportSettingsSaving] = useState(false);
+  const [supportSettingsError, setSupportSettingsError] = useState(null);
   const [schoolCredentials, setSchoolCredentials] = useState(() => {
     if (typeof window === 'undefined') return {};
     try {
@@ -149,6 +159,70 @@ const SuperAdminApp = () => {
       passwordReset: ticket.passwordReset,
       contactEmail: ticket.contactEmail,
       contactPhone: ticket.contactPhone
+    };
+  }, []);
+
+  const normalizeFeedbackItem = useCallback((item) => {
+    if (!item) return null;
+    return {
+      id: item.id || item._id,
+      topic: item.subject || item.requestDetails?.subject || 'Product feedback',
+      schoolName: item.schoolName || 'Unknown school',
+      submittedAt: item.createdAt || item.submittedAt || new Date().toISOString(),
+      sentiment: item.requestDetails?.sentiment || 'neutral',
+      status: item.status || 'open',
+      message: item.message || item.requestDetails?.message || '',
+      response: item.resolutionNotes || ''
+    };
+  }, []);
+
+  const normalizeIssueItem = useCallback((issue) => {
+    if (!issue) return null;
+    return {
+      id: issue.id || issue._id,
+      title: issue.title || 'Issue',
+      severity: issue.severity || 'medium',
+      reportedBy: issue.reportedBy || issue.schoolName || 'Unknown school',
+      schoolName: issue.schoolName || issue.reportedBy || 'Unknown school',
+      reportedAt: issue.reportedAt || issue.createdAt || new Date().toISOString(),
+      status: issue.status || 'open',
+      owner: issue.owner || 'Support',
+      description: issue.description || '',
+      resolutionNotes: issue.resolutionNotes || '',
+      source: 'issue',
+      sourceId: issue.id || issue._id
+    };
+  }, []);
+
+  const normalizeComplaintAsIssue = useCallback((complaint) => {
+    if (!complaint) return null;
+    const impactLevel = complaint.requestDetails?.impactLevel || 'medium';
+    const severityMap = {
+      low: 'low',
+      medium: 'medium',
+      high: 'high',
+      critical: 'critical'
+    };
+    const statusMap = {
+      open: 'open',
+      in_progress: 'investigating',
+      resolved: 'resolved'
+    };
+    return {
+      id: complaint.id || complaint._id,
+      title:
+        complaint.subject ||
+        `Complaint • ${complaint.requestDetails?.topic || complaint.category || 'General'}`,
+      severity: severityMap[impactLevel] || 'medium',
+      reportedBy: complaint.schoolName || 'Unknown school',
+      schoolName: complaint.schoolName || 'Unknown school',
+      reportedAt: complaint.createdAt || complaint.submittedAt || new Date().toISOString(),
+      status: statusMap[complaint.status] || 'open',
+      owner: complaint.owner || 'Support Desk',
+      description: complaint.message || complaint.requestDetails?.description || '',
+      resolutionNotes: complaint.resolutionNotes || '',
+      source: 'support_complaint',
+      sourceId: complaint.id || complaint._id
     };
   }, []);
 
@@ -325,7 +399,7 @@ const SuperAdminApp = () => {
     setFeedbackLoading(true);
     setFeedbackError(null);
     try {
-      const response = await fetch(`${API_BASE}/api/feedback/fetch`, {
+      const response = await fetch(`${API_BASE}/api/support/requests?supportType=feedback`, {
         headers: {
           Authorization: `Bearer ${token}`
         }
@@ -334,14 +408,16 @@ const SuperAdminApp = () => {
         throw new Error('Failed to load feedback');
       }
       const data = await response.json();
-      setFeedbackItems(Array.isArray(data) ? data : []);
+      setFeedbackItems(
+        Array.isArray(data) ? data.map((entry) => normalizeFeedbackItem(entry)).filter(Boolean) : []
+      );
     } catch (error) {
       console.error('Failed to fetch feedback', error);
       setFeedbackError(error.message || 'Unable to fetch feedback');
     } finally {
       setFeedbackLoading(false);
     }
-  }, []);
+  }, [normalizeFeedbackItem]);
 
   const fetchIssues = useCallback(async () => {
     const token = localStorage.getItem('token');
@@ -352,21 +428,108 @@ const SuperAdminApp = () => {
     setIssuesLoading(true);
     setIssuesError(null);
     try {
-      const response = await fetch(`${API_BASE}/api/issues`, {
-        headers: {
-          Authorization: `Bearer ${token}`
-        }
-      });
-      if (!response.ok) {
+      const [issuesResponse, complaintsResponse] = await Promise.all([
+        fetch(`${API_BASE}/api/issues`, {
+          headers: {
+            Authorization: `Bearer ${token}`
+          }
+        }),
+        fetch(`${API_BASE}/api/support/requests?supportType=complaint`, {
+          headers: {
+            Authorization: `Bearer ${token}`
+          }
+        })
+      ]);
+
+      if (!issuesResponse.ok) {
         throw new Error('Failed to load issues');
       }
-      const data = await response.json();
-      setIssues(Array.isArray(data) ? data : []);
+      if (!complaintsResponse.ok) {
+        throw new Error('Failed to load complaints');
+      }
+
+      const [issuesData, complaintsData] = await Promise.all([
+        issuesResponse.json(),
+        complaintsResponse.json()
+      ]);
+
+      const normalizedIssues = Array.isArray(issuesData)
+        ? issuesData.map((entry) => normalizeIssueItem(entry)).filter(Boolean)
+        : [];
+      const normalizedComplaints = Array.isArray(complaintsData)
+        ? complaintsData.map((entry) => normalizeComplaintAsIssue(entry)).filter(Boolean)
+        : [];
+
+      const merged = [...normalizedIssues, ...normalizedComplaints].sort(
+        (a, b) => new Date(b.reportedAt || 0).getTime() - new Date(a.reportedAt || 0).getTime()
+      );
+      setIssues(merged);
     } catch (error) {
       console.error('Failed to fetch issues', error);
       setIssuesError(error.message || 'Unable to fetch issues');
     } finally {
       setIssuesLoading(false);
+    }
+  }, [normalizeComplaintAsIssue, normalizeIssueItem]);
+
+  const fetchSupportSettings = useCallback(async () => {
+    const token = localStorage.getItem('token');
+    if (!token || !API_BASE) {
+      return;
+    }
+    setSupportSettingsLoading(true);
+    setSupportSettingsError(null);
+    try {
+      const response = await fetch(`${API_BASE}/api/support/settings`, {
+        headers: {
+          Authorization: `Bearer ${token}`
+        }
+      });
+      if (!response.ok) {
+        throw new Error('Failed to load support settings');
+      }
+      const data = await response.json();
+      setSupportSettings((prev) => ({
+        ...prev,
+        ...(data || {}),
+        onCall24x7: data?.onCall24x7 !== false
+      }));
+    } catch (error) {
+      console.error('Failed to fetch support settings', error);
+      setSupportSettingsError(error.message || 'Unable to load support settings');
+    } finally {
+      setSupportSettingsLoading(false);
+    }
+  }, []);
+
+  const handleSupportSettingsSave = useCallback(async (nextSettings = {}) => {
+    const token = localStorage.getItem('token');
+    if (!token || !API_BASE) return;
+    setSupportSettingsSaving(true);
+    setSupportSettingsError(null);
+    try {
+      const response = await fetch(`${API_BASE}/api/support/settings`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify(nextSettings)
+      });
+      if (!response.ok) {
+        throw new Error('Failed to save support settings');
+      }
+      const data = await response.json();
+      setSupportSettings((prev) => ({
+        ...prev,
+        ...(data || {}),
+        onCall24x7: data?.onCall24x7 !== false
+      }));
+    } catch (error) {
+      console.error('Failed to save support settings', error);
+      setSupportSettingsError(error.message || 'Unable to save support settings');
+    } finally {
+      setSupportSettingsSaving(false);
     }
   }, []);
 
@@ -447,6 +610,10 @@ const SuperAdminApp = () => {
   useEffect(() => {
     fetchIssues();
   }, [fetchIssues]);
+
+  useEffect(() => {
+    fetchSupportSettings();
+  }, [fetchSupportSettings]);
 
   useEffect(() => {
     const handleRefresh = () => fetchRequests();
@@ -677,33 +844,126 @@ const SuperAdminApp = () => {
     }
   };
 
-  const handleFeedbackUpdate = (feedbackId, updates) => {
-    setFeedbackItems((prev) =>
-      prev.map((item) =>
-        item.id === feedbackId
-          ? {
-              ...item,
-              ...updates,
-              updatedAt: new Date().toISOString()
-            }
-          : item
-      )
-    );
-  };
+  const handleFeedbackUpdate = useCallback(
+    async (feedbackId, updates = {}) => {
+      setFeedbackItems((prev) =>
+        prev.map((item) =>
+          item.id === feedbackId
+            ? {
+                ...item,
+                ...updates,
+                updatedAt: new Date().toISOString()
+              }
+            : item
+        )
+      );
 
-  const handleIssueUpdate = (issueId, updates) => {
-    setIssues((prev) =>
-      prev.map((issue) =>
-        issue.id === issueId
-          ? {
-              ...issue,
-              ...updates,
-              updatedAt: new Date().toISOString()
-            }
-          : issue
-      )
-    );
-  };
+      const token = localStorage.getItem('token');
+      if (!token || !API_BASE) {
+        return;
+      }
+
+      try {
+        const payload = {};
+        if (updates.status) {
+          payload.status = updates.status;
+        }
+        if (updates.response !== undefined) {
+          payload.resolutionNotes = updates.response;
+        }
+
+        const response = await fetch(`${API_BASE}/api/support/requests/${feedbackId}`, {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`
+          },
+          body: JSON.stringify(payload)
+        });
+        if (!response.ok) {
+          throw new Error('Failed to update feedback');
+        }
+        const data = await response.json();
+        const normalized = normalizeFeedbackItem(data);
+        if (normalized) {
+          setFeedbackItems((prev) => prev.map((item) => (item.id === feedbackId ? normalized : item)));
+        }
+      } catch (error) {
+        console.error('Failed to update feedback', error);
+        fetchFeedback();
+      }
+    },
+    [fetchFeedback, normalizeFeedbackItem]
+  );
+
+  const handleIssueUpdate = useCallback(
+    async (issueId, updates = {}) => {
+      setIssues((prev) =>
+        prev.map((issue) =>
+          issue.id === issueId
+            ? {
+                ...issue,
+                ...updates,
+                updatedAt: new Date().toISOString()
+              }
+            : issue
+        )
+      );
+
+      const token = localStorage.getItem('token');
+      if (!token || !API_BASE) {
+        return;
+      }
+
+      const issue = issues.find((item) => item.id === issueId);
+      if (!issue?.sourceId) return;
+
+      try {
+        if (issue.source === 'support_complaint') {
+          const supportStatusMap = {
+            open: 'open',
+            investigating: 'in_progress',
+            resolved: 'resolved'
+          };
+          const payload = {
+            status: updates.status ? supportStatusMap[updates.status] || updates.status : undefined,
+            owner: updates.owner,
+            resolutionNotes: updates.resolutionNotes
+          };
+          const response = await fetch(`${API_BASE}/api/support/requests/${issue.sourceId}`, {
+            method: 'PATCH',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${token}`
+            },
+            body: JSON.stringify(payload)
+          });
+          if (!response.ok) {
+            throw new Error('Failed to update complaint');
+          }
+          await fetchIssues();
+          return;
+        }
+
+        const response = await fetch(`${API_BASE}/api/issues/${issue.sourceId}`, {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`
+          },
+          body: JSON.stringify(updates)
+        });
+        if (!response.ok) {
+          throw new Error('Failed to update issue');
+        }
+        await fetchIssues();
+      } catch (error) {
+        console.error('Failed to update issue', error);
+        fetchIssues();
+      }
+    },
+    [fetchIssues, issues]
+  );
 
   const pushActivity = (entry) => {
     setActivityFeed((prev) => [
@@ -835,6 +1095,9 @@ const SuperAdminApp = () => {
           <Feedback
             feedbackItems={feedbackItems}
             onFeedbackUpdate={handleFeedbackUpdate}
+            loading={feedbackLoading}
+            error={feedbackError}
+            onRefresh={fetchFeedback}
           />
         } />
         <Route path="issues" element={
@@ -867,6 +1130,11 @@ const SuperAdminApp = () => {
             complianceItems={complianceItems}
             onComplianceUpdate={handleComplianceUpdate}
             activityFeed={activityFeed}
+            supportSettings={supportSettings}
+            supportSettingsLoading={supportSettingsLoading}
+            supportSettingsSaving={supportSettingsSaving}
+            supportSettingsError={supportSettingsError}
+            onSaveSupportSettings={handleSupportSettingsSave}
           />
         } />
         <Route path="id-pass" element={<IDPass profile={profile} />} />

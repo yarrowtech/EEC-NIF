@@ -72,11 +72,11 @@ export const ADMIN_MENU_ITEMS = [
     label: 'Student Attendance',
     path: '/admin/attendance'
   },
-  {
-    icon: Brain,
-    label: 'Student Wellbeing',
-    path: '/admin/wellbeing'
-  },
+  // {
+  //   icon: Brain,
+  //   label: 'Student Wellbeing',
+  //   path: '/admin/wellbeing'
+  // },
   {
     icon: Users,
     label: 'Teachers',
@@ -112,11 +112,11 @@ export const ADMIN_MENU_ITEMS = [
     label: 'Lesson Plan',
     path: '/admin/lesson-plans'
   },
-  {
-    icon: Calendar,
-    label: 'Examination Management',
-    path: '/admin/examination'
-  },
+  // {
+  //   icon: Calendar,
+  //   label: 'Examination Management',
+  //   path: '/admin/examination'
+  // },
   {
     icon: FileText,
     label: 'Result',

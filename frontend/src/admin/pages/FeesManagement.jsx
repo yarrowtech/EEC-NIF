@@ -605,7 +605,7 @@ const FeesManagement = ({ setShowAdminHeader }) => {
                 <h3 className="text-sm font-semibold text-slate-800">Fee Heads</h3>
                 <button
                   onClick={addFeeHead}
-                  className="inline-flex items-center gap-2 px-3 py-1.5 text-xs border border-slate-200 rounded-lg hover:bg-slate-50"
+                  className="inline-flex items-center gap-2 px-3 py-1.5 text-black text-xs border border-slate-200 rounded-lg hover:bg-slate-50"
                 >
                   <PlusCircle size={12} />
                   Add Fee Head
@@ -663,7 +663,7 @@ const FeesManagement = ({ setShowAdminHeader }) => {
                 <h3 className="text-sm font-semibold text-slate-800">Installments (optional)</h3>
                 <button
                   onClick={addInstallment}
-                  className="inline-flex items-center gap-2 px-3 py-1.5 text-xs border border-slate-200 rounded-lg hover:bg-slate-50"
+                  className="inline-flex items-center gap-2 px-3 py-1.5 text-black text-xs border border-slate-200 rounded-lg hover:bg-slate-50"
                 >
                   <PlusCircle size={12} />
                   Add Installment

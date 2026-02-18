@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { BookOpen, Plus, Search, Calendar, Target, Package, FileText, X } from 'lucide-react';
+import { BookOpen, Plus, Search, Calendar, Target, Package, FileText, X, AlertTriangle } from 'lucide-react';
 
 const API_BASE = (import.meta.env.VITE_API_URL || 'http://localhost:5000').replace(/\/$/, '');
 
@@ -26,6 +26,8 @@ const LessonPlanPage = ({ setShowAdminHeader }) => {
   const [editingPlanId, setEditingPlanId] = useState('');
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState(emptyForm);
+
+  const [deletingPlan, setDeletingPlan] = useState(null);
 
   const [classes, setClasses] = useState([]);
   const [sections, setSections] = useState([]);
@@ -229,107 +231,138 @@ const LessonPlanPage = ({ setShowAdminHeader }) => {
     }
   };
 
-  const deletePlan = async (planId) => {
-    if (!window.confirm('Delete this lesson plan?')) return;
+  const confirmDelete = async () => {
+    if (!deletingPlan) return;
     try {
       setError('');
-      const res = await fetch(`${API_BASE}/api/lesson-plans/admin/${planId}`, {
+      const res = await fetch(`${API_BASE}/api/lesson-plans/admin/${deletingPlan._id}`, {
         method: 'DELETE',
         headers: authHeaders(),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data?.error || 'Failed to delete lesson plan');
+      setDeletingPlan(null);
       await loadPlans();
     } catch (err) {
       setError(err.message || 'Failed to delete lesson plan');
+      setDeletingPlan(null);
     }
   };
 
   return (
     <div className="min-h-screen bg-gray-50 p-6">
-      <div className="bg-gradient-to-r from-red-400 to-red-500 rounded-xl p-6 mb-6 text-white">
+      {/* Header */}
+      <div className="bg-gradient-to-r from-yellow-400 via-amber-400 to-orange-400 rounded-2xl p-6 mb-6 text-white shadow-lg">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-3xl font-bold mb-2">Lesson Plans</h1>
-            <p className="text-red-100">Create class-section-teacher specific lesson plans</p>
+            <h1 className="text-3xl font-bold mb-1">Lesson Plans</h1>
+            <p className="text-amber-50 text-sm">Create class-section-teacher specific lesson plans</p>
           </div>
-          <BookOpen className="w-12 h-12 text-red-200" />
+          <div className="p-3 bg-white/20 rounded-xl">
+            <BookOpen className="w-8 h-8 text-white" />
+          </div>
         </div>
       </div>
 
-      <div className="bg-white rounded-xl p-6 mb-6 shadow-sm">
+      {/* Search & Actions */}
+      <div className="bg-white rounded-2xl border border-gray-200 p-5 mb-6 shadow-sm">
         <div className="flex flex-wrap items-center justify-between gap-4">
-          <div className="relative">
-            <Search className="w-5 h-5 absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+          <div className="relative flex-1 max-w-md">
+            <Search className="w-4 h-4 absolute left-3.5 top-1/2 transform -translate-y-1/2 text-gray-400" />
             <input
               type="text"
-              placeholder="Search lesson plans..."
+              placeholder="Search by title, subject, class, teacher..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="w-full pl-10 pr-4 py-2.5 text-sm border border-gray-200 rounded-xl focus:ring-2 focus:ring-yellow-400/40 focus:border-yellow-400 outline-none transition-all"
             />
           </div>
           <button
             onClick={openCreateModal}
-            className="inline-flex items-center gap-2 bg-blue-600 text-black px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
+            className="inline-flex items-center gap-2 bg-yellow-500 text-white px-5 py-2.5 rounded-xl hover:bg-yellow-600 transition-colors text-sm font-medium shadow-sm"
           >
             <Plus className="w-4 h-4" />
             Create Lesson Plan
           </button>
         </div>
-        {error && <p className="mt-3 text-sm text-red-600">{error}</p>}
+        {error && (
+          <div className="mt-3 text-sm text-red-600 bg-red-50 border border-red-100 rounded-xl px-4 py-2.5">
+            {error}
+          </div>
+        )}
       </div>
 
-      <div className="bg-white rounded-xl shadow-sm overflow-hidden">
+      {/* Plans List */}
+      <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
         {loading ? (
-          <div className="p-8 text-sm text-gray-600">Loading lesson plans...</div>
+          <div className="p-12 flex flex-col items-center justify-center text-gray-400">
+            <div className="w-8 h-8 border-3 border-yellow-400 border-t-transparent rounded-full animate-spin mb-3" />
+            <p className="text-sm">Loading lesson plans...</p>
+          </div>
         ) : filteredPlans.length === 0 ? (
-          <div className="p-8 text-sm text-gray-600">No lesson plans found.</div>
+          <div className="p-12 flex flex-col items-center justify-center text-gray-400">
+            <BookOpen className="w-12 h-12 mb-3 text-gray-300" />
+            <p className="text-sm font-medium text-gray-500">No lesson plans found</p>
+            <p className="text-xs text-gray-400 mt-1">Create your first lesson plan to get started</p>
+          </div>
         ) : (
           <div className="divide-y divide-gray-100">
             {filteredPlans.map((plan) => (
-              <div key={plan._id} className="p-5">
+              <div key={plan._id} className="p-5 hover:bg-gray-50/50 transition-colors">
                 <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-3">
-                  <div>
-                    <h3 className="text-lg font-semibold text-gray-900">{plan.title}</h3>
-                    <p className="text-sm text-gray-600 mt-1">
-                      {plan.subject} • Class {plan.className} - Section {plan.sectionName}
-                    </p>
-                    <p className="text-sm text-gray-600">Teacher: {plan.teacherName}</p>
+                  <div className="flex-1 min-w-0">
+                    <h3 className="text-base font-semibold text-gray-900 truncate">{plan.title}</h3>
+                    <div className="flex flex-wrap items-center gap-2 mt-1.5">
+                      <span className="inline-flex items-center gap-1 text-xs font-medium bg-amber-100 text-amber-800 px-2.5 py-1 rounded-full">
+                        {plan.subject}
+                      </span>
+                      <span className="inline-flex items-center gap-1 text-xs font-medium bg-blue-100 text-blue-800 px-2.5 py-1 rounded-full">
+                        Class {plan.className} - {plan.sectionName}
+                      </span>
+                      <span className="text-xs text-gray-500">Teacher: {plan.teacherName}</span>
+                    </div>
                   </div>
-                  <div className="text-sm text-gray-500 flex items-center gap-2">
-                    <Calendar className="w-4 h-4" />
-                    {new Date(plan.date).toLocaleDateString()}
+                  <div className="flex items-center gap-2 shrink-0">
+                    <span className="inline-flex items-center gap-1.5 text-xs text-gray-500 bg-gray-100 px-2.5 py-1.5 rounded-lg">
+                      <Calendar className="w-3.5 h-3.5" />
+                      {new Date(plan.date).toLocaleDateString()}
+                    </span>
                     <button
                       onClick={() => openEditModal(plan)}
-                      className="ml-2 px-3 py-1 rounded-lg border border-blue-200 text-blue-700 hover:bg-blue-50"
+                      className="px-3 py-1.5 text-xs font-medium rounded-lg bg-amber-50 text-amber-700 hover:bg-amber-100 transition-colors"
                     >
                       Edit
                     </button>
                     <button
-                      onClick={() => deletePlan(plan._id)}
-                      className="px-3 py-1 rounded-lg border border-red-200 text-red-700 hover:bg-red-50"
+                      onClick={() => setDeletingPlan(plan)}
+                      className="px-3 py-1.5 text-xs font-medium rounded-lg bg-red-50 text-red-700 hover:bg-red-100 transition-colors"
                     >
                       Delete
                     </button>
                   </div>
                 </div>
                 <div className="mt-3 grid grid-cols-1 lg:grid-cols-3 gap-3 text-sm">
-                  <div className="bg-blue-50 border border-blue-100 rounded-lg p-3">
-                    <div className="flex items-center gap-2 text-blue-700 font-medium mb-2"><Target className="w-4 h-4" />Objectives</div>
-                    <ul className="list-disc ml-5 text-gray-700 space-y-1">
+                  <div className="bg-blue-50/70 border border-blue-100 rounded-xl p-3.5">
+                    <div className="flex items-center gap-2 text-blue-700 font-medium text-xs uppercase tracking-wide mb-2">
+                      <Target className="w-3.5 h-3.5" />Objectives
+                    </div>
+                    <ul className="list-disc ml-5 text-gray-700 space-y-1 text-xs">
                       {(plan.learningObjectives || []).map((item, idx) => <li key={idx}>{item}</li>)}
                     </ul>
                   </div>
-                  <div className="bg-emerald-50 border border-emerald-100 rounded-lg p-3">
-                    <div className="flex items-center gap-2 text-emerald-700 font-medium mb-2"><Package className="w-4 h-4" />Materials</div>
-                    <ul className="list-disc ml-5 text-gray-700 space-y-1">
+                  <div className="bg-emerald-50/70 border border-emerald-100 rounded-xl p-3.5">
+                    <div className="flex items-center gap-2 text-emerald-700 font-medium text-xs uppercase tracking-wide mb-2">
+                      <Package className="w-3.5 h-3.5" />Materials
+                    </div>
+                    <ul className="list-disc ml-5 text-gray-700 space-y-1 text-xs">
                       {(plan.materialsNeeded || []).map((item, idx) => <li key={idx}>{item}</li>)}
                     </ul>
                   </div>
-                  <div className="bg-amber-50 border border-amber-100 rounded-lg p-3">
-                    <div className="flex items-center gap-2 text-amber-700 font-medium mb-2"><FileText className="w-4 h-4" />Additional Notes</div>
-                    <p className="text-gray-700">{plan.additionalNotes || '—'}</p>
+                  <div className="bg-amber-50/70 border border-amber-100 rounded-xl p-3.5">
+                    <div className="flex items-center gap-2 text-amber-700 font-medium text-xs uppercase tracking-wide mb-2">
+                      <FileText className="w-3.5 h-3.5" />Notes
+                    </div>
+                    <p className="text-gray-700 text-xs">{plan.additionalNotes || '—'}</p>
                   </div>
                 </div>
               </div>
@@ -338,24 +371,25 @@ const LessonPlanPage = ({ setShowAdminHeader }) => {
         )}
       </div>
 
+      {/* Modal */}
       {showModal && (
-        <div className="fixed inset-0 z-50 bg-black/20 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white rounded-xl w-full max-w-4xl max-h-[90vh] overflow-y-auto">
-            <div className="p-5 border-b border-gray-200 flex items-center justify-between">
-              <h2 className="text-xl font-semibold text-gray-900">{editingPlanId ? 'Edit Lesson Plan' : 'Create Lesson Plan'}</h2>
-              <button onClick={closeModal} className="p-2 rounded-lg hover:bg-gray-100">
-                <X className="w-5 h-5 text-gray-500" />
+        <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
+            <div className="bg-gradient-to-r from-amber-500 to-orange-500 text-white px-6 py-4 flex items-center justify-between shrink-0">
+              <h2 className="text-lg font-bold">{editingPlanId ? 'Edit Lesson Plan' : 'Create Lesson Plan'}</h2>
+              <button onClick={closeModal} className="p-1.5 rounded-lg hover:bg-white/20 transition-colors">
+                <X className="w-5 h-5" />
               </button>
             </div>
 
-            <form onSubmit={submitForm} className="p-5 space-y-5">
+            <form onSubmit={submitForm} className="p-6 space-y-5 overflow-y-auto">
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Class *</label>
+                  <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Class *</label>
                   <select
                     value={form.classId}
                     onChange={(e) => onClassChange(e.target.value)}
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2"
+                    className="w-full border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm focus:ring-2 focus:ring-yellow-400/40 focus:border-yellow-400 outline-none"
                     required
                   >
                     <option value="">Select Class</option>
@@ -364,11 +398,11 @@ const LessonPlanPage = ({ setShowAdminHeader }) => {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Section *</label>
+                  <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Section *</label>
                   <select
                     value={form.sectionId}
                     onChange={(e) => onSectionChange(e.target.value)}
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2"
+                    className="w-full border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm focus:ring-2 focus:ring-yellow-400/40 focus:border-yellow-400 outline-none disabled:bg-gray-50 disabled:text-gray-400"
                     required
                     disabled={!form.classId}
                   >
@@ -378,11 +412,11 @@ const LessonPlanPage = ({ setShowAdminHeader }) => {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Allocated Teacher (Subject) *</label>
+                  <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Teacher (Subject) *</label>
                   <select
                     value={form.teacherId && form.subjectId ? `${form.teacherId}::${form.subjectId}` : ''}
                     onChange={(e) => onAllocationChange(e.target.value)}
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2"
+                    className="w-full border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm focus:ring-2 focus:ring-yellow-400/40 focus:border-yellow-400 outline-none disabled:bg-gray-50 disabled:text-gray-400"
                     required
                     disabled={!form.sectionId || loadingOptions}
                   >
@@ -396,41 +430,41 @@ const LessonPlanPage = ({ setShowAdminHeader }) => {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Title *</label>
+                  <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Title *</label>
                   <input
                     type="text"
                     value={form.title}
                     onChange={(e) => setForm((prev) => ({ ...prev, title: e.target.value }))}
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2"
+                    className="w-full border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm focus:ring-2 focus:ring-yellow-400/40 focus:border-yellow-400 outline-none"
                     required
                   />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Subject *</label>
+                  <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Subject *</label>
                   <input
                     type="text"
                     value={form.subject}
                     onChange={(e) => setForm((prev) => ({ ...prev, subject: e.target.value }))}
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2"
+                    className="w-full border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm focus:ring-2 focus:ring-yellow-400/40 focus:border-yellow-400 outline-none"
                     required
                   />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Date *</label>
+                  <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Date *</label>
                   <input
                     type="date"
                     value={form.date}
                     onChange={(e) => setForm((prev) => ({ ...prev, date: e.target.value }))}
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2"
+                    className="w-full border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm focus:ring-2 focus:ring-yellow-400/40 focus:border-yellow-400 outline-none"
                     required
                   />
                 </div>
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Learning Objectives *</label>
+                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Learning Objectives *</label>
                 <div className="space-y-2">
                   {form.learningObjectives.map((item, idx) => (
                     <div key={`obj-${idx}`} className="flex gap-2">
@@ -438,18 +472,19 @@ const LessonPlanPage = ({ setShowAdminHeader }) => {
                         type="text"
                         value={item}
                         onChange={(e) => updateArrayField('learningObjectives', idx, e.target.value)}
-                        className="flex-1 border border-gray-300 rounded-lg px-3 py-2"
+                        className="flex-1 border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm focus:ring-2 focus:ring-yellow-400/40 focus:border-yellow-400 outline-none"
+                        placeholder={`Objective ${idx + 1}`}
                         required
                       />
-                      <button type="button" onClick={() => removeArrayField('learningObjectives', idx)} className="px-3 border rounded-lg">-</button>
+                      <button type="button" onClick={() => removeArrayField('learningObjectives', idx)} className="px-3 border border-gray-200 rounded-xl text-gray-400 hover:text-red-500 hover:border-red-200 hover:bg-red-50 transition-colors text-sm">-</button>
                     </div>
                   ))}
                 </div>
-                <button type="button" onClick={() => addArrayField('learningObjectives')} className="mt-2 text-sm text-blue-600">+ Add Objective</button>
+                <button type="button" onClick={() => addArrayField('learningObjectives')} className="mt-2 text-xs font-medium text-amber-600 hover:text-amber-700">+ Add Objective</button>
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Materials Needed *</label>
+                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Materials Needed *</label>
                 <div className="space-y-2">
                   {form.materialsNeeded.map((item, idx) => (
                     <div key={`mat-${idx}`} className="flex gap-2">
@@ -457,37 +492,70 @@ const LessonPlanPage = ({ setShowAdminHeader }) => {
                         type="text"
                         value={item}
                         onChange={(e) => updateArrayField('materialsNeeded', idx, e.target.value)}
-                        className="flex-1 border border-gray-300 rounded-lg px-3 py-2"
+                        className="flex-1 border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm focus:ring-2 focus:ring-yellow-400/40 focus:border-yellow-400 outline-none"
+                        placeholder={`Material ${idx + 1}`}
                         required
                       />
-                      <button type="button" onClick={() => removeArrayField('materialsNeeded', idx)} className="px-3 border rounded-lg">-</button>
+                      <button type="button" onClick={() => removeArrayField('materialsNeeded', idx)} className="px-3 border border-gray-200 rounded-xl text-gray-400 hover:text-red-500 hover:border-red-200 hover:bg-red-50 transition-colors text-sm">-</button>
                     </div>
                   ))}
                 </div>
-                <button type="button" onClick={() => addArrayField('materialsNeeded')} className="mt-2 text-sm text-blue-600">+ Add Material</button>
+                <button type="button" onClick={() => addArrayField('materialsNeeded')} className="mt-2 text-xs font-medium text-amber-600 hover:text-amber-700">+ Add Material</button>
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Additional Notes</label>
+                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Additional Notes</label>
                 <textarea
                   value={form.additionalNotes}
                   onChange={(e) => setForm((prev) => ({ ...prev, additionalNotes: e.target.value }))}
                   rows={4}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2"
+                  placeholder="Any additional notes for this lesson plan..."
+                  className="w-full border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm focus:ring-2 focus:ring-yellow-400/40 focus:border-yellow-400 outline-none resize-none"
                 />
               </div>
 
-              <div className="flex justify-end gap-3 pt-2">
-                <button type="button" onClick={closeModal} className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700">Cancel</button>
+              <div className="flex justify-end gap-3 pt-3 border-t border-gray-100">
+                <button type="button" onClick={closeModal} className="px-5 py-2.5 border border-gray-200 rounded-xl text-sm font-medium text-gray-600 hover:bg-gray-50 transition-colors">Cancel</button>
                 <button
                   type="submit"
                   disabled={saving || loadingOptions}
-                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-60"
+                  className="px-6 py-2.5 bg-yellow-500 text-white rounded-xl hover:bg-yellow-600 disabled:opacity-60 transition-colors text-sm font-medium shadow-sm"
                 >
                   {saving ? 'Saving...' : editingPlanId ? 'Update Lesson Plan' : 'Create Lesson Plan'}
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {deletingPlan && (
+        <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
+            <div className="p-6 flex flex-col items-center text-center">
+              <div className="w-14 h-14 rounded-full bg-red-100 flex items-center justify-center mb-4">
+                <AlertTriangle className="w-7 h-7 text-red-600" />
+              </div>
+              <h3 className="text-lg font-bold text-gray-900 mb-1">Delete Lesson Plan</h3>
+              <p className="text-sm text-gray-500 mb-1">Are you sure you want to delete</p>
+              <p className="text-sm font-semibold text-gray-800 mb-4">"{deletingPlan.title}"?</p>
+              <p className="text-xs text-gray-400">This action cannot be undone.</p>
+            </div>
+            <div className="flex border-t border-gray-100">
+              <button
+                onClick={() => setDeletingPlan(null)}
+                className="flex-1 px-4 py-3 text-sm font-medium text-gray-600 hover:bg-gray-50 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmDelete}
+                className="flex-1 px-4 py-3 text-sm font-medium text-red-600 hover:bg-red-50 border-l border-gray-100 transition-colors"
+              >
+                Delete
+              </button>
+            </div>
           </div>
         </div>
       )}

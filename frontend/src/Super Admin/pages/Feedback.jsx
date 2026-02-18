@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { MessageCircle, Send, CheckCircle2, Loader2 } from 'lucide-react';
+import { MessageCircle, Send, CheckCircle2, Loader2, RefreshCcw } from 'lucide-react';
 
 const sentimentColors = {
   positive: 'text-emerald-600 bg-emerald-50',
@@ -8,12 +8,13 @@ const sentimentColors = {
 };
 
 const statusLabel = {
+  open: 'Awaiting response',
   awaiting_response: 'Awaiting response',
   in_progress: 'In progress',
   resolved: 'Resolved'
 };
 
-const Feedback = ({ feedbackItems, onFeedbackUpdate }) => {
+const Feedback = ({ feedbackItems, onFeedbackUpdate, loading = false, error = null, onRefresh = () => {} }) => {
   const [draftResponses, setDraftResponses] = useState({});
   const pendingCount = useMemo(
     () => feedbackItems.filter((item) => item.status !== 'resolved').length,
@@ -44,10 +45,23 @@ const Feedback = ({ feedbackItems, onFeedbackUpdate }) => {
             <h2 className="text-2xl font-semibold text-slate-800">Feedback desk</h2>
           </div>
           <div className="flex items-center gap-2 text-sm">
-            <Loader2 className="animate-spin text-amber-500" size={16} />
+            {loading ? <Loader2 className="animate-spin text-amber-500" size={16} /> : <MessageCircle className="text-amber-500" size={16} />}
             <span className="text-slate-500">{pendingCount} conversations open</span>
+            <button
+              className="ml-2 inline-flex items-center gap-1 rounded-lg border border-slate-200 px-2.5 py-1 text-xs text-slate-600 hover:bg-slate-50"
+              onClick={onRefresh}
+              disabled={loading}
+            >
+              <RefreshCcw size={12} className={loading ? 'animate-spin' : ''} />
+              Refresh
+            </button>
           </div>
         </div>
+        {error && (
+          <div className="mt-4 rounded-xl border border-rose-100 bg-rose-50 px-3 py-2 text-sm text-rose-700">
+            {error}
+          </div>
+        )}
       </div>
 
       <div className="space-y-5">

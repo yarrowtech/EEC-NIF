@@ -8,6 +8,7 @@ const TeacherUser = require('../models/TeacherUser');
 const ParentUser = require('../models/ParentUser');
 const StudentUser = require('../models/StudentUser');
 const Principal = require('../models/Principal');
+const SupportSetting = require('../models/SupportSetting');
 const { isStrongPassword, passwordPolicyMessage } = require('../utils/passwordPolicy');
 
 const router = express.Router();
@@ -20,6 +21,7 @@ const roleModelMap = {
   principal: Principal,
   admin: Admin
 };
+const SETTINGS_KEY = 'global';
 
 const ensureSuperAdmin = (req, res, next) => {
   if (!req.isSuperAdmin) {
@@ -38,6 +40,75 @@ const sanitizeSupportRequest = (doc) => {
   delete sanitized.__v;
   return sanitized;
 };
+
+const sanitizeSupportSettings = (doc) => {
+  if (!doc) return null;
+  const obj = doc.toObject ? doc.toObject({ virtuals: false }) : doc;
+  return {
+    id: obj._id ? obj._id.toString() : undefined,
+    phoneNumber: obj.phoneNumber || '+91 90420 56789',
+    email: obj.email || 'support@eecschools.com',
+    availableDays: obj.availableDays || 'Mon - Fri',
+    availableTime: obj.availableTime || '8 AM - 6 PM IST',
+    onCall24x7: obj.onCall24x7 !== false
+  };
+};
+
+const getOrCreateSupportSettings = async () => {
+  const settings = await SupportSetting.findOneAndUpdate(
+    { key: SETTINGS_KEY },
+    {
+      $setOnInsert: {
+        key: SETTINGS_KEY,
+        phoneNumber: '+91 90420 56789',
+        email: 'support@eecschools.com',
+        availableDays: 'Mon - Fri',
+        availableTime: '8 AM - 6 PM IST',
+        onCall24x7: true
+      }
+    },
+    { new: true, upsert: true }
+  );
+  return settings;
+};
+
+router.get('/settings', adminAuth, async (_req, res) => {
+  try {
+    const settings = await getOrCreateSupportSettings();
+    res.json(sanitizeSupportSettings(settings));
+  } catch (err) {
+    console.error('Failed to fetch support settings', err);
+    res.status(500).json({ error: err.message || 'Unable to fetch support settings' });
+  }
+});
+
+router.patch('/settings', adminAuth, ensureSuperAdmin, async (req, res) => {
+  try {
+    const payload = req.body || {};
+    const update = {};
+    const allowed = ['phoneNumber', 'email', 'availableDays', 'availableTime', 'onCall24x7'];
+
+    allowed.forEach((field) => {
+      if (payload[field] !== undefined) {
+        update[field] =
+          field === 'onCall24x7'
+            ? Boolean(payload[field])
+            : String(payload[field]).trim();
+      }
+    });
+
+    const settings = await SupportSetting.findOneAndUpdate(
+      { key: SETTINGS_KEY },
+      { $set: update, $setOnInsert: { key: SETTINGS_KEY } },
+      { new: true, upsert: true }
+    );
+
+    res.json(sanitizeSupportSettings(settings));
+  } catch (err) {
+    console.error('Failed to update support settings', err);
+    res.status(500).json({ error: err.message || 'Unable to update support settings' });
+  }
+});
 
 const safeRegex = (value) => {
   if (!value) return null;

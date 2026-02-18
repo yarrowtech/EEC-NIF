@@ -65,7 +65,7 @@ const Issues = ({ issues, onIssueUpdate }) => {
                   </div>
                   <div>
                     <p className="text-lg font-semibold text-slate-800">{issue.title}</p>
-                    <p className="text-sm text-slate-500">Reported by {issue.reportedBy}</p>
+                    <p className="text-sm text-slate-500">School: {issue.schoolName || issue.reportedBy}</p>
                   </div>
                 </div>
                 <p className="text-sm text-slate-600 mt-3">{issue.description}</p>
