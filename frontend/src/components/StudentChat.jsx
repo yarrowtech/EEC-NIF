@@ -3,7 +3,8 @@ import { io } from 'socket.io-client';
 import {
   MessageSquare, Send, Search, ChevronLeft,
   PlusCircle, X, Loader2, Eye, Mail, BookOpen,
-  GraduationCap, Phone, User, Check, CheckCheck
+  GraduationCap, Phone, User, Check, CheckCheck,
+  Info
 } from 'lucide-react';
 
 const API_URL = (import.meta.env.VITE_API_URL || 'http://localhost:5000').replace(/\/$/, '');
@@ -68,6 +69,79 @@ const pickImg = (obj) => {
   // Handle case where field is a Cloudinary response object
   if (typeof raw === 'object') return raw.secure_url || raw.url || raw.path || null;
   return raw;
+};
+
+// ── Chat wallpaper (WhatsApp-style doodle background) ─────────────────────────
+const _WALLPAPER_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="300" height="300">
+  <rect width="300" height="300" fill="#f5f0e8"/>
+  <g opacity="0.45">
+    <rect x="15" y="18" width="58" height="30" rx="8" fill="#c9ad88"/>
+    <path d="M22,48 L13,62 L33,48" fill="#c9ad88"/>
+    <line x1="22" y1="28" x2="60" y2="28" stroke="#f5f0e8" stroke-width="2.5" stroke-linecap="round"/>
+    <line x1="22" y1="36" x2="52" y2="36" stroke="#f5f0e8" stroke-width="2.5" stroke-linecap="round"/>
+  </g>
+  <g opacity="0.38">
+    <rect x="216" y="22" width="52" height="26" rx="7" fill="#c9ad88"/>
+    <path d="M258,48 L266,61 L250,48" fill="#c9ad88"/>
+    <line x1="224" y1="31" x2="258" y2="31" stroke="#f5f0e8" stroke-width="2.5" stroke-linecap="round"/>
+    <line x1="224" y1="39" x2="246" y2="39" stroke="#f5f0e8" stroke-width="2.5" stroke-linecap="round"/>
+  </g>
+  <path d="M148,25 L140,17 C137,14 137,9 140,6 C143,3 148,4.5 148,8 C148,4.5 153,3 156,6 C159,9 159,14 156,17 Z" fill="#e8a87c" opacity="0.42"/>
+  <g transform="translate(243,68)" fill="#c9ad88" opacity="0.45">
+    <path d="M11,0 L13.5,8 L22,8 L15,13 L17.5,21 L11,16 L4.5,21 L7,13 L0,8 L8.5,8 Z"/>
+  </g>
+  <g opacity="0.45">
+    <rect x="18" y="148" width="56" height="32" rx="12" fill="#c9ad88"/>
+    <path d="M24,180 L13,195 L35,180" fill="#c9ad88"/>
+    <circle cx="34" cy="164" r="4" fill="#f5f0e8"/>
+    <circle cx="46" cy="164" r="4" fill="#f5f0e8"/>
+    <circle cx="58" cy="164" r="4" fill="#f5f0e8"/>
+  </g>
+  <g transform="translate(152,132)" opacity="0.38">
+    <rect x="1" y="11" width="20" height="14" rx="3" fill="#c9ad88"/>
+    <path d="M4,11 L4,7 C4,2 18,2 18,7 L18,11" fill="none" stroke="#c9ad88" stroke-width="2.5"/>
+    <circle cx="11" cy="18" r="3" fill="#f5f0e8"/>
+  </g>
+  <g transform="translate(237,183)" opacity="0.38">
+    <circle cx="14" cy="14" r="13" fill="none" stroke="#c9ad88" stroke-width="2"/>
+    <circle cx="9" cy="11" r="2" fill="#c9ad88"/>
+    <circle cx="19" cy="11" r="2" fill="#c9ad88"/>
+    <path d="M8,18 Q14,24 20,18" fill="none" stroke="#c9ad88" stroke-width="2" stroke-linecap="round"/>
+  </g>
+  <g opacity="0.42">
+    <rect x="196" y="240" width="72" height="36" rx="8" fill="#c9ad88"/>
+    <path d="M258,276 L268,290 L254,276" fill="#c9ad88"/>
+    <line x1="206" y1="253" x2="256" y2="253" stroke="#f5f0e8" stroke-width="2.5" stroke-linecap="round"/>
+    <line x1="206" y1="264" x2="244" y2="264" stroke="#f5f0e8" stroke-width="2.5" stroke-linecap="round"/>
+  </g>
+  <g transform="translate(86,207)" opacity="0.38">
+    <circle cx="10" cy="10" r="10" fill="none" stroke="#c9ad88" stroke-width="1.8" stroke-dasharray="4 3"/>
+    <line x1="10" y1="3" x2="10" y2="17" stroke="#c9ad88" stroke-width="1.8" stroke-linecap="round"/>
+    <line x1="3" y1="10" x2="17" y2="10" stroke="#c9ad88" stroke-width="1.8" stroke-linecap="round"/>
+  </g>
+  <g transform="translate(100,92)" fill="#e8a87c" opacity="0.35">
+    <path d="M12,3 L14,9 L20,9 L15.5,12.5 L17.5,18.5 L12,15 L6.5,18.5 L8.5,12.5 L4,9 L10,9 Z"/>
+  </g>
+  <g transform="translate(178,148)" opacity="0.35">
+    <rect x="0" y="8" width="34" height="22" rx="6" fill="#c9ad88"/>
+    <path d="M5,8 L5,5 C5,1 29,1 29,5 L29,8" fill="none" stroke="#c9ad88" stroke-width="2.5"/>
+  </g>
+  <g fill="#c9ad88" opacity="0.22">
+    <circle cx="104" cy="58" r="3"/>
+    <circle cx="174" cy="96" r="3"/>
+    <circle cx="278" cy="154" r="3"/>
+    <circle cx="122" cy="270" r="3"/>
+    <circle cx="70" cy="112" r="3"/>
+    <circle cx="202" cy="116" r="3"/>
+    <circle cx="142" cy="212" r="3"/>
+    <circle cx="56" cy="240" r="3"/>
+    <circle cx="290" cy="60" r="3"/>
+  </g>
+</svg>`;
+const CHAT_BG_STYLE = {
+  backgroundImage: `url("data:image/svg+xml,${encodeURIComponent(_WALLPAPER_SVG)}")`,
+  backgroundRepeat: 'repeat',
+  backgroundSize: '300px 300px',
 };
 
 // ── Avatar: shows real image or coloured initials ──────────────────────────────
@@ -200,6 +274,13 @@ const ChatMessage = ({ msg, isMine, myId }) => {
   const optimistic = Boolean(msg?._optimistic);
   const seen = isMine && isSeenByOther(msg, myId);
   const delivered = isMine && !optimistic;
+  const LONG_MESSAGE_LIMIT = 260;
+  const fullText = String(msg?.text || '');
+  const isLongMessage = fullText.length > LONG_MESSAGE_LIMIT;
+  const [expanded, setExpanded] = useState(false);
+  const visibleText = isLongMessage && !expanded
+    ? `${fullText.slice(0, LONG_MESSAGE_LIMIT)}...`
+    : fullText;
 
   return (
   <div className={`flex ${isMine ? 'justify-end' : 'justify-start'} mb-3`}>
@@ -208,7 +289,16 @@ const ChatMessage = ({ msg, isMine, myId }) => {
       {!isMine && (
         <div className="text-xs font-semibold text-amber-600 mb-1">{msg.senderName}</div>
       )}
-      <div className="whitespace-pre-wrap leading-relaxed">{msg.text}</div>
+      <div className="whitespace-pre-wrap leading-relaxed">{visibleText}</div>
+      {isLongMessage && (
+        <button
+          type="button"
+          onClick={() => setExpanded((prev) => !prev)}
+          className={`mt-1 text-xs font-semibold ${isMine ? 'text-sky-600' : 'text-amber-600'} hover:underline`}
+        >
+          {expanded ? 'Read less' : 'Read more'}
+        </button>
+      )}
       <div className={`text-xs mt-1 flex items-center justify-end gap-1 ${isMine ? 'text-amber-100' : 'text-gray-400'}`}>
         <span>{formatTime(msg.createdAt || msg.ts)}</span>
         {isMine && (
@@ -731,12 +821,12 @@ const StudentChat = () => {
                     className="h-8 w-8 rounded-lg hover:bg-amber-50 flex items-center justify-center transition-colors group"
                     title="View teacher details"
                   >
-                    <Eye className="h-4 w-4 text-gray-400 group-hover:text-amber-500 transition-colors" />
+                    <Info className="h-4 w-4 text-gray-400 group-hover:text-amber-500 transition-colors" />
                   </button>
                 </div>
 
                 {/* Messages */}
-                <div className="flex-1 overflow-y-auto px-4 py-4 bg-gray-50">
+                <div className="flex-1 overflow-y-auto px-4 py-4" style={CHAT_BG_STYLE}>
                   {loadingMessages ? (
                     <div className="flex items-center justify-center h-full">
                       <Loader2 className="h-5 w-5 text-amber-400 animate-spin" />

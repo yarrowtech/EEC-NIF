@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { io } from 'socket.io-client';
 import {
   MessageSquare, Send, Search, ChevronLeft,
-  Info, PlusCircle, X, Loader2, GraduationCap, Check, CheckCheck
+  Info, PlusCircle, X, Loader2, GraduationCap, Check, CheckCheck, User, Users
 } from 'lucide-react';
 
 const API_URL = (import.meta.env.VITE_API_URL || 'http://localhost:5000').replace(/\/$/, '');
@@ -53,6 +53,87 @@ const formatDaySeparator = (ts) => {
 const getInitials = (name = '') =>
   name.split(' ').slice(0, 2).map(w => w[0]).join('').toUpperCase() || '?';
 
+const resolveImg = (src) => {
+  if (!src) return null;
+  if (src.startsWith('http://') || src.startsWith('https://') || src.startsWith('blob:') || src.startsWith('data:')) {
+    return src;
+  }
+  return `${API_URL}${src.startsWith('/') ? '' : '/'}${src}`;
+};
+
+// ── Chat wallpaper (WhatsApp-style doodle background) ─────────────────────────
+const _WALLPAPER_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="300" height="300">
+  <rect width="300" height="300" fill="#f5f0e8"/>
+  <g opacity="0.45">
+    <rect x="15" y="18" width="58" height="30" rx="8" fill="#c9ad88"/>
+    <path d="M22,48 L13,62 L33,48" fill="#c9ad88"/>
+    <line x1="22" y1="28" x2="60" y2="28" stroke="#f5f0e8" stroke-width="2.5" stroke-linecap="round"/>
+    <line x1="22" y1="36" x2="52" y2="36" stroke="#f5f0e8" stroke-width="2.5" stroke-linecap="round"/>
+  </g>
+  <g opacity="0.38">
+    <rect x="216" y="22" width="52" height="26" rx="7" fill="#c9ad88"/>
+    <path d="M258,48 L266,61 L250,48" fill="#c9ad88"/>
+    <line x1="224" y1="31" x2="258" y2="31" stroke="#f5f0e8" stroke-width="2.5" stroke-linecap="round"/>
+    <line x1="224" y1="39" x2="246" y2="39" stroke="#f5f0e8" stroke-width="2.5" stroke-linecap="round"/>
+  </g>
+  <path d="M148,25 L140,17 C137,14 137,9 140,6 C143,3 148,4.5 148,8 C148,4.5 153,3 156,6 C159,9 159,14 156,17 Z" fill="#e8a87c" opacity="0.42"/>
+  <g transform="translate(243,68)" fill="#c9ad88" opacity="0.45">
+    <path d="M11,0 L13.5,8 L22,8 L15,13 L17.5,21 L11,16 L4.5,21 L7,13 L0,8 L8.5,8 Z"/>
+  </g>
+  <g opacity="0.45">
+    <rect x="18" y="148" width="56" height="32" rx="12" fill="#c9ad88"/>
+    <path d="M24,180 L13,195 L35,180" fill="#c9ad88"/>
+    <circle cx="34" cy="164" r="4" fill="#f5f0e8"/>
+    <circle cx="46" cy="164" r="4" fill="#f5f0e8"/>
+    <circle cx="58" cy="164" r="4" fill="#f5f0e8"/>
+  </g>
+  <g transform="translate(152,132)" opacity="0.38">
+    <rect x="1" y="11" width="20" height="14" rx="3" fill="#c9ad88"/>
+    <path d="M4,11 L4,7 C4,2 18,2 18,7 L18,11" fill="none" stroke="#c9ad88" stroke-width="2.5"/>
+    <circle cx="11" cy="18" r="3" fill="#f5f0e8"/>
+  </g>
+  <g transform="translate(237,183)" opacity="0.38">
+    <circle cx="14" cy="14" r="13" fill="none" stroke="#c9ad88" stroke-width="2"/>
+    <circle cx="9" cy="11" r="2" fill="#c9ad88"/>
+    <circle cx="19" cy="11" r="2" fill="#c9ad88"/>
+    <path d="M8,18 Q14,24 20,18" fill="none" stroke="#c9ad88" stroke-width="2" stroke-linecap="round"/>
+  </g>
+  <g opacity="0.42">
+    <rect x="196" y="240" width="72" height="36" rx="8" fill="#c9ad88"/>
+    <path d="M258,276 L268,290 L254,276" fill="#c9ad88"/>
+    <line x1="206" y1="253" x2="256" y2="253" stroke="#f5f0e8" stroke-width="2.5" stroke-linecap="round"/>
+    <line x1="206" y1="264" x2="244" y2="264" stroke="#f5f0e8" stroke-width="2.5" stroke-linecap="round"/>
+  </g>
+  <g transform="translate(86,207)" opacity="0.38">
+    <circle cx="10" cy="10" r="10" fill="none" stroke="#c9ad88" stroke-width="1.8" stroke-dasharray="4 3"/>
+    <line x1="10" y1="3" x2="10" y2="17" stroke="#c9ad88" stroke-width="1.8" stroke-linecap="round"/>
+    <line x1="3" y1="10" x2="17" y2="10" stroke="#c9ad88" stroke-width="1.8" stroke-linecap="round"/>
+  </g>
+  <g transform="translate(100,92)" fill="#e8a87c" opacity="0.35">
+    <path d="M12,3 L14,9 L20,9 L15.5,12.5 L17.5,18.5 L12,15 L6.5,18.5 L8.5,12.5 L4,9 L10,9 Z"/>
+  </g>
+  <g transform="translate(178,148)" opacity="0.35">
+    <rect x="0" y="8" width="34" height="22" rx="6" fill="#c9ad88"/>
+    <path d="M5,8 L5,5 C5,1 29,1 29,5 L29,8" fill="none" stroke="#c9ad88" stroke-width="2.5"/>
+  </g>
+  <g fill="#c9ad88" opacity="0.22">
+    <circle cx="104" cy="58" r="3"/>
+    <circle cx="174" cy="96" r="3"/>
+    <circle cx="278" cy="154" r="3"/>
+    <circle cx="122" cy="270" r="3"/>
+    <circle cx="70" cy="112" r="3"/>
+    <circle cx="202" cy="116" r="3"/>
+    <circle cx="142" cy="212" r="3"/>
+    <circle cx="56" cy="240" r="3"/>
+    <circle cx="290" cy="60" r="3"/>
+  </g>
+</svg>`;
+const CHAT_BG_STYLE = {
+  backgroundImage: `url("data:image/svg+xml,${encodeURIComponent(_WALLPAPER_SVG)}")`,
+  backgroundRepeat: 'repeat',
+  backgroundSize: '300px 300px',
+};
+
 // ── ChatMessage component ──────────────────────────────────────────────────────
 const isSeenByOther = (msg, myId) => {
   if (!myId) return false;
@@ -66,6 +147,13 @@ const ChatMessage = ({ msg, isMine, myId }) => {
   const optimistic = Boolean(msg?._optimistic);
   const delivered = isMine && !optimistic;
   const seen = isMine && delivered && isSeenByOther(msg, myId);
+  const LONG_MESSAGE_LIMIT = 260;
+  const fullText = String(msg?.text || '');
+  const isLongMessage = fullText.length > LONG_MESSAGE_LIMIT;
+  const [expanded, setExpanded] = useState(false);
+  const visibleText = isLongMessage && !expanded
+    ? `${fullText.slice(0, LONG_MESSAGE_LIMIT)}...`
+    : fullText;
 
   return (
   <div className={`flex ${isMine ? 'justify-end' : 'justify-start'} mb-3`}>
@@ -74,7 +162,16 @@ const ChatMessage = ({ msg, isMine, myId }) => {
       {!isMine && (
         <div className="text-xs font-semibold text-blue-600 mb-1">{msg.senderName}</div>
       )}
-      <div className="whitespace-pre-wrap leading-relaxed">{msg.text}</div>
+      <div className="whitespace-pre-wrap leading-relaxed">{visibleText}</div>
+      {isLongMessage && (
+        <button
+          type="button"
+          onClick={() => setExpanded((prev) => !prev)}
+          className={`mt-1 text-xs font-semibold ${isMine ? 'text-blue-200' : 'text-blue-600'} hover:underline`}
+        >
+          {expanded ? 'Read less' : 'Read more'}
+        </button>
+      )}
       <div className={`text-xs mt-1 flex items-center justify-end gap-1 ${isMine ? 'text-blue-200' : 'text-gray-400'}`}>
         <span>{formatTime(msg.createdAt || msg.ts)}</span>
         {isMine && (
@@ -152,6 +249,125 @@ const ContactItem = ({ contact, onClick }) => {
   );
 };
 
+const UserAvatar = ({ src, name, className = '' }) => {
+  const [error, setError] = useState(false);
+  const resolved = resolveImg(src);
+  if (resolved && !error) {
+    return (
+      <img
+        src={resolved}
+        alt={name || 'User'}
+        onError={() => setError(true)}
+        className={`h-7 w-7 rounded-full object-cover ${className}`}
+      />
+    );
+  }
+  return (
+    <div className={`h-7 w-7 rounded-full bg-blue-200 flex items-center justify-center text-xs font-semibold text-blue-800 ${className}`}>
+      {getInitials(name || 'T')}
+    </div>
+  );
+};
+
+const ParticipantProfileModal = ({ open, loading, error, profile, profileType, onClose }) => {
+  if (!open) return null;
+  const isParentProfile = profileType === 'parent';
+  const studentRows = [
+    { icon: User, label: 'Student Name', value: profile?.studentName || 'N/A' },
+    { icon: Users, label: 'Parent Name', value: profile?.parentName || 'N/A' },
+    {
+      icon: GraduationCap,
+      label: 'Class & Section',
+      value: `${profile?.className || 'N/A'}${profile?.section && profile?.section !== 'N/A' ? ` - ${profile.section}` : ''}`
+    },
+    { icon: Info, label: 'Roll Number', value: profile?.rollNumber || 'N/A' },
+  ];
+  return (
+    <div
+      className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4"
+      onClick={onClose}
+    >
+      <div
+        className="w-full max-w-md bg-white rounded-2xl shadow-2xl border border-gray-100 overflow-hidden"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
+          <h3 className="text-base font-semibold text-gray-900">
+            {isParentProfile ? 'Parent Profile' : 'Student Profile'}
+          </h3>
+          <button
+            onClick={onClose}
+            className="h-8 w-8 rounded-full hover:bg-gray-100 flex items-center justify-center"
+          >
+            <X className="h-4 w-4 text-gray-500" />
+          </button>
+        </div>
+
+        <div className="p-5">
+          {loading ? (
+            <div className="py-8 flex items-center justify-center text-sm text-gray-500">
+              <Loader2 className="h-4 w-4 animate-spin mr-2" />
+              Loading profile...
+            </div>
+          ) : error ? (
+            <div className="rounded-xl border border-rose-100 bg-rose-50 text-rose-700 px-4 py-3 text-sm">
+              {error}
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {isParentProfile ? (
+                <>
+                  <div className="rounded-xl border border-gray-100 bg-gray-50 px-4 py-3">
+                    <div className="flex items-start gap-3">
+                      <div className="p-1.5 rounded-lg bg-blue-50 text-blue-600">
+                        <Users className="h-3.5 w-3.5" />
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-xs uppercase tracking-wide text-gray-500 font-semibold">Parent Name</p>
+                        <p className="text-sm text-gray-900 font-medium break-words">{profile?.parentName || 'N/A'}</p>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="rounded-xl border border-gray-100 bg-gray-50 px-4 py-3">
+                    <p className="text-xs uppercase tracking-wide text-gray-500 font-semibold mb-2">Student Details</p>
+                    {Array.isArray(profile?.students) && profile.students.length > 0 ? (
+                      <div className="space-y-2">
+                        {profile.students.map((student) => (
+                          <div key={student.id} className="rounded-lg bg-white border border-gray-100 px-3 py-2">
+                            <p className="text-sm font-semibold text-gray-900">{student.studentName || 'Student'}</p>
+                            <p className="text-xs text-gray-600">
+                              {student.className || 'N/A'}{student.section && student.section !== 'N/A' ? ` - ${student.section}` : ''}
+                            </p>
+                            <p className="text-xs text-gray-500">Roll: {student.rollNumber || 'N/A'}</p>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-xs text-gray-500">No linked students found.</p>
+                    )}
+                  </div>
+                </>
+              ) : studentRows.map((item) => (
+                <div key={item.label} className="rounded-xl border border-gray-100 bg-gray-50 px-4 py-3">
+                  <div className="flex items-start gap-3">
+                    <div className="p-1.5 rounded-lg bg-blue-50 text-blue-600">
+                      <item.icon className="h-3.5 w-3.5" />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-xs uppercase tracking-wide text-gray-500 font-semibold">{item.label}</p>
+                      <p className="text-sm text-gray-900 font-medium break-words">{item.value}</p>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
+
 // ── Main TeacherChat ───────────────────────────────────────────────────────────
 const TeacherChat = () => {
   const [me, setMe] = useState(null);
@@ -165,6 +381,11 @@ const TeacherChat = () => {
   const [contactQuery, setContactQuery] = useState('');
   const [loadingThreads, setLoadingThreads] = useState(true);
   const [loadingMessages, setLoadingMessages] = useState(false);
+  const [showStudentProfileModal, setShowStudentProfileModal] = useState(false);
+  const [studentProfileLoading, setStudentProfileLoading] = useState(false);
+  const [studentProfileError, setStudentProfileError] = useState('');
+  const [studentProfile, setStudentProfile] = useState(null);
+  const [profileType, setProfileType] = useState('student');
   const [typingUsers, setTypingUsers] = useState({});
   const [isMobileView, setIsMobileView] = useState(false);
 
@@ -177,6 +398,37 @@ const TeacherChat = () => {
   const meRef = useRef(null);
 
   const activeThread = useMemo(() => threads.find(t => String(t._id) === activeThreadId), [threads, activeThreadId]);
+
+  const openStudentProfile = useCallback(async () => {
+    const participantId = activeThread?.otherParticipant?.userId;
+    const participantType = String(activeThread?.otherParticipant?.userType || 'student').toLowerCase();
+    if (!participantId) return;
+    setShowStudentProfileModal(true);
+    setStudentProfileLoading(true);
+    setStudentProfileError('');
+    setStudentProfile(null);
+    setProfileType(participantType === 'parent' ? 'parent' : 'student');
+    try {
+      const endpoint =
+        participantType === 'parent'
+          ? `/api/chat/parents/${participantId}/profile`
+          : `/api/chat/students/${participantId}/profile`;
+      const profile = await apiFetch(endpoint);
+      setStudentProfile(profile);
+    } catch (error) {
+      setStudentProfileError(error?.message || 'Unable to load profile');
+    } finally {
+      setStudentProfileLoading(false);
+    }
+  }, [activeThread]);
+
+  useEffect(() => {
+    setShowStudentProfileModal(false);
+    setStudentProfile(null);
+    setStudentProfileError('');
+    setStudentProfileLoading(false);
+    setProfileType('student');
+  }, [activeThreadId]);
 
   // ── Bootstrap ─────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -449,9 +701,25 @@ const TeacherChat = () => {
   const isTypingInActive = activeThreadId ? typingUsers[activeThreadId] : null;
   const showSidebar = !isMobileView || !activeThreadId;
   const showMain = !isMobileView || activeThreadId;
+  const activeParticipantType = String(activeThread?.otherParticipant?.userType || '').toLowerCase();
+  const activeParticipantLabel =
+    activeParticipantType === 'parent'
+      ? 'Parent'
+      : activeParticipantType === 'student'
+      ? 'Student'
+      : 'Participant';
 
   return (
-    <div className="h-full flex bg-gray-50 overflow-hidden">
+    <>
+      <ParticipantProfileModal
+        open={showStudentProfileModal}
+        loading={studentProfileLoading}
+        error={studentProfileError}
+        profile={studentProfile}
+        profileType={profileType}
+        onClose={() => setShowStudentProfileModal(false)}
+      />
+      <div className="h-full flex bg-gray-50 overflow-hidden">
       {/* ── Sidebar ── */}
       {showSidebar && (
         <div className="w-full md:w-[320px] flex-shrink-0 bg-white border-r border-gray-200 flex flex-col h-full relative">
@@ -556,9 +824,7 @@ const TeacherChat = () => {
           {/* Footer */}
           <div className="px-4 py-3 border-t border-gray-100 bg-gray-50">
             <div className="flex items-center gap-2.5">
-              <div className="h-7 w-7 rounded-full bg-blue-200 flex items-center justify-center text-xs font-semibold text-blue-800">
-                {getInitials(me?.name || 'T')}
-              </div>
+              <UserAvatar src={me?.avatar} name={me?.name || 'Teacher'} />
               <div className="flex-1 min-w-0">
                 <p className="text-xs font-medium text-gray-700 truncate">{me?.name || 'Teacher'}</p>
                 <p className="text-xs text-gray-400">Teacher</p>
@@ -588,22 +854,26 @@ const TeacherChat = () => {
                   </div>
                   <div>
                     <div className="font-semibold text-gray-900 text-sm">
-                      {activeThread?.otherParticipant?.name || 'Student'}
+                      {activeThread?.otherParticipant?.name || activeParticipantLabel}
                     </div>
                     <div className="text-xs text-gray-500">
                       {isTypingInActive ? (
                         <span className="text-blue-500 font-medium">typing...</span>
-                      ) : 'Student'}
+                      ) : activeParticipantLabel}
                     </div>
                   </div>
                 </div>
-                <button className="h-8 w-8 rounded-lg hover:bg-gray-100 flex items-center justify-center">
+                <button
+                  onClick={openStudentProfile}
+                  className="h-8 w-8 rounded-lg hover:bg-gray-100 flex items-center justify-center"
+                  title="View student profile"
+                >
                   <Info className="h-4 w-4 text-gray-500" />
                 </button>
               </div>
 
               {/* Messages */}
-              <div className="flex-1 overflow-y-auto px-4 py-4 bg-gray-50">
+              <div className="flex-1 overflow-y-auto px-4 py-4" style={CHAT_BG_STYLE}>
                 {loadingMessages ? (
                   <div className="flex items-center justify-center h-full">
                     <Loader2 className="h-5 w-5 text-blue-400 animate-spin" />
@@ -704,7 +974,8 @@ const TeacherChat = () => {
           )}
         </div>
       )}
-    </div>
+      </div>
+    </>
   );
 };
 

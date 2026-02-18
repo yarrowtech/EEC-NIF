@@ -129,7 +129,7 @@ const fetchParentStudents = async ({ parent, schoolId, campusId }) => {
       ...filter,
       _id: { $in: parent.childrenIds },
     })
-      .select('name grade section campusId')
+      .select('name grade section roll studentCode campusId')
       .lean();
   }
 
@@ -140,7 +140,7 @@ const fetchParentStudents = async ({ parent, schoolId, campusId }) => {
         ...filter,
         name: { $in: names },
       })
-        .select('name grade section campusId')
+        .select('name grade section roll studentCode campusId')
         .lean();
     }
   }
@@ -365,6 +365,18 @@ const ensureTeacherAccessToThread = async (req, thread) => {
   return ensureTeacherCanAccessStudent(req, other.userId);
 };
 
+const ensureTeacherCanAccessParent = async (req, parent) => {
+  if (!isTeacherRequest(req)) return true;
+  if (!parent) return false;
+  const schoolId = req.schoolId || req.user?.schoolId;
+  const campusId = (req.campusId ?? req.user?.campusId) ?? null;
+  const combos = await getTeacherCombos(req);
+  if (!combos?.length) return false;
+  const students = await fetchParentStudents({ parent, schoolId, campusId });
+  if (!students.length) return false;
+  return students.some((student) => studentMatchesCombos(student, combos));
+};
+
 const markThreadMessagesSeen = async ({ threadId, schoolId, campusId, userId }) => {
   if (!threadId || !schoolId || !userId) return;
   const seenEntry = { userId, seenAt: new Date() };
@@ -402,6 +414,122 @@ router.get('/me', async (req, res) => {
       avatar = u?.profilePic || null;
     }
     res.json({ id, userType, name, avatar, schoolId, campusId });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/chat/students/:studentId/profile — student profile for teacher chat modal
+router.get('/students/:studentId/profile', async (req, res) => {
+  try {
+    const requesterType = String(req.user?.userType || '').toLowerCase();
+    if (requesterType !== 'teacher') {
+      return res.status(403).json({ error: 'Only teachers can view student profile here' });
+    }
+
+    const { studentId } = req.params;
+    if (!mongoose.isValidObjectId(studentId)) {
+      return res.status(400).json({ error: 'Invalid student id' });
+    }
+
+    const schoolId = req.schoolId || req.user?.schoolId;
+    const campusId = (req.campusId ?? req.user?.campusId) ?? null;
+    const student = await StudentUser.findOne({
+      _id: studentId,
+      schoolId,
+      ...(campusId ? { campusId } : {}),
+    })
+      .select('name grade section roll studentCode fatherName motherName guardianName')
+      .lean();
+
+    if (!student) {
+      return res.status(404).json({ error: 'Student not found' });
+    }
+
+    const allowed = await ensureTeacherCanAccessStudent(req, student);
+    if (!allowed) {
+      return res.status(403).json({ error: 'Access denied' });
+    }
+
+    let parentName = student.fatherName || student.motherName || student.guardianName || '';
+    if (!parentName) {
+      const parentFilter = {
+        schoolId,
+        $or: [{ childrenIds: student._id }, { children: student.name }],
+      };
+      const campusCondition = buildCampusCondition(campusId);
+      if (campusCondition) {
+        parentFilter.$and = [campusCondition];
+      }
+      const parent = await ParentUser.findOne(parentFilter).select('name').lean();
+      parentName = parent?.name || '';
+    }
+
+    res.json({
+      id: String(student._id),
+      studentName: student.name || 'Student',
+      parentName: parentName || 'N/A',
+      className: student.grade || 'N/A',
+      section: student.section || 'N/A',
+      rollNumber:
+        student.roll !== undefined && student.roll !== null
+          ? String(student.roll)
+          : (student.studentCode || 'N/A'),
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/chat/parents/:parentId/profile — parent + linked student data for teacher chat modal
+router.get('/parents/:parentId/profile', async (req, res) => {
+  try {
+    const requesterType = String(req.user?.userType || '').toLowerCase();
+    if (requesterType !== 'teacher') {
+      return res.status(403).json({ error: 'Only teachers can view parent profile here' });
+    }
+
+    const { parentId } = req.params;
+    if (!mongoose.isValidObjectId(parentId)) {
+      return res.status(400).json({ error: 'Invalid parent id' });
+    }
+
+    const schoolId = req.schoolId || req.user?.schoolId;
+    const campusId = (req.campusId ?? req.user?.campusId) ?? null;
+    const parent = await ParentUser.findOne({
+      _id: parentId,
+      schoolId,
+      ...(campusId ? { campusId } : {}),
+    })
+      .select('name childrenIds children schoolId campusId')
+      .lean();
+
+    if (!parent) {
+      return res.status(404).json({ error: 'Parent not found' });
+    }
+
+    const allowed = await ensureTeacherCanAccessParent(req, parent);
+    if (!allowed) {
+      return res.status(403).json({ error: 'Access denied' });
+    }
+
+    const linkedStudents = await fetchParentStudents({ parent, schoolId, campusId });
+    const normalizedStudents = (linkedStudents || []).map((student) => ({
+      id: String(student._id),
+      studentName: student.name || 'Student',
+      className: student.grade || 'N/A',
+      section: student.section || 'N/A',
+      rollNumber:
+        student.roll !== undefined && student.roll !== null
+          ? String(student.roll)
+          : (student.studentCode || 'N/A'),
+    }));
+
+    res.json({
+      id: String(parent._id),
+      parentName: parent.name || 'Parent',
+      students: normalizedStudents,
+    });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
