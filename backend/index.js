@@ -63,6 +63,7 @@ const Principal = require('./models/Principal');
 const Admin = require('./models/Admin');
 const { isStrongPassword } = require('./utils/passwordPolicy');
 const principalDashboardRoutes = require('./routes/principalDashboardRoutes');
+const { getPresenceSnapshot, markUserOnline, markUserOffline } = require('./utils/chatPresence');
 
 
 const seedSuperAdmin = async () => {
@@ -331,6 +332,35 @@ io.on('connection', (socket) => {
   const user = socket.user;
   const userId = user.id?.toString();
 
+  const notifyPresenceChange = async ({ targetUserId, online, lastSeen }) => {
+    if (!targetUserId) return;
+    try {
+      const threads = await ChatThread.find({
+        schoolId: user.schoolId,
+        ...(user.campusId ? { campusId: user.campusId } : {}),
+        'participants.userId': targetUserId,
+      })
+        .select('_id participants')
+        .lean();
+
+      const notified = new Set();
+      threads.forEach((thread) => {
+        (thread.participants || []).forEach((participant) => {
+          const pid = String(participant.userId || '');
+          if (!pid || pid === String(targetUserId) || notified.has(pid)) return;
+          notified.add(pid);
+          io.to(`user:${pid}`).emit('presence-update', {
+            userId: String(targetUserId),
+            online,
+            lastSeen,
+          });
+        });
+      });
+    } catch {
+      // ignore presence fan-out issues
+    }
+  };
+
   const markThreadMessagesSeenSocket = async ({ threadId, schoolId, campusId, currentUserId }) => {
     if (!threadId || !schoolId || !currentUserId) return;
     await ChatMessage.updateMany(
@@ -347,8 +377,36 @@ io.on('connection', (socket) => {
     );
   };
 
+  const emitTypingState = async ({ threadId, isTyping }) => {
+    if (!threadId) return;
+    const thread = await ChatThread.findOne({
+      _id: threadId,
+      schoolId: user.schoolId,
+      ...(user.campusId ? { campusId: user.campusId } : {}),
+      'participants.userId': userId,
+    })
+      .select('participants.userId')
+      .lean();
+    if (!thread) return;
+
+    const payload = { threadId, userId, userName: socket.user.userType, isTyping: Boolean(isTyping) };
+    for (const participant of thread.participants || []) {
+      const participantId = String(participant?.userId || '');
+      if (!participantId || participantId === userId) continue;
+      io.to(`user:${participantId}`).emit('typing', payload);
+    }
+  };
+
   // Join personal room for direct notifications
   socket.join(`user:${userId}`);
+  const presenceOnline = markUserOnline(userId);
+  if (presenceOnline.changed) {
+    notifyPresenceChange({
+      targetUserId: userId,
+      online: true,
+      lastSeen: presenceOnline.lastSeen,
+    });
+  }
 
   socket.on('join-thread', async ({ threadId }) => {
     try {
@@ -366,6 +424,13 @@ io.on('connection', (socket) => {
         { _id: threadId, 'unreadCounts.userId': userId },
         { $set: { 'unreadCounts.$.count': 0 } }
       );
+      const presenceMap = {};
+      (thread.participants || []).forEach((participant) => {
+        const pid = String(participant.userId || '');
+        if (!pid) return;
+        presenceMap[pid] = getPresenceSnapshot(pid);
+      });
+      socket.emit('presence-sync', { threadId, presence: presenceMap });
       await markThreadMessagesSeenSocket({
         threadId,
         schoolId: user.schoolId,
@@ -380,9 +445,17 @@ io.on('connection', (socket) => {
     socket.leave(`thread:${threadId}`);
   });
 
-  socket.on('send-message', async ({ threadId, text }) => {
+  socket.on('send-message', async ({ threadId, text, encrypted }) => {
     try {
-      if (!text || !String(text).trim()) return;
+      const plainText = String(text || '').trim();
+      const hasEncrypted =
+        encrypted &&
+        typeof encrypted === 'object' &&
+        String(encrypted.ciphertext || '').trim() &&
+        String(encrypted.iv || '').trim() &&
+        Array.isArray(encrypted.keys) &&
+        encrypted.keys.length > 0;
+      if (!plainText && !hasEncrypted) return;
 
       const thread = await ChatThread.findOne({
         _id: threadId,
@@ -401,7 +474,18 @@ io.on('connection', (socket) => {
         senderId: userId,
         senderType: user.userType,
         senderName,
-        text: String(text).trim(),
+        text: plainText,
+        encrypted: hasEncrypted
+          ? {
+              algorithm: String(encrypted.algorithm || 'AES-GCM'),
+              iv: String(encrypted.iv || ''),
+              ciphertext: String(encrypted.ciphertext || ''),
+              keys: encrypted.keys
+                .filter((k) => k && k.userId && k.wrappedKey)
+                .map((k) => ({ userId: k.userId, wrappedKey: String(k.wrappedKey) })),
+              version: String(encrypted.version || 'v1'),
+            }
+          : undefined,
         schoolId: user.schoolId,
         campusId: thread.campusId || user.campusId,
         seenBy: [{ userId, seenAt: new Date() }],
@@ -422,7 +506,13 @@ io.on('connection', (socket) => {
       await Promise.all([
         ChatThread.updateOne(
           { _id: threadId },
-          { $set: { lastMessage: msg.text, lastMessageAt: msg.createdAt, lastSenderId: userId } }
+          {
+            $set: {
+              lastMessage: msg.text || '[Encrypted message]',
+              lastMessageAt: msg.createdAt,
+              lastSenderId: userId
+            }
+          }
         ),
         bulkOps.length ? ChatThread.bulkWrite(bulkOps) : Promise.resolve(),
       ]);
@@ -437,8 +527,9 @@ io.on('connection', (socket) => {
         if (p.userId?.toString() === userId) continue;
         io.to(`user:${p.userId}`).emit('thread-updated', {
           threadId,
-          lastMessage: msg.text,
+          lastMessage: msg.text || '[Encrypted message]',
           lastMessageAt: msg.createdAt,
+          message: payload,
         });
       }
     } catch (err) {
@@ -447,11 +538,11 @@ io.on('connection', (socket) => {
   });
 
   socket.on('typing-start', ({ threadId }) => {
-    socket.to(`thread:${threadId}`).emit('typing', { threadId, userId, userName: socket.user.userType, isTyping: true });
+    emitTypingState({ threadId, isTyping: true }).catch(() => {});
   });
 
   socket.on('typing-stop', ({ threadId }) => {
-    socket.to(`thread:${threadId}`).emit('typing', { threadId, userId, userName: socket.user.userType, isTyping: false });
+    emitTypingState({ threadId, isTyping: false }).catch(() => {});
   });
 
   socket.on('mark-seen', async ({ threadId }) => {
@@ -471,7 +562,14 @@ io.on('connection', (socket) => {
   });
 
   socket.on('disconnect', () => {
-    // cleanup handled by socket.io
+    const presenceOffline = markUserOffline(userId);
+    if (presenceOffline.changed) {
+      notifyPresenceChange({
+        targetUserId: userId,
+        online: false,
+        lastSeen: presenceOffline.lastSeen,
+      });
+    }
   });
 });
 

@@ -10,6 +10,8 @@ const Timetable = require('../models/Timetable');
 const ClassModel = require('../models/Class');
 const Section = require('../models/Section');
 const TeacherAllocation = require('../models/TeacherAllocation');
+const ChatKey = require('../models/ChatKey');
+const { getPresenceSnapshot } = require('../utils/chatPresence');
 
 const router = express.Router();
 router.use(authAnyUser);
@@ -419,6 +421,80 @@ router.get('/me', async (req, res) => {
   }
 });
 
+// GET /api/chat/keys/me — current user's registered public key
+router.get('/keys/me', async (req, res) => {
+  try {
+    const userId = new mongoose.Types.ObjectId(req.user.id);
+    const userType = String(req.user.userType || '').toLowerCase();
+    const keyDoc = await ChatKey.findOne({ userId, userType }).select('publicKey updatedAt').lean();
+    res.json({ publicKey: keyDoc?.publicKey || '', updatedAt: keyDoc?.updatedAt || null });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// PUT /api/chat/keys/me — register/update current user's public key
+router.put('/keys/me', async (req, res) => {
+  try {
+    const userId = new mongoose.Types.ObjectId(req.user.id);
+    const userType = String(req.user.userType || '').toLowerCase();
+    const publicKey = String(req.body?.publicKey || '').trim();
+    if (!publicKey) {
+      return res.status(400).json({ error: 'publicKey is required' });
+    }
+    const saved = await ChatKey.findOneAndUpdate(
+      { userId, userType },
+      { $set: { publicKey } },
+      { new: true, upsert: true, setDefaultsOnInsert: true }
+    ).select('publicKey updatedAt');
+    res.json({ publicKey: saved.publicKey, updatedAt: saved.updatedAt });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/chat/threads/:threadId/keys — fetch participant public keys for E2EE
+router.get('/threads/:threadId/keys', async (req, res) => {
+  try {
+    const { threadId } = req.params;
+    const userId = new mongoose.Types.ObjectId(req.user.id);
+    const schoolId = req.schoolId || req.user?.schoolId;
+    const campusId = (req.campusId ?? req.user?.campusId) ?? null;
+    const thread = await ChatThread.findOne({
+      _id: threadId,
+      schoolId,
+      ...(campusId !== null ? { campusId } : {}),
+      'participants.userId': userId,
+    }).lean();
+    if (!thread) return res.status(404).json({ error: 'Thread not found' });
+    const allowed = await ensureTeacherAccessToThread(req, thread);
+    if (!allowed) return res.status(403).json({ error: 'Access denied' });
+
+    const participantIds = (thread.participants || []).map((p) => p.userId).filter(Boolean);
+    const participantTypes = (thread.participants || []).map((p) => String(p.userType || '').toLowerCase());
+    const keys = await ChatKey.find({ userId: { $in: participantIds } })
+      .select('userId userType publicKey')
+      .lean();
+    const keyMap = {};
+    keys.forEach((entry) => {
+      keyMap[String(entry.userId)] = {
+        userType: entry.userType,
+        publicKey: entry.publicKey,
+      };
+    });
+    // include participants without key to let client decide fallback
+    thread.participants.forEach((p, idx) => {
+      const id = String(p.userId);
+      if (!keyMap[id]) {
+        keyMap[id] = { userType: participantTypes[idx] || String(p.userType || '').toLowerCase(), publicKey: '' };
+      }
+    });
+    res.json({ threadId: String(thread._id), keys: keyMap });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // GET /api/chat/students/:studentId/profile — student profile for teacher chat modal
 router.get('/students/:studentId/profile', async (req, res) => {
   try {
@@ -652,10 +728,39 @@ router.get('/threads', async (req, res) => {
         otherParticipant: other || null,
         lastMessage: t.lastMessage || '',
         lastMessageAt: t.lastMessageAt,
+        lastMessagePayload: null,
         unreadCount: unreadEntry?.count || 0,
         updatedAt: t.updatedAt,
       };
     });
+
+    const threadIds = result.map((item) => item._id).filter(Boolean);
+    if (threadIds.length > 0) {
+      const latestMessages = await ChatMessage.find({
+        threadId: { $in: threadIds },
+        schoolId,
+        ...(campusId !== null ? { campusId } : {}),
+      })
+        .sort({ createdAt: -1 })
+        .select('threadId text encrypted createdAt')
+        .lean();
+
+      const latestByThread = new Map();
+      latestMessages.forEach((msg) => {
+        const key = String(msg.threadId);
+        if (!latestByThread.has(key)) latestByThread.set(key, msg);
+      });
+
+      result.forEach((thread) => {
+        const latest = latestByThread.get(String(thread._id));
+        if (!latest) return;
+        thread.lastMessagePayload = {
+          text: latest.text || '',
+          encrypted: latest.encrypted || null,
+          createdAt: latest.createdAt || null,
+        };
+      });
+    }
 
     // Enrich teacher participants with profilePic and profile details
     const teacherParticipantIds = Array.from(
@@ -889,6 +994,39 @@ router.get('/threads/:threadId/messages', async (req, res) => {
   }
 });
 
+// GET /api/chat/threads/:threadId/presence — participant online/last seen snapshot
+router.get('/threads/:threadId/presence', async (req, res) => {
+  try {
+    const userId = new mongoose.Types.ObjectId(req.user.id);
+    const schoolId = req.schoolId || req.user?.schoolId;
+    const campusId = (req.campusId ?? req.user?.campusId) ?? null;
+    const { threadId } = req.params;
+
+    const thread = await ChatThread.findOne({
+      _id: threadId,
+      schoolId,
+      ...(campusId !== null ? { campusId } : {}),
+      'participants.userId': userId,
+    }).lean();
+
+    if (!thread) return res.status(404).json({ error: 'Thread not found' });
+
+    const allowed = await ensureTeacherAccessToThread(req, thread);
+    if (!allowed) return res.status(403).json({ error: 'Access denied' });
+
+    const presence = {};
+    (thread.participants || []).forEach((participant) => {
+      const pid = String(participant.userId || '');
+      if (!pid) return;
+      presence[pid] = getPresenceSnapshot(pid);
+    });
+
+    res.json({ threadId, presence });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // POST /api/chat/threads/:threadId/messages — send a message
 router.post('/threads/:threadId/messages', async (req, res) => {
   try {
@@ -896,10 +1034,18 @@ router.post('/threads/:threadId/messages', async (req, res) => {
     const { userType, schoolId } = req.user;
     const campusId = (req.campusId ?? req.user?.campusId) ?? null;
     const { threadId } = req.params;
-    const { text } = req.body;
+    const { text, encrypted } = req.body || {};
+    const plainText = String(text || '').trim();
+    const hasEncrypted =
+      encrypted &&
+      typeof encrypted === 'object' &&
+      String(encrypted.ciphertext || '').trim() &&
+      String(encrypted.iv || '').trim() &&
+      Array.isArray(encrypted.keys) &&
+      encrypted.keys.length > 0;
 
-    if (!text || !String(text).trim()) {
-      return res.status(400).json({ error: 'text is required' });
+    if (!plainText && !hasEncrypted) {
+      return res.status(400).json({ error: 'Encrypted payload or text is required' });
     }
 
     const thread = await ChatThread.findOne({
@@ -922,7 +1068,18 @@ router.post('/threads/:threadId/messages', async (req, res) => {
       senderId: userId,
       senderType: userType,
       senderName,
-      text: String(text).trim(),
+      text: plainText,
+      encrypted: hasEncrypted
+        ? {
+            algorithm: String(encrypted.algorithm || 'AES-GCM'),
+            iv: String(encrypted.iv || ''),
+            ciphertext: String(encrypted.ciphertext || ''),
+            keys: encrypted.keys
+              .filter((k) => k && k.userId && k.wrappedKey)
+              .map((k) => ({ userId: k.userId, wrappedKey: String(k.wrappedKey) })),
+            version: String(encrypted.version || 'v1'),
+          }
+        : undefined,
       schoolId,
       campusId,
       seenBy: [{ userId, seenAt: new Date() }],
@@ -945,7 +1102,7 @@ router.post('/threads/:threadId/messages', async (req, res) => {
         { _id: threadId },
         {
           $set: {
-            lastMessage: msg.text,
+            lastMessage: msg.text || '[Encrypted message]',
             lastMessageAt: msg.createdAt,
             lastSenderId: userId,
           },

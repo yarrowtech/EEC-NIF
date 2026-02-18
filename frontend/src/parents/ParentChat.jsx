@@ -4,8 +4,13 @@ import {
   MessageSquare, Send, Search, Users, ChevronLeft,
   Info, PlusCircle, X, Loader2
 } from 'lucide-react';
+import { decryptChatMessage, encryptChatMessage, ensureE2EEIdentity } from '../utils/chatE2EE';
+import { chatCacheKeys, readChatCache, writeChatCache } from '../utils/chatCache';
 
 const API_URL = (import.meta.env.VITE_API_URL || 'http://localhost:5000').replace(/\/$/, '');
+const THREADS_CACHE_TTL_MS = 60 * 1000;
+const MESSAGES_CACHE_TTL_MS = 30 * 1000;
+const CONTACTS_CACHE_TTL_MS = 5 * 60 * 1000;
 
 const authHeader = () => ({ Authorization: `Bearer ${localStorage.getItem('token')}` });
 
@@ -49,7 +54,7 @@ const ChatMessage = ({ msg, isMine }) => (
   </div>
 );
 
-const ConversationItem = ({ thread, isActive, onClick }) => {
+const ConversationItem = ({ thread, isActive, onClick, isTyping }) => {
   const other = thread.otherParticipant;
   const name = other?.name || 'Unknown';
   const initials = getInitials(name);
@@ -74,7 +79,9 @@ const ConversationItem = ({ thread, isActive, onClick }) => {
           <span className="text-xs text-gray-400 ml-2 flex-shrink-0">{formatTime(thread.lastMessageAt)}</span>
         </div>
         <div className="flex items-center justify-between mt-0.5">
-          <span className="text-xs text-gray-500 truncate">{thread.lastMessage || 'No messages yet'}</span>
+          <span className={`text-xs truncate ${isTyping ? 'text-blue-600 font-medium italic' : 'text-gray-500'}`}>
+            {isTyping ? 'typing...' : (thread.lastMessage || 'No messages yet')}
+          </span>
           {unread > 0 && (
             <span className="ml-2 flex-shrink-0 h-5 min-w-[20px] px-1.5 rounded-full bg-blue-500 text-white text-xs flex items-center justify-center">
               {unread}
@@ -127,8 +134,32 @@ const ParentChat = () => {
   const typingDebounce = useRef(null);
   const isTyping = useRef(false);
   const meRef = useRef(null);
+  const privateKeyRef = useRef('');
 
   const activeThread = useMemo(() => threads.find(t => String(t._id) === activeThreadId), [threads, activeThreadId]);
+
+  const decryptForUI = useCallback(async (rawMsg) => {
+    if (!rawMsg) return rawMsg;
+    if (rawMsg.text && String(rawMsg.text).trim()) return rawMsg;
+    const plainText = await decryptChatMessage({
+      message: rawMsg,
+      myId: meRef.current?.id,
+      privateKeyBase64: privateKeyRef.current,
+    });
+    return { ...rawMsg, text: plainText };
+  }, []);
+
+  const decryptThreadPreview = useCallback(async (thread) => {
+    if (!thread) return thread;
+    const payload = thread.lastMessagePayload;
+    if (!payload) return thread;
+    const preview = await decryptChatMessage({
+      message: payload,
+      myId: meRef.current?.id,
+      privateKeyBase64: privateKeyRef.current,
+    });
+    return { ...thread, lastMessage: preview || thread.lastMessage || '' };
+  }, []);
 
   useEffect(() => {
     const token = localStorage.getItem('token');
@@ -142,14 +173,22 @@ const ParentChat = () => {
 
     const init = async () => {
       try {
-        const [meData, threadsData] = await Promise.all([
-          apiFetch('/api/chat/me'),
-          apiFetch('/api/chat/threads'),
-        ]);
+        const meData = await apiFetch('/api/chat/me');
         if (!mounted) return;
         setMe(meData);
         meRef.current = meData;
-        setThreads(threadsData);
+        const identity = await ensureE2EEIdentity({ userId: meData?.id, apiFetch });
+        privateKeyRef.current = identity?.privateKey || '';
+        const threadsCacheKey = chatCacheKeys.threads(meData?.id);
+        const cachedThreads = readChatCache(threadsCacheKey, THREADS_CACHE_TTL_MS);
+        if (Array.isArray(cachedThreads)) {
+          setThreads(cachedThreads);
+        }
+        const threadsData = await apiFetch('/api/chat/threads');
+        if (!mounted) return;
+        const hydratedThreads = await Promise.all((Array.isArray(threadsData) ? threadsData : []).map((thread) => decryptThreadPreview(thread)));
+        setThreads(hydratedThreads);
+        writeChatCache(threadsCacheKey, hydratedThreads);
       } catch (err) {
         console.error('Parent chat init error:', err);
       } finally {
@@ -172,7 +211,8 @@ const ParentChat = () => {
       }
     });
 
-    socket.on('new-message', (msg) => {
+    socket.on('new-message', async (rawMsg) => {
+      const msg = await decryptForUI(rawMsg);
       const threadId = String(msg.threadId);
       setMessages(prev => {
         if (activeThreadIdRef.current !== threadId) return prev;
@@ -199,16 +239,23 @@ const ParentChat = () => {
       ));
     });
 
-    socket.on('thread-updated', ({ threadId, lastMessage, lastMessageAt }) => {
+    socket.on('thread-updated', async ({ threadId, lastMessage, lastMessageAt, message }) => {
+      let resolvedLastMessage = lastMessage;
+      if (message) {
+        resolvedLastMessage = await decryptChatMessage({
+          message,
+          myId: meRef.current?.id,
+          privateKeyBase64: privateKeyRef.current,
+        });
+      }
       setThreads(prev => prev.map(t =>
         String(t._id) === threadId
-          ? { ...t, lastMessage, lastMessageAt, unreadCount: activeThreadIdRef.current === threadId ? 0 : (t.unreadCount || 0) + 1 }
+          ? { ...t, lastMessage: resolvedLastMessage, lastMessageAt, unreadCount: activeThreadIdRef.current === threadId ? 0 : (t.unreadCount || 0) + 1 }
           : t
       ));
     });
 
     socket.on('typing', ({ threadId, isTyping: typing, userName }) => {
-      if (String(activeThreadIdRef.current) !== String(threadId)) return;
       const key = String(threadId);
       if (typing) {
         setTypingUsers(prev => ({ ...prev, [key]: userName }));
@@ -225,7 +272,7 @@ const ParentChat = () => {
       mounted = false;
       socket.disconnect();
     };
-  }, []);
+  }, [decryptForUI, decryptThreadPreview]);
 
   useEffect(() => {
     const check = () => setIsMobileView(window.innerWidth < 768);
@@ -238,6 +285,27 @@ const ParentChat = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
+  useEffect(() => {
+    const userId = me?.id;
+    if (!userId) return;
+    writeChatCache(chatCacheKeys.threads(userId), threads);
+  }, [threads, me?.id]);
+
+  useEffect(() => {
+    const userId = me?.id;
+    if (!userId || !activeThreadId) return;
+    const stableMessages = (Array.isArray(messages) ? messages : [])
+      .filter((msg) => !msg?._optimistic)
+      .slice(-120);
+    writeChatCache(chatCacheKeys.messages(userId, activeThreadId), stableMessages);
+  }, [messages, activeThreadId, me?.id]);
+
+  useEffect(() => {
+    const userId = me?.id;
+    if (!userId || !Array.isArray(contacts) || contacts.length === 0) return;
+    writeChatCache(chatCacheKeys.contacts(userId), contacts);
+  }, [contacts, me?.id]);
+
   const selectThread = useCallback(async (threadId) => {
     const token = localStorage.getItem('token');
     if (!token) return;
@@ -247,21 +315,44 @@ const ParentChat = () => {
     }
     activeThreadIdRef.current = threadId;
     setActiveThreadId(threadId);
-    setMessages([]);
-    setLoadingMessages(true);
+    const userId = meRef.current?.id || me?.id;
+    const cachedMessages = userId
+      ? readChatCache(chatCacheKeys.messages(userId, threadId), MESSAGES_CACHE_TTL_MS)
+      : null;
+    if (Array.isArray(cachedMessages)) {
+      setMessages(cachedMessages);
+      setLoadingMessages(false);
+    } else {
+      setMessages([]);
+      setLoadingMessages(true);
+    }
     setThreads(prev => prev.map(t => String(t._id) === threadId ? { ...t, unreadCount: 0 } : t));
     socket?.emit('join-thread', { threadId });
     socket?.emit('mark-seen', { threadId });
     try {
       const msgs = await apiFetch(`/api/chat/threads/${threadId}/messages`);
-      setMessages(msgs);
+      const decrypted = await Promise.all((Array.isArray(msgs) ? msgs : []).map((msg) => decryptForUI(msg)));
+      setMessages(decrypted);
+      if (userId) {
+        writeChatCache(chatCacheKeys.messages(userId, threadId), decrypted.slice(-120));
+      }
+      const latest = decrypted[decrypted.length - 1];
+      if (latest?.text) {
+        setThreads((prev) =>
+          prev.map((thread) =>
+            String(thread._id) === String(threadId)
+              ? { ...thread, lastMessage: latest.text, lastMessageAt: latest.createdAt || thread.lastMessageAt }
+              : thread
+          )
+        );
+      }
     } catch (err) {
       console.error('Parent chat messages error:', err);
-      setMessages([]);
+      if (!Array.isArray(cachedMessages)) setMessages([]);
     } finally {
       setLoadingMessages(false);
     }
-  }, []);
+  }, [decryptForUI, me?.id]);
 
   const startConversation = useCallback(async (contact) => {
     setShowContacts(false);
@@ -284,15 +375,23 @@ const ParentChat = () => {
 
   const openContacts = useCallback(async () => {
     if (contacts.length === 0) {
+      const userId = meRef.current?.id || me?.id;
+      const cachedContacts = userId
+        ? readChatCache(chatCacheKeys.contacts(userId), CONTACTS_CACHE_TTL_MS)
+        : null;
+      if (Array.isArray(cachedContacts)) {
+        setContacts(cachedContacts);
+      }
       try {
         const data = await apiFetch('/api/chat/contacts');
         setContacts(data);
+        if (userId) writeChatCache(chatCacheKeys.contacts(userId), data);
       } catch (err) {
         console.error('Parent chat contacts error:', err);
       }
     }
     setShowContacts(true);
-  }, [contacts.length]);
+  }, [contacts.length, me?.id]);
 
   const sendMessage = useCallback(() => {
     const text = draft.trim();
@@ -312,14 +411,35 @@ const ParentChat = () => {
     };
     setMessages(prev => [...prev, optimistic]);
 
+    const sendPayload = async () => {
+      const encrypted = await encryptChatMessage({
+        threadId: activeThreadId,
+        text,
+        myId: me?.id,
+        apiFetch,
+      });
+      return encrypted;
+    };
+
     if (socketRef.current?.connected) {
-      socketRef.current.emit('send-message', { threadId: activeThreadId, text });
+      sendPayload().then((encrypted) => {
+        socketRef.current.emit('send-message', {
+          threadId: activeThreadId,
+          text: encrypted ? '' : text,
+          encrypted: encrypted || undefined,
+        });
+      }).catch(() => {
+        socketRef.current.emit('send-message', { threadId: activeThreadId, text });
+      });
     } else {
-      apiFetch(`/api/chat/threads/${activeThreadId}/messages`, {
-        method: 'POST',
-        body: JSON.stringify({ text }),
-      }).then(msg => {
-        setMessages(prev => prev.map(m => m._id === optimisticId ? msg : m));
+      sendPayload().then((encrypted) => {
+        return apiFetch(`/api/chat/threads/${activeThreadId}/messages`, {
+          method: 'POST',
+          body: JSON.stringify({ text: encrypted ? '' : text, encrypted: encrypted || undefined }),
+        });
+      }).then(async (msg) => {
+        const decrypted = await decryptForUI(msg);
+        setMessages(prev => prev.map(m => m._id === optimisticId ? decrypted : m));
       }).catch(() => {
         setMessages(prev => prev.filter(m => m._id !== optimisticId));
       });
@@ -335,7 +455,7 @@ const ParentChat = () => {
       isTyping.current = false;
       socketRef.current?.emit('typing-stop', { threadId: activeThreadId });
     }
-  }, [draft, activeThreadId, me]);
+  }, [draft, activeThreadId, me, decryptForUI]);
 
   const handleDraftChange = (value) => {
     setDraft(value);
@@ -431,6 +551,7 @@ const ParentChat = () => {
                   key={thread._id}
                   thread={thread}
                   isActive={String(thread._id) === activeThreadId}
+                  isTyping={Boolean(typingUsers[String(thread._id)])}
                   onClick={() => {
                     selectThread(String(thread._id));
                     setIsMobileView(false);
