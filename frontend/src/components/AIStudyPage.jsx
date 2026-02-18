@@ -4,7 +4,6 @@ import AIProblemSolver from './AIProblemSolver';
 import AITextbookChat from './AITextbookChat';
 
 const AIStudyPage = () => {
-  const [activeView, setActiveView] = useState('dashboard');
   const [showProblemSolver, setShowProblemSolver] = useState(false);
 
   const handleQuickAction = (action) => {
@@ -25,10 +24,7 @@ const AIStudyPage = () => {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Main Content */}
-      {activeView === 'dashboard' && (
-        <AIStudyDashboard onQuickAction={handleQuickAction} />
-      )}
+      <AIStudyDashboard onQuickAction={handleQuickAction} />
 
       {/* Problem Solver Modal */}
       {showProblemSolver && (

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import {
   Brain,
   BookOpen,
@@ -28,78 +28,9 @@ import AIQuizGenerator from './AIQuizGenerator';
 
 const AILearningDashboard = () => {
   const [selectedSubject, setSelectedSubject] = useState(null);
-  const [learningProgress, setLearningProgress] = useState(null);
-  const [courses, setCourses] = useState([]);
-  const [recommendations, setRecommendations] = useState([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    fetchLearningData();
-  }, []);
-
-  const fetchLearningData = async () => {
-    try {
-      setLoading(true);
-      // Mock student ID - in real app, get from authentication
-      const studentId = 'mock-student-id';
-      
-      const [coursesRes, progressRes, recommendationsRes] = await Promise.all([
-        fetch(`/api/student-ai-learning/courses/${studentId}`),
-        fetch(`/api/student-ai-learning/progress/${studentId}`),
-        fetch(`/api/student-ai-learning/recommendations/${studentId}`)
-      ]);
-
-      if (coursesRes.ok) {
-        const coursesData = await coursesRes.json();
-        setCourses(coursesData);
-      } else {
-        setCourses(mockCourses);
-      }
-
-      if (progressRes.ok) {
-        const progressData = await progressRes.json();
-        setLearningProgress(progressData);
-      } else {
-        setLearningProgress(mockProgress);
-      }
-
-      if (recommendationsRes.ok) {
-        const recommendationsData = await recommendationsRes.json();
-        setRecommendations(recommendationsData);
-      } else {
-        setRecommendations(mockRecommendations);
-      }
-    } catch (error) {
-      console.error('Error fetching learning data:', error);
-      setCourses(mockCourses);
-      setLearningProgress(mockProgress);
-      setRecommendations(mockRecommendations);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const getSubjectColor = (color) => {
-    const colors = {
-      blue: 'from-blue-500 to-blue-600',
-      purple: 'from-purple-500 to-purple-600',
-      green: 'from-green-500 to-green-600',
-      orange: 'from-orange-500 to-orange-600',
-      red: 'from-red-500 to-red-600'
-    };
-    return colors[color] || colors.blue;
-  };
-
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
-          <Brain className="w-16 h-16 text-blue-600 animate-pulse mx-auto mb-4" />
-          <p className="text-gray-600">Loading your AI Learning Dashboard...</p>
-        </div>
-      </div>
-    );
-  }
+  const learningProgress = mockProgress;
+  const courses = mockCourses;
+  const recommendations = mockRecommendations;
 
   if (selectedSubject) {
     return <SubjectLearningView 
@@ -109,8 +40,7 @@ const AILearningDashboard = () => {
   }
 
   return (
-    <>
-    {/* <div className="min-h-screen bg-gray-50 p-6">
+    <div className="min-h-screen bg-gray-50 p-6">
       <div className="bg-gradient-to-r from-blue-600 to-purple-600 rounded-2xl p-6 mb-6 text-white shadow-xl">
         <div className="flex items-center justify-between">
           <div>
@@ -314,14 +244,7 @@ const AILearningDashboard = () => {
           </div>
         </div>
       </div>
-    </div> */}
-
-    <div className="bg-white shadow-sm p-6 h-[90vh]">
-        <div className="text-center flex justify-center items-center h-full">
-          <p className="text-gray-600">AI Tutor coming soon!</p>
-        </div>
-      </div>
-    </>
+    </div>
   );
 };
 

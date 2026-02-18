@@ -26,12 +26,12 @@ import {
 
 const AIStudyDashboard = () => {
   const [activeSession, setActiveSession] = useState(null);
-  const [studyStats, setStudyStats] = useState({
+  const studyStats = {
     problemsSolved: 247,
     conceptsLearned: 89,
     studyStreak: 15,
     totalHours: 142
-  });
+  };
 
   const quickActions = [
     {

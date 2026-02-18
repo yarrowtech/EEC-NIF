@@ -48,7 +48,6 @@ const AITextbookChat = ({ isOpen, onToggle, isMinimized, onMinimize }) => {
   const [isListening, setIsListening] = useState(false);
   
   const messagesEndRef = useRef(null);
-  const fileInputRef = useRef(null);
   const imageInputRef = useRef(null);
 
   // Available subjects and textbooks
@@ -132,7 +131,6 @@ const AITextbookChat = ({ isOpen, onToggle, isMinimized, onMinimize }) => {
       ]
     };
 
-    const subject = subjects.find(s => s.id === userMessage.subject);
     const isQuestion = userMessage.content.includes('?') || 
                      userMessage.content.toLowerCase().includes('solve') ||
                      userMessage.content.toLowerCase().includes('explain') ||
@@ -230,8 +228,6 @@ const AITextbookChat = ({ isOpen, onToggle, isMinimized, onMinimize }) => {
   const filteredTextbooks = textbooks.filter(t => 
     selectedSubject === 'all' || t.subject === selectedSubject || t.id === 'all'
   );
-
-  const currentSubject = subjects.find(s => s.id === selectedSubject);
 
   if (!isOpen) return null;
 

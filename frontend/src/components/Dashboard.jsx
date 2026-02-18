@@ -18,7 +18,6 @@ import ExcuseLetter from './ExcuseLetter';
 import AILearningDashboard from './AILearningDashboard';
 import AcademicAlcove from './AcademicAlcove';
 import StudentWellbeing from './StudentWellbeing';
-import StudentFees from './StudentFees';
 import LessonPlanStatusView from './LessonPlanStatusView';
 import { StudentDashboardProvider } from './StudentDashboardContext';
 
@@ -79,7 +78,6 @@ const Dashboard = () => {
     'excuse-letter': ExcuseLetter,
     wellness: StudentWellbeing,
     wellbeing: StudentWellbeing,
-    fees: StudentFees,
     achievements: AchievementsView,
     profile: ProfileUpdate,
     themecustomizer: ThemeCustomizer,
