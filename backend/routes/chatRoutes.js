@@ -512,6 +512,38 @@ router.get('/threads', async (req, res) => {
       };
     });
 
+    // Enrich teacher participants with profilePic and profile details
+    const teacherParticipantIds = Array.from(
+      new Set(
+        result
+          .filter(t => t.otherParticipant?.userType === 'teacher')
+          .map(t => String(t.otherParticipant.userId))
+      )
+    );
+    if (teacherParticipantIds.length) {
+      const teacherDocs = await TeacherUser.find({ _id: { $in: teacherParticipantIds } })
+        .select('_id profilePic subject department qualification experience email mobile')
+        .lean();
+      const teacherDataMap = new Map(teacherDocs.map(t => [String(t._id), t]));
+      result.forEach(t => {
+        if (t.otherParticipant?.userType === 'teacher') {
+          const td = teacherDataMap.get(String(t.otherParticipant.userId));
+          if (td) {
+            t.otherParticipant = {
+              ...t.otherParticipant,
+              avatar: td.profilePic || null,
+              subject: td.subject || null,
+              department: td.department || null,
+              qualification: td.qualification || null,
+              experience: td.experience || null,
+              email: td.email || null,
+              mobile: td.mobile || null,
+            };
+          }
+        }
+      });
+    }
+
     if (!isTeacherRequest(req)) {
       return res.json(result);
     }
