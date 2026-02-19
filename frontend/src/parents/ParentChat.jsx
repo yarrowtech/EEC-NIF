@@ -2,7 +2,8 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { io } from 'socket.io-client';
 import {
   MessageSquare, Send, Search, ChevronLeft,
-  PlusCircle, X, Loader2, Check, CheckCheck, Palette
+  PlusCircle, X, Loader2, Check, CheckCheck, Palette,
+  GraduationCap, BookOpen, User, Mail, Phone
 } from 'lucide-react';
 import { decryptChatMessage, encryptChatMessage, ensureE2EEIdentity } from '../utils/chatE2EE';
 import { chatCacheKeys, readChatCache, writeChatCache } from '../utils/chatCache';
@@ -41,6 +42,10 @@ const formatMessageTime = (ts) => {
   const d = new Date(ts);
   return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 };
+
+const isThreadCacheUsable = (items) =>
+  Array.isArray(items) &&
+  items.every((thread) => thread && thread._id && thread.otherParticipant && thread.otherParticipant.name);
 
 const formatLastSeen = (ts) => {
   if (!ts) return '';
@@ -277,6 +282,7 @@ const SIZES = {
   sm: 'h-9  w-9  text-sm',
   md: 'h-11 w-11 text-sm',
   lg: 'h-16 w-16 text-lg',
+  xl: 'h-24 w-24 text-2xl',
 };
 
 const Avatar = ({ src, name = '', size = 'sm', ring = false, themeColor = '#22c55e', className = '' }) => {
@@ -302,6 +308,76 @@ const Avatar = ({ src, name = '', size = 'sm', ring = false, themeColor = '#22c5
       style={{ background: `linear-gradient(135deg, ${themeColor}99, ${themeColor})`, ...ringStyle }}
     >
       {getInitials(name)}
+    </div>
+  );
+};
+
+const TeacherModal = ({ teacher, onClose, theme }) => {
+  if (!teacher) return null;
+  const t = theme || THEMES.green;
+
+  const img = pickImg(teacher);
+  const name = teacher.name || 'Teacher';
+  const email = teacher.email || teacher.userId || null;
+  const phone = teacher.phone || teacher.mobile || null;
+  const subj = Array.isArray(teacher.subjects) ? teacher.subjects.join(', ') : (teacher.subject || teacher.specialization || null);
+  const dept = teacher.department || null;
+  const grade = teacher.grade || teacher.class || null;
+  const bio = teacher.bio || teacher.about || null;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm" onClick={onClose}>
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden" onClick={(e) => e.stopPropagation()}>
+        <div className="h-24 relative" style={{ background: `linear-gradient(90deg, ${t.color}, ${t.hover})` }}>
+          <button onClick={onClose} className="absolute top-3 right-3 h-7 w-7 rounded-full bg-white/20 hover:bg-white/40 flex items-center justify-center transition-colors">
+            <X className="h-4 w-4 text-white" />
+          </button>
+        </div>
+
+        <div className="flex justify-center -mt-12 mb-3">
+          <Avatar src={img} name={name} size="xl" className="ring-4 ring-white shadow-lg z-50" themeColor={t.color} />
+        </div>
+
+        <div className="text-center px-6 pb-4">
+          <h2 className="text-lg font-bold text-gray-900">{name}</h2>
+          <span className="inline-flex items-center gap-1.5 mt-1 px-3 py-0.5 rounded-full text-xs font-semibold" style={{ backgroundColor: t.lighter, color: t.color }}>
+            <GraduationCap className="h-3.5 w-3.5" /> Teacher
+          </span>
+        </div>
+
+        <div className="border-t border-gray-100 divide-y divide-gray-100 mx-4 mb-4 rounded-xl overflow-hidden border">
+          {[
+            subj && { icon: BookOpen, label: 'Subject', value: subj },
+            dept && { icon: GraduationCap, label: 'Department', value: dept },
+            grade && { icon: User, label: 'Class', value: grade },
+            email && { icon: Mail, label: 'Email', value: email },
+            phone && { icon: Phone, label: 'Phone', value: phone },
+          ].filter(Boolean).map(({ icon: Icon, label, value }) => (
+            <div key={label} className="flex items-start gap-3 px-4 py-3 bg-white">
+              <div className="p-1.5 rounded-lg shrink-0" style={{ backgroundColor: t.lighter }}>
+                <Icon className="h-3.5 w-3.5" style={{ color: t.color }} />
+              </div>
+              <div className="min-w-0">
+                <p className="text-xs text-gray-400 font-medium">{label}</p>
+                <p className="text-sm text-gray-800 font-semibold truncate">{value}</p>
+              </div>
+            </div>
+          ))}
+
+          {!subj && !dept && !grade && !email && !phone && (
+            <div className="px-4 py-6 text-center text-sm text-gray-400 bg-white">
+              No additional details available.
+            </div>
+          )}
+        </div>
+
+        {bio && (
+          <div className="mx-4 mb-5 p-4 rounded-xl bg-gray-50 border border-gray-100">
+            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">About</p>
+            <p className="text-sm text-gray-700 leading-relaxed">{bio}</p>
+          </div>
+        )}
+      </div>
     </div>
   );
 };
@@ -441,6 +517,7 @@ const ParentChat = () => {
   const [wallpaperKey, setWallpaperKey]         = useState(() => localStorage.getItem('parent_chat_wallpaper') || 'doodle');
   const [themeKey, setThemeKey]                 = useState(() => localStorage.getItem('parent_chat_theme')     || 'green');
   const [showChatSettings, setShowChatSettings] = useState(false);
+  const [teacherModal, setTeacherModal]         = useState(null);
 
   const socketRef         = useRef(null);
   const activeThreadIdRef = useRef(null);
@@ -499,7 +576,9 @@ const ParentChat = () => {
         privateKeyRef.current = identity?.privateKey || '';
         const threadsCacheKey = chatCacheKeys.threads(meData?.id);
         const cachedThreads = readChatCache(threadsCacheKey, THREADS_CACHE_TTL_MS);
-        if (Array.isArray(cachedThreads)) setThreads(cachedThreads);
+        if (isThreadCacheUsable(cachedThreads)) {
+          setThreads(cachedThreads);
+        }
         const threadsData = await apiFetch('/api/chat/threads');
         if (!mounted) return;
         const hydratedThreads = await Promise.all(
@@ -734,12 +813,15 @@ const ParentChat = () => {
       const cachedContacts = userId
         ? readChatCache(chatCacheKeys.contacts(userId), CONTACTS_CACHE_TTL_MS)
         : null;
-      if (Array.isArray(cachedContacts)) setContacts(cachedContacts);
-      try {
-        const data = await apiFetch('/api/chat/contacts');
-        setContacts(data);
-        if (userId) writeChatCache(chatCacheKeys.contacts(userId), data);
-      } catch { /* ignore */ }
+      if (Array.isArray(cachedContacts)) {
+        setContacts(cachedContacts);
+      } else {
+        try {
+          const data = await apiFetch('/api/chat/contacts');
+          setContacts(data);
+          if (userId) writeChatCache(chatCacheKeys.contacts(userId), data);
+        } catch { /* ignore */ }
+      }
     }
     setShowContacts(true);
   }, [contacts, me?.id]);
@@ -852,6 +934,9 @@ const ParentChat = () => {
 
   return (
     <div className="h-full flex bg-gray-50 overflow-hidden">
+      {teacherModal && (
+        <TeacherModal teacher={teacherModal} onClose={() => setTeacherModal(null)} theme={theme} />
+      )}
 
       {/* ── Sidebar ─────────────────────────────────────────────────────── */}
       {showSidebar && (
@@ -1097,22 +1182,29 @@ const ParentChat = () => {
                       <ChevronLeft className="h-5 w-5 text-gray-500" />
                     </button>
                   )}
-                  <Avatar
-                    src={pickImg(activeTeacher)}
-                    name={activeTeacher?.name || ''}
-                    size="sm"
-                    ring
-                    themeColor={theme.color}
-                    className="hover:opacity-90 transition-opacity cursor-pointer"
-                  />
-                  <div>
-                    <div className="font-semibold text-gray-900 text-sm">
-                      {activeTeacher?.name || 'Teacher'}
+                  <button
+                    type="button"
+                    onClick={() => setTeacherModal(activeTeacher)}
+                    className="flex items-center gap-3 text-left"
+                    title="View teacher profile"
+                  >
+                    <Avatar
+                      src={pickImg(activeTeacher)}
+                      name={activeTeacher?.name || ''}
+                      size="sm"
+                      ring
+                      themeColor={theme.color}
+                      className="hover:opacity-90 transition-opacity cursor-pointer"
+                    />
+                    <div>
+                      <div className="font-semibold text-gray-900 text-sm">
+                        {activeTeacher?.name || 'Teacher'}
+                      </div>
+                      <div className="text-xs text-gray-500">
+                        <span style={isTypingInActive ? { color: theme.color, fontWeight: 500 } : {}}>{activeStatusText}</span>
+                      </div>
                     </div>
-                    <div className="text-xs text-gray-500">
-                      <span style={isTypingInActive ? { color: theme.color, fontWeight: 500 } : {}}>{activeStatusText}</span>
-                    </div>
-                  </div>
+                  </button>
                 </div>
               </div>
 

@@ -44,6 +44,10 @@ const formatMessageTime = (ts) => {
   return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 };
 
+const isThreadCacheUsable = (items) =>
+  Array.isArray(items) &&
+  items.every((thread) => thread && thread._id && thread.otherParticipant && thread.otherParticipant.name);
+
 const formatLastSeen = (ts) => {
   if (!ts) return '';
   const d = new Date(ts);
@@ -639,14 +643,15 @@ const StudentChat = () => {
         privateKeyRef.current = identity?.privateKey || '';
         const threadsCacheKey = chatCacheKeys.threads(meData?.id);
         const cachedThreads = readChatCache(threadsCacheKey, THREADS_CACHE_TTL_MS);
-        if (Array.isArray(cachedThreads)) {
+        if (isThreadCacheUsable(cachedThreads)) {
           setThreads(cachedThreads);
+        } else {
+          const threadsData = await apiFetch('/api/chat/threads');
+          if (!mounted) return;
+          const hydratedThreads = await Promise.all((Array.isArray(threadsData) ? threadsData : []).map((thread) => decryptThreadPreview(thread)));
+          setThreads(hydratedThreads);
+          writeChatCache(threadsCacheKey, hydratedThreads);
         }
-        const threadsData = await apiFetch('/api/chat/threads');
-        if (!mounted) return;
-        const hydratedThreads = await Promise.all((Array.isArray(threadsData) ? threadsData : []).map((thread) => decryptThreadPreview(thread)));
-        setThreads(hydratedThreads);
-        writeChatCache(threadsCacheKey, hydratedThreads);
       } catch { /* ignore */ } finally {
         if (mounted) setLoadingThreads(false);
       }
@@ -835,26 +840,28 @@ const StudentChat = () => {
           return next;
         });
       }
-      const msgs = await apiFetch(`/api/chat/threads/${threadId}/messages`);
-      const decrypted = await Promise.all((Array.isArray(msgs) ? msgs : []).map((msg) => decryptForUI(msg)));
-      setMessages(decrypted);
-      if (userId) {
-        writeChatCache(chatCacheKeys.messages(userId, threadId), decrypted.slice(-120));
-      }
-      const latest = decrypted[decrypted.length - 1];
-      if (latest?.text) {
-        setThreads((prev) =>
-          prev.map((thread) =>
-            String(thread._id) === String(threadId)
-              ? { ...thread, lastMessage: latest.text, lastMessageAt: latest.createdAt || thread.lastMessageAt }
-              : thread
-          )
-        );
+      if (!Array.isArray(cachedMessages)) {
+        const msgs = await apiFetch(`/api/chat/threads/${threadId}/messages`);
+        const decrypted = await Promise.all((Array.isArray(msgs) ? msgs : []).map((msg) => decryptForUI(msg)));
+        setMessages(decrypted);
+        if (userId) {
+          writeChatCache(chatCacheKeys.messages(userId, threadId), decrypted.slice(-120));
+        }
+        const latest = decrypted[decrypted.length - 1];
+        if (latest?.text) {
+          setThreads((prev) =>
+            prev.map((thread) =>
+              String(thread._id) === String(threadId)
+                ? { ...thread, lastMessage: latest.text, lastMessageAt: latest.createdAt || thread.lastMessageAt }
+                : thread
+            )
+          );
+        }
       }
     } catch {
       if (!Array.isArray(cachedMessages)) setMessages([]);
     } finally {
-      setLoadingMessages(false);
+      if (!Array.isArray(cachedMessages)) setLoadingMessages(false);
     }
   }, [decryptForUI, me?.id]);
 
@@ -882,12 +889,13 @@ const StudentChat = () => {
         : null;
       if (Array.isArray(cachedContacts)) {
         setContacts(cachedContacts);
+      } else {
+        try {
+          const data = await apiFetch('/api/chat/contacts');
+          setContacts(data);
+          if (userId) writeChatCache(chatCacheKeys.contacts(userId), data);
+        } catch { /* ignore */ }
       }
-      try {
-        const data = await apiFetch('/api/chat/contacts');
-        setContacts(data);
-        if (userId) writeChatCache(chatCacheKeys.contacts(userId), data);
-      } catch { /* ignore */ }
     }
     setShowContacts(true);
   }, [contacts, me?.id]);
