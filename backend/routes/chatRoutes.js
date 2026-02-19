@@ -12,6 +12,7 @@ const Section = require('../models/Section');
 const TeacherAllocation = require('../models/TeacherAllocation');
 const ChatKey = require('../models/ChatKey');
 const { getPresenceSnapshot } = require('../utils/chatPresence');
+const { ensureAllocationGroupThread } = require('../utils/chatGroupProvisioning');
 
 const router = express.Router();
 router.use(authAnyUser);
@@ -396,6 +397,79 @@ const markThreadMessagesSeen = async ({ threadId, schoolId, campusId, userId }) 
   );
 };
 
+const ensureUserSubjectGroups = async (req) => {
+  const userType = String(req.user?.userType || '').toLowerCase();
+  if (userType !== 'teacher' && userType !== 'student') return;
+
+  const schoolId = req.schoolId || req.user?.schoolId;
+  const campusId = (req.campusId ?? req.user?.campusId) ?? null;
+  if (!schoolId) return;
+
+  if (userType === 'teacher') {
+    const allocations = await TeacherAllocation.find({
+      schoolId,
+      ...(campusId ? { $or: [{ campusId }, { campusId: null }, { campusId: { $exists: false } }] } : {}),
+      teacherId: req.user?.id || req.user?._id,
+    })
+      .select('teacherId subjectId classId sectionId')
+      .lean();
+    for (const alloc of allocations) {
+      await ensureAllocationGroupThread({
+        schoolId,
+        campusId,
+        teacherId: alloc.teacherId,
+        subjectId: alloc.subjectId,
+        classId: alloc.classId,
+        sectionId: alloc.sectionId,
+      });
+    }
+    return;
+  }
+
+  const student = await StudentUser.findOne({
+    _id: req.user?.id,
+    schoolId,
+    ...(campusId ? { $or: [{ campusId }, { campusId: null }, { campusId: { $exists: false } }] } : {}),
+  })
+    .select('grade section')
+    .lean();
+  if (!student?.grade || !student?.section) return;
+
+  const cls = await ClassModel.findOne({
+    schoolId,
+    ...(campusId ? { $or: [{ campusId }, { campusId: null }, { campusId: { $exists: false } }] } : {}),
+    name: new RegExp(`^${escapeRegex(String(student.grade))}$`, 'i'),
+  }).select('_id').lean();
+  if (!cls?._id) return;
+
+  const sec = await Section.findOne({
+    schoolId,
+    ...(campusId ? { $or: [{ campusId }, { campusId: null }, { campusId: { $exists: false } }] } : {}),
+    classId: cls._id,
+    name: new RegExp(`^${escapeRegex(String(student.section))}$`, 'i'),
+  }).select('_id').lean();
+  if (!sec?._id) return;
+
+  const allocations = await TeacherAllocation.find({
+    schoolId,
+    ...(campusId ? { $or: [{ campusId }, { campusId: null }, { campusId: { $exists: false } }] } : {}),
+    classId: cls._id,
+    sectionId: sec._id,
+  })
+    .select('teacherId subjectId classId sectionId')
+    .lean();
+  for (const alloc of allocations) {
+    await ensureAllocationGroupThread({
+      schoolId,
+      campusId,
+      teacherId: alloc.teacherId,
+      subjectId: alloc.subjectId,
+      classId: alloc.classId,
+      sectionId: alloc.sectionId,
+    });
+  }
+};
+
 // GET /api/chat/me — current user's display info
 router.get('/me', async (req, res) => {
   try {
@@ -710,6 +784,12 @@ router.get('/threads', async (req, res) => {
     const userId = new mongoose.Types.ObjectId(req.user.id);
     const schoolId = req.schoolId || req.user?.schoolId;
     const campusId = (req.campusId ?? req.user?.campusId) ?? null;
+
+    try {
+      await ensureUserSubjectGroups(req);
+    } catch {
+      // best effort self-heal if groups were deleted manually
+    }
 
     const threads = await ChatThread.find({
       schoolId,
