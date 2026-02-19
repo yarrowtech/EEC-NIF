@@ -14,6 +14,16 @@ const unreadCountSchema = new mongoose.Schema({
 const chatThreadSchema = new mongoose.Schema({
   schoolId: { type: mongoose.Schema.Types.ObjectId, ref: 'School', required: true },
   campusId: { type: String, required: true },
+  threadType: { type: String, enum: ['direct', 'group'], default: 'direct' },
+  groupName: { type: String, default: '' },
+  groupKey: { type: String },
+  groupMeta: {
+    teacherId: { type: mongoose.Schema.Types.ObjectId, ref: 'TeacherUser', default: null },
+    subjectId: { type: mongoose.Schema.Types.ObjectId, ref: 'Subject', default: null },
+    classId: { type: mongoose.Schema.Types.ObjectId, ref: 'Class', default: null },
+    sectionId: { type: mongoose.Schema.Types.ObjectId, ref: 'Section', default: null },
+    year: { type: String, default: '' },
+  },
   participants: [participantSchema],
   lastMessage: { type: String, default: '' },
   lastMessageAt: { type: Date, default: null },
@@ -23,5 +33,6 @@ const chatThreadSchema = new mongoose.Schema({
 
 // Unique thread per pair of participants in same campus
 chatThreadSchema.index({ schoolId: 1, campusId: 1, 'participants.userId': 1 });
+chatThreadSchema.index({ schoolId: 1, campusId: 1, groupKey: 1 }, { unique: true, sparse: true, name: 'unique_group_thread_key' });
 
 module.exports = mongoose.model('ChatThread', chatThreadSchema);

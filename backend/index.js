@@ -64,6 +64,7 @@ const Admin = require('./models/Admin');
 const { isStrongPassword } = require('./utils/passwordPolicy');
 const principalDashboardRoutes = require('./routes/principalDashboardRoutes');
 const { getPresenceSnapshot, markUserOnline, markUserOffline } = require('./utils/chatPresence');
+const { syncAllocationGroupThreads } = require('./utils/chatGroupProvisioning');
 
 
 const seedSuperAdmin = async () => {
@@ -238,6 +239,12 @@ mongoose
     await ensureAdminRoles();
     await seedSuperAdmin();
     await seedPrincipal();
+    try {
+      const stats = await syncAllocationGroupThreads();
+      console.log(`[chat] allocation group sync complete: ${stats.createdOrUpdated}/${stats.scanned}`);
+    } catch (err) {
+      console.error('[chat] allocation group sync failed:', err.message);
+    }
   })
   .catch((err) => console.log(err));
 

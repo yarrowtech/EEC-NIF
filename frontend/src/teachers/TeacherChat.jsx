@@ -281,6 +281,16 @@ const isSeenByOther = (msg, myId) => {
 
 const ChatMessage = ({ msg, isMine, myId, theme }) => {
   const t = theme || THEMES.blue;
+  const isSystem = String(msg?.senderType || '').toLowerCase() === 'system';
+  if (isSystem) {
+    return (
+      <div className="flex justify-center my-3">
+        <span className="text-[11px] px-3 py-1 rounded-full bg-gray-200 text-gray-600 font-medium">
+          {msg?.text || msg?.senderName || 'System message'}
+        </span>
+      </div>
+    );
+  }
   const optimistic = Boolean(msg?._optimistic);
   const delivered = isMine && !optimistic;
   const seen = isMine && delivered && isSeenByOther(msg, myId);
@@ -523,6 +533,78 @@ const ParticipantProfileModal = ({ open, loading, error, profile, profileType, o
   );
 };
 
+const GroupMembersModal = ({ open, members, onClose, onChatStudent, myId, theme }) => {
+  if (!open) return null;
+  const t = theme || THEMES.blue;
+  const list = Array.isArray(members) ? members : [];
+  const sorted = [...list].sort((a, b) => {
+    const aType = String(a?.userType || '');
+    const bType = String(b?.userType || '');
+    if (aType === 'teacher' && bType !== 'teacher') return -1;
+    if (aType !== 'teacher' && bType === 'teacher') return 1;
+    return String(a?.name || '').localeCompare(String(b?.name || ''));
+  });
+
+  return (
+    <div
+      className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4"
+      onClick={onClose}
+    >
+      <div
+        className="w-full max-w-md bg-white rounded-2xl shadow-2xl border border-gray-100 overflow-hidden"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
+          <h3 className="text-base font-semibold text-gray-900">Group Members</h3>
+          <button
+            onClick={onClose}
+            className="h-8 w-8 rounded-full hover:bg-gray-100 flex items-center justify-center"
+          >
+            <X className="h-4 w-4 text-gray-500" />
+          </button>
+        </div>
+
+        <div className="max-h-[60vh] overflow-y-auto p-3 space-y-2">
+          {sorted.length === 0 ? (
+            <div className="text-sm text-gray-500 px-2 py-3">No members found.</div>
+          ) : (
+            sorted.map((member, idx) => {
+              const memberType = String(member?.userType || '').toLowerCase();
+              const memberId = String(member?.userId || '');
+              const canChat = memberType === 'student' && memberId && memberId !== String(myId || '');
+              const roleLabel = memberType === 'teacher' ? 'Teacher' : memberType === 'student' ? 'Student' : memberType;
+              return (
+                <div key={`${memberId}-${idx}`} className="rounded-xl border border-gray-100 bg-gray-50 px-3 py-2.5 flex items-center gap-3">
+                  <div
+                    className="h-9 w-9 rounded-full flex items-center justify-center text-white text-xs font-semibold shrink-0"
+                    style={{ background: `linear-gradient(135deg, ${t.color}99, ${t.color})` }}
+                  >
+                    {getInitials(member?.name || roleLabel)}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-semibold text-gray-900 truncate">{member?.name || roleLabel}</p>
+                    <p className="text-xs text-gray-500">{roleLabel}</p>
+                  </div>
+                  {canChat && (
+                    <button
+                      type="button"
+                      onClick={() => onChatStudent(member)}
+                      className="text-xs font-semibold px-3 py-1 rounded-full border"
+                      style={{ borderColor: t.color, color: t.color, backgroundColor: t.lighter }}
+                    >
+                      Chat
+                    </button>
+                  )}
+                </div>
+              );
+            })
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
+
 // ── Main TeacherChat ───────────────────────────────────────────────────────────
 const TeacherChat = () => {
   const [me, setMe] = useState(null);
@@ -541,6 +623,7 @@ const TeacherChat = () => {
   const [studentProfileError, setStudentProfileError] = useState('');
   const [studentProfile, setStudentProfile] = useState(null);
   const [profileType, setProfileType] = useState('student');
+  const [showGroupMembersModal, setShowGroupMembersModal] = useState(false);
   const [typingUsers, setTypingUsers] = useState({});
   const [presenceByUser, setPresenceByUser] = useState({});
   const [isMobileView, setIsMobileView] = useState(false);
@@ -607,6 +690,7 @@ const TeacherChat = () => {
 
   useEffect(() => {
     setShowStudentProfileModal(false);
+    setShowGroupMembersModal(false);
     setStudentProfile(null);
     setStudentProfileError('');
     setStudentProfileLoading(false);
@@ -632,13 +716,12 @@ const TeacherChat = () => {
         const cachedThreads = readChatCache(threadsCacheKey, THREADS_CACHE_TTL_MS);
         if (isThreadCacheUsable(cachedThreads)) {
           setThreads(cachedThreads);
-        } else {
-          const threadsData = await apiFetch('/api/chat/threads');
-          if (!mounted) return;
-          const hydratedThreads = await Promise.all((Array.isArray(threadsData) ? threadsData : []).map((thread) => decryptThreadPreview(thread)));
-          setThreads(hydratedThreads);
-          writeChatCache(threadsCacheKey, hydratedThreads);
         }
+        const threadsData = await apiFetch('/api/chat/threads');
+        if (!mounted) return;
+        const hydratedThreads = await Promise.all((Array.isArray(threadsData) ? threadsData : []).map((thread) => decryptThreadPreview(thread)));
+        setThreads(hydratedThreads);
+        writeChatCache(threadsCacheKey, hydratedThreads);
       } catch {
         // ignore
       } finally {
@@ -843,28 +926,26 @@ const TeacherChat = () => {
           return next;
         });
       }
-      if (!Array.isArray(cachedMessages)) {
-        const msgs = await apiFetch(`/api/chat/threads/${threadId}/messages`);
-        const decrypted = await Promise.all((Array.isArray(msgs) ? msgs : []).map((msg) => decryptForUI(msg)));
-        setMessages(decrypted);
-        if (userId) {
-          writeChatCache(chatCacheKeys.messages(userId, threadId), decrypted.slice(-120));
-        }
-        const latest = decrypted[decrypted.length - 1];
-        if (latest?.text) {
-          setThreads((prev) =>
-            prev.map((thread) =>
-              String(thread._id) === String(threadId)
-                ? { ...thread, lastMessage: latest.text, lastMessageAt: latest.createdAt || thread.lastMessageAt }
-                : thread
-            )
-          );
-        }
+      const msgs = await apiFetch(`/api/chat/threads/${threadId}/messages`);
+      const decrypted = await Promise.all((Array.isArray(msgs) ? msgs : []).map((msg) => decryptForUI(msg)));
+      setMessages(decrypted);
+      if (userId) {
+        writeChatCache(chatCacheKeys.messages(userId, threadId), decrypted.slice(-120));
+      }
+      const latest = decrypted[decrypted.length - 1];
+      if (latest?.text) {
+        setThreads((prev) =>
+          prev.map((thread) =>
+            String(thread._id) === String(threadId)
+              ? { ...thread, lastMessage: latest.text, lastMessageAt: latest.createdAt || thread.lastMessageAt }
+              : thread
+          )
+        );
       }
     } catch {
       if (!Array.isArray(cachedMessages)) setMessages([]);
     } finally {
-      if (!Array.isArray(cachedMessages)) setLoadingMessages(false);
+      setLoadingMessages(false);
     }
   }, [decryptForUI, me?.id]);
 
@@ -1038,6 +1119,24 @@ const TeacherChat = () => {
         profile={studentProfile}
         profileType={profileType}
         onClose={() => setShowStudentProfileModal(false)}
+      />
+      <GroupMembersModal
+        open={showGroupMembersModal}
+        members={activeThread?.participants || []}
+        myId={me?.id}
+        theme={theme}
+        onClose={() => setShowGroupMembersModal(false)}
+        onChatStudent={async (member) => {
+          const memberId = String(member?.userId || '');
+          if (!memberId) return;
+          setShowGroupMembersModal(false);
+          await startConversation({
+            _id: memberId,
+            userType: 'student',
+            name: member?.name || 'Student',
+            subtitle: 'Student',
+          });
+        }}
       />
       <div className="h-full flex bg-gray-50 overflow-hidden">
       {/* ── Sidebar ── */}
@@ -1297,9 +1396,15 @@ const TeacherChat = () => {
                   </div>
                 </div>
                 <button
-                  onClick={openStudentProfile}
+                  onClick={() => {
+                    if (String(activeThread?.threadType || '').toLowerCase() === 'group') {
+                      setShowGroupMembersModal(true);
+                      return;
+                    }
+                    openStudentProfile();
+                  }}
                   className="h-8 w-8 rounded-lg flex items-center justify-center transition-colors hover:bg-gray-100"
-                  title="View student profile"
+                  title={String(activeThread?.threadType || '').toLowerCase() === 'group' ? 'View group members' : 'View student profile'}
                   onMouseEnter={e => { e.currentTarget.style.backgroundColor = theme.lighter; }}
                   onMouseLeave={e => { e.currentTarget.style.backgroundColor = ''; }}
                 >

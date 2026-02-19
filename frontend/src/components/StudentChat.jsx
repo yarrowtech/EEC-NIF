@@ -457,6 +457,16 @@ const isSeenByOther = (msg, myId) =>
 
 const ChatMessage = ({ msg, isMine, myId, theme }) => {
   const t = theme || THEMES.amber;
+  const isSystem = String(msg?.senderType || '').toLowerCase() === 'system';
+  if (isSystem) {
+    return (
+      <div className="flex justify-center my-3">
+        <span className="text-[11px] px-3 py-1 rounded-full bg-gray-200 text-gray-600 font-medium">
+          {msg?.text || msg?.senderName || 'System message'}
+        </span>
+      </div>
+    );
+  }
   const optimistic = Boolean(msg?._optimistic);
   const seen = isMine && isSeenByOther(msg, myId);
   const delivered = isMine && !optimistic;
@@ -645,13 +655,12 @@ const StudentChat = () => {
         const cachedThreads = readChatCache(threadsCacheKey, THREADS_CACHE_TTL_MS);
         if (isThreadCacheUsable(cachedThreads)) {
           setThreads(cachedThreads);
-        } else {
-          const threadsData = await apiFetch('/api/chat/threads');
-          if (!mounted) return;
-          const hydratedThreads = await Promise.all((Array.isArray(threadsData) ? threadsData : []).map((thread) => decryptThreadPreview(thread)));
-          setThreads(hydratedThreads);
-          writeChatCache(threadsCacheKey, hydratedThreads);
         }
+        const threadsData = await apiFetch('/api/chat/threads');
+        if (!mounted) return;
+        const hydratedThreads = await Promise.all((Array.isArray(threadsData) ? threadsData : []).map((thread) => decryptThreadPreview(thread)));
+        setThreads(hydratedThreads);
+        writeChatCache(threadsCacheKey, hydratedThreads);
       } catch { /* ignore */ } finally {
         if (mounted) setLoadingThreads(false);
       }
@@ -840,28 +849,26 @@ const StudentChat = () => {
           return next;
         });
       }
-      if (!Array.isArray(cachedMessages)) {
-        const msgs = await apiFetch(`/api/chat/threads/${threadId}/messages`);
-        const decrypted = await Promise.all((Array.isArray(msgs) ? msgs : []).map((msg) => decryptForUI(msg)));
-        setMessages(decrypted);
-        if (userId) {
-          writeChatCache(chatCacheKeys.messages(userId, threadId), decrypted.slice(-120));
-        }
-        const latest = decrypted[decrypted.length - 1];
-        if (latest?.text) {
-          setThreads((prev) =>
-            prev.map((thread) =>
-              String(thread._id) === String(threadId)
-                ? { ...thread, lastMessage: latest.text, lastMessageAt: latest.createdAt || thread.lastMessageAt }
-                : thread
-            )
-          );
-        }
+      const msgs = await apiFetch(`/api/chat/threads/${threadId}/messages`);
+      const decrypted = await Promise.all((Array.isArray(msgs) ? msgs : []).map((msg) => decryptForUI(msg)));
+      setMessages(decrypted);
+      if (userId) {
+        writeChatCache(chatCacheKeys.messages(userId, threadId), decrypted.slice(-120));
+      }
+      const latest = decrypted[decrypted.length - 1];
+      if (latest?.text) {
+        setThreads((prev) =>
+          prev.map((thread) =>
+            String(thread._id) === String(threadId)
+              ? { ...thread, lastMessage: latest.text, lastMessageAt: latest.createdAt || thread.lastMessageAt }
+              : thread
+          )
+        );
       }
     } catch {
       if (!Array.isArray(cachedMessages)) setMessages([]);
     } finally {
-      if (!Array.isArray(cachedMessages)) setLoadingMessages(false);
+      setLoadingMessages(false);
     }
   }, [decryptForUI, me?.id]);
 

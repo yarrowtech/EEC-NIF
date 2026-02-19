@@ -389,6 +389,16 @@ const isSeenByOther = (msg, myId) =>
 
 const ChatMessage = ({ msg, isMine, myId, theme }) => {
   const t = theme || THEMES.green;
+  const isSystem = String(msg?.senderType || '').toLowerCase() === 'system';
+  if (isSystem) {
+    return (
+      <div className="flex justify-center my-3">
+        <span className="text-[11px] px-3 py-1 rounded-full bg-gray-200 text-gray-600 font-medium">
+          {msg?.text || msg?.senderName || 'System message'}
+        </span>
+      </div>
+    );
+  }
   const optimistic = Boolean(msg?._optimistic);
   const delivered = isMine && !optimistic;
   const seen = isMine && isSeenByOther(msg, myId);

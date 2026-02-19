@@ -7,6 +7,7 @@ const TeacherUser = require('../models/TeacherUser');
 const ClassModel = require('../models/Class');
 const Section = require('../models/Section');
 const Subject = require('../models/Subject');
+const { ensureAllocationGroupThread, syncAllocationGroupThreads } = require('../utils/chatGroupProvisioning');
 
 const router = express.Router();
 
@@ -146,6 +147,15 @@ router.post('/', adminAuth, async (req, res) => {
       .populate('sectionId', 'name classId')
       .lean();
 
+    await ensureAllocationGroupThread({
+      schoolId,
+      campusId: campusId || null,
+      teacherId,
+      subjectId,
+      classId,
+      sectionId,
+    });
+
     res.status(201).json(populated);
   } catch (err) {
     if (err && err.code === 11000) {
@@ -214,6 +224,15 @@ router.put('/:id', adminAuth, async (req, res) => {
       return res.status(404).json({ error: 'Allocation not found' });
     }
 
+    await ensureAllocationGroupThread({
+      schoolId,
+      campusId: campusId || null,
+      teacherId,
+      subjectId,
+      classId,
+      sectionId,
+    });
+
     res.json(updated);
   } catch (err) {
     if (err && err.code === 11000) {
@@ -247,6 +266,18 @@ router.delete('/:id', adminAuth, async (req, res) => {
     res.json({ ok: true, message: 'Allocation deleted successfully' });
   } catch (err) {
     res.status(400).json({ error: err.message });
+  }
+});
+
+router.post('/sync-chat-groups', adminAuth, async (req, res) => {
+  try {
+    const schoolId = resolveSchoolId(req, res);
+    if (!schoolId) return;
+    const campusId = resolveCampusId(req);
+    const stats = await syncAllocationGroupThreads({ schoolId, campusId: campusId || null });
+    res.json({ ok: true, ...stats });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
   }
 });
 

@@ -721,9 +721,18 @@ router.get('/threads', async (req, res) => {
 
     const result = threads.map(t => {
       const unreadEntry = t.unreadCounts?.find(u => u.userId?.toString() === userId.toString());
-      const other = t.participants?.find(p => p.userId?.toString() !== userId.toString());
+      const isGroup = String(t.threadType || 'direct') === 'group';
+      const other = isGroup
+        ? {
+            userId: null,
+            userType: 'group',
+            name: t.groupName || 'Group',
+          }
+        : t.participants?.find(p => p.userId?.toString() !== userId.toString());
       return {
         _id: t._id,
+        threadType: isGroup ? 'group' : 'direct',
+        groupName: t.groupName || '',
         participants: t.participants,
         otherParticipant: other || null,
         lastMessage: t.lastMessage || '',

@@ -16,7 +16,7 @@ const encryptedKeySchema = new mongoose.Schema(
 const chatMessageSchema = new mongoose.Schema({
   threadId: { type: mongoose.Schema.Types.ObjectId, ref: 'ChatThread', required: true },
   senderId: { type: mongoose.Schema.Types.ObjectId, required: true },
-  senderType: { type: String, enum: ['student', 'teacher', 'parent'], required: true },
+  senderType: { type: String, enum: ['student', 'teacher', 'parent', 'system'], required: true },
   senderName: { type: String, default: '' },
   text: { type: String, default: '', trim: true },
   encrypted: {
