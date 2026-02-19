@@ -1162,12 +1162,25 @@ router.get('/routine', authTeacher, async (req, res) => {
 
     // Fetch teacher profile for credential-based filtering on frontend
     const teacher = await TeacherUser.findById(teacherId)
-      .select('name className class grade sectionName section assignedClasses assignedSections classes sections')
+      .select('name campusName subject department className class grade sectionName section assignedClasses assignedSections classes sections profilePic')
       .lean();
+
+    // Fetch school info (name, address, logo) for PDF header
+    const school = await School.findById(schoolId).select('name address logo').lean();
 
     res.json({
       schedule,
-      teacher: teacher || null
+      teacher: {
+        ...(teacher || {}),
+        schoolName:    school?.name                 || '',
+        schoolAddress: school?.address              || '',
+        schoolLogo:    school?.logo?.secure_url     || '',
+      },
+      meta: {
+        campusScoped:   Boolean(campusId),
+        timetableCount: Array.isArray(timetables) ? timetables.length : 0,
+        filterSource:   campusId ? 'campus' : 'school',
+      },
     });
   } catch (err) {
     res.status(500).json({ error: err.message || 'Unable to load teacher routine' });

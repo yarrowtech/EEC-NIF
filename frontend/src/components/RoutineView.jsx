@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Calendar, Clock, MapPin, BookOpen, AlertCircle, RefreshCcw } from 'lucide-react';
+import { jsPDF } from 'jspdf';
+import { Calendar, Clock, MapPin, BookOpen, AlertCircle, RefreshCcw, Download } from 'lucide-react';
 import { useStudentDashboard } from './StudentDashboardContext';
 import { clearCacheEntry, readCacheEntry, writeCacheEntry } from '../utils/studentCache';
 
@@ -380,6 +381,275 @@ const RoutineView = () => {
     [filteredSchedule]
   );
 
+  const downloadPDF = useCallback(() => {
+    const generate = async () => {
+      const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+      const PW = 297, PH = 210, ML = 14, MR = 14;
+      const UW = PW - ML - MR;
+
+      const schoolName    = profile?.schoolName || profile?.school?.name || profile?.campusName || 'School';
+      const schoolAddress = profile?.schoolAddress || profile?.school?.address || profile?.address || '';
+      const studentName   = profile?.name || profile?.fullName || '';
+      const className     = profile?.className || profile?.grade || '';
+      const sectionName   = profile?.sectionName || profile?.section || '';
+      const logoUrl       = profile?.schoolLogo || profile?.school?.logo?.secure_url || profile?.school?.logo || '';
+
+      // ── Load school logo as base64 ───────────────────────────────────────
+      let logoDataUrl = null;
+      if (logoUrl) {
+        try {
+          const resp = await fetch(logoUrl);
+          const blob = await resp.blob();
+          logoDataUrl = await new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload  = () => resolve(reader.result);
+            reader.onerror = reject;
+            reader.readAsDataURL(blob);
+          });
+        } catch { /* skip logo if fetch fails */ }
+      }
+
+      const activeDays  = dayOrder.filter(d => (filteredSchedule[d] || []).length > 0);
+      const displayDays = activeDays.length > 0 ? activeDays : dayOrder.slice(0, 6);
+
+      const TIME_W   = 30;
+      const COL_W    = (UW - TIME_W) / displayDays.length;
+      const HDR_H    = 9;
+      const LOGO_SZ  = 22;
+      const HEADER_H = logoDataUrl ? 38 : 30;
+      const BRK_H    = 8;
+
+      // ── Build pdfRows — detect break slots via weeklyMatrix ──────────────
+      const pdfRows = [];
+      let colorIdx = 0;
+      weeklySlots.forEach((slot) => {
+        const anySession = displayDays.map(d => weeklyMatrix[d]?.[slot.timeLabel]).find(Boolean);
+        const isBreak = Boolean(anySession?.isBreak);
+        pdfRows.push({ timeLabel: slot.timeLabel, isBreak, si: isBreak ? -1 : colorIdx });
+        if (!isBreak) colorIdx++;
+      });
+
+      const infoItems = [
+        studentName && `Student: ${studentName}`,
+        className   && `Class: ${className}`,
+        sectionName && `Section: ${sectionName}`,
+      ].filter(Boolean);
+      const INFO_H = infoItems.length > 0 ? 10 : 0;
+
+      const breakCount = pdfRows.filter(r => r.isBreak).length;
+      const dataCount  = pdfRows.filter(r => !r.isBreak).length;
+      const availH = PH - HEADER_H - INFO_H - 5 - HDR_H - breakCount * BRK_H - 12;
+      const ROW_H  = Math.min(20, Math.max(12, Math.floor(availH / Math.max(dataCount, 1))));
+
+      const TABLE_W = TIME_W + displayDays.length * COL_W;
+      const trunc   = (str, n) => { const s = String(str || ''); return s.length > n ? s.slice(0, n - 1) + '…' : s; };
+
+      // ── HEADER BLOCK ──────────────────────────────────────────────────────
+      doc.setFillColor(67, 56, 202);
+      doc.rect(0, 0, PW, HEADER_H, 'F');
+
+      const logoAreaH = HEADER_H - 10;
+      if (logoDataUrl) {
+        const logoX = 8;
+        const logoY = (logoAreaH - LOGO_SZ) / 2;
+        doc.setFillColor(255, 255, 255);
+        doc.circle(logoX + LOGO_SZ / 2, logoY + LOGO_SZ / 2, LOGO_SZ / 2 + 1.5, 'F');
+        try { doc.addImage(logoDataUrl, logoX, logoY, LOGO_SZ, LOGO_SZ); } catch { /* skip */ }
+      }
+
+      const nameY = logoDataUrl ? 12 : 11;
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(18);
+      doc.setTextColor(255, 255, 255);
+      doc.text(trunc(schoolName, 55), PW / 2, nameY, { align: 'center' });
+
+      if (schoolAddress) {
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(8.5);
+        doc.setTextColor(199, 210, 254);
+        doc.text(trunc(schoolAddress, 90), PW / 2, nameY + 8, { align: 'center' });
+      }
+
+      doc.setFillColor(79, 70, 229);
+      doc.rect(0, HEADER_H - 10, PW, 10, 'F');
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(9);
+      doc.setTextColor(224, 231, 255);
+      doc.text('CLASS ROUTINE', PW / 2, HEADER_H - 3.5, { align: 'center' });
+
+      let y = HEADER_H + 4;
+
+      // ── STUDENT INFO BAR ──────────────────────────────────────────────────
+      if (infoItems.length > 0) {
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(7.5);
+        doc.setTextColor(75, 85, 99);
+        doc.text(infoItems.join('   ·   '), PW / 2, y, { align: 'center' });
+        y += 5;
+      }
+
+      doc.setDrawColor(229, 231, 235);
+      doc.setLineWidth(0.3);
+      doc.line(ML, y, PW - MR, y);
+      y += 5;
+
+      const TABLE_Y = y;
+
+      // ── TABLE HEADER ──────────────────────────────────────────────────────
+      doc.setFillColor(243, 244, 246);
+      doc.rect(ML, y, TIME_W, HDR_H, 'F');
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(7);
+      doc.setTextColor(107, 114, 128);
+      doc.text('TIME', ML + TIME_W / 2, y + 5.5, { align: 'center' });
+
+      displayDays.forEach((day, di) => {
+        const cx = ML + TIME_W + di * COL_W;
+        doc.setFillColor(238, 242, 255);
+        doc.rect(cx, y, COL_W, HDR_H, 'F');
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(8);
+        doc.setTextColor(67, 56, 202);
+        doc.text(dayLabels[day].toUpperCase(), cx + COL_W / 2, y + 5.5, { align: 'center' });
+      });
+
+      y += HDR_H;
+
+      // ── TABLE ROWS ────────────────────────────────────────────────────────
+      const FILLS   = [[239,246,255],[245,243,255],[236,253,245],[255,251,235],[255,241,242],[240,253,250]];
+      const ACCENTS = [[59,130,246],[139,92,246],[16,185,129],[245,158,11],[244,63,94],[20,184,166]];
+      const subMaxCh = Math.max(8, Math.floor(COL_W / 2.1));
+
+      pdfRows.forEach((row) => {
+        if (row.isBreak) {
+          // ── BREAK ROW ──────────────────────────────────────────────────
+          doc.setFillColor(255, 251, 235);
+          doc.rect(ML, y, TABLE_W, BRK_H, 'F');
+          doc.setFillColor(245, 158, 11);
+          doc.rect(ML, y, 2.5, BRK_H, 'F');
+          doc.setFont('helvetica', 'normal');
+          doc.setFontSize(5.5);
+          doc.setTextColor(161, 98, 7);
+          doc.text(row.timeLabel, ML + TIME_W / 2, y + BRK_H / 2 + 1.5, { align: 'center' });
+          doc.setFont('helvetica', 'bold');
+          doc.setFontSize(7);
+          doc.setTextColor(161, 98, 7);
+          const breakCenterX = ML + TIME_W + (TABLE_W - TIME_W) / 2;
+          doc.text('Break', breakCenterX, y + BRK_H / 2 + 1.5, { align: 'center' });
+          y += BRK_H;
+        } else {
+          // ── CLASS ROW ──────────────────────────────────────────────────
+          const [fr, fg, fb] = FILLS[row.si % FILLS.length];
+          const [ar, ag, ab] = ACCENTS[row.si % ACCENTS.length];
+          const midY = y + ROW_H / 2;
+
+          // Time cell
+          doc.setFillColor(249, 250, 251);
+          doc.rect(ML, y, TIME_W, ROW_H, 'F');
+          const parts = row.timeLabel.split(' - ');
+          if (parts.length === 2) {
+            doc.setFont('helvetica', 'bold');
+            doc.setFontSize(7);
+            doc.setTextColor(55, 65, 81);
+            doc.text(parts[0].trim(), ML + TIME_W / 2, midY - 2, { align: 'center' });
+            doc.setFont('helvetica', 'normal');
+            doc.setFontSize(6);
+            doc.setTextColor(107, 114, 128);
+            doc.text(parts[1].trim(), ML + TIME_W / 2, midY + 3, { align: 'center' });
+          } else {
+            doc.setFont('helvetica', 'bold');
+            doc.setFontSize(7);
+            doc.setTextColor(55, 65, 81);
+            doc.text(row.timeLabel, ML + TIME_W / 2, midY + 1, { align: 'center' });
+          }
+
+          // Day cells
+          displayDays.forEach((day, di) => {
+            const cx      = ML + TIME_W + di * COL_W;
+            const session = weeklyMatrix[day]?.[row.timeLabel];
+            if (session && !session.isBreak) {
+              doc.setFillColor(fr, fg, fb);
+              doc.roundedRect(cx + 1.5, y + 1.5, COL_W - 3, ROW_H - 3, 1.5, 1.5, 'F');
+              doc.setFillColor(ar, ag, ab);
+              doc.circle(cx + 5, y + ROW_H * 0.28, 1.4, 'F');
+              doc.setFont('helvetica', 'bold');
+              doc.setFontSize(7.5);
+              doc.setTextColor(17, 24, 39);
+              doc.text(trunc(session.course || session.subject || session.title || 'Class', subMaxCh), cx + COL_W / 2, midY - 1.5, { align: 'center' });
+              const instr = session.instructor || session.teacher || '';
+              if (instr) {
+                doc.setFont('helvetica', 'normal');
+                doc.setFontSize(6.5);
+                doc.setTextColor(ar, ag, ab);
+                doc.text(trunc(instr, 18), cx + COL_W / 2, midY + 3.5, { align: 'center' });
+              }
+              doc.setFontSize(6);
+              doc.setTextColor(156, 163, 175);
+              doc.text(trunc(session.room || session.location || 'TBD', 16), cx + COL_W / 2, y + ROW_H * 0.85, { align: 'center' });
+            } else {
+              doc.setFillColor(250, 250, 250);
+              doc.rect(cx, y, COL_W, ROW_H, 'F');
+              doc.setFont('helvetica', 'normal');
+              doc.setFontSize(10);
+              doc.setTextColor(209, 213, 219);
+              doc.text('—', cx + COL_W / 2, midY + 1, { align: 'center' });
+            }
+          });
+
+          y += ROW_H;
+        }
+      });
+
+      const TABLE_END_Y = y;
+
+      // ── GRID LINES ────────────────────────────────────────────────────────
+      doc.setDrawColor(209, 213, 219);
+      doc.setLineWidth(0.35);
+      doc.rect(ML, TABLE_Y, TABLE_W, TABLE_END_Y - TABLE_Y);
+
+      doc.setLineWidth(0.2);
+      doc.setDrawColor(229, 231, 235);
+
+      // Horizontal lines between rows
+      let ly = TABLE_Y + HDR_H;
+      pdfRows.forEach((row) => {
+        doc.line(ML, ly, ML + TABLE_W, ly);
+        ly += row.isBreak ? BRK_H : ROW_H;
+      });
+
+      // Vertical lines — segment-based, break rows skipped (colspan effect)
+      const vSegs = [];
+      let vy = TABLE_Y;
+      vSegs.push({ y1: vy, y2: vy + HDR_H });
+      vy += HDR_H;
+      pdfRows.forEach((row) => {
+        if (!row.isBreak) {
+          const last = vSegs[vSegs.length - 1];
+          if (last && last.y2 === vy) { last.y2 = vy + ROW_H; }
+          else                        { vSegs.push({ y1: vy, y2: vy + ROW_H }); }
+          vy += ROW_H;
+        } else {
+          vy += BRK_H;
+        }
+      });
+
+      const vLineXs = [ML + TIME_W];
+      for (let i = 1; i < displayDays.length; i++) vLineXs.push(ML + TIME_W + i * COL_W);
+      vLineXs.forEach(lx => vSegs.forEach(seg => doc.line(lx, seg.y1, lx, seg.y2)));
+
+      // ── FOOTER ────────────────────────────────────────────────────────────
+      const genDate = new Date().toLocaleString('en-IN', { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+      doc.setFont('helvetica', 'italic');
+      doc.setFontSize(6.5);
+      doc.setTextColor(156, 163, 175);
+      doc.text(`Downloaded: ${genDate}`, ML, PH - 5);
+      doc.text(trunc(schoolName, 50), PW - MR, PH - 5, { align: 'right' });
+
+      doc.save(`class-routine-${(studentName || 'student').replace(/\s+/g, '-').toLowerCase()}.pdf`);
+    };
+    generate();
+  }, [filteredSchedule, weeklySlots, weeklyMatrix, profile]);
+
   if (loading) {
     return (
       <div className="min-h-screen bg-slate-50 p-4 sm:p-6 space-y-4">
@@ -421,17 +691,28 @@ const RoutineView = () => {
                   })}`
                 : 'Waiting for the first sync...'}
             </p>
-            <button
-              type="button"
-              onClick={() => fetchSchedule({ silent: true })}
-              disabled={silentRefreshing}
-              className="inline-flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              <RefreshCcw
-                className={`h-3.5 w-3.5 ${silentRefreshing ? 'animate-spin text-indigo-600' : 'text-slate-500'}`}
-              />
-              {silentRefreshing ? 'Refreshing' : 'Refresh routine'}
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={downloadPDF}
+                disabled={totalSessions === 0}
+                className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                <Download className="h-3.5 w-3.5" />
+                Download PDF
+              </button>
+              <button
+                type="button"
+                onClick={() => fetchSchedule({ silent: true })}
+                disabled={silentRefreshing}
+                className="inline-flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                <RefreshCcw
+                  className={`h-3.5 w-3.5 ${silentRefreshing ? 'animate-spin text-indigo-600' : 'text-slate-500'}`}
+                />
+                {silentRefreshing ? 'Refreshing' : 'Refresh routine'}
+              </button>
+            </div>
           </div>
         </div>
         {error && (

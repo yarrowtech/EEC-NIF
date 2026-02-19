@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Calendar, Clock, MapPin, BookOpen, AlertCircle, Users, School, RefreshCw } from 'lucide-react';
+import { jsPDF } from 'jspdf';
+import { Calendar, Clock, MapPin, BookOpen, AlertCircle, Users, School, RefreshCw, Download } from 'lucide-react';
 
 const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 const DAY_LOOKUP = DAYS.reduce((acc, day) => {
@@ -318,6 +319,313 @@ const ClassRoutine = () => {
     return matrix;
   }, [effectiveSchedule]);
 
+  const downloadPDF = useCallback(() => {
+    const generate = async () => {
+      const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+      const PW = 297, PH = 210, ML = 14, MR = 14;
+      const UW = PW - ML - MR; // 269 mm usable width
+
+      const schoolName    = teacherProfile?.schoolName || teacherProfile?.school?.name || teacherProfile?.campusName || 'School';
+      const schoolAddress = teacherProfile?.schoolAddress || teacherProfile?.school?.address || teacherProfile?.campusAddress || teacherProfile?.address || '';
+      const teacherName   = teacherProfile?.name || teacherProfile?.fullName || '';
+      const subject       = teacherProfile?.subject || '';
+      const logoUrl       = teacherProfile?.schoolLogo || '';
+
+      // ── Load school logo as base64 ───────────────────────────────────────
+      let logoDataUrl = null;
+      if (logoUrl) {
+        try {
+          const resp = await fetch(logoUrl);
+          const blob = await resp.blob();
+          logoDataUrl = await new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload  = () => resolve(reader.result);
+            reader.onerror = reject;
+            reader.readAsDataURL(blob);
+          });
+        } catch { /* skip logo if fetch fails */ }
+      }
+
+      const activeDays  = DAYS.filter(d => (effectiveSchedule[d] || []).length > 0);
+      const displayDays = activeDays.length > 0 ? activeDays : DAYS.slice(0, 6);
+
+      const TIME_W   = 30;
+      const COL_W    = (UW - TIME_W) / displayDays.length;
+      const HDR_H    = 9;
+      const LOGO_SZ  = 22;   // logo size in mm
+      const HEADER_H = logoDataUrl ? 38 : 30; // taller header when logo present
+      const BRK_H    = 8;    // break row height
+
+      const infoItems = [
+        teacherName && `Teacher: ${teacherName}`,
+        subject && `Subject: ${subject}`,
+        teacherClassLabels.length > 0 && `Class: ${teacherClassLabels.join(', ')}`,
+        teacherSectionLabels.length > 0 && `Section: ${teacherSectionLabels.join(', ')}`,
+        teacherProfile?.campusName && `Campus: ${teacherProfile.campusName}`,
+      ].filter(Boolean);
+      const INFO_H = infoItems.length > 0 ? 10 : 0;
+
+      // ── Break detection between consecutive time slots ───────────────────
+      const timeToMins = (t) => {
+        if (!t) return null;
+        const m = t.trim().match(/^(\d+):(\d+)\s*(AM|PM)$/i);
+        if (!m) return null;
+        let h = parseInt(m[1]), mn = parseInt(m[2]);
+        if (m[3].toUpperCase() === 'PM' && h !== 12) h += 12;
+        if (m[3].toUpperCase() === 'AM' && h === 12) h = 0;
+        return h * 60 + mn;
+      };
+
+      const pdfRows = [];
+      weeklySlots.forEach((slot, si) => {
+        pdfRows.push({ slot: slot.slot, isBreak: false, si });
+        if (si < weeklySlots.length - 1) {
+          const parts     = slot.slot.split(' - ');
+          const nextParts = weeklySlots[si + 1].slot.split(' - ');
+          const endMins   = timeToMins(parts[1]?.trim());
+          const nextMins  = timeToMins(nextParts[0]?.trim());
+          if (endMins !== null && nextMins !== null && nextMins - endMins >= 10) {
+            const dur = nextMins - endMins;
+            pdfRows.push({
+              slot: `${parts[1]?.trim()} - ${nextParts[0]?.trim()}`,
+              isBreak: true,
+              breakLabel: `Break  (${dur} min)`,
+              si: -1,
+            });
+          }
+        }
+      });
+
+      const breakCount = pdfRows.filter(r => r.isBreak).length;
+      const dataCount  = pdfRows.filter(r => !r.isBreak).length;
+      // Available height for data rows
+      const availH = PH - HEADER_H - INFO_H - 5 - HDR_H - breakCount * BRK_H - 12;
+      const ROW_H  = Math.min(20, Math.max(12, Math.floor(availH / Math.max(dataCount, 1))));
+
+      const TABLE_W = TIME_W + displayDays.length * COL_W;
+      const trunc   = (str, n) => { const s = String(str || ''); return s.length > n ? s.slice(0, n - 1) + '…' : s; };
+
+      // ── HEADER BLOCK ──────────────────────────────────────────────────────
+      doc.setFillColor(67, 56, 202);      // indigo-700
+      doc.rect(0, 0, PW, HEADER_H, 'F');
+
+      // School logo — left side, vertically centered in header (above accent strip)
+      const logoAreaH = HEADER_H - 10; // exclude bottom accent strip
+      if (logoDataUrl) {
+        const logoX = 8;
+        const logoY = (logoAreaH - LOGO_SZ) / 2;
+        // White circle bg behind logo
+        doc.setFillColor(255, 255, 255);
+        doc.circle(logoX + LOGO_SZ / 2, logoY + LOGO_SZ / 2, LOGO_SZ / 2 + 1.5, 'F');
+        try { doc.addImage(logoDataUrl, logoX, logoY, LOGO_SZ, LOGO_SZ); } catch { /* skip */ }
+      }
+
+      // School name — centered
+      const nameY = logoDataUrl ? 12 : 11;
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(18);
+      doc.setTextColor(255, 255, 255);
+      doc.text(trunc(schoolName, 55), PW / 2, nameY, { align: 'center' });
+
+      // School address
+      if (schoolAddress) {
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(8.5);
+        doc.setTextColor(199, 210, 254);  // indigo-200
+        doc.text(trunc(schoolAddress, 90), PW / 2, nameY + 8, { align: 'center' });
+      }
+
+      // CLASS ROUTINE accent strip at bottom of header
+      doc.setFillColor(79, 70, 229);      // indigo-600
+      doc.rect(0, HEADER_H - 10, PW, 10, 'F');
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(9);
+      doc.setTextColor(224, 231, 255);    // indigo-100
+      doc.text('CLASS ROUTINE', PW / 2, HEADER_H - 3.5, { align: 'center' });
+
+      let y = HEADER_H + 4;
+
+      // ── TEACHER INFO BAR ──────────────────────────────────────────────────
+      if (infoItems.length > 0) {
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(7.5);
+        doc.setTextColor(75, 85, 99);
+        doc.text(infoItems.join('   ·   '), PW / 2, y, { align: 'center' });
+        y += 5;
+      }
+
+      doc.setDrawColor(229, 231, 235);
+      doc.setLineWidth(0.3);
+      doc.line(ML, y, PW - MR, y);
+      y += 5;
+
+      const TABLE_Y = y;
+
+      // ── TABLE HEADER ──────────────────────────────────────────────────────
+      doc.setFillColor(243, 244, 246);
+      doc.rect(ML, y, TIME_W, HDR_H, 'F');
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(7);
+      doc.setTextColor(107, 114, 128);
+      doc.text('TIME', ML + TIME_W / 2, y + 5.5, { align: 'center' });
+
+      displayDays.forEach((day, di) => {
+        const cx = ML + TIME_W + di * COL_W;
+        doc.setFillColor(238, 242, 255);  // indigo-50
+        doc.rect(cx, y, COL_W, HDR_H, 'F');
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(8);
+        doc.setTextColor(67, 56, 202);    // indigo-700
+        doc.text(day.toUpperCase(), cx + COL_W / 2, y + 5.5, { align: 'center' });
+      });
+
+      y += HDR_H;
+
+      // ── TABLE ROWS (class rows + break rows) ─────────────────────────────
+      const FILLS   = [[239,246,255],[245,243,255],[236,253,245],[255,251,235],[255,241,242],[240,253,250]];
+      const ACCENTS = [[59,130,246],[139,92,246],[16,185,129],[245,158,11],[244,63,94],[20,184,166]];
+      const subMaxCh = Math.max(8, Math.floor(COL_W / 2.1));
+
+      pdfRows.forEach((row) => {
+        if (row.isBreak) {
+          // ── BREAK ROW ────────────────────────────────────────────────────
+          // Full-width amber strip
+          doc.setFillColor(255, 251, 235);          // amber-50
+          doc.rect(ML, y, TABLE_W, BRK_H, 'F');
+          // Left accent stripe
+          doc.setFillColor(245, 158, 11);            // amber-500
+          doc.rect(ML, y, 2.5, BRK_H, 'F');
+          // Time span (left column)
+          doc.setFont('helvetica', 'normal');
+          doc.setFontSize(5.5);
+          doc.setTextColor(161, 98, 7);              // amber-700
+          doc.text(row.slot, ML + TIME_W / 2, y + BRK_H / 2 + 1.5, { align: 'center' });
+          // "Break (X min)" label — centered over day columns
+          doc.setFont('helvetica', 'bold');
+          doc.setFontSize(7);
+          doc.setTextColor(161, 98, 7);
+          const breakCenterX = ML + TIME_W + (TABLE_W - TIME_W) / 2;
+          doc.text(row.breakLabel, breakCenterX, y + BRK_H / 2 + 1.5, { align: 'center' });
+          y += BRK_H;
+        } else {
+          // ── CLASS ROW ────────────────────────────────────────────────────
+          const si = row.si;
+          const [fr, fg, fb] = FILLS[si % FILLS.length];
+          const [ar, ag, ab] = ACCENTS[si % ACCENTS.length];
+          const midY = y + ROW_H / 2;
+
+          // Time cell
+          doc.setFillColor(249, 250, 251);
+          doc.rect(ML, y, TIME_W, ROW_H, 'F');
+          const parts = row.slot.split(' - ');
+          if (parts.length === 2) {
+            doc.setFont('helvetica', 'bold');
+            doc.setFontSize(7);
+            doc.setTextColor(55, 65, 81);
+            doc.text(parts[0], ML + TIME_W / 2, midY - 2, { align: 'center' });
+            doc.setFont('helvetica', 'normal');
+            doc.setFontSize(6);
+            doc.setTextColor(107, 114, 128);
+            doc.text(parts[1], ML + TIME_W / 2, midY + 3, { align: 'center' });
+          } else {
+            doc.setFont('helvetica', 'bold');
+            doc.setFontSize(7);
+            doc.setTextColor(55, 65, 81);
+            doc.text(row.slot, ML + TIME_W / 2, midY + 1, { align: 'center' });
+          }
+
+          // Day cells
+          displayDays.forEach((day, di) => {
+            const cx    = ML + TIME_W + di * COL_W;
+            const entry = weeklyMatrix[day]?.[row.slot];
+            if (entry) {
+              doc.setFillColor(fr, fg, fb);
+              doc.roundedRect(cx + 1.5, y + 1.5, COL_W - 3, ROW_H - 3, 1.5, 1.5, 'F');
+              // Accent dot
+              doc.setFillColor(ar, ag, ab);
+              doc.circle(cx + 5, y + ROW_H * 0.28, 1.4, 'F');
+              // Subject
+              doc.setFont('helvetica', 'bold');
+              doc.setFontSize(7.5);
+              doc.setTextColor(17, 24, 39);
+              doc.text(trunc(entry.subject || 'Subject', subMaxCh), cx + COL_W / 2, midY - 1.5, { align: 'center' });
+              // Class
+              const cls = entry.classLabel || entry.className || entry.class || '';
+              if (cls) {
+                doc.setFont('helvetica', 'normal');
+                doc.setFontSize(6.5);
+                doc.setTextColor(ar, ag, ab);
+                doc.text(trunc(cls, 18), cx + COL_W / 2, midY + 3.5, { align: 'center' });
+              }
+              // Room
+              doc.setFontSize(6);
+              doc.setTextColor(156, 163, 175);
+              doc.text(trunc(entry.room || 'TBA', 16), cx + COL_W / 2, y + ROW_H * 0.85, { align: 'center' });
+            } else {
+              doc.setFillColor(250, 250, 250);
+              doc.rect(cx, y, COL_W, ROW_H, 'F');
+              doc.setFont('helvetica', 'normal');
+              doc.setFontSize(10);
+              doc.setTextColor(209, 213, 219);
+              doc.text('—', cx + COL_W / 2, midY + 1, { align: 'center' });
+            }
+          });
+
+          y += ROW_H;
+        }
+      });
+
+      const TABLE_END_Y = y;
+
+      // ── GRID LINES ────────────────────────────────────────────────────────
+      doc.setDrawColor(209, 213, 219);
+      doc.setLineWidth(0.35);
+      doc.rect(ML, TABLE_Y, TABLE_W, TABLE_END_Y - TABLE_Y);
+
+      doc.setLineWidth(0.2);
+      doc.setDrawColor(229, 231, 235);
+
+      // Horizontal lines between rows
+      let ly = TABLE_Y + HDR_H;
+      pdfRows.forEach((row) => {
+        doc.line(ML, ly, ML + TABLE_W, ly);
+        ly += row.isBreak ? BRK_H : ROW_H;
+      });
+
+      // Vertical lines drawn in segments — break rows are skipped so they
+      // appear as a single full-width colspan cell with no dividers inside.
+      const vSegs = [];
+      let vy = TABLE_Y;
+      vSegs.push({ y1: vy, y2: vy + HDR_H });   // header row segment
+      vy += HDR_H;
+      pdfRows.forEach((row) => {
+        if (!row.isBreak) {
+          const last = vSegs[vSegs.length - 1];
+          if (last && last.y2 === vy) { last.y2 = vy + ROW_H; }  // extend
+          else                        { vSegs.push({ y1: vy, y2: vy + ROW_H }); }
+          vy += ROW_H;
+        } else {
+          vy += BRK_H;  // skip — no vertical lines drawn through break row
+        }
+      });
+
+      const vLineXs = [ML + TIME_W];
+      for (let i = 1; i < displayDays.length; i++) vLineXs.push(ML + TIME_W + i * COL_W);
+      vLineXs.forEach(lx => vSegs.forEach(seg => doc.line(lx, seg.y1, lx, seg.y2)));
+
+      // ── FOOTER ────────────────────────────────────────────────────────────
+      const genDate = new Date().toLocaleString('en-IN', { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+      doc.setFont('helvetica', 'italic');
+      doc.setFontSize(6.5);
+      doc.setTextColor(156, 163, 175);
+      doc.text(`Generated: ${genDate}`, ML, PH - 5);
+      doc.text(trunc(schoolName, 50), PW - MR, PH - 5, { align: 'right' });
+
+      doc.save(`class-routine-${(teacherProfile?.name || 'teacher').replace(/\s+/g, '-').toLowerCase()}.pdf`);
+    };
+    generate();
+  }, [effectiveSchedule, weeklySlots, weeklyMatrix, teacherProfile, teacherClassLabels, teacherSectionLabels]);
+
   if (loading) {
     return (
       <div className="space-y-4">
@@ -410,13 +718,23 @@ const ClassRoutine = () => {
               Weekly
             </button>
           </div>
-          <button
-            onClick={loadRoutine}
-            className="flex items-center gap-1.5 text-xs font-medium text-gray-500 hover:text-indigo-600 px-3 py-1.5 rounded-lg hover:bg-indigo-50 transition-colors"
-          >
-            <RefreshCw size={13} />
-            Reload
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={downloadPDF}
+              disabled={totalClasses === 0}
+              className="flex items-center gap-1.5 text-xs font-medium text-white bg-indigo-600 hover:bg-indigo-700 px-3 py-1.5 rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              <Download size={13} />
+              Download PDF
+            </button>
+            <button
+              onClick={loadRoutine}
+              className="flex items-center gap-1.5 text-xs font-medium text-gray-500 hover:text-indigo-600 px-3 py-1.5 rounded-lg hover:bg-indigo-50 transition-colors"
+            >
+              <RefreshCw size={13} />
+              Reload
+            </button>
+          </div>
         </div>
 
         {/* Day selector pills */}
