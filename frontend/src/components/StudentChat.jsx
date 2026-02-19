@@ -10,9 +10,10 @@ import { decryptChatMessage, encryptChatMessage, ensureE2EEIdentity } from '../u
 import { chatCacheKeys, readChatCache, writeChatCache } from '../utils/chatCache';
 
 const API_URL = (import.meta.env.VITE_API_URL || 'http://localhost:5000').replace(/\/$/, '');
-const THREADS_CACHE_TTL_MS = 60 * 1000;
-const MESSAGES_CACHE_TTL_MS = 30 * 1000;
+const THREADS_CACHE_TTL_MS = 15 * 60 * 1000;
+const MESSAGES_CACHE_TTL_MS = 15 * 60 * 1000;
 const CONTACTS_CACHE_TTL_MS = 5 * 60 * 1000;
+const LAST_STUDENT_CHAT_ME_KEY = 'student_chat_me_id_v1';
 
 const authHeader = () => ({ Authorization: `Bearer ${localStorage.getItem('token')}` });
 
@@ -643,12 +644,24 @@ const StudentChat = () => {
     if (!token) return;
     let mounted = true;
 
+    const hintedMeId = localStorage.getItem(LAST_STUDENT_CHAT_ME_KEY);
+    if (hintedMeId) {
+      const hintedCachedThreads = readChatCache(chatCacheKeys.threads(hintedMeId), THREADS_CACHE_TTL_MS);
+      if (isThreadCacheUsable(hintedCachedThreads)) {
+        setThreads(hintedCachedThreads);
+        setLoadingThreads(false);
+      }
+    }
+
     const init = async () => {
       try {
         const meData = await apiFetch('/api/chat/me');
         if (!mounted) return;
         setMe(meData);
         meRef.current = meData;
+        if (meData?.id) {
+          localStorage.setItem(LAST_STUDENT_CHAT_ME_KEY, String(meData.id));
+        }
         const identity = await ensureE2EEIdentity({ userId: meData?.id, apiFetch });
         privateKeyRef.current = identity?.privateKey || '';
         const threadsCacheKey = chatCacheKeys.threads(meData?.id);
