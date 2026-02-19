@@ -500,8 +500,12 @@ router.get('/keys/me', async (req, res) => {
   try {
     const userId = new mongoose.Types.ObjectId(req.user.id);
     const userType = String(req.user.userType || '').toLowerCase();
-    const keyDoc = await ChatKey.findOne({ userId, userType }).select('publicKey updatedAt').lean();
-    res.json({ publicKey: keyDoc?.publicKey || '', updatedAt: keyDoc?.updatedAt || null });
+    const keyDoc = await ChatKey.findOne({ userId, userType }).select('publicKey privateKey updatedAt').lean();
+    res.json({
+      publicKey: keyDoc?.publicKey || '',
+      privateKey: keyDoc?.privateKey || '',
+      updatedAt: keyDoc?.updatedAt || null,
+    });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -513,15 +517,22 @@ router.put('/keys/me', async (req, res) => {
     const userId = new mongoose.Types.ObjectId(req.user.id);
     const userType = String(req.user.userType || '').toLowerCase();
     const publicKey = String(req.body?.publicKey || '').trim();
+    const privateKey = String(req.body?.privateKey || '').trim();
     if (!publicKey) {
       return res.status(400).json({ error: 'publicKey is required' });
     }
+    const updateDoc = { publicKey };
+    if (privateKey) updateDoc.privateKey = privateKey;
     const saved = await ChatKey.findOneAndUpdate(
       { userId, userType },
-      { $set: { publicKey } },
+      { $set: updateDoc },
       { new: true, upsert: true, setDefaultsOnInsert: true }
-    ).select('publicKey updatedAt');
-    res.json({ publicKey: saved.publicKey, updatedAt: saved.updatedAt });
+    ).select('publicKey privateKey updatedAt');
+    res.json({
+      publicKey: saved.publicKey,
+      privateKey: saved.privateKey || '',
+      updatedAt: saved.updatedAt,
+    });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

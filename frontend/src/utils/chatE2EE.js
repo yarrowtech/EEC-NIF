@@ -66,16 +66,29 @@ export const ensureE2EEIdentity = async ({ userId, apiFetch }) => {
     stored = null;
   }
 
+  let remote = null;
+  try {
+    remote = await apiFetch('/api/chat/keys/me');
+  } catch {
+    remote = null;
+  }
+
+  // If server already has a keypair, treat it as canonical to keep devices in sync.
+  if (remote?.publicKey && remote?.privateKey) {
+    stored = { publicKey: remote.publicKey, privateKey: remote.privateKey };
+    localStorage.setItem(key, JSON.stringify(stored));
+  }
+
   if (!stored?.publicKey || !stored?.privateKey) {
     stored = await generateIdentity();
     localStorage.setItem(key, JSON.stringify(stored));
   }
 
-  // Best-effort register/update server-side public key.
+  // Best-effort register/update server-side keypair for multi-device continuity.
   try {
     await apiFetch('/api/chat/keys/me', {
       method: 'PUT',
-      body: JSON.stringify({ publicKey: stored.publicKey }),
+      body: JSON.stringify({ publicKey: stored.publicKey, privateKey: stored.privateKey }),
     });
   } catch {
     // Keep local key; chat can fallback while offline.
@@ -132,7 +145,7 @@ export const decryptChatMessage = async ({ message, myId, privateKeyBase64 }) =>
   if (!message?.encrypted?.ciphertext || !message?.encrypted?.iv || !Array.isArray(message?.encrypted?.keys)) {
     return message?.text || '';
   }
-  if (!myId) return message?.text || '[Encrypted message]';
+  if (!myId) return message?.text || '';
   let resolvedPrivateKey = privateKeyBase64 || '';
   if (!resolvedPrivateKey) {
     try {
@@ -142,7 +155,7 @@ export const decryptChatMessage = async ({ message, myId, privateKeyBase64 }) =>
       resolvedPrivateKey = '';
     }
   }
-  if (!resolvedPrivateKey) return message?.text || '[Encrypted message]';
+  if (!resolvedPrivateKey) return message?.text || '';
   const wrapped = message.encrypted.keys.find((entry) => String(entry?.userId) === String(myId));
   if (!wrapped?.wrappedKey) return message?.text || '';
 
@@ -167,6 +180,6 @@ export const decryptChatMessage = async ({ message, myId, privateKeyBase64 }) =>
     );
     return decoder.decode(plainBuffer);
   } catch {
-    return message?.text || '[Encrypted message]';
+    return message?.text || '';
   }
 };
