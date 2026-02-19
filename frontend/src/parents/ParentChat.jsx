@@ -3,7 +3,7 @@ import { io } from 'socket.io-client';
 import {
   MessageSquare, Send, Search, ChevronLeft,
   PlusCircle, X, Loader2, Check, CheckCheck, Palette,
-  GraduationCap, BookOpen, User, Mail, Phone
+  GraduationCap, BookOpen, User, Mail, Phone, Lock
 } from 'lucide-react';
 import { decryptChatMessage, encryptChatMessage, ensureE2EEIdentity } from '../utils/chatE2EE';
 import { chatCacheKeys, readChatCache, writeChatCache } from '../utils/chatCache';
@@ -1210,6 +1210,12 @@ const ParentChat = () => {
 
               {/* Messages */}
               <div className="flex-1 overflow-y-auto px-4 py-4" style={wallpaperStyle}>
+                <div className="flex justify-center mb-3">
+                  <span className="inline-flex items-center gap-1.5 text-[11px] px-3 py-1 rounded-full bg-amber-100 text-amber-700 font-medium">
+                    <Lock className="h-3 w-3" />
+                    Messages are end-to-end encrypted
+                  </span>
+                </div>
                 {loadingMessages ? (
                   <div className="flex items-center justify-center h-full">
                     <Loader2 className="h-5 w-5 animate-spin" style={{ color: theme.color }} />
