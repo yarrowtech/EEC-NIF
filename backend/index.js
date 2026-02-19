@@ -54,6 +54,7 @@ const practiceRoutes = require('./routes/practiceRoutes');
 const excuseLetterRoutes = require('./routes/excuseLetterRoutes');
 const nifStudentRoutes = require('./routes/nifStudentRoutes');
 const lessonPlanRoutes = require('./routes/lessonPlanRoutes');
+const promotionRoutes = require('./routes/promotionRoutes');
 const chatRoutes = require('./routes/chatRoutes');
 const ChatThread = require('./models/ChatThread');
 const ChatMessage = require('./models/ChatMessage');
@@ -260,6 +261,7 @@ app.get("/health", (req, res) => {
 
 // Auth & core routes (unchanged)
 app.use('/api/admin/users', adminUserManagementRoutes);
+app.use('/api/promotion', promotionRoutes);
 app.use('/api/admin/auth', adminAuthRoutes);
 app.use('/api/teacher/auth', teacherAuthRoutes);
 app.use('/api/teacher/dashboard', teacherDashboardRoutes);

@@ -27,6 +27,7 @@ import SuperAdminDashboard from './pages/SuperAdminDashboard';
 import Support from './pages/Support';
 import NoticeManagement from './pages/NoticeManagement';
 import AdminSettings from './pages/AdminSettings';
+import StudentPromotion from './pages/StudentPromotion';
 import { useState, useEffect, useMemo } from 'react';
 import { ADMIN_MENU_ITEMS } from './adminConstants';
 import { ensureAdminFetchScope, syncScopeFromProfile } from './utils/adminScope';
@@ -187,6 +188,7 @@ const AdminApp = () => {
         <Route path="notices" element={<NoticeManagement setShowAdminHeader={setShowAdminHeader} />} />
         <Route path="school-registrations" element={<SchoolRegistrations setShowAdminHeader={setShowAdminHeader} />} />
         <Route path="settings" element={<AdminSettings setShowAdminHeader={setShowAdminHeader} />} />
+        <Route path="promotion" element={<StudentPromotion setShowAdminHeader={setShowAdminHeader} />} />
       </Routes>
     </AdminLayout>
   );

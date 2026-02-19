@@ -1,9 +1,9 @@
-import { 
-  Home, 
-  BarChart3, 
-  Users, 
-  GraduationCap, 
-  UserCheck, 
+import {
+  Home,
+  BarChart3,
+  Users,
+  GraduationCap,
+  UserCheck,
   Calendar,
   ClipboardList,
   FileText,
@@ -19,7 +19,8 @@ import {
   Shield,
   UserRound,
   LifeBuoy,
-  Bell
+  Bell,
+  ArrowUpCircle
 } from 'lucide-react';
 
 export const ADMIN_MENU_ITEMS = [
@@ -66,6 +67,11 @@ export const ADMIN_MENU_ITEMS = [
     icon: GraduationCap,
     label: 'Students',
     path: '/admin/students'
+  },
+  {
+    icon: ArrowUpCircle,
+    label: 'Promotion & Leave',
+    path: '/admin/promotion'
   },
   {
     icon: ClipboardList,
