@@ -132,12 +132,22 @@ export const decryptChatMessage = async ({ message, myId, privateKeyBase64 }) =>
   if (!message?.encrypted?.ciphertext || !message?.encrypted?.iv || !Array.isArray(message?.encrypted?.keys)) {
     return message?.text || '';
   }
-  if (!myId || !privateKeyBase64) return message?.text || '';
+  if (!myId) return message?.text || '[Encrypted message]';
+  let resolvedPrivateKey = privateKeyBase64 || '';
+  if (!resolvedPrivateKey) {
+    try {
+      const local = JSON.parse(localStorage.getItem(storageKeyFor(myId)) || 'null');
+      resolvedPrivateKey = local?.privateKey || '';
+    } catch {
+      resolvedPrivateKey = '';
+    }
+  }
+  if (!resolvedPrivateKey) return message?.text || '[Encrypted message]';
   const wrapped = message.encrypted.keys.find((entry) => String(entry?.userId) === String(myId));
   if (!wrapped?.wrappedKey) return message?.text || '';
 
   try {
-    const privateKey = await importPrivateKey(privateKeyBase64);
+    const privateKey = await importPrivateKey(resolvedPrivateKey);
     const rawAesKey = await crypto.subtle.decrypt(
       { name: 'RSA-OAEP' },
       privateKey,
