@@ -716,6 +716,7 @@ const TeacherChat = () => {
         const cachedThreads = readChatCache(threadsCacheKey, THREADS_CACHE_TTL_MS);
         if (isThreadCacheUsable(cachedThreads)) {
           setThreads(cachedThreads);
+          if (mounted) setLoadingThreads(false);
         }
         const threadsData = await apiFetch('/api/chat/threads');
         if (!mounted) return;
