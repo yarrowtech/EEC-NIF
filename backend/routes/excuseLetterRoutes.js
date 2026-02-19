@@ -8,6 +8,7 @@ const StudentUser = require('../models/StudentUser');
 const TeacherAllocation = require('../models/TeacherAllocation');
 const ClassModel = require('../models/Class');
 const Section = require('../models/Section');
+const School = require('../models/School');
 
 const router = express.Router();
 
@@ -19,6 +20,15 @@ const resolveClassCandidates = (raw) => {
   if (/^\d+$/i.test(value)) set.add(`Class ${value}`);
   if (/^class\s+/i.test(value)) set.add(value.replace(/^class\s+/i, '').trim());
   return Array.from(set);
+};
+
+const buildSchoolMeta = async (schoolId) => {
+  if (!schoolId) return { schoolName: '', schoolAddress: '' };
+  const school = await School.findById(schoolId).select('name address').lean();
+  return {
+    schoolName: school?.name || '',
+    schoolAddress: school?.address || '',
+  };
 };
 
 // Student: list own letters
@@ -141,8 +151,13 @@ router.get('/teacher', authTeacher, async (req, res) => {
     })
       .sort({ createdAt: -1 })
       .lean();
-
-    res.json(items);
+    const schoolMeta = await buildSchoolMeta(schoolId);
+    const enriched = items.map((item) => ({
+      ...item,
+      schoolName: item.schoolName || schoolMeta.schoolName || '',
+      schoolAddress: item.schoolAddress || schoolMeta.schoolAddress || '',
+    }));
+    res.json(enriched);
   } catch (err) {
     res.status(400).json({ error: err.message });
   }
@@ -186,9 +201,14 @@ router.patch('/teacher/:id', authTeacher, async (req, res) => {
       id,
       { $set: { status, reviewedBy: teacherId, reviewedAt: new Date() } },
       { new: true }
-    );
+    ).lean();
 
-    res.json(updated);
+    const schoolMeta = await buildSchoolMeta(schoolId);
+    res.json({
+      ...updated,
+      schoolName: updated?.schoolName || schoolMeta.schoolName || '',
+      schoolAddress: updated?.schoolAddress || schoolMeta.schoolAddress || '',
+    });
   } catch (err) {
     res.status(400).json({ error: err.message });
   }

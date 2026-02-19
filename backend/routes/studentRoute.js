@@ -35,6 +35,7 @@ const extractSchoolInfo = (school = null) => {
     id: payload._id || payload.id || null,
     name: payload.name || '',
     code: payload.code || '',
+    address: payload.address || '',
     logo: payload.logo?.secure_url || payload.logo?.url || null,
   };
 };
@@ -589,7 +590,7 @@ router.get('/profile', authStudent, async (req, res) => {
 
     const student = await StudentUser.findById(req.user.id)
       .select('-password')
-            .populate('schoolId', 'name code logo')
+      .populate('schoolId', 'name code address logo')
       .lean();
 
     console.log('Student found:', student ? 'YES' : 'NO');
@@ -611,6 +612,7 @@ router.get('/profile', authStudent, async (req, res) => {
       schoolId: schoolInfo?.id || student.schoolId || null,
       schoolInfo,
       schoolName: schoolInfo?.name || '',
+      schoolAddress: schoolInfo?.address || '',
       schoolLogo: schoolInfo?.logo || null,
       profilePic: resolveProfilePhoto(student),
       avatar: resolveProfilePhoto(student),
@@ -711,7 +713,7 @@ router.get('/dashboard', authStudent, async (req, res) => {
   // #swagger.tags = ['Students']
   try {
     const student = await StudentUser.findById(req.user.id)
-            .populate('schoolId', 'name code logo')
+      .populate('schoolId', 'name code address logo')
       .lean();
 
     if (!student) {
@@ -749,6 +751,7 @@ router.get('/dashboard', authStudent, async (req, res) => {
         campusType: student.campusType || '',
         school: schoolInfo,
         schoolName: schoolInfo?.name || '',
+        schoolAddress: schoolInfo?.address || '',
         schoolLogo: schoolInfo?.logo || null,
       },
       stats: {

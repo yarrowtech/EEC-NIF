@@ -8,16 +8,16 @@ import {
 const STATUS_MAP = {
   approved: { label: 'Approved', bg: 'bg-emerald-50', text: 'text-emerald-700', border: 'border-emerald-200', icon: CheckCircle, dot: 'bg-emerald-500' },
   rejected: { label: 'Rejected', bg: 'bg-rose-50', text: 'text-rose-700', border: 'border-rose-200', icon: XCircle, dot: 'bg-rose-500' },
-  pending:  { label: 'Pending',  bg: 'bg-amber-50', text: 'text-amber-700', border: 'border-amber-200', icon: Clock, dot: 'bg-amber-500' },
+  pending: { label: 'Pending', bg: 'bg-amber-50', text: 'text-amber-700', border: 'border-amber-200', icon: Clock, dot: 'bg-amber-500' },
 };
 
 const REASON_TYPES = [
-  { value: 'illness',     label: 'Illness / Medical',   icon: '🏥' },
-  { value: 'family',      label: 'Family Emergency',    icon: '👨‍👩‍👧‍👦' },
-  { value: 'personal',    label: 'Personal Reasons',    icon: '🏠' },
-  { value: 'travel',      label: 'Travel / Vacation',   icon: '✈️' },
+  { value: 'illness', label: 'Illness / Medical', icon: '🏥' },
+  { value: 'family', label: 'Family Emergency', icon: '👨‍👩‍👧‍👦' },
+  { value: 'personal', label: 'Personal Reasons', icon: '🏠' },
+  { value: 'travel', label: 'Travel / Vacation', icon: '✈️' },
   { value: 'appointment', label: 'Medical Appointment', icon: '👨‍⚕️' },
-  { value: 'other',       label: 'Other',               icon: '📝' },
+  { value: 'other', label: 'Other', icon: '📝' },
 ];
 
 const fmtDate = (d) => new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
@@ -49,7 +49,7 @@ const ExcuseLetter = () => {
 
   const [formData, setFormData] = useState({
     studentName: '', rollNumber: '', className: '', sectionName: '',
-    schoolName: '', parentName: '', parentEmail: '', parentPhone: '',
+    schoolName: '', schoolAddress: '', parentName: '', parentEmail: '', parentPhone: '',
     dateFrom: '', dateTo: '', reason: '', reasonType: 'illness',
     additionalNotes: '', emergencyContact: '',
   });
@@ -76,6 +76,7 @@ const ExcuseLetter = () => {
       if (!res.ok) return;
       const data = await res.json().catch(() => ({}));
       let schoolName = data?.schoolName || data?.schoolInfo?.name || data?.school?.name || '';
+      let schoolAddress = data?.schoolAddress || data?.schoolInfo?.address || data?.school?.address || '';
       if (!schoolName) {
         const dashboardRes = await fetch(`${API_BASE}/api/student/auth/dashboard`, {
           headers: { Authorization: `Bearer ${token}` },
@@ -83,6 +84,7 @@ const ExcuseLetter = () => {
         if (dashboardRes.ok) {
           const dash = await dashboardRes.json().catch(() => ({}));
           schoolName = dash?.profile?.schoolName || dash?.profile?.school?.name || schoolName;
+          schoolAddress = dash?.profile?.schoolAddress || dash?.profile?.school?.address || schoolAddress;
         }
       }
       setFormData((prev) => ({
@@ -92,11 +94,12 @@ const ExcuseLetter = () => {
         className: data?.grade || data?.className || '',
         sectionName: data?.section || data?.sectionName || '',
         schoolName,
+        schoolAddress,
         parentName: data?.guardianName || data?.fatherName || data?.motherName || '',
         parentEmail: data?.guardianEmail || data?.email || '',
         parentPhone: data?.guardianPhone || data?.fatherPhone || data?.motherPhone || '',
       }));
-    } catch (_) {}
+    } catch (_) { }
   };
 
   const loadLetters = async () => {
@@ -156,6 +159,7 @@ const ExcuseLetter = () => {
 To,
 The Principal / Class Teacher
 ${d.schoolName || 'School'}
+${d.schoolAddress || ''}
 
 Subject: Request for Leave of Absence
 
@@ -227,19 +231,17 @@ Phone: ${d.parentPhone}${d.emergencyContact ? `\nEmergency Contact: ${d.emergenc
       <div className="shrink-0 bg-white border-b border-slate-200 px-4 sm:px-6">
         <div className="flex gap-1">
           <button type="button" onClick={() => setActiveTab('new')}
-            className={`flex items-center gap-1.5 px-4 py-3 text-sm font-semibold border-b-2 transition ${
-              activeTab === 'new'
+            className={`flex items-center gap-1.5 px-4 py-3 text-sm font-semibold border-b-2 transition ${activeTab === 'new'
                 ? 'border-indigo-600 text-indigo-600'
                 : 'border-transparent text-slate-500 hover:text-slate-700'
-            }`}>
+              }`}>
             <Plus className="h-3.5 w-3.5" /> New Letter
           </button>
           <button type="button" onClick={() => setActiveTab('history')}
-            className={`flex items-center gap-1.5 px-4 py-3 text-sm font-semibold border-b-2 transition ${
-              activeTab === 'history'
+            className={`flex items-center gap-1.5 px-4 py-3 text-sm font-semibold border-b-2 transition ${activeTab === 'history'
                 ? 'border-indigo-600 text-indigo-600'
                 : 'border-transparent text-slate-500 hover:text-slate-700'
-            }`}>
+              }`}>
             <History className="h-3.5 w-3.5" /> History
             {submittedLetters.length > 0 && (
               <span className="ml-1 rounded-full bg-slate-100 px-1.5 py-0.5 text-[10px] font-bold text-slate-600">
@@ -351,11 +353,10 @@ Phone: ${d.parentPhone}${d.emergencyContact ? `\nEmergency Contact: ${d.emergenc
                     {REASON_TYPES.map((type) => (
                       <button key={type.value} type="button"
                         onClick={() => setFormData((prev) => ({ ...prev, reasonType: type.value }))}
-                        className={`inline-flex items-center gap-1.5 rounded-full px-3.5 py-2 text-sm font-medium border transition ${
-                          formData.reasonType === type.value
+                        className={`inline-flex items-center gap-1.5 rounded-full px-3.5 py-2 text-sm font-medium border transition ${formData.reasonType === type.value
                             ? 'border-indigo-500 bg-indigo-50 text-indigo-700 shadow-sm'
                             : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50'
-                        }`}>
+                          }`}>
                         <span className="text-base">{type.icon}</span>
                         {type.label}
                       </button>
