@@ -1,8 +1,8 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { io } from 'socket.io-client';
 import {
-  MessageSquare, Send, Search, Users, ChevronLeft,
-  Info, PlusCircle, X, Loader2
+  MessageSquare, Send, Search, ChevronLeft,
+  PlusCircle, X, Loader2, Check, CheckCheck, Palette
 } from 'lucide-react';
 import { decryptChatMessage, encryptChatMessage, ensureE2EEIdentity } from '../utils/chatE2EE';
 import { chatCacheKeys, readChatCache, writeChatCache } from '../utils/chatCache';
@@ -36,54 +36,364 @@ const formatTime = (ts) => {
   return d.toLocaleDateString([], { month: 'short', day: 'numeric' });
 };
 
+const formatMessageTime = (ts) => {
+  if (!ts) return '';
+  const d = new Date(ts);
+  return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+};
+
+const formatLastSeen = (ts) => {
+  if (!ts) return '';
+  const d = new Date(ts);
+  const now = new Date();
+  const sameDay = d.toDateString() === now.toDateString();
+  const yesterday = new Date(now);
+  yesterday.setDate(now.getDate() - 1);
+  const isYesterday = d.toDateString() === yesterday.toDateString();
+  if (sameDay) return `today at ${d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
+  if (isYesterday) return `yesterday at ${d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
+  return d.toLocaleString([], { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
+};
+
+const dayKey = (ts) => {
+  const d = new Date(ts);
+  return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+};
+
+const formatDaySeparator = (ts) => {
+  if (!ts) return '';
+  const d = new Date(ts);
+  const now = new Date();
+  const todayKey = dayKey(now);
+  const msgKey = dayKey(d);
+  const yesterday = new Date(now);
+  yesterday.setDate(now.getDate() - 1);
+  const yesterdayKey = dayKey(yesterday);
+  if (msgKey === todayKey) return 'Today';
+  if (msgKey === yesterdayKey) return 'Yesterday';
+  return d.toLocaleDateString([], { day: '2-digit', month: 'short', year: 'numeric' });
+};
+
 const getInitials = (name = '') =>
   name.split(' ').slice(0, 2).map(w => w[0]).join('').toUpperCase() || '?';
 
-const ChatMessage = ({ msg, isMine }) => (
-  <div className={`flex ${isMine ? 'justify-end' : 'justify-start'} mb-3`}>
-    <div className={`max-w-[78%] rounded-2xl px-4 py-2.5 text-sm shadow-sm
-      ${isMine ? 'bg-blue-600 text-white rounded-br-sm' : 'bg-white text-gray-800 rounded-bl-sm'}`}>
-      {!isMine && (
-        <div className="text-xs font-semibold text-blue-600 mb-1">{msg.senderName}</div>
-      )}
-      <div className="whitespace-pre-wrap leading-relaxed">{msg.text}</div>
-      <div className={`text-xs mt-1 text-right ${isMine ? 'text-blue-100' : 'text-gray-400'}`}>
-        {formatTime(msg.createdAt || msg.ts)}
+const resolveImg = (src) => {
+  if (!src) return null;
+  if (src.startsWith('http://') || src.startsWith('https://') || src.startsWith('blob:') || src.startsWith('data:')) return src;
+  return `${API_URL}${src.startsWith('/') ? '' : '/'}${src}`;
+};
+
+const pickImg = (obj) => {
+  const raw = obj?.profilePic || obj?.profileImage || obj?.photo || obj?.avatar || obj?.image || null;
+  if (!raw) return null;
+  if (typeof raw === 'object') return raw.secure_url || raw.url || raw.path || null;
+  return raw;
+};
+
+// ── Chat wallpaper SVGs ────────────────────────────────────────────────────────
+const _SVG_DOODLE = `<svg xmlns="http://www.w3.org/2000/svg" width="300" height="300">
+  <rect width="300" height="300" fill="#f5f0e8"/>
+  <g opacity="0.45">
+    <rect x="15" y="18" width="58" height="30" rx="8" fill="#c9ad88"/>
+    <path d="M22,48 L13,62 L33,48" fill="#c9ad88"/>
+    <line x1="22" y1="28" x2="60" y2="28" stroke="#f5f0e8" stroke-width="2.5" stroke-linecap="round"/>
+    <line x1="22" y1="36" x2="52" y2="36" stroke="#f5f0e8" stroke-width="2.5" stroke-linecap="round"/>
+  </g>
+  <g opacity="0.38">
+    <rect x="216" y="22" width="52" height="26" rx="7" fill="#c9ad88"/>
+    <path d="M258,48 L266,61 L250,48" fill="#c9ad88"/>
+    <line x1="224" y1="31" x2="258" y2="31" stroke="#f5f0e8" stroke-width="2.5" stroke-linecap="round"/>
+    <line x1="224" y1="39" x2="246" y2="39" stroke="#f5f0e8" stroke-width="2.5" stroke-linecap="round"/>
+  </g>
+  <path d="M148,25 L140,17 C137,14 137,9 140,6 C143,3 148,4.5 148,8 C148,4.5 153,3 156,6 C159,9 159,14 156,17 Z" fill="#e8a87c" opacity="0.42"/>
+  <g transform="translate(243,68)" fill="#c9ad88" opacity="0.45">
+    <path d="M11,0 L13.5,8 L22,8 L15,13 L17.5,21 L11,16 L4.5,21 L7,13 L0,8 L8.5,8 Z"/>
+  </g>
+  <g opacity="0.45">
+    <rect x="18" y="148" width="56" height="32" rx="12" fill="#c9ad88"/>
+    <path d="M24,180 L13,195 L35,180" fill="#c9ad88"/>
+    <circle cx="34" cy="164" r="4" fill="#f5f0e8"/>
+    <circle cx="46" cy="164" r="4" fill="#f5f0e8"/>
+    <circle cx="58" cy="164" r="4" fill="#f5f0e8"/>
+  </g>
+  <g transform="translate(152,132)" opacity="0.38">
+    <rect x="1" y="11" width="20" height="14" rx="3" fill="#c9ad88"/>
+    <path d="M4,11 L4,7 C4,2 18,2 18,7 L18,11" fill="none" stroke="#c9ad88" stroke-width="2.5"/>
+    <circle cx="11" cy="18" r="3" fill="#f5f0e8"/>
+  </g>
+  <g transform="translate(237,183)" opacity="0.38">
+    <circle cx="14" cy="14" r="13" fill="none" stroke="#c9ad88" stroke-width="2"/>
+    <circle cx="9" cy="11" r="2" fill="#c9ad88"/>
+    <circle cx="19" cy="11" r="2" fill="#c9ad88"/>
+    <path d="M8,18 Q14,24 20,18" fill="none" stroke="#c9ad88" stroke-width="2" stroke-linecap="round"/>
+  </g>
+  <g opacity="0.42">
+    <rect x="196" y="240" width="72" height="36" rx="8" fill="#c9ad88"/>
+    <path d="M258,276 L268,290 L254,276" fill="#c9ad88"/>
+    <line x1="206" y1="253" x2="256" y2="253" stroke="#f5f0e8" stroke-width="2.5" stroke-linecap="round"/>
+    <line x1="206" y1="264" x2="244" y2="264" stroke="#f5f0e8" stroke-width="2.5" stroke-linecap="round"/>
+  </g>
+  <g transform="translate(86,207)" opacity="0.38">
+    <circle cx="10" cy="10" r="10" fill="none" stroke="#c9ad88" stroke-width="1.8" stroke-dasharray="4 3"/>
+    <line x1="10" y1="3" x2="10" y2="17" stroke="#c9ad88" stroke-width="1.8" stroke-linecap="round"/>
+    <line x1="3" y1="10" x2="17" y2="10" stroke="#c9ad88" stroke-width="1.8" stroke-linecap="round"/>
+  </g>
+  <g transform="translate(100,92)" fill="#e8a87c" opacity="0.35">
+    <path d="M12,3 L14,9 L20,9 L15.5,12.5 L17.5,18.5 L12,15 L6.5,18.5 L8.5,12.5 L4,9 L10,9 Z"/>
+  </g>
+  <g transform="translate(178,148)" opacity="0.35">
+    <rect x="0" y="8" width="34" height="22" rx="6" fill="#c9ad88"/>
+    <path d="M5,8 L5,5 C5,1 29,1 29,5 L29,8" fill="none" stroke="#c9ad88" stroke-width="2.5"/>
+  </g>
+  <g fill="#c9ad88" opacity="0.22">
+    <circle cx="104" cy="58" r="3"/><circle cx="174" cy="96" r="3"/><circle cx="278" cy="154" r="3"/>
+    <circle cx="122" cy="270" r="3"/><circle cx="70" cy="112" r="3"/><circle cx="202" cy="116" r="3"/>
+    <circle cx="142" cy="212" r="3"/><circle cx="56" cy="240" r="3"/><circle cx="290" cy="60" r="3"/>
+  </g>
+</svg>`;
+
+const _SVG_GEOMETRIC = `<svg xmlns="http://www.w3.org/2000/svg" width="280" height="280">
+  <rect width="280" height="280" fill="#edf2f7"/>
+  <polygon points="30,16 52,16 63,35 52,54 30,54 19,35" fill="none" stroke="#94a3b8" stroke-width="1.5" opacity="0.5"/>
+  <polygon points="100,16 122,16 133,35 122,54 100,54 89,35" fill="none" stroke="#94a3b8" stroke-width="1.5" opacity="0.4"/>
+  <polygon points="170,16 192,16 203,35 192,54 170,54 159,35" fill="none" stroke="#94a3b8" stroke-width="1.5" opacity="0.5"/>
+  <polygon points="240,16 262,16 273,35 262,54 240,54 229,35" fill="none" stroke="#94a3b8" stroke-width="1.5" opacity="0.4"/>
+  <polygon points="65,54 87,54 98,73 87,92 65,92 54,73" fill="none" stroke="#94a3b8" stroke-width="1.5" opacity="0.4"/>
+  <polygon points="135,54 157,54 168,73 157,92 135,92 124,73" fill="#c7d9ef" opacity="0.35"/>
+  <polygon points="205,54 227,54 238,73 227,92 205,92 194,73" fill="none" stroke="#94a3b8" stroke-width="1.5" opacity="0.4"/>
+  <polygon points="30,92 52,92 63,111 52,130 30,130 19,111" fill="#c7d9ef" opacity="0.4"/>
+  <polygon points="100,92 122,92 133,111 122,130 100,130 89,111" fill="none" stroke="#94a3b8" stroke-width="1.5" opacity="0.4"/>
+  <polygon points="170,92 192,92 203,111 192,130 170,130 159,111" fill="none" stroke="#94a3b8" stroke-width="1.5" opacity="0.5"/>
+  <polygon points="65,135 95,185 35,185" fill="none" stroke="#94a3b8" stroke-width="1.5" opacity="0.4"/>
+  <polygon points="185,135 215,185 155,185" fill="#d1e3f3" opacity="0.35"/>
+  <polygon points="48,200 64,184 80,200 64,216" fill="none" stroke="#94a3b8" stroke-width="1.5" opacity="0.45"/>
+  <polygon points="148,198 164,182 180,198 164,214" fill="#c7d9ef" opacity="0.4"/>
+  <g fill="#94a3b8" opacity="0.28">
+    <circle cx="100" cy="95" r="2.5"/><circle cx="170" cy="55" r="2.5"/>
+    <circle cx="240" cy="95" r="2.5"/><circle cx="65" cy="165" r="2.5"/>
+    <circle cx="205" cy="165" r="2.5"/><circle cx="135" cy="245" r="2.5"/>
+  </g>
+</svg>`;
+
+const _SVG_FLORAL = `<svg xmlns="http://www.w3.org/2000/svg" width="240" height="240">
+  <rect width="240" height="240" fill="#fdf4fc"/>
+  <g transform="translate(60,65)" opacity="0.5">
+    <circle cx="0" cy="-16" r="10" fill="#f0abda"/><circle cx="16" cy="0" r="10" fill="#f0abda"/>
+    <circle cx="0" cy="16" r="10" fill="#f0abda"/><circle cx="-16" cy="0" r="10" fill="#f0abda"/>
+    <circle cx="11" cy="-11" r="8" fill="#f0abda"/><circle cx="11" cy="11" r="8" fill="#f0abda"/>
+    <circle cx="-11" cy="11" r="8" fill="#f0abda"/><circle cx="-11" cy="-11" r="8" fill="#f0abda"/>
+    <circle cx="0" cy="0" r="8" fill="#e040af"/>
+  </g>
+  <g transform="translate(185,75) scale(0.65)" opacity="0.45">
+    <circle cx="0" cy="-16" r="10" fill="#c084fc"/><circle cx="16" cy="0" r="10" fill="#c084fc"/>
+    <circle cx="0" cy="16" r="10" fill="#c084fc"/><circle cx="-16" cy="0" r="10" fill="#c084fc"/>
+    <circle cx="0" cy="0" r="8" fill="#9333ea"/>
+  </g>
+  <g transform="translate(28,185) scale(0.6)" opacity="0.45">
+    <circle cx="0" cy="-16" r="10" fill="#fca5a5"/><circle cx="16" cy="0" r="10" fill="#fca5a5"/>
+    <circle cx="0" cy="16" r="10" fill="#fca5a5"/><circle cx="-16" cy="0" r="10" fill="#fca5a5"/>
+    <circle cx="0" cy="0" r="8" fill="#ef4444"/>
+  </g>
+  <g transform="translate(195,195) scale(0.75)" opacity="0.45">
+    <circle cx="0" cy="-16" r="10" fill="#f0abda"/><circle cx="16" cy="0" r="10" fill="#f0abda"/>
+    <circle cx="0" cy="16" r="10" fill="#f0abda"/><circle cx="-16" cy="0" r="10" fill="#f0abda"/>
+    <circle cx="0" cy="0" r="8" fill="#e040af"/>
+  </g>
+  <ellipse cx="130" cy="38" rx="9" ry="22" transform="rotate(-30,130,38)" fill="#bbf7d0" opacity="0.55"/>
+  <ellipse cx="102" cy="152" rx="8" ry="20" transform="rotate(25,102,152)" fill="#bbf7d0" opacity="0.5"/>
+  <g fill="#f0abda" opacity="0.28">
+    <circle cx="92" cy="22" r="3"/><circle cx="218" cy="142" r="3"/>
+    <circle cx="112" cy="222" r="3"/><circle cx="8" cy="104" r="3"/>
+  </g>
+</svg>`;
+
+const _SVG_POLKA = `<svg xmlns="http://www.w3.org/2000/svg" width="60" height="60">
+  <rect width="60" height="60" fill="#f9f9f9"/>
+  <circle cx="15" cy="15" r="4.5" fill="#e2e8f0" opacity="0.85"/>
+  <circle cx="45" cy="45" r="4.5" fill="#e2e8f0" opacity="0.85"/>
+  <circle cx="45" cy="15" r="2.5" fill="#e2e8f0" opacity="0.55"/>
+  <circle cx="15" cy="45" r="2.5" fill="#e2e8f0" opacity="0.55"/>
+  <circle cx="30" cy="30" r="1.5" fill="#e2e8f0" opacity="0.4"/>
+</svg>`;
+
+const _SVG_DARK = `<svg xmlns="http://www.w3.org/2000/svg" width="300" height="300">
+  <rect width="300" height="300" fill="#1e1b2e"/>
+  <g opacity="0.22">
+    <rect x="15" y="18" width="58" height="30" rx="8" fill="#8b5cf6"/>
+    <path d="M22,48 L13,62 L33,48" fill="#8b5cf6"/>
+  </g>
+  <g opacity="0.18">
+    <rect x="216" y="22" width="52" height="26" rx="7" fill="#6366f1"/>
+    <path d="M258,48 L266,61 L250,48" fill="#6366f1"/>
+  </g>
+  <path d="M148,25 L140,17 C137,14 137,9 140,6 C143,3 148,4.5 148,8 C148,4.5 153,3 156,6 C159,9 159,14 156,17 Z" fill="#a855f7" opacity="0.3"/>
+  <g transform="translate(243,68)" fill="#818cf8" opacity="0.22">
+    <path d="M11,0 L13.5,8 L22,8 L15,13 L17.5,21 L11,16 L4.5,21 L7,13 L0,8 L8.5,8 Z"/>
+  </g>
+  <g opacity="0.22">
+    <rect x="18" y="148" width="56" height="32" rx="12" fill="#6366f1"/>
+    <circle cx="34" cy="164" r="4" fill="#1e1b2e"/>
+    <circle cx="46" cy="164" r="4" fill="#1e1b2e"/>
+    <circle cx="58" cy="164" r="4" fill="#1e1b2e"/>
+  </g>
+  <g transform="translate(237,183)" opacity="0.2">
+    <circle cx="14" cy="14" r="13" fill="none" stroke="#8b5cf6" stroke-width="2"/>
+    <path d="M8,18 Q14,24 20,18" fill="none" stroke="#8b5cf6" stroke-width="2" stroke-linecap="round"/>
+  </g>
+  <g fill="#7c3aed" opacity="0.18">
+    <circle cx="104" cy="58" r="3"/><circle cx="174" cy="96" r="3"/><circle cx="278" cy="154" r="3"/>
+    <circle cx="122" cy="270" r="3"/><circle cx="70" cy="112" r="3"/>
+  </g>
+</svg>`;
+
+// ── Wallpapers & Themes ────────────────────────────────────────────────────────
+const mkBg = (svg, size = '300px 300px') => ({
+  backgroundImage: `url("data:image/svg+xml,${encodeURIComponent(svg)}")`,
+  backgroundRepeat: 'repeat',
+  backgroundSize: size,
+});
+
+const WALLPAPERS = {
+  doodle:    { label: 'Doodle',    preview: '#f5f0e8', style: mkBg(_SVG_DOODLE) },
+  geometric: { label: 'Geometric', preview: '#edf2f7', style: mkBg(_SVG_GEOMETRIC, '280px 280px') },
+  floral:    { label: 'Floral',    preview: '#fdf4fc', style: mkBg(_SVG_FLORAL, '240px 240px') },
+  polka:     { label: 'Polka',     preview: '#f9f9f9', style: mkBg(_SVG_POLKA, '60px 60px') },
+  dark:      { label: 'Dark',      preview: '#1e1b2e', style: mkBg(_SVG_DARK) },
+  plain:     { label: 'Plain',     preview: '#f1f5f9', style: { backgroundColor: '#f1f5f9' } },
+};
+
+const THEMES = {
+  green:  { label: 'Green',  color: '#22c55e', hover: '#16a34a', light: '#dcfce7', lighter: '#f0fdf4' },
+  blue:   { label: 'Blue',   color: '#3b82f6', hover: '#2563eb', light: '#dbeafe', lighter: '#eff6ff' },
+  amber:  { label: 'Amber',  color: '#f59e0b', hover: '#d97706', light: '#fef3c7', lighter: '#fffbeb' },
+  purple: { label: 'Purple', color: '#8b5cf6', hover: '#7c3aed', light: '#ede9fe', lighter: '#f5f3ff' },
+  rose:   { label: 'Rose',   color: '#f43f5e', hover: '#e11d48', light: '#ffe4e6', lighter: '#fff1f2' },
+  teal:   { label: 'Teal',   color: '#14b8a6', hover: '#0f9688', light: '#ccfbf1', lighter: '#f0fdfa' },
+};
+
+// ── Avatar ─────────────────────────────────────────────────────────────────────
+const SIZES = {
+  xs: 'h-7  w-7  text-xs',
+  sm: 'h-9  w-9  text-sm',
+  md: 'h-11 w-11 text-sm',
+  lg: 'h-16 w-16 text-lg',
+};
+
+const Avatar = ({ src, name = '', size = 'sm', ring = false, themeColor = '#22c55e', className = '' }) => {
+  const [err, setErr] = useState(false);
+  const url = resolveImg(src);
+  const sz = SIZES[size] || SIZES.sm;
+  const ringStyle = ring ? { boxShadow: `0 0 0 2px white, 0 0 0 4px ${themeColor}` } : {};
+
+  if (url && !err) {
+    return (
+      <img
+        src={url}
+        alt={name}
+        onError={() => setErr(true)}
+        className={`rounded-full object-cover shrink-0 ${sz} ${className}`}
+        style={ringStyle}
+      />
+    );
+  }
+  return (
+    <div
+      className={`rounded-full flex items-center justify-center text-white font-semibold shrink-0 ${sz} ${className}`}
+      style={{ background: `linear-gradient(135deg, ${themeColor}99, ${themeColor})`, ...ringStyle }}
+    >
+      {getInitials(name)}
+    </div>
+  );
+};
+
+// ── ChatMessage ────────────────────────────────────────────────────────────────
+const isSeenByOther = (msg, myId) =>
+  Array.isArray(msg?.seenBy) &&
+  msg.seenBy.some((entry) => String(entry?.userId) !== String(myId));
+
+const ChatMessage = ({ msg, isMine, myId, theme }) => {
+  const t = theme || THEMES.green;
+  const optimistic = Boolean(msg?._optimistic);
+  const delivered = isMine && !optimistic;
+  const seen = isMine && isSeenByOther(msg, myId);
+  const LONG_MESSAGE_LIMIT = 260;
+  const fullText = String(msg?.text || '');
+  const isLong = fullText.length > LONG_MESSAGE_LIMIT;
+  const [expanded, setExpanded] = useState(false);
+  const visibleText = isLong && !expanded ? `${fullText.slice(0, LONG_MESSAGE_LIMIT)}...` : fullText;
+
+  return (
+    <div className={`flex ${isMine ? 'justify-end' : 'justify-start'} mb-3`}>
+      <div
+        className={`max-w-[78%] rounded-2xl px-4 py-2.5 text-sm shadow-sm
+          ${isMine ? 'text-white rounded-br-sm' : 'bg-white text-gray-800 rounded-bl-sm'}`}
+        style={isMine ? { backgroundColor: t.color } : {}}
+      >
+        {!isMine && (
+          <div className="text-xs font-semibold mb-1" style={{ color: t.color }}>{msg.senderName}</div>
+        )}
+        <div className="whitespace-pre-wrap leading-relaxed">{visibleText}</div>
+        {isLong && (
+          <button
+            type="button"
+            onClick={() => setExpanded(p => !p)}
+            className="mt-1 text-xs font-semibold hover:underline"
+            style={{ color: isMine ? 'rgba(255,255,255,0.8)' : t.color }}
+          >
+            {expanded ? 'Read less' : 'Read more'}
+          </button>
+        )}
+        <div
+          className={`text-xs mt-1 flex items-center justify-end gap-1 ${!isMine ? 'text-gray-400' : ''}`}
+          style={isMine ? { color: 'rgba(255,255,255,0.75)' } : {}}
+        >
+          <span>{formatMessageTime(msg.createdAt || msg.ts)}</span>
+          {isMine && (
+            <span style={{ color: seen ? '#7dd3fc' : 'rgba(255,255,255,0.75)' }} className="inline-flex items-center">
+              {seen || delivered ? <CheckCheck className="h-3.5 w-3.5" /> : <Check className="h-3.5 w-3.5" />}
+            </span>
+          )}
+        </div>
       </div>
     </div>
-  </div>
-);
+  );
+};
 
-const ConversationItem = ({ thread, isActive, onClick, isTyping }) => {
-  const other = thread.otherParticipant;
-  const name = other?.name || 'Unknown';
-  const initials = getInitials(name);
+// ── ConversationItem ───────────────────────────────────────────────────────────
+const ConversationItem = ({ thread, isActive, onClick, isTyping, theme }) => {
+  const t      = theme || THEMES.green;
+  const other  = thread.otherParticipant;
+  const name   = other?.name || 'Unknown';
+  const img    = pickImg(other);
   const unread = thread.unreadCount || 0;
 
   return (
     <button
       onClick={onClick}
       className={`w-full text-left px-4 py-3 flex items-center gap-3 transition-colors border-b border-gray-100
-        ${isActive ? 'bg-blue-50 border-l-4 border-l-blue-500' : 'hover:bg-gray-50'}`}
+        ${isActive ? '' : 'hover:bg-gray-50'}`}
+      style={isActive ? { backgroundColor: t.lighter, borderLeft: `4px solid ${t.color}` } : {}}
     >
-      <div className="relative flex-shrink-0">
-        <div className="h-11 w-11 rounded-full bg-gradient-to-br from-blue-400 to-blue-600 flex items-center justify-center text-white font-semibold text-sm">
-          {initials}
-        </div>
-      </div>
+      <Avatar src={img} name={name} size="md" ring={isActive} themeColor={t.color} />
       <div className="flex-1 min-w-0">
         <div className="flex items-center justify-between">
           <span className={`text-sm truncate ${unread > 0 ? 'font-semibold text-gray-900' : 'font-medium text-gray-700'}`}>
             {name}
           </span>
-          <span className="text-xs text-gray-400 ml-2 flex-shrink-0">{formatTime(thread.lastMessageAt)}</span>
+          <span className="text-xs text-gray-400 ml-2 shrink-0">{formatTime(thread.lastMessageAt)}</span>
         </div>
         <div className="flex items-center justify-between mt-0.5">
-          <span className={`text-xs truncate ${isTyping ? 'text-blue-600 font-medium italic' : 'text-gray-500'}`}>
+          <span
+            className="text-xs truncate"
+            style={isTyping ? { color: t.color, fontWeight: 500, fontStyle: 'italic' } : { color: '#6b7280' }}
+          >
             {isTyping ? 'typing...' : (thread.lastMessage || 'No messages yet')}
           </span>
           {unread > 0 && (
-            <span className="ml-2 flex-shrink-0 h-5 min-w-[20px] px-1.5 rounded-full bg-blue-500 text-white text-xs flex items-center justify-center">
+            <span
+              className="ml-2 shrink-0 h-5 min-w-[20px] px-1.5 rounded-full text-white text-xs flex items-center justify-center font-semibold"
+              style={{ backgroundColor: t.color }}
+            >
               {unread}
             </span>
           )}
@@ -93,50 +403,58 @@ const ConversationItem = ({ thread, isActive, onClick, isTyping }) => {
   );
 };
 
-const ContactItem = ({ contact, onClick }) => {
-  const initials = getInitials(contact.name);
+// ── ContactItem ────────────────────────────────────────────────────────────────
+const ContactItem = ({ contact, onClick, theme }) => {
+  const t   = theme || THEMES.green;
+  const img = pickImg(contact);
   return (
     <button
       onClick={onClick}
-      className="w-full text-left px-4 py-3 flex items-center gap-3 hover:bg-blue-50 transition-colors border-b border-gray-100"
+      className="w-full text-left px-4 py-3 flex items-center gap-3 hover:bg-gray-50 transition-colors border-b border-gray-100"
     >
-      <div className="h-10 w-10 rounded-full bg-gradient-to-br from-indigo-400 to-indigo-600 flex items-center justify-center text-white font-semibold text-sm flex-shrink-0">
-        {initials}
-      </div>
+      <Avatar src={img} name={contact.name} size="md" themeColor={t.color} />
       <div className="flex-1 min-w-0">
-        <div className="text-sm font-medium text-gray-800 truncate">{contact.name}</div>
-        <div className="text-xs text-gray-500">{contact.subtitle}</div>
+        <div className="text-sm font-semibold text-gray-800 truncate">{contact.name}</div>
+        <div className="text-xs text-gray-500 truncate">{contact.subtitle || 'Teacher'}</div>
       </div>
-      <MessageSquare className="h-4 w-4 text-gray-400 flex-shrink-0" />
+      <MessageSquare className="h-4 w-4 shrink-0" style={{ color: t.color }} />
     </button>
   );
 };
 
+// ── Main ParentChat ────────────────────────────────────────────────────────────
 const ParentChat = () => {
-  const [me, setMe] = useState(null);
-  const [threads, setThreads] = useState([]);
-  const [activeThreadId, setActiveThreadId] = useState(null);
-  const [messages, setMessages] = useState([]);
-  const [draft, setDraft] = useState('');
-  const [query, setQuery] = useState('');
-  const [contacts, setContacts] = useState([]);
-  const [showContacts, setShowContacts] = useState(false);
-  const [contactQuery, setContactQuery] = useState('');
-  const [loadingThreads, setLoadingThreads] = useState(true);
-  const [loadingMessages, setLoadingMessages] = useState(false);
-  const [typingUsers, setTypingUsers] = useState({});
-  const [isMobileView, setIsMobileView] = useState(false);
+  const [me, setMe]                             = useState(null);
+  const [threads, setThreads]                   = useState([]);
+  const [activeThreadId, setActiveThreadId]     = useState(null);
+  const [messages, setMessages]                 = useState([]);
+  const [draft, setDraft]                       = useState('');
+  const [query, setQuery]                       = useState('');
+  const [contacts, setContacts]                 = useState([]);
+  const [showContacts, setShowContacts]         = useState(false);
+  const [contactQuery, setContactQuery]         = useState('');
+  const [loadingThreads, setLoadingThreads]     = useState(true);
+  const [loadingMessages, setLoadingMessages]   = useState(false);
+  const [typingUsers, setTypingUsers]           = useState({});
+  const [presenceByUser, setPresenceByUser]     = useState({});
+  const [isMobileView, setIsMobileView]         = useState(false);
+  const [wallpaperKey, setWallpaperKey]         = useState(() => localStorage.getItem('parent_chat_wallpaper') || 'doodle');
+  const [themeKey, setThemeKey]                 = useState(() => localStorage.getItem('parent_chat_theme')     || 'green');
+  const [showChatSettings, setShowChatSettings] = useState(false);
 
-  const socketRef = useRef(null);
+  const socketRef         = useRef(null);
   const activeThreadIdRef = useRef(null);
-  const messagesEndRef = useRef(null);
-  const typingTimers = useRef({});
-  const typingDebounce = useRef(null);
-  const isTyping = useRef(false);
-  const meRef = useRef(null);
-  const privateKeyRef = useRef('');
+  const messagesEndRef    = useRef(null);
+  const typingTimers      = useRef({});
+  const typingDebounce    = useRef(null);
+  const isTyping          = useRef(false);
+  const meRef             = useRef(null);
+  const privateKeyRef     = useRef('');
 
-  const activeThread = useMemo(() => threads.find(t => String(t._id) === activeThreadId), [threads, activeThreadId]);
+  const activeThread = useMemo(
+    () => threads.find(t => String(t._id) === activeThreadId),
+    [threads, activeThreadId]
+  );
 
   const decryptForUI = useCallback(async (rawMsg) => {
     if (!rawMsg) return rawMsg;
@@ -161,6 +479,7 @@ const ParentChat = () => {
     return { ...thread, lastMessage: preview || thread.lastMessage || '' };
   }, []);
 
+  // ── Bootstrap ───────────────────────────────────────────────────────────────
   useEffect(() => {
     const token = localStorage.getItem('token');
     const userType = localStorage.getItem('userType');
@@ -168,7 +487,6 @@ const ParentChat = () => {
       setLoadingThreads(false);
       return;
     }
-
     let mounted = true;
 
     const init = async () => {
@@ -181,17 +499,15 @@ const ParentChat = () => {
         privateKeyRef.current = identity?.privateKey || '';
         const threadsCacheKey = chatCacheKeys.threads(meData?.id);
         const cachedThreads = readChatCache(threadsCacheKey, THREADS_CACHE_TTL_MS);
-        if (Array.isArray(cachedThreads)) {
-          setThreads(cachedThreads);
-        }
+        if (Array.isArray(cachedThreads)) setThreads(cachedThreads);
         const threadsData = await apiFetch('/api/chat/threads');
         if (!mounted) return;
-        const hydratedThreads = await Promise.all((Array.isArray(threadsData) ? threadsData : []).map((thread) => decryptThreadPreview(thread)));
+        const hydratedThreads = await Promise.all(
+          (Array.isArray(threadsData) ? threadsData : []).map(t => decryptThreadPreview(t))
+        );
         setThreads(hydratedThreads);
         writeChatCache(threadsCacheKey, hydratedThreads);
-      } catch (err) {
-        console.error('Parent chat init error:', err);
-      } finally {
+      } catch { /* ignore */ } finally {
         if (mounted) setLoadingThreads(false);
       }
     };
@@ -214,6 +530,8 @@ const ParentChat = () => {
     socket.on('new-message', async (rawMsg) => {
       const msg = await decryptForUI(rawMsg);
       const threadId = String(msg.threadId);
+      const isActiveThread = String(activeThreadIdRef.current) === threadId;
+      const isIncomingForMe = String(msg.senderId) !== String(meRef.current?.id);
       setMessages(prev => {
         if (activeThreadIdRef.current !== threadId) return prev;
         if (String(msg.senderId) === String(meRef.current?.id)) {
@@ -225,18 +543,25 @@ const ParentChat = () => {
           }
         }
         if (prev.find(m => String(m._id) === String(msg._id))) return prev;
-        return [...prev, msg];
+        const hydratedMsg = isIncomingForMe
+          ? {
+              ...msg,
+              seenBy: [
+                ...(Array.isArray(msg.seenBy) ? msg.seenBy : []),
+                { userId: meRef.current?.id, seenAt: new Date().toISOString() }
+              ]
+            }
+          : msg;
+        return [...prev, hydratedMsg];
       });
       setThreads(prev => prev.map(t =>
         String(t._id) === threadId
-          ? {
-              ...t,
-              lastMessage: msg.text,
-              lastMessageAt: msg.createdAt,
-              unreadCount: activeThreadIdRef.current === threadId ? 0 : (t.unreadCount || 0) + 1,
-            }
+          ? { ...t, lastMessage: msg.text, lastMessageAt: msg.createdAt, unreadCount: activeThreadIdRef.current === threadId ? 0 : (t.unreadCount || 0) + 1 }
           : t
       ));
+      if (isActiveThread && isIncomingForMe) {
+        socket.emit('mark-seen', { threadId });
+      }
     });
 
     socket.on('thread-updated', async ({ threadId, lastMessage, lastMessageAt, message }) => {
@@ -268,6 +593,33 @@ const ParentChat = () => {
       }
     });
 
+    socket.on('presence-update', ({ userId, online, lastSeen }) => {
+      if (!userId) return;
+      setPresenceByUser(prev => ({ ...prev, [String(userId)]: { online: Boolean(online), lastSeen: lastSeen || null } }));
+    });
+
+    socket.on('presence-sync', ({ presence }) => {
+      if (!presence || typeof presence !== 'object') return;
+      setPresenceByUser(prev => {
+        const next = { ...prev };
+        Object.entries(presence).forEach(([uid, state]) => {
+          next[String(uid)] = { online: Boolean(state?.online), lastSeen: state?.lastSeen || null };
+        });
+        return next;
+      });
+    });
+
+    socket.on('message-seen', ({ threadId, userId }) => {
+      if (String(activeThreadIdRef.current) !== String(threadId)) return;
+      setMessages(prev =>
+        prev.map(msg => {
+          if (String(msg.senderId) !== String(meRef.current?.id)) return msg;
+          if (Array.isArray(msg.seenBy) && msg.seenBy.some(e => String(e?.userId) === String(userId))) return msg;
+          return { ...msg, seenBy: [...(Array.isArray(msg.seenBy) ? msg.seenBy : []), { userId, seenAt: new Date().toISOString() }] };
+        })
+      );
+    });
+
     return () => {
       mounted = false;
       socket.disconnect();
@@ -295,7 +647,7 @@ const ParentChat = () => {
     const userId = me?.id;
     if (!userId || !activeThreadId) return;
     const stableMessages = (Array.isArray(messages) ? messages : [])
-      .filter((msg) => !msg?._optimistic)
+      .filter(m => !m?._optimistic)
       .slice(-120);
     writeChatCache(chatCacheKeys.messages(userId, activeThreadId), stableMessages);
   }, [messages, activeThreadId, me?.id]);
@@ -306,9 +658,8 @@ const ParentChat = () => {
     writeChatCache(chatCacheKeys.contacts(userId), contacts);
   }, [contacts, me?.id]);
 
+  // ── Thread actions ──────────────────────────────────────────────────────────
   const selectThread = useCallback(async (threadId) => {
-    const token = localStorage.getItem('token');
-    if (!token) return;
     const socket = socketRef.current;
     if (activeThreadIdRef.current && activeThreadIdRef.current !== threadId) {
       socket?.emit('leave-thread', { threadId: activeThreadIdRef.current });
@@ -330,24 +681,31 @@ const ParentChat = () => {
     socket?.emit('join-thread', { threadId });
     socket?.emit('mark-seen', { threadId });
     try {
-      const msgs = await apiFetch(`/api/chat/threads/${threadId}/messages`);
-      const decrypted = await Promise.all((Array.isArray(msgs) ? msgs : []).map((msg) => decryptForUI(msg)));
-      setMessages(decrypted);
-      if (userId) {
-        writeChatCache(chatCacheKeys.messages(userId, threadId), decrypted.slice(-120));
+      const presenceRes = await apiFetch(`/api/chat/threads/${threadId}/presence`);
+      if (presenceRes?.presence && typeof presenceRes.presence === 'object') {
+        setPresenceByUser(prev => {
+          const next = { ...prev };
+          Object.entries(presenceRes.presence).forEach(([uid, state]) => {
+            next[String(uid)] = { online: Boolean(state?.online), lastSeen: state?.lastSeen || null };
+          });
+          return next;
+        });
       }
+      const msgs = await apiFetch(`/api/chat/threads/${threadId}/messages`);
+      const decrypted = await Promise.all((Array.isArray(msgs) ? msgs : []).map(m => decryptForUI(m)));
+      setMessages(decrypted);
+      if (userId) writeChatCache(chatCacheKeys.messages(userId, threadId), decrypted.slice(-120));
       const latest = decrypted[decrypted.length - 1];
       if (latest?.text) {
-        setThreads((prev) =>
-          prev.map((thread) =>
-            String(thread._id) === String(threadId)
-              ? { ...thread, lastMessage: latest.text, lastMessageAt: latest.createdAt || thread.lastMessageAt }
-              : thread
+        setThreads(prev =>
+          prev.map(t =>
+            String(t._id) === String(threadId)
+              ? { ...t, lastMessage: latest.text, lastMessageAt: latest.createdAt || t.lastMessageAt }
+              : t
           )
         );
       }
-    } catch (err) {
-      console.error('Parent chat messages error:', err);
+    } catch {
       if (!Array.isArray(cachedMessages)) setMessages([]);
     } finally {
       setLoadingMessages(false);
@@ -364,13 +722,10 @@ const ParentChat = () => {
       });
       setThreads(prev => {
         const exists = prev.find(t => String(t._id) === String(thread._id));
-        if (exists) return prev;
-        return [thread, ...prev];
+        return exists ? prev : [thread, ...prev];
       });
       selectThread(String(thread._id));
-    } catch (err) {
-      console.error('Parent start conversation error:', err);
-    }
+    } catch { /* ignore */ }
   }, [selectThread]);
 
   const openContacts = useCallback(async () => {
@@ -379,19 +734,15 @@ const ParentChat = () => {
       const cachedContacts = userId
         ? readChatCache(chatCacheKeys.contacts(userId), CONTACTS_CACHE_TTL_MS)
         : null;
-      if (Array.isArray(cachedContacts)) {
-        setContacts(cachedContacts);
-      }
+      if (Array.isArray(cachedContacts)) setContacts(cachedContacts);
       try {
         const data = await apiFetch('/api/chat/contacts');
         setContacts(data);
         if (userId) writeChatCache(chatCacheKeys.contacts(userId), data);
-      } catch (err) {
-        console.error('Parent chat contacts error:', err);
-      }
+      } catch { /* ignore */ }
     }
     setShowContacts(true);
-  }, [contacts.length, me?.id]);
+  }, [contacts, me?.id]);
 
   const sendMessage = useCallback(() => {
     const text = draft.trim();
@@ -400,29 +751,22 @@ const ParentChat = () => {
 
     const optimisticId = `opt-${Date.now()}`;
     const optimistic = {
-      _id: optimisticId,
-      threadId: activeThreadId,
-      senderId: me?.id,
-      senderType: 'parent',
-      senderName: me?.name || 'Parent',
-      text,
+      _id: optimisticId, threadId: activeThreadId,
+      senderId: me?.id, senderType: 'parent',
+      senderName: me?.name || 'Parent', text,
       createdAt: new Date().toISOString(),
+      seenBy: [{ userId: me?.id, seenAt: new Date().toISOString() }],
       _optimistic: true,
     };
     setMessages(prev => [...prev, optimistic]);
 
     const sendPayload = async () => {
-      const encrypted = await encryptChatMessage({
-        threadId: activeThreadId,
-        text,
-        myId: me?.id,
-        apiFetch,
-      });
+      const encrypted = await encryptChatMessage({ threadId: activeThreadId, text, myId: me?.id, apiFetch });
       return encrypted;
     };
 
     if (socketRef.current?.connected) {
-      sendPayload().then((encrypted) => {
+      sendPayload().then(encrypted => {
         socketRef.current.emit('send-message', {
           threadId: activeThreadId,
           text: encrypted ? '' : text,
@@ -432,12 +776,12 @@ const ParentChat = () => {
         socketRef.current.emit('send-message', { threadId: activeThreadId, text });
       });
     } else {
-      sendPayload().then((encrypted) => {
-        return apiFetch(`/api/chat/threads/${activeThreadId}/messages`, {
+      sendPayload().then(encrypted =>
+        apiFetch(`/api/chat/threads/${activeThreadId}/messages`, {
           method: 'POST',
           body: JSON.stringify({ text: encrypted ? '' : text, encrypted: encrypted || undefined }),
-        });
-      }).then(async (msg) => {
+        })
+      ).then(async msg => {
         const decrypted = await decryptForUI(msg);
         setMessages(prev => prev.map(m => m._id === optimisticId ? decrypted : m));
       }).catch(() => {
@@ -457,9 +801,9 @@ const ParentChat = () => {
     }
   }, [draft, activeThreadId, me, decryptForUI]);
 
-  const handleDraftChange = (value) => {
-    setDraft(value);
-    if (!socketRef.current || !activeThreadId) return;
+  const handleDraftChange = useCallback((val) => {
+    setDraft(val);
+    if (!activeThreadId || !socketRef.current) return;
     if (!isTyping.current) {
       isTyping.current = true;
       socketRef.current.emit('typing-start', { threadId: activeThreadId });
@@ -468,163 +812,374 @@ const ParentChat = () => {
     typingDebounce.current = setTimeout(() => {
       isTyping.current = false;
       socketRef.current?.emit('typing-stop', { threadId: activeThreadId });
-    }, 1200);
-  };
+    }, 2000);
+  }, [activeThreadId]);
 
+  // ── Derived ─────────────────────────────────────────────────────────────────
   const filteredThreads = useMemo(() => {
     const q = query.trim().toLowerCase();
     if (!q) return threads;
-    return threads.filter((thread) => {
-      const otherName = thread.otherParticipant?.name || '';
-      const lastMessage = thread.lastMessage || '';
-      return (
-        otherName.toLowerCase().includes(q) ||
-        lastMessage.toLowerCase().includes(q)
-      );
+    return threads.filter(t => {
+      const name = t.otherParticipant?.name || '';
+      return name.toLowerCase().includes(q) || t.lastMessage?.toLowerCase().includes(q);
     });
   }, [threads, query]);
 
   const filteredContacts = useMemo(() => {
     const q = contactQuery.trim().toLowerCase();
     if (!q) return contacts;
-    return contacts.filter((contact) => {
-      return (
-        contact.name?.toLowerCase().includes(q) ||
-        contact.subtitle?.toLowerCase().includes(q)
-      );
-    });
+    return contacts.filter(c => c.name?.toLowerCase().includes(q) || c.subtitle?.toLowerCase().includes(q));
   }, [contacts, contactQuery]);
 
-  const typingName = typingUsers[activeThreadId || ''];
+  const theme          = THEMES[themeKey]         || THEMES.green;
+  const wallpaperStyle = (WALLPAPERS[wallpaperKey] || WALLPAPERS.doodle).style;
+  const handleSetWallpaper = (key) => { setWallpaperKey(key); localStorage.setItem('parent_chat_wallpaper', key); };
+  const handleSetTheme     = (key) => { setThemeKey(key);     localStorage.setItem('parent_chat_theme',    key); };
+
+  const isTypingInActive   = activeThreadId ? typingUsers[activeThreadId] : null;
+  const showSidebar        = !isMobileView || !activeThreadId;
+  const showMain           = !isMobileView || activeThreadId;
+
+  const activeTeacher     = activeThread?.otherParticipant || null;
+  const activePresence    = activeTeacher?.userId ? presenceByUser[String(activeTeacher.userId)] : null;
+  const activeStatusText  = isTypingInActive
+    ? 'typing...'
+    : activePresence?.online
+    ? 'online'
+    : activePresence?.lastSeen
+    ? `last seen ${formatLastSeen(activePresence.lastSeen)}`
+    : (activeTeacher?.subtitle || activeTeacher?.subject || 'Teacher');
 
   return (
-    <div className="h-full min-h-[70vh] bg-white rounded-xl border border-gray-200 overflow-hidden shadow-sm">
-      <div className="p-4 border-b border-gray-100 bg-white">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="p-2 rounded-lg bg-blue-50">
-              <MessageSquare className="h-5 w-5 text-blue-600"/>
-            </div>
-            <div>
-              <h1 className="text-lg font-semibold text-gray-800">Parent Chat</h1>
-              <p className="text-xs text-gray-500">Connect with your child's teachers</p>
-            </div>
-          </div>
-          <button className="p-2 rounded-lg hover:bg-gray-100 transition-colors">
-            <Info className="h-5 w-5 text-gray-500" />
-          </button>
-        </div>
-      </div>
+    <div className="h-full flex bg-gray-50 overflow-hidden">
 
-      <div className="flex h-[60vh]">
-        <div className={`bg-white border-r border-gray-100 w-full md:w-96 flex flex-col ${isMobileView && activeThreadId ? 'hidden md:flex' : 'flex'}`}>
-          <div className="p-3 border-b border-gray-100">
-            <div className="flex items-center gap-2 bg-gray-100 rounded-xl px-3 py-2.5">
-              <Search className="h-4 w-4 text-gray-500" />
-              <input 
-                value={query} 
-                onChange={(e) => setQuery(e.target.value)} 
-                placeholder="Search conversations..." 
-                className="bg-transparent outline-none text-sm flex-1 placeholder-gray-400" 
+      {/* ── Sidebar ─────────────────────────────────────────────────────── */}
+      {showSidebar && (
+        <div className="w-full md:w-[320px] shrink-0 bg-white border-r border-gray-200 flex flex-col h-full relative">
+
+          {/* Header */}
+          <div className="px-4 py-4 border-b border-gray-100">
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-2.5">
+                <div className="h-9 w-9 rounded-xl flex items-center justify-center" style={{ backgroundColor: theme.light }}>
+                  <MessageSquare className="h-5 w-5" style={{ color: theme.color }} />
+                </div>
+                <div>
+                  <h1 className="font-bold text-gray-900 text-sm">Messages</h1>
+                  <p className="text-xs text-gray-500">Chat with your teachers</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <button
+                  onClick={() => setShowChatSettings(true)}
+                  className="h-8 w-8 rounded-lg hover:bg-gray-100 flex items-center justify-center transition-colors"
+                  title="Chat settings"
+                >
+                  <Palette className="h-4 w-4" style={{ color: theme.color }} />
+                </button>
+                <button
+                  onClick={openContacts}
+                  className="h-8 w-8 rounded-lg flex items-center justify-center transition-colors"
+                  title="Start new conversation"
+                  style={{ backgroundColor: theme.lighter, color: theme.color }}
+                  onMouseEnter={e => { e.currentTarget.style.backgroundColor = theme.light; }}
+                  onMouseLeave={e => { e.currentTarget.style.backgroundColor = theme.lighter; }}
+                >
+                  <PlusCircle className="h-4 w-4" />
+                </button>
+              </div>
+            </div>
+            <div className="flex items-center gap-2 bg-gray-100 rounded-lg px-3 py-2">
+              <Search className="h-3.5 w-3.5 text-gray-400 shrink-0" />
+              <input
+                value={query}
+                onChange={e => setQuery(e.target.value)}
+                placeholder="Search conversations..."
+                className="bg-transparent outline-none text-xs flex-1 placeholder-gray-400"
               />
-              <button
-                onClick={openContacts}
-                className="flex items-center gap-1 text-xs text-blue-600 font-semibold"
-              >
-                <PlusCircle className="h-4 w-4" /> New
-              </button>
             </div>
           </div>
-          
-          <div className="overflow-y-auto flex-1">
+
+          {/* Contacts overlay */}
+          {showContacts && (
+            <div className="absolute inset-0 w-full h-full bg-white z-50 flex flex-col shadow-xl">
+              <div className="px-4 py-3 border-b flex items-center justify-between">
+                <h2 className="font-semibold text-gray-800 text-sm">New Conversation</h2>
+                <button onClick={() => { setShowContacts(false); setContactQuery(''); }}
+                  className="h-7 w-7 rounded-full hover:bg-gray-100 flex items-center justify-center">
+                  <X className="h-4 w-4 text-gray-500" />
+                </button>
+              </div>
+              <div className="px-4 py-2 border-b">
+                <div className="flex items-center gap-2 bg-gray-100 rounded-lg px-3 py-1.5">
+                  <Search className="h-3.5 w-3.5 text-gray-400" />
+                  <input
+                    autoFocus
+                    value={contactQuery}
+                    onChange={e => setContactQuery(e.target.value)}
+                    placeholder="Search teachers..."
+                    className="bg-transparent outline-none text-xs flex-1 placeholder-gray-400"
+                  />
+                </div>
+              </div>
+              <div className="flex-1 overflow-y-auto">
+                {filteredContacts.length === 0 ? (
+                  <div className="p-6 text-center text-sm text-gray-500">
+                    {contacts.length === 0 ? 'No teachers found' : 'No results'}
+                  </div>
+                ) : (
+                  filteredContacts.map(c => (
+                    <ContactItem key={c._id} contact={c} onClick={() => startConversation(c)} theme={theme} />
+                  ))
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Chat Settings Overlay */}
+          {showChatSettings && (
+            <div className="absolute inset-0 bg-white z-50 flex flex-col">
+              <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between shrink-0">
+                <h2 className="font-semibold text-gray-800 text-sm">Chat Settings</h2>
+                <button
+                  onClick={() => setShowChatSettings(false)}
+                  className="h-7 w-7 rounded-full hover:bg-gray-100 flex items-center justify-center"
+                >
+                  <X className="h-4 w-4 text-gray-500" />
+                </button>
+              </div>
+
+              <div className="flex-1 overflow-y-auto p-4 space-y-5">
+                {/* Wallpaper Picker */}
+                <div>
+                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Wallpaper</p>
+                  <div className="grid grid-cols-3 gap-2">
+                    {Object.entries(WALLPAPERS).map(([key, wp]) => (
+                      <button
+                        key={key}
+                        onClick={() => handleSetWallpaper(key)}
+                        className="relative rounded-xl overflow-hidden border-2 transition-all"
+                        style={{
+                          aspectRatio: '1',
+                          borderColor: wallpaperKey === key ? theme.color : '#e5e7eb',
+                          transform: wallpaperKey === key ? 'scale(0.95)' : 'scale(1)',
+                          boxShadow: wallpaperKey === key ? `0 4px 12px ${theme.color}40` : 'none',
+                        }}
+                        title={wp.label}
+                      >
+                        <div style={{ ...wp.style, height: '80px', width: '100%' }} />
+                        <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/50 to-transparent text-white text-[9px] text-center pb-1 pt-3 font-semibold">
+                          {wp.label}
+                        </div>
+                        {wallpaperKey === key && (
+                          <div
+                            className="absolute top-1.5 right-1.5 h-4 w-4 rounded-full flex items-center justify-center"
+                            style={{ backgroundColor: theme.color }}
+                          >
+                            <Check className="h-2.5 w-2.5 text-white" />
+                          </div>
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Theme Color Picker */}
+                <div>
+                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Theme Color</p>
+                  <div className="grid grid-cols-3 gap-2">
+                    {Object.entries(THEMES).map(([key, th]) => (
+                      <button
+                        key={key}
+                        onClick={() => handleSetTheme(key)}
+                        className="flex flex-col items-center gap-1.5 p-3 rounded-xl border-2 transition-all"
+                        style={{
+                          borderColor: themeKey === key ? th.color : '#e5e7eb',
+                          backgroundColor: themeKey === key ? th.lighter : 'transparent',
+                        }}
+                      >
+                        <div
+                          className="h-8 w-8 rounded-full flex items-center justify-center shadow-sm shrink-0"
+                          style={{ backgroundColor: th.color }}
+                        >
+                          {themeKey === key && <Check className="h-4 w-4 text-white" />}
+                        </div>
+                        <span className="text-[11px] font-medium text-gray-700">{th.label}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Live Preview */}
+                <div>
+                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Preview</p>
+                  <div className="rounded-xl overflow-hidden border border-gray-200">
+                    <div className="p-3 space-y-2" style={wallpaperStyle}>
+                      <div className="flex justify-start">
+                        <div className="max-w-[70%] bg-white rounded-2xl rounded-bl-sm px-3 py-2 text-xs shadow-sm">
+                          <div className="font-semibold text-[10px] mb-0.5" style={{ color: theme.color }}>Teacher</div>
+                          Hello! How can I help you?
+                        </div>
+                      </div>
+                      <div className="flex justify-end">
+                        <div className="max-w-[70%] rounded-2xl rounded-br-sm px-3 py-2 text-xs text-white shadow-sm" style={{ backgroundColor: theme.color }}>
+                          How is my child doing?
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Thread list */}
+          <div className="flex-1 overflow-y-auto">
             {loadingThreads ? (
-              <div className="flex items-center justify-center py-12 text-sm text-gray-500">
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" /> Loading conversations...
+              <div className="flex items-center justify-center py-12">
+                <Loader2 className="h-5 w-5 animate-spin" style={{ color: theme.color }} />
               </div>
             ) : filteredThreads.length === 0 ? (
-              <div className="p-6 text-center text-sm text-gray-500">
-                No conversations yet. Start a new chat.
+              <div className="p-6 text-center">
+                <MessageSquare className="h-10 w-10 text-gray-200 mx-auto mb-2" />
+                <p className="text-sm text-gray-500">
+                  {query ? 'No results found' : 'No conversations yet'}
+                </p>
+                {!query && (
+                  <button onClick={openContacts}
+                    className="mt-3 text-xs hover:underline font-medium"
+                    style={{ color: theme.color }}>
+                    Start a conversation
+                  </button>
+                )}
               </div>
             ) : (
-              filteredThreads.map(thread => (
+              filteredThreads.map(t => (
                 <ConversationItem
-                  key={thread._id}
-                  thread={thread}
-                  isActive={String(thread._id) === activeThreadId}
-                  isTyping={Boolean(typingUsers[String(thread._id)])}
-                  onClick={() => {
-                    selectThread(String(thread._id));
-                    setIsMobileView(false);
-                  }}
+                  key={t._id}
+                  thread={t}
+                  isActive={String(t._id) === activeThreadId}
+                  isTyping={Boolean(typingUsers[String(t._id)])}
+                  onClick={() => selectThread(String(t._id))}
+                  theme={theme}
                 />
               ))
             )}
           </div>
-        </div>
 
-        <div className={`flex-1 flex flex-col ${isMobileView && !activeThreadId ? 'hidden md:flex' : 'flex'}`}>
+          {/* Footer — parent info */}
+          <div className="px-4 py-3 border-t border-gray-100 bg-gray-50">
+            <div className="flex items-center gap-2.5">
+              <Avatar src={pickImg(me)} name={me?.name || 'P'} size="xs" themeColor={theme.color} />
+              <div className="flex-1 min-w-0">
+                <p className="text-xs font-semibold text-gray-700 truncate">{me?.name || 'Parent'}</p>
+                <p className="text-xs text-gray-400">Parent</p>
+              </div>
+              <span className="text-xs px-2 py-0.5 rounded-full bg-green-100 text-green-700 font-medium">Online</span>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Main Chat Area ───────────────────────────────────────────────── */}
+      {showMain && (
+        <div className="flex-1 flex flex-col h-full min-w-0">
           {activeThreadId ? (
             <>
-              <div className="px-4 py-3 border-b border-gray-200 bg-white flex items-center justify-between flex-shrink-0">
+              {/* Chat header */}
+              <div className="px-4 py-3 border-b border-gray-200 bg-white flex items-center justify-between shrink-0">
                 <div className="flex items-center gap-3">
                   {isMobileView && (
-                    <button onClick={() => { setActiveThreadId(null); activeThreadIdRef.current = null; setIsMobileView(false); }}
-                      className="h-8 w-8 rounded-lg hover:bg-gray-100 flex items-center justify-center">
+                    <button
+                      onClick={() => { setActiveThreadId(null); activeThreadIdRef.current = null; }}
+                      className="h-8 w-8 rounded-lg hover:bg-gray-100 flex items-center justify-center"
+                    >
                       <ChevronLeft className="h-5 w-5 text-gray-500" />
                     </button>
                   )}
-                  <div className="h-9 w-9 rounded-full bg-gradient-to-br from-blue-400 to-blue-700 flex items-center justify-center text-white font-semibold text-sm flex-shrink-0">
-                    {getInitials(activeThread?.otherParticipant?.name || '')}
-                  </div>
+                  <Avatar
+                    src={pickImg(activeTeacher)}
+                    name={activeTeacher?.name || ''}
+                    size="sm"
+                    ring
+                    themeColor={theme.color}
+                    className="hover:opacity-90 transition-opacity cursor-pointer"
+                  />
                   <div>
                     <div className="font-semibold text-gray-900 text-sm">
-                      {activeThread?.otherParticipant?.name || 'Teacher'}
+                      {activeTeacher?.name || 'Teacher'}
                     </div>
                     <div className="text-xs text-gray-500">
-                      {typingName ? `${typingName} is typing...` : activeThread?.otherParticipant?.subtitle || 'Class Teacher'}
+                      <span style={isTypingInActive ? { color: theme.color, fontWeight: 500 } : {}}>{activeStatusText}</span>
                     </div>
                   </div>
                 </div>
-                <button className="h-8 w-8 rounded-lg hover:bg-gray-100 flex items-center justify-center">
-                  <Users className="h-4 w-4 text-gray-500" />
-                </button>
               </div>
 
-              <div className="flex-1 overflow-y-auto px-4 py-4 bg-gray-50">
+              {/* Messages */}
+              <div className="flex-1 overflow-y-auto px-4 py-4" style={wallpaperStyle}>
                 {loadingMessages ? (
-                  <div className="flex items-center justify-center h-full text-gray-500 text-sm">
-                    <Loader2 className="h-4 w-4 mr-2 animate-spin" /> Loading messages...
+                  <div className="flex items-center justify-center h-full">
+                    <Loader2 className="h-5 w-5 animate-spin" style={{ color: theme.color }} />
                   </div>
                 ) : messages.length === 0 ? (
-                  <div className="flex items-center justify-center h-full text-center text-sm text-gray-500">
-                    No messages yet. Say hello!
+                  <div className="flex flex-col items-center justify-center h-full gap-3">
+                    <Avatar src={pickImg(activeTeacher)} name={activeTeacher?.name || ''} size="lg" themeColor={theme.color} />
+                    <div className="text-center">
+                      <p className="text-sm font-semibold text-gray-700">{activeTeacher?.name || 'Teacher'}</p>
+                      <p className="text-xs text-gray-400 mt-1">No messages yet — say hello!</p>
+                    </div>
                   </div>
                 ) : (
                   <>
-                    {messages.map(msg => (
-                      <ChatMessage
-                        key={msg._id}
-                        msg={msg}
-                        isMine={String(msg.senderId) === String(me?.id)}
-                      />
-                    ))}
+                    {messages.map((msg, index) => {
+                      const currentTs = msg.createdAt || msg.ts;
+                      const prevTs = index > 0 ? (messages[index - 1].createdAt || messages[index - 1].ts) : null;
+                      const showDateSep = index === 0 || dayKey(currentTs) !== dayKey(prevTs);
+                      return (
+                        <React.Fragment key={msg._id}>
+                          {showDateSep && (
+                            <div className="flex justify-center my-3">
+                              <span className="text-[11px] px-3 py-1 rounded-full bg-gray-200 text-gray-600 font-medium">
+                                {formatDaySeparator(currentTs)}
+                              </span>
+                            </div>
+                          )}
+                          <ChatMessage
+                            msg={msg}
+                            isMine={String(msg.senderId) === String(me?.id)}
+                            myId={me?.id}
+                            theme={theme}
+                          />
+                        </React.Fragment>
+                      );
+                    })}
+                    {isTypingInActive && (
+                      <div className="flex justify-start mb-3">
+                        <div className="bg-white rounded-2xl rounded-bl-sm px-4 py-2.5 shadow-sm">
+                          <div className="flex gap-1 items-center h-4">
+                            <span className="h-2 w-2 rounded-full bg-gray-400 animate-bounce" style={{ animationDelay: '0ms' }} />
+                            <span className="h-2 w-2 rounded-full bg-gray-400 animate-bounce" style={{ animationDelay: '150ms' }} />
+                            <span className="h-2 w-2 rounded-full bg-gray-400 animate-bounce" style={{ animationDelay: '300ms' }} />
+                          </div>
+                        </div>
+                      </div>
+                    )}
                     <div ref={messagesEndRef} />
                   </>
                 )}
               </div>
 
-              <div className="border-t border-gray-200 bg-white px-4 py-3 flex-shrink-0">
+              {/* Input */}
+              <div className="border-t border-gray-200 bg-white px-4 py-3 shrink-0">
                 <div className="flex items-end gap-2">
                   <div className="flex-1 bg-gray-100 rounded-2xl px-4 py-2.5">
                     <textarea
                       rows={1}
                       value={draft}
-                      onChange={(e) => handleDraftChange(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter' && !e.shiftKey) {
-                          e.preventDefault();
-                          sendMessage();
-                        }
+                      onChange={e => handleDraftChange(e.target.value)}
+                      onKeyDown={e => {
+                        if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
                       }}
                       placeholder="Type a message..."
                       className="w-full resize-none bg-transparent text-sm focus:outline-none placeholder-gray-400 min-h-[20px] max-h-28"
@@ -633,7 +1188,8 @@ const ParentChat = () => {
                   <button
                     onClick={sendMessage}
                     disabled={!draft.trim()}
-                    className="h-10 w-10 rounded-full bg-blue-600 text-white flex items-center justify-center hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors flex-shrink-0"
+                    className="h-10 w-10 rounded-full text-white flex items-center justify-center disabled:opacity-40 disabled:cursor-not-allowed transition-colors shrink-0"
+                    style={{ backgroundColor: theme.color }}
                   >
                     <Send className="h-4 w-4" />
                   </button>
@@ -641,54 +1197,27 @@ const ParentChat = () => {
               </div>
             </>
           ) : (
-            <div className="flex-1 flex flex-col items-center justify-center bg-gray-50 p-8 text-center text-sm text-gray-500">
-              Select a conversation or start a new one with your child's teachers.
-              <button
-                onClick={openContacts}
-                className="mt-3 inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors"
-              >
-                <PlusCircle className="h-4 w-4" />
-                New Conversation
-              </button>
-            </div>
-          )}
-        </div>
-      </div>
-
-      {showContacts && (
-        <div className="absolute inset-0 bg-black/40 flex items-center justify-center z-20">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full max-h-[80vh] flex flex-col">
-            <div className="px-4 py-3 border-b flex items-center justify-between">
-              <h2 className="font-semibold text-gray-800 text-sm">Start a conversation</h2>
-              <button onClick={() => { setShowContacts(false); setContactQuery(''); }}
-                className="h-7 w-7 rounded-full hover:bg-gray-100 flex items-center justify-center">
-                <X className="h-4 w-4 text-gray-500" />
-              </button>
-            </div>
-            <div className="px-4 py-2 border-b">
-              <div className="flex items-center gap-2 bg-gray-100 rounded-lg px-3 py-1.5">
-                <Search className="h-3.5 w-3.5 text-gray-400" />
-                <input
-                  autoFocus
-                  value={contactQuery}
-                  onChange={(e) => setContactQuery(e.target.value)}
-                  placeholder="Search teachers..."
-                  className="bg-transparent outline-none text-xs flex-1 placeholder-gray-400"
-                />
+            /* Empty state */
+            <div className="flex-1 flex flex-col items-center justify-center bg-gray-50 p-8">
+              <div className="text-center max-w-xs">
+                <div className="h-16 w-16 rounded-2xl flex items-center justify-center mx-auto mb-4" style={{ backgroundColor: theme.light }}>
+                  <MessageSquare className="h-8 w-8" style={{ color: theme.color }} />
+                </div>
+                <h2 className="text-lg font-semibold text-gray-800 mb-2">Parent Chat</h2>
+                <p className="text-sm text-gray-500 mb-5">
+                  Connect with your child's teachers.
+                </p>
+                <button
+                  onClick={openContacts}
+                  className="inline-flex items-center gap-2 px-4 py-2 text-white text-sm font-medium rounded-lg transition-colors"
+                  style={{ backgroundColor: theme.color }}
+                >
+                  <PlusCircle className="h-4 w-4" />
+                  New Conversation
+                </button>
               </div>
             </div>
-            <div className="flex-1 overflow-y-auto">
-              {filteredContacts.length === 0 ? (
-                <div className="p-6 text-center text-sm text-gray-500">
-                  {contacts.length === 0 ? 'No teachers found' : 'No results'}
-                </div>
-              ) : (
-                filteredContacts.map(c => (
-                  <ContactItem key={c._id} contact={c} onClick={() => startConversation(c)} />
-                ))
-              )}
-            </div>
-          </div>
+          )}
         </div>
       )}
     </div>

@@ -38,6 +38,12 @@ const formatTime = (ts) => {
   return d.toLocaleDateString([], { month: 'short', day: 'numeric' });
 };
 
+const formatMessageTime = (ts) => {
+  if (!ts) return '';
+  const d = new Date(ts);
+  return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+};
+
 const formatLastSeen = (ts) => {
   if (!ts) return '';
   const d = new Date(ts);
@@ -483,7 +489,7 @@ const ChatMessage = ({ msg, isMine, myId, theme }) => {
         className={`text-xs mt-1 flex items-center justify-end gap-1 ${!isMine ? 'text-gray-400' : ''}`}
         style={isMine ? { color: 'rgba(255,255,255,0.75)' } : {}}
       >
-        <span>{formatTime(msg.createdAt || msg.ts)}</span>
+        <span>{formatMessageTime(msg.createdAt || msg.ts)}</span>
         {isMine && (
           <span style={{ color: seen ? '#7dd3fc' : 'rgba(255,255,255,0.75)' }} className="inline-flex items-center">
             {seen || delivered ? <CheckCheck className="h-3.5 w-3.5" /> : <Check className="h-3.5 w-3.5" />}
