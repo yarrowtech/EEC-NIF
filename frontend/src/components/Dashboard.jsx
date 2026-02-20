@@ -19,6 +19,7 @@ import AILearningDashboard from './AILearningDashboard';
 import AcademicAlcove from './AcademicAlcove';
 import StudentWellbeing from './StudentWellbeing';
 import LessonPlanStatusView from './LessonPlanStatusView';
+import StudyMaterials from './StudyMaterials';
 import { StudentDashboardProvider } from './StudentDashboardContext';
 
 const normalizeViewFromPath = (pathname) => {
@@ -69,6 +70,7 @@ const Dashboard = () => {
     assignments: (props) => <AssignmentView {...props} defaultType="school" />,
     'assignments-journal': (props) => <AssignmentView {...props} defaultType="journal" />,
     'assignments-academic-alcove': (props) => <AcademicAlcove {...props} />,
+    'study-materials': StudyMaterials,
     courses: CoursesView,
     results: ResultsView,
     communication: StudentChat,

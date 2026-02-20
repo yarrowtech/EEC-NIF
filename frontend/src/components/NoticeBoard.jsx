@@ -1,17 +1,17 @@
 import React, { useState, useEffect } from 'react';
-import { 
-  X, 
-  Bell, 
-  ChevronDown, 
-  ChevronUp, 
-  Plus, 
-  Search, 
-  Filter, 
-  Calendar, 
-  User, 
-  AlertCircle, 
-  Info, 
-  CheckCircle, 
+import {
+  X,
+  Bell,
+  ChevronDown,
+  ChevronUp,
+  Plus,
+  Search,
+  Filter,
+  Calendar,
+  User,
+  AlertCircle,
+  Info,
+  CheckCircle,
   Clock,
   Pin,
   Eye,
@@ -19,7 +19,11 @@ import {
   Download,
   Share2,
   Bookmark,
-  BookmarkCheck
+  BookmarkCheck,
+  File,
+  FileText,
+  Image as ImageIcon,
+  Paperclip
 } from 'lucide-react';
 
 const NoticeBoard = () => {
@@ -153,6 +157,20 @@ const NoticeBoard = () => {
     return notice?.author || 'School Administration';
   };
   const resolveId = (notice) => notice?._id || notice?.id;
+
+  const getFileIcon = (type) => {
+    if (type?.startsWith('image/')) return ImageIcon;
+    if (type === 'application/pdf') return FileText;
+    return File;
+  };
+
+  const formatFileSize = (bytes) => {
+    if (!bytes) return '';
+    const kb = bytes / 1024;
+    if (kb < 1024) return `${kb.toFixed(1)} KB`;
+    const mb = kb / 1024;
+    return `${mb.toFixed(1)} MB`;
+  };
 
   // Filter notices based on search query and filters
   const filteredNotices = notices.filter(notice => {
@@ -404,30 +422,41 @@ const NoticeBoard = () => {
                         </p>
                       )}
                       
-                      {/* Attachments */}
+                      {/* Learning Materials */}
                       {attachments.length > 0 && (
                         <div className="mb-4">
-                          <div className="flex flex-wrap gap-2">
-                            {attachments.map((attachment, index) => (
-                              <div
-                                key={index}
-                                className="flex items-center gap-2 bg-yellow-50 border border-yellow-200 rounded-lg px-3 py-2 text-sm cursor-pointer hover:bg-yellow-100 transition-colors"
-                              >
-                                <Download className="w-4 h-4 text-amber-600" />
-                                {attachment?.url ? (
-                                  <a
-                                    href={attachment.url}
-                                    target="_blank"
-                                    rel="noreferrer"
-                                    className="text-amber-800 hover:underline"
-                                  >
-                                    {attachment.name || 'Attachment'}
-                                  </a>
-                                ) : (
-                                  <span className="text-amber-800">{String(attachment)}</span>
-                                )}
-                              </div>
-                            ))}
+                          <div className="flex items-center gap-2 mb-2">
+                            <Paperclip className="w-4 h-4 text-amber-600" />
+                            <span className="text-sm font-semibold text-amber-900">
+                              Learning Materials ({attachments.length})
+                            </span>
+                          </div>
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                            {attachments.map((attachment, index) => {
+                              const FileIcon = getFileIcon(attachment?.type);
+                              return (
+                                <a
+                                  key={index}
+                                  href={attachment?.url || '#'}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="flex items-center gap-3 bg-gradient-to-r from-yellow-50 to-amber-50 border border-yellow-200 rounded-lg px-3 py-2.5 text-sm hover:shadow-md hover:border-amber-300 transition-all group"
+                                >
+                                  <div className="p-2 bg-white rounded-lg shadow-sm group-hover:shadow-md transition-shadow">
+                                    <FileIcon className="w-5 h-5 text-amber-600" />
+                                  </div>
+                                  <div className="flex-1 min-w-0">
+                                    <p className="text-amber-900 font-medium truncate group-hover:text-amber-700">
+                                      {attachment?.name || `Material ${index + 1}`}
+                                    </p>
+                                    {attachment?.size && (
+                                      <p className="text-xs text-amber-600">{formatFileSize(attachment.size)}</p>
+                                    )}
+                                  </div>
+                                  <Download className="w-4 h-4 text-amber-500 group-hover:text-amber-700 shrink-0" />
+                                </a>
+                              );
+                            })}
                           </div>
                         </div>
                       )}

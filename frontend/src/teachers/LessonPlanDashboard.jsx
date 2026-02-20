@@ -39,7 +39,7 @@ const emptyStatusForm = {
 const statusTone = {
   completed: 'bg-green-100 text-green-700 border-green-200',
   in_progress: 'bg-amber-100 text-amber-700 border-amber-200',
-  pending: 'bg-gray-100 text-gray-700 border-gray-200',
+  pending: 'bg-purple-50 text-purple-700 border-purple-200',
 };
 
 const prettifyStatus = (value) => {
@@ -410,8 +410,8 @@ const LessonPlanDashboard = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 p-6">
-      <div className="bg-white border border-gray-200 rounded-xl p-6 mb-6">
+    <div className="min-h-screen bg-slate-50 p-6 space-y-6">
+      <div className="bg-white border-[2.5px] border-purple-300 rounded-2xl p-6 shadow-sm">
         <div className="flex items-center justify-between gap-4">
           <div className="flex items-center gap-3">
             <div className="p-2 bg-blue-100 rounded-lg">
@@ -431,12 +431,12 @@ const LessonPlanDashboard = () => {
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 placeholder="Search plans"
-                className="pl-9 pr-3 py-2 border border-gray-300 rounded-lg text-sm"
+                className="pl-9 pr-3 py-2 border-[2px] border-purple-200 rounded-xl bg-purple-50 text-sm focus:border-purple-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-purple-100"
               />
             </div>
             <button
               onClick={openCreateModal}
-              className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-blue-600 text-white text-sm hover:bg-blue-700"
+              className="inline-flex items-center gap-2 px-3 py-2 rounded-xl border-[2px] border-purple-400 text-purple-700 text-sm hover:bg-purple-50"
             >
               <Plus className="w-4 h-4" />
               Add Plan
@@ -448,11 +448,11 @@ const LessonPlanDashboard = () => {
       {error && <div className="mb-4 text-sm text-red-600">{error}</div>}
 
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
-        <div className="lg:col-span-2 bg-white border border-gray-200 rounded-xl overflow-hidden">
-          <div className="p-4 border-b border-gray-100 text-sm text-gray-600">
+        <div className="lg:col-span-2 bg-white border-[2.5px] border-purple-300 rounded-2xl overflow-hidden shadow-sm">
+          <div className="p-4 border-b border-purple-100 text-sm text-gray-600 bg-purple-50/40">
             {loading ? 'Loading...' : `${filteredPlans.length} plan(s)`}
           </div>
-          <div className="max-h-[70vh] overflow-y-auto divide-y divide-gray-100">
+          <div className="max-h-[70vh] overflow-y-auto divide-y divide-purple-100">
             {!loading && filteredPlans.length === 0 && (
               <div className="p-6 text-sm text-gray-500">No lesson plans yet.</div>
             )}
@@ -460,8 +460,8 @@ const LessonPlanDashboard = () => {
               <button
                 key={plan._id}
                 onClick={() => setSelectedPlanId(plan._id)}
-                className={`w-full text-left p-4 hover:bg-gray-50 transition ${
-                  selectedPlan?._id === plan._id ? 'bg-blue-50' : ''
+                className={`w-full text-left p-4 transition ${
+                  selectedPlan?._id === plan._id ? 'bg-purple-50 border-l-4 border-purple-400' : 'hover:bg-purple-50'
                 }`}
               >
                 <p className="font-medium text-gray-900">{plan.title}</p>
@@ -474,7 +474,7 @@ const LessonPlanDashboard = () => {
           </div>
         </div>
 
-        <div className="lg:col-span-3 bg-white border border-gray-200 rounded-xl p-6">
+        <div className="lg:col-span-3 bg-white border-[2.5px] border-purple-300 rounded-2xl p-6 shadow-sm">
           {!selectedPlan ? (
             <p className="text-sm text-gray-500">Select a lesson plan to view details.</p>
           ) : (
@@ -501,14 +501,14 @@ const LessonPlanDashboard = () => {
                 <div className="flex items-center gap-2">
                   <button
                     onClick={() => openEditModal(selectedPlan)}
-                    className="inline-flex items-center gap-1 px-3 py-2 rounded-lg border border-blue-200 text-blue-700 hover:bg-blue-50 text-sm"
+                    className="inline-flex items-center gap-1 px-3 py-2 rounded-xl border-[2px] border-purple-300 text-purple-700 hover:bg-purple-50 text-sm"
                   >
                     <Pencil className="w-4 h-4" />
                     Edit
                   </button>
                   <button
                     onClick={() => deletePlan(selectedPlan._id)}
-                    className="inline-flex items-center gap-1 px-3 py-2 rounded-lg border border-red-200 text-red-700 hover:bg-red-50 text-sm"
+                    className="inline-flex items-center gap-1 px-3 py-2 rounded-xl border-[2px] border-red-200 text-red-700 hover:bg-red-50 text-sm"
                   >
                     <Trash2 className="w-4 h-4" />
                     Delete
@@ -517,8 +517,8 @@ const LessonPlanDashboard = () => {
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="rounded-lg border border-blue-100 bg-blue-50 p-4">
-                  <h3 className="font-medium text-blue-800 flex items-center gap-2 mb-2">
+                <div className="rounded-xl border-[2px] border-purple-200 bg-purple-50 p-4">
+                  <h3 className="font-medium text-purple-800 flex items-center gap-2 mb-2">
                     <Target className="w-4 h-4" />
                     Learning Objectives
                   </h3>
@@ -529,8 +529,8 @@ const LessonPlanDashboard = () => {
                   </ul>
                 </div>
 
-                <div className="rounded-lg border border-emerald-100 bg-emerald-50 p-4">
-                  <h3 className="font-medium text-emerald-800 flex items-center gap-2 mb-2">
+                <div className="rounded-xl border-[2px] border-purple-200 bg-purple-50 p-4">
+                  <h3 className="font-medium text-purple-800 flex items-center gap-2 mb-2">
                     <Package className="w-4 h-4" />
                     Materials Needed
                   </h3>
@@ -542,15 +542,15 @@ const LessonPlanDashboard = () => {
                 </div>
               </div>
 
-              <div className="rounded-lg border border-amber-100 bg-amber-50 p-4">
-                <h3 className="font-medium text-amber-800 flex items-center gap-2 mb-2">
+              <div className="rounded-xl border-[2px] border-purple-200 bg-purple-50 p-4">
+                <h3 className="font-medium text-purple-800 flex items-center gap-2 mb-2">
                   <FileText className="w-4 h-4" />
                   Additional Notes
                 </h3>
                 <p className="text-sm text-gray-700">{selectedPlan.additionalNotes || '—'}</p>
               </div>
 
-              <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
+              <div className="rounded-xl border-[2.5px] border-purple-300 bg-purple-50/60 p-4">
                 <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
                   <h3 className="font-medium text-slate-800 flex items-center gap-2">
                     <CheckSquare className="w-4 h-4" />
@@ -558,7 +558,7 @@ const LessonPlanDashboard = () => {
                   </h3>
                   <button
                     onClick={openCreateStatusModal}
-                    className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-blue-600 text-white text-xs hover:bg-blue-700"
+                    className="inline-flex items-center gap-1 px-3 py-1.5 rounded-full border-[2px] border-purple-400 text-purple-700 text-xs hover:bg-purple-50"
                   >
                     <Plus className="w-4 h-4" />
                     Add Status
@@ -575,7 +575,7 @@ const LessonPlanDashboard = () => {
                       const statusValue = entry?.status || 'pending';
                       const tone = statusTone[statusValue] || statusTone.pending;
                       return (
-                        <div key={entry._id} className="rounded-lg border border-gray-200 bg-white p-3">
+                        <div key={entry._id} className="rounded-xl border-[2px] border-purple-200 bg-white p-3">
                           <div className="flex flex-wrap items-center justify-between gap-2">
                             <div className="flex items-center gap-2 text-sm text-gray-700">
                               <span className="font-medium">{new Date(entry.date).toLocaleDateString()}</span>
@@ -587,13 +587,13 @@ const LessonPlanDashboard = () => {
                             <div className="flex items-center gap-1">
                               <button
                                 onClick={() => openEditStatusModal(entry)}
-                                className="px-2 py-1 border border-blue-200 text-blue-700 rounded-md hover:bg-blue-50 text-xs"
+                                className="px-2 py-1 border-[2px] border-purple-300 text-purple-700 rounded-md hover:bg-purple-50 text-xs"
                               >
                                 Edit
                               </button>
                               <button
                                 onClick={() => deleteStatus(entry._id)}
-                                className="px-2 py-1 border border-red-200 text-red-700 rounded-md hover:bg-red-50 text-xs"
+                                className="px-2 py-1 border-[2px] border-red-200 text-red-700 rounded-md hover:bg-red-50 text-xs"
                               >
                                 Delete
                               </button>
@@ -613,8 +613,8 @@ const LessonPlanDashboard = () => {
 
       {showModal && (
         <div className="fixed inset-0 z-50 bg-black/20 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white rounded-xl w-full max-w-4xl max-h-[90vh] overflow-y-auto">
-            <div className="p-5 border-b border-gray-200 flex items-center justify-between">
+          <div className="bg-white rounded-2xl border-[2.5px] border-purple-300 w-full max-w-4xl max-h-[90vh] overflow-y-auto shadow-xl">
+            <div className="p-5 border-b border-purple-100 flex items-center justify-between bg-purple-50/40">
               <h2 className="text-xl font-semibold text-gray-900">
                 {editingPlanId ? 'Edit Lesson Plan' : 'Create Lesson Plan'}
               </h2>
@@ -630,7 +630,7 @@ const LessonPlanDashboard = () => {
                   <select
                     value={form.classId}
                     onChange={(e) => onClassChange(e.target.value)}
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2"
+                    className="w-full border-[2px] border-purple-200 rounded-xl px-3 py-2 bg-purple-50 focus:border-purple-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-purple-100"
                     required
                   >
                     <option value="">Select Class</option>
@@ -647,7 +647,7 @@ const LessonPlanDashboard = () => {
                   <select
                     value={form.sectionId}
                     onChange={(e) => onSectionChange(e.target.value)}
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2"
+                    className="w-full border-[2px] border-purple-200 rounded-xl px-3 py-2 bg-purple-50 focus:border-purple-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-purple-100"
                     required
                     disabled={!form.classId}
                   >
@@ -665,7 +665,7 @@ const LessonPlanDashboard = () => {
                   <select
                     value={form.subjectId}
                     onChange={(e) => onSubjectChange(e.target.value)}
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2"
+                    className="w-full border-[2px] border-purple-200 rounded-xl px-3 py-2 bg-purple-50 focus:border-purple-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-purple-100"
                     required
                     disabled={!form.sectionId || loadingOptions}
                   >
@@ -684,7 +684,7 @@ const LessonPlanDashboard = () => {
                     type="text"
                     value={form.title}
                     onChange={(e) => setForm((prev) => ({ ...prev, title: e.target.value }))}
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2"
+                    className="w-full border-[2px] border-purple-200 rounded-xl px-3 py-2 bg-purple-50 focus:border-purple-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-purple-100"
                     required
                   />
                 </div>
@@ -695,7 +695,7 @@ const LessonPlanDashboard = () => {
                     type="text"
                     value={form.subject}
                     onChange={(e) => setForm((prev) => ({ ...prev, subject: e.target.value }))}
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2"
+                    className="w-full border-[2px] border-purple-200 rounded-xl px-3 py-2 bg-purple-50 focus:border-purple-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-purple-100"
                     required
                   />
                 </div>
@@ -706,7 +706,7 @@ const LessonPlanDashboard = () => {
                     type="date"
                     value={form.date}
                     onChange={(e) => setForm((prev) => ({ ...prev, date: e.target.value }))}
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2"
+                    className="w-full border-[2px] border-purple-200 rounded-xl px-3 py-2 bg-purple-50 focus:border-purple-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-purple-100"
                     required
                   />
                 </div>
@@ -721,7 +721,7 @@ const LessonPlanDashboard = () => {
                         type="text"
                         value={item}
                         onChange={(e) => updateArrayField('learningObjectives', idx, e.target.value)}
-                        className="flex-1 border border-gray-300 rounded-lg px-3 py-2"
+                        className="flex-1 border-[2px] border-purple-200 rounded-xl px-3 py-2 bg-purple-50 focus:border-purple-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-purple-100"
                         required
                       />
                       <button
@@ -752,7 +752,7 @@ const LessonPlanDashboard = () => {
                         type="text"
                         value={item}
                         onChange={(e) => updateArrayField('materialsNeeded', idx, e.target.value)}
-                        className="flex-1 border border-gray-300 rounded-lg px-3 py-2"
+                        className="flex-1 border-[2px] border-purple-200 rounded-xl px-3 py-2 bg-purple-50 focus:border-purple-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-purple-100"
                         required
                       />
                       <button
@@ -780,7 +780,7 @@ const LessonPlanDashboard = () => {
                   value={form.additionalNotes}
                   onChange={(e) => setForm((prev) => ({ ...prev, additionalNotes: e.target.value }))}
                   rows={4}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2"
+                  className="w-full border-[2px] border-purple-200 rounded-xl px-3 py-2 bg-purple-50 focus:border-purple-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-purple-100"
                 />
               </div>
 
@@ -788,7 +788,7 @@ const LessonPlanDashboard = () => {
                 <button
                   type="button"
                   onClick={closeModal}
-                  className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700"
+                  className="px-4 py-2 border-[2px] border-purple-200 rounded-xl text-purple-700 bg-purple-50"
                 >
                   Cancel
                 </button>
@@ -807,13 +807,13 @@ const LessonPlanDashboard = () => {
 
       {showStatusModal && selectedPlan && (
         <div className="fixed inset-0 z-50 bg-black/20 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white rounded-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
-            <div className="p-5 border-b border-gray-200 flex items-center justify-between">
+          <div className="bg-white rounded-2xl border-[2.5px] border-purple-300 w-full max-w-2xl max-h-[90vh] overflow-y-auto shadow-xl">
+            <div className="p-5 border-b border-purple-100 flex items-center justify-between bg-purple-50/40">
               <h2 className="text-xl font-semibold text-gray-900">
                 {editingStatusId ? 'Edit Completion Status' : 'Add Completion Status'}
               </h2>
-              <button onClick={closeStatusModal} className="p-2 rounded-lg hover:bg-gray-100">
-                <X className="w-5 h-5 text-gray-500" />
+              <button onClick={closeStatusModal} className="p-2 rounded-lg hover:bg-purple-100">
+                <X className="w-5 h-5 text-purple-500" />
               </button>
             </div>
 
@@ -825,7 +825,7 @@ const LessonPlanDashboard = () => {
                     type="date"
                     value={statusForm.date}
                     onChange={(e) => setStatusForm((prev) => ({ ...prev, date: e.target.value }))}
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2"
+                    className="w-full border-[2px] border-purple-200 rounded-xl px-3 py-2 bg-purple-50 focus:border-purple-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-purple-100"
                     required
                   />
                 </div>
@@ -835,7 +835,7 @@ const LessonPlanDashboard = () => {
                   <select
                     value={statusForm.status}
                     onChange={(e) => setStatusForm((prev) => ({ ...prev, status: e.target.value }))}
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2"
+                    className="w-full border-[2px] border-purple-200 rounded-xl px-3 py-2 bg-purple-50 focus:border-purple-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-purple-100"
                     required
                   >
                     <option value="pending">Pending</option>
@@ -855,7 +855,7 @@ const LessonPlanDashboard = () => {
                       const value = Math.max(0, Math.min(100, Number(e.target.value || 0)));
                       setStatusForm((prev) => ({ ...prev, completionPercent: value }));
                     }}
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2"
+                    className="w-full border-[2px] border-purple-200 rounded-xl px-3 py-2 bg-purple-50 focus:border-purple-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-purple-100"
                   />
                 </div>
 
@@ -872,7 +872,7 @@ const LessonPlanDashboard = () => {
                           completionPercent: e.target.checked ? 100 : prev.completionPercent,
                         }))
                       }
-                      className="h-4 w-4 rounded border-gray-300"
+                      className="h-4 w-4 rounded border-purple-300 text-purple-600 focus:ring-purple-200"
                     />
                     Mark as completed
                   </label>
@@ -885,7 +885,7 @@ const LessonPlanDashboard = () => {
                   value={statusForm.remarks}
                   onChange={(e) => setStatusForm((prev) => ({ ...prev, remarks: e.target.value }))}
                   rows={3}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2"
+                  className="w-full border-[2px] border-purple-200 rounded-xl px-3 py-2 bg-purple-50 focus:border-purple-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-purple-100"
                 />
               </div>
 
@@ -893,7 +893,7 @@ const LessonPlanDashboard = () => {
                 <button
                   type="button"
                   onClick={closeStatusModal}
-                  className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700"
+                  className="px-4 py-2 border-[2px] border-purple-200 rounded-xl text-purple-700 bg-purple-50"
                 >
                   Cancel
                 </button>

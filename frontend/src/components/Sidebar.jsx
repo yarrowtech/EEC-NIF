@@ -90,9 +90,9 @@ const Sidebar = ({ activeView, isOpen, setIsOpen }) => {
         { id: 'ai-learning-tutor', name: 'AI Tutor', icon: Brain },
       ]
     },
-    { 
-      id: 'academics', 
-      name: 'Academics', 
+    {
+      id: 'academics',
+      name: 'Academics',
       icon: BookOpen,
       gradient: 'from-emerald-500 to-emerald-600',
       description: 'Learning Materials',
@@ -100,6 +100,7 @@ const Sidebar = ({ activeView, isOpen, setIsOpen }) => {
         { id: 'assignments', name: 'Assignments', icon: FileText },
         { id: 'assignments-journal', name: 'Journal', icon: File },
         { id: 'assignments-academic-alcove', name: 'Study Hub', icon: Target },
+        { id: 'study-materials', name: 'Study Materials', icon: BookOpen },
         { id: 'results', name: 'Results', icon: BarChart3 },
       ]
     },

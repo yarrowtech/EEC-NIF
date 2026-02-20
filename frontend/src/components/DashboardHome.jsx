@@ -81,11 +81,11 @@ const DashboardHome = () => {
         <div className="lg:col-span-2 space-y-4 sm:space-y-6">
           {/* Course Progress */}
           <CourseProgress />
-          
+
           {/* Achievements */}
           <AchievementCard />
         </div>
-        
+
         {/* Sidebar - Right 1 column */}
         <div className="space-y-4 sm:space-y-6">
           {/* Calendar */}

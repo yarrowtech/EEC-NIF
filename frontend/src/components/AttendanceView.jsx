@@ -3,6 +3,7 @@ import {
   Calendar, CheckCircle2, XCircle, TrendingUp, Loader2, Clock,
   ChevronLeft, ChevronRight, Target, BarChart3, Eye, BookOpen,
   Flame, CalendarDays, LayoutGrid, List, ChevronDown, ChevronUp, RefreshCcw,
+  X, FileText, Download, File, Image as ImageIcon, Paperclip,
 } from 'lucide-react';
 import { useLocation } from 'react-router-dom';
 import { clearCacheEntry, readCacheEntry, writeCacheEntry } from '../utils/studentCache';
@@ -101,6 +102,10 @@ const AttendanceView = () => {
   const [attendanceRecords, setAttendanceRecords] = useState([]);
   const [lastSynced, setLastSynced] = useState(null);
   const [silentRefreshing, setSilentRefreshing] = useState(false);
+  const [showMaterialsModal, setShowMaterialsModal] = useState(false);
+  const [materialsDate, setMaterialsDate] = useState('');
+  const [materials, setMaterials] = useState([]);
+  const [loadingMaterials, setLoadingMaterials] = useState(false);
 
   useEffect(() => {
     const params = new URLSearchParams(location.search);
@@ -307,6 +312,64 @@ const AttendanceView = () => {
   const fmtDateLong = (dateStr) =>
     new Date(dateStr).toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'short', day: 'numeric' });
 
+  const getFileIcon = (type) => {
+    if (type?.startsWith('image/')) return ImageIcon;
+    if (type === 'application/pdf') return FileText;
+    return File;
+  };
+
+  const formatFileSize = (bytes) => {
+    if (!bytes) return '';
+    const kb = bytes / 1024;
+    if (kb < 1024) return `${kb.toFixed(1)} KB`;
+    const mb = kb / 1024;
+    return `${mb.toFixed(1)} MB`;
+  };
+
+  const fetchMaterialsForDate = async (dateStr) => {
+    setLoadingMaterials(true);
+    setMaterials([]);
+    try {
+      const token = localStorage.getItem('token');
+      if (!token) return;
+
+      const response = await fetch(
+        `${import.meta.env.VITE_API_URL}/api/notifications/user`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+        }
+      );
+
+      if (!response.ok) throw new Error('Failed to fetch materials');
+
+      const data = await response.json();
+      const allNotices = Array.isArray(data) ? data : [];
+
+      // Filter notices for the selected date
+      const dateMaterials = allNotices.filter((notice) => {
+        if (!notice.createdAt && !notice.date) return false;
+        const noticeDate = toLocalDateKey(notice.createdAt || notice.date);
+        return noticeDate === dateStr && notice.type === 'class_note';
+      });
+
+      setMaterials(dateMaterials);
+    } catch (err) {
+      console.error('Failed to fetch materials:', err);
+      setMaterials([]);
+    } finally {
+      setLoadingMaterials(false);
+    }
+  };
+
+  const handleDateClick = (dateKey) => {
+    setMaterialsDate(dateKey);
+    setShowMaterialsModal(true);
+    fetchMaterialsForDate(dateKey);
+  };
+
   /* ─── RENDER ─── */
   if (loading) {
     return (
@@ -501,13 +564,17 @@ const AttendanceView = () => {
                 <div className="grid grid-cols-7 gap-1">
                   {calendarDays.map((day) => (
                     <button key={day.key} type="button"
-                      onClick={() => day.count && setSelectedDate(selectedDate === day.key ? '' : day.key)}
+                      onClick={() => {
+                        if (day.isCurrentMonth) {
+                          handleDateClick(day.key);
+                        }
+                      }}
                       className={`relative flex flex-col items-center justify-center aspect-square rounded-xl border transition
                         ${selectedDate === day.key ? 'border-indigo-500 ring-2 ring-indigo-100 bg-indigo-50' : ''}
                         ${day.isToday && selectedDate !== day.key ? 'border-indigo-300 bg-indigo-50/50' : ''}
                         ${day.isCurrentMonth
-                          ? 'text-slate-900 hover:bg-slate-50'
-                          : 'text-slate-300 border-transparent'}
+                          ? 'text-slate-900 hover:bg-slate-50 cursor-pointer'
+                          : 'text-slate-300 border-transparent cursor-default'}
                         ${!day.isToday && selectedDate !== day.key ? 'border-slate-100' : ''}
                       `}>
                       <span className={`text-xs font-medium ${day.isToday ? 'text-indigo-600' : ''}`}>
@@ -771,6 +838,155 @@ const AttendanceView = () => {
         )}
 
       </div>
+
+      {/* Learning Materials Modal */}
+      {showMaterialsModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 animate-in fade-in">
+          <div className="relative w-full max-w-2xl max-h-[90vh] overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl animate-in zoom-in-95">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between border-b border-slate-200 bg-gradient-to-r from-indigo-50 to-purple-50 p-5">
+              <div>
+                <h2 className="text-xl font-bold text-slate-900 flex items-center gap-2">
+                  <BookOpen className="h-5 w-5 text-indigo-600" />
+                  Learning Materials
+                </h2>
+                <p className="mt-1 text-sm text-slate-600">
+                  {materialsDate ? fmtDateLong(materialsDate) : 'Select a date'}
+                </p>
+              </div>
+              <button
+                onClick={() => setShowMaterialsModal(false)}
+                className="rounded-lg p-2 text-slate-500 hover:bg-white hover:text-slate-700 transition"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="overflow-y-auto max-h-[calc(90vh-120px)] p-5">
+              {loadingMaterials ? (
+                <div className="flex flex-col items-center justify-center py-12">
+                  <Loader2 className="h-8 w-8 animate-spin text-indigo-600 mb-3" />
+                  <p className="text-sm text-slate-500">Loading materials...</p>
+                </div>
+              ) : materials.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-12 text-center">
+                  <div className="p-4 rounded-full bg-slate-100 mb-4">
+                    <BookOpen className="h-12 w-12 text-slate-300" />
+                  </div>
+                  <h3 className="text-lg font-semibold text-slate-900 mb-2">No Materials Found</h3>
+                  <p className="text-sm text-slate-500 max-w-sm">
+                    There are no learning materials available for this date. Check back later or contact your teacher.
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {materials.map((material, idx) => {
+                    const attachments = Array.isArray(material.attachments) ? material.attachments : [];
+                    return (
+                      <div
+                        key={material._id || idx}
+                        className="rounded-xl border border-slate-200 bg-gradient-to-br from-white to-slate-50 p-4 hover:shadow-md transition"
+                      >
+                        {/* Material Header */}
+                        <div className="mb-3">
+                          <div className="flex items-start justify-between gap-3 mb-2">
+                            <h3 className="text-lg font-semibold text-slate-900 flex items-center gap-2">
+                              <FileText className="h-5 w-5 text-indigo-600" />
+                              {material.title}
+                            </h3>
+                            {material.priority && (
+                              <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${
+                                material.priority === 'high'
+                                  ? 'bg-red-100 text-red-700'
+                                  : material.priority === 'medium'
+                                  ? 'bg-amber-100 text-amber-700'
+                                  : 'bg-green-100 text-green-700'
+                              }`}>
+                                {material.priority}
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-sm text-slate-600 leading-relaxed">{material.message}</p>
+
+                          {/* Metadata */}
+                          <div className="mt-3 flex flex-wrap items-center gap-3 text-xs text-slate-500">
+                            {material.subjectName && (
+                              <span className="inline-flex items-center gap-1 rounded-full bg-blue-100 px-2 py-1 text-blue-700">
+                                <BookOpen className="h-3 w-3" />
+                                {material.subjectName}
+                              </span>
+                            )}
+                            {material.typeLabel && (
+                              <span className="inline-flex items-center gap-1 rounded-full bg-purple-100 px-2 py-1 text-purple-700">
+                                {material.typeLabel}
+                              </span>
+                            )}
+                            {material.createdByName && (
+                              <span className="text-slate-500">
+                                By {material.createdByName}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Attachments */}
+                        {attachments.length > 0 && (
+                          <div className="mt-4 pt-4 border-t border-slate-200">
+                            <div className="flex items-center gap-2 mb-3">
+                              <Paperclip className="h-4 w-4 text-indigo-600" />
+                              <span className="text-sm font-semibold text-slate-700">
+                                Attachments ({attachments.length})
+                              </span>
+                            </div>
+                            <div className="grid grid-cols-1 gap-2">
+                              {attachments.map((attachment, attIdx) => {
+                                const FileIcon = getFileIcon(attachment?.type);
+                                return (
+                                  <a
+                                    key={attIdx}
+                                    href={attachment?.url || '#'}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="flex items-center gap-3 rounded-lg border border-slate-200 bg-white px-3 py-2.5 hover:border-indigo-300 hover:bg-indigo-50 transition group"
+                                  >
+                                    <div className="p-2 bg-indigo-100 rounded-lg group-hover:bg-indigo-200 transition">
+                                      <FileIcon className="w-5 h-5 text-indigo-600" />
+                                    </div>
+                                    <div className="flex-1 min-w-0">
+                                      <p className="text-sm font-medium text-slate-900 truncate group-hover:text-indigo-700">
+                                        {attachment?.name || `File ${attIdx + 1}`}
+                                      </p>
+                                      {attachment?.size && (
+                                        <p className="text-xs text-slate-500">{formatFileSize(attachment.size)}</p>
+                                      )}
+                                    </div>
+                                    <Download className="w-4 h-4 text-slate-400 group-hover:text-indigo-600 shrink-0" />
+                                  </a>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            {/* Modal Footer */}
+            <div className="border-t border-slate-200 bg-slate-50 px-5 py-3">
+              <button
+                onClick={() => setShowMaterialsModal(false)}
+                className="w-full rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-indigo-700 transition"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

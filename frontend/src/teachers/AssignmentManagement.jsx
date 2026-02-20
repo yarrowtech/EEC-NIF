@@ -277,7 +277,7 @@ const AssignmentManagement = () => {
       case 'completed':
         return 'bg-blue-100 text-blue-800 border-blue-200';
       default:
-        return 'bg-gray-100 text-gray-800 border-gray-200';
+        return 'bg-purple-50 text-purple-700 border-purple-200';
     }
   };
 
@@ -572,7 +572,7 @@ const AssignmentManagement = () => {
             { label: 'Drafts', value: draftAssignments, icon: Edit3, gradient: 'from-amber-500 to-orange-500' },
             { label: 'My Classes', value: myClasses.length, icon: Users, gradient: 'from-blue-500 to-indigo-500' },
           ].map((stat) => (
-            <div key={stat.label} className="bg-white rounded-2xl p-4 border border-gray-100 hover:shadow-md hover:-translate-y-0.5 transition-all duration-200">
+            <div key={stat.label} className="bg-white rounded-2xl p-4 border-[2.5px] border-purple-300 hover:shadow-md hover:-translate-y-0.5 transition-all duration-200">
               <div className="flex items-center gap-3">
                 <div className={`w-10 h-10 rounded-xl bg-linear-to-br ${stat.gradient} flex items-center justify-center shadow-lg`}>
                   <stat.icon size={18} className="text-white" />
@@ -587,7 +587,7 @@ const AssignmentManagement = () => {
         </div>
 
         {/* Controls */}
-        <div className="bg-white rounded-2xl p-3 sm:p-4 border border-gray-100 space-y-3">
+        <div className="bg-white rounded-2xl p-3 sm:p-4 border-[2.5px] border-purple-300 space-y-3">
           <div className="flex flex-wrap items-center gap-2.5">
             <div className="relative flex-1 min-w-[180px]">
               <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
@@ -596,13 +596,13 @@ const AssignmentManagement = () => {
                 placeholder="Search assignments..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full pl-9 pr-3 py-2 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400 transition-colors"
+                className="w-full pl-9 pr-3 py-2 text-sm bg-gray-50 border-[2px] border-purple-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400 transition-colors"
               />
             </div>
             <select
               value={filterStatus}
               onChange={(e) => setFilterStatus(e.target.value)}
-              className="px-3 py-2 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400 transition-colors"
+              className="px-3 py-2 text-sm bg-gray-50 border-[2px] border-purple-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400 transition-colors"
             >
               <option value="all">All Status</option>
               <option value="active">Active</option>
@@ -612,7 +612,7 @@ const AssignmentManagement = () => {
             <select
               value={filterSubject}
               onChange={(e) => setFilterSubject(e.target.value)}
-              className="px-3 py-2 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400 transition-colors"
+              className="px-3 py-2 text-sm bg-gray-50 border-[2px] border-purple-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400 transition-colors"
             >
               <option value="all">All Subjects</option>
               {subjects.map(subject => (
@@ -656,7 +656,7 @@ const AssignmentManagement = () => {
 
         {/* Assignment List */}
         {loading ? (
-          <div className="bg-white rounded-2xl p-12 text-center border border-gray-100">
+          <div className="bg-white rounded-2xl border-[2.5px] border-purple-300 p-12 text-center shadow-sm">
             <div className="inline-flex items-center justify-center w-12 h-12 rounded-xl bg-indigo-50 mb-4">
               <Clock className="w-6 h-6 text-indigo-500 animate-spin" />
             </div>
@@ -664,7 +664,7 @@ const AssignmentManagement = () => {
             <p className="text-sm text-gray-500">Fetching your assignment data</p>
           </div>
         ) : filteredAssignments.length === 0 ? (
-          <div className="bg-white rounded-2xl p-12 text-center border border-gray-100">
+          <div className="bg-white rounded-2xl border-[2.5px] border-purple-300 p-12 text-center shadow-sm">
             <div className="inline-flex items-center justify-center w-12 h-12 rounded-xl bg-gray-100 mb-4">
               <FileText className="w-6 h-6 text-gray-400" />
             </div>
@@ -692,7 +692,7 @@ const AssignmentManagement = () => {
                 return (
                   <div
                     key={assignment._id}
-                    className={`bg-white rounded-2xl border border-gray-100 hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 border-l-4 ${statusBorder} ${viewMode === 'grid' ? 'p-5' : 'p-4'}`}
+                    className={`bg-white rounded-2xl border-[2.5px] border-purple-300 hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 border-l-4 ${statusBorder} ${viewMode === 'grid' ? 'p-5' : 'p-4'}`}
                   >
                     <div className="flex items-start justify-between mb-3">
                       <h3 className="font-semibold text-gray-900 text-sm leading-snug flex-1 mr-3">
@@ -718,10 +718,10 @@ const AssignmentManagement = () => {
                       <span className={`inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-medium border ${getStatusColor(assignment.status)}`}>
                         {assignment.status.charAt(0).toUpperCase() + assignment.status.slice(1)}
                       </span>
-                      <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-medium bg-gray-50 text-gray-600 border border-gray-200">
+                      <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-medium bg-purple-50 text-purple-700 border-[2px] border-purple-200">
                         {assignment.subject}
                       </span>
-                      <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-medium bg-indigo-50 text-indigo-600 border border-indigo-100">
+                      <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-medium bg-purple-100 text-purple-700 border-[2px] border-purple-200">
                         {`Class ${getAssignmentClassName(assignment) || 'N/A'}${getAssignmentSectionName(assignment) ? ` - ${getAssignmentSectionName(assignment)}` : ''}`}
                       </span>
                       <span className={`inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-medium border ${submissionFormat === 'pdf' ? 'border-purple-100 bg-purple-50 text-purple-600' : 'border-emerald-100 bg-emerald-50 text-emerald-600'}`}>
@@ -761,7 +761,7 @@ const AssignmentManagement = () => {
 
       {showCreateSuccessModal && (
         <div className="fixed inset-0 z-[60] bg-black/30 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white w-full max-w-sm rounded-2xl shadow-2xl border border-gray-100 overflow-hidden">
+          <div className="bg-white w-full max-w-sm rounded-2xl shadow-2xl border-[2.5px] border-purple-300 overflow-hidden">
             <div className="p-5">
               <div className="w-11 h-11 rounded-xl bg-emerald-100 flex items-center justify-center mb-3">
                 <CheckCircle className="w-6 h-6 text-emerald-600" />
@@ -769,7 +769,7 @@ const AssignmentManagement = () => {
               <h3 className="text-base font-bold text-gray-900 mb-1">Assignment Created</h3>
               <p className="text-sm text-gray-600">{createSuccessMessage}</p>
             </div>
-            <div className="px-5 py-3 border-t border-gray-100 flex justify-end">
+            <div className="px-5 py-3 border-t border-purple-100 flex justify-end">
               <button
                 onClick={() => setShowCreateSuccessModal(false)}
                 className="px-4 py-2 text-xs font-semibold text-white bg-linear-to-r from-emerald-600 to-green-600 rounded-xl shadow-sm hover:shadow-md transition-all"
@@ -783,7 +783,7 @@ const AssignmentManagement = () => {
 
       {showDeleteModal && (
         <div className="fixed inset-0 z-[60] bg-black/30 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white w-full max-w-md rounded-2xl shadow-2xl border border-gray-100 overflow-hidden">
+          <div className="bg-white w-full max-w-md rounded-2xl shadow-2xl border-[2.5px] border-purple-300 overflow-hidden">
             <div className="p-5">
               <div className="w-11 h-11 rounded-xl bg-red-100 flex items-center justify-center mb-3">
                 <Trash2 className="w-6 h-6 text-red-600" />
@@ -793,13 +793,13 @@ const AssignmentManagement = () => {
                 {`This will permanently delete "${pendingDeleteAssignment?.title || 'this assignment'}".`}
               </p>
             </div>
-            <div className="px-5 py-3 border-t border-gray-100 flex items-center justify-end gap-2">
+            <div className="px-5 py-3 border-t border-purple-100 flex items-center justify-end gap-2">
               <button
                 onClick={() => {
                   setShowDeleteModal(false);
                   setPendingDeleteAssignment(null);
                 }}
-                className="px-4 py-2 text-xs font-semibold text-gray-600 bg-gray-50 border border-gray-200 rounded-xl hover:bg-gray-100 transition-colors"
+                className="px-4 py-2 text-xs font-semibold text-gray-600 bg-gray-50 border-[2px] border-purple-200 rounded-xl hover:bg-gray-100 transition-colors"
               >
                 Cancel
               </button>
@@ -818,9 +818,9 @@ const AssignmentManagement = () => {
       {/* Create Assignment Modal */}
       {showModal && (
         <div className="fixed inset-0 z-50 bg-black/30 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white w-full max-w-2xl rounded-2xl shadow-2xl max-h-[90vh] overflow-y-auto border border-gray-100">
+          <div className="bg-white w-full max-w-2xl rounded-2xl shadow-2xl max-h-[90vh] overflow-y-auto border-[2.5px] border-purple-300">
             {/* Modal Header */}
-            <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
+            <div className="px-5 py-4 border-b border-purple-100 flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <div className="w-9 h-9 rounded-xl bg-linear-to-br from-indigo-500 to-violet-500 flex items-center justify-center shadow-lg shadow-indigo-500/20">
                   <Plus size={18} className="text-white" />
@@ -856,7 +856,7 @@ const AssignmentManagement = () => {
                       onChange={handleChange}
                       type="text"
                       placeholder="e.g., Quadratic Equations Problem Set"
-                      className="w-full px-3 py-2 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400 transition-colors"
+                      className="w-full px-3 py-2 text-sm bg-gray-50 border-[2px] border-purple-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400 transition-colors"
                       required
                     />
                   </div>
@@ -869,7 +869,7 @@ const AssignmentManagement = () => {
                           name="subject"
                           value={newAssignment.subject}
                           onChange={handleChange}
-                          className="w-full px-3 py-2 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400 transition-colors"
+                          className="w-full px-3 py-2 text-sm bg-gray-50 border-[2px] border-purple-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400 transition-colors"
                           required
                         >
                           <option value="">Select Subject</option>
@@ -889,7 +889,7 @@ const AssignmentManagement = () => {
                           onChange={handleChange}
                           type="text"
                           placeholder="e.g., Mathematics"
-                          className="w-full px-3 py-2 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400 transition-colors"
+                          className="w-full px-3 py-2 text-sm bg-gray-50 border-[2px] border-purple-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400 transition-colors"
                           required
                         />
                         <p className="mt-1 text-[11px] text-gray-400">No assigned subjects found</p>
@@ -910,7 +910,7 @@ const AssignmentManagement = () => {
                         const [classId, sectionId] = e.target.value.split('-');
                         setNewAssignment(prev => ({ ...prev, classId, sectionId, subject: "" }));
                       }}
-                      className="w-full px-3 py-2 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400 transition-colors"
+                      className="w-full px-3 py-2 text-sm bg-gray-50 border-[2px] border-purple-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400 transition-colors"
                       required
                     >
                       <option value="">Select Class & Section</option>
@@ -929,7 +929,7 @@ const AssignmentManagement = () => {
                       value={newAssignment.dueDate}
                       onChange={handleChange}
                       type="date"
-                      className="w-full px-3 py-2 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400 transition-colors"
+                      className="w-full px-3 py-2 text-sm bg-gray-50 border-[2px] border-purple-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400 transition-colors"
                       required
                     />
                   </div>
@@ -943,7 +943,7 @@ const AssignmentManagement = () => {
                       type="number"
                       min="1"
                       placeholder="e.g., 100"
-                      className="w-full px-3 py-2 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400 transition-colors"
+                      className="w-full px-3 py-2 text-sm bg-gray-50 border-[2px] border-purple-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400 transition-colors"
                       required
                     />
                   </div>
@@ -954,7 +954,7 @@ const AssignmentManagement = () => {
                       name="submissionFormat"
                       value={newAssignment.submissionFormat}
                       onChange={handleChange}
-                      className="w-full px-3 py-2 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400 transition-colors"
+                      className="w-full px-3 py-2 text-sm bg-gray-50 border-[2px] border-purple-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400 transition-colors"
                       required
                     >
                       <option value="text">Text Only</option>
@@ -969,7 +969,7 @@ const AssignmentManagement = () => {
                       name="status"
                       value={newAssignment.status}
                       onChange={handleChange}
-                      className="w-full px-3 py-2 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400 transition-colors"
+                      className="w-full px-3 py-2 text-sm bg-gray-50 border-[2px] border-purple-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400 transition-colors"
                     >
                       <option value="draft">Draft</option>
                       <option value="active">Active</option>
@@ -984,14 +984,14 @@ const AssignmentManagement = () => {
                       onChange={handleChange}
                       rows="3"
                       placeholder="Provide detailed instructions for the assignment..."
-                      className="w-full px-3 py-2 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400 transition-colors resize-none"
+                      className="w-full px-3 py-2 text-sm bg-gray-50 border-[2px] border-purple-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400 transition-colors resize-none"
                     />
                   </div>
 
                   {/* PDF Upload Section */}
                   <div className="md:col-span-2">
                     <label className="block text-xs font-semibold text-gray-600 mb-1.5">Attachment (PDF)</label>
-                    <div className="border-2 border-dashed border-gray-200 rounded-xl p-5 hover:border-indigo-300 hover:bg-indigo-50/30 transition-colors">
+                    <div className="border-2 border-dashed border-purple-300 rounded-xl p-5 hover:border-purple-400 hover:bg-purple-50 transition-colors">
                       {uploadingPdf ? (
                         <div className="flex flex-col items-center justify-center">
                           <Loader className="w-6 h-6 text-indigo-500 animate-spin mb-2" />
@@ -1052,11 +1052,11 @@ const AssignmentManagement = () => {
                   </div>
                 </div>
 
-                <div className="flex justify-end gap-2 pt-4 border-t border-gray-100">
+                <div className="flex justify-end gap-2 pt-4 border-t border-purple-100">
                   <button
                     type="button"
                     onClick={() => setShowModal(false)}
-                    className="px-4 py-2 text-xs font-semibold text-gray-600 bg-gray-50 border border-gray-200 rounded-xl hover:bg-gray-100 transition-colors"
+                    className="px-4 py-2 text-xs font-semibold text-gray-600 bg-gray-50 border-[2px] border-purple-200 rounded-xl hover:bg-gray-100 transition-colors"
                     disabled={loading}
                   >
                     Cancel
@@ -1103,7 +1103,7 @@ const AssignmentManagement = () => {
           return (
         <div className="fixed inset-0 z-50 bg-black/20 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-white w-full max-w-4xl rounded-xl shadow-xl max-h-[90vh] overflow-y-auto">
-            <div className="p-6 border-b border-gray-200">
+            <div className="p-6 border-b border-purple-200">
               <div className="flex items-center justify-between">
 	                <div className="flex items-center space-x-3">
 	                  <div className="p-2 bg-blue-100 rounded-lg">
@@ -1116,7 +1116,7 @@ const AssignmentManagement = () => {
 	                            type="text"
 	                            value={detailDraft.title}
 	                            onChange={(e) => handleDetailDraftChange('title', e.target.value)}
-	                            className="w-full rounded-lg border border-gray-300 px-3 py-1.5 text-sm font-semibold text-gray-900"
+	                            className="w-full rounded-lg border-[2px] border-purple-300 px-3 py-1.5 text-sm font-semibold text-gray-900"
 	                          />
 	                        </div>
 	                      ) : (
@@ -1143,7 +1143,7 @@ const AssignmentManagement = () => {
                           onClick={() => {
                             openAssignmentDetail(selectedAssignment);
                           }}
-                          className="px-3 py-1.5 rounded-lg border border-gray-300 text-sm text-gray-700 hover:bg-gray-50"
+                          className="px-3 py-1.5 rounded-lg border-[2px] border-purple-300 text-sm text-gray-700 hover:bg-gray-50"
                         >
                           Cancel
                         </button>
@@ -1191,7 +1191,7 @@ const AssignmentManagement = () => {
                                   subject: ''
                                 }));
                               }}
-                              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-700"
+                              className="w-full rounded-lg border-[2px] border-purple-300 px-3 py-2 text-sm text-gray-700"
                             >
                               <option value="">Select Class & Section</option>
                               {detailClassSectionOptions.map((cs) => (
@@ -1203,7 +1203,7 @@ const AssignmentManagement = () => {
                             <select
                               value={detailDraft.subject}
                               onChange={(e) => handleDetailDraftChange('subject', e.target.value)}
-                              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-700"
+                              className="w-full rounded-lg border-[2px] border-purple-300 px-3 py-2 text-sm text-gray-700"
                             >
                               <option value="">Select Subject</option>
                               {detailSubjectOptions.map((sub) => (
@@ -1219,12 +1219,12 @@ const AssignmentManagement = () => {
                               value={detailDraft.type}
                               onChange={(e) => handleDetailDraftChange('type', e.target.value)}
                               placeholder="Type"
-                              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-700"
+                              className="w-full rounded-lg border-[2px] border-purple-300 px-3 py-2 text-sm text-gray-700"
                             />
                             <select
                               value={detailDraft.difficulty}
                               onChange={(e) => handleDetailDraftChange('difficulty', e.target.value)}
-                              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-700"
+                              className="w-full rounded-lg border-[2px] border-purple-300 px-3 py-2 text-sm text-gray-700"
                             >
                               <option value="Easy">Easy</option>
                               <option value="Medium">Medium</option>
@@ -1235,7 +1235,7 @@ const AssignmentManagement = () => {
                             value={detailDraft.description}
                             onChange={(e) => handleDetailDraftChange('description', e.target.value)}
                             rows={5}
-                            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-700"
+                            className="w-full rounded-lg border-[2px] border-purple-300 px-3 py-2 text-sm text-gray-700"
                           />
                         </div>
                       ) : (
@@ -1258,7 +1258,7 @@ const AssignmentManagement = () => {
                             : (attachment?.name || attachment?.originalName || `Attachment ${index + 1}`);
                           const link = typeof attachment === 'object' ? attachment?.url : '';
                           return (
-                          <div key={index} className="flex items-center space-x-3 p-3 border border-gray-200 rounded-lg">
+                          <div key={index} className="flex items-center space-x-3 p-3 border-[2px] border-purple-200 rounded-lg">
                             <FileText className="w-5 h-5 text-blue-500" />
                             <span className="text-gray-700 flex-1">{label}</span>
                             {link ? (
@@ -1303,7 +1303,7 @@ const AssignmentManagement = () => {
 	                            <select
 	                              value={detailDraft.status}
 	                              onChange={(e) => handleDetailDraftChange('status', e.target.value)}
-	                              className="rounded-lg border border-gray-300 px-2 py-1 text-xs"
+	                              className="rounded-lg border-[2px] border-purple-300 px-2 py-1 text-xs"
 	                            >
 	                              <option value="draft">Draft</option>
 	                              <option value="active">Active</option>
@@ -1332,7 +1332,7 @@ const AssignmentManagement = () => {
                               min="1"
                               value={detailDraft.marks}
                               onChange={(e) => handleDetailDraftChange('marks', e.target.value)}
-                              className="w-24 rounded-lg border border-gray-300 px-2 py-1 text-xs text-right"
+                              className="w-24 rounded-lg border-[2px] border-purple-300 px-2 py-1 text-xs text-right"
                             />
                           ) : (
 	                          <span className="text-gray-900">{selectedAssignment.marks}</span>
@@ -1345,7 +1345,7 @@ const AssignmentManagement = () => {
                               type="date"
                               value={detailDraft.dueDate}
                               onChange={(e) => handleDetailDraftChange('dueDate', e.target.value)}
-                              className="rounded-lg border border-gray-300 px-2 py-1 text-xs"
+                              className="rounded-lg border-[2px] border-purple-300 px-2 py-1 text-xs"
                             />
                           ) : (
 	                          <span className="text-gray-900">{formatDate(selectedAssignment.dueDate)}</span>
@@ -1357,7 +1357,7 @@ const AssignmentManagement = () => {
                             <select
                               value={detailDraft.submissionFormat}
                               onChange={(e) => handleDetailDraftChange('submissionFormat', e.target.value)}
-                              className="rounded-lg border border-gray-300 px-2 py-1 text-xs"
+                              className="rounded-lg border-[2px] border-purple-300 px-2 py-1 text-xs"
                             >
                               <option value="text">Text</option>
                               <option value="pdf">PDF</option>
