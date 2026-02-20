@@ -107,6 +107,7 @@ const StudentPromotion = ({ setShowAdminHeader }) => {
   });
   const [submittingLeave, setSubmittingLeave] = useState(false);
   const [restoringId, setRestoringId] = useState(null);
+  const [finalizingId, setFinalizingId] = useState(null);
 
   // ──────────────────────────────────────────────────────────
   // Fetch classes & academic years from existing academic API
@@ -483,6 +484,40 @@ const StudentPromotion = ({ setShowAdminHeader }) => {
       Swal.fire({ icon: "error", title: "Network Error", text: "Could not reach server.", confirmButtonColor: "#6366f1" });
     } finally {
       setRestoringId(null);
+    }
+  };
+
+  const handleMarkLeft = async (student) => {
+    if (!student || student.status === "Left") return;
+    const confirm = await Swal.fire({
+      icon: "warning",
+      title: "Mark as Left",
+      text: `Finalize ${student.name} as Left? This confirms the student has exited.`,
+      showCancelButton: true,
+      confirmButtonText: "Yes, Mark Left",
+      confirmButtonColor: "#dc2626",
+      cancelButtonColor: "#6b7280",
+    });
+    if (!confirm.isConfirmed) return;
+
+    setFinalizingId(student._id);
+    try {
+      const res = await fetch(
+        `${API_BASE}/api/promotion/mark-left/${student._id}`,
+        { method: "PUT", headers: authHeader() }
+      );
+      const data = await res.json();
+      if (res.ok) {
+        Swal.fire({ icon: "success", title: "Updated", text: data.message, confirmButtonColor: "#6366f1" });
+        fetchLeavingStudents();
+        fetchMeta();
+      } else {
+        Swal.fire({ icon: "error", title: "Error", text: data.error || "Failed to mark as Left.", confirmButtonColor: "#6366f1" });
+      }
+    } catch {
+      Swal.fire({ icon: "error", title: "Network Error", text: "Could not reach server.", confirmButtonColor: "#6366f1" });
+    } finally {
+      setFinalizingId(null);
     }
   };
 
@@ -1248,18 +1283,34 @@ const StudentPromotion = ({ setShowAdminHeader }) => {
                           </span>
                         </td>
                         <td className="px-4 py-3">
-                          <button
-                            onClick={() => handleRestore(s)}
-                            disabled={restoringId === s._id}
-                            className="flex items-center gap-1 text-xs text-green-600 hover:text-green-800 font-medium transition disabled:opacity-50"
-                          >
-                            {restoringId === s._id ? (
-                              <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                            ) : (
-                              <RotateCcw className="w-3.5 h-3.5" />
+                          <div className="flex flex-col items-start gap-2">
+                            {s.status !== "Left" && (
+                              <button
+                                onClick={() => handleMarkLeft(s)}
+                                disabled={finalizingId === s._id}
+                                className="flex items-center gap-1 text-xs text-red-600 hover:text-red-800 font-medium transition disabled:opacity-50"
+                              >
+                                {finalizingId === s._id ? (
+                                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                ) : (
+                                  <LogOut className="w-3.5 h-3.5" />
+                                )}
+                                Mark Left
+                              </button>
                             )}
-                            Restore
-                          </button>
+                            <button
+                              onClick={() => handleRestore(s)}
+                              disabled={restoringId === s._id}
+                              className="flex items-center gap-1 text-xs text-green-600 hover:text-green-800 font-medium transition disabled:opacity-50"
+                            >
+                              {restoringId === s._id ? (
+                                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                              ) : (
+                                <RotateCcw className="w-3.5 h-3.5" />
+                              )}
+                              Restore
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     ))}
