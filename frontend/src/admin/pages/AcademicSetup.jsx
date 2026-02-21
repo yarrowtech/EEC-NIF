@@ -32,6 +32,7 @@ const AcademicSetup = ({ setShowAdminHeader }) => {
   const [editingSection, setEditingSection] = useState(null);
   const [editingSubject, setEditingSubject] = useState(null);
   const [savingClassTeacher, setSavingClassTeacher] = useState(false);
+  const [editingClassTeacherId, setEditingClassTeacherId] = useState(null);
 
   // Search/filter
   const [searchYear, setSearchYear] = useState("");
@@ -138,19 +139,19 @@ const AcademicSetup = ({ setShowAdminHeader }) => {
     setSavingClassTeacher(true);
     setError("");
     try {
-      const existing = classTeacherAllocations.find(
+      const allocationId = editingClassTeacherId || classTeacherAllocations.find(
         (a) =>
           String(a.classId?._id || a.classId) === String(classTeacherForm.classId) &&
           String(a.sectionId?._id || a.sectionId) === String(classTeacherForm.sectionId)
-      );
+      )?._id;
       const payload = {
         teacherId: classTeacherForm.teacherId,
         classId: classTeacherForm.classId,
         sectionId: classTeacherForm.sectionId,
         isClassTeacher: true,
       };
-      const endpoint = existing ? `${API_BASE}/api/teacher-allocations/${existing._id}` : `${API_BASE}/api/teacher-allocations`;
-      const method = existing ? "PUT" : "POST";
+      const endpoint = allocationId ? `${API_BASE}/api/teacher-allocations/${allocationId}` : `${API_BASE}/api/teacher-allocations`;
+      const method = allocationId ? "PUT" : "POST";
       const res = await fetch(endpoint, {
         method,
         headers: authHeaders,
@@ -163,13 +164,28 @@ const AcademicSetup = ({ setShowAdminHeader }) => {
       await res.json().catch(() => ({}));
       await loadClassTeachers();
       setClassTeacherForm({ teacherId: "", yearId: "", classId: "", sectionId: "" });
-      toast.success("Class teacher saved.");
+      setEditingClassTeacherId(null);
+      toast.success(editingClassTeacherId ? "Class teacher updated." : "Class teacher saved.");
     } catch (err) {
       setError(err.message);
       toast.error(err.message);
     } finally {
       setSavingClassTeacher(false);
     }
+  };
+
+  const handleEditClassTeacher = (item) => {
+    const classId = item.classId?._id || item.classId;
+    const cls = classes.find((c) => String(c._id) === String(classId));
+    const yearId = cls?.academicYearId || "";
+    setClassTeacherForm({
+      teacherId: String(item.teacherId?._id || item.teacherId || ""),
+      yearId: String(yearId),
+      classId: String(classId),
+      sectionId: String(item.sectionId?._id || item.sectionId || ""),
+    });
+    setEditingClassTeacherId(item._id);
+    document.getElementById("class-teacher-form")?.scrollIntoView({ behavior: "smooth", block: "start" });
   };
 
   const deleteClassTeacher = async (id) => {
@@ -1178,8 +1194,17 @@ const AcademicSetup = ({ setShowAdminHeader }) => {
         {/* ═══════════════ CLASS TEACHERS TAB ═══════════════ */}
         {activeTab === "class-teachers" && (
           <div className="space-y-4">
-            <form onSubmit={handleSaveClassTeacher} className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
-              <h3 className="mb-4 text-base font-semibold text-gray-800">Assign Class Teacher</h3>
+            <form id="class-teacher-form" onSubmit={handleSaveClassTeacher} className={`rounded-xl border bg-white p-5 shadow-sm ${editingClassTeacherId ? "border-amber-400 ring-2 ring-amber-100" : "border-gray-200"}`}>
+              <div className="mb-4 flex items-center justify-between">
+                <h3 className="text-base font-semibold text-gray-800">
+                  {editingClassTeacherId ? "Update Class Teacher" : "Assign Class Teacher"}
+                </h3>
+                {editingClassTeacherId && (
+                  <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-100 px-3 py-1 text-xs font-medium text-amber-700">
+                    <Edit3 className="h-3 w-3" /> Editing assignment
+                  </span>
+                )}
+              </div>
               <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
                 <div>
                   <label className="mb-1 block text-xs font-medium text-gray-600">Teacher</label>
@@ -1256,15 +1281,25 @@ const AcademicSetup = ({ setShowAdminHeader }) => {
                   disabled={savingClassTeacher}
                   className="rounded-lg bg-amber-500 px-4 py-2 text-sm font-medium text-white hover:bg-amber-600 disabled:opacity-50"
                 >
-                  {savingClassTeacher ? "Saving..." : "Save Class Teacher"}
+                  {savingClassTeacher ? "Saving..." : editingClassTeacherId ? "Update Class Teacher" : "Save Class Teacher"}
                 </button>
-                <button
-                  type="button"
-                  onClick={() => setClassTeacherForm({ teacherId: "", yearId: "", classId: "", sectionId: "" })}
-                  className="rounded-lg border border-gray-200 px-4 py-2 text-sm text-gray-600 hover:bg-gray-50"
-                >
-                  Clear
-                </button>
+                {editingClassTeacherId ? (
+                  <button
+                    type="button"
+                    onClick={() => { setClassTeacherForm({ teacherId: "", yearId: "", classId: "", sectionId: "" }); setEditingClassTeacherId(null); }}
+                    className="rounded-lg border border-amber-300 px-4 py-2 text-sm text-amber-700 hover:bg-amber-50"
+                  >
+                    Cancel Edit
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setClassTeacherForm({ teacherId: "", yearId: "", classId: "", sectionId: "" })}
+                    className="rounded-lg border border-gray-200 px-4 py-2 text-sm text-gray-600 hover:bg-gray-50"
+                  >
+                    Clear
+                  </button>
+                )}
               </div>
             </form>
 
@@ -1275,22 +1310,40 @@ const AcademicSetup = ({ setShowAdminHeader }) => {
                   <p className="text-sm text-gray-500">No class teachers assigned yet.</p>
                 )}
                 {classTeacherAllocations.map((item) => (
-                  <div key={item._id} className="flex items-center justify-between rounded-lg border border-gray-200 px-4 py-3">
+                  <div
+                    key={item._id}
+                    className={`flex items-center justify-between rounded-lg border px-4 py-3 transition ${
+                      editingClassTeacherId === item._id
+                        ? "border-amber-400 bg-amber-50"
+                        : "border-gray-200 hover:bg-gray-50"
+                    }`}
+                  >
                     <div>
                       <p className="font-medium text-gray-800">
-                        {item.teacherId?.name || 'Teacher'}
+                        {item.teacherId?.name || item.teacherId?.employeeCode || "Teacher"}
                       </p>
                       <p className="text-xs text-gray-500">
-                        Class {item.classId?.name || '-'} | Section {item.sectionId?.name || '-'}
+                        Class {item.classId?.name || "—"} | Section {item.sectionId?.name || "—"}
                       </p>
                     </div>
-                    <button
-                      type="button"
-                      onClick={() => deleteClassTeacher(item._id)}
-                      className="rounded-lg p-2 text-red-600 hover:bg-red-50"
-                    >
-                      Remove
-                    </button>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => handleEditClassTeacher(item)}
+                        className="flex items-center gap-1.5 rounded-lg border border-gray-200 px-3 py-1.5 text-xs text-gray-600 hover:border-amber-300 hover:bg-amber-50 hover:text-amber-700"
+                        title="Edit class teacher"
+                      >
+                        <Edit3 className="h-3.5 w-3.5" /> Edit
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => deleteClassTeacher(item._id)}
+                        className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs text-red-600 hover:bg-red-50"
+                        title="Remove class teacher"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" /> Remove
+                      </button>
+                    </div>
                   </div>
                 ))}
               </div>
