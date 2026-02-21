@@ -5,7 +5,14 @@ const teacherAllocationSchema = new mongoose.Schema(
     schoolId: { type: mongoose.Schema.Types.ObjectId, ref: 'School', required: true },
     campusId: { type: mongoose.Schema.Types.ObjectId, ref: 'Campus', default: null },
     teacherId: { type: mongoose.Schema.Types.ObjectId, ref: 'TeacherUser', required: true },
-    subjectId: { type: mongoose.Schema.Types.ObjectId, ref: 'Subject', required: true },
+    subjectId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Subject',
+      required() {
+        return !this.isClassTeacher;
+      },
+      default: null,
+    },
     classId: { type: mongoose.Schema.Types.ObjectId, ref: 'Class', required: true },
     sectionId: { type: mongoose.Schema.Types.ObjectId, ref: 'Section', required: true },
     isClassTeacher: { type: Boolean, default: false },

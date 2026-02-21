@@ -16,6 +16,7 @@ const FeeStructure = require('../models/FeeStructure');
 const FeeInvoice = require('../models/FeeInvoice');
 const AcademicYear = require('../models/AcademicYear');
 const ClassModel = require('../models/Class');
+const { syncAllocationGroupThreads, syncTimetableGroupThreads } = require('../utils/chatGroupProvisioning');
 const { generatePassword } = require('../utils/generator');
 const {
   getNextStudentSequence,
@@ -796,6 +797,7 @@ router.put('/students/:id', adminAuth, async (req, res) => {
       return res.status(404).json({ error: 'Record not found' });
     }
     const oldGrade = existing.grade;
+    const oldSection = existing.section;
     const payload = sanitizeUpdatePayload(req);
     const updated = await StudentUser.findOneAndUpdate(filter, payload, {
       new: true,
@@ -812,6 +814,23 @@ router.put('/students/:id', adminAuth, async (req, res) => {
       });
     } catch (err) {
       console.error('Auto invoice failed after promotion:', err.message);
+    }
+    if (
+      String(oldGrade || '').trim() !== String(updated.grade || '').trim() ||
+      String(oldSection || '').trim() !== String(updated.section || '').trim()
+    ) {
+      try {
+        await syncTimetableGroupThreads({
+          schoolId: updated.schoolId || req.schoolId,
+          campusId: (updated.campusId ?? req.campusId) ?? null,
+        });
+        await syncAllocationGroupThreads({
+          schoolId: updated.schoolId || req.schoolId,
+          campusId: (updated.campusId ?? req.campusId) ?? null,
+        });
+      } catch (syncErr) {
+        console.error('Student update chat-group sync failed:', syncErr?.message || syncErr);
+      }
     }
     return res.json(updated);
   } catch (err) {

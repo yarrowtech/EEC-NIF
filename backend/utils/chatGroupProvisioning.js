@@ -6,6 +6,9 @@ const Subject = require('../models/Subject');
 const ClassModel = require('../models/Class');
 const Section = require('../models/Section');
 const TeacherAllocation = require('../models/TeacherAllocation');
+const Timetable = require('../models/Timetable');
+const GROUP_KEY_ROUTINE_PREFIX = 'routine-subject';
+const GROUP_KEY_CLASS_TEACHER_PREFIX = 'class-teacher';
 
 const buildCampusOr = (campusId) => (
   campusId
@@ -22,28 +25,65 @@ const addParticipant = (map, userId, userType, name) => {
 
 const yy = () => String(new Date().getFullYear()).slice(-2);
 
+const buildAllocationGroupKey = ({
+  schoolId,
+  campusId,
+  subjectId,
+  classId,
+  sectionId,
+  isClassTeacher = false,
+}) => {
+  if (!schoolId || !classId || !sectionId) return null;
+  const scope = String(campusId || 'global');
+  if (isClassTeacher) {
+    return `${GROUP_KEY_CLASS_TEACHER_PREFIX}:${String(schoolId)}:${scope}:${String(classId)}:${String(sectionId)}`;
+  }
+  if (!subjectId) return null;
+  return `${GROUP_KEY_ROUTINE_PREFIX}:${String(schoolId)}:${scope}:${String(classId)}:${String(sectionId)}:${String(subjectId)}`;
+};
+
+const deleteThreadByGroupKey = async ({ schoolId, campusId, groupKey }) => {
+  if (!schoolId || !groupKey) return false;
+  const thread = await ChatThread.findOne({
+    schoolId,
+    campusId,
+    groupKey,
+  }).select('_id').lean();
+  if (!thread?._id) return false;
+  await ChatMessage.deleteMany({ threadId: thread._id });
+  await ChatThread.deleteOne({ _id: thread._id });
+  return true;
+};
+
 const ensureAllocationGroupThread = async ({
   schoolId,
   campusId,
   teacherId,
+  teacherIds = null,
   subjectId,
   classId,
   sectionId,
+  isClassTeacher = false,
 }) => {
-  if (!schoolId || !teacherId || !subjectId || !classId || !sectionId) return null;
+  if (!schoolId || !classId || !sectionId) return null;
+  if (!isClassTeacher && !subjectId) return null;
 
   const campusCondition = buildCampusOr(campusId);
-  const [teacher, subject, classDoc, sectionDoc] = await Promise.all([
-    TeacherUser.findOne({
-      _id: teacherId,
+  const normalizedTeacherIds = [
+    ...new Set(
+      (Array.isArray(teacherIds) ? teacherIds : [teacherId])
+        .filter(Boolean)
+        .map((id) => String(id))
+    ),
+  ];
+  if (normalizedTeacherIds.length === 0) return null;
+
+  const queries = [
+    TeacherUser.find({
+      _id: { $in: normalizedTeacherIds },
       schoolId,
       ...(campusCondition ? { $or: campusCondition } : {}),
     }).select('_id name employeeCode').lean(),
-    Subject.findOne({
-      _id: subjectId,
-      schoolId,
-      ...(campusCondition ? { $or: campusCondition } : {}),
-    }).select('_id name code').lean(),
     ClassModel.findOne({
       _id: classId,
       schoolId,
@@ -54,18 +94,39 @@ const ensureAllocationGroupThread = async ({
       schoolId,
       ...(campusCondition ? { $or: campusCondition } : {}),
     }).select('_id name classId').lean(),
-  ]);
+  ];
+  if (!isClassTeacher && subjectId) {
+    queries.push(
+      Subject.findOne({
+        _id: subjectId,
+        schoolId,
+        ...(campusCondition ? { $or: campusCondition } : {}),
+      }).select('_id name code').lean()
+    );
+  }
+  const [teacher, classDoc, sectionDoc, subject = null] = await Promise.all(queries);
 
-  if (!teacher || !subject || !classDoc || !sectionDoc) return null;
+  if (!teacher || teacher.length === 0 || !classDoc || !sectionDoc) return null;
+  if (!isClassTeacher && !subject) return null;
 
   const className = String(classDoc.name || '').trim();
   const sectionName = String(sectionDoc.name || '').trim();
-  const subjectName = String(subject.name || subject.code || '').trim();
-  if (!className || !sectionName || !subjectName) return null;
+  const subjectName = String(subject?.name || subject?.code || '').trim();
+  if (!className || !sectionName || (!isClassTeacher && !subjectName)) return null;
 
   const groupYear = yy();
-  const groupName = `${subjectName} ${className}-${sectionName} ${groupYear}`;
-  const groupKey = `alloc:${String(schoolId)}:${String(campusId || 'global')}:${String(teacherId)}:${String(subjectId)}:${String(classId)}:${String(sectionId)}`;
+  const groupName = isClassTeacher
+    ? `Class Teacher ${className}-${sectionName} ${groupYear}`
+    : `${subjectName} ${className}-${sectionName} ${groupYear}`;
+  const groupKey = buildAllocationGroupKey({
+    schoolId,
+    campusId,
+    subjectId,
+    classId,
+    sectionId,
+    isClassTeacher,
+  });
+  if (!groupKey) return null;
 
   const studentFilter = {
     schoolId,
@@ -78,19 +139,38 @@ const ensureAllocationGroupThread = async ({
     .lean();
 
   const participantsMap = new Map();
-  addParticipant(participantsMap, teacher._id, 'teacher', teacher.name || teacher.employeeCode || 'Teacher');
+  const teacherNameById = new Map();
+  teacher.forEach((t) => {
+    const tId = String(t._id);
+    const tName = t.name || t.employeeCode || 'Teacher';
+    teacherNameById.set(tId, tName);
+    addParticipant(participantsMap, t._id, 'teacher', tName);
+  });
   students.forEach((student) => {
     addParticipant(participantsMap, student._id, 'student', student.name || student.username || student.studentCode || 'Student');
   });
-
-  const participants = Array.from(participantsMap.values());
-  if (participants.length < 2) return null;
 
   let thread = await ChatThread.findOne({
     schoolId,
     campusId,
     groupKey,
   });
+  const participants = Array.from(participantsMap.values());
+  const existingTeacherNameById = new Map(
+    (thread?.participants || [])
+      .filter((p) => p.userType === 'teacher' && p.userId)
+      .map((p) => [String(p.userId), String(p.name || 'Teacher')])
+  );
+  const previousTeacherIds = new Set(existingTeacherNameById.keys());
+  const currentTeacherIds = new Set(normalizedTeacherIds);
+
+  if (participants.length < 2) {
+    if (thread?._id) {
+      await ChatMessage.deleteMany({ threadId: thread._id });
+      await ChatThread.deleteOne({ _id: thread._id });
+    }
+    return null;
+  }
 
   const existingUnreadMap = new Map(
     (thread?.unreadCounts || []).map((u) => [String(u.userId), Number(u.count || 0)])
@@ -108,11 +188,12 @@ const ensureAllocationGroupThread = async ({
       groupName,
       groupKey,
       groupMeta: {
-        teacherId,
-        subjectId,
+        teacherId: normalizedTeacherIds[0] || null,
+        subjectId: subjectId || null,
         classId,
         sectionId,
         year: groupYear,
+        isClassTeacher: Boolean(isClassTeacher),
       },
       participants,
       unreadCounts,
@@ -122,7 +203,7 @@ const ensureAllocationGroupThread = async ({
     const systemText = `System added you to ${groupName}`;
     await ChatMessage.create({
       threadId: thread._id,
-      senderId: teacher._id,
+      senderId: teacher[0]._id,
       senderType: 'system',
       senderName: 'System',
       text: systemText,
@@ -137,7 +218,7 @@ const ensureAllocationGroupThread = async ({
         $set: {
           lastMessage: systemText,
           lastMessageAt: now,
-          lastSenderId: teacher._id,
+          lastSenderId: teacher[0]._id,
         },
       }
     );
@@ -148,17 +229,67 @@ const ensureAllocationGroupThread = async ({
       participants,
       unreadCounts,
       groupMeta: {
-        teacherId,
-        subjectId,
+        teacherId: normalizedTeacherIds[0] || null,
+        subjectId: subjectId || null,
         classId,
         sectionId,
         year: groupYear,
+        isClassTeacher: Boolean(isClassTeacher),
       },
     };
     await ChatThread.updateOne({ _id: thread._id }, { $set: updateSet });
+
+    const removedTeacherIds = [...previousTeacherIds].filter((id) => !currentTeacherIds.has(id));
+    const addedTeacherIds = [...currentTeacherIds].filter((id) => !previousTeacherIds.has(id));
+    const systemEvents = [
+      ...removedTeacherIds.map((id) => `System removed ${existingTeacherNameById.get(id) || 'Teacher'}`),
+      ...addedTeacherIds.map((id) => `System added ${teacherNameById.get(id) || 'Teacher'}`),
+    ];
+    for (const text of systemEvents) {
+      await ChatMessage.create({
+        threadId: thread._id,
+        senderId: teacher[0]._id,
+        senderType: 'system',
+        senderName: 'System',
+        text,
+        schoolId,
+        campusId,
+        seenBy: [],
+      });
+      await ChatThread.updateOne(
+        { _id: thread._id },
+        {
+          $set: {
+            lastMessage: text,
+            lastMessageAt: new Date(),
+            lastSenderId: teacher[0]._id,
+          },
+        }
+      );
+    }
   }
 
   return thread?._id || null;
+};
+
+const removeAllocationGroupThread = async ({
+  schoolId,
+  campusId,
+  subjectId,
+  classId,
+  sectionId,
+  isClassTeacher = false,
+}) => {
+  const groupKey = buildAllocationGroupKey({
+    schoolId,
+    campusId,
+    subjectId,
+    classId,
+    sectionId,
+    isClassTeacher,
+  });
+  if (!groupKey) return false;
+  return deleteThreadByGroupKey({ schoolId, campusId, groupKey });
 };
 
 const syncAllocationGroupThreads = async ({ schoolId = null, campusId = null } = {}) => {
@@ -167,23 +298,135 @@ const syncAllocationGroupThreads = async ({ schoolId = null, campusId = null } =
   if (campusId !== null && campusId !== undefined) filter.campusId = campusId;
 
   const allocations = await TeacherAllocation.find(filter)
-    .select('schoolId campusId teacherId subjectId classId sectionId')
+    .select('schoolId campusId teacherId subjectId classId sectionId isClassTeacher')
     .lean();
 
+  const validGroupKeys = new Set();
   let createdOrUpdated = 0;
   for (const allocation of allocations) {
+    const isClassTeacher = Boolean(allocation.isClassTeacher);
+    if (!isClassTeacher) continue;
+    const groupKey = buildAllocationGroupKey({
+      schoolId: allocation.schoolId,
+      campusId: allocation.campusId || null,
+      subjectId: allocation.subjectId,
+      classId: allocation.classId,
+      sectionId: allocation.sectionId,
+      isClassTeacher,
+    });
+    if (groupKey) validGroupKeys.add(groupKey);
+
     const threadId = await ensureAllocationGroupThread({
       schoolId: allocation.schoolId,
       campusId: allocation.campusId || null,
       teacherId: allocation.teacherId,
+      teacherIds: [allocation.teacherId],
       subjectId: allocation.subjectId,
       classId: allocation.classId,
       sectionId: allocation.sectionId,
+      isClassTeacher,
     });
     if (threadId) createdOrUpdated += 1;
   }
 
-  return { scanned: allocations.length, createdOrUpdated };
+  const scopeFilter = {
+    ...(schoolId ? { schoolId } : {}),
+    ...(campusId !== null && campusId !== undefined ? { campusId } : {}),
+    groupKey: {
+      $regex: `^(${GROUP_KEY_CLASS_TEACHER_PREFIX}):`,
+    },
+  };
+  const existingThreads = await ChatThread.find(scopeFilter).select('_id groupKey').lean();
+  const staleThreadIds = existingThreads
+    .filter((thread) => !validGroupKeys.has(String(thread.groupKey || '')))
+    .map((thread) => thread._id);
+
+  if (staleThreadIds.length > 0) {
+    await ChatMessage.deleteMany({ threadId: { $in: staleThreadIds } });
+    await ChatThread.deleteMany({ _id: { $in: staleThreadIds } });
+  }
+
+  return { scanned: allocations.length, createdOrUpdated, removedStale: staleThreadIds.length };
 };
 
-module.exports = { ensureAllocationGroupThread, syncAllocationGroupThreads };
+const syncTimetableGroupThreads = async ({ schoolId = null, campusId = null } = {}) => {
+  const timetableFilter = {};
+  if (schoolId) timetableFilter.schoolId = schoolId;
+  if (campusId !== null && campusId !== undefined) timetableFilter.campusId = campusId;
+
+  const timetables = await Timetable.find(timetableFilter)
+    .select('schoolId campusId classId sectionId entries')
+    .lean();
+
+  const combos = new Map();
+  timetables.forEach((tt) => {
+    const classId = tt.classId ? String(tt.classId) : '';
+    const sectionId = tt.sectionId ? String(tt.sectionId) : '';
+    if (!classId || !sectionId) return;
+    (tt.entries || []).forEach((entry) => {
+      const subjectId = entry?.subjectId ? String(entry.subjectId) : '';
+      const teacherId = entry?.teacherId ? String(entry.teacherId) : '';
+      if (!subjectId || !teacherId) return;
+      const key = `${String(tt.schoolId)}::${String(tt.campusId || 'global')}::${classId}::${sectionId}::${subjectId}`;
+      if (!combos.has(key)) {
+        combos.set(key, {
+          schoolId: tt.schoolId,
+          campusId: tt.campusId || null,
+          classId,
+          sectionId,
+          subjectId,
+          teacherIds: new Set(),
+        });
+      }
+      combos.get(key).teacherIds.add(teacherId);
+    });
+  });
+
+  const validGroupKeys = new Set();
+  let createdOrUpdated = 0;
+  for (const combo of combos.values()) {
+    const groupKey = buildAllocationGroupKey({
+      schoolId: combo.schoolId,
+      campusId: combo.campusId,
+      subjectId: combo.subjectId,
+      classId: combo.classId,
+      sectionId: combo.sectionId,
+      isClassTeacher: false,
+    });
+    if (!groupKey) continue;
+    validGroupKeys.add(groupKey);
+    const teacherIds = [...combo.teacherIds];
+    const threadId = await ensureAllocationGroupThread({
+      schoolId: combo.schoolId,
+      campusId: combo.campusId,
+      teacherIds,
+      teacherId: teacherIds[0] || null,
+      subjectId: combo.subjectId,
+      classId: combo.classId,
+      sectionId: combo.sectionId,
+      isClassTeacher: false,
+    });
+    if (threadId) createdOrUpdated += 1;
+  }
+
+  const scopeFilter = {
+    ...(schoolId ? { schoolId } : {}),
+    ...(campusId !== null && campusId !== undefined ? { campusId } : {}),
+    groupKey: {
+      $regex: `^(${GROUP_KEY_ROUTINE_PREFIX}):`,
+    },
+  };
+  const existingThreads = await ChatThread.find(scopeFilter).select('_id groupKey').lean();
+  const staleThreadIds = existingThreads
+    .filter((thread) => !validGroupKeys.has(String(thread.groupKey || '')))
+    .map((thread) => thread._id);
+
+  if (staleThreadIds.length > 0) {
+    await ChatMessage.deleteMany({ threadId: { $in: staleThreadIds } });
+    await ChatThread.deleteMany({ _id: { $in: staleThreadIds } });
+  }
+
+  return { scanned: timetables.length, createdOrUpdated, removedStale: staleThreadIds.length };
+};
+
+module.exports = { ensureAllocationGroupThread, removeAllocationGroupThread, syncAllocationGroupThreads, syncTimetableGroupThreads };

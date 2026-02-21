@@ -5,6 +5,7 @@ const adminAuth = require('../middleware/adminAuth');
 const StudentUser = require('../models/StudentUser');
 const PromotionHistory = require('../models/PromotionHistory');
 const AuditLog = require('../models/AuditLog');
+const { syncAllocationGroupThreads, syncTimetableGroupThreads } = require('../utils/chatGroupProvisioning');
 
 const resolveSchoolId = (req, res) => {
   const schoolId = req.schoolId || req.admin?.schoolId || null;
@@ -153,6 +154,13 @@ router.post('/execute', adminAuth, async (req, res) => {
       { _id: { $in: eligibleIds }, schoolId },
       { $set: updateFields }
     );
+
+    try {
+      await syncTimetableGroupThreads({ schoolId, campusId: campusId || null });
+      await syncAllocationGroupThreads({ schoolId, campusId: campusId || null });
+    } catch (syncErr) {
+      console.error('Promotion chat-group sync failed:', syncErr?.message || syncErr);
+    }
 
     // Record promotion history
     const history = await PromotionHistory.create({

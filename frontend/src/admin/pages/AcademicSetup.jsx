@@ -24,7 +24,7 @@ const AcademicSetup = ({ setShowAdminHeader }) => {
   const [classForm, setClassForm] = useState({ name: "", academicYearId: "", order: "" });
   const [sectionForm, setSectionForm] = useState({ name: "", classId: "" });
   const [subjectForm, setSubjectForm] = useState({ name: "", code: "", classId: "" });
-  const [classTeacherForm, setClassTeacherForm] = useState({ teacherId: "", classId: "", sectionId: "", subjectId: "" });
+  const [classTeacherForm, setClassTeacherForm] = useState({ teacherId: "", yearId: "", classId: "", sectionId: "" });
 
   // Edit states
   const [editingYear, setEditingYear] = useState(null);
@@ -119,20 +119,20 @@ const AcademicSetup = ({ setShowAdminHeader }) => {
     [teacherAllocations]
   );
 
+  const classTeacherClasses = useMemo(() => {
+    if (!classTeacherForm.yearId) return [];
+    return classes.filter((c) => String(c.academicYearId) === String(classTeacherForm.yearId));
+  }, [classes, classTeacherForm.yearId]);
+
   const classTeacherSections = useMemo(() => {
     if (!classTeacherForm.classId) return [];
     return sections.filter((s) => String(s.classId) === String(classTeacherForm.classId));
   }, [sections, classTeacherForm.classId]);
 
-  const classTeacherSubjects = useMemo(() => {
-    if (!classTeacherForm.classId) return [];
-    return subjects.filter((s) => String(s.classId) === String(classTeacherForm.classId));
-  }, [subjects, classTeacherForm.classId]);
-
   const handleSaveClassTeacher = async (e) => {
     e.preventDefault();
-    if (!classTeacherForm.teacherId || !classTeacherForm.classId || !classTeacherForm.sectionId || !classTeacherForm.subjectId) {
-      setError("Teacher, class, section, and subject are required.");
+    if (!classTeacherForm.teacherId || !classTeacherForm.yearId || !classTeacherForm.classId || !classTeacherForm.sectionId) {
+      setError("Teacher, year, class, and section are required.");
       return;
     }
     setSavingClassTeacher(true);
@@ -147,7 +147,6 @@ const AcademicSetup = ({ setShowAdminHeader }) => {
         teacherId: classTeacherForm.teacherId,
         classId: classTeacherForm.classId,
         sectionId: classTeacherForm.sectionId,
-        subjectId: classTeacherForm.subjectId,
         isClassTeacher: true,
       };
       const endpoint = existing ? `${API_BASE}/api/teacher-allocations/${existing._id}` : `${API_BASE}/api/teacher-allocations`;
@@ -163,7 +162,7 @@ const AcademicSetup = ({ setShowAdminHeader }) => {
       }
       await res.json().catch(() => ({}));
       await loadClassTeachers();
-      setClassTeacherForm({ teacherId: "", classId: "", sectionId: "", subjectId: "" });
+      setClassTeacherForm({ teacherId: "", yearId: "", classId: "", sectionId: "" });
       toast.success("Class teacher saved.");
     } catch (err) {
       setError(err.message);
@@ -1199,17 +1198,35 @@ const AcademicSetup = ({ setShowAdminHeader }) => {
                   </select>
                 </div>
                 <div>
+                  <label className="mb-1 block text-xs font-medium text-gray-600">Year</label>
+                  <select
+                    value={classTeacherForm.yearId}
+                    onChange={(e) =>
+                      setClassTeacherForm((p) => ({ ...p, yearId: e.target.value, classId: "", sectionId: "" }))
+                    }
+                    className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-amber-400 focus:outline-none focus:ring-2 focus:ring-amber-100"
+                    required
+                  >
+                    <option value="">Select year</option>
+                    {years.map((y) => (
+                      <option key={y._id} value={y._id}>
+                        {y.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
                   <label className="mb-1 block text-xs font-medium text-gray-600">Class</label>
                   <select
                     value={classTeacherForm.classId}
                     onChange={(e) =>
-                      setClassTeacherForm((p) => ({ ...p, classId: e.target.value, sectionId: "", subjectId: "" }))
+                      setClassTeacherForm((p) => ({ ...p, classId: e.target.value, sectionId: "" }))
                     }
                     className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-amber-400 focus:outline-none focus:ring-2 focus:ring-amber-100"
                     required
                   >
                     <option value="">Select class</option>
-                    {classes.map((c) => (
+                    {classTeacherClasses.map((c) => (
                       <option key={c._id} value={c._id}>
                         {c.name}
                       </option>
@@ -1232,22 +1249,6 @@ const AcademicSetup = ({ setShowAdminHeader }) => {
                     ))}
                   </select>
                 </div>
-                <div>
-                  <label className="mb-1 block text-xs font-medium text-gray-600">Subject</label>
-                  <select
-                    value={classTeacherForm.subjectId}
-                    onChange={(e) => setClassTeacherForm((p) => ({ ...p, subjectId: e.target.value }))}
-                    className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-amber-400 focus:outline-none focus:ring-2 focus:ring-amber-100"
-                    required
-                  >
-                    <option value="">Select subject</option>
-                    {classTeacherSubjects.map((s) => (
-                      <option key={s._id} value={s._id}>
-                        {s.name} {s.code ? `(${s.code})` : ''}
-                      </option>
-                    ))}
-                  </select>
-                </div>
               </div>
               <div className="mt-4 flex gap-3">
                 <button
@@ -1259,7 +1260,7 @@ const AcademicSetup = ({ setShowAdminHeader }) => {
                 </button>
                 <button
                   type="button"
-                  onClick={() => setClassTeacherForm({ teacherId: "", classId: "", sectionId: "", subjectId: "" })}
+                  onClick={() => setClassTeacherForm({ teacherId: "", yearId: "", classId: "", sectionId: "" })}
                   className="rounded-lg border border-gray-200 px-4 py-2 text-sm text-gray-600 hover:bg-gray-50"
                 >
                   Clear
@@ -1277,7 +1278,7 @@ const AcademicSetup = ({ setShowAdminHeader }) => {
                   <div key={item._id} className="flex items-center justify-between rounded-lg border border-gray-200 px-4 py-3">
                     <div>
                       <p className="font-medium text-gray-800">
-                        {item.teacherId?.name || 'Teacher'} • {item.subjectId?.name || 'Subject'}
+                        {item.teacherId?.name || 'Teacher'}
                       </p>
                       <p className="text-xs text-gray-500">
                         Class {item.classId?.name || '-'} | Section {item.sectionId?.name || '-'}

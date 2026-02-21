@@ -7,7 +7,7 @@ const TeacherUser = require('../models/TeacherUser');
 const ClassModel = require('../models/Class');
 const Section = require('../models/Section');
 const Subject = require('../models/Subject');
-const { ensureAllocationGroupThread, syncAllocationGroupThreads } = require('../utils/chatGroupProvisioning');
+const { ensureAllocationGroupThread, removeAllocationGroupThread, syncAllocationGroupThreads } = require('../utils/chatGroupProvisioning');
 
 const router = express.Router();
 
@@ -36,30 +36,43 @@ const buildScopeFilter = (schoolId, campusId) => {
 
 const isValidId = (value) => mongoose.isValidObjectId(value);
 
-const validateAllocationPayload = async ({ schoolId, campusId, teacherId, subjectId, classId, sectionId }) => {
-  if (!isValidId(teacherId) || !isValidId(subjectId) || !isValidId(classId) || !isValidId(sectionId)) {
-    return { ok: false, error: 'teacherId, subjectId, classId and sectionId must be valid IDs' };
+const validateAllocationPayload = async ({
+  schoolId,
+  campusId,
+  teacherId,
+  subjectId,
+  classId,
+  sectionId,
+  isClassTeacher,
+}) => {
+  if (!isValidId(teacherId) || !isValidId(classId) || !isValidId(sectionId)) {
+    return { ok: false, error: 'teacherId, classId and sectionId must be valid IDs' };
+  }
+  if (!isClassTeacher && !isValidId(subjectId)) {
+    return { ok: false, error: 'subjectId must be a valid ID' };
   }
 
   const scopedFilter = buildScopeFilter(schoolId, campusId);
-
-  const [teacher, subject, cls, section] = await Promise.all([
+  const queries = [
     TeacherUser.findOne({ _id: teacherId, ...scopedFilter }).lean(),
-    Subject.findOne({ _id: subjectId, ...scopedFilter }).lean(),
     ClassModel.findOne({ _id: classId, ...scopedFilter }).lean(),
     Section.findOne({ _id: sectionId, ...scopedFilter }).lean(),
-  ]);
+  ];
+  if (!isClassTeacher && isValidId(subjectId)) {
+    queries.push(Subject.findOne({ _id: subjectId, ...scopedFilter }).lean());
+  }
+  const [teacher, cls, section, subject = null] = await Promise.all(queries);
 
   if (!teacher) return { ok: false, error: 'Teacher not found for this school/campus' };
-  if (!subject) return { ok: false, error: 'Subject not found for this school/campus' };
   if (!cls) return { ok: false, error: 'Class not found for this school/campus' };
   if (!section) return { ok: false, error: 'Section not found for this school/campus' };
+  if (!isClassTeacher && !subject) return { ok: false, error: 'Subject not found for this school/campus' };
 
   if (String(section.classId) !== String(classId)) {
     return { ok: false, error: 'Selected section does not belong to selected class' };
   }
 
-  if (subject.classId && String(subject.classId) !== String(classId)) {
+  if (subject?.classId && String(subject.classId) !== String(classId)) {
     return { ok: false, error: 'Selected subject does not belong to selected class' };
   }
 
@@ -105,14 +118,16 @@ router.post('/', adminAuth, async (req, res) => {
     const campusId = resolveCampusId(req);
 
     const { teacherId, subjectId, classId, sectionId, isClassTeacher, notes } = req.body || {};
+    const normalizedSubjectId = isClassTeacher ? null : subjectId;
 
     const validation = await validateAllocationPayload({
       schoolId,
       campusId,
       teacherId,
-      subjectId,
+      subjectId: normalizedSubjectId,
       classId,
       sectionId,
+      isClassTeacher: Boolean(isClassTeacher),
     });
     if (!validation.ok) return res.status(400).json({ error: validation.error });
 
@@ -120,7 +135,7 @@ router.post('/', adminAuth, async (req, res) => {
       schoolId,
       campusId: campusId || null,
       teacherId,
-      subjectId,
+      subjectId: normalizedSubjectId,
       classId,
       sectionId,
     }).lean();
@@ -133,7 +148,7 @@ router.post('/', adminAuth, async (req, res) => {
       schoolId,
       campusId: campusId || null,
       teacherId,
-      subjectId,
+      subjectId: normalizedSubjectId,
       classId,
       sectionId,
       isClassTeacher: Boolean(isClassTeacher),
@@ -147,14 +162,17 @@ router.post('/', adminAuth, async (req, res) => {
       .populate('sectionId', 'name classId')
       .lean();
 
-    await ensureAllocationGroupThread({
-      schoolId,
-      campusId: campusId || null,
-      teacherId,
-      subjectId,
-      classId,
-      sectionId,
-    });
+    if (isClassTeacher) {
+      await ensureAllocationGroupThread({
+        schoolId,
+        campusId: campusId || null,
+        teacherId,
+        subjectId: normalizedSubjectId,
+        classId,
+        sectionId,
+        isClassTeacher: true,
+      });
+    }
 
     res.status(201).json(populated);
   } catch (err) {
@@ -175,15 +193,27 @@ router.put('/:id', adminAuth, async (req, res) => {
     if (!isValidId(id)) {
       return res.status(400).json({ error: 'Invalid allocation id' });
     }
+    const existingAllocation = await TeacherAllocation.findOne({
+      _id: id,
+      schoolId,
+      ...(campusId ? { campusId } : {}),
+    })
+      .select('teacherId subjectId classId sectionId isClassTeacher')
+      .lean();
+    if (!existingAllocation) {
+      return res.status(404).json({ error: 'Allocation not found' });
+    }
 
     const { teacherId, subjectId, classId, sectionId, isClassTeacher, notes } = req.body || {};
+    const normalizedSubjectId = isClassTeacher ? null : subjectId;
     const validation = await validateAllocationPayload({
       schoolId,
       campusId,
       teacherId,
-      subjectId,
+      subjectId: normalizedSubjectId,
       classId,
       sectionId,
+      isClassTeacher: Boolean(isClassTeacher),
     });
     if (!validation.ok) return res.status(400).json({ error: validation.error });
 
@@ -192,7 +222,7 @@ router.put('/:id', adminAuth, async (req, res) => {
       schoolId,
       campusId: campusId || null,
       teacherId,
-      subjectId,
+      subjectId: normalizedSubjectId,
       classId,
       sectionId,
     }).lean();
@@ -205,7 +235,7 @@ router.put('/:id', adminAuth, async (req, res) => {
       {
         $set: {
           teacherId,
-          subjectId,
+          subjectId: normalizedSubjectId,
           classId,
           sectionId,
           isClassTeacher: Boolean(isClassTeacher),
@@ -224,14 +254,35 @@ router.put('/:id', adminAuth, async (req, res) => {
       return res.status(404).json({ error: 'Allocation not found' });
     }
 
-    await ensureAllocationGroupThread({
-      schoolId,
-      campusId: campusId || null,
-      teacherId,
-      subjectId,
-      classId,
-      sectionId,
-    });
+    if (isClassTeacher) {
+      await ensureAllocationGroupThread({
+        schoolId,
+        campusId: campusId || null,
+        teacherId,
+        subjectId: normalizedSubjectId,
+        classId,
+        sectionId,
+        isClassTeacher: true,
+      });
+    }
+
+    const classTeacherKeyChanged =
+      Boolean(existingAllocation.isClassTeacher) &&
+      (
+        !Boolean(isClassTeacher) ||
+        String(existingAllocation.classId || '') !== String(classId || '') ||
+        String(existingAllocation.sectionId || '') !== String(sectionId || '')
+      );
+    if (classTeacherKeyChanged) {
+      await removeAllocationGroupThread({
+        schoolId,
+        campusId: campusId || null,
+        subjectId: existingAllocation.subjectId || null,
+        classId: existingAllocation.classId,
+        sectionId: existingAllocation.sectionId,
+        isClassTeacher: Boolean(existingAllocation.isClassTeacher),
+      });
+    }
 
     res.json(updated);
   } catch (err) {
@@ -261,6 +312,17 @@ router.delete('/:id', adminAuth, async (req, res) => {
 
     if (!removed) {
       return res.status(404).json({ error: 'Allocation not found' });
+    }
+
+    if (removed.isClassTeacher) {
+      await removeAllocationGroupThread({
+        schoolId,
+        campusId: campusId || null,
+        subjectId: removed.subjectId || null,
+        classId: removed.classId,
+        sectionId: removed.sectionId,
+        isClassTeacher: true,
+      });
     }
 
     res.json({ ok: true, message: 'Allocation deleted successfully' });

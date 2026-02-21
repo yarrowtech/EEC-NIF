@@ -13,6 +13,7 @@ const {
   cloneTracker,
   generateTimetable,
 } = require('../utils/timetableGenerator');
+const { syncTimetableGroupThreads } = require('../utils/chatGroupProvisioning');
 
 const router = express.Router();
 
@@ -240,6 +241,7 @@ router.post('/', adminAuth, async (req, res) => {
       payload,
       { new: true, upsert: true }
     );
+    await syncTimetableGroupThreads({ schoolId, campusId: campusId || null });
 
     res.json(updated);
   } catch (err) {
@@ -309,6 +311,7 @@ router.post('/day', adminAuth, async (req, res) => {
         sectionId: normalizedSectionId || undefined,
         entries: dayEntries,
       });
+      await syncTimetableGroupThreads({ schoolId, campusId: campusId || null });
       return res.json(created);
     }
 
@@ -317,6 +320,7 @@ router.post('/day', adminAuth, async (req, res) => {
     );
     existing.entries = [...remainingEntries, ...dayEntries];
     await existing.save();
+    await syncTimetableGroupThreads({ schoolId, campusId: campusId || null });
 
     res.json(existing);
   } catch (err) {
@@ -364,11 +368,13 @@ router.delete('/day', adminAuth, async (req, res) => {
 
     if (remainingEntries.length === 0) {
       await Timetable.findByIdAndDelete(existing._id);
+      await syncTimetableGroupThreads({ schoolId, campusId: campusId || null });
       return res.json({ message: 'Day removed and timetable deleted', deleted: true });
     }
 
     existing.entries = remainingEntries;
     await existing.save();
+    await syncTimetableGroupThreads({ schoolId, campusId: campusId || null });
 
     res.json({ message: 'Day removed', deleted: false, timetable: existing });
   } catch (err) {
@@ -475,6 +481,7 @@ router.delete('/:id', adminAuth, async (req, res) => {
     if (!deleted) {
       return res.status(404).json({ error: 'Timetable not found' });
     }
+    await syncTimetableGroupThreads({ schoolId, campusId: campusId || null });
 
     res.json({ message: 'Timetable deleted successfully', deleted });
   } catch (err) {
@@ -769,6 +776,7 @@ router.post('/auto-generate', adminAuth, async (req, res) => {
         globalTracker.teacherDayCounts = tracker.teacherDayCounts;
       }
     }
+    await syncTimetableGroupThreads({ schoolId, campusId: campusId || null });
 
     res.json({
       generated: results,
