@@ -160,6 +160,56 @@ const PrincipalDashboard = () => {
     fetchNotifications();
   }, [fetchNotifications]);
 
+  const handleMarkNotificationRead = useCallback(async (notificationId) => {
+    if (!notificationId) return;
+    const token = localStorage.getItem('token');
+    if (!token) return;
+    try {
+      const res = await fetch(`${API_BASE}/api/notifications/user/${notificationId}/read`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          authorization: `Bearer ${token}`,
+        },
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data?.error || 'Unable to mark notification as read');
+      }
+      setNotifications((prev) =>
+        prev.map((item) =>
+          String(item.id) === String(notificationId) ? { ...item, read: true } : item
+        )
+      );
+    } catch (err) {
+      console.error('Mark read error:', err);
+      setNotificationsError(err.message || 'Unable to update notification.');
+    }
+  }, []);
+
+  const handleDismissNotification = useCallback(async (notificationId) => {
+    if (!notificationId) return;
+    const token = localStorage.getItem('token');
+    if (!token) return;
+    try {
+      const res = await fetch(`${API_BASE}/api/notifications/user/${notificationId}/dismiss`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          authorization: `Bearer ${token}`,
+        },
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data?.error || 'Unable to dismiss notification');
+      }
+      setNotifications((prev) => prev.filter((item) => String(item.id) !== String(notificationId)));
+    } catch (err) {
+      console.error('Dismiss notification error:', err);
+      setNotificationsError(err.message || 'Unable to dismiss notification.');
+    }
+  }, []);
+
   // School data - using only real API data
   const schoolStats = {
     totalStudents: overview?.stats?.totalStudents || 0,
@@ -431,6 +481,8 @@ const PrincipalDashboard = () => {
                   loading={notificationsLoading}
                   error={notificationsError}
                   onRefresh={fetchNotifications}
+                  onMarkRead={handleMarkNotificationRead}
+                  onDismiss={handleDismissNotification}
                 />
               )}
             />

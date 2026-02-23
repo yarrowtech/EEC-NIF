@@ -23,9 +23,13 @@ const NotificationCenter = ({
   loading = false,
   error = '',
   onRefresh,
+  onMarkRead,
+  onDismiss,
 }) => {
   const [filter, setFilter] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
+  const [actionError, setActionError] = useState('');
+  const [pendingActions, setPendingActions] = useState({});
 
   const sortedNotifications = useMemo(() => {
     const list = Array.isArray(notifications) ? [...notifications] : [];
@@ -117,6 +121,43 @@ const NotificationCenter = ({
     }
   };
 
+  const startAction = (id, type) => {
+    setPendingActions((prev) => ({ ...prev, [id]: type }));
+    setActionError('');
+  };
+
+  const finishAction = (id) => {
+    setPendingActions((prev) => {
+      const next = { ...prev };
+      delete next[id];
+      return next;
+    });
+  };
+
+  const handleMarkReadClick = async (notificationId) => {
+    if (!notificationId || typeof onMarkRead !== 'function') return;
+    startAction(notificationId, 'read');
+    try {
+      await onMarkRead(notificationId);
+    } catch (err) {
+      setActionError(err?.message || 'Unable to update notification.');
+    } finally {
+      finishAction(notificationId);
+    }
+  };
+
+  const handleDismissClick = async (notificationId) => {
+    if (!notificationId || typeof onDismiss !== 'function') return;
+    startAction(notificationId, 'dismiss');
+    try {
+      await onDismiss(notificationId);
+    } catch (err) {
+      setActionError(err?.message || 'Unable to dismiss notification.');
+    } finally {
+      finishAction(notificationId);
+    }
+  };
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -205,6 +246,11 @@ const NotificationCenter = ({
           {error}
         </div>
       )}
+      {actionError && (
+        <div className="rounded-xl border border-red-200 bg-red-50 text-red-700 px-4 py-2 text-sm">
+          {actionError}
+        </div>
+      )}
 
       {/* Controls */}
       <div className="bg-white rounded-xl p-6 shadow-sm border border-yellow-100">
@@ -259,6 +305,9 @@ const NotificationCenter = ({
             const DeptIcon = getDepartmentIcon(notification.department || notification.category || '');
             const color = getNotificationColor(notification.type, notification.priority);
             const timestampLabel = formatRelativeTime(notification.createdAt || notification.timestamp);
+            const pendingType = pendingActions[notification.id];
+            const isReadPending = pendingType === 'read';
+            const isDismissPending = pendingType === 'dismiss';
 
             return (
               <div key={notification.id} className="p-4 sm:p-6 hover:bg-yellow-50/60 transition-colors">
@@ -302,12 +351,28 @@ const NotificationCenter = ({
                           )}
                         </div>
                       </div>
-                      <div className="flex gap-1">
-                        <button className="p-2 text-amber-600 hover:bg-yellow-100 rounded-lg" title="Archive">
-                          <Archive className="w-4 h-4" />
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => handleMarkReadClick(notification.id)}
+                          disabled={notification.read || isReadPending || !onMarkRead}
+                          className={`px-3 py-1.5 rounded-lg text-xs font-medium border ${
+                            notification.read
+                              ? 'border-gray-200 text-gray-400 bg-gray-50 cursor-default'
+                              : 'border-amber-200 text-amber-700 hover:bg-yellow-50 disabled:opacity-60'
+                          }`}
+                        >
+                          {isReadPending ? (
+                            <Loader2 className="w-3 h-3 animate-spin" />
+                          ) : (
+                            'Mark as read'
+                          )}
                         </button>
-                        <button className="p-2 text-amber-600 hover:bg-yellow-100 rounded-lg" title="More actions">
-                          <MoreVertical className="w-4 h-4" />
+                        <button
+                          onClick={() => handleDismissClick(notification.id)}
+                          disabled={isDismissPending || !onDismiss}
+                          className="px-3 py-1.5 rounded-lg text-xs font-medium border border-gray-200 text-gray-600 hover:bg-gray-50 disabled:opacity-60"
+                        >
+                          {isDismissPending ? <Loader2 className="w-3 h-3 animate-spin" /> : 'Dismiss'}
                         </button>
                       </div>
                     </div>
