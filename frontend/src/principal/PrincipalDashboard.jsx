@@ -185,6 +185,7 @@ const PrincipalDashboard = () => {
     : 0;
 
   const criticalNotifications = notifications;
+  const resolvedSchoolName = principalProfile?.schoolName || principalProfile?.campusName || 'Electronic Educare Center';
 
   // Recent activities - will be replaced with API data when available
   const recentActivities = [];
@@ -371,6 +372,7 @@ const PrincipalDashboard = () => {
       criticalNotifications={criticalNotifications}
       recentActivities={recentActivities}
       monthlyGrowth={monthlyGrowth}
+      schoolName={resolvedSchoolName}
     />
   );
 

@@ -93,14 +93,17 @@ router.get('/profile', principalAuth, async (req, res) => {
     }
 
     let schoolName = '';
+    let schoolLogo = '';
     if (principal.schoolId) {
-      const school = await School.findById(principal.schoolId).select('name').lean();
+      const school = await School.findById(principal.schoolId).select('name logo').lean();
       schoolName = school?.name || '';
+      schoolLogo = school?.logo?.secure_url || '';
     }
 
     res.json({
       ...principal,
       schoolName,
+      schoolLogo,
     });
   } catch (err) {
     res.status(400).json({ error: err.message });

@@ -44,6 +44,7 @@ const PrincipalSidebar = ({ isOpen, setIsOpen, principalProfile }) => {
     principalProfile?.schoolName || principalProfile?.campusName,
     'Electronic Educare Center'
   );
+  const schoolLogo = getDisplayValue(principalProfile?.schoolLogo, '');
 
   const menuItems = [
     { 
@@ -144,9 +145,21 @@ const PrincipalSidebar = ({ isOpen, setIsOpen, principalProfile }) => {
         {/* Header */}
       <div className="p-6 border-b border-yellow-200">
         <div className="flex items-center justify-between">
-          <div className={`flex items-center space-x-3 ${isOpen ? 'block' : 'hidden'}`}>
-            <div className="w-10 h-10 bg-gradient-to-r from-yellow-400 to-amber-500 rounded-full flex items-center justify-center shadow-lg">
-              <Shield className="w-6 h-6 text-white" />
+          <div className="flex items-center space-x-3">
+            <div
+              className={`${isOpen ? 'w-12 h-12' : 'w-10 h-10'} rounded-2xl bg-gradient-to-r from-yellow-400 to-amber-500 flex items-center justify-center shadow-lg overflow-hidden border border-white/60 relative`}
+            >
+              <div className="absolute inset-0 flex items-center justify-center">
+                <Shield className="w-6 h-6 text-white" />
+              </div>
+              {schoolLogo && (
+                <img
+                  src={schoolLogo}
+                  alt={schoolName}
+                  className="w-full h-full object-cover relative z-10"
+                  onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                />
+              )}
             </div>
             {isOpen && (
               <div>

@@ -5,7 +5,7 @@ import {
 } from 'lucide-react';
 import { Bar, Pie } from 'react-chartjs-2';
 
-const OverviewPage = ({ overview, isLoading, loadError, schoolStats, quickStats, attendanceTrend, studentPerformance, criticalNotifications, recentActivities, monthlyGrowth }) => {
+const OverviewPage = ({ overview, isLoading, loadError, schoolStats, quickStats, attendanceTrend, studentPerformance, criticalNotifications, recentActivities, monthlyGrowth, schoolName }) => {
   const getGreeting = () => {
     const hour = new Date().getHours();
     if (hour < 12) return 'Good Morning';
@@ -131,7 +131,7 @@ const OverviewPage = ({ overview, isLoading, loadError, schoolStats, quickStats,
           <div className="flex flex-col md:flex-row items-start md:items-center justify-between">
             <div>
               <h1 className="text-3xl font-bold mb-1">{getGreeting()}, Principal</h1>
-              <p className="text-black opacity-90">Comprehensive analytics for Electronic Educare Center</p>
+              <p className="text-black opacity-90">Comprehensive analytics for {schoolName || 'your institution'}</p>
             </div>
             <div className="mt-4 md:mt-0 flex items-center gap-3">
               <div className="flex items-center gap-2 bg-white/10 px-4 py-2 rounded-lg backdrop-blur-sm">
