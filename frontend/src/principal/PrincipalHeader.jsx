@@ -22,7 +22,7 @@ import {
 import { useNavigate } from 'react-router-dom';
 import { AUTH_NOTICE, logoutAndRedirect } from '../utils/authSession';
 
-const PrincipalHeader = ({ sidebarOpen, setSidebarOpen, notifications }) => {
+const PrincipalHeader = ({ sidebarOpen, setSidebarOpen, notifications, principalProfile }) => {
   const [showNotifications, setShowNotifications] = useState(false);
   const [showProfile, setShowProfile] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -52,15 +52,45 @@ const PrincipalHeader = ({ sidebarOpen, setSidebarOpen, notifications }) => {
     };
   }, []);
 
+  const [principalDetails, setPrincipalDetails] = useState({
+    name: "Principal",
+    title: "School Principal",
+    email: "",
+    avatar: "",
+    schoolName: ""
+  });
+
+  // Get principal info from token
+  useEffect(() => {
+    const token = localStorage.getItem('token');
+    if (token) {
+      try {
+        const base64Url = token.split('.')[1];
+        const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+        const payload = JSON.parse(atob(base64));
+        setPrincipalDetails((prev) => ({
+          ...prev,
+          name: payload.name || prev.name,
+          email: payload.email || prev.email,
+        }));
+      } catch (err) {
+        console.error('Error decoding token:', err);
+      }
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!principalProfile) return;
+    setPrincipalDetails((prev) => ({
+      ...prev,
+      name: principalProfile.name || prev.name,
+      email: principalProfile.email || prev.email,
+      schoolName: principalProfile.schoolName || principalProfile.campusName || prev.schoolName
+    }));
+  }, [principalProfile]);
+
   const urgentNotifications = notifications.filter(n => n.priority === 'high');
   const totalNotifications = notifications.length;
-
-  const principalInfo = {
-    name: "Dr. Sarah Johnson",
-    title: "School Principal",
-    email: "principal@eec.edu",
-    avatar: "https://images.unsplash.com/photo-1494790108755-2616b612b786?w=150&h=150&fit=crop&crop=face"
-  };
 
   const handleLogout = () => {
     logoutAndRedirect({ navigate, notice: AUTH_NOTICE.LOGGED_OUT });
@@ -306,7 +336,7 @@ const PrincipalHeader = ({ sidebarOpen, setSidebarOpen, notifications }) => {
               aria-label="Profile menu"
             >
               <img
-                src={principalInfo.avatar}
+                src={principalDetails.avatar}
                 alt="Principal"
                 className="w-8 h-8 rounded-full border-2 border-gray-100 object-cover"
                 onError={(e) => {
@@ -314,8 +344,10 @@ const PrincipalHeader = ({ sidebarOpen, setSidebarOpen, notifications }) => {
                 }}
               />
               <div className="hidden md:block text-left">
-                <p className="text-sm font-medium text-gray-900 truncate max-w-[120px]">{principalInfo.name}</p>
-                <p className="text-xs text-gray-500 truncate max-w-[120px]">{principalInfo.title}</p>
+                <p className="text-sm font-medium text-gray-900 truncate max-w-[120px]">{principalDetails.name}</p>
+                <p className="text-xs text-gray-500 truncate max-w-[120px]">
+                  {principalDetails.schoolName || principalDetails.title}
+                </p>
               </div>
               <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform ${showProfile ? 'transform rotate-180' : ''}`} />
             </button>
@@ -326,7 +358,7 @@ const PrincipalHeader = ({ sidebarOpen, setSidebarOpen, notifications }) => {
                 <div className="p-4 border-b border-gray-100 bg-gray-50">
                   <div className="flex items-center gap-3">
                     <img
-                      src={principalInfo.avatar}
+                      src={principalDetails.avatar}
                       alt="Principal"
                       className="w-10 h-10 rounded-full border-2 border-white shadow-sm"
                       onError={(e) => {
@@ -334,9 +366,11 @@ const PrincipalHeader = ({ sidebarOpen, setSidebarOpen, notifications }) => {
                       }}
                     />
                     <div>
-                      <p className="font-medium text-gray-900">{principalInfo.name}</p>
-                      <p className="text-sm text-gray-500">{principalInfo.title}</p>
-                      <p className="text-xs text-gray-400 truncate">{principalInfo.email}</p>
+                      <p className="font-medium text-gray-900">{principalDetails.name}</p>
+                      <p className="text-sm text-gray-500">
+                        {principalDetails.schoolName || principalDetails.title}
+                      </p>
+                      <p className="text-xs text-gray-400 truncate">{principalDetails.email}</p>
                     </div>
                   </div>
                 </div>

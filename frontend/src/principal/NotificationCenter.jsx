@@ -1,8 +1,8 @@
-import React, { useState } from 'react';
-import { 
-  Bell, 
-  AlertTriangle, 
-  Info, 
+import React, { useMemo, useState } from 'react';
+import {
+  Bell,
+  AlertTriangle,
+  Info,
   CheckCircle,
   Clock,
   Filter,
@@ -13,84 +13,35 @@ import {
   User,
   Calendar,
   FileText,
-  DollarSign
+  DollarSign,
+  RefreshCw,
+  Loader2
 } from 'lucide-react';
 
-const NotificationCenter = ({ notifications = [] }) => {
+const NotificationCenter = ({
+  notifications = [],
+  loading = false,
+  error = '',
+  onRefresh,
+}) => {
   const [filter, setFilter] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
 
-  // Extended notifications for demonstration
-  const allNotifications = [
-    ...notifications,
-    {
-      id: 5,
-      type: 'info',
-      title: 'New Student Enrollment',
-      message: '15 new students enrolled for the upcoming semester',
-      timestamp: '4 hours ago',
-      priority: 'low',
-      department: 'Admission',
-      read: false
-    },
-    {
-      id: 6,
-      type: 'success',
-      title: 'Infrastructure Upgrade Complete',
-      message: 'Science lab renovation completed successfully',
-      timestamp: '6 hours ago',
-      priority: 'medium',
-      department: 'Facility',
-      read: true
-    },
-    {
-      id: 7,
-      type: 'warning',
-      title: 'Maintenance Schedule',
-      message: 'Library maintenance scheduled for this weekend',
-      timestamp: '8 hours ago',
-      priority: 'medium',
-      department: 'Maintenance',
-      read: false
-    },
-    {
-      id: 8,
-      type: 'urgent',
-      title: 'Parent Complaint',
-      message: 'Urgent complaint regarding cafeteria food quality',
-      timestamp: '12 hours ago',
-      priority: 'high',
-      department: 'Administration',
-      read: false
-    },
-    {
-      id: 9,
-      type: 'academic',
-      title: 'Teacher Conference Request',
-      message: 'Ms. Johnson requests conference about curriculum changes',
-      timestamp: '1 day ago',
-      priority: 'medium',
-      department: 'Academic',
-      read: true
-    },
-    {
-      id: 10,
-      type: 'financial',
-      title: 'Monthly Budget Report',
-      message: 'February budget report is now available for review',
-      timestamp: '1 day ago',
-      priority: 'low',
-      department: 'Finance',
-      read: true
-    }
-  ];
+  const sortedNotifications = useMemo(() => {
+    const list = Array.isArray(notifications) ? [...notifications] : [];
+    return list.sort((a, b) => {
+      const aTime = new Date(a.createdAt || a.timestamp || 0).getTime();
+      const bTime = new Date(b.createdAt || b.timestamp || 0).getTime();
+      return bTime - aTime;
+    });
+  }, [notifications]);
 
-  const priorityStats = {
-    high: allNotifications.filter(n => n.priority === 'high').length,
-    medium: allNotifications.filter(n => n.priority === 'medium').length,
-    low: allNotifications.filter(n => n.priority === 'low').length,
-    unread: allNotifications.filter(n => !n.read).length
-  };
+  const priorityStats = useMemo(() => ({
+    high: sortedNotifications.filter(n => (n.priority || '').toLowerCase() === 'high').length,
+    medium: sortedNotifications.filter(n => (n.priority || '').toLowerCase() === 'medium').length,
+    low: sortedNotifications.filter(n => (n.priority || '').toLowerCase() === 'low').length,
+    unread: sortedNotifications.filter(n => !n.read).length,
+  }), [sortedNotifications]);
 
   const getNotificationIcon = (type) => {
     switch (type) {
@@ -107,36 +58,64 @@ const NotificationCenter = ({ notifications = [] }) => {
   };
 
   const getNotificationColor = (type, priority) => {
-    if (priority === 'high') return 'red';
+    if ((priority || '').toLowerCase() === 'high') return 'red';
     switch (type) {
-      case 'urgent': return 'red';
-      case 'warning': return 'yellow';
-      case 'success': return 'green';
-      case 'financial': return 'emerald';
-      case 'academic': return 'blue';
-      case 'staff': return 'purple';
-      default: return 'gray';
+      case 'urgent':
+      case 'warning':
+        return 'yellow';
+      case 'success':
+        return 'green';
+      case 'financial':
+        return 'emerald';
+      case 'academic':
+        return 'blue';
+      case 'staff':
+        return 'purple';
+      default:
+        return 'gray';
     }
   };
 
-  const getDepartmentIcon = (department) => {
+  const getDepartmentIcon = (department = '') => {
     switch (department.toLowerCase()) {
       case 'academic': return FileText;
       case 'finance': return DollarSign;
       case 'hr': return User;
+      case 'events': return Calendar;
       case 'safety': return AlertTriangle;
-      case 'administration': return User;
       default: return Bell;
     }
   };
 
-  const filteredNotifications = allNotifications.filter(notification => {
-    if (filter !== 'all' && notification.priority !== filter && filter !== 'unread') return false;
+  const formatRelativeTime = (timestamp) => {
+    if (!timestamp) return '';
+    const date = new Date(timestamp);
+    if (Number.isNaN(date.getTime())) return '';
+    const diffMs = Date.now() - date.getTime();
+    if (diffMs < 60_000) return 'Just now';
+    if (diffMs < 3_600_000) return `${Math.floor(diffMs / 60_000)}m ago`;
+    if (diffMs < 86_400_000) return `${Math.floor(diffMs / 3_600_000)}h ago`;
+    return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+  };
+
+  const filteredNotifications = useMemo(() => sortedNotifications.filter((notification) => {
+    const priority = (notification.priority || '').toLowerCase();
+    if (filter !== 'all' && filter !== 'unread' && priority !== filter) return false;
     if (filter === 'unread' && notification.read) return false;
-    if (searchQuery && !notification.title.toLowerCase().includes(searchQuery.toLowerCase()) &&
-        !notification.message.toLowerCase().includes(searchQuery.toLowerCase())) return false;
+    if (searchQuery) {
+      const q = searchQuery.toLowerCase();
+      const titleMatch = (notification.title || '').toLowerCase().includes(q);
+      const messageMatch = (notification.message || '').toLowerCase().includes(q);
+      if (!titleMatch && !messageMatch) return false;
+    }
     return true;
-  });
+  }), [sortedNotifications, filter, searchQuery]);
+
+  const handleRefresh = () => {
+    if (typeof onRefresh === 'function') {
+      onRefresh();
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -147,7 +126,7 @@ const NotificationCenter = ({ notifications = [] }) => {
             <h1 className="text-3xl font-bold mb-2">Notification Center</h1>
             <p className="text-yellow-100">Manage all school notifications and alerts</p>
           </div>
-          <div className="text-right">
+          <div className="text-right space-y-2">
             <div className="grid grid-cols-2 gap-4">
               <div className="bg-white/20 rounded-lg p-3">
                 <div className="text-2xl font-bold">{priorityStats.unread}</div>
@@ -158,6 +137,14 @@ const NotificationCenter = ({ notifications = [] }) => {
                 <div className="text-xs text-yellow-100">Urgent</div>
               </div>
             </div>
+            <button
+              onClick={handleRefresh}
+              disabled={loading}
+              className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium rounded-lg border border-white/40 text-white hover:bg-white/10 disabled:opacity-70"
+            >
+              <RefreshCw className={`w-3 h-3 ${loading ? 'animate-spin' : ''}`} />
+              Refresh
+            </button>
           </div>
         </div>
       </div>
@@ -167,7 +154,7 @@ const NotificationCenter = ({ notifications = [] }) => {
         <div className="bg-white rounded-xl p-6 shadow-sm border border-yellow-100">
           <div className="flex items-center justify-between">
             <div>
-              <div className="text-2xl font-bold text-amber-900">{allNotifications.length}</div>
+              <div className="text-2xl font-bold text-amber-900">{sortedNotifications.length}</div>
               <div className="text-sm text-amber-600">Total Notifications</div>
             </div>
             <div className="p-3 bg-yellow-100 rounded-lg">
@@ -200,162 +187,142 @@ const NotificationCenter = ({ notifications = [] }) => {
           </div>
         </div>
 
-        <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
+        <div className="bg-white rounded-xl p-6 shadow-sm border border-yellow-100">
           <div className="flex items-center justify-between">
             <div>
-              <div className="text-2xl font-bold text-gray-600">{priorityStats.unread}</div>
-              <div className="text-sm text-gray-500">Unread</div>
+              <div className="text-2xl font-bold text-green-600">{priorityStats.low}</div>
+              <div className="text-sm text-amber-600">Low Priority</div>
             </div>
-            <div className="p-3 bg-gray-100 rounded-lg">
-              <Clock className="w-6 h-6 text-gray-600" />
+            <div className="p-3 bg-green-100 rounded-lg">
+              <CheckCircle className="w-6 h-6 text-green-600" />
             </div>
           </div>
         </div>
       </div>
 
-      {/* Filters and Search */}
-      <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
-        <div className="flex flex-wrap items-center gap-4">
-          <div className="flex items-center gap-2">
-            <Search className="w-5 h-5 text-gray-400" />
+      {error && (
+        <div className="rounded-xl border border-red-200 bg-red-50 text-red-700 px-4 py-3 text-sm">
+          {error}
+        </div>
+      )}
+
+      {/* Controls */}
+      <div className="bg-white rounded-xl p-6 shadow-sm border border-yellow-100">
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => setFilter('all')}
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg border ${filter === 'all' ? 'bg-yellow-100 text-amber-800 border-yellow-300' : 'border-gray-200 text-gray-600 hover:bg-gray-50'}`}
+            >
+              <Filter className="w-4 h-4" />
+              All
+            </button>
+            <button
+              onClick={() => setFilter('high')}
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg border ${filter === 'high' ? 'bg-red-100 text-red-700 border-red-300' : 'border-gray-200 text-gray-600 hover:bg-gray-50'}`}
+            >
+              <AlertTriangle className="w-4 h-4" />
+              High
+            </button>
+            <button
+              onClick={() => setFilter('unread')}
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg border ${filter === 'unread' ? 'bg-purple-100 text-purple-700 border-purple-300' : 'border-gray-200 text-gray-600 hover:bg-gray-50'}`}
+            >
+              <Bell className="w-4 h-4" />
+              Unread
+            </button>
+          </div>
+          <div className="relative w-full md:w-80">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4" />
             <input
-              type="text"
+              className="w-full pl-9 pr-4 py-2 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-amber-400"
+              placeholder="Search notifications"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search notifications..."
-              className="border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             />
-          </div>
-          
-          <div className="flex items-center gap-2">
-            <Filter className="w-5 h-5 text-gray-400" />
-            <select 
-              value={filter}
-              onChange={(e) => setFilter(e.target.value)}
-              className="border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            >
-              <option value="all">All Notifications</option>
-              <option value="high">High Priority</option>
-              <option value="medium">Medium Priority</option>
-              <option value="low">Low Priority</option>
-              <option value="unread">Unread Only</option>
-            </select>
-          </div>
-
-          <div className="ml-auto flex items-center gap-2">
-            <button className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
-              Mark All Read
-            </button>
-            <button className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors">
-              Archive All
-            </button>
           </div>
         </div>
       </div>
 
       {/* Notifications List */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-100">
-        <div className="divide-y divide-gray-100">
-          {filteredNotifications.length > 0 ? (
-            filteredNotifications.map((notification) => {
-              const Icon = getNotificationIcon(notification.type);
-              const DeptIcon = getDepartmentIcon(notification.department);
-              const color = getNotificationColor(notification.type, notification.priority);
-              
-              return (
-                <div 
-                  key={notification.id} 
-                  className={`p-6 hover:bg-gray-50 transition-colors ${!notification.read ? 'bg-blue-50/30' : ''}`}
-                >
-                  <div className="flex items-start gap-4">
-                    <div className={`p-3 rounded-lg flex-shrink-0 ${
-                      color === 'red' ? 'bg-red-100' :
-                      color === 'yellow' ? 'bg-yellow-100' :
-                      color === 'green' ? 'bg-green-100' :
-                      color === 'emerald' ? 'bg-emerald-100' :
-                      color === 'blue' ? 'bg-blue-100' :
-                      color === 'purple' ? 'bg-purple-100' :
-                      'bg-gray-100'
-                    }`}>
-                      <Icon className={`w-5 h-5 ${
-                        color === 'red' ? 'text-red-600' :
-                        color === 'yellow' ? 'text-yellow-600' :
-                        color === 'green' ? 'text-green-600' :
-                        color === 'emerald' ? 'text-emerald-600' :
-                        color === 'blue' ? 'text-blue-600' :
-                        color === 'purple' ? 'text-purple-600' :
-                        'text-gray-600'
-                      }`} />
-                    </div>
-                    
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-start justify-between mb-2">
-                        <div>
-                          <h4 className={`font-semibold ${!notification.read ? 'text-gray-900' : 'text-gray-700'}`}>
-                            {notification.title}
-                            {!notification.read && (
-                              <span className="ml-2 w-2 h-2 bg-blue-500 rounded-full inline-block"></span>
-                            )}
-                          </h4>
-                          <p className="text-gray-600 mt-1 line-clamp-2">{notification.message}</p>
+      <div className="bg-white rounded-2xl shadow-sm border border-yellow-100 overflow-hidden">
+        <div className="divide-y divide-yellow-50">
+          {loading && (
+            <div className="p-8 text-center text-amber-700 flex items-center justify-center gap-2">
+              <Loader2 className="w-4 h-4 animate-spin" />
+              Loading notifications...
+            </div>
+          )}
+
+          {!loading && filteredNotifications.map((notification) => {
+            const Icon = getNotificationIcon(notification.type);
+            const DeptIcon = getDepartmentIcon(notification.department || notification.category || '');
+            const color = getNotificationColor(notification.type, notification.priority);
+            const timestampLabel = formatRelativeTime(notification.createdAt || notification.timestamp);
+
+            return (
+              <div key={notification.id} className="p-4 sm:p-6 hover:bg-yellow-50/60 transition-colors">
+                <div className="flex items-start gap-4">
+                  <div className={`p-3 rounded-2xl bg-${color}-100 text-${color}-700`}>
+                    <Icon className="w-5 h-5" />
+                  </div>
+                  <div className="flex-1">
+                    <div className="flex items-start justify-between gap-4">
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs font-semibold uppercase tracking-wide text-amber-500">{notification.type || 'GENERAL'}</span>
+                          {notification.priority && (
+                            <span className={`text-xs font-semibold text-${color}-600`}>
+                              {notification.priority}
+                            </span>
+                          )}
                         </div>
-                        
-                        <div className="flex items-center gap-2 ml-4">
-                          <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                            notification.priority === 'high' ? 'bg-red-100 text-red-700' :
-                            notification.priority === 'medium' ? 'bg-yellow-100 text-yellow-700' :
-                            'bg-green-100 text-green-700'
-                          }`}>
-                            {notification.priority}
+                        <h3 className="text-lg font-semibold text-amber-900 mt-1">
+                          {notification.title}
+                        </h3>
+                        <p className="text-sm text-amber-700 mt-1">
+                          {notification.message}
+                        </p>
+                        <div className="flex flex-wrap items-center gap-2 mt-3 text-xs text-amber-600">
+                          <span className="flex items-center gap-1">
+                            <Clock className="w-3 h-3" />
+                            {timestampLabel || 'Recently'}
                           </span>
-                          <button className="p-1 hover:bg-gray-200 rounded transition-colors">
-                            <MoreVertical className="w-4 h-4 text-gray-400" />
-                          </button>
+                          {notification.department && (
+                            <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-${color}-50 text-${color}-700`}>
+                              <DeptIcon className="w-3 h-3" />
+                              {notification.department}
+                            </span>
+                          )}
+                          {notification.audience && (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-50 text-amber-700">
+                              <User className="w-3 h-3" />
+                              {notification.audience}
+                            </span>
+                          )}
                         </div>
                       </div>
-                      
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-4 text-sm text-gray-500">
-                          <div className="flex items-center gap-1">
-                            <Clock className="w-4 h-4" />
-                            {notification.timestamp}
-                          </div>
-                          <div className="flex items-center gap-1">
-                            <DeptIcon className="w-4 h-4" />
-                            {notification.department}
-                          </div>
-                        </div>
-                        
-                        <div className="flex items-center gap-2">
-                          <button className="p-2 hover:bg-gray-200 rounded-lg transition-colors" title="Archive">
-                            <Archive className="w-4 h-4 text-gray-400" />
-                          </button>
-                          <button className="p-2 hover:bg-gray-200 rounded-lg transition-colors" title="Flag">
-                            <Flag className="w-4 h-4 text-gray-400" />
-                          </button>
-                        </div>
+                      <div className="flex gap-1">
+                        <button className="p-2 text-amber-600 hover:bg-yellow-100 rounded-lg" title="Archive">
+                          <Archive className="w-4 h-4" />
+                        </button>
+                        <button className="p-2 text-amber-600 hover:bg-yellow-100 rounded-lg" title="More actions">
+                          <MoreVertical className="w-4 h-4" />
+                        </button>
                       </div>
                     </div>
                   </div>
                 </div>
-              );
-            })
-          ) : (
-            <div className="p-12 text-center">
-              <Bell className="w-12 h-12 text-gray-300 mx-auto mb-4" />
-              <h3 className="text-lg font-medium text-gray-900 mb-2">No notifications found</h3>
-              <p className="text-gray-500">Try adjusting your search or filter criteria.</p>
+              </div>
+            );
+          })}
+
+          {!loading && filteredNotifications.length === 0 && (
+            <div className="p-8 text-center text-amber-700">
+              No notifications match the current filters.
             </div>
           )}
         </div>
-        
-        {filteredNotifications.length > 10 && (
-          <div className="p-6 bg-gray-50 text-center">
-            <button className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
-              Load More Notifications
-            </button>
-          </div>
-        )}
       </div>
     </div>
   );

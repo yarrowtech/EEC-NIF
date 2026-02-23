@@ -22,7 +22,8 @@ import {
   Calendar,
   User,
   Award,
-  Hash
+  Hash,
+  Crown
 } from 'lucide-react';
 import CredentialGeneratorButton from './components/CredentialGeneratorButton';
 
@@ -93,6 +94,8 @@ const Teachers = ({setShowAdminHeader}) => {
   const [copiedField, setCopiedField] = useState(null);
   const [viewTeacher, setViewTeacher] = useState(null);
   const [scheduleModal, setScheduleModal] = useState(null);
+  const [principalLoadingId, setPrincipalLoadingId] = useState(null);
+  const [principalCredentialView, setPrincipalCredentialView] = useState(null);
 
   // Pagination states
   const [currentPage, setCurrentPage] = useState(1);
@@ -393,6 +396,40 @@ const Teachers = ({setShowAdminHeader}) => {
     }
   };
 
+  const handleMakePrincipal = async (teacher) => {
+    const teacherId = teacher?._id || teacher?.id;
+    if (!teacherId) return;
+    const confirmPromotion = window.confirm(
+      `This will create a Principal account for ${teacher.name || 'the teacher'}. Continue?`
+    );
+    if (!confirmPromotion) return;
+    setPrincipalLoadingId(teacherId);
+    try {
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/admin/users/teachers/${teacherId}/make-principal`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'authorization': `Bearer ${localStorage.getItem('token')}`
+        }
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data?.error || 'Unable to create principal account');
+      }
+      setPrincipalCredentialView({
+        name: data.teacherName || teacher.name,
+        username: data.username,
+        email: data.email,
+        password: data.password
+      });
+      setSubmitStatus({ type: 'success', message: `Principal account created for ${teacher.name || 'teacher'}` });
+    } catch (error) {
+      setSubmitStatus({ type: 'error', message: error.message || 'Unable to create principal account' });
+    } finally {
+      setPrincipalLoadingId(null);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50/20 to-indigo-50/30">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -623,6 +660,14 @@ const Teachers = ({setShowAdminHeader}) => {
                             onClick={() => setViewTeacher(teacher)}
                           >
                             <Eye size={15} />
+                          </button>
+                          <button
+                            className="p-1.5 rounded-lg text-slate-400 hover:text-purple-600 hover:bg-purple-50 transition-all disabled:opacity-40"
+                            title="Make Principal"
+                            onClick={() => handleMakePrincipal(teacher)}
+                            disabled={principalLoadingId === (teacher._id || teacher.id)}
+                          >
+                            <Crown size={15} />
                           </button>
                           {/* <button
                             className="p-1.5 rounded-lg text-slate-400 hover:text-teal-600 hover:bg-teal-50 transition-all"
@@ -1163,6 +1208,104 @@ const Teachers = ({setShowAdminHeader}) => {
             <div className="border-t border-gray-100 px-6 py-4 flex justify-end bg-gray-50/50">
               <button
                 onClick={() => setCredentialView(null)}
+                className="px-4 py-2 rounded-xl border border-gray-200 text-gray-700 hover:bg-gray-100 transition-colors text-sm font-medium"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Principal Credentials Modal */}
+      {principalCredentialView && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
+            {/* Gradient Header */}
+            <div className="bg-gradient-to-r from-purple-600 to-pink-600 px-6 py-5">
+              <div className="flex items-start justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center">
+                    <Crown size={20} className="text-white" />
+                  </div>
+                  <div>
+                    <h2 className="text-base font-bold text-white">Principal Login Credentials</h2>
+                    <p className="text-purple-200 text-xs mt-0.5">Share these securely with the principal</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setPrincipalCredentialView(null)}
+                  className="w-8 h-8 flex items-center justify-center rounded-lg bg-white/10 text-white hover:bg-white/20 transition-all"
+                >
+                  <XCircle size={18} />
+                </button>
+              </div>
+            </div>
+
+            <div className="p-6 space-y-4">
+              {/* Principal identity */}
+              <div className="flex items-center gap-3 p-3 bg-purple-50 rounded-xl">
+                <div className={`w-9 h-9 rounded-xl flex items-center justify-center text-sm font-bold flex-shrink-0 ${getAvatarColor(principalCredentialView.name).bg} ${getAvatarColor(principalCredentialView.name).text}`}>
+                  {(principalCredentialView.name || 'P').split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()}
+                </div>
+                <div>
+                  <p className="text-xs text-purple-500 font-medium">Principal</p>
+                  <p className="text-sm font-semibold text-purple-900">{principalCredentialView.name || 'Principal'}</p>
+                </div>
+              </div>
+
+              <div className="space-y-3">
+                {/* Login ID / Email */}
+                <div>
+                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Login ID (Email)</p>
+                  <div className="flex items-center justify-between rounded-xl border border-gray-200 bg-gray-50 px-4 py-3">
+                    <code className="text-sm font-mono text-gray-800">
+                      {principalCredentialView.username || principalCredentialView.email}
+                    </code>
+                    <button
+                      onClick={() => copyCredential(principalCredentialView.username || principalCredentialView.email, 'principal_id')}
+                      className={`flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-lg transition-all font-medium ${
+                        copiedField === 'principal_id'
+                          ? 'bg-emerald-100 text-emerald-700'
+                          : 'bg-gray-200 hover:bg-purple-100 hover:text-purple-700 text-gray-600'
+                      }`}
+                    >
+                      {copiedField === 'principal_id' ? <Check size={12} /> : <Copy size={12} />}
+                      {copiedField === 'principal_id' ? 'Copied' : 'Copy'}
+                    </button>
+                  </div>
+                </div>
+
+                {/* Password */}
+                <div>
+                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Password</p>
+                  <div className="flex items-center justify-between rounded-xl border border-gray-200 bg-gray-50 px-4 py-3">
+                    <code className="text-sm font-mono text-gray-800">{principalCredentialView.password}</code>
+                    <button
+                      onClick={() => copyCredential(principalCredentialView.password, 'principal_pass')}
+                      className={`flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-lg transition-all font-medium ${
+                        copiedField === 'principal_pass'
+                          ? 'bg-emerald-100 text-emerald-700'
+                          : 'bg-gray-200 hover:bg-purple-100 hover:text-purple-700 text-gray-600'
+                      }`}
+                    >
+                      {copiedField === 'principal_pass' ? <Check size={12} /> : <Copy size={12} />}
+                      {copiedField === 'principal_pass' ? 'Copied' : 'Copy'}
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-amber-50 border border-amber-200 rounded-xl px-3 py-2.5">
+                <p className="text-xs text-amber-800">
+                  <span className="font-semibold">Important:</span> Principal account created successfully. Please ask them to change their password after first login.
+                </p>
+              </div>
+            </div>
+
+            <div className="border-t border-gray-100 px-6 py-4 flex justify-end bg-gray-50/50">
+              <button
+                onClick={() => setPrincipalCredentialView(null)}
                 className="px-4 py-2 rounded-xl border border-gray-200 text-gray-700 hover:bg-gray-100 transition-colors text-sm font-medium"
               >
                 Close

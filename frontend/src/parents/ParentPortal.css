@@ -1,0 +1,232 @@
+.parent-shell {
+  --parent-bg: #f8fafc;
+  --parent-surface: #ffffff;
+  --parent-muted: #f1f5f9;
+  --parent-text: #000000;
+  --parent-text-muted: #000000;
+  --parent-border: #e2e8f0;
+  color: var(--parent-text);
+  background-color: var(--parent-bg);
+}
+
+.parent-shell.parent-dark {
+  --parent-bg: #020617;
+  --parent-surface: #0f172a;
+  --parent-muted: #111827;
+  --parent-text: #ffffff;
+  --parent-text-muted: #ffffff;
+  --parent-border: #1f2937;
+  color: var(--parent-text);
+  background-color: var(--parent-bg);
+}
+
+.parent-shell.parent-light,
+.parent-shell.parent-light * {
+  color: #000000 !important;
+}
+
+.parent-shell.parent-dark,
+.parent-shell.parent-dark * {
+  color: #ffffff !important;
+}
+
+.parent-shell .parent-content {
+  background-color: var(--parent-bg);
+}
+
+.parent-shell.parent-dark .bg-white,
+.parent-shell.parent-dark .bg-white\/90,
+.parent-shell.parent-dark .bg-white\/80,
+.parent-shell.parent-dark .bg-white\/70,
+.parent-shell.parent-dark .bg-gray-50,
+.parent-shell.parent-dark .bg-gray-100,
+.parent-shell.parent-dark .bg-gray-200,
+.parent-shell.parent-dark .bg-gray-300 {
+  background-color: var(--parent-surface) !important;
+  color: var(--parent-text) !important;
+}
+
+.parent-shell.parent-dark .bg-gray-50,
+.parent-shell.parent-dark .bg-gray-100 {
+  background-color: var(--parent-muted) !important;
+}
+
+.parent-shell.parent-dark .bg-amber-50,
+.parent-shell.parent-dark .bg-amber-100,
+.parent-shell.parent-dark [class*="bg-amber-50/"],
+.parent-shell.parent-dark [class*="bg-amber-100/"] {
+  background-color: rgba(245, 158, 11, 0.18) !important;
+  color: var(--parent-text) !important;
+}
+.parent-shell.parent-dark .bg-blue-50,
+.parent-shell.parent-dark .bg-blue-100,
+.parent-shell.parent-dark [class*="bg-blue-50/"],
+.parent-shell.parent-dark [class*="bg-blue-100/"] {
+  background-color: rgba(59, 130, 246, 0.18) !important;
+  color: var(--parent-text) !important;
+}
+.parent-shell.parent-dark .bg-emerald-50,
+.parent-shell.parent-dark .bg-emerald-100,
+.parent-shell.parent-dark [class*="bg-emerald-50/"],
+.parent-shell.parent-dark [class*="bg-emerald-100/"] {
+  background-color: rgba(16, 185, 129, 0.2) !important;
+  color: var(--parent-text) !important;
+}
+.parent-shell.parent-dark .bg-green-50,
+.parent-shell.parent-dark .bg-green-100,
+.parent-shell.parent-dark [class*="bg-green-50/"],
+.parent-shell.parent-dark [class*="bg-green-100/"] {
+  background-color: rgba(34, 197, 94, 0.18) !important;
+  color: var(--parent-text) !important;
+}
+.parent-shell.parent-dark .bg-indigo-50,
+.parent-shell.parent-dark .bg-indigo-100,
+.parent-shell.parent-dark [class*="bg-indigo-50/"],
+.parent-shell.parent-dark [class*="bg-indigo-100/"] {
+  background-color: rgba(99, 102, 241, 0.18) !important;
+  color: var(--parent-text) !important;
+}
+.parent-shell.parent-dark .bg-orange-50,
+.parent-shell.parent-dark .bg-orange-100,
+.parent-shell.parent-dark [class*="bg-orange-50/"],
+.parent-shell.parent-dark [class*="bg-orange-100/"] {
+  background-color: rgba(249, 115, 22, 0.2) !important;
+  color: var(--parent-text) !important;
+}
+.parent-shell.parent-dark .bg-pink-50,
+.parent-shell.parent-dark .bg-pink-100,
+.parent-shell.parent-dark [class*="bg-pink-50/"],
+.parent-shell.parent-dark [class*="bg-pink-100/"] {
+  background-color: rgba(236, 72, 153, 0.18) !important;
+  color: var(--parent-text) !important;
+}
+.parent-shell.parent-dark .bg-purple-50,
+.parent-shell.parent-dark .bg-purple-100,
+.parent-shell.parent-dark .bg-violet-50,
+.parent-shell.parent-dark .bg-violet-100,
+.parent-shell.parent-dark [class*="bg-purple-50/"],
+.parent-shell.parent-dark [class*="bg-purple-100/"],
+.parent-shell.parent-dark [class*="bg-violet-50/"],
+.parent-shell.parent-dark [class*="bg-violet-100/"] {
+  background-color: rgba(168, 85, 247, 0.2) !important;
+  color: var(--parent-text) !important;
+}
+.parent-shell.parent-dark .bg-red-50,
+.parent-shell.parent-dark .bg-red-100,
+.parent-shell.parent-dark .bg-rose-50,
+.parent-shell.parent-dark .bg-rose-100,
+.parent-shell.parent-dark [class*="bg-red-50/"],
+.parent-shell.parent-dark [class*="bg-red-100/"],
+.parent-shell.parent-dark [class*="bg-rose-50/"],
+.parent-shell.parent-dark [class*="bg-rose-100/"] {
+  background-color: rgba(239, 68, 68, 0.18) !important;
+  color: var(--parent-text) !important;
+}
+.parent-shell.parent-dark .bg-slate-50,
+.parent-shell.parent-dark .bg-slate-100,
+.parent-shell.parent-dark [class*="bg-slate-50/"],
+.parent-shell.parent-dark [class*="bg-slate-100/"] {
+  background-color: rgba(148, 163, 184, 0.2) !important;
+  color: var(--parent-text) !important;
+}
+.parent-shell.parent-dark .bg-teal-50,
+.parent-shell.parent-dark .bg-teal-100,
+.parent-shell.parent-dark [class*="bg-teal-50/"],
+.parent-shell.parent-dark [class*="bg-teal-100/"] {
+  background-color: rgba(20, 184, 166, 0.18) !important;
+  color: var(--parent-text) !important;
+}
+.parent-shell.parent-dark .bg-yellow-50,
+.parent-shell.parent-dark .bg-yellow-100,
+.parent-shell.parent-dark [class*="bg-yellow-50/"],
+.parent-shell.parent-dark [class*="bg-yellow-100/"] {
+  background-color: rgba(250, 204, 21, 0.22) !important;
+  color: var(--parent-text) !important;
+}
+
+.parent-shell.parent-dark .text-gray-900,
+.parent-shell.parent-dark .text-gray-800,
+.parent-shell.parent-dark .text-gray-700 {
+  color: var(--parent-text) !important;
+}
+
+.parent-shell.parent-dark .text-gray-600,
+.parent-shell.parent-dark .text-gray-500,
+.parent-shell.parent-dark .text-gray-400 {
+  color: var(--parent-text-muted) !important;
+}
+
+.parent-shell.parent-dark .text-slate-900,
+.parent-shell.parent-dark .text-slate-800,
+.parent-shell.parent-dark .text-slate-700 {
+  color: var(--parent-text) !important;
+}
+
+.parent-shell.parent-dark .text-slate-600,
+.parent-shell.parent-dark .text-slate-500,
+.parent-shell.parent-dark .text-slate-400 {
+  color: var(--parent-text-muted) !important;
+}
+
+.parent-shell.parent-dark .text-blue-600,
+.parent-shell.parent-dark .text-blue-700,
+.parent-shell.parent-dark .text-blue-800 {
+  color: #93c5fd !important;
+}
+
+.parent-shell.parent-dark .text-green-600,
+.parent-shell.parent-dark .text-green-700,
+.parent-shell.parent-dark .text-green-800 {
+  color: #86efac !important;
+}
+
+.parent-shell.parent-dark .text-red-600,
+.parent-shell.parent-dark .text-red-700,
+.parent-shell.parent-dark .text-red-800 {
+  color: #fca5a5 !important;
+}
+
+.parent-shell.parent-dark .text-yellow-100,
+.parent-shell.parent-dark .text-yellow-200 {
+  color: #fde68a !important;
+}
+
+.parent-shell.parent-dark .border-gray-100,
+.parent-shell.parent-dark .border-gray-200,
+.parent-shell.parent-dark .border-gray-300 {
+  border-color: var(--parent-border) !important;
+}
+
+.parent-shell.parent-dark input,
+.parent-shell.parent-dark select,
+.parent-shell.parent-dark textarea {
+  background-color: var(--parent-surface) !important;
+  color: var(--parent-text) !important;
+  border-color: var(--parent-border) !important;
+}
+
+.parent-shell.parent-dark input::placeholder,
+.parent-shell.parent-dark textarea::placeholder {
+  color: var(--parent-text-muted) !important;
+}
+
+.parent-shell.parent-dark table,
+.parent-shell.parent-dark th,
+.parent-shell.parent-dark td {
+  color: var(--parent-text) !important;
+  border-color: var(--parent-border) !important;
+}
+
+.parent-shell.parent-dark .shadow-md,
+.parent-shell.parent-dark .shadow-lg,
+.parent-shell.parent-dark .shadow-sm {
+  box-shadow: 0 10px 25px rgba(15, 23, 42, 0.45) !important;
+}
+
+.parent-shell.parent-dark .text-white {
+  color: #f8fafc !important;
+}
+
+.parent-shell.parent-dark .text-black {
+  color: var(--parent-text) !important;
+}

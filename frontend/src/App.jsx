@@ -141,7 +141,7 @@ function App() {
           element={withAuth([ROLES.SCHOOL_ADMIN], <ArchivedStudents />)}
         />
         <Route
-          path="/principal"
+          path="/principal/*"
           element={withAuth([ROLES.PRINCIPAL], <PrincipalDashboard />)}
         />
         <Route

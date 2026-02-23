@@ -1,5 +1,5 @@
-import React from 'react';
-import { Users, UserCheck, UserPlus, Award } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
+import { Users, UserCheck, UserPlus, Award, Loader } from 'lucide-react';
 import { Pie, Bar } from 'react-chartjs-2';
 import {
   Chart as ChartJS,
@@ -14,15 +14,56 @@ import {
 
 ChartJS.register(CategoryScale, LinearScale, BarElement, ArcElement, Title, Tooltip, Legend);
 
+const API_BASE = import.meta.env.VITE_API_URL;
+
 const StaffManagement = () => {
-  // Static staff data
+  const [loading, setLoading] = useState(true);
+  const [teachers, setTeachers] = useState([]);
+  const [staffData, setStaffData] = useState(null);
+
+  useEffect(() => {
+    const fetchStaffData = async () => {
+      try {
+        const token = localStorage.getItem('token');
+        const headers = {
+          'Content-Type': 'application/json',
+          authorization: `Bearer ${token}`
+        };
+
+        // Fetch teachers
+        const teachersRes = await fetch(`${API_BASE}/api/principal/teachers`, {
+          method: 'GET',
+          headers
+        });
+
+        if (teachersRes.ok) {
+          const teachersData = await teachersRes.json();
+          setTeachers(Array.isArray(teachersData) ? teachersData : []);
+        }
+
+        setLoading(false);
+      } catch (err) {
+        console.error('Error fetching staff data:', err);
+        setLoading(false);
+      }
+    };
+
+    fetchStaffData();
+  }, []);
+
+  // Calculate staff roles from real data
+  const totalTeachers = teachers.length;
+  const activeTeachers = teachers.filter(t => t.status === 'Active' || t.status === 'active').length;
+  const onLeaveTeachers = teachers.filter(t => t.status === 'On Leave' || t.status === 'leave').length;
+
   const staffRoles = [
-    { role: 'Teachers', count: 89 },
+    { role: 'Teachers', count: totalTeachers },
+    { role: 'Active Teachers', count: activeTeachers },
+    { role: 'On Leave', count: onLeaveTeachers },
     { role: 'Support Staff', count: 34 },
-    { role: 'Admin', count: 12 },
-    { role: 'HR', count: 6 },
-    { role: 'New Hires', count: 5 }
+    { role: 'Admin', count: 12 }
   ];
+
   const satisfactionScores = [
     { name: 'Teachers', score: 4.7 },
     { name: 'Support Staff', score: 4.5 },
@@ -112,12 +153,19 @@ const StaffManagement = () => {
         <p className="text-purple-100">Manage teachers, staff performance, and HR operations</p>
       </div>
 
+      {loading && (
+        <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100 flex items-center justify-center">
+          <Loader className="w-6 h-6 animate-spin text-purple-600 mr-2" />
+          <span className="text-gray-600">Loading staff data...</span>
+        </div>
+      )}
+
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-        {/* ...existing summary cards... */}
+        {/* Summary cards */}
         <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
           <div className="flex items-center justify-between">
             <div>
-              <div className="text-2xl font-bold text-gray-900">89</div>
+              <div className="text-2xl font-bold text-gray-900">{totalTeachers}</div>
               <div className="text-sm text-gray-500">Total Teachers</div>
             </div>
             <div className="p-3 bg-blue-100 rounded-lg">
@@ -128,8 +176,8 @@ const StaffManagement = () => {
         <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
           <div className="flex items-center justify-between">
             <div>
-              <div className="text-2xl font-bold text-gray-900">34</div>
-              <div className="text-sm text-gray-500">Support Staff</div>
+              <div className="text-2xl font-bold text-gray-900">{activeTeachers}</div>
+              <div className="text-sm text-gray-500">Active Teachers</div>
             </div>
             <div className="p-3 bg-green-100 rounded-lg">
               <UserCheck className="w-6 h-6 text-green-600" />
@@ -139,19 +187,19 @@ const StaffManagement = () => {
         <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
           <div className="flex items-center justify-between">
             <div>
-              <div className="text-2xl font-bold text-gray-900">4.6/5</div>
-              <div className="text-sm text-gray-500">Satisfaction</div>
+              <div className="text-2xl font-bold text-gray-900">{onLeaveTeachers}</div>
+              <div className="text-sm text-gray-500">On Leave</div>
             </div>
-            <div className="p-3 bg-purple-100 rounded-lg">
-              <Award className="w-6 h-6 text-purple-600" />
+            <div className="p-3 bg-amber-100 rounded-lg">
+              <Award className="w-6 h-6 text-amber-600" />
             </div>
           </div>
         </div>
         <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
           <div className="flex items-center justify-between">
             <div>
-              <div className="text-2xl font-bold text-gray-900">5</div>
-              <div className="text-sm text-gray-500">New Hires</div>
+              <div className="text-2xl font-bold text-gray-900">34</div>
+              <div className="text-sm text-gray-500">Support Staff</div>
             </div>
             <div className="p-3 bg-orange-100 rounded-lg">
               <UserPlus className="w-6 h-6 text-orange-600" />

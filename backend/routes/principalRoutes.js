@@ -4,9 +4,11 @@ const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
 const mongoose = require('mongoose');
 const Principal = require('../models/Principal');
+const School = require('../models/School');
 const rateLimit = require('../middleware/rateLimit');
 const { isStrongPassword, passwordPolicyMessage } = require('../utils/passwordPolicy');
 const adminAuth = require('../middleware/adminAuth');
+const principalAuth = require('../middleware/principalAuth');
 
 const normalize = (value = '') => String(value).trim().toLowerCase();
 
@@ -63,6 +65,7 @@ router.post('/login', rateLimit({ windowMs: 60 * 1000, max: 10 }), async (req, r
       {
         id: principal._id,
         type: 'principal',
+        userType: 'principal',
         schoolId: principal.schoolId || null,
         campusId: principal.campusId || null,
         campusName: principal.campusName || null,
@@ -72,6 +75,33 @@ router.post('/login', rateLimit({ windowMs: 60 * 1000, max: 10 }), async (req, r
       { expiresIn: process.env.JWT_EXPIRES_IN || '24h' }
     );
     res.json({ token });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+router.get('/profile', principalAuth, async (req, res) => {
+  try {
+    const principalId = req.principal?.id || req.principal?._id;
+    if (!principalId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const principal = await Principal.findById(principalId).select('-password').lean();
+    if (!principal) {
+      return res.status(404).json({ error: 'Principal not found' });
+    }
+
+    let schoolName = '';
+    if (principal.schoolId) {
+      const school = await School.findById(principal.schoolId).select('name').lean();
+      schoolName = school?.name || '';
+    }
+
+    res.json({
+      ...principal,
+      schoolName,
+    });
   } catch (err) {
     res.status(400).json({ error: err.message });
   }

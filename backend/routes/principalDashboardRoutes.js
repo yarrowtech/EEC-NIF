@@ -7,6 +7,7 @@ const ClassModel = require('../models/Class');
 const Subject = require('../models/Subject');
 const StudentProgress = require('../models/StudentProgress');
 const FeeInvoice = require('../models/FeeInvoice');
+const FeePayment = require('../models/FeePayment');
 
 const router = express.Router();
 
@@ -141,6 +142,137 @@ router.get('/overview', principalAuth, async (req, res) => {
       performance: {
         gradeDistribution,
       },
+      timestamp: new Date().toISOString(),
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.get('/teachers', principalAuth, async (req, res) => {
+  // #swagger.tags = ['Principal Dashboard']
+  try {
+    const schoolFilter = getSchoolFilter(req);
+    const teachers = await TeacherUser.find(schoolFilter).select('-password').lean();
+    res.json(teachers);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.get('/financial', principalAuth, async (req, res) => {
+  // #swagger.tags = ['Principal Dashboard']
+  try {
+    const schoolFilter = getSchoolFilter(req);
+
+    // Get all students for the school/campus
+    const students = await StudentUser.find(schoolFilter)
+      .select('name grade section')
+      .lean();
+    const studentIds = students.map((s) => s._id);
+    const studentMap = new Map(students.map((s) => [String(s._id), s]));
+
+    // Build invoice filter
+    const invoiceFilter = { ...schoolFilter };
+    if (studentIds.length > 0) {
+      invoiceFilter.studentId = { $in: studentIds };
+    }
+
+    // Get all invoices
+    const invoices = await FeeInvoice.find(invoiceFilter).lean();
+
+    // Calculate totals
+    const totals = invoices.reduce(
+      (acc, inv) => {
+        acc.totalInvoiced += Number(inv.totalAmount || 0);
+        acc.totalCollected += Number(inv.paidAmount || 0);
+        acc.totalOutstanding += Number(inv.balanceAmount || 0);
+        return acc;
+      },
+      {
+        totalOutstanding: 0,
+        totalCollected: 0,
+        totalInvoiced: 0,
+      }
+    );
+
+    // Calculate overdue invoices
+    const today = new Date();
+    const overdueInvoices = invoices.filter(
+      (inv) => inv.dueDate && new Date(inv.dueDate) < today && Number(inv.balanceAmount || 0) > 0
+    ).length;
+
+    // Get recent payments
+    const payments = await FeePayment.find(invoiceFilter)
+      .sort({ createdAt: -1 })
+      .limit(10)
+      .lean();
+
+    const recentPayments = payments.map((payment) => {
+      const student = studentMap.get(String(payment.studentId));
+      return {
+        id: payment._id,
+        studentName: student?.name || 'Student',
+        className: student?.grade || '',
+        section: student?.section || '',
+        amount: payment.amount,
+        paidOn: payment.paidOn || payment.createdAt,
+        method: payment.method || 'cash',
+        status: 'paid',
+      };
+    });
+
+    // Calculate monthly revenue trend (last 8 months)
+    const monthlyData = {};
+    const now = new Date();
+
+    // Initialize last 8 months
+    for (let i = 7; i >= 0; i--) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+      monthlyData[key] = {
+        month: monthNames[d.getMonth()],
+        revenue: 0,
+        expenses: 0,
+      };
+    }
+
+    // Aggregate payments by month
+    payments.forEach((payment) => {
+      const date = new Date(payment.paidOn || payment.createdAt);
+      const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+      if (monthlyData[key]) {
+        monthlyData[key].revenue += Number(payment.amount || 0);
+      }
+    });
+
+    const revenueData = Object.values(monthlyData);
+
+    // Calculate expense breakdown (mock percentages for now, can be enhanced)
+    const expenseData = [
+      { name: 'Salaries', value: 45, color: '#3B82F6' },
+      { name: 'Infrastructure', value: 25, color: '#10B981' },
+      { name: 'Equipment', value: 15, color: '#F59E0B' },
+      { name: 'Utilities', value: 10, color: '#EF4444' },
+      { name: 'Others', value: 5, color: '#8B5CF6' },
+    ];
+
+    res.json({
+      totals: {
+        totalRevenue: Math.round(totals.totalCollected),
+        totalExpenses: Math.round(totals.totalCollected * 0.6), // Estimate 60% as expenses
+        totalInvoiced: Math.round(totals.totalInvoiced),
+        totalOutstanding: Math.round(totals.totalOutstanding),
+        netProfit: Math.round(totals.totalCollected * 0.4), // 40% profit margin estimate
+        budgetUtilization: totals.totalInvoiced > 0
+          ? Math.round((totals.totalCollected / totals.totalInvoiced) * 100)
+          : 0,
+        overdueInvoices,
+      },
+      revenueData,
+      expenseData,
+      recentPayments,
       timestamp: new Date().toISOString(),
     });
   } catch (err) {

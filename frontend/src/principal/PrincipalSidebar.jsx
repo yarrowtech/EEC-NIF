@@ -1,9 +1,10 @@
 import React from 'react';
-import { 
-  Home, 
-  BarChart3, 
-  Users, 
-  GraduationCap, 
+import { Link, useLocation, useNavigate } from 'react-router-dom';
+import {
+  Home,
+  BarChart3,
+  Users,
+  GraduationCap,
   DollarSign,
   Bell,
   Settings,
@@ -21,8 +22,28 @@ import {
   Phone,
   Mail
 } from 'lucide-react';
+import { AUTH_NOTICE, logoutAndRedirect } from '../utils/authSession';
 
-const PrincipalSidebar = ({ activeView, setActiveView, isOpen, setIsOpen }) => {
+const PrincipalSidebar = ({ isOpen, setIsOpen, principalProfile }) => {
+  const location = useLocation();
+  const navigate = useNavigate();
+  const handleLogout = () => {
+    logoutAndRedirect({ navigate, notice: AUTH_NOTICE.LOGGED_OUT });
+  };
+
+  const getDisplayValue = (value, fallback) => {
+    if (typeof value === 'string') {
+      const trimmed = value.trim();
+      if (trimmed) return trimmed;
+    }
+    return fallback;
+  };
+
+  const principalName = getDisplayValue(principalProfile?.name, 'Principal');
+  const schoolName = getDisplayValue(
+    principalProfile?.schoolName || principalProfile?.campusName,
+    'Electronic Educare Center'
+  );
 
   const menuItems = [
     { 
@@ -96,10 +117,31 @@ const PrincipalSidebar = ({ activeView, setActiveView, isOpen, setIsOpen }) => {
 
 
   return (
-    <div className={`h-screen bg-gradient-to-b from-yellow-50 to-amber-50 border-r border-yellow-200 shadow-2xl transition-all duration-300 flex flex-col fixed left-0 top-0 z-50 ${
-      isOpen ? 'w-80' : 'w-20'
-    }`}>
-      {/* Header */}
+    <>
+      <style>{`
+        .minimal-scrollbar::-webkit-scrollbar {
+          width: 6px;
+        }
+        .minimal-scrollbar::-webkit-scrollbar-track {
+          background: rgba(251, 191, 36, 0.1);
+          border-radius: 10px;
+        }
+        .minimal-scrollbar::-webkit-scrollbar-thumb {
+          background: rgba(251, 191, 36, 0.5);
+          border-radius: 10px;
+        }
+        .minimal-scrollbar::-webkit-scrollbar-thumb:hover {
+          background: rgba(251, 191, 36, 0.7);
+        }
+        .minimal-scrollbar {
+          scrollbar-width: thin;
+          scrollbar-color: rgba(251, 191, 36, 0.5) rgba(251, 191, 36, 0.1);
+        }
+      `}</style>
+      <div className={`h-screen bg-gradient-to-b from-yellow-50 to-amber-50 border-r border-yellow-200 shadow-2xl transition-all duration-300 flex flex-col fixed left-0 top-0 z-50 ${
+        isOpen ? 'w-80' : 'w-20'
+      }`}>
+        {/* Header */}
       <div className="p-6 border-b border-yellow-200">
         <div className="flex items-center justify-between">
           <div className={`flex items-center space-x-3 ${isOpen ? 'block' : 'hidden'}`}>
@@ -108,8 +150,8 @@ const PrincipalSidebar = ({ activeView, setActiveView, isOpen, setIsOpen }) => {
             </div>
             {isOpen && (
               <div>
-                <h1 className="font-bold text-lg text-amber-800">Principal Portal</h1>
-                <p className="text-xs text-yellow-600">Electronic Educare Center</p>
+                <h1 className="font-bold text-lg text-amber-800">{principalName}</h1>
+                <p className="text-xs text-yellow-600">{schoolName}</p>
               </div>
             )}
           </div>
@@ -123,19 +165,19 @@ const PrincipalSidebar = ({ activeView, setActiveView, isOpen, setIsOpen }) => {
       </div>
 
       {/* Navigation Menu */}
-      <nav className="flex-1 px-4 py-6 overflow-y-auto">
+      <nav className="flex-1 px-4 py-6 overflow-y-auto minimal-scrollbar">
         <div className="space-y-2">
           {menuItems.map((item) => {
             const Icon = item.icon;
-            const isActive = activeView === item.id;
-            
+            const isActive = location.pathname === `/principal/${item.id}` || (location.pathname === '/principal' && item.id === 'overview');
+
             return (
-              <button
+              <Link
                 key={item.id}
-                onClick={() => setActiveView(item.id)}
+                to={`/principal/${item.id}`}
                 className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 group relative ${
-                  isActive 
-                    ? 'bg-gradient-to-r from-yellow-400 to-amber-500 text-white shadow-lg transform scale-105' 
+                  isActive
+                    ? 'bg-gradient-to-r from-yellow-400 to-amber-500 text-white shadow-lg transform scale-105'
                     : 'text-amber-700 hover:bg-yellow-100 hover:text-amber-800 hover:transform hover:scale-102'
                 }`}
               >
@@ -146,14 +188,14 @@ const PrincipalSidebar = ({ activeView, setActiveView, isOpen, setIsOpen }) => {
                     <span className="text-xs opacity-70 block">{item.description}</span>
                   </div>
                 )}
-                
+
                 {!isOpen && (
                   <div className="absolute left-full ml-2 px-3 py-2 bg-amber-800 text-white text-sm rounded-lg shadow-xl opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-50">
                     <div className="font-medium">{item.name}</div>
                     <div className="text-xs text-yellow-200">{item.description}</div>
                   </div>
                 )}
-              </button>
+              </Link>
             );
           })}
         </div>
@@ -185,24 +227,22 @@ const PrincipalSidebar = ({ activeView, setActiveView, isOpen, setIsOpen }) => {
         )}
       </nav>
 
-      {/* Footer */}
+      {/* Footer - Logout Button */}
       <div className="p-4 border-t border-yellow-200">
-        {/* Principal Info */}
-        {isOpen && (
-          <div className="mt-4 pt-4 border-t border-yellow-200">
-            <div className="flex items-center gap-3 px-2">
-              <div className="w-10 h-10 bg-gradient-to-r from-yellow-400 to-amber-500 rounded-full flex items-center justify-center">
-                <span className="text-sm font-bold text-white">P</span>
-              </div>
-              <div>
-                <p className="text-sm font-medium text-amber-800">Dr. Principal</p>
-                <p className="text-xs text-yellow-600">School Principal</p>
-              </div>
-            </div>
-          </div>
-        )}
+        <button
+          onClick={handleLogout}
+          className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 text-red-700 hover:bg-red-50 hover:text-red-800 ${
+            !isOpen && 'justify-center'
+          }`}
+        >
+          <LogOut size={20} className="flex-shrink-0" />
+          {isOpen && (
+            <span className="font-medium text-sm">Logout</span>
+          )}
+        </button>
       </div>
-    </div>
+      </div>
+    </>
   );
 };
 

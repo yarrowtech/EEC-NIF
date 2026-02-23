@@ -142,6 +142,7 @@ const tryPrincipal = async ({ username, password }) => {
   const token = signToken({
     id: principal._id,
     type: 'principal',
+    userType: 'principal',
     schoolId: principal.schoolId || null,
     campusId: principal.campusId || null,
     campusName: principal.campusName || null,

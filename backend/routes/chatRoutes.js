@@ -6,6 +6,7 @@ const ChatMessage = require('../models/ChatMessage');
 const StudentUser = require('../models/StudentUser');
 const TeacherUser = require('../models/TeacherUser');
 const ParentUser = require('../models/ParentUser');
+const Principal = require('../models/Principal');
 const Timetable = require('../models/Timetable');
 const ClassModel = require('../models/Class');
 const Section = require('../models/Section');
@@ -426,6 +427,10 @@ router.get('/me', async (req, res) => {
       const u = await ParentUser.findById(id).select('name username profilePic').lean();
       name = u?.name || u?.username || 'Parent';
       avatar = u?.profilePic || null;
+    } else if (userType === 'principal') {
+      const u = await Principal.findById(id).select('name').lean();
+      name = u?.name || 'Principal';
+      avatar = null;
     }
     res.json({ id, userType, name, avatar, schoolId, campusId });
   } catch (err) {
@@ -680,6 +685,33 @@ router.get('/contacts', async (req, res) => {
         avatar: teacher.profilePic || null,
       }));
       return res.json(contacts);
+    }
+
+    if (userType === 'principal') {
+      if (!schoolId) {
+        return res.status(400).json({ error: 'schoolId is required' });
+      }
+      const teacherFilter = { schoolId };
+      if (campusId) {
+        teacherFilter.$or = [
+          { campusId },
+          { campusId: { $exists: false } },
+          { campusId: null },
+        ];
+      }
+      const teachers = await TeacherUser.find(teacherFilter)
+        .select('_id name subject employeeCode profilePic department email mobile')
+        .lean();
+      return res.json(teachers.map((t) => ({
+        _id: t._id,
+        name: t.name || t.employeeCode || 'Teacher',
+        subtitle: t.subject || t.department || 'Teacher',
+        detail: t.department ? `Department: ${t.department}` : '',
+        userType: 'teacher',
+        avatar: t.profilePic || null,
+        email: t.email || '',
+        phone: t.mobile || '',
+      })));
     }
 
     if (userType === 'teacher') {
@@ -961,6 +993,9 @@ router.post('/threads/direct', async (req, res) => {
     } else if (normalizedUserType === 'parent') {
       const me = await ParentUser.findById(myId).select('name username').lean();
       myName = me?.name || me?.username || 'Parent';
+    } else if (normalizedUserType === 'principal') {
+      const me = await Principal.findById(myId).select('name').lean();
+      myName = me?.name || 'Principal';
     }
 
     const otherName = otherUser.name || otherUser.username || otherUser.employeeCode || otherUser.studentCode || 'User';
@@ -1123,8 +1158,16 @@ router.post('/threads/:threadId/messages', async (req, res) => {
     const allowed = await ensureTeacherAccessToThread(req, thread);
     if (!allowed) return res.status(403).json({ error: 'Access denied' });
 
+    const normalizedSenderType = String(userType || '').toLowerCase();
     const myParticipant = thread.participants?.find(p => p.userId?.toString() === userId.toString());
-    const senderName = myParticipant?.name || (userType === 'teacher' ? 'Teacher' : userType === 'parent' ? 'Parent' : 'Student');
+    const senderName = myParticipant?.name
+      || (normalizedSenderType === 'teacher'
+        ? 'Teacher'
+        : normalizedSenderType === 'parent'
+          ? 'Parent'
+          : normalizedSenderType === 'principal'
+            ? 'Principal'
+            : 'Student');
 
     const msg = await ChatMessage.create({
       threadId,

@@ -1,59 +1,88 @@
-import React from 'react';
-import { DollarSign, TrendingUp, PieChart, BarChart3, Users, CreditCard, AlertCircle, ArrowUpRight } from 'lucide-react';
-import { 
-  LineChart, 
-  Line, 
-  XAxis, 
-  YAxis, 
-  CartesianGrid, 
-  Tooltip, 
-  ResponsiveContainer, 
-  PieChart as RechartsPieChart, 
+import React, { useEffect, useState } from 'react';
+import { DollarSign, TrendingUp, PieChart, BarChart3, Users, CreditCard, AlertCircle, ArrowUpRight, Loader } from 'lucide-react';
+import {
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+  PieChart as RechartsPieChart,
   Pie,
   Cell,
   BarChart,
   Bar
 } from 'recharts';
 
+const API_BASE = import.meta.env.VITE_API_URL;
+
 const FinancialDashboard = () => {
-  // Dummy data for revenue trend
-  const revenueData = [
-    { month: 'Jan', revenue: 12000000, expenses: 8500000 },
-    { month: 'Feb', revenue: 14500000, expenses: 9200000 },
-    { month: 'Mar', revenue: 13800000, expenses: 8900000 },
-    { month: 'Apr', revenue: 16200000, expenses: 10100000 },
-    { month: 'May', revenue: 15800000, expenses: 9800000 },
-    { month: 'Jun', revenue: 18200000, expenses: 11200000 },
-    { month: 'Jul', revenue: 17500000, expenses: 10800000 },
-    { month: 'Aug', revenue: 19800000, expenses: 12100000 },
-  ];
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [financialData, setFinancialData] = useState(null);
 
-  // Dummy data for expense breakdown
-  const expenseData = [
-    { name: 'Salaries', value: 45, color: '#3B82F6' },
-    { name: 'Infrastructure', value: 25, color: '#10B981' },
-    { name: 'Equipment', value: 15, color: '#F59E0B' },
-    { name: 'Utilities', value: 10, color: '#EF4444' },
-    { name: 'Others', value: 5, color: '#8B5CF6' },
-  ];
+  useEffect(() => {
+    const fetchFinancialData = async () => {
+      try {
+        const token = localStorage.getItem('token');
+        const res = await fetch(`${API_BASE}/api/principal/financial`, {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+            authorization: `Bearer ${token}`
+          }
+        });
 
-  // Dummy data for department wise budget
-  const departmentBudget = [
-    { department: 'Engineering', allocated: 5000000, utilized: 4200000 },
-    { department: 'Medical', allocated: 4500000, utilized: 3800000 },
-    { department: 'Business', allocated: 3500000, utilized: 2900000 },
-    { department: 'Arts', allocated: 2800000, utilized: 2400000 },
-    { department: 'Science', allocated: 4200000, utilized: 3600000 },
-  ];
+        if (!res.ok) {
+          throw new Error('Failed to fetch financial data');
+        }
 
-  // Dummy recent transactions
-  const recentTransactions = [
-    { id: 1, description: 'Faculty Salary - Engineering', amount: 850000, type: 'expense', date: '2024-08-15' },
-    { id: 2, description: 'Student Fee Collection', amount: 1200000, type: 'income', date: '2024-08-14' },
-    { id: 3, description: 'Laboratory Equipment', amount: 320000, type: 'expense', date: '2024-08-13' },
-    { id: 4, description: 'Government Grant', amount: 500000, type: 'income', date: '2024-08-12' },
-    { id: 5, description: 'Utility Bills', amount: 85000, type: 'expense', date: '2024-08-11' },
-  ];
+        const data = await res.json();
+        setFinancialData(data);
+      } catch (err) {
+        console.error('Error fetching financial data:', err);
+        setError(err.message);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchFinancialData();
+  }, []);
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-96">
+        <Loader className="w-8 h-8 animate-spin text-green-600" />
+        <span className="ml-3 text-gray-600">Loading financial data...</span>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="bg-red-50 border border-red-200 rounded-xl p-6">
+        <p className="text-red-700">Error loading financial data: {error}</p>
+      </div>
+    );
+  }
+
+  if (!financialData) {
+    return (
+      <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-6">
+        <p className="text-yellow-700">No financial data available</p>
+      </div>
+    );
+  }
+
+  const { totals, revenueData, expenseData, recentPayments } = financialData;
+
+  // Format revenue data for charts
+  const formattedRevenueData = revenueData || [];
+
+  // Department budget data (placeholder - can be enhanced with real data later)
+  const departmentBudget = [];
 
   return (
     <div className="space-y-6">
@@ -68,11 +97,12 @@ const FinancialDashboard = () => {
         <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
           <div className="flex items-center justify-between">
             <div>
-              <div className="text-2xl font-bold text-gray-900">₹19.8 Cr</div>
+              <div className="text-2xl font-bold text-gray-900">
+                ₹{(totals.totalRevenue / 10000000).toFixed(1)} Cr
+              </div>
               <div className="text-sm text-gray-500">Total Revenue</div>
               <div className="flex items-center mt-2 text-green-600">
-                <ArrowUpRight className="w-4 h-4" />
-                <span className="text-xs font-medium">+12.5%</span>
+                <span className="text-xs font-medium">Collected</span>
               </div>
             </div>
             <div className="p-3 bg-green-100 rounded-lg">
@@ -80,15 +110,16 @@ const FinancialDashboard = () => {
             </div>
           </div>
         </div>
-        
+
         <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
           <div className="flex items-center justify-between">
             <div>
-              <div className="text-2xl font-bold text-gray-900">₹12.1 Cr</div>
+              <div className="text-2xl font-bold text-gray-900">
+                ₹{(totals.totalExpenses / 10000000).toFixed(1)} Cr
+              </div>
               <div className="text-sm text-gray-500">Total Expenses</div>
               <div className="flex items-center mt-2 text-blue-600">
-                <ArrowUpRight className="w-4 h-4" />
-                <span className="text-xs font-medium">+8.2%</span>
+                <span className="text-xs font-medium">Estimated</span>
               </div>
             </div>
             <div className="p-3 bg-blue-100 rounded-lg">
@@ -96,15 +127,17 @@ const FinancialDashboard = () => {
             </div>
           </div>
         </div>
-        
+
         <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
           <div className="flex items-center justify-between">
             <div>
-              <div className="text-2xl font-bold text-gray-900">78.5%</div>
-              <div className="text-sm text-gray-500">Budget Utilization</div>
+              <div className="text-2xl font-bold text-gray-900">{totals.budgetUtilization}%</div>
+              <div className="text-sm text-gray-500">Collection Rate</div>
               <div className="flex items-center mt-2 text-orange-600">
                 <AlertCircle className="w-4 h-4" />
-                <span className="text-xs font-medium">High usage</span>
+                <span className="text-xs font-medium">
+                  {totals.overdueInvoices} overdue
+                </span>
               </div>
             </div>
             <div className="p-3 bg-orange-100 rounded-lg">
@@ -112,15 +145,17 @@ const FinancialDashboard = () => {
             </div>
           </div>
         </div>
-        
+
         <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
           <div className="flex items-center justify-between">
             <div>
-              <div className="text-2xl font-bold text-gray-900">₹7.7 Cr</div>
+              <div className="text-2xl font-bold text-gray-900">
+                ₹{(totals.netProfit / 10000000).toFixed(1)} Cr
+              </div>
               <div className="text-sm text-gray-500">Net Profit</div>
               <div className="flex items-center mt-2 text-green-600">
                 <TrendingUp className="w-4 h-4" />
-                <span className="text-xs font-medium">+15.3%</span>
+                <span className="text-xs font-medium">Estimated</span>
               </div>
             </div>
             <div className="p-3 bg-purple-100 rounded-lg">
@@ -135,28 +170,37 @@ const FinancialDashboard = () => {
         {/* Revenue vs Expenses Trend */}
         <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
           <h3 className="text-lg font-semibold text-gray-900 mb-4">Revenue vs Expenses Trend</h3>
-          <ResponsiveContainer width="100%" height={300}>
-            <LineChart data={revenueData}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="month" />
-              <YAxis tickFormatter={(value) => `₹${(value/10000000).toFixed(1)}Cr`} />
-              <Tooltip formatter={(value) => [`₹${(value/10000000).toFixed(2)}Cr`, '']} />
-              <Line 
-                type="monotone" 
-                dataKey="revenue" 
-                stroke="#10B981" 
-                strokeWidth={3}
-                name="Revenue"
-              />
-              <Line 
-                type="monotone" 
-                dataKey="expenses" 
-                stroke="#EF4444" 
-                strokeWidth={3}
-                name="Expenses"
-              />
-            </LineChart>
-          </ResponsiveContainer>
+          {formattedRevenueData.length > 0 ? (
+            <ResponsiveContainer width="100%" height={300}>
+              <LineChart data={formattedRevenueData}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="month" />
+                <YAxis tickFormatter={(value) => `₹${(value/10000000).toFixed(1)}Cr`} />
+                <Tooltip formatter={(value) => [`₹${(value/10000000).toFixed(2)}Cr`, '']} />
+                <Line
+                  type="monotone"
+                  dataKey="revenue"
+                  stroke="#10B981"
+                  strokeWidth={3}
+                  name="Revenue"
+                />
+                <Line
+                  type="monotone"
+                  dataKey="expenses"
+                  stroke="#EF4444"
+                  strokeWidth={3}
+                  name="Expenses"
+                />
+              </LineChart>
+            </ResponsiveContainer>
+          ) : (
+            <div className="h-[300px] flex items-center justify-center text-gray-500">
+              <div className="text-center">
+                <BarChart3 className="w-12 h-12 mx-auto text-gray-300 mb-3" />
+                <p className="text-sm">No revenue data available</p>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Expense Breakdown Pie Chart */}
@@ -183,56 +227,75 @@ const FinancialDashboard = () => {
         </div>
       </div>
 
-      {/* Department Budget Utilization */}
+      {/* Outstanding Amount Summary */}
       <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
-        <h3 className="text-lg font-semibold text-gray-900 mb-4">Department Budget Utilization</h3>
-        <ResponsiveContainer width="100%" height={300}>
-          <BarChart data={departmentBudget}>
-            <CartesianGrid strokeDasharray="3 3" />
-            <XAxis dataKey="department" />
-            <YAxis tickFormatter={(value) => `₹${(value/10000000).toFixed(1)}Cr`} />
-            <Tooltip formatter={(value) => [`₹${(value/10000000).toFixed(2)}Cr`, '']} />
-            <Bar dataKey="allocated" fill="#3B82F6" name="Allocated" />
-            <Bar dataKey="utilized" fill="#10B981" name="Utilized" />
-          </BarChart>
-        </ResponsiveContainer>
+        <h3 className="text-lg font-semibold text-gray-900 mb-4">Financial Summary</h3>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="p-4 bg-blue-50 rounded-lg">
+            <div className="text-sm text-blue-600 font-medium">Total Invoiced</div>
+            <div className="text-2xl font-bold text-blue-900 mt-1">
+              ₹{(totals.totalInvoiced / 10000000).toFixed(2)} Cr
+            </div>
+          </div>
+          <div className="p-4 bg-green-50 rounded-lg">
+            <div className="text-sm text-green-600 font-medium">Total Collected</div>
+            <div className="text-2xl font-bold text-green-900 mt-1">
+              ₹{(totals.totalRevenue / 10000000).toFixed(2)} Cr
+            </div>
+          </div>
+          <div className="p-4 bg-orange-50 rounded-lg">
+            <div className="text-sm text-orange-600 font-medium">Outstanding</div>
+            <div className="text-2xl font-bold text-orange-900 mt-1">
+              ₹{(totals.totalOutstanding / 10000000).toFixed(2)} Cr
+            </div>
+          </div>
+        </div>
       </div>
 
-      {/* Recent Transactions */}
+      {/* Recent Payments */}
       <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
-        <h3 className="text-lg font-semibold text-gray-900 mb-4">Recent Transactions</h3>
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead>
-              <tr className="border-b border-gray-200">
-                <th className="text-left py-3 px-4 font-medium text-gray-500">Description</th>
-                <th className="text-left py-3 px-4 font-medium text-gray-500">Amount</th>
-                <th className="text-left py-3 px-4 font-medium text-gray-500">Type</th>
-                <th className="text-left py-3 px-4 font-medium text-gray-500">Date</th>
-              </tr>
-            </thead>
-            <tbody>
-              {recentTransactions.map((transaction) => (
-                <tr key={transaction.id} className="border-b border-gray-100">
-                  <td className="py-3 px-4 text-gray-900">{transaction.description}</td>
-                  <td className="py-3 px-4 text-gray-900">
-                    ₹{(transaction.amount/100000).toFixed(1)}L
-                  </td>
-                  <td className="py-3 px-4">
-                    <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                      transaction.type === 'income' 
-                        ? 'bg-green-100 text-green-800' 
-                        : 'bg-red-100 text-red-800'
-                    }`}>
-                      {transaction.type}
-                    </span>
-                  </td>
-                  <td className="py-3 px-4 text-gray-500">{transaction.date}</td>
+        <h3 className="text-lg font-semibold text-gray-900 mb-4">Recent Payments</h3>
+        {recentPayments && recentPayments.length > 0 ? (
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead>
+                <tr className="border-b border-gray-200">
+                  <th className="text-left py-3 px-4 font-medium text-gray-500">Student</th>
+                  <th className="text-left py-3 px-4 font-medium text-gray-500">Class</th>
+                  <th className="text-left py-3 px-4 font-medium text-gray-500">Amount</th>
+                  <th className="text-left py-3 px-4 font-medium text-gray-500">Method</th>
+                  <th className="text-left py-3 px-4 font-medium text-gray-500">Date</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody>
+                {recentPayments.map((payment) => (
+                  <tr key={payment.id} className="border-b border-gray-100">
+                    <td className="py-3 px-4 text-gray-900">{payment.studentName}</td>
+                    <td className="py-3 px-4 text-gray-900">
+                      {payment.className} {payment.section && `- ${payment.section}`}
+                    </td>
+                    <td className="py-3 px-4 text-gray-900">
+                      ₹{(payment.amount / 100000).toFixed(2)}L
+                    </td>
+                    <td className="py-3 px-4">
+                      <span className="px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800 capitalize">
+                        {payment.method}
+                      </span>
+                    </td>
+                    <td className="py-3 px-4 text-gray-500">
+                      {new Date(payment.paidOn).toLocaleDateString()}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <div className="text-center py-8">
+            <CreditCard className="w-12 h-12 mx-auto text-gray-300 mb-3" />
+            <p className="text-gray-500 text-sm">No recent payments</p>
+          </div>
+        )}
       </div>
     </div>
   );

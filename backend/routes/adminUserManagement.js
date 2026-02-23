@@ -776,6 +776,60 @@ router.post('/teachers/:id/credentials', adminAuth, async (req, res) => {
   }
 });
 
+router.post('/teachers/:id/make-principal', adminAuth, async (req, res) => {
+  // #swagger.tags = ['Admin Users']
+  try {
+    const filter = buildScopedIdFilter(req, req.params.id);
+    if (!filter) {
+      return res.status(400).json({ error: 'Invalid id' });
+    }
+    const teacher = await TeacherUser.findOne(filter);
+    if (!teacher) {
+      return res.status(404).json({ error: 'Teacher not found' });
+    }
+
+    // Check if principal already exists for this teacher's email
+    const existingPrincipal = await Principal.findOne({
+      $or: [
+        { email: teacher.email },
+        { username: teacher.email }
+      ]
+    });
+
+    if (existingPrincipal) {
+      return res.status(400).json({ error: 'Principal account already exists for this teacher' });
+    }
+
+    // Generate credentials for principal
+    const password = generatePassword();
+    const principalUsername = teacher.email || `principal_${teacher.employeeCode}`;
+
+    // Create principal account
+    const principal = new Principal({
+      username: principalUsername.toLowerCase().trim(),
+      email: teacher.email || principalUsername.toLowerCase().trim(),
+      password,
+      name: teacher.name || 'Principal',
+      schoolId: teacher.schoolId,
+      campusId: teacher.campusId,
+      campusName: teacher.campusName,
+      campusType: teacher.campusType,
+    });
+
+    await principal.save();
+
+    res.json({
+      principalId: principal._id,
+      username: principal.username,
+      email: principal.email,
+      password,
+      teacherName: teacher.name
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 router.delete('/teachers/:id', adminAuth, async (req, res) => {
   // #swagger.tags = ['Admin Users']
   try {

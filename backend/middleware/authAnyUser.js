@@ -9,8 +9,12 @@ module.exports = function (req, res, next) {
   const token = authHeader.split(' ')[1];
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    if (!decoded.userType && decoded.type === 'principal') {
+      decoded.userType = 'principal';
+    }
+    const normalizedType = String(decoded.userType || decoded.type || '').toLowerCase();
     req.user = decoded;
-    req.userType = decoded.type === 'admin' ? 'Admin' : decoded.userType || 'unknown';
+    req.userType = normalizedType === 'admin' ? 'Admin' : decoded.userType || 'unknown';
     req.schoolId = decoded.schoolId || null;
     req.campusId = decoded.campusId || null;
     if (!req.campusId) {
@@ -21,4 +25,3 @@ module.exports = function (req, res, next) {
     return res.status(401).json({ error: 'Invalid token' });
   }
 };
-
