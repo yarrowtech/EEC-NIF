@@ -2,6 +2,7 @@
 // (Use the active block below.)
 
 const http = require('http');
+const https = require('https');
 const path = require('path');
 const express = require('express');
 const mongoose = require('mongoose');
@@ -582,4 +583,43 @@ io.on('connection', (socket) => {
   });
 });
 
-httpServer.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+const KEEP_ALIVE_ENABLED = process.env.KEEP_ALIVE_ENABLED !== 'false';
+const KEEP_ALIVE_INTERVAL_MS = Number(process.env.KEEP_ALIVE_INTERVAL_MS || 120000);
+
+const pingKeepAliveUrl = () => {
+  const targetUrl =
+    process.env.KEEP_ALIVE_URL ||
+    process.env.RENDER_EXTERNAL_URL ||
+    `http://127.0.0.1:${PORT}/health`;
+
+  try {
+    const parsedUrl = new URL(targetUrl);
+    const client = parsedUrl.protocol === 'https:' ? https : http;
+    const req = client.request(parsedUrl, { method: 'GET', timeout: 10000 }, (res) => {
+      // Drain response data so sockets close/reuse correctly.
+      res.resume();
+    });
+
+    req.on('timeout', () => req.destroy(new Error('Keep-alive ping timed out')));
+    req.on('error', (err) => {
+      console.error(`[keep-alive] Ping failed: ${err.message}`);
+    });
+    req.end();
+  } catch (err) {
+    console.error(`[keep-alive] Invalid URL: ${targetUrl}. ${err.message}`);
+  }
+};
+
+httpServer.listen(PORT, () => {
+  console.log(`Server running on port ${PORT}`);
+
+  if (KEEP_ALIVE_ENABLED && KEEP_ALIVE_INTERVAL_MS > 0) {
+    pingKeepAliveUrl();
+    setInterval(pingKeepAliveUrl, KEEP_ALIVE_INTERVAL_MS);
+    console.log(
+      `[keep-alive] Enabled. Interval=${KEEP_ALIVE_INTERVAL_MS}ms, URL=${
+        process.env.KEEP_ALIVE_URL || process.env.RENDER_EXTERNAL_URL || `http://127.0.0.1:${PORT}/health`
+      }`
+    );
+  }
+});
