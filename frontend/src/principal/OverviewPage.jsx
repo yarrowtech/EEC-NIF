@@ -5,7 +5,7 @@ import {
 } from 'lucide-react';
 import { Bar, Pie } from 'react-chartjs-2';
 
-const OverviewPage = ({ overview, isLoading, loadError, schoolStats, quickStats, attendanceTrend, studentPerformance, criticalNotifications, recentActivities, monthlyGrowth, schoolName }) => {
+const OverviewPage = ({ overview, isLoading, loadError, schoolStats, quickStats, attendanceTrend, studentPerformance, criticalNotifications, recentActivities, monthlyGrowth, schoolName, onRefreshOverview }) => {
   const getGreeting = () => {
     const hour = new Date().getHours();
     if (hour < 12) return 'Good Morning';
@@ -161,7 +161,11 @@ const OverviewPage = ({ overview, isLoading, loadError, schoolStats, quickStats,
               <Filter className="w-4 h-4" />
               Filters
             </button>
-            <button className="flex items-center gap-2 px-3 py-1.5 bg-black hover:bg-gray-200 rounded-lg text-sm transition-colors">
+            <button
+              type="button"
+              onClick={onRefreshOverview}
+              className="flex items-center gap-2 px-3 py-1.5 bg-black hover:bg-gray-200 rounded-lg text-sm transition-colors"
+            >
               <RefreshCw className="w-4 h-4" />
               Refresh
             </button>

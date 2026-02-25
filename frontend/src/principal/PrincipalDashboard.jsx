@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Routes, Route, useLocation, useNavigate } from 'react-router-dom';
 import {
   School, Users, GraduationCap, BookOpen, TrendingUp,
@@ -80,33 +80,37 @@ const PrincipalDashboard = () => {
   const location = useLocation();
   const navigate = useNavigate();
 
-  useEffect(() => {
-    const fetchOverview = async () => {
+  const fetchOverview = useCallback(async (showLoader = true) => {
+    if (showLoader) {
       setIsLoading(true);
-      setLoadError('');
-      try {
-        const res = await fetch(`${API_BASE}/api/principal/overview`, {
-          method: 'GET',
-          headers: {
-            'Content-Type': 'application/json',
-            authorization: `Bearer ${localStorage.getItem('token')}`
-          }
-        });
-        if (!res.ok) {
-          throw new Error('Failed to load principal overview');
+    }
+    setLoadError('');
+    try {
+      const res = await fetch(`${API_BASE}/api/principal/overview`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          authorization: `Bearer ${localStorage.getItem('token')}`
         }
-        const data = await res.json();
-        setOverview(data);
-      } catch (err) {
-        console.error('Principal overview error:', err);
-        setLoadError('Unable to load live dashboard data.');
-      } finally {
+      });
+      if (!res.ok) {
+        throw new Error('Failed to load principal overview');
+      }
+      const data = await res.json();
+      setOverview(data);
+    } catch (err) {
+      console.error('Principal overview error:', err);
+      setLoadError('Unable to load live dashboard data.');
+    } finally {
+      if (showLoader) {
         setIsLoading(false);
       }
-    };
-
-    fetchOverview();
+    }
   }, []);
+
+  useEffect(() => {
+    fetchOverview(true);
+  }, [fetchOverview]);
 
   useEffect(() => {
     const fetchPrincipalProfile = async () => {
@@ -159,6 +163,14 @@ const PrincipalDashboard = () => {
   useEffect(() => {
     fetchNotifications();
   }, [fetchNotifications]);
+
+  useEffect(() => {
+    const intervalId = setInterval(() => {
+      fetchOverview(false);
+      fetchNotifications();
+    }, 60_000);
+    return () => clearInterval(intervalId);
+  }, [fetchNotifications, fetchOverview]);
 
   const handleMarkNotificationRead = useCallback(async (notificationId) => {
     if (!notificationId) return;
@@ -214,7 +226,7 @@ const PrincipalDashboard = () => {
   const schoolStats = {
     totalStudents: overview?.stats?.totalStudents || 0,
     totalTeachers: overview?.stats?.totalTeachers || 0,
-    totalStaff: 0, // TODO: Add staff endpoint
+    totalStaff: overview?.stats?.totalStaff || 0,
     totalClasses: overview?.stats?.totalClasses || 0,
     activeParents: overview?.stats?.totalParents || 0,
     attendanceRate: overview?.attendance?.rate || 0,
@@ -237,8 +249,13 @@ const PrincipalDashboard = () => {
   const criticalNotifications = notifications;
   const resolvedSchoolName = principalProfile?.schoolName || principalProfile?.campusName || 'Electronic Educare Center';
 
-  // Recent activities - will be replaced with API data when available
-  const recentActivities = [];
+  const recentActivities = useMemo(
+    () => (Array.isArray(overview?.recentActivities) ? overview.recentActivities : []).map((item) => ({
+      ...item,
+      time: formatRelativeLabel(item.createdAt),
+    })),
+    [overview]
+  );
 
   // Performance metrics - using real API data
   const performanceMetrics = [];
@@ -423,6 +440,7 @@ const PrincipalDashboard = () => {
       recentActivities={recentActivities}
       monthlyGrowth={monthlyGrowth}
       schoolName={resolvedSchoolName}
+      onRefreshOverview={() => fetchOverview(true)}
     />
   );
 

@@ -60,6 +60,16 @@ router.post('/login', rateLimit({ windowMs: 60 * 1000, max: 10 }), async (req, r
     if (!principal || !(await bcrypt.compare(password, principal.password))) {
       return res.status(401).json({ error: 'Invalid credentials' });
     }
+    if (!principal.lastLoginAt) {
+      return res.json({
+        requiresPasswordReset: true,
+        username: principal.username || principal.email,
+        userType: 'Principal',
+      });
+    }
+
+    principal.lastLoginAt = new Date();
+    await principal.save();
 
     const token = jwt.sign(
       {
@@ -75,6 +85,40 @@ router.post('/login', rateLimit({ windowMs: 60 * 1000, max: 10 }), async (req, r
       { expiresIn: process.env.JWT_EXPIRES_IN || '24h' }
     );
     res.json({ token });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+router.post('/reset-first-password', rateLimit({ windowMs: 60 * 1000, max: 10 }), async (req, res) => {
+  // #swagger.tags = ['Principals']
+  const { username, newPassword } = req.body || {};
+  try {
+    const identifier = normalize(username);
+    if (!identifier) {
+      return res.status(400).json({ error: 'Username is required' });
+    }
+    if (!newPassword || !String(newPassword).trim()) {
+      return res.status(400).json({ error: 'New password is required' });
+    }
+    if (!isStrongPassword(newPassword)) {
+      return res.status(400).json({ error: passwordPolicyMessage });
+    }
+
+    const principal = await Principal.findOne({
+      $or: [{ username: identifier }, { email: identifier }],
+    });
+    if (!principal) {
+      return res.status(404).json({ error: 'Principal not found' });
+    }
+    if (principal.lastLoginAt) {
+      return res.status(400).json({ error: 'Password reset already completed' });
+    }
+
+    principal.password = String(newPassword);
+    principal.lastLoginAt = new Date();
+    await principal.save();
+    res.json({ message: 'Password reset successful' });
   } catch (err) {
     res.status(400).json({ error: err.message });
   }

@@ -18,6 +18,7 @@ const principalSchema = new mongoose.Schema({
   campusId: { type: String, default: null },
   campusName: { type: String, default: null },
   campusType: { type: String, default: null },
+  lastLoginAt: { type: Date, default: null },
 }, { timestamps: true });
 
 principalSchema.pre('save', async function (next) {

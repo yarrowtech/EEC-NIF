@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Users, UserCheck, UserPlus, Award, Loader } from 'lucide-react';
+import { Users, UserCheck, UserPlus, Award, Loader, AlertCircle } from 'lucide-react';
 import { Pie, Bar } from 'react-chartjs-2';
 import {
   Chart as ChartJS,
@@ -18,32 +18,31 @@ const API_BASE = import.meta.env.VITE_API_URL;
 
 const StaffManagement = () => {
   const [loading, setLoading] = useState(true);
-  const [teachers, setTeachers] = useState([]);
+  const [error, setError] = useState('');
   const [staffData, setStaffData] = useState(null);
 
   useEffect(() => {
     const fetchStaffData = async () => {
+      setLoading(true);
+      setError('');
       try {
         const token = localStorage.getItem('token');
-        const headers = {
-          'Content-Type': 'application/json',
-          authorization: `Bearer ${token}`
-        };
-
-        // Fetch teachers
-        const teachersRes = await fetch(`${API_BASE}/api/principal/teachers`, {
+        const res = await fetch(`${API_BASE}/api/principal/staff/analytics`, {
           method: 'GET',
-          headers
+          headers: {
+            'Content-Type': 'application/json',
+            authorization: `Bearer ${token}`
+          }
         });
-
-        if (teachersRes.ok) {
-          const teachersData = await teachersRes.json();
-          setTeachers(Array.isArray(teachersData) ? teachersData : []);
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          throw new Error(data?.error || 'Failed to load staff analytics');
         }
-
-        setLoading(false);
+        setStaffData(data);
       } catch (err) {
-        console.error('Error fetching staff data:', err);
+        console.error('Staff analytics error:', err);
+        setError(err.message || 'Unable to load staff analytics');
+      } finally {
         setLoading(false);
       }
     };
@@ -51,27 +50,11 @@ const StaffManagement = () => {
     fetchStaffData();
   }, []);
 
-  // Calculate staff roles from real data
-  const totalTeachers = teachers.length;
-  const activeTeachers = teachers.filter(t => t.status === 'Active' || t.status === 'active').length;
-  const onLeaveTeachers = teachers.filter(t => t.status === 'On Leave' || t.status === 'leave').length;
+  const summary = staffData?.summary || {};
+  const staffRoles = Array.isArray(staffData?.staffRoles) ? staffData.staffRoles : [];
+  const satisfactionScores = Array.isArray(staffData?.satisfactionScores) ? staffData.satisfactionScores : [];
+  const teacherBySubject = Array.isArray(staffData?.teacherBySubject) ? staffData.teacherBySubject : [];
 
-  const staffRoles = [
-    { role: 'Teachers', count: totalTeachers },
-    { role: 'Active Teachers', count: activeTeachers },
-    { role: 'On Leave', count: onLeaveTeachers },
-    { role: 'Support Staff', count: 34 },
-    { role: 'Admin', count: 12 }
-  ];
-
-  const satisfactionScores = [
-    { name: 'Teachers', score: 4.7 },
-    { name: 'Support Staff', score: 4.5 },
-    { name: 'Admin', score: 4.2 },
-    { name: 'HR', score: 4.6 }
-  ];
-
-  // ChartJS data for staff roles
   const staffRolesChartData = {
     labels: staffRoles.map((d) => d.role),
     datasets: [
@@ -79,190 +62,213 @@ const StaffManagement = () => {
         label: 'Staff Count',
         data: staffRoles.map((d) => d.count),
         backgroundColor: [
-          'rgba(59, 130, 246, 0.7)', // blue
-          'rgba(34, 197, 94, 0.7)', // green
-          'rgba(251, 191, 36, 0.7)', // yellow
-          'rgba(239, 68, 68, 0.7)', // red
-          'rgba(107, 114, 128, 0.7)' // gray
+          'rgba(59, 130, 246, 0.7)',
+          'rgba(34, 197, 94, 0.7)',
+          'rgba(251, 191, 36, 0.7)',
+          'rgba(239, 68, 68, 0.7)'
         ],
         borderColor: [
           'rgba(59, 130, 246, 1)',
           'rgba(34, 197, 94, 1)',
           'rgba(251, 191, 36, 1)',
-          'rgba(239, 68, 68, 1)',
-          'rgba(107, 114, 128, 1)'
+          'rgba(239, 68, 68, 1)'
         ],
         borderWidth: 2,
       }
     ]
   };
 
-  const staffRolesChartOptions = {
-    responsive: true,
-    plugins: {
-      legend: {
-        position: 'top',
-      },
-      title: {
-        display: true,
-        text: 'Staff Roles Distribution',
-      },
-    },
-  };
-
-  // ChartJS data for satisfaction scores
   const satisfactionChartData = {
     labels: satisfactionScores.map((d) => d.name),
     datasets: [
       {
-        label: 'Satisfaction Score',
-        data: satisfactionScores.map((d) => d.score),
-        backgroundColor: 'rgba(139, 92, 246, 0.7)', // purple
+        label: 'Score',
+        data: satisfactionScores.map((d) => Number(d.score || 0)),
+        backgroundColor: 'rgba(139, 92, 246, 0.7)',
         borderRadius: 8,
       }
     ]
-  };
-
-  const satisfactionChartOptions = {
-    responsive: true,
-    plugins: {
-      legend: {
-        display: false,
-      },
-      title: {
-        display: true,
-        text: 'Staff Satisfaction Scores',
-      },
-    },
-    scales: {
-      y: {
-        min: 3.5,
-        max: 5,
-        title: {
-          display: true,
-          text: 'Score (out of 5)',
-        },
-      },
-    },
   };
 
   return (
     <div className="space-y-6">
       <div className="bg-gradient-to-r from-purple-500 to-indigo-600 rounded-2xl p-8 text-white">
         <h1 className="text-3xl font-bold mb-2">Staff Management</h1>
-        <p className="text-purple-100">Manage teachers, staff performance, and HR operations</p>
+        <p className="text-purple-100">Live teacher and staff insights from your school records</p>
       </div>
 
       {loading && (
         <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100 flex items-center justify-center">
           <Loader className="w-6 h-6 animate-spin text-purple-600 mr-2" />
-          <span className="text-gray-600">Loading staff data...</span>
+          <span className="text-gray-600">Loading staff analytics...</span>
         </div>
       )}
 
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-        {/* Summary cards */}
-        <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
-          <div className="flex items-center justify-between">
-            <div>
-              <div className="text-2xl font-bold text-gray-900">{totalTeachers}</div>
-              <div className="text-sm text-gray-500">Total Teachers</div>
-            </div>
-            <div className="p-3 bg-blue-100 rounded-lg">
-              <Users className="w-6 h-6 text-blue-600" />
-            </div>
-          </div>
+      {!loading && error && (
+        <div className="bg-red-50 border border-red-200 rounded-xl p-6 flex items-center gap-2 text-red-700">
+          <AlertCircle className="w-5 h-5" />
+          <span>{error}</span>
         </div>
-        <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
-          <div className="flex items-center justify-between">
-            <div>
-              <div className="text-2xl font-bold text-gray-900">{activeTeachers}</div>
-              <div className="text-sm text-gray-500">Active Teachers</div>
-            </div>
-            <div className="p-3 bg-green-100 rounded-lg">
-              <UserCheck className="w-6 h-6 text-green-600" />
-            </div>
-          </div>
-        </div>
-        <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
-          <div className="flex items-center justify-between">
-            <div>
-              <div className="text-2xl font-bold text-gray-900">{onLeaveTeachers}</div>
-              <div className="text-sm text-gray-500">On Leave</div>
-            </div>
-            <div className="p-3 bg-amber-100 rounded-lg">
-              <Award className="w-6 h-6 text-amber-600" />
-            </div>
-          </div>
-        </div>
-        <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
-          <div className="flex items-center justify-between">
-            <div>
-              <div className="text-2xl font-bold text-gray-900">34</div>
-              <div className="text-sm text-gray-500">Support Staff</div>
-            </div>
-            <div className="p-3 bg-orange-100 rounded-lg">
-              <UserPlus className="w-6 h-6 text-orange-600" />
-            </div>
-          </div>
-        </div>
-      </div>
+      )}
 
-      {/* Staff Roles Chart & Table */}
-      <div className="bg-white rounded-xl p-8 shadow-sm border border-gray-100">
-        <h3 className="text-lg font-semibold text-gray-900 mb-4">Staff Roles Distribution</h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-          <div className="flex items-center justify-center">
-            <Pie data={staffRolesChartData} options={staffRolesChartOptions} />
+      {!loading && !error && (
+        <>
+          <div className="grid grid-cols-1 md:grid-cols-5 gap-6">
+            <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
+              <div className="flex items-center justify-between">
+                <div>
+                  <div className="text-2xl font-bold text-gray-900">{summary.totalTeachers || 0}</div>
+                  <div className="text-sm text-gray-500">Total Teachers</div>
+                </div>
+                <div className="p-3 bg-blue-100 rounded-lg">
+                  <Users className="w-6 h-6 text-blue-600" />
+                </div>
+              </div>
+            </div>
+            <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
+              <div className="flex items-center justify-between">
+                <div>
+                  <div className="text-2xl font-bold text-gray-900">{summary.activeTeachers || 0}</div>
+                  <div className="text-sm text-gray-500">Active Teachers (30d)</div>
+                </div>
+                <div className="p-3 bg-green-100 rounded-lg">
+                  <UserCheck className="w-6 h-6 text-green-600" />
+                </div>
+              </div>
+            </div>
+            <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
+              <div className="flex items-center justify-between">
+                <div>
+                  <div className="text-2xl font-bold text-gray-900">{summary.onLeaveTeachers || 0}</div>
+                  <div className="text-sm text-gray-500">Inactive Teachers</div>
+                </div>
+                <div className="p-3 bg-amber-100 rounded-lg">
+                  <Award className="w-6 h-6 text-amber-600" />
+                </div>
+              </div>
+            </div>
+            <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
+              <div className="flex items-center justify-between">
+                <div>
+                  <div className="text-2xl font-bold text-gray-900">{summary.supportStaff || 0}</div>
+                  <div className="text-sm text-gray-500">Support Staff</div>
+                </div>
+                <div className="p-3 bg-orange-100 rounded-lg">
+                  <UserPlus className="w-6 h-6 text-orange-600" />
+                </div>
+              </div>
+            </div>
+            <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
+              <div className="flex items-center justify-between">
+                <div>
+                  <div className="text-2xl font-bold text-gray-900">{summary.admins || 0}</div>
+                  <div className="text-sm text-gray-500">Admins</div>
+                </div>
+                <div className="p-3 bg-indigo-100 rounded-lg">
+                  <Users className="w-6 h-6 text-indigo-600" />
+                </div>
+              </div>
+            </div>
           </div>
-          <div>
-            <table className="min-w-full text-left">
-              <thead>
-                <tr>
-                  <th className="py-2 px-4 text-gray-600">Role</th>
-                  <th className="py-2 px-4 text-gray-600">Count</th>
-                </tr>
-              </thead>
-              <tbody>
-                {staffRoles.map((row, idx) => (
-                  <tr key={row.role} className={idx % 2 === 0 ? 'bg-gray-50' : ''}>
-                    <td className="py-2 px-4 font-medium text-gray-800">{row.role}</td>
-                    <td className="py-2 px-4 text-gray-700">{row.count}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      </div>
 
-      {/* Satisfaction Chart & Table */}
-      <div className="bg-white rounded-xl p-8 shadow-sm border border-gray-100">
-        <h3 className="text-lg font-semibold text-gray-900 mb-4">Staff Satisfaction Scores</h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-          <div className="flex items-center justify-center">
-            <Bar data={satisfactionChartData} options={satisfactionChartOptions} />
+          <div className="bg-white rounded-xl p-8 shadow-sm border border-gray-100">
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">Staff Roles Distribution</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+              <div className="flex items-center justify-center">
+                {staffRoles.length ? <Pie data={staffRolesChartData} /> : <p className="text-sm text-gray-500">No role data.</p>}
+              </div>
+              <div>
+                <table className="min-w-full text-left">
+                  <thead>
+                    <tr>
+                      <th className="py-2 px-4 text-gray-600">Role</th>
+                      <th className="py-2 px-4 text-gray-600">Count</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {staffRoles.map((row, idx) => (
+                      <tr key={row.role} className={idx % 2 === 0 ? 'bg-gray-50' : ''}>
+                        <td className="py-2 px-4 font-medium text-gray-800">{row.role}</td>
+                        <td className="py-2 px-4 text-gray-700">{row.count}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
           </div>
-          <div>
-            <table className="min-w-full text-left">
-              <thead>
-                <tr>
-                  <th className="py-2 px-4 text-gray-600">Role</th>
-                  <th className="py-2 px-4 text-gray-600">Satisfaction Score</th>
-                </tr>
-              </thead>
-              <tbody>
-                {satisfactionScores.map((row, idx) => (
-                  <tr key={row.name} className={idx % 2 === 0 ? 'bg-gray-50' : ''}>
-                    <td className="py-2 px-4 font-medium text-gray-800">{row.name}</td>
-                    <td className="py-2 px-4 text-gray-700">{row.score}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+
+          <div className="bg-white rounded-xl p-8 shadow-sm border border-gray-100">
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">Subject-Wise Teacher Distribution</h3>
+            {teacherBySubject.length > 0 ? (
+              <div className="overflow-x-auto">
+                <table className="min-w-full text-left">
+                  <thead>
+                    <tr>
+                      <th className="py-2 px-4 text-gray-600">Subject</th>
+                      <th className="py-2 px-4 text-gray-600">Teachers</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {teacherBySubject.map((row, idx) => (
+                      <tr key={row.subject} className={idx % 2 === 0 ? 'bg-gray-50' : ''}>
+                        <td className="py-2 px-4 font-medium text-gray-800">{row.subject}</td>
+                        <td className="py-2 px-4 text-gray-700">{row.count}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <p className="text-sm text-gray-500">No teacher subject mapping found.</p>
+            )}
           </div>
-        </div>
-      </div>
+
+          <div className="bg-white rounded-xl p-8 shadow-sm border border-gray-100">
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">Staff Satisfaction Scores</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+              <div className="flex items-center justify-center">
+                {satisfactionScores.length ? (
+                  <Bar
+                    data={satisfactionChartData}
+                    options={{
+                      responsive: true,
+                      plugins: { legend: { display: false } },
+                      scales: {
+                        y: {
+                          min: 0,
+                          max: 5,
+                          title: { display: true, text: 'Score (out of 5)' },
+                        },
+                      },
+                    }}
+                  />
+                ) : (
+                  <p className="text-sm text-gray-500">No satisfaction score data.</p>
+                )}
+              </div>
+              <div>
+                <table className="min-w-full text-left">
+                  <thead>
+                    <tr>
+                      <th className="py-2 px-4 text-gray-600">Role</th>
+                      <th className="py-2 px-4 text-gray-600">Score</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {satisfactionScores.map((row, idx) => (
+                      <tr key={row.name} className={idx % 2 === 0 ? 'bg-gray-50' : ''}>
+                        <td className="py-2 px-4 font-medium text-gray-800">{row.name}</td>
+                        <td className="py-2 px-4 text-gray-700">{row.score}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </>
+      )}
     </div>
   );
 };

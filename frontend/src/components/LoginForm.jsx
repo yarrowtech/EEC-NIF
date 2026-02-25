@@ -129,6 +129,11 @@ const LoginForm = () => {
             loginEndpoint: '/api/parent/auth/login',
             redirect: '/parents',
           },
+          Principal: {
+            resetEndpoint: '/api/principal/auth/reset-first-password',
+            loginEndpoint: '/api/principal/auth/login',
+            redirect: '/principal',
+          },
         };
         const resetConfig = resetConfigByType[resetUserType];
         if (!resetConfig) {
