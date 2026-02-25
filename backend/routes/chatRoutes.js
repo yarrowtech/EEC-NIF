@@ -351,7 +351,9 @@ const ensureTeacherCanAccessStudent = async (req, studentOrId) => {
   if (!studentDoc) return false;
 
   const campusId = (req.campusId ?? req.user?.campusId) ?? null;
-  if (campusId && studentDoc.campusId && studentDoc.campusId !== campusId) {
+  const requestedCampusId = campusId ? String(campusId) : '';
+  const studentCampusId = studentDoc?.campusId ? String(studentDoc.campusId) : '';
+  if (requestedCampusId && studentCampusId && studentCampusId !== requestedCampusId) {
     return false;
   }
 
@@ -942,16 +944,19 @@ router.post('/threads/direct', async (req, res) => {
     const normalizedUserType = String(userType || '').toLowerCase();
     const normalizedTargetType = String(targetType || '').toLowerCase();
     const { id: _myId, ..._ } = req.user;
+    const targetLookup = { _id: otherId, schoolId };
+    const targetCampusCondition = buildCampusCondition(campusId);
+    if (targetCampusCondition) Object.assign(targetLookup, targetCampusCondition);
 
     // Verify the other user exists
     let otherUser = null;
     let myName = '';
     if (normalizedTargetType === 'teacher') {
-      otherUser = await TeacherUser.findOne({ _id: otherId, schoolId, campusId }).select('name subject employeeCode profilePic').lean();
+      otherUser = await TeacherUser.findOne(targetLookup).select('name subject employeeCode profilePic campusId').lean();
     } else if (normalizedTargetType === 'student') {
-      otherUser = await StudentUser.findOne({ _id: otherId, schoolId, campusId }).select('name username studentCode grade section campusId').lean();
+      otherUser = await StudentUser.findOne(targetLookup).select('name username studentCode grade section campusId').lean();
     } else if (normalizedTargetType === 'parent') {
-      otherUser = await ParentUser.findOne({ _id: otherId, schoolId, campusId }).select('name username').lean();
+      otherUser = await ParentUser.findOne(targetLookup).select('name username campusId').lean();
     }
     if (!otherUser) {
       return res.status(404).json({ error: 'User not found' });
@@ -1000,17 +1005,20 @@ router.post('/threads/direct', async (req, res) => {
 
     const otherName = otherUser.name || otherUser.username || otherUser.employeeCode || otherUser.studentCode || 'User';
 
-    let threadCampusId = campusId;
+    let threadCampusId = String(campusId || '').trim();
     if (!threadCampusId) {
-      threadCampusId = otherUser.campusId || null;
+      threadCampusId = String(otherUser?.campusId || '').trim();
     }
     if (!threadCampusId && normalizedTargetType === 'teacher') {
       const teacherDoc = await TeacherUser.findById(otherId).select('campusId').lean();
-        threadCampusId = teacherDoc?.campusId ?? threadCampusId ?? null;
+      threadCampusId = String(teacherDoc?.campusId || '').trim() || threadCampusId;
     }
     if (!threadCampusId && normalizedTargetType === 'student') {
       const studentDoc = await StudentUser.findById(otherId).select('campusId').lean();
-      threadCampusId = studentDoc?.campusId ?? threadCampusId ?? null;
+      threadCampusId = String(studentDoc?.campusId || '').trim() || threadCampusId;
+    }
+    if (!threadCampusId) {
+      threadCampusId = 'default';
     }
 
     // Check if thread already exists with these 2 participants
@@ -1187,7 +1195,7 @@ router.post('/threads/:threadId/messages', async (req, res) => {
           }
         : undefined,
       schoolId,
-      campusId,
+      campusId: thread.campusId,
       seenBy: [{ userId, seenAt: new Date() }],
     });
 

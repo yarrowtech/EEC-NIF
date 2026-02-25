@@ -68,6 +68,34 @@ const principalDashboardRoutes = require('./routes/principalDashboardRoutes');
 const { getPresenceSnapshot, markUserOnline, markUserOffline } = require('./utils/chatPresence');
 const { syncAllocationGroupThreads } = require('./utils/chatGroupProvisioning');
 
+const fixChatThreadIndexes = async () => {
+  try {
+    const indexes = await ChatThread.collection.indexes();
+    const hasLegacyGroupKeyIndex = indexes.some((idx) =>
+      idx?.name === 'unique_group_thread_key' && idx?.sparse
+    );
+
+    if (hasLegacyGroupKeyIndex) {
+      await ChatThread.collection.dropIndex('unique_group_thread_key');
+      console.log('[chat] dropped legacy unique_group_thread_key sparse index');
+    }
+
+    await ChatThread.collection.createIndex(
+      { schoolId: 1, campusId: 1, groupKey: 1 },
+      {
+        unique: true,
+        name: 'unique_group_thread_key',
+        partialFilterExpression: {
+          threadType: 'group',
+          groupKey: { $exists: true, $type: 'string', $ne: '' },
+        },
+      }
+    );
+  } catch (err) {
+    console.error('[chat] failed to ensure chat thread indexes:', err.message);
+  }
+};
+
 
 const seedSuperAdmin = async () => {
   const username = process.env.SUPER_ADMIN_USERNAME;
@@ -238,6 +266,7 @@ mongoose
   .connect(process.env.MONGODB_URL)
   .then(async () => {
     console.log('MongoDB Connected');
+    await fixChatThreadIndexes();
     await ensureAdminRoles();
     await seedSuperAdmin();
     await seedPrincipal();

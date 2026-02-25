@@ -617,6 +617,7 @@ const TeacherChat = () => {
   const [contacts, setContacts] = useState([]);
   const [showContacts, setShowContacts] = useState(false);
   const [contactQuery, setContactQuery] = useState('');
+  const [contactError, setContactError] = useState('');
   const [loadingThreads, setLoadingThreads] = useState(true);
   const [loadingMessages, setLoadingMessages] = useState(false);
   const [showStudentProfileModal, setShowStudentProfileModal] = useState(false);
@@ -965,41 +966,87 @@ const TeacherChat = () => {
 
   // ── Start new conversation ─────────────────────────────────────────────────
   const startConversation = useCallback(async (contact) => {
-    setShowContacts(false);
-    setContactQuery('');
+    const contactId = String(contact?._id || contact?.userId || '');
+    if (!contactId) return;
+    setContactError('');
+
+    const findDirectThread = (threadList) =>
+      (Array.isArray(threadList) ? threadList : []).find((thread) => {
+        const threadType = String(thread?.threadType || '').toLowerCase();
+        if (threadType === 'group') return false;
+        const participantId = String(thread?.otherParticipant?.userId || thread?.otherParticipant?._id || '');
+        return participantId && participantId === contactId;
+      });
+
+    // If a direct thread already exists for this contact, open it immediately.
+    const existingThread = findDirectThread(threads);
+    if (existingThread?._id) {
+      setShowContacts(false);
+      setContactQuery('');
+      setContactError('');
+      await selectThread(String(existingThread._id));
+      return;
+    }
+
     try {
       const thread = await apiFetch('/api/chat/threads/direct', {
         method: 'POST',
-        body: JSON.stringify({ targetId: contact._id, targetType: contact.userType }),
+        body: JSON.stringify({
+          targetId: contactId,
+          targetType: String(contact?.userType || 'student').toLowerCase(),
+        }),
       });
+      const createdThreadId = String(thread?._id || thread?.id || '');
+      if (!createdThreadId) throw new Error('Thread id missing');
       setThreads(prev => {
-        const exists = prev.find(t => String(t._id) === String(thread._id));
+        const exists = prev.find(t => String(t._id) === createdThreadId);
         if (exists) return prev;
         return [thread, ...prev];
       });
-      selectThread(String(thread._id));
-    } catch { /* ignore */ }
-  }, [selectThread]);
+      setShowContacts(false);
+      setContactQuery('');
+      setContactError('');
+      await selectThread(createdThreadId);
+    } catch (error) {
+      const directError = String(error?.message || '').trim();
+      // Fallback: refresh thread list and open the matching direct chat if available.
+      try {
+        const threadsData = await apiFetch('/api/chat/threads');
+        const hydratedThreads = await Promise.all((Array.isArray(threadsData) ? threadsData : []).map((thread) => decryptThreadPreview(thread)));
+        setThreads(hydratedThreads);
+        const fallbackThread = findDirectThread(hydratedThreads);
+        if (fallbackThread?._id) {
+          setShowContacts(false);
+          setContactQuery('');
+          setContactError('');
+          await selectThread(String(fallbackThread._id));
+          return;
+        }
+        setContactError(directError || 'Unable to open this chat. Please try again.');
+      } catch {
+        setContactError(directError || 'Unable to open this chat. Please try again.');
+      }
+    }
+  }, [decryptThreadPreview, selectThread, threads]);
 
   // ── Load contacts ─────────────────────────────────────────────────────────
   const openContacts = useCallback(async () => {
-    if (contacts.length === 0) {
-      const userId = meRef.current?.id || me?.id;
-      const cachedContacts = userId
-        ? readChatCache(chatCacheKeys.contacts(userId), CONTACTS_CACHE_TTL_MS)
-        : null;
+    setContactError('');
+    const userId = meRef.current?.id || me?.id;
+    const cachedContacts = userId
+      ? readChatCache(chatCacheKeys.contacts(userId), CONTACTS_CACHE_TTL_MS)
+      : null;
+    try {
+      const data = await apiFetch('/api/chat/contacts');
+      setContacts(data);
+      if (userId) writeChatCache(chatCacheKeys.contacts(userId), data);
+    } catch {
       if (Array.isArray(cachedContacts)) {
         setContacts(cachedContacts);
-      } else {
-        try {
-          const data = await apiFetch('/api/chat/contacts');
-          setContacts(data);
-          if (userId) writeChatCache(chatCacheKeys.contacts(userId), data);
-        } catch { /* ignore */ }
       }
     }
     setShowContacts(true);
-  }, [contacts, me?.id]);
+  }, [me?.id]);
 
   // ── Send message ──────────────────────────────────────────────────────────
   const sendMessage = useCallback(() => {
@@ -1220,6 +1267,9 @@ const TeacherChat = () => {
                     className="bg-transparent outline-none text-xs flex-1 placeholder-gray-400"
                   />
                 </div>
+                {contactError && (
+                  <p className="mt-2 text-[11px] text-red-600">{contactError}</p>
+                )}
               </div>
               <div className="flex-1 overflow-y-auto">
                 {filteredContacts.length === 0 ? (
@@ -1317,7 +1367,7 @@ const TeacherChat = () => {
                       <div className="flex justify-start">
                         <div className="max-w-[70%] bg-white rounded-2xl rounded-bl-sm px-3 py-2 text-xs shadow-sm">
                           <div className="font-semibold text-[10px] mb-0.5" style={{ color: theme.color }}>Student</div>
-                          Good morning, Teacher!
+                         <span className='text-black'> Good morning, Teacher!</span>
                         </div>
                       </div>
                       <div className="flex justify-end">
@@ -1440,8 +1490,8 @@ const TeacherChat = () => {
                   </div>
                 ) : messages.length === 0 ? (
                   <div className="flex items-center justify-center h-full">
-                    <div className="text-center">
-                      <MessageSquare className="h-10 w-10 text-gray-200 mx-auto mb-2" />
+                    <div className="text-center bg-white p-5 rounded-2xl">
+                      <MessageSquare className="h-10 w-10 text-gray-500 mx-auto mb-2" />
                       <p className="text-sm text-gray-500">No messages yet. Say hello!</p>
                     </div>
                   </div>

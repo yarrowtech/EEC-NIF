@@ -33,6 +33,16 @@ const chatThreadSchema = new mongoose.Schema({
 
 // Unique thread per pair of participants in same campus
 chatThreadSchema.index({ schoolId: 1, campusId: 1, 'participants.userId': 1 });
-chatThreadSchema.index({ schoolId: 1, campusId: 1, groupKey: 1 }, { unique: true, sparse: true, name: 'unique_group_thread_key' });
+chatThreadSchema.index(
+  { schoolId: 1, campusId: 1, groupKey: 1 },
+  {
+    unique: true,
+    name: 'unique_group_thread_key',
+    partialFilterExpression: {
+      threadType: 'group',
+      groupKey: { $exists: true, $type: 'string', $ne: '' },
+    },
+  }
+);
 
 module.exports = mongoose.model('ChatThread', chatThreadSchema);
