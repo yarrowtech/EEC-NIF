@@ -62,6 +62,8 @@ router.post('/login', rateLimit({ windowMs: 60 * 1000, max: 10 }), async (req, r
     if (!principal || !(await bcrypt.compare(password, principal.password))) {
       return res.status(401).json({ error: 'Invalid credentials' });
     }
+    principal.lastLoginAt = new Date();
+    await principal.save();
 
     const token = jwt.sign(
       {

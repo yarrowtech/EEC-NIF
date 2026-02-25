@@ -138,6 +138,8 @@ const tryPrincipal = async ({ username, password }) => {
   });
   if (!principal) return null;
   if (!(await bcrypt.compare(password, principal.password))) return null;
+  principal.lastLoginAt = new Date();
+  await principal.save();
 
   const token = signToken({
     id: principal._id,
