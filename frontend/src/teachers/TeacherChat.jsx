@@ -306,14 +306,17 @@ const ChatMessage = ({ msg, isMine, myId, theme }) => {
   return (
   <div className={`flex ${isMine ? 'justify-end' : 'justify-start'} mb-3`}>
     <div
-      className={`max-w-[78%] rounded-2xl px-4 py-2.5 text-sm shadow-sm
+      className={`max-w-[78%] w-fit rounded-2xl px-4 py-2.5 text-sm shadow-sm
         ${isMine ? 'text-white rounded-br-sm' : 'bg-white text-gray-800 rounded-bl-sm'}`}
       style={isMine ? { backgroundColor: t.color } : {}}
     >
       {!isMine && (
         <div className="text-xs font-semibold mb-1" style={{ color: t.color }}>{msg.senderName}</div>
       )}
-      <div className="whitespace-pre-wrap leading-relaxed">{visibleText}</div>
+      <div className="whitespace-pre-wrap leading-relaxed wrap-break-word">
+        {visibleText}
+        <span className="inline-block w-14" aria-hidden="true" />
+      </div>
       {isLongMessage && (
         <button
           type="button"
@@ -325,7 +328,7 @@ const ChatMessage = ({ msg, isMine, myId, theme }) => {
         </button>
       )}
       <div
-        className={`text-xs mt-1 flex items-center justify-end gap-1 ${!isMine ? 'text-gray-400' : ''}`}
+        className={`text-xs flex items-center justify-end gap-1 -mt-4 ${!isMine ? 'text-gray-400' : ''}`}
         style={isMine ? { color: 'rgba(255,255,255,0.75)' } : {}}
       >
         <span>{formatMessageTime(msg.createdAt || msg.ts)}</span>
