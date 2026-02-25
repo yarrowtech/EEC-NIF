@@ -104,6 +104,8 @@ const Teachers = ({setShowAdminHeader}) => {
   const [principalSearchTerm, setPrincipalSearchTerm] = useState('');
   const [principalCredLoadingId, setPrincipalCredLoadingId] = useState(null);
   const [principalDeleteLoadingId, setPrincipalDeleteLoadingId] = useState(null);
+  const [deleteConfirmPrincipal, setDeleteConfirmPrincipal] = useState(null);
+  const [makePrincipalConfirmTeacher, setMakePrincipalConfirmTeacher] = useState(null);
 
   // Pagination states
   const [currentPage, setCurrentPage] = useState(1);
@@ -297,10 +299,6 @@ const Teachers = ({setShowAdminHeader}) => {
   const handleViewPrincipalCredentials = async (principal) => {
     const principalId = principal?._id || principal?.id;
     if (!principalId) return;
-    const confirmReset = window.confirm(
-      `This will reset ${principal.name || 'the principal'}'s password and generate a new one. Continue?`
-    );
-    if (!confirmReset) return;
     setPrincipalCredLoadingId(principalId);
     try {
       const res = await fetch(`${import.meta.env.VITE_API_URL}/api/admin/users/principals/${principalId}/credentials`, {
@@ -311,15 +309,19 @@ const Teachers = ({setShowAdminHeader}) => {
         }
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data?.error || 'Unable to generate credentials');
+      if (!res.ok) throw new Error(data?.error || 'Unable to load credentials');
+      const principalResetAt = data?.lastLoginAt ? new Date(data.lastLoginAt) : null;
+      const passwordValue = principalResetAt
+        ? `Password reset by the principal at ${principalResetAt.toLocaleDateString()}`
+        : (data?.initialPassword || 'Not available');
       setPrincipalCredentialView({
-        name: principal.name,
+        name: data?.name || principal.name,
         username: data.username || data.email || principal.email,
         email: data.email || principal.email,
-        password: data.password
+        password: passwordValue
       });
     } catch (error) {
-      setSubmitStatus({ type: 'error', message: error.message || 'Unable to generate credentials' });
+      setSubmitStatus({ type: 'error', message: error.message || 'Unable to load credentials' });
     } finally {
       setPrincipalCredLoadingId(null);
     }
@@ -328,11 +330,6 @@ const Teachers = ({setShowAdminHeader}) => {
   const handleDeletePrincipal = async (principal) => {
     const principalId = principal?._id || principal?.id;
     if (!principalId || principalDeleteLoadingId) return;
-
-    const confirmed = window.confirm(
-      `Delete principal account for ${principal?.name || 'this principal'}? This action cannot be undone.`
-    );
-    if (!confirmed) return;
 
     setPrincipalDeleteLoadingId(principalId);
     try {
@@ -355,6 +352,7 @@ const Teachers = ({setShowAdminHeader}) => {
       setSubmitStatus({ type: 'error', message: error.message || 'Unable to delete principal' });
     } finally {
       setPrincipalDeleteLoadingId(null);
+      setDeleteConfirmPrincipal(null);
     }
   };
 
@@ -497,10 +495,6 @@ const Teachers = ({setShowAdminHeader}) => {
   const handleMakePrincipal = async (teacher) => {
     const teacherId = teacher?._id || teacher?.id;
     if (!teacherId) return;
-    const confirmPromotion = window.confirm(
-      `This will create a Principal account for ${teacher.name || 'the teacher'}. Continue?`
-    );
-    if (!confirmPromotion) return;
     setPrincipalLoadingId(teacherId);
     try {
       const res = await fetch(`${import.meta.env.VITE_API_URL}/api/admin/users/teachers/${teacherId}/make-principal`, {
@@ -525,6 +519,7 @@ const Teachers = ({setShowAdminHeader}) => {
       setSubmitStatus({ type: 'error', message: error.message || 'Unable to create principal account' });
     } finally {
       setPrincipalLoadingId(null);
+      setMakePrincipalConfirmTeacher(null);
     }
   };
 
@@ -794,7 +789,7 @@ const Teachers = ({setShowAdminHeader}) => {
                           <button
                             className="p-1.5 rounded-lg text-slate-400 hover:text-purple-600 hover:bg-purple-50 transition-all disabled:opacity-40"
                             title="Make Principal"
-                            onClick={() => handleMakePrincipal(teacher)}
+                            onClick={() => setMakePrincipalConfirmTeacher(teacher)}
                             disabled={principalLoadingId === (teacher._id || teacher.id)}
                           >
                             <Crown size={15} />
@@ -1015,7 +1010,7 @@ const Teachers = ({setShowAdminHeader}) => {
                                     Credentials
                                   </button>
                                   <button
-                                    onClick={() => handleDeletePrincipal(principal)}
+                                    onClick={() => setDeleteConfirmPrincipal(principal)}
                                     disabled={principalDeleteLoadingId === (principal._id || principal.id) || principalCredLoadingId === (principal._id || principal.id)}
                                     className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-rose-50 text-rose-700 hover:bg-rose-100 transition-colors text-xs font-medium disabled:opacity-50"
                                     title="Delete Principal"
@@ -1397,6 +1392,88 @@ const Teachers = ({setShowAdminHeader}) => {
                   </>
                 ) : (
                   'Delete'
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {deleteConfirmPrincipal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden">
+            <div className="px-6 pt-6 pb-4 text-center">
+              <div className="w-14 h-14 rounded-2xl bg-red-50 flex items-center justify-center mx-auto mb-4">
+                <Trash2 size={24} className="text-red-500" />
+              </div>
+              <h3 className="text-lg font-bold text-gray-900">Delete Principal</h3>
+              <p className="text-sm text-gray-500 mt-2">
+                Are you sure you want to delete <span className="font-semibold text-gray-700">{deleteConfirmPrincipal.name || 'this principal'}</span>? This action cannot be undone.
+              </p>
+            </div>
+            <div className="px-6 pb-6 flex items-center gap-3">
+              <button
+                type="button"
+                onClick={() => setDeleteConfirmPrincipal(null)}
+                disabled={!!principalDeleteLoadingId}
+                className="flex-1 px-4 py-2.5 rounded-xl border border-gray-200 text-gray-700 hover:bg-gray-50 transition-colors text-sm font-medium disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => handleDeletePrincipal(deleteConfirmPrincipal)}
+                disabled={!!principalDeleteLoadingId}
+                className="flex-1 px-4 py-2.5 rounded-xl bg-red-600 text-white hover:bg-red-700 transition-colors text-sm font-medium disabled:opacity-60 inline-flex items-center justify-center gap-2"
+              >
+                {principalDeleteLoadingId ? (
+                  <>
+                    <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    Deleting...
+                  </>
+                ) : (
+                  'Delete'
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {makePrincipalConfirmTeacher && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden">
+            <div className="px-6 pt-6 pb-4 text-center">
+              <div className="w-14 h-14 rounded-2xl bg-purple-50 flex items-center justify-center mx-auto mb-4">
+                <Crown size={24} className="text-purple-500" />
+              </div>
+              <h3 className="text-lg font-bold text-gray-900">Make Principal</h3>
+              <p className="text-sm text-gray-500 mt-2">
+                This will create a Principal account for <span className="font-semibold text-gray-700">{makePrincipalConfirmTeacher.name || 'this teacher'}</span>. Continue?
+              </p>
+            </div>
+            <div className="px-6 pb-6 flex items-center gap-3">
+              <button
+                type="button"
+                onClick={() => setMakePrincipalConfirmTeacher(null)}
+                disabled={!!principalLoadingId}
+                className="flex-1 px-4 py-2.5 rounded-xl border border-gray-200 text-gray-700 hover:bg-gray-50 transition-colors text-sm font-medium disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => handleMakePrincipal(makePrincipalConfirmTeacher)}
+                disabled={!!principalLoadingId}
+                className="flex-1 px-4 py-2.5 rounded-xl bg-purple-600 text-white hover:bg-purple-700 transition-colors text-sm font-medium disabled:opacity-60 inline-flex items-center justify-center gap-2"
+              >
+                {principalLoadingId ? (
+                  <>
+                    <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    Creating...
+                  </>
+                ) : (
+                  'Continue'
                 )}
               </button>
             </div>

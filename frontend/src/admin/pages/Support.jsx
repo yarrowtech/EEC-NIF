@@ -31,6 +31,7 @@ const PASSWORD_RESET_ROLES = [
   { value: 'teacher', label: 'Teacher' },
   { value: 'student', label: 'Student' },
   { value: 'parent', label: 'Parent' },
+  { value: 'principal', label: 'Principal' },
 ];
 
 const defaultFeedback = { subject: '', category: 'general', sentiment: 'positive', message: '' };

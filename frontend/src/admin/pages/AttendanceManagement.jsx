@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { UserCheck, Search, Calendar, Download, Users, Clock, Check, Loader2 } from 'lucide-react';
+import { UserCheck, Search, Calendar, Download, Users, Clock, Loader2 } from 'lucide-react';
 import jsPDF from 'jspdf';
 
 const API_BASE = (import.meta.env.VITE_API_URL || 'http://localhost:5000').replace(/\/$/, '');
@@ -246,7 +246,7 @@ const AttendanceManagement = ({ setShowAdminHeader }) => {
       </div>
 
       <div className="bg-white rounded-xl p-6 mb-6 shadow-sm">
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-6 gap-3">
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-3">
           <div className="relative xl:col-span-2">
             <Search className="w-5 h-5 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
             <input
@@ -303,7 +303,7 @@ const AttendanceManagement = ({ setShowAdminHeader }) => {
             ))}
           </select>
 
-          <select
+          {/* <select
             value={selectedStudent}
             onChange={(e) => setSelectedStudent(e.target.value)}
             className="border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-yellow-500 focus:border-transparent"
@@ -312,7 +312,7 @@ const AttendanceManagement = ({ setShowAdminHeader }) => {
             {studentOptions.map((student) => (
               <option key={student.id} value={student.id}>{student.name}</option>
             ))}
-          </select>
+          </select> */}
 
           <div className="md:col-span-2 xl:col-span-6 flex flex-wrap items-center justify-between gap-3 mt-1">
             <div className="flex items-center gap-2">
@@ -364,13 +364,13 @@ const AttendanceManagement = ({ setShowAdminHeader }) => {
           <table className="w-full text-sm border-collapse">
             <thead className="bg-gray-100">
               <tr>
-                <th className="px-4 py-3 text-left font-semibold text-gray-600 border border-gray-200">Student</th>
-                <th className="px-4 py-3 text-left font-semibold text-gray-600 border border-gray-200">Session</th>
-                <th className="px-4 py-3 text-left font-semibold text-gray-600 border border-gray-200">Class</th>
-                <th className="px-4 py-3 text-left font-semibold text-gray-600 border border-gray-200">Section</th>
-                <th className="px-4 py-3 text-left font-semibold text-gray-600 border border-gray-200">Status</th>
-                <th className="px-4 py-3 text-left font-semibold text-gray-600 border border-gray-200">Check-in</th>
-                <th className="px-4 py-3 text-right font-semibold text-gray-600 border border-gray-200">Tick</th>
+                <th className="px-4 py-3 text-center font-semibold text-gray-600 border border-gray-200">Student</th>
+                <th className="px-4 py-3 text-center font-semibold text-gray-600 border border-gray-200">Session</th>
+                <th className="px-4 py-3 text-center font-semibold text-gray-600 border border-gray-200">Class</th>
+                <th className="px-4 py-3 text-center font-semibold text-gray-600 border border-gray-200">Section</th>
+                <th className="px-4 py-3 text-center font-semibold text-gray-600 border border-gray-200">Status</th>
+                <th className="px-4 py-3 text-center font-semibold text-gray-600 border border-gray-200">Check-in</th>
+                <th className="px-4 py-3 text-center font-semibold text-gray-600 border border-gray-200">Tick</th>
               </tr>
             </thead>
             <tbody>
@@ -399,10 +399,10 @@ const AttendanceManagement = ({ setShowAdminHeader }) => {
                         <span className="font-medium text-gray-900">{student.name}</span>
                       </div>
                     </td>
-                    <td className="px-4 py-3 border border-gray-200">{student.session || '-'}</td>
-                    <td className="px-4 py-3 border border-gray-200">{student.className || '-'}</td>
-                    <td className="px-4 py-3 border border-gray-200">{student.section || '-'}</td>
-                    <td className="px-4 py-3 border border-gray-200">
+                    <td className="px-4 py-3 border text-gray-900 text-center border-gray-200">{student.session || '-'}</td>
+                    <td className="px-4 py-3 border text-gray-900 text-center border-gray-200">{student.className || '-'}</td>
+                    <td className="px-4 py-3 border text-gray-900 text-center border-gray-200">{student.section || '-'}</td>
+                    <td className="px-4 py-3 border text-gray-900 text-center border-gray-200">
                       <span
                         className={`inline-flex px-2 py-1 rounded-full text-xs font-semibold ${
                           student.status === 'present'
@@ -415,22 +415,24 @@ const AttendanceManagement = ({ setShowAdminHeader }) => {
                         {student.statusLabel}
                       </span>
                     </td>
-                    <td className="px-4 py-3 border border-gray-200">
-                      <div className="flex items-center gap-1 text-gray-700">
+                    <td className="px-4 py-3 border text-gray-900 text-center border-gray-200">
+                      <div className="flex items-center justify-center gap-1 text-gray-700">
                         <Clock className="w-4 h-4" />
                         <span>{student.checkInTime}</span>
                       </div>
                     </td>
-                    <td className="px-4 py-3 border border-gray-200 text-right">
-                      <button
-                        type="button"
-                        onClick={() => upsertAttendance(student.id, 'present')}
-                        disabled={savingStudentId === student.id}
-                        className="inline-flex items-center justify-center h-8 w-8 rounded-md bg-green-100 text-green-700 hover:bg-green-200 disabled:opacity-60"
-                        title="Mark present"
-                      >
-                        {savingStudentId === student.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
-                      </button>
+                    <td className="px-4 py-3 border border-gray-200 text-center">
+                      <label className="inline-flex items-center justify-center gap-2">
+                        <input
+                          type="checkbox"
+                          checked={student.status === 'present'}
+                          onChange={(e) => upsertAttendance(student.id, e.target.checked ? 'present' : 'absent')}
+                          disabled={savingStudentId === student.id}
+                          className="h-4 w-4 rounded border-gray-300 text-green-600 focus:ring-green-500 disabled:opacity-60"
+                          title={student.status === 'present' ? 'Marked present' : 'Marked absent'}
+                        />
+                        {savingStudentId === student.id ? <Loader2 className="w-4 h-4 animate-spin text-gray-500" /> : null}
+                      </label>
                     </td>
                   </tr>
                 ))
