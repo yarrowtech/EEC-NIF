@@ -4,6 +4,7 @@ import { jsPDF } from 'jspdf';
 import {
   AlertCircle,
   CheckCircle2,
+  CreditCard,
   Download,
   Eye,
   IndianRupee,
@@ -21,6 +22,20 @@ const formatCurrency = (value) =>
     currency: 'INR',
     maximumFractionDigits: 0,
   }).format(Number(value || 0));
+
+const loadRazorpayScript = () =>
+  new Promise((resolve) => {
+    if (window?.Razorpay) {
+      resolve(true);
+      return;
+    }
+    const script = document.createElement('script');
+    script.src = 'https://checkout.razorpay.com/v1/checkout.js';
+    script.async = true;
+    script.onload = () => resolve(true);
+    script.onerror = () => resolve(false);
+    document.body.appendChild(script);
+  });
 
 const FeesCollection = ({ setShowAdminHeader }) => {
   const navigate = useNavigate();
@@ -59,7 +74,15 @@ const FeesCollection = ({ setShowAdminHeader }) => {
     dueDate: '',
   });
   const [bulkLoading, setBulkLoading] = useState(false);
-  const [bulkResult, setBulkResult] = useState('');
+  const [bulkStatus, setBulkStatus] = useState({ type: '', text: '' });
+  const [actionNotice, setActionNotice] = useState({ type: '', text: '' });
+  const [onlinePaymentModal, setOnlinePaymentModal] = useState({
+    open: false,
+    record: null,
+    amount: '',
+    notes: '',
+  });
+  const [onlinePaymentLoading, setOnlinePaymentLoading] = useState(false);
 
   useEffect(() => {
     setShowAdminHeader?.(false);
@@ -241,6 +264,42 @@ const FeesCollection = ({ setShowAdminHeader }) => {
     return sectionOptions.filter((sec) => String(sec.classId) === String(selectedClassId));
   }, [bulkForm.classId, sectionOptions]);
 
+  useEffect(() => {
+    if (!filters.section) return;
+    const valid = filteredSections.some((sec) => String(sec.name) === String(filters.section));
+    if (!valid) {
+      setFilters((prev) => ({ ...prev, section: '' }));
+    }
+  }, [filteredSections, filters.section]);
+
+  useEffect(() => {
+    if (!bulkForm.section) return;
+    const valid = bulkSections.some((sec) => String(sec.name) === String(bulkForm.section));
+    if (!valid) {
+      setBulkForm((prev) => ({ ...prev, section: '' }));
+    }
+  }, [bulkSections, bulkForm.section]);
+
+  const bulkTargetSummary = useMemo(() => {
+    const className = classNameById.get(String(bulkForm.classId)) || '';
+    const sectionName = String(bulkForm.section || '').trim();
+    if (!className) {
+      return { className: '', sectionName: '', studentCount: 0 };
+    }
+    const scopedStudents = students.filter((student) => {
+      const grade = String(student?.grade || '').trim();
+      const studentSection = String(student?.section || '').trim();
+      if (grade !== className) return false;
+      if (sectionName && studentSection !== sectionName) return false;
+      return true;
+    });
+    return {
+      className,
+      sectionName,
+      studentCount: scopedStudents.length,
+    };
+  }, [bulkForm.classId, bulkForm.section, classNameById, students]);
+
   const handleViewDetails = (record) => {
     if (!record?.invoiceId) return;
     navigate(`/admin/fees/student-details?invoice=${record.invoiceId}`, {
@@ -248,13 +307,161 @@ const FeesCollection = ({ setShowAdminHeader }) => {
     });
   };
 
+  const handleOpenOnlinePayment = (record) => {
+    setActionNotice({ type: '', text: '' });
+    setOnlinePaymentModal({
+      open: true,
+      record,
+      amount: String(Number(record?.balanceAmount || 0)),
+      notes: '',
+    });
+  };
+
+  const handleCloseOnlinePayment = () => {
+    if (onlinePaymentLoading) return;
+    setOnlinePaymentModal({
+      open: false,
+      record: null,
+      amount: '',
+      notes: '',
+    });
+  };
+
+  const handleStartOnlinePayment = async () => {
+    const record = onlinePaymentModal.record;
+    if (!record?.invoiceId) return;
+    setActionNotice({ type: '', text: '' });
+    setOnlinePaymentLoading(true);
+    try {
+      const amount = Number(onlinePaymentModal.amount || 0);
+      const maxBalance = Number(record.balanceAmount || 0);
+      if (!Number.isFinite(amount) || amount <= 0) {
+        throw new Error('Enter a valid payment amount');
+      }
+      if (amount > maxBalance) {
+        throw new Error('Amount cannot exceed outstanding balance');
+      }
+
+      const orderRes = await fetch(`${API_BASE}/api/fees/admin/razorpay/order`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          authorization: `Bearer ${localStorage.getItem('token')}`,
+        },
+        body: JSON.stringify({
+          invoiceId: record.invoiceId,
+          amount,
+          notes: onlinePaymentModal.notes || '',
+        }),
+      });
+      const orderData = await orderRes.json().catch(() => ({}));
+      if (!orderRes.ok) {
+        throw new Error(orderData?.error || 'Unable to create online payment order');
+      }
+
+      const scriptLoaded = await loadRazorpayScript();
+      if (!scriptLoaded) {
+        throw new Error('Unable to load Razorpay checkout');
+      }
+
+      const razorpayKey = orderData.keyId || import.meta.env.VITE_RAZORPAY_KEY_ID;
+      if (!razorpayKey) {
+        throw new Error('Razorpay key is missing');
+      }
+
+      const options = {
+        key: razorpayKey,
+        amount: orderData.order?.amount,
+        currency: orderData.order?.currency || 'INR',
+        name: 'EEC Fees Collection',
+        description: `${record.studentName || 'Student'} - ${record.className || ''}`,
+        order_id: orderData.order?.id,
+        prefill: {
+          name: record.studentName || 'Parent',
+        },
+        notes: {
+          invoiceId: String(record.invoiceId),
+          studentName: record.studentName || '',
+          className: record.className || '',
+          section: record.section || '',
+        },
+        theme: {
+          color: '#f59e0b',
+        },
+        handler: async (response) => {
+          try {
+            const verifyRes = await fetch(`${API_BASE}/api/fees/admin/razorpay/verify`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                authorization: `Bearer ${localStorage.getItem('token')}`,
+              },
+              body: JSON.stringify({
+                invoiceId: record.invoiceId,
+                amount,
+                notes: onlinePaymentModal.notes || '',
+                razorpay_order_id: response.razorpay_order_id,
+                razorpay_payment_id: response.razorpay_payment_id,
+                razorpay_signature: response.razorpay_signature,
+              }),
+            });
+            const verifyData = await verifyRes.json().catch(() => ({}));
+            if (!verifyRes.ok) {
+              throw new Error(verifyData?.error || 'Payment verification failed');
+            }
+            await fetchRecords();
+            setActionNotice({ type: 'success', text: 'Online payment captured successfully.' });
+            setOnlinePaymentModal({
+              open: false,
+              record: null,
+              amount: '',
+              notes: '',
+            });
+          } catch (verifyErr) {
+            setActionNotice({
+              type: 'error',
+              text: verifyErr.message || 'Unable to verify online payment',
+            });
+          } finally {
+            setOnlinePaymentLoading(false);
+          }
+        },
+        modal: {
+          ondismiss: () => setOnlinePaymentLoading(false),
+        },
+      };
+
+      const razorpay = new window.Razorpay(options);
+      razorpay.open();
+    } catch (err) {
+      setActionNotice({ type: 'error', text: err.message || 'Unable to start online payment' });
+      setOnlinePaymentLoading(false);
+    }
+  };
+
   const handleBulkGenerate = async () => {
     if (!bulkForm.classId) {
-      alert('Select class');
+      setBulkStatus({ type: 'error', text: 'Select a class before generating invoices.' });
+      return;
+    }
+    if (bulkForm.dueDate) {
+      const due = new Date(`${bulkForm.dueDate}T00:00:00`);
+      const now = new Date();
+      now.setHours(0, 0, 0, 0);
+      if (due < now) {
+        setBulkStatus({ type: 'error', text: 'Due date cannot be in the past.' });
+        return;
+      }
+    }
+    if (bulkTargetSummary.studentCount === 0) {
+      setBulkStatus({
+        type: 'error',
+        text: 'No students found for selected class/section. Please check student mappings.',
+      });
       return;
     }
     setBulkLoading(true);
-    setBulkResult('');
+    setBulkStatus({ type: '', text: '' });
     try {
       const payload = {
         classId: bulkForm.classId,
@@ -275,12 +482,13 @@ const FeesCollection = ({ setShowAdminHeader }) => {
         throw new Error(data?.error || 'Unable to generate invoices');
       }
       const className = classNameById.get(String(bulkForm.classId)) || 'Class';
-      setBulkResult(
-        `Created ${data.createdCount} invoices (skipped ${data.skippedCount}) for ${className}${bulkForm.section ? ` - ${bulkForm.section}` : ''}.`
-      );
+      setBulkStatus({
+        type: 'success',
+        text: `Created ${data.createdCount} invoices (skipped ${data.skippedCount}) for ${className}${bulkForm.section ? ` - ${bulkForm.section}` : ''}.`,
+      });
       fetchRecords();
     } catch (err) {
-      setBulkResult(err.message || 'Unable to generate invoices');
+      setBulkStatus({ type: 'error', text: err.message || 'Unable to generate invoices' });
     } finally {
       setBulkLoading(false);
     }
@@ -424,7 +632,7 @@ const FeesCollection = ({ setShowAdminHeader }) => {
                 className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent"
               >
                 <option value="">All</option>
-                {bulkSections.map((sec) => (
+                {filteredSections.map((sec) => (
                   <option key={sec.id} value={sec.name}>
                     {sec.name}
                   </option>
@@ -513,7 +721,7 @@ const FeesCollection = ({ setShowAdminHeader }) => {
                 className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
               >
                 <option value="">All</option>
-                {filteredSections.map((sec) => (
+                {bulkSections.map((sec) => (
                   <option key={sec.id} value={sec.name}>
                     {sec.name}
                   </option>
@@ -540,6 +748,10 @@ const FeesCollection = ({ setShowAdminHeader }) => {
             </div>
           </div>
           <div className="mt-4 flex flex-wrap items-center gap-3">
+            <div className="text-sm text-slate-600">
+              Target: {bulkTargetSummary.className || 'No class selected'}
+              {bulkTargetSummary.sectionName ? ` - ${bulkTargetSummary.sectionName}` : ''} | Students: {bulkTargetSummary.studentCount}
+            </div>
             <button
               onClick={handleBulkGenerate}
               disabled={bulkLoading}
@@ -548,8 +760,14 @@ const FeesCollection = ({ setShowAdminHeader }) => {
               {bulkLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
               Generate Invoices
             </button>
-            {bulkResult && (
-              <span className="text-sm text-slate-600">{bulkResult}</span>
+            {bulkStatus.text && (
+              <span
+                className={`text-sm ${
+                  bulkStatus.type === 'success' ? 'text-emerald-700' : 'text-red-600'
+                }`}
+              >
+                {bulkStatus.text}
+              </span>
             )}
           </div>
         </div>
@@ -557,6 +775,17 @@ const FeesCollection = ({ setShowAdminHeader }) => {
         {fetchError && (
           <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">
             {fetchError}
+          </div>
+        )}
+        {actionNotice.text && (
+          <div
+            className={`border px-4 py-3 rounded-lg ${
+              actionNotice.type === 'success'
+                ? 'bg-emerald-50 border-emerald-200 text-emerald-700'
+                : 'bg-red-50 border-red-200 text-red-700'
+            }`}
+          >
+            {actionNotice.text}
           </div>
         )}
 
@@ -712,13 +941,24 @@ const FeesCollection = ({ setShowAdminHeader }) => {
                         </span>
                       </td>
                       <td className="px-4 py-3 text-center">
-                        <button
-                          onClick={() => handleViewDetails(record)}
-                          className="inline-flex items-center gap-1 px-3 py-1 text-xs font-medium rounded border border-slate-200 hover:bg-slate-100 text-slate-800"
-                        >
-                          <Eye size={12} />
-                          Details
-                        </button>
+                        <div className="inline-flex items-center gap-2">
+                          <button
+                            onClick={() => handleViewDetails(record)}
+                            className="inline-flex items-center gap-1 px-3 py-1 text-xs font-medium rounded border border-slate-200 hover:bg-slate-100 text-slate-800"
+                          >
+                            <Eye size={12} />
+                            Details
+                          </button>
+                          {Number(record.balanceAmount || 0) > 0 && (
+                            <button
+                              onClick={() => handleOpenOnlinePayment(record)}
+                              className="inline-flex items-center gap-1 px-3 py-1 text-xs font-medium rounded bg-amber-500 text-white hover:bg-amber-600"
+                            >
+                              <CreditCard size={12} />
+                              Pay Online
+                            </button>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -727,6 +967,68 @@ const FeesCollection = ({ setShowAdminHeader }) => {
           </div>
         </div>
       </div>
+
+      {onlinePaymentModal.open && (
+        <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4">
+          <div className="w-full max-w-lg rounded-2xl bg-white border border-slate-200 shadow-2xl">
+            <div className="p-6 border-b border-slate-100">
+              <h3 className="text-lg font-semibold text-slate-900">Collect Online Payment</h3>
+              <p className="text-sm text-slate-500 mt-1">
+                {onlinePaymentModal.record?.studentName || 'Student'} ·{' '}
+                {onlinePaymentModal.record?.className || 'Class'}{' '}
+                {onlinePaymentModal.record?.section ? `(${onlinePaymentModal.record.section})` : ''}
+              </p>
+            </div>
+            <div className="p-6 space-y-4">
+              <div className="rounded-lg bg-amber-50 border border-amber-200 px-3 py-2 text-sm text-amber-700">
+                Outstanding: {formatCurrency(onlinePaymentModal.record?.balanceAmount || 0)}
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-2">Amount</label>
+                <input
+                  type="number"
+                  min="0"
+                  step="1"
+                  value={onlinePaymentModal.amount}
+                  onChange={(e) =>
+                    setOnlinePaymentModal((prev) => ({ ...prev, amount: e.target.value }))
+                  }
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-2">Notes (optional)</label>
+                <input
+                  type="text"
+                  value={onlinePaymentModal.notes}
+                  onChange={(e) =>
+                    setOnlinePaymentModal((prev) => ({ ...prev, notes: e.target.value }))
+                  }
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
+                  placeholder="Reference note"
+                />
+              </div>
+            </div>
+            <div className="px-6 py-4 border-t border-slate-100 flex items-center justify-end gap-3">
+              <button
+                onClick={handleCloseOnlinePayment}
+                disabled={onlinePaymentLoading}
+                className="px-4 py-2 rounded-lg text-sm font-medium border border-slate-200 text-slate-700 hover:bg-slate-50 disabled:opacity-60"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleStartOnlinePayment}
+                disabled={onlinePaymentLoading}
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-60"
+              >
+                {onlinePaymentLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <CreditCard size={16} />}
+                Proceed to Razorpay
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

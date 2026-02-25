@@ -21,6 +21,20 @@ const formatCurrency = (value) =>
     maximumFractionDigits: 0,
   }).format(Number(value || 0));
 
+const loadRazorpayScript = () =>
+  new Promise((resolve) => {
+    if (window?.Razorpay) {
+      resolve(true);
+      return;
+    }
+    const script = document.createElement('script');
+    script.src = 'https://checkout.razorpay.com/v1/checkout.js';
+    script.async = true;
+    script.onload = () => resolve(true);
+    script.onerror = () => resolve(false);
+    document.body.appendChild(script);
+  });
+
 const StudentFeeDetails = ({ setShowAdminHeader }) => {
   const location = useLocation();
   const [searchParams] = useSearchParams();
@@ -41,6 +55,7 @@ const StudentFeeDetails = ({ setShowAdminHeader }) => {
   });
   const [savingPayment, setSavingPayment] = useState(false);
   const [savingDiscount, setSavingDiscount] = useState(false);
+  const [actionMessage, setActionMessage] = useState({ type: '', text: '' });
 
   useEffect(() => {
     setShowAdminHeader(false);
@@ -97,7 +112,12 @@ const StudentFeeDetails = ({ setShowAdminHeader }) => {
       alert('Enter amount');
       return;
     }
+    if (paymentForm.method === 'razorpay') {
+      await handleRazorpayPayment();
+      return;
+    }
     setSavingPayment(true);
+    setActionMessage({ type: '', text: '' });
     try {
       const res = await fetch(`${API_BASE}/api/fees/payments`, {
         method: 'POST',
@@ -117,10 +137,113 @@ const StudentFeeDetails = ({ setShowAdminHeader }) => {
         throw new Error(data?.error || 'Unable to record payment');
       }
       setPaymentForm({ amount: '', method: 'cash', notes: '' });
+      setActionMessage({ type: 'success', text: 'Payment recorded successfully.' });
       fetchDetails();
     } catch (err) {
-      alert(err.message || 'Unable to record payment');
+      setActionMessage({ type: 'error', text: err.message || 'Unable to record payment' });
     } finally {
+      setSavingPayment(false);
+    }
+  };
+
+  const handleRazorpayPayment = async () => {
+    if (!invoiceId) return;
+    setSavingPayment(true);
+    setActionMessage({ type: '', text: '' });
+    try {
+      const amount = Number(paymentForm.amount || 0);
+      if (!Number.isFinite(amount) || amount <= 0) {
+        throw new Error('Enter a valid amount');
+      }
+
+      const orderRes = await fetch(`${API_BASE}/api/fees/admin/razorpay/order`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          authorization: `Bearer ${localStorage.getItem('token')}`,
+        },
+        body: JSON.stringify({
+          invoiceId,
+          amount,
+          notes: paymentForm.notes || '',
+        }),
+      });
+      const orderData = await orderRes.json().catch(() => ({}));
+      if (!orderRes.ok) {
+        throw new Error(orderData?.error || 'Unable to create online payment order');
+      }
+
+      const scriptLoaded = await loadRazorpayScript();
+      if (!scriptLoaded) {
+        throw new Error('Unable to load Razorpay checkout');
+      }
+
+      const razorpayKey = orderData.keyId || import.meta.env.VITE_RAZORPAY_KEY_ID;
+      if (!razorpayKey) {
+        throw new Error('Razorpay key is missing');
+      }
+
+      const options = {
+        key: razorpayKey,
+        amount: orderData.order?.amount,
+        currency: orderData.order?.currency || 'INR',
+        name: 'EEC Fees Collection',
+        description: invoiceId,
+        order_id: orderData.order?.id,
+        prefill: {
+          name: student?.guardianName || student?.name || 'Parent',
+          contact: student?.guardianPhone || student?.mobile || '',
+          email: student?.guardianEmail || student?.email || '',
+        },
+        notes: {
+          studentName: student?.name || '',
+          invoiceId: String(invoiceId),
+        },
+        theme: {
+          color: '#f59e0b',
+        },
+        handler: async (response) => {
+          try {
+            const verifyRes = await fetch(`${API_BASE}/api/fees/admin/razorpay/verify`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                authorization: `Bearer ${localStorage.getItem('token')}`,
+              },
+              body: JSON.stringify({
+                invoiceId,
+                amount,
+                notes: paymentForm.notes || '',
+                razorpay_order_id: response.razorpay_order_id,
+                razorpay_payment_id: response.razorpay_payment_id,
+                razorpay_signature: response.razorpay_signature,
+              }),
+            });
+            const verifyData = await verifyRes.json().catch(() => ({}));
+            if (!verifyRes.ok) {
+              throw new Error(verifyData?.error || 'Unable to verify online payment');
+            }
+            setPaymentForm({ amount: '', method: 'cash', notes: '' });
+            setActionMessage({ type: 'success', text: 'Online payment captured successfully.' });
+            await fetchDetails();
+          } catch (verifyErr) {
+            setActionMessage({
+              type: 'error',
+              text: verifyErr.message || 'Unable to verify online payment',
+            });
+          } finally {
+            setSavingPayment(false);
+          }
+        },
+        modal: {
+          ondismiss: () => setSavingPayment(false),
+        },
+      };
+
+      const razorpay = new window.Razorpay(options);
+      razorpay.open();
+    } catch (err) {
+      setActionMessage({ type: 'error', text: err.message || 'Online payment failed' });
       setSavingPayment(false);
     }
   };
@@ -346,6 +469,9 @@ const StudentFeeDetails = ({ setShowAdminHeader }) => {
                         <p className="text-sm text-slate-500">
                           {payment.method?.toUpperCase() || 'CASH'}
                         </p>
+                        {payment.transactionId ? (
+                          <p className="text-xs text-slate-400">Ref: {payment.transactionId}</p>
+                        ) : null}
                       </div>
                       <p className="text-sm text-slate-500">
                         {payment.paidOn
@@ -366,6 +492,17 @@ const StudentFeeDetails = ({ setShowAdminHeader }) => {
           <div className="flex flex-col gap-6">
             <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
               <h3 className="text-lg font-semibold text-slate-900 mb-4">Collect Payment</h3>
+              {actionMessage.text ? (
+                <div
+                  className={`mb-3 rounded-lg border px-3 py-2 text-sm ${
+                    actionMessage.type === 'success'
+                      ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
+                      : 'border-red-200 bg-red-50 text-red-700'
+                  }`}
+                >
+                  {actionMessage.text}
+                </div>
+              ) : null}
               <div className="space-y-3">
                 <input
                   type="number"
@@ -398,8 +535,13 @@ const StudentFeeDetails = ({ setShowAdminHeader }) => {
                   className="w-full inline-flex items-center justify-center gap-2 rounded-lg bg-emerald-600 text-white px-4 py-2 text-sm font-semibold hover:bg-emerald-700 disabled:bg-gray-300"
                 >
                   {savingPayment ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
-                  Record Payment
+                  {paymentForm.method === 'razorpay' ? 'Pay Online via Razorpay' : 'Record Payment'}
                 </button>
+                {paymentForm.method === 'razorpay' ? (
+                  <p className="text-xs text-slate-500">
+                    Opens Razorpay Checkout and auto-updates payment history after verification.
+                  </p>
+                ) : null}
               </div>
             </div>
 

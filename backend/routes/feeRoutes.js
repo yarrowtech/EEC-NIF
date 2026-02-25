@@ -3,8 +3,6 @@ const mongoose = require('mongoose');
 const adminAuth = require('../middleware/adminAuth');
 const authParent = require('../middleware/authParent');
 const authStudent = require('../middleware/authStudent');
-const axios = require('axios');
-const crypto = require('crypto');
 
 const FeeStructure = require('../models/FeeStructure');
 const FeeInvoice = require('../models/FeeInvoice');
@@ -15,6 +13,12 @@ const ClassModel = require('../models/Class');
 const Section = require('../models/Section');
 const AcademicYear = require('../models/AcademicYear');
 const NotificationService = require('../utils/notificationService');
+const {
+  buildRazorpayReceipt,
+  createRazorpayOrder,
+  verifyRazorpaySignature,
+  buildTransactionId,
+} = require('../utils/paymentGatewayService');
 
 const router = express.Router();
 
@@ -143,32 +147,14 @@ const requireCampusId = (req, res) => {
   return true;
 };
 
-const getRazorpayConfig = () => {
-  const keyId = process.env.RAZORPAY_KEY_ID;
-  const keySecret = process.env.RAZORPAY_KEY_SECRET;
-  if (!keyId || !keySecret) {
-    throw new Error('Razorpay is not configured');
-  }
-  return { keyId, keySecret };
+const ensureInvoiceCampusAccess = async ({ invoice, schoolId, campusId }) => {
+  if (!campusId) return true;
+  const student = await StudentUser.findOne({ _id: invoice.studentId, schoolId })
+    .select('campusId')
+    .lean();
+  return Boolean(student && String(student.campusId || '') === String(campusId));
 };
 
-const createRazorpayOrder = async ({ amountPaise, receipt, notes }) => {
-  const { keyId, keySecret } = getRazorpayConfig();
-  const authHeader = Buffer.from(`${keyId}:${keySecret}`).toString('base64');
-  const payload = {
-    amount: amountPaise,
-    currency: 'INR',
-    receipt,
-    notes,
-  };
-  const response = await axios.post('https://api.razorpay.com/v1/orders', payload, {
-    headers: {
-      Authorization: `Basic ${authHeader}`,
-      'Content-Type': 'application/json',
-    },
-  });
-  return { order: response.data, keyId };
-};
 
 // Fee Structures
 router.post('/structures', adminAuth, async (req, res) => {
@@ -525,21 +511,13 @@ router.post('/payments', adminAuth, async (req, res) => {
     if (!invoice) {
       return res.status(404).json({ error: 'Invoice not found' });
     }
-    if (req.campusId) {
-      const student = await StudentUser.findOne({ _id: invoice.studentId, schoolId })
-        .select('campusId')
-        .lean();
-      if (!student || String(student.campusId || '') !== String(req.campusId)) {
-        return res.status(403).json({ error: 'Invoice not available for this campus' });
-      }
-    }
-    if (req.campusId) {
-      const student = await StudentUser.findOne({ _id: invoice.studentId, schoolId })
-        .select('campusId')
-        .lean();
-      if (!student || String(student.campusId || '') !== String(req.campusId)) {
-        return res.status(403).json({ error: 'Invoice not available for this campus' });
-      }
+    const hasInvoiceAccess = await ensureInvoiceCampusAccess({
+      invoice,
+      schoolId,
+      campusId: req.campusId,
+    });
+    if (!hasInvoiceAccess) {
+      return res.status(403).json({ error: 'Invoice not available for this campus' });
     }
 
     const balance = Math.max(
@@ -558,13 +536,25 @@ router.post('/payments', adminAuth, async (req, res) => {
       schoolId,
       invoiceId: invoice._id,
       studentId: invoice.studentId,
+      transactionId: buildTransactionId('ADM'),
       amount: paymentAmount,
+      currency: 'INR',
       method: method || 'cash',
       notes: notes ? String(notes).trim() : undefined,
       paidOn: paidOn ? new Date(paidOn) : undefined,
+      initiatedByType: 'admin',
+      initiatedById: req.admin?.id || null,
+      metadata: {
+        source: 'admin_manual',
+      },
     });
 
-    res.status(201).json({ payment: created, invoice });
+    res.status(201).json({
+      success: true,
+      message: 'Payment recorded successfully',
+      payment: created,
+      invoice,
+    });
   } catch (err) {
     res.status(400).json({ error: err.message });
   }
@@ -592,6 +582,233 @@ router.get('/payments', adminAuth, async (req, res) => {
     res.json(items);
   } catch (err) {
     res.status(500).json({ error: err.message });
+  }
+});
+
+router.get('/payments/:paymentId/receipt', adminAuth, async (req, res) => {
+  // #swagger.tags = ['Fees']
+  try {
+    const schoolId = resolveSchoolId(req, res);
+    if (!schoolId) return;
+    if (!requireCampusId(req, res)) return;
+    const paymentId = req.params.paymentId;
+    if (!paymentId || !mongoose.isValidObjectId(paymentId)) {
+      return res.status(400).json({ error: 'Valid paymentId is required' });
+    }
+
+    const payment = await FeePayment.findOne({ _id: paymentId, schoolId }).lean();
+    if (!payment) {
+      return res.status(404).json({ error: 'Payment not found' });
+    }
+    const invoice = await FeeInvoice.findOne({ _id: payment.invoiceId, schoolId }).lean();
+    if (!invoice) {
+      return res.status(404).json({ error: 'Invoice not found for this payment' });
+    }
+
+    const hasInvoiceAccess = await ensureInvoiceCampusAccess({
+      invoice,
+      schoolId,
+      campusId: req.campusId,
+    });
+    if (!hasInvoiceAccess) {
+      return res.status(403).json({ error: 'Payment not available for this campus' });
+    }
+
+    const student = await StudentUser.findOne({ _id: payment.studentId, schoolId })
+      .select('name grade section roll admissionNumber')
+      .lean();
+
+    res.json({
+      receipt: {
+        paymentId: payment._id,
+        transactionId: payment.transactionId || '',
+        generatedAt: new Date().toISOString(),
+      },
+      payment,
+      invoice,
+      student: student || null,
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message || 'Unable to load payment receipt' });
+  }
+});
+
+router.post('/admin/razorpay/order', adminAuth, async (req, res) => {
+  // #swagger.tags = ['Fees']
+  try {
+    const schoolId = resolveSchoolId(req, res);
+    if (!schoolId) return;
+    if (!requireCampusId(req, res)) return;
+
+    const { invoiceId, amount, notes } = req.body || {};
+    if (!invoiceId || !mongoose.isValidObjectId(invoiceId)) {
+      return res.status(400).json({ error: 'Valid invoiceId is required' });
+    }
+
+    const invoice = await FeeInvoice.findOne({ _id: invoiceId, schoolId }).lean();
+    if (!invoice) {
+      return res.status(404).json({ error: 'Invoice not found' });
+    }
+
+    const hasInvoiceAccess = await ensureInvoiceCampusAccess({
+      invoice,
+      schoolId,
+      campusId: req.campusId,
+    });
+    if (!hasInvoiceAccess) {
+      return res.status(403).json({ error: 'Invoice not available for this campus' });
+    }
+
+    const balance = Math.max(
+      0,
+      Number(invoice.totalAmount || 0) - Number(invoice.discountAmount || 0) - Number(invoice.paidAmount || 0)
+    );
+    if (balance <= 0) {
+      return res.status(400).json({ error: 'Invoice is already paid' });
+    }
+
+    const paymentAmount = Number.isFinite(Number(amount)) ? Number(amount) : balance;
+    if (!Number.isFinite(paymentAmount) || paymentAmount <= 0) {
+      return res.status(400).json({ error: 'Valid amount is required' });
+    }
+    if (paymentAmount > balance) {
+      return res.status(400).json({ error: 'Payment amount exceeds balance' });
+    }
+
+    const amountPaise = Math.round(paymentAmount * 100);
+    const receipt = buildRazorpayReceipt('adminfee', invoiceId);
+    const { order, keyId } = await createRazorpayOrder({
+      amountPaise,
+      receipt,
+      notes: {
+        invoiceId: String(invoiceId),
+        studentId: String(invoice.studentId),
+        source: 'admin',
+        note: String(notes || '').trim().slice(0, 120),
+      },
+    });
+
+    res.json({
+      success: true,
+      message: 'Razorpay order created',
+      order,
+      keyId,
+      amount: paymentAmount,
+      currency: order.currency || 'INR',
+      invoiceId,
+    });
+  } catch (err) {
+    res.status(400).json({ error: err.message || 'Unable to create Razorpay order' });
+  }
+});
+
+router.post('/admin/razorpay/verify', adminAuth, async (req, res) => {
+  // #swagger.tags = ['Fees']
+  try {
+    const schoolId = resolveSchoolId(req, res);
+    if (!schoolId) return;
+    if (!requireCampusId(req, res)) return;
+
+    const {
+      invoiceId,
+      amount,
+      notes,
+      razorpay_order_id: orderId,
+      razorpay_payment_id: paymentId,
+      razorpay_signature: signature,
+    } = req.body || {};
+
+    if (!invoiceId || !mongoose.isValidObjectId(invoiceId)) {
+      return res.status(400).json({ error: 'Valid invoiceId is required' });
+    }
+    if (!orderId || !paymentId || !signature) {
+      return res.status(400).json({ error: 'Missing Razorpay payment details' });
+    }
+
+    const invoice = await FeeInvoice.findOne({ _id: invoiceId, schoolId });
+    if (!invoice) {
+      return res.status(404).json({ error: 'Invoice not found' });
+    }
+
+    const hasInvoiceAccess = await ensureInvoiceCampusAccess({
+      invoice,
+      schoolId,
+      campusId: req.campusId,
+    });
+    if (!hasInvoiceAccess) {
+      return res.status(403).json({ error: 'Invoice not available for this campus' });
+    }
+
+    const isValidSignature = verifyRazorpaySignature({
+      orderId,
+      paymentId,
+      signature,
+    });
+    if (!isValidSignature) {
+      return res.status(400).json({ error: 'Invalid payment signature' });
+    }
+
+    const existingPayment = await FeePayment.findOne({
+      schoolId,
+      $or: [{ gatewayPaymentId: paymentId }, { gatewayOrderId: orderId }],
+    }).lean();
+
+    if (existingPayment) {
+      return res.json({
+        success: true,
+        message: 'Payment already verified',
+        payment: existingPayment,
+        invoice,
+      });
+    }
+
+    const paymentAmount = Number(amount);
+    if (!Number.isFinite(paymentAmount) || paymentAmount <= 0) {
+      return res.status(400).json({ error: 'Valid payment amount is required' });
+    }
+
+    const balance = Math.max(
+      0,
+      Number(invoice.totalAmount || 0) - Number(invoice.discountAmount || 0) - Number(invoice.paidAmount || 0)
+    );
+    if (paymentAmount > balance) {
+      return res.status(400).json({ error: 'Payment amount exceeds balance' });
+    }
+
+    invoice.paidAmount = Number(invoice.paidAmount || 0) + paymentAmount;
+    recomputeInvoiceStatus(invoice);
+    await invoice.save();
+
+    const payment = await FeePayment.create({
+      schoolId,
+      invoiceId: invoice._id,
+      studentId: invoice.studentId,
+      transactionId: buildTransactionId('ADM'),
+      amount: paymentAmount,
+      currency: 'INR',
+      method: 'razorpay',
+      notes: notes ? String(notes).trim() : undefined,
+      paidOn: new Date(),
+      initiatedByType: 'admin',
+      initiatedById: req.admin?.id || null,
+      gateway: 'razorpay',
+      gatewayOrderId: orderId,
+      gatewayPaymentId: paymentId,
+      gatewaySignature: signature,
+      gatewayStatus: 'captured',
+      metadata: {
+        source: 'admin_online',
+      },
+    });
+
+    res.json({
+      success: true,
+      message: 'Payment verified and captured',
+      payment,
+      invoice,
+    });
+  } catch (err) {
+    res.status(400).json({ error: err.message || 'Unable to verify payment' });
   }
 });
 
@@ -1208,7 +1425,10 @@ router.post('/parent/razorpay/order', authParent, async (req, res) => {
       return res.status(403).json({ error: 'Student not linked to this parent' });
     }
 
-    const balance = Math.max(0, Number(invoice.totalAmount || 0) - Number(invoice.paidAmount || 0));
+    const balance = Math.max(
+      0,
+      Number(invoice.totalAmount || 0) - Number(invoice.discountAmount || 0) - Number(invoice.paidAmount || 0)
+    );
     if (balance <= 0) {
       return res.status(400).json({ error: 'Invoice is already paid' });
     }
@@ -1222,7 +1442,7 @@ router.post('/parent/razorpay/order', authParent, async (req, res) => {
     }
 
     const amountPaise = Math.round(paymentAmount * 100);
-    const receipt = `fee_${invoiceId}_${Date.now()}`;
+    const receipt = buildRazorpayReceipt('parentfee', invoiceId);
     const { order, keyId } = await createRazorpayOrder({
       amountPaise,
       receipt,
@@ -1233,6 +1453,8 @@ router.post('/parent/razorpay/order', authParent, async (req, res) => {
     });
 
     res.json({
+      success: true,
+      message: 'Razorpay order created',
       order,
       keyId,
       amount: paymentAmount,
@@ -1286,13 +1508,12 @@ router.post('/parent/razorpay/verify', authParent, async (req, res) => {
       return res.status(403).json({ error: 'Student not linked to this parent' });
     }
 
-    const { keySecret } = getRazorpayConfig();
-    const expectedSignature = crypto
-      .createHmac('sha256', keySecret)
-      .update(`${orderId}|${paymentId}`)
-      .digest('hex');
-
-    if (expectedSignature !== signature) {
+    const isValidSignature = verifyRazorpaySignature({
+      orderId,
+      paymentId,
+      signature,
+    });
+    if (!isValidSignature) {
       return res.status(400).json({ error: 'Invalid payment signature' });
     }
 
@@ -1302,7 +1523,12 @@ router.post('/parent/razorpay/verify', authParent, async (req, res) => {
     }).lean();
 
     if (existingPayment) {
-      return res.json({ payment: existingPayment, invoice });
+      return res.json({
+        success: true,
+        message: 'Payment already verified',
+        payment: existingPayment,
+        invoice,
+      });
     }
 
     const paymentAmount = Number(amount);
@@ -1310,7 +1536,10 @@ router.post('/parent/razorpay/verify', authParent, async (req, res) => {
       return res.status(400).json({ error: 'Valid payment amount is required' });
     }
 
-    const balance = Math.max(0, Number(invoice.totalAmount || 0) - Number(invoice.paidAmount || 0));
+    const balance = Math.max(
+      0,
+      Number(invoice.totalAmount || 0) - Number(invoice.discountAmount || 0) - Number(invoice.paidAmount || 0)
+    );
     if (paymentAmount > balance) {
       return res.status(400).json({ error: 'Payment amount exceeds balance' });
     }
@@ -1323,17 +1552,29 @@ router.post('/parent/razorpay/verify', authParent, async (req, res) => {
       schoolId,
       invoiceId: invoice._id,
       studentId: invoice.studentId,
+      transactionId: buildTransactionId('PRT'),
       amount: paymentAmount,
+      currency: 'INR',
       method: 'razorpay',
       paidOn: new Date(),
+      initiatedByType: 'parent',
+      initiatedById: parent._id,
       gateway: 'razorpay',
       gatewayOrderId: orderId,
       gatewayPaymentId: paymentId,
       gatewaySignature: signature,
       gatewayStatus: 'captured',
+      metadata: {
+        source: 'parent_online',
+      },
     });
 
-    res.json({ payment, invoice });
+    res.json({
+      success: true,
+      message: 'Payment verified and captured',
+      payment,
+      invoice,
+    });
   } catch (err) {
     res.status(400).json({ error: err.message || 'Unable to verify payment' });
   }

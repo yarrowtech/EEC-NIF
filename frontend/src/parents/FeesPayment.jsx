@@ -44,6 +44,7 @@ const FeesPayment = () => {
   const [paymentsByInvoice, setPaymentsByInvoice] = useState({});
   const [amounts, setAmounts] = useState({});
   const [processingInvoiceId, setProcessingInvoiceId] = useState('');
+  const [successMessage, setSuccessMessage] = useState('');
 
   const buildChildKey = (child) => (child.id ? `id:${child.id}` : `name:${child.name || ''}`);
 
@@ -62,6 +63,7 @@ const FeesPayment = () => {
 
     setLoadingChildren(true);
     setError('');
+    setSuccessMessage('');
     try {
       const res = await fetch(`${API_BASE}/api/fees/parent/children`, {
         headers: {
@@ -98,6 +100,7 @@ const FeesPayment = () => {
     }
     setLoadingInvoices(true);
     setError('');
+    setSuccessMessage('');
     try {
       const res = await fetch(`${API_BASE}/api/fees/parent/invoices?studentId=${childId}`, {
         headers: {
@@ -145,6 +148,7 @@ const FeesPayment = () => {
     }
     setProcessingInvoiceId(invoice._id);
     setError('');
+    setSuccessMessage('');
     try {
       const paymentAmount = Number(amounts[invoice._id]);
       if (!Number.isFinite(paymentAmount) || paymentAmount <= 0) {
@@ -204,6 +208,7 @@ const FeesPayment = () => {
             if (!verifyRes.ok) {
               throw new Error(verifyData?.error || 'Payment verification failed');
             }
+            setSuccessMessage('Payment successful. Invoice updated.');
             await fetchInvoices(selectedChild.id);
           } catch (verifyErr) {
             setError(verifyErr.message || 'Unable to verify payment');
@@ -247,6 +252,7 @@ const FeesPayment = () => {
       <div className="bg-gradient-to-r from-yellow-400 to-yellow-500 rounded-xl p-4 sm:p-6 text-white">
         <h1 className="text-2xl sm:text-3xl font-bold mb-1 sm:mb-2">Fees Payment</h1>
         <p className="text-yellow-100 text-sm sm:text-base">Manage invoices and pay online</p>
+        <p className="text-yellow-50 text-xs sm:text-sm mt-1">Secure checkout powered by Razorpay</p>
       </div>
 
       <div className="bg-white rounded-xl p-4 sm:p-5 shadow-sm border border-gray-100">
@@ -270,7 +276,7 @@ const FeesPayment = () => {
           <option value="">Select a child</option>
           {children.map((child) => (
             <option key={child.id || child.name} value={buildChildKey(child)}>
-              {child.name || 'Child'} {child.grade ? `• ${child.grade}` : ''}
+              {child.name || 'Child'} {child.grade ? `- ${child.grade}` : ''}
             </option>
           ))}
         </select>
@@ -285,6 +291,7 @@ const FeesPayment = () => {
           </p>
         )}
         {error && <p className="text-sm text-red-600 mt-2">{error}</p>}
+        {successMessage && <p className="text-sm text-emerald-700 mt-2">{successMessage}</p>}
       </div>
 
       {selectedChild?.id ? (
@@ -441,8 +448,9 @@ const FeesPayment = () => {
                               >
                                 <span>
                                   {new Date(payment.paidOn || payment.createdAt).toLocaleDateString()}
-                                  {' · '}
+                                  {' - '}
                                   {payment.method || 'cash'}
+                                  {payment.transactionId ? ` - Ref ${payment.transactionId}` : ''}
                                 </span>
                                 <span className="font-semibold text-gray-800">
                                   {formatCurrency(payment.amount)}
@@ -469,3 +477,4 @@ const FeesPayment = () => {
 };
 
 export default FeesPayment;
+
