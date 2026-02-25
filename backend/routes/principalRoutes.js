@@ -32,6 +32,8 @@ router.post('/register', adminAuth, async (req, res) => {
       username: normalize(username || principalEmail),
       email: principalEmail,
       password,
+      initialPassword: password,
+      lastLoginAt: null,
       name: name || 'Principal',
       schoolId: resolvedSchoolId,
       campusId: req.campusId || (req.isSuperAdmin ? campusId : null),
@@ -60,16 +62,6 @@ router.post('/login', rateLimit({ windowMs: 60 * 1000, max: 10 }), async (req, r
     if (!principal || !(await bcrypt.compare(password, principal.password))) {
       return res.status(401).json({ error: 'Invalid credentials' });
     }
-    if (!principal.lastLoginAt) {
-      return res.json({
-        requiresPasswordReset: true,
-        username: principal.username || principal.email,
-        userType: 'Principal',
-      });
-    }
-
-    principal.lastLoginAt = new Date();
-    await principal.save();
 
     const token = jwt.sign(
       {

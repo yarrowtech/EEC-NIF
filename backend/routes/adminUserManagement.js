@@ -164,7 +164,7 @@ const getModelByRole = (role) => {
 };
 
 const PASSWORD_RESET_DEFAULT = 'Pass@123';
-const PASSWORD_RESET_ALLOWED_ROLES = new Set(['teacher', 'student', 'parent']);
+const PASSWORD_RESET_ALLOWED_ROLES = new Set(['teacher', 'student', 'parent', 'principal']);
 
 const getPasswordResetModelByRole = (role) => {
   switch (String(role || '').toLowerCase()) {
@@ -174,6 +174,8 @@ const getPasswordResetModelByRole = (role) => {
       return StudentUser;
     case 'parent':
       return ParentUser;
+    case 'principal':
+      return Principal;
     default:
       return null;
   }
@@ -541,7 +543,7 @@ router.get('/password-reset/users', adminAuth, async (req, res) => {
   try {
     const role = String(req.query?.role || '').trim().toLowerCase();
     if (!PASSWORD_RESET_ALLOWED_ROLES.has(role)) {
-      return res.status(400).json({ error: 'role must be one of teacher, student, parent' });
+      return res.status(400).json({ error: 'role must be one of teacher, student, parent, principal' });
     }
 
     const Model = getPasswordResetModelByRole(role);
@@ -584,7 +586,7 @@ router.post('/password-reset/reset', adminAuth, async (req, res) => {
     const userId = String(req.body?.userId || '').trim();
 
     if (!PASSWORD_RESET_ALLOWED_ROLES.has(role)) {
-      return res.status(400).json({ error: 'role must be one of teacher, student, parent' });
+      return res.status(400).json({ error: 'role must be one of teacher, student, parent, principal' });
     }
     if (!mongoose.isValidObjectId(userId)) {
       return res.status(400).json({ error: 'Valid userId is required' });
@@ -809,6 +811,8 @@ router.post('/teachers/:id/make-principal', adminAuth, async (req, res) => {
       username: principalUsername.toLowerCase().trim(),
       email: teacher.email || principalUsername.toLowerCase().trim(),
       password,
+      initialPassword: password,
+      lastLoginAt: null,
       name: teacher.name || 'Principal',
       schoolId: teacher.schoolId,
       campusId: teacher.campusId,
@@ -968,6 +972,31 @@ router.put('/principals/:id', adminAuth, async (req, res) => {
     await updateByScope(Principal, req, res);
   } catch (err) {
     res.status(500).json({ error: err.message });
+  }
+});
+
+router.post('/principals/:id/credentials', adminAuth, async (req, res) => {
+  // #swagger.tags = ['Admin Users']
+  try {
+    const filter = buildScopedIdFilter(req, req.params.id);
+    if (!filter) {
+      return res.status(400).json({ error: 'Invalid id' });
+    }
+    const principal = await Principal.findOne(filter);
+    if (!principal) {
+      return res.status(404).json({ error: 'Principal not found' });
+    }
+
+    return res.json({
+      principalId: principal._id,
+      name: principal.name || 'Principal',
+      username: principal.username,
+      email: principal.email,
+      initialPassword: principal.initialPassword || '',
+      lastLoginAt: principal.lastLoginAt || null,
+    });
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
   }
 });
 
