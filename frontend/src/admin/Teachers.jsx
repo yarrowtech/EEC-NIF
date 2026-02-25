@@ -82,6 +82,7 @@ const resolveTeacherStatus = (teacher, todayCheckedInTeacherIds, attendanceLoade
 };
 
 const Teachers = ({setShowAdminHeader}) => {
+  const [activeTab, setActiveTab] = useState('teachers');
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState('All');
   const [teachers, setTeachers] = useState([]);
@@ -96,6 +97,13 @@ const Teachers = ({setShowAdminHeader}) => {
   const [scheduleModal, setScheduleModal] = useState(null);
   const [principalLoadingId, setPrincipalLoadingId] = useState(null);
   const [principalCredentialView, setPrincipalCredentialView] = useState(null);
+
+  // Principals tab state
+  const [principals, setPrincipals] = useState([]);
+  const [loadingPrincipals, setLoadingPrincipals] = useState(false);
+  const [principalSearchTerm, setPrincipalSearchTerm] = useState('');
+  const [principalCredLoadingId, setPrincipalCredLoadingId] = useState(null);
+  const [principalDeleteLoadingId, setPrincipalDeleteLoadingId] = useState(null);
 
   // Pagination states
   const [currentPage, setCurrentPage] = useState(1);
@@ -266,13 +274,103 @@ const Teachers = ({setShowAdminHeader}) => {
     setCurrentPage(1);
   }, [searchTerm, filterStatus]);
 
+  const fetchPrincipals = async () => {
+    setLoadingPrincipals(true);
+    try {
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/admin/users/get-principals`, {
+        headers: {
+          'Content-Type': 'application/json',
+          authorization: `Bearer ${localStorage.getItem('token')}`
+        }
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setPrincipals(Array.isArray(data) ? data : (data.principals || []));
+      }
+    } catch (err) {
+      console.error('Error fetching principals:', err);
+    } finally {
+      setLoadingPrincipals(false);
+    }
+  };
+
+  const handleViewPrincipalCredentials = async (principal) => {
+    const principalId = principal?._id || principal?.id;
+    if (!principalId) return;
+    const confirmReset = window.confirm(
+      `This will reset ${principal.name || 'the principal'}'s password and generate a new one. Continue?`
+    );
+    if (!confirmReset) return;
+    setPrincipalCredLoadingId(principalId);
+    try {
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/admin/users/principals/${principalId}/credentials`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          authorization: `Bearer ${localStorage.getItem('token')}`
+        }
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error || 'Unable to generate credentials');
+      setPrincipalCredentialView({
+        name: principal.name,
+        username: data.username || data.email || principal.email,
+        email: data.email || principal.email,
+        password: data.password
+      });
+    } catch (error) {
+      setSubmitStatus({ type: 'error', message: error.message || 'Unable to generate credentials' });
+    } finally {
+      setPrincipalCredLoadingId(null);
+    }
+  };
+
+  const handleDeletePrincipal = async (principal) => {
+    const principalId = principal?._id || principal?.id;
+    if (!principalId || principalDeleteLoadingId) return;
+
+    const confirmed = window.confirm(
+      `Delete principal account for ${principal?.name || 'this principal'}? This action cannot be undone.`
+    );
+    if (!confirmed) return;
+
+    setPrincipalDeleteLoadingId(principalId);
+    try {
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/admin/users/principals/${principalId}`, {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+          authorization: `Bearer ${localStorage.getItem('token')}`
+        }
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data?.error || data?.message || 'Unable to delete principal');
+      }
+
+      setPrincipals((prev) => prev.filter((item) => String(item._id || item.id) !== String(principalId)));
+      setSubmitStatus({ type: 'success', message: `${principal?.name || 'Principal'} deleted successfully.` });
+      fetchPrincipals().catch(console.error);
+    } catch (error) {
+      setSubmitStatus({ type: 'error', message: error.message || 'Unable to delete principal' });
+    } finally {
+      setPrincipalDeleteLoadingId(null);
+    }
+  };
+
   // making the admin header invisible
   useEffect(() => {
-    setShowAdminHeader(false)
+    setShowAdminHeader(false);
     fetchTeachers({ useCache: true }).catch(err => {
       console.error("Error fetching teachers:", err);
     });
-  }, [setShowAdminHeader])
+  }, [setShowAdminHeader]);
+
+  useEffect(() => {
+    if (activeTab === 'principals' && principals.length === 0) {
+      fetchPrincipals();
+    }
+  }, [activeTab]);
 
   const handleAddTeacherChange = (e) => {
     const { name, value } = e.target;
@@ -527,8 +625,40 @@ const Teachers = ({setShowAdminHeader}) => {
             </div>
           )}
 
-          {/* Search and Filter */}
-          <div className="mt-6 flex flex-col sm:flex-row gap-3">
+          {/* Tabs */}
+          <div className="mt-6 flex gap-1 p-1 bg-gray-100 rounded-xl w-fit">
+            <button
+              onClick={() => setActiveTab('teachers')}
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                activeTab === 'teachers'
+                  ? 'bg-white text-indigo-700 shadow-sm'
+                  : 'text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              <GraduationCap size={15} />
+              Teachers
+              <span className={`text-xs px-1.5 py-0.5 rounded-full font-semibold ${activeTab === 'teachers' ? 'bg-indigo-100 text-indigo-600' : 'bg-gray-200 text-gray-500'}`}>
+                {teachers.length}
+              </span>
+            </button>
+            <button
+              onClick={() => setActiveTab('principals')}
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                activeTab === 'principals'
+                  ? 'bg-white text-purple-700 shadow-sm'
+                  : 'text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              <Crown size={15} />
+              Principals
+              <span className={`text-xs px-1.5 py-0.5 rounded-full font-semibold ${activeTab === 'principals' ? 'bg-purple-100 text-purple-600' : 'bg-gray-200 text-gray-500'}`}>
+                {principals.length}
+              </span>
+            </button>
+          </div>
+
+          {/* Search and Filter — Teachers only */}
+          {activeTab === 'teachers' && <div className="mt-4 flex flex-col sm:flex-row gap-3">
             <div className="flex-1 relative">
               <Search size={17} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
               <input
@@ -548,11 +678,11 @@ const Teachers = ({setShowAdminHeader}) => {
               <option value="Active">Active</option>
               <option value="On Leave">On Leave</option>
             </select>
-          </div>
+          </div>}
         </div>
 
         {/* Teachers Table */}
-        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+        {activeTab === 'teachers' && <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead>
@@ -756,7 +886,159 @@ const Teachers = ({setShowAdminHeader}) => {
               <p className="text-gray-400 text-sm mt-1">Try adjusting your search or filters</p>
             </div>
           )}
-        </div>
+        </div>}
+
+        {/* Principals Tab */}
+        {activeTab === 'principals' && (
+          <div>
+            {/* Principals search */}
+            <div className="mb-4 flex flex-col sm:flex-row gap-3">
+              <div className="flex-1 relative">
+                <Search size={17} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+                <input
+                  type="text"
+                  placeholder="Search by name or email..."
+                  className="w-full pl-10 pr-4 py-2.5 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-400 focus:border-transparent bg-white shadow-sm text-sm"
+                  value={principalSearchTerm}
+                  onChange={(e) => setPrincipalSearchTerm(e.target.value)}
+                />
+              </div>
+              <button
+                onClick={fetchPrincipals}
+                className="sm:w-auto px-4 py-2.5 border border-gray-200 rounded-xl bg-white hover:bg-gray-50 text-sm text-gray-600 font-medium shadow-sm transition-colors"
+              >
+                Refresh
+              </button>
+            </div>
+
+            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead>
+                    <tr className="bg-gradient-to-r from-purple-50 to-pink-50/50 border-b border-gray-100">
+                      <th className="px-6 py-3.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Principal</th>
+                      <th className="px-6 py-3.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Contact</th>
+                      <th className="px-6 py-3.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Login ID</th>
+                      <th className="px-6 py-3.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-50">
+                    {loadingPrincipals ? (
+                      <tr>
+                        <td colSpan={4} className="py-16 text-center">
+                          <div className="flex items-center justify-center gap-2 text-gray-400">
+                            <span className="w-5 h-5 border-2 border-purple-300 border-t-purple-600 rounded-full animate-spin" />
+                            Loading principals...
+                          </div>
+                        </td>
+                      </tr>
+                    ) : principals.filter(p => {
+                        const q = principalSearchTerm.toLowerCase();
+                        return !q || (p.name || '').toLowerCase().includes(q) || (p.email || '').toLowerCase().includes(q);
+                      }).length === 0 ? (
+                      <tr>
+                        <td colSpan={4} className="py-16 text-center">
+                          <div className="w-14 h-14 rounded-2xl bg-purple-50 flex items-center justify-center mx-auto mb-3">
+                            <Crown size={24} className="text-purple-300" />
+                          </div>
+                          <p className="text-gray-500 font-medium text-sm">No principals found</p>
+                          <p className="text-gray-400 text-xs mt-1">Assign a teacher as principal using the Teachers tab</p>
+                        </td>
+                      </tr>
+                    ) : (
+                      principals
+                        .filter(p => {
+                          const q = principalSearchTerm.toLowerCase();
+                          return !q || (p.name || '').toLowerCase().includes(q) || (p.email || '').toLowerCase().includes(q);
+                        })
+                        .map((principal) => {
+                          const avatarColor = getAvatarColor(principal.name);
+                          const initials = (principal.name || 'P').split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase();
+                          const loginId = principal.username || principal.employeeCode || principal.email || '—';
+                          return (
+                            <tr key={principal._id || principal.id} className="hover:bg-purple-50/30 transition-colors">
+                              <td className="px-6 py-4">
+                                <div className="flex items-center gap-3">
+                                  <div className={`w-9 h-9 rounded-xl ${avatarColor.bg} flex items-center justify-center text-sm font-bold ${avatarColor.text} flex-shrink-0 overflow-hidden`}>
+                                    {principal.profilePic ? (
+                                      <img src={resolveImageUrl(principal.profilePic)} alt={principal.name} className="w-full h-full object-cover" />
+                                    ) : initials}
+                                  </div>
+                                  <div>
+                                    <div className="text-sm font-semibold text-gray-900 flex items-center gap-1.5">
+                                      {principal.name}
+                                      <Crown size={12} className="text-purple-400" />
+                                    </div>
+                                    <div className="text-xs text-gray-400">Principal</div>
+                                  </div>
+                                </div>
+                              </td>
+                              <td className="px-6 py-4">
+                                <div className="space-y-1.5">
+                                  <div className="flex items-center text-sm text-gray-600">
+                                    <Mail size={13} className="mr-2 text-purple-400 flex-shrink-0" />
+                                    <span className="truncate max-w-[180px]">{principal.email || '—'}</span>
+                                  </div>
+                                  {principal.mobile && (
+                                    <div className="flex items-center text-sm text-gray-600">
+                                      <Phone size={13} className="mr-2 text-emerald-400 flex-shrink-0" />
+                                      <span>{principal.mobile}</span>
+                                    </div>
+                                  )}
+                                </div>
+                              </td>
+                              <td className="px-6 py-4">
+                                <div className="flex items-center gap-2">
+                                  <code className="text-xs font-mono bg-gray-100 text-gray-700 px-2.5 py-1 rounded-lg">{loginId}</code>
+                                  <button
+                                    onClick={() => copyCredential(loginId, `pid_${principal._id || principal.id}`)}
+                                    className={`p-1 rounded-lg transition-all ${copiedField === `pid_${principal._id || principal.id}` ? 'text-emerald-600' : 'text-gray-400 hover:text-purple-600 hover:bg-purple-50'}`}
+                                    title="Copy Login ID"
+                                  >
+                                    {copiedField === `pid_${principal._id || principal.id}` ? <Check size={13} /> : <Copy size={13} />}
+                                  </button>
+                                </div>
+                              </td>
+                              <td className="px-6 py-4">
+                                <div className="flex items-center gap-2">
+                                  <button
+                                    onClick={() => handleViewPrincipalCredentials(principal)}
+                                    disabled={principalCredLoadingId === (principal._id || principal.id) || principalDeleteLoadingId === (principal._id || principal.id)}
+                                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-purple-50 text-purple-700 hover:bg-purple-100 transition-colors text-xs font-medium disabled:opacity-50"
+                                    title="Reset & View Credentials"
+                                  >
+                                    {principalCredLoadingId === (principal._id || principal.id) ? (
+                                      <span className="w-3 h-3 border border-purple-400 border-t-transparent rounded-full animate-spin" />
+                                    ) : (
+                                      <KeyRound size={13} />
+                                    )}
+                                    Credentials
+                                  </button>
+                                  <button
+                                    onClick={() => handleDeletePrincipal(principal)}
+                                    disabled={principalDeleteLoadingId === (principal._id || principal.id) || principalCredLoadingId === (principal._id || principal.id)}
+                                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-rose-50 text-rose-700 hover:bg-rose-100 transition-colors text-xs font-medium disabled:opacity-50"
+                                    title="Delete Principal"
+                                  >
+                                    {principalDeleteLoadingId === (principal._id || principal.id) ? (
+                                      <span className="w-3 h-3 border border-rose-400 border-t-transparent rounded-full animate-spin" />
+                                    ) : (
+                                      <Trash2 size={13} />
+                                    )}
+                                    Delete
+                                  </button>
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Add Teacher Modal */}

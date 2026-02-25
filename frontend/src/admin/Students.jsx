@@ -398,6 +398,15 @@ const Students = ({ setShowAdminHeader, setShowAdminBreadcrumb }) => {
   const formatCurrency = (value = 0) =>
     `₹${Number(value || 0).toLocaleString()}`;
 
+  const extractLinkedStudentId = (childRef) => {
+    if (!childRef) return "";
+    if (typeof childRef === "string") return childRef;
+    if (typeof childRef === "object") {
+      return String(childRef._id || childRef.id || "");
+    }
+    return "";
+  };
+
   const toDateInputValue = (value) => {
     const text = String(value || "").trim();
     if (!text) return "";
@@ -609,7 +618,8 @@ const Students = ({ setShowAdminHeader, setShowAdminBreadcrumb }) => {
     parents.forEach((parent) => {
       const ids = Array.isArray(parent.childrenIds) ? parent.childrenIds : [];
       ids.forEach((id) => {
-        if (id) parentByStudentUserId.set(String(id), parent);
+        const linkedId = extractLinkedStudentId(id);
+        if (linkedId) parentByStudentUserId.set(linkedId, parent);
       });
     });
 
@@ -695,7 +705,8 @@ const Students = ({ setShowAdminHeader, setShowAdminBreadcrumb }) => {
       parentDirectory.forEach((parent) => {
         const ids = Array.isArray(parent.childrenIds) ? parent.childrenIds : [];
         ids.forEach((id) => {
-          if (id) parentByStudentUserId.set(String(id), parent);
+          const linkedId = extractLinkedStudentId(id);
+          if (linkedId) parentByStudentUserId.set(linkedId, parent);
         });
       });
       const studentId = normalized?._id ? String(normalized._id) : null;
@@ -1402,8 +1413,15 @@ const Students = ({ setShowAdminHeader, setShowAdminBreadcrumb }) => {
     const passwordValue = studentResetAt
       ? `Password reset by the user at ${studentResetAt.toLocaleDateString()}`
       : student.initialPassword || "Not available";
-    const parent = student.parent || null;
-    const parentId = parent?.username || "-";
+    const linkedParent =
+      student.parent ||
+      parentDirectory.find((p) => {
+        const ids = Array.isArray(p.childrenIds) ? p.childrenIds : [];
+        return ids.some((id) => extractLinkedStudentId(id) === String(student._id || ""));
+      }) ||
+      null;
+    const parent = linkedParent;
+    const parentId = parent?.username || parent?.userId || "-";
     const parentResetAt = parent?.lastLoginAt ? new Date(parent.lastLoginAt) : null;
     const parentPassword = parentResetAt
       ? `Password reset by the user at ${parentResetAt.toLocaleDateString()}`
@@ -1887,7 +1905,7 @@ const Students = ({ setShowAdminHeader, setShowAdminBreadcrumb }) => {
       if (parentDirectory.length > 0) {
         const linked = parentDirectory.find((p) => {
           const ids = Array.isArray(p.childrenIds) ? p.childrenIds : [];
-          return ids.some((id) => String(id) === String(student._id));
+          return ids.some((id) => extractLinkedStudentId(id) === String(student._id));
         });
         if (linked) setViewParent(linked);
       }
