@@ -12,13 +12,23 @@ const upload = multer({ storage });
 router.post('/profile/update', auth, upload.single('profilePic'), async (req, res) => {
   // #swagger.tags = ['Student Profile']
   try {
-    const updates = req.body;
+    const updates = { ...(req.body || {}) };
     const schoolId = req.schoolId || req.user?.schoolId || null;
     if (!schoolId) return res.status(400).json({ error: 'schoolId is required' });
 
     // Handle profilePic if included
     if (req.file) {
       updates.profilePic = `data:${req.file.mimetype};base64,${req.file.buffer.toString('base64')}`;
+    }
+
+    // Do not overwrite DOB with empty value from form submits.
+    if (Object.prototype.hasOwnProperty.call(updates, 'dob')) {
+      const dobValue = String(updates.dob || '').trim();
+      if (!dobValue) {
+        delete updates.dob;
+      } else {
+        updates.dob = dobValue;
+      }
     }
 
     const updatedStudent = await StudentUser.findOneAndUpdate(

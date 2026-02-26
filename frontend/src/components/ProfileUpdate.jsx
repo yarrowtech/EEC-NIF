@@ -24,6 +24,55 @@ const initialProfile = {
   mobile: '',
 };
 
+const normalizeDateForInput = (value) => {
+  if (!value) return '';
+  const raw = String(value).trim();
+  if (!raw) return '';
+
+  // Already normalized for <input type="date" />
+  if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw;
+
+  // Extract from ISO-like strings first (e.g. 2012-05-01T00:00:00.000Z)
+  const isoPrefix = raw.match(/^(\d{4}-\d{2}-\d{2})/);
+  if (isoPrefix) return isoPrefix[1];
+
+  // Numeric timestamp (seconds or milliseconds)
+  if (/^\d+$/.test(raw)) {
+    const ts = Number(raw);
+    if (Number.isFinite(ts)) {
+      const date = new Date(raw.length <= 10 ? ts * 1000 : ts);
+      if (!Number.isNaN(date.getTime())) return date.toISOString().split('T')[0];
+    }
+  }
+
+  // yyyy/mm/dd or yyyy-mm-dd (single-digit month/day supported)
+  const ymd = raw.match(/^(\d{4})[/-](\d{1,2})[/-](\d{1,2})$/);
+  if (ymd) {
+    const [, year, month, day] = ymd;
+    return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+  }
+
+  // Support common legacy formats (dd/mm/yyyy, dd-mm-yyyy)
+  const dmy = raw.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{4})$/);
+  if (dmy) {
+    const [, day, month, year] = dmy;
+    return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+  }
+
+  const parsed = new Date(raw);
+  if (Number.isNaN(parsed.getTime())) return '';
+  return parsed.toISOString().split('T')[0];
+};
+
+const resolveDobValue = (payload = {}) =>
+  payload?.dob
+  || payload?.dateOfBirth
+  || payload?.birthDate
+  || payload?.nifStudent?.dob
+  || payload?.student?.dob
+  || payload?.student?.dateOfBirth
+  || '';
+
 const ProfileUpdate = () => {
   const [profile, setProfile] = useState(initialProfile);
   const [preview, setPreview] = useState('');
@@ -56,14 +105,8 @@ const ProfileUpdate = () => {
 
         if (response.ok) {
           const data = await response.json();
-          console.log('Profile data loaded:', data);
-
-          // Format date for input field
-          const formatDate = (dateStr) => {
-            if (!dateStr) return '';
-            const date = new Date(dateStr);
-            return date.toISOString().split('T')[0];
-          };
+          // console.log('Profile data loaded:', data);
+          const resolvedDob = resolveDobValue(data);
 
           setProfile({
             name: data.name || '',
@@ -73,7 +116,7 @@ const ProfileUpdate = () => {
             confirmPassword: '',
             phone: data.mobile || '',
             address: data.address || '',
-            dob: formatDate(data.dob),
+            dob: normalizeDateForInput(resolvedDob),
             education: data.grade || '',
             studentId: data.username || '',
             semester: data.nifStudent ? `${data.nifStudent.grade} - Section ${data.nifStudent.section}` : '',
@@ -268,7 +311,9 @@ const ProfileUpdate = () => {
       formData.append('username', profile.username || '');
       formData.append('mobile', profile.phone || profile.mobile || '');
       formData.append('address', profile.address || '');
-      formData.append('dob', profile.dob || '');
+      if (profile.dob && String(profile.dob).trim()) {
+        formData.append('dob', profile.dob);
+      }
       if (profile.password) {
         formData.append('password', profile.password);
       }
@@ -290,11 +335,7 @@ const ProfileUpdate = () => {
       }
 
       const updated = result?.student || {};
-      const formatDate = (dateStr) => {
-        if (!dateStr) return '';
-        const date = new Date(dateStr);
-        return Number.isNaN(date.getTime()) ? '' : date.toISOString().split('T')[0];
-      };
+      const resolvedDob = resolveDobValue(updated);
 
       setProfile((prev) => ({
         ...prev,
@@ -304,7 +345,7 @@ const ProfileUpdate = () => {
         phone: updated.mobile || prev.phone,
         mobile: updated.mobile || prev.mobile,
         address: updated.address || prev.address,
-        dob: formatDate(updated.dob) || prev.dob,
+        dob: normalizeDateForInput(resolvedDob) || prev.dob,
         grade: updated.grade || prev.grade,
         section: updated.section || prev.section,
         roll: updated.roll || prev.roll,
@@ -478,7 +519,7 @@ const ProfileUpdate = () => {
                     {/* Name Field */}
                     <div>
                       <label className="block text-sm font-semibold text-gray-700 mb-2">
-                        Full Name *
+                        Full Name
                       </label>
                       <div className="relative">
                         <User className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
@@ -487,9 +528,11 @@ const ProfileUpdate = () => {
                           name="name"
                           value={profile.name}
                           onChange={handleChange}
-                          className={inputClasses('name')}
+                          className={`${inputClasses('name')} bg-gray-100 text-gray-500 cursor-not-allowed`}
                           placeholder="Enter your full name"
                           required
+                          disabled
+                          readOnly
                         />
                       </div>
                       {errors.name && (
@@ -522,7 +565,7 @@ const ProfileUpdate = () => {
                     {/* Email Field */}
                     <div>
                       <label className="block text-sm font-semibold text-gray-700 mb-2">
-                        Email Address *
+                        Email Address <span className='text-red-500'>*</span>
                       </label>
                       <div className="relative">
                         <Mail className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
@@ -725,7 +768,7 @@ const ProfileUpdate = () => {
                     </div>
 
                     {/* Notification Settings */}
-                    <div className="md:col-span-2">
+                    {/* <div className="md:col-span-2">
                       <label className="block text-sm font-semibold text-gray-700 mb-3">
                         Notification Preferences
                       </label>
@@ -763,7 +806,7 @@ const ProfileUpdate = () => {
                           </label>
                         </div>
                       </div>
-                    </div>
+                    </div> */}
                   </div>
                 </div>
               )}
@@ -824,7 +867,7 @@ const ProfileUpdate = () => {
                     </div>
 
                     {/* Two-Factor Authentication */}
-                    <div className="pt-4 border-t border-gray-200">
+                    {/* <div className="pt-4 border-t border-gray-200">
                       <h4 className="text-lg font-semibold text-gray-800 mb-3">Two-Factor Authentication</h4>
                       <div className="flex items-center justify-between bg-gray-50 p-4 rounded-lg">
                         <div>
@@ -835,7 +878,7 @@ const ProfileUpdate = () => {
                           Enable
                         </button>
                       </div>
-                    </div>
+                    </div> */}
                   </div>
                 </div>
               )}
