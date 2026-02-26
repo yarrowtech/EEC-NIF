@@ -3,12 +3,15 @@ const router = express.Router();
 const StudentUser = require('../models/StudentUser');
 const ParentUser = require('../models/ParentUser');
 const Timetable = require('../models/Timetable');
+const LessonPlan = require('../models/LessonPlan');
+const LessonPlanCompletion = require('../models/LessonPlanCompletion');
 const authStudent = require('../middleware/authStudent');
 const authTeacher = require('../middleware/authTeacher');
 const authParent = require('../middleware/authParent');
 const adminAuth = require('../middleware/adminAuth');
 
 const VALID_STATUSES = new Set(['present', 'absent']);
+const SUBSTITUTE_SUBJECT_PREFIX = 'general::';
 
 const normalizeStatus = (value) => String(value || '').trim().toLowerCase();
 
@@ -40,6 +43,19 @@ const findAttendanceIndexByDate = (attendance = [], dateValue) => {
     if (!entry?.date) return false;
     const entryDate = new Date(entry.date);
     return entryDate >= dayStart && entryDate <= dayEnd;
+  });
+};
+
+const findAttendanceIndexByDateAndSubject = (attendance = [], dateValue, subjectValue = '') => {
+  const dayStart = startOfDay(dateValue);
+  const dayEnd = endOfDay(dateValue);
+  const targetSubject = normalizeSubject(subjectValue);
+  return attendance.findIndex((entry) => {
+    if (!entry?.date) return false;
+    const entryDate = new Date(entry.date);
+    if (!(entryDate >= dayStart && entryDate <= dayEnd)) return false;
+    if (!targetSubject) return true;
+    return normalizeSubject(entry?.subject) === targetSubject;
   });
 };
 
@@ -76,6 +92,44 @@ const resolveMonthRange = (monthParam) => {
 
 
 const normalizeText = (value) => String(value || '').trim();
+const normalizeSubject = (value) => normalizeText(value).toLowerCase();
+const escapeRegex = (value) => String(value || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+const parseBoolean = (value) => ['1', 'true', 'yes', 'y'].includes(String(value || '').trim().toLowerCase());
+
+const normalizeSessionToken = (value) => {
+  const text = normalizeText(value);
+  const match = text.match(/^(\d{4})-(\d{2,4})$/);
+  if (!match) return text.toLowerCase();
+  const startYear = match[1];
+  const endPart = match[2];
+  const endToken = endPart.length === 2 ? endPart : endPart.slice(-2);
+  return `${startYear}-${endToken}`;
+};
+
+const areSessionsEquivalent = (a, b) => {
+  if (!a || !b) return false;
+  return normalizeSessionToken(a) === normalizeSessionToken(b);
+};
+
+const encodeSubstituteSubject = (value) => {
+  const subjectToken = normalizeSubject(value) || 'general';
+  return `${SUBSTITUTE_SUBJECT_PREFIX}${subjectToken}`;
+};
+
+const isSubstituteSubjectEntry = (value) => normalizeSubject(value).startsWith(SUBSTITUTE_SUBJECT_PREFIX);
+
+const matchesSubjectForView = ({ entrySubject, requestedSubject, substituteMode = false }) => {
+  const entryNormalized = normalizeSubject(entrySubject);
+  const requestedNormalized = normalizeSubject(requestedSubject);
+
+  if (!requestedNormalized) return true;
+  if (!substituteMode) return entryNormalized === requestedNormalized;
+
+  // Legacy substitute rows may still be stored as plain "General".
+  if (entryNormalized === 'general') return requestedNormalized === 'general';
+  if (!isSubstituteSubjectEntry(entrySubject)) return false;
+  return entryNormalized === encodeSubstituteSubject(requestedNormalized);
+};
 
 const resolveStudentSession = (student) => {
   const date = parseDateValue(student?.admissionDate) || parseDateValue(student?.createdAt);
@@ -88,6 +142,82 @@ const resolveStudentSession = (student) => {
 const resolveStudentClass = (student) => normalizeText(student?.grade);
 
 const resolveStudentSection = (student) => normalizeText(student?.section);
+
+const getTeacherAllocatedSubjects = async ({ schoolId, campusId, teacherId, className, sectionName }) => {
+  const baseFilter = { schoolId, 'entries.teacherId': teacherId };
+  const primaryFilter = campusId ? { ...baseFilter, campusId } : baseFilter;
+
+  let timetables = await Timetable.find(primaryFilter)
+    .populate('classId', 'name')
+    .populate('sectionId', 'name')
+    .populate('entries.subjectId', 'name')
+    .lean();
+
+  if (campusId && (!Array.isArray(timetables) || timetables.length === 0)) {
+    timetables = await Timetable.find(baseFilter)
+      .populate('classId', 'name')
+      .populate('sectionId', 'name')
+      .populate('entries.subjectId', 'name')
+      .lean();
+  }
+
+  const requestedClass = normalizeText(className).toLowerCase();
+  const requestedSection = normalizeText(sectionName).toLowerCase();
+  const subjectSet = new Set();
+
+  (timetables || []).forEach((tt) => {
+    const ttClass = normalizeText(tt?.classId?.name).toLowerCase();
+    const ttSection = normalizeText(tt?.sectionId?.name).toLowerCase();
+    if (requestedClass && ttClass !== requestedClass) return;
+    if (requestedSection && ttSection !== requestedSection) return;
+
+    (Array.isArray(tt?.entries) ? tt.entries : []).forEach((entry) => {
+      if (String(entry?.teacherId || '') !== String(teacherId || '')) return;
+      const subjectName = normalizeText(entry?.subjectId?.name);
+      if (subjectName) subjectSet.add(subjectName);
+    });
+  });
+
+  return [...subjectSet].sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+};
+
+const getClassSectionSubjects = async ({ schoolId, campusId, className, sectionName }) => {
+  const baseFilter = { schoolId };
+  const primaryFilter = campusId ? { ...baseFilter, campusId } : baseFilter;
+
+  let timetables = await Timetable.find(primaryFilter)
+    .populate('classId', 'name')
+    .populate('sectionId', 'name')
+    .populate('entries.subjectId', 'name')
+    .lean();
+
+  if (campusId && (!Array.isArray(timetables) || timetables.length === 0)) {
+    timetables = await Timetable.find(baseFilter)
+      .populate('classId', 'name')
+      .populate('sectionId', 'name')
+      .populate('entries.subjectId', 'name')
+      .lean();
+  }
+
+  const requestedClass = normalizeText(className).toLowerCase();
+  const requestedSection = normalizeText(sectionName).toLowerCase();
+  if (!requestedClass) return [];
+
+  const subjectSet = new Set();
+  (timetables || []).forEach((tt) => {
+    const ttClass = normalizeText(tt?.classId?.name).toLowerCase();
+    const ttSection = normalizeText(tt?.sectionId?.name).toLowerCase();
+    if (ttClass !== requestedClass) return;
+    if (requestedSection && ttSection !== requestedSection) return;
+
+    (Array.isArray(tt?.entries) ? tt.entries : []).forEach((entry) => {
+      const subjectName = normalizeText(entry?.subjectId?.name);
+      if (subjectName) subjectSet.add(subjectName);
+    });
+  });
+
+  return [...subjectSet].sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+};
 
 const buildClassSectionScope = async ({ schoolId, campusId, teacherId }) => {
   const baseFilter = {
@@ -135,11 +265,116 @@ const isStudentAllowedForScope = (student, scope) => {
 const teacherHasRoutineScope = (scope) =>
   Boolean(scope?.hasAssignment && scope?.classSectionKeys instanceof Set && scope.classSectionKeys.size > 0);
 
-const buildStudentAttendancePayload = (student, monthRange, selectedDate) => {
+const resolveLessonPlansForAttendance = async ({
+  schoolId,
+  campusId,
+  targetDate,
+  className,
+  sectionName,
+  subject,
+}) => {
+  const normalizedClass = normalizeText(className);
+  const normalizedSection = normalizeText(sectionName);
+  const normalizedSubjectText = normalizeText(subject);
+  if (
+    !normalizedClass ||
+    !normalizedSection ||
+    !normalizedSubjectText ||
+    normalizeSubject(normalizedSubjectText) === 'general'
+  ) {
+    return [];
+  }
+
+  const filter = {
+    schoolId,
+    className: { $regex: `^${escapeRegex(normalizedClass)}$`, $options: 'i' },
+    sectionName: { $regex: `^${escapeRegex(normalizedSection)}$`, $options: 'i' },
+    subject: { $regex: `^${escapeRegex(normalizedSubjectText)}$`, $options: 'i' },
+    date: { $gte: startOfDay(targetDate), $lte: endOfDay(targetDate) },
+  };
+  if (campusId) filter.campusId = campusId;
+
+  let plans = await LessonPlan.find(filter).sort({ createdAt: 1, _id: 1 }).lean();
+  if ((!Array.isArray(plans) || plans.length === 0) && campusId) {
+    const fallbackFilter = { ...filter };
+    delete fallbackFilter.campusId;
+    plans = await LessonPlan.find(fallbackFilter).sort({ createdAt: 1, _id: 1 }).lean();
+  }
+  return plans || [];
+};
+
+const buildLessonPlanContext = async ({
+  schoolId,
+  campusId,
+  targetDate,
+  className,
+  sectionName,
+  subject,
+}) => {
+  const plans = await resolveLessonPlansForAttendance({
+    schoolId,
+    campusId,
+    targetDate,
+    className,
+    sectionName,
+    subject,
+  });
+
+  const context = {
+    date: targetDate.toISOString(),
+    subject: normalizeText(subject),
+    className: normalizeText(className),
+    section: normalizeText(sectionName),
+    plans: [],
+  };
+  if (!plans.length) return context;
+
+  const completionFilter = {
+    schoolId,
+    lessonPlanId: { $in: plans.map((plan) => plan._id) },
+    date: { $gte: startOfDay(targetDate), $lte: endOfDay(targetDate) },
+  };
+  if (campusId) completionFilter.campusId = campusId;
+  let completions = await LessonPlanCompletion.find(completionFilter).lean();
+  if ((!Array.isArray(completions) || completions.length === 0) && campusId) {
+    const fallbackFilter = { ...completionFilter };
+    delete fallbackFilter.campusId;
+    completions = await LessonPlanCompletion.find(fallbackFilter).lean();
+  }
+  const completionByPlanId = new Map((completions || []).map((item) => [String(item.lessonPlanId), item]));
+
+  context.plans = plans.map((plan) => {
+    const completion = completionByPlanId.get(String(plan._id));
+    return {
+      id: String(plan._id),
+      title: plan.title || '',
+      subject: plan.subject || '',
+      date: plan.date,
+      status: completion?.status || 'pending',
+      completionPercent: Number.isFinite(Number(completion?.completionPercent))
+        ? Number(completion.completionPercent)
+        : 0,
+    };
+  });
+  return context;
+};
+
+const buildStudentAttendancePayload = (
+  student,
+  monthRange,
+  selectedDate,
+  selectedSubject = '',
+  { substituteMode = false } = {}
+) => {
   const attendance = Array.isArray(student?.attendance) ? student.attendance : [];
   const monthEntries = attendance.filter((entry) => {
     const entryDate = parseDateValue(entry.date);
-    return entryDate && entryDate >= monthRange.start && entryDate <= monthRange.end;
+    if (!(entryDate && entryDate >= monthRange.start && entryDate <= monthRange.end)) return false;
+    return matchesSubjectForView({
+      entrySubject: entry?.subject,
+      requestedSubject: selectedSubject,
+      substituteMode,
+    });
   });
 
   const attendanceByDate = {};
@@ -153,8 +388,17 @@ const buildStudentAttendancePayload = (student, monthRange, selectedDate) => {
   });
 
   const monthlySummary = buildSummary(monthEntries);
-  const dayIndex = findAttendanceIndexByDate(attendance, selectedDate);
-  const selectedRecord = dayIndex >= 0 ? attendance[dayIndex] : null;
+  const dayStart = startOfDay(selectedDate);
+  const dayEnd = endOfDay(selectedDate);
+  const selectedRecord = attendance.find((entry) => {
+    const entryDate = parseDateValue(entry?.date);
+    if (!entryDate || !(entryDate >= dayStart && entryDate <= dayEnd)) return false;
+    return matchesSubjectForView({
+      entrySubject: entry?.subject,
+      requestedSubject: selectedSubject,
+      substituteMode,
+    });
+  }) || null;
 
   return {
     _id: student._id,
@@ -227,10 +471,14 @@ router.get('/teacher/students', authTeacher, async (req, res) => {
       search,
       month,
       date,
+      subject,
+      substitute,
     } = req.query || {};
     const monthRange = resolveMonthRange(month);
     const selectedDate = parseDateValue(date) || new Date();
     const requestedClass = normalizeText(className) || normalizeText(classParam);
+    const requestedSection = normalizeText(section);
+    const isSubstituteMode = parseBoolean(substitute);
 
     const baseFilter = { schoolId };
     if (campusId) baseFilter.campusId = campusId;
@@ -239,24 +487,47 @@ router.get('/teacher/students', authTeacher, async (req, res) => {
       .select('name grade section roll attendance admissionDate createdAt')
       .lean();
 
-    const scope = await buildClassSectionScope({ schoolId, campusId, teacherId });
-    if (!teacherHasRoutineScope(scope)) {
-      return res.status(403).json({ error: 'Attendance access denied. You are not allocated in routine for any class/section.' });
+    let scopedStudents = scopeStudents;
+    if (!isSubstituteMode) {
+      const scope = await buildClassSectionScope({ schoolId, campusId, teacherId });
+      if (!teacherHasRoutineScope(scope)) {
+        return res.status(403).json({ error: 'Attendance access denied. You are not allocated in routine for any class/section.' });
+      }
+      scopedStudents = scopeStudents.filter((student) => isStudentAllowedForScope(student, scope));
     }
-    const scopedStudents = scopeStudents.filter((student) => isStudentAllowedForScope(student, scope));
     const normalized = scopedStudents.map((student) =>
-      buildStudentAttendancePayload(student, monthRange, selectedDate)
+      buildStudentAttendancePayload(
+        student,
+        monthRange,
+        selectedDate,
+        subject,
+        { substituteMode: isSubstituteMode }
+      )
     );
 
     const sessionSet = new Set(normalized.map((student) => normalizeText(student.session)).filter(Boolean));
     const classSet = new Set(normalized.map((student) => normalizeText(student.className)).filter(Boolean));
     const sectionSet = new Set(normalized.map((student) => normalizeText(student.section)).filter(Boolean));
+    const subjectOptions = isSubstituteMode
+      ? await getClassSectionSubjects({
+        schoolId,
+        campusId,
+        className: requestedClass,
+        sectionName: requestedSection,
+      })
+      : await getTeacherAllocatedSubjects({
+        schoolId,
+        campusId,
+        teacherId,
+        className: requestedClass,
+        sectionName: requestedSection,
+      });
 
     const result = normalized
       .filter((student) => {
         if (session && normalizeText(student.session) !== normalizeText(session)) return false;
         if (requestedClass && normalizeText(student.className) !== requestedClass) return false;
-        if (section && normalizeText(student.section) !== normalizeText(section)) return false;
+        if (requestedSection && normalizeText(student.section) !== requestedSection) return false;
         if (studentId && String(student._id) !== String(studentId)) return false;
         if (search && !normalizeText(student.name).toLowerCase().includes(normalizeText(search).toLowerCase())) return false;
         return true;
@@ -269,24 +540,39 @@ router.get('/teacher/students', authTeacher, async (req, res) => {
         return String(a.name || '').localeCompare(String(b.name || ''));
       });
 
+    const lessonPlanContext = (!isSubstituteMode && requestedClass && requestedSection && normalizeText(subject))
+      ? await buildLessonPlanContext({
+        schoolId,
+        campusId,
+        targetDate: selectedDate,
+        className: requestedClass,
+        sectionName: requestedSection,
+        subject: normalizeText(subject),
+      })
+      : null;
+
     res.json({
       month: monthRange.key,
       selectedDate: selectedDate.toISOString(),
       filters: {
         session: normalizeText(session),
         className: requestedClass,
-        section: normalizeText(section),
+        section: requestedSection,
         studentId: normalizeText(studentId),
         search: normalizeText(search),
+        subject: normalizeText(subject),
+        substitute: isSubstituteMode,
       },
       options: {
         sessions: [...sessionSet].sort((a, b) => b.localeCompare(a, undefined, { numeric: true })),
         classes: [...classSet].sort((a, b) => a.localeCompare(b, undefined, { numeric: true })),
         sections: [...sectionSet].sort((a, b) => a.localeCompare(b, undefined, { numeric: true })),
+        subjects: subjectOptions,
         students: normalized
           .map((student) => ({ _id: student._id, name: student.name }))
           .sort((a, b) => normalizeText(a.name).localeCompare(normalizeText(b.name))),
       },
+      lessonPlanContext,
       students: result,
     });
   } catch (err) {
@@ -306,20 +592,39 @@ router.post('/teacher/bulk-upsert', authTeacher, async (req, res) => {
 
     const targetDate = parseDateValue(req.body?.date);
     const entries = Array.isArray(req.body?.entries) ? req.body.entries : [];
+    const isSubstituteMode = parseBoolean(req.body?.substitute);
+    const requestSubject = normalizeText(req.body?.subject);
+    const substituteSession = normalizeText(req.body?.session);
+    const substituteClassName = normalizeText(req.body?.className || req.body?.class);
+    const substituteSection = normalizeText(req.body?.section);
 
     if (!targetDate) return res.status(400).json({ error: 'Valid date is required' });
     if (!entries.length) return res.status(400).json({ error: 'entries are required' });
-
-    const stats = { updated: 0, created: 0, skipped: 0 };
-    const scope = await buildClassSectionScope({ schoolId, campusId, teacherId });
-    if (!teacherHasRoutineScope(scope)) {
-      return res.status(403).json({ error: 'Attendance access denied. You are not allocated in routine for any class/section.' });
+    if (isSubstituteMode && (!substituteSession || !substituteClassName || !substituteSection)) {
+      return res.status(400).json({ error: 'Substitute mode requires session, className and section.' });
     }
 
+    const stats = { updated: 0, created: 0, skipped: 0 };
+    const lessonPlanMeta = {
+      lessonPlansMatched: 0,
+      lessonPlansCompleted: 0,
+      lessonPlansSkipped: 0,
+      lessonPlanIds: [],
+    };
+    let scope = null;
+    if (!isSubstituteMode) {
+      scope = await buildClassSectionScope({ schoolId, campusId, teacherId });
+      if (!teacherHasRoutineScope(scope)) {
+        return res.status(403).json({ error: 'Attendance access denied. You are not allocated in routine for any class/section.' });
+      }
+    }
+
+    const classSectionSubjectMap = new Map();
     for (const item of entries) {
       const studentId = item?.studentId;
       const status = normalizeStatus(item?.status);
-      const subject = String(item?.subject || '').trim();
+      const concreteSubject = normalizeText(item?.subject) || requestSubject;
+      const subject = isSubstituteMode ? encodeSubstituteSubject(concreteSubject) : concreteSubject;
 
       if (!studentId || !VALID_STATUSES.has(status)) {
         stats.skipped += 1;
@@ -333,12 +638,24 @@ router.post('/teacher/bulk-upsert', authTeacher, async (req, res) => {
         stats.skipped += 1;
         continue;
       }
-      if (!isStudentAllowedForScope(student, scope)) {
+      if (isSubstituteMode) {
+        const studentSession = normalizeText(resolveStudentSession(student));
+        const studentClass = normalizeText(resolveStudentClass(student));
+        const studentSection = normalizeText(resolveStudentSection(student));
+        if (
+          !areSessionsEquivalent(studentSession, substituteSession) ||
+          studentClass.toLowerCase() !== substituteClassName.toLowerCase() ||
+          studentSection.toLowerCase() !== substituteSection.toLowerCase()
+        ) {
+          stats.skipped += 1;
+          continue;
+        }
+      } else if (!isStudentAllowedForScope(student, scope)) {
         stats.skipped += 1;
         continue;
       }
 
-      const index = findAttendanceIndexByDate(student.attendance || [], targetDate);
+      const index = findAttendanceIndexByDateAndSubject(student.attendance || [], targetDate, subject);
       if (index >= 0) {
         student.attendance[index].status = status;
         student.attendance[index].subject = subject;
@@ -351,13 +668,90 @@ router.post('/teacher/bulk-upsert', authTeacher, async (req, res) => {
         });
         stats.created += 1;
       }
+      const normalizedSubjectText = normalizeSubject(subject);
+      if (normalizedSubjectText && normalizedSubjectText !== 'general') {
+        const studentClass = normalizeText(resolveStudentClass(student));
+        const studentSection = normalizeText(resolveStudentSection(student));
+        if (studentClass && studentSection) {
+          const mapKey = `${studentClass.toLowerCase()}::${studentSection.toLowerCase()}::${normalizedSubjectText}`;
+          if (!classSectionSubjectMap.has(mapKey)) {
+            classSectionSubjectMap.set(mapKey, {
+              className: studentClass,
+              sectionName: studentSection,
+              subject,
+            });
+          }
+        }
+      }
       await student.save();
     }
+
+    if (isSubstituteMode || classSectionSubjectMap.size === 0) {
+      lessonPlanMeta.lessonPlansSkipped = 1;
+    } else {
+      const completedIds = new Set();
+      for (const scopeValue of classSectionSubjectMap.values()) {
+        const matchedPlans = await resolveLessonPlansForAttendance({
+          schoolId,
+          campusId,
+          targetDate,
+          className: scopeValue.className,
+          sectionName: scopeValue.sectionName,
+          subject: scopeValue.subject,
+        });
+
+        lessonPlanMeta.lessonPlansMatched += matchedPlans.length;
+        matchedPlans.forEach((plan) => lessonPlanMeta.lessonPlanIds.push(String(plan._id)));
+
+        for (const plan of matchedPlans) {
+          await LessonPlanCompletion.findOneAndUpdate(
+            {
+              schoolId,
+              lessonPlanId: plan._id,
+              date: { $gte: startOfDay(targetDate), $lte: endOfDay(targetDate) },
+            },
+            {
+              $set: {
+                campusId: campusId || null,
+                classId: plan.classId,
+                sectionId: plan.sectionId,
+                teacherId: plan.teacherId,
+                subjectId: plan.subjectId,
+                className: plan.className || scopeValue.className,
+                sectionName: plan.sectionName || scopeValue.sectionName,
+                teacherName: plan.teacherName || 'Teacher',
+                subject: plan.subject || scopeValue.subject,
+                title: plan.title || '',
+                date: startOfDay(targetDate),
+                status: 'completed',
+                isCompleted: true,
+                completionPercent: 100,
+                remarks: 'Auto-completed from attendance',
+              },
+              $setOnInsert: {
+                schoolId,
+                lessonPlanId: plan._id,
+              },
+            },
+            { upsert: true, new: true }
+          );
+          completedIds.add(String(plan._id));
+        }
+      }
+      lessonPlanMeta.lessonPlansCompleted = completedIds.size;
+    }
+    lessonPlanMeta.lessonPlansSkipped = Math.max(
+      lessonPlanMeta.lessonPlansSkipped,
+      Math.max(lessonPlanMeta.lessonPlansMatched - lessonPlanMeta.lessonPlansCompleted, 0)
+    );
+    lessonPlanMeta.lessonPlanIds = [...new Set(lessonPlanMeta.lessonPlanIds)];
 
     res.json({
       message: 'Attendance saved successfully',
       date: targetDate.toISOString(),
+      substitute: isSubstituteMode,
       ...stats,
+      ...lessonPlanMeta,
     });
   } catch (err) {
     res.status(500).json({ error: err.message });

@@ -35,6 +35,7 @@ const AttendanceManagement = () => {
   const [selectedSection, setSelectedSection] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
   const [subject, setSubject] = useState('');
+  const [isSubstituteMode, setIsSubstituteMode] = useState(false);
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -45,7 +46,9 @@ const AttendanceManagement = () => {
   const [sessionOptions, setSessionOptions] = useState([]);
   const [classOptions, setClassOptions] = useState([]);
   const [sectionOptions, setSectionOptions] = useState([]);
+  const [subjectOptions, setSubjectOptions] = useState([]);
   const [attendanceData, setAttendanceData] = useState({});
+  const [lessonPlanContext, setLessonPlanContext] = useState(null);
 
   const loadAttendance = useCallback(async () => {
     const token = localStorage.getItem('token');
@@ -66,6 +69,8 @@ const AttendanceManagement = () => {
       if (selectedSession) query.set('session', selectedSession);
       if (selectedClass) query.set('className', selectedClass);
       if (selectedSection) query.set('section', selectedSection);
+      if (subject.trim()) query.set('subject', subject.trim());
+      if (isSubstituteMode) query.set('substitute', 'true');
       if (searchTerm.trim()) query.set('search', searchTerm.trim());
 
       const res = await fetch(`${API_BASE}/api/attendance/teacher/students?${query.toString()}`, {
@@ -90,6 +95,8 @@ const AttendanceManagement = () => {
       setSessionOptions(Array.isArray(data?.options?.sessions) ? data.options.sessions : []);
       setClassOptions(Array.isArray(data?.options?.classes) ? data.options.classes : []);
       setSectionOptions(Array.isArray(data?.options?.sections) ? data.options.sections : []);
+      setSubjectOptions(Array.isArray(data?.options?.subjects) ? data.options.subjects : []);
+      setLessonPlanContext(data?.lessonPlanContext || null);
 
       const nextState = {};
       sortedStudents.forEach((student) => {
@@ -101,11 +108,17 @@ const AttendanceManagement = () => {
     } finally {
       setLoading(false);
     }
-  }, [selectedMonth, selectedDate, selectedSession, selectedClass, selectedSection, searchTerm]);
+  }, [selectedMonth, selectedDate, selectedSession, selectedClass, selectedSection, subject, isSubstituteMode, searchTerm]);
 
   useEffect(() => {
     loadAttendance();
   }, [loadAttendance]);
+
+  useEffect(() => {
+    if (subject && !subjectOptions.includes(subject)) {
+      setSubject('');
+    }
+  }, [subject, subjectOptions]);
 
   const toggleStudentPresent = (studentId, checked) => {
     setAttendanceData((prev) => ({
@@ -117,6 +130,11 @@ const AttendanceManagement = () => {
   const saveAttendance = async () => {
     const token = localStorage.getItem('token');
     if (!token) return;
+    if (isSubstituteMode && (!selectedSession || !selectedClass || !selectedSection)) {
+      setError('For substitute attendance, please select session, class and section first.');
+      setSuccess('');
+      return;
+    }
     setSaving(true);
     setError('');
     setSuccess('');
@@ -124,6 +142,11 @@ const AttendanceManagement = () => {
     try {
       const payload = {
         date: selectedDate,
+        subject: subject.trim(),
+        substitute: isSubstituteMode,
+        session: selectedSession,
+        className: selectedClass,
+        section: selectedSection,
         entries: students.map((student) => ({
           studentId: student._id,
           status: attendanceData[student._id] || STATUS.ABSENT,
@@ -144,7 +167,13 @@ const AttendanceManagement = () => {
         throw new Error(data?.error || 'Failed to save attendance');
       }
 
-      setSuccess(`Saved (${data.created || 0} new, ${data.updated || 0} updated)`);
+      const matched = Number(data?.lessonPlansMatched || 0);
+      const completed = Number(data?.lessonPlansCompleted || 0);
+      const outcome = matched > 0
+        ? `${completed} lesson plan${completed !== 1 ? 's' : ''} auto-marked completed`
+        : 'No lesson plan matched for auto-completion';
+      const substituteNote = isSubstituteMode ? ' Saved as substitute attendance (subject shown as General for students).' : '';
+      setSuccess(`Saved (${data.created || 0} new, ${data.updated || 0} updated). ${outcome}.${substituteNote}`);
       await loadAttendance();
     } catch (err) {
       setError(err.message || 'Could not save attendance');
@@ -246,6 +275,24 @@ const AttendanceManagement = () => {
           </select>
         </div>
 
+        <div className="flex items-center gap-2 px-0.5">
+          <input
+            id="substitute-mode"
+            type="checkbox"
+            checked={isSubstituteMode}
+            onChange={(e) => setIsSubstituteMode(e.target.checked)}
+            className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+          />
+          <label htmlFor="substitute-mode" className="text-xs font-medium text-gray-700">
+            Mark as Substitute Attendance
+          </label>
+          {isSubstituteMode && (
+            <span className="text-[11px] text-indigo-600">
+              Use session, class and section filters. Students will see subject as General.
+            </span>
+          )}
+        </div>
+
         <div className="flex flex-wrap items-center gap-2.5">
           <div className="relative">
             <Calendar size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
@@ -262,13 +309,16 @@ const AttendanceManagement = () => {
             onChange={(e) => setSelectedMonth(e.target.value)}
             className="px-3 py-2 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400 transition-colors"
           />
-          <input
-            type="text"
+          <select
             value={subject}
             onChange={(e) => setSubject(e.target.value)}
-            placeholder="Subject (optional)"
             className="flex-1 min-w-[140px] px-3 py-2 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400 transition-colors"
-          />
+          >
+            <option value="">All Subjects</option>
+            {subjectOptions.map((subj) => (
+              <option key={subj} value={subj}>{subj}</option>
+            ))}
+          </select>
           <div className="flex items-center gap-2 ml-auto">
             <button
               type="button"
@@ -325,6 +375,44 @@ const AttendanceManagement = () => {
           </div>
         ))}
       </div>
+
+      {(!isSubstituteMode && selectedClass && selectedSection && subject.trim()) && (
+        <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
+          <div className="px-4 sm:px-5 py-3 border-b border-gray-100">
+            <h2 className="text-sm font-bold text-gray-900">Lesson Plan for selected date</h2>
+            <p className="text-[11px] text-gray-500 mt-0.5">
+              {selectedDate} · {selectedClass} · {selectedSection} · {subject.trim()}
+            </p>
+          </div>
+          <div className="p-4 sm:p-5">
+            {!lessonPlanContext || !Array.isArray(lessonPlanContext.plans) || lessonPlanContext.plans.length === 0 ? (
+              <p className="text-xs text-gray-500">No lesson plan found for this date/subject.</p>
+            ) : (
+              <div className="space-y-2.5">
+                {lessonPlanContext.plans.map((plan) => (
+                  <div key={plan.id} className="rounded-xl border border-gray-200 bg-gray-50 px-3 py-2.5 flex items-start justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-semibold text-gray-800">{plan.title || 'Untitled Lesson Plan'}</p>
+                      <p className="text-[11px] text-gray-500 mt-1">
+                        {(plan.date || selectedDate || '').toString().slice(0, 10)} · {plan.subject || subject.trim()}
+                      </p>
+                    </div>
+                    <span className={`inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold ${
+                      plan.status === 'completed'
+                        ? 'bg-emerald-100 text-emerald-700'
+                        : plan.status === 'in_progress'
+                        ? 'bg-amber-100 text-amber-700'
+                        : 'bg-slate-200 text-slate-700'
+                    }`}>
+                      {plan.status === 'completed' ? 'Completed' : plan.status === 'in_progress' ? 'In Progress' : 'Pending'}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Student List */}
       <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">

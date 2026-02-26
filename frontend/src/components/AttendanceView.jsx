@@ -18,6 +18,13 @@ const normalizeStatus = (value) => {
   return text === 'absent' ? 'absent' : 'present';
 };
 
+const normalizeDisplaySubject = (value) => {
+  const text = String(value || '').trim();
+  if (!text) return 'General';
+  if (text.toLowerCase().startsWith('general::')) return 'General';
+  return text;
+};
+
 /** Returns YYYY-MM-DD in local timezone (avoids UTC offset bugs with toISOString) */
 const toLocalDateKey = (date) => {
   const d = date instanceof Date ? date : new Date(date);
@@ -106,6 +113,8 @@ const AttendanceView = () => {
   const [materialsDate, setMaterialsDate] = useState('');
   const [materials, setMaterials] = useState([]);
   const [loadingMaterials, setLoadingMaterials] = useState(false);
+  const [lessonPlanStatuses, setLessonPlanStatuses] = useState([]);
+  const [loadingLessonPlans, setLoadingLessonPlans] = useState(false);
 
   useEffect(() => {
     const params = new URLSearchParams(location.search);
@@ -139,7 +148,7 @@ const AttendanceView = () => {
         ? data.attendance.map((record) => ({
             id: record._id || `${record.date}-${record.subject}`,
             date: toLocalDateKey(record.date),
-            subject: record.subject || 'General',
+            subject: normalizeDisplaySubject(record.subject),
             status: normalizeStatus(record.status),
           }))
         : [];
@@ -364,10 +373,38 @@ const AttendanceView = () => {
     }
   };
 
+  const fetchLessonPlanStatusForDate = async (dateStr) => {
+    setLoadingLessonPlans(true);
+    setLessonPlanStatuses([]);
+    try {
+      const token = localStorage.getItem('token');
+      if (!token) return;
+      const response = await fetch(
+        `${import.meta.env.VITE_API_URL}/api/lesson-plans/student/status?fromDate=${dateStr}&toDate=${dateStr}`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+        }
+      );
+      if (!response.ok) throw new Error('Failed to fetch lesson plan status');
+      const data = await response.json();
+      setLessonPlanStatuses(Array.isArray(data) ? data : []);
+    } catch (err) {
+      console.error('Failed to fetch lesson plan status:', err);
+      setLessonPlanStatuses([]);
+    } finally {
+      setLoadingLessonPlans(false);
+    }
+  };
+
   const handleDateClick = (dateKey) => {
+    setSelectedDate(dateKey);
     setMaterialsDate(dateKey);
     setShowMaterialsModal(true);
     fetchMaterialsForDate(dateKey);
+    fetchLessonPlanStatusForDate(dateKey);
   };
 
   /* ─── RENDER ─── */
@@ -864,115 +901,170 @@ const AttendanceView = () => {
 
             {/* Modal Body */}
             <div className="overflow-y-auto max-h-[calc(90vh-120px)] p-5">
-              {loadingMaterials ? (
-                <div className="flex flex-col items-center justify-center py-12">
-                  <Loader2 className="h-8 w-8 animate-spin text-indigo-600 mb-3" />
-                  <p className="text-sm text-slate-500">Loading materials...</p>
-                </div>
-              ) : materials.length === 0 ? (
-                <div className="flex flex-col items-center justify-center py-12 text-center">
-                  <div className="p-4 rounded-full bg-slate-100 mb-4">
-                    <BookOpen className="h-12 w-12 text-slate-300" />
-                  </div>
-                  <h3 className="text-lg font-semibold text-slate-900 mb-2">No Materials Found</h3>
-                  <p className="text-sm text-slate-500 max-w-sm">
-                    There are no learning materials available for this date. Check back later or contact your teacher.
-                  </p>
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  {materials.map((material, idx) => {
-                    const attachments = Array.isArray(material.attachments) ? material.attachments : [];
-                    return (
-                      <div
-                        key={material._id || idx}
-                        className="rounded-xl border border-slate-200 bg-gradient-to-br from-white to-slate-50 p-4 hover:shadow-md transition"
-                      >
-                        {/* Material Header */}
-                        <div className="mb-3">
-                          <div className="flex items-start justify-between gap-3 mb-2">
-                            <h3 className="text-lg font-semibold text-slate-900 flex items-center gap-2">
-                              <FileText className="h-5 w-5 text-indigo-600" />
-                              {material.title}
-                            </h3>
-                            {material.priority && (
-                              <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${
-                                material.priority === 'high'
-                                  ? 'bg-red-100 text-red-700'
-                                  : material.priority === 'medium'
-                                  ? 'bg-amber-100 text-amber-700'
-                                  : 'bg-green-100 text-green-700'
-                              }`}>
-                                {material.priority}
-                              </span>
-                            )}
-                          </div>
-                          <p className="text-sm text-slate-600 leading-relaxed">{material.message}</p>
-
-                          {/* Metadata */}
-                          <div className="mt-3 flex flex-wrap items-center gap-3 text-xs text-slate-500">
-                            {material.subjectName && (
-                              <span className="inline-flex items-center gap-1 rounded-full bg-blue-100 px-2 py-1 text-blue-700">
-                                <BookOpen className="h-3 w-3" />
-                                {material.subjectName}
-                              </span>
-                            )}
-                            {material.typeLabel && (
-                              <span className="inline-flex items-center gap-1 rounded-full bg-purple-100 px-2 py-1 text-purple-700">
-                                {material.typeLabel}
-                              </span>
-                            )}
-                            {material.createdByName && (
-                              <span className="text-slate-500">
-                                By {material.createdByName}
-                              </span>
-                            )}
-                          </div>
+              <div className="space-y-5">
+                <section className="rounded-xl border border-slate-200 bg-slate-50/70 p-4">
+                  <h3 className="text-sm font-semibold text-slate-900 mb-3">Attendance</h3>
+                  {(recordsByDate[materialsDate] || []).length === 0 ? (
+                    <p className="text-xs text-slate-500">No attendance records found for this date.</p>
+                  ) : (
+                    <div className="space-y-2">
+                      {(recordsByDate[materialsDate] || []).map((record) => (
+                        <div
+                          key={record.id}
+                          className="rounded-lg border border-slate-200 bg-white px-3 py-2.5 flex items-center justify-between gap-3"
+                        >
+                          <p className="text-sm font-medium text-slate-800">{record.subject || 'General'}</p>
+                          {record.status === 'present' ? (
+                            <span className="rounded-full bg-emerald-100 px-2.5 py-0.5 text-xs font-semibold text-emerald-700">
+                              Present
+                            </span>
+                          ) : (
+                            <span className="text-xs font-semibold text-rose-600">You missed today</span>
+                          )}
                         </div>
+                      ))}
+                    </div>
+                  )}
+                </section>
 
-                        {/* Attachments */}
-                        {attachments.length > 0 && (
-                          <div className="mt-4 pt-4 border-t border-slate-200">
-                            <div className="flex items-center gap-2 mb-3">
-                              <Paperclip className="h-4 w-4 text-indigo-600" />
-                              <span className="text-sm font-semibold text-slate-700">
-                                Attachments ({attachments.length})
-                              </span>
+                <section className="rounded-xl border border-slate-200 bg-slate-50/70 p-4">
+                  <h3 className="text-sm font-semibold text-slate-900 mb-3">Lesson Plan Completion</h3>
+                  {loadingLessonPlans ? (
+                    <div className="flex items-center gap-2 text-xs text-slate-500">
+                      <Loader2 className="h-4 w-4 animate-spin text-indigo-600" />
+                      Loading lesson plan status...
+                    </div>
+                  ) : lessonPlanStatuses.length === 0 ? (
+                    <p className="text-xs text-slate-500">No lesson plan status found for this date.</p>
+                  ) : (
+                    <div className="space-y-2">
+                      {lessonPlanStatuses.map((plan) => (
+                        <div
+                          key={plan._id || `${plan.lessonPlanId}-${plan.date}`}
+                          className="rounded-lg border border-slate-200 bg-white px-3 py-2.5"
+                        >
+                          <div className="flex items-start justify-between gap-3">
+                            <div>
+                              <p className="text-sm font-semibold text-slate-900">{plan.title || 'Lesson Plan'}</p>
+                              <p className="text-xs text-slate-500 mt-1">{(plan.subject || 'General')} · {(plan.teacherName || 'Teacher')}</p>
                             </div>
-                            <div className="grid grid-cols-1 gap-2">
-                              {attachments.map((attachment, attIdx) => {
-                                const FileIcon = getFileIcon(attachment?.type);
-                                return (
-                                  <a
-                                    key={attIdx}
-                                    href={attachment?.url || '#'}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="flex items-center gap-3 rounded-lg border border-slate-200 bg-white px-3 py-2.5 hover:border-indigo-300 hover:bg-indigo-50 transition group"
-                                  >
-                                    <div className="p-2 bg-indigo-100 rounded-lg group-hover:bg-indigo-200 transition">
-                                      <FileIcon className="w-5 h-5 text-indigo-600" />
-                                    </div>
-                                    <div className="flex-1 min-w-0">
-                                      <p className="text-sm font-medium text-slate-900 truncate group-hover:text-indigo-700">
-                                        {attachment?.name || `File ${attIdx + 1}`}
-                                      </p>
-                                      {attachment?.size && (
-                                        <p className="text-xs text-slate-500">{formatFileSize(attachment.size)}</p>
-                                      )}
-                                    </div>
-                                    <Download className="w-4 h-4 text-slate-400 group-hover:text-indigo-600 shrink-0" />
-                                  </a>
-                                );
-                              })}
-                            </div>
+                            <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${
+                              plan.status === 'completed'
+                                ? 'bg-emerald-100 text-emerald-700'
+                                : plan.status === 'in_progress'
+                                ? 'bg-amber-100 text-amber-700'
+                                : 'bg-slate-200 text-slate-700'
+                            }`}>
+                              {plan.status === 'completed' ? 'Completed' : plan.status === 'in_progress' ? 'In Progress' : 'Pending'}
+                            </span>
                           </div>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
+                          <p className="text-[11px] text-slate-500 mt-2">
+                            Completion: {Number.isFinite(Number(plan.completionPercent)) ? Number(plan.completionPercent) : 0}%
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </section>
+
+                <section className="rounded-xl border border-slate-200 bg-slate-50/70 p-4">
+                  <h3 className="text-sm font-semibold text-slate-900 mb-3">Learning Materials</h3>
+                  {loadingMaterials ? (
+                    <div className="flex items-center gap-2 text-xs text-slate-500">
+                      <Loader2 className="h-4 w-4 animate-spin text-indigo-600" />
+                      Loading materials...
+                    </div>
+                  ) : materials.length === 0 ? (
+                    <p className="text-xs text-slate-500">There are no learning materials available for this date.</p>
+                  ) : (
+                    <div className="space-y-4">
+                      {materials.map((material, idx) => {
+                        const attachments = Array.isArray(material.attachments) ? material.attachments : [];
+                        return (
+                          <div
+                            key={material._id || idx}
+                            className="rounded-xl border border-slate-200 bg-gradient-to-br from-white to-slate-50 p-4 hover:shadow-md transition"
+                          >
+                            <div className="mb-3">
+                              <div className="flex items-start justify-between gap-3 mb-2">
+                                <h3 className="text-lg font-semibold text-slate-900 flex items-center gap-2">
+                                  <FileText className="h-5 w-5 text-indigo-600" />
+                                  {material.title}
+                                </h3>
+                                {material.priority && (
+                                  <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${
+                                    material.priority === 'high'
+                                      ? 'bg-red-100 text-red-700'
+                                      : material.priority === 'medium'
+                                      ? 'bg-amber-100 text-amber-700'
+                                      : 'bg-green-100 text-green-700'
+                                  }`}>
+                                    {material.priority}
+                                  </span>
+                                )}
+                              </div>
+                              <p className="text-sm text-slate-600 leading-relaxed">{material.message}</p>
+                              <div className="mt-3 flex flex-wrap items-center gap-3 text-xs text-slate-500">
+                                {material.subjectName && (
+                                  <span className="inline-flex items-center gap-1 rounded-full bg-blue-100 px-2 py-1 text-blue-700">
+                                    <BookOpen className="h-3 w-3" />
+                                    {material.subjectName}
+                                  </span>
+                                )}
+                                {material.typeLabel && (
+                                  <span className="inline-flex items-center gap-1 rounded-full bg-purple-100 px-2 py-1 text-purple-700">
+                                    {material.typeLabel}
+                                  </span>
+                                )}
+                                {material.createdByName && (
+                                  <span className="text-slate-500">By {material.createdByName}</span>
+                                )}
+                              </div>
+                            </div>
+                            {attachments.length > 0 && (
+                              <div className="mt-4 pt-4 border-t border-slate-200">
+                                <div className="flex items-center gap-2 mb-3">
+                                  <Paperclip className="h-4 w-4 text-indigo-600" />
+                                  <span className="text-sm font-semibold text-slate-700">
+                                    Attachments ({attachments.length})
+                                  </span>
+                                </div>
+                                <div className="grid grid-cols-1 gap-2">
+                                  {attachments.map((attachment, attIdx) => {
+                                    const FileIcon = getFileIcon(attachment?.type);
+                                    return (
+                                      <a
+                                        key={attIdx}
+                                        href={attachment?.url || '#'}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="flex items-center gap-3 rounded-lg border border-slate-200 bg-white px-3 py-2.5 hover:border-indigo-300 hover:bg-indigo-50 transition group"
+                                      >
+                                        <div className="p-2 bg-indigo-100 rounded-lg group-hover:bg-indigo-200 transition">
+                                          <FileIcon className="w-5 h-5 text-indigo-600" />
+                                        </div>
+                                        <div className="flex-1 min-w-0">
+                                          <p className="text-sm font-medium text-slate-900 truncate group-hover:text-indigo-700">
+                                            {attachment?.name || `File ${attIdx + 1}`}
+                                          </p>
+                                          {attachment?.size && (
+                                            <p className="text-xs text-slate-500">{formatFileSize(attachment.size)}</p>
+                                          )}
+                                        </div>
+                                        <Download className="w-4 h-4 text-slate-400 group-hover:text-indigo-600 shrink-0" />
+                                      </a>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </section>
+              </div>
             </div>
 
             {/* Modal Footer */}
