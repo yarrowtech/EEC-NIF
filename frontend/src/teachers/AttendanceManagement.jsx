@@ -414,13 +414,13 @@ const AttendanceManagement = () => {
         </div>
       )}
 
-      {/* Student List */}
+      {/* Student Table */}
       <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
         <div className="px-4 sm:px-5 py-3 border-b border-gray-100 flex items-center justify-between">
           <h2 className="text-sm font-bold text-gray-900">Mark Attendance</h2>
           <span className="text-[11px] text-gray-400 font-medium">{selectedDate}</span>
         </div>
-        <div className="divide-y divide-gray-50 max-h-[520px] overflow-y-auto">
+        <div className="overflow-x-auto max-h-[520px] overflow-y-auto">
           {loading ? (
             <div className="flex flex-col items-center justify-center py-14">
               <Loader2 size={24} className="animate-spin text-indigo-500 mb-3" />
@@ -435,45 +435,61 @@ const AttendanceManagement = () => {
               <p className="text-xs text-gray-400 mt-1">Try adjusting your filters</p>
             </div>
           ) : (
-            students.map((student, index) => {
-              const status = attendanceData[student._id] || STATUS.ABSENT;
-              const isPresent = status === STATUS.PRESENT;
-              return (
-                <div
-                  key={student._id}
-                  className={`flex items-center justify-between gap-3 px-4 sm:px-5 py-3 transition-colors ${
-                    isPresent ? 'bg-emerald-50/40' : ''
-                  }`}
-                >
-                  <div className="flex items-center gap-3 min-w-0">
-                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-xs font-bold shrink-0 ${
-                      isPresent
-                        ? 'bg-emerald-100 text-emerald-700'
-                        : 'bg-red-50 text-red-600'
-                    }`}>
-                      {student.roll || (index + 1)}
-                    </div>
-                    <div className="min-w-0">
-                      <p className="text-sm font-semibold text-gray-900 truncate">{student.name}</p>
-                      <p className="text-[11px] text-gray-400">
-                        {student.className || '-'}{student.section ? ` · ${student.section}` : ''}
-                      </p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2 shrink-0">
-                    <input
-                      type="checkbox"
-                      checked={isPresent}
-                      onChange={(e) => toggleStudentPresent(student._id, e.target.checked)}
-                      className="h-4 w-4 rounded border-gray-300 text-emerald-600 focus:ring-emerald-500"
-                    />
-                    <span className={`text-[11px] font-semibold ${isPresent ? 'text-emerald-700' : 'text-red-600'}`}>
-                      {isPresent ? 'Present' : 'Absent'}
-                    </span>
-                  </div>
-                </div>
-              );
-            })
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="bg-gray-50 border-b border-gray-100 sticky top-0 z-10">
+                  <th className="px-4 py-2.5 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-wide w-12">#</th>
+                  <th className="px-4 py-2.5 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-wide">Roll No</th>
+                  <th className="px-4 py-2.5 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-wide">Username</th>
+                  <th className="px-4 py-2.5 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-wide">Name</th>
+                  <th className="px-4 py-2.5 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-wide">Session</th>
+                  <th className="px-4 py-2.5 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-wide">Class</th>
+                  <th className="px-4 py-2.5 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-wide">Section</th>
+                  <th className="px-4 py-2.5 text-center text-[11px] font-semibold text-gray-500 uppercase tracking-wide">Status</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-50">
+                {students.map((student, index) => {
+                  const status = attendanceData[student._id] || STATUS.ABSENT;
+                  const isPresent = status === STATUS.PRESENT;
+                  return (
+                    <tr
+                      key={student._id}
+                      className={`transition-colors hover:bg-gray-50/60 ${isPresent ? 'bg-emerald-50/30' : ''}`}
+                    >
+                      <td className="px-4 py-2.5 text-xs text-gray-400 font-medium">{index + 1}</td>
+                      <td className="px-4 py-2.5">
+                        <span className={`inline-flex items-center justify-center min-w-8 px-2 py-0.5 rounded-md text-xs font-bold ${
+                          isPresent ? 'bg-emerald-100 text-emerald-700' : 'bg-red-50 text-red-600'
+                        }`}>
+                          {student.roll || '—'}
+                        </span>
+                      </td>
+                      <td className="px-4 py-2.5 text-xs text-gray-500 font-mono">{student.username || '—'}</td>
+                      <td className="px-4 py-2.5">
+                        <span className="text-sm font-semibold text-gray-900">{student.name || '—'}</span>
+                      </td>
+                      <td className="px-4 py-2.5 text-xs text-gray-500">{student.session || selectedSession || '—'}</td>
+                      <td className="px-4 py-2.5 text-xs text-gray-500">{student.className || student.grade || '—'}</td>
+                      <td className="px-4 py-2.5 text-xs text-gray-500">{student.section || '—'}</td>
+                      <td className="px-4 py-2.5">
+                        <div className="flex items-center justify-center gap-2">
+                          <input
+                            type="checkbox"
+                            checked={isPresent}
+                            onChange={(e) => toggleStudentPresent(student._id, e.target.checked)}
+                            className="h-4 w-4 rounded border-gray-300 text-emerald-600 focus:ring-emerald-500 cursor-pointer"
+                          />
+                          <span className={`text-[11px] font-semibold w-12 ${isPresent ? 'text-emerald-600' : 'text-red-500'}`}>
+                            {isPresent ? 'Present' : 'Absent'}
+                          </span>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
           )}
         </div>
       </div>

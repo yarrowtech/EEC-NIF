@@ -403,6 +403,7 @@ const buildStudentAttendancePayload = (
   return {
     _id: student._id,
     name: student?.name || 'Student',
+    username: normalizeText(student?.username) || normalizeText(student?.studentCode),
     session: resolveStudentSession(student),
     className: resolveStudentClass(student),
     section: resolveStudentSection(student),
@@ -484,7 +485,7 @@ router.get('/teacher/students', authTeacher, async (req, res) => {
     if (campusId) baseFilter.campusId = campusId;
 
     const scopeStudents = await StudentUser.find(baseFilter)
-      .select('name grade section roll attendance admissionDate createdAt')
+      .select('name username studentCode grade section roll attendance admissionDate createdAt')
       .lean();
 
     let scopedStudents = scopeStudents;
