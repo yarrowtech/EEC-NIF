@@ -622,6 +622,7 @@ const TeacherChat = () => {
   const [contactQuery, setContactQuery] = useState('');
   const [contactError, setContactError] = useState('');
   const [loadingThreads, setLoadingThreads] = useState(true);
+  const [syncingThreads, setSyncingThreads] = useState(false);
   const [loadingMessages, setLoadingMessages] = useState(false);
   const [showStudentProfileModal, setShowStudentProfileModal] = useState(false);
   const [studentProfileLoading, setStudentProfileLoading] = useState(false);
@@ -720,6 +721,7 @@ const TeacherChat = () => {
 
     const init = async () => {
       try {
+        setSyncingThreads(true);
         const meData = await apiFetch('/api/chat/me');
         if (!mounted) return;
         setMe(meData);
@@ -743,7 +745,10 @@ const TeacherChat = () => {
       } catch {
         // ignore
       } finally {
-        if (mounted) setLoadingThreads(false);
+        if (mounted) {
+          setLoadingThreads(false);
+          setSyncingThreads(false);
+        }
       }
     };
 
@@ -1391,6 +1396,11 @@ const TeacherChat = () => {
               <div className="flex items-center justify-center py-12">
                 <Loader2 className="h-5 w-5 text-blue-400 animate-spin" />
               </div>
+            ) : syncingThreads && filteredThreads.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-12 gap-2">
+                <Loader2 className="h-5 w-5 text-blue-400 animate-spin" />
+                <p className="text-xs text-gray-500">Loading conversations...</p>
+              </div>
             ) : filteredThreads.length === 0 ? (
               <div className="p-6 text-center">
                 <MessageSquare className="h-10 w-10 text-gray-200 mx-auto mb-2" />
@@ -1416,6 +1426,14 @@ const TeacherChat = () => {
                   theme={theme}
                 />
               ))
+            )}
+            {syncingThreads && filteredThreads.length > 0 && (
+              <div className="px-4 py-2 border-t border-gray-100 bg-white/90 backdrop-blur-sm">
+                <div className="inline-flex items-center gap-1.5 text-[11px] text-gray-500">
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  Syncing latest chats...
+                </div>
+              </div>
             )}
           </div>
 

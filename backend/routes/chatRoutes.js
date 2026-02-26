@@ -17,6 +17,8 @@ const { syncAllocationGroupThreads, syncTimetableGroupThreads } = require('../ut
 
 const router = express.Router();
 router.use(authAnyUser);
+const GROUP_SYNC_MIN_INTERVAL_MS = 2 * 60 * 1000;
+const groupSyncState = new Map();
 
 const escapeRegex = (value = '') => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 const normalizeValue = (value = '') => String(value || '').trim();
@@ -400,15 +402,38 @@ const markThreadMessagesSeen = async ({ threadId, schoolId, campusId, userId }) 
   );
 };
 
-const ensureUserSubjectGroups = async (req) => {
+const getGroupSyncScopeKey = ({ schoolId, campusId }) => `${String(schoolId || '')}:${String(campusId || 'default')}`;
+
+const ensureUserSubjectGroups = async (req, options = {}) => {
+  const { wait = true, force = false } = options;
   const userType = String(req.user?.userType || '').toLowerCase();
   if (userType !== 'teacher' && userType !== 'student') return;
 
   const schoolId = req.schoolId || req.user?.schoolId;
   const campusId = (req.campusId ?? req.user?.campusId) ?? null;
   if (!schoolId) return;
-  await syncTimetableGroupThreads({ schoolId, campusId });
-  await syncAllocationGroupThreads({ schoolId, campusId });
+  const scopeKey = getGroupSyncScopeKey({ schoolId, campusId });
+  const now = Date.now();
+  const state = groupSyncState.get(scopeKey) || { lastRunAt: 0, inFlight: null };
+  const shouldRun = force || !state.lastRunAt || now - state.lastRunAt >= GROUP_SYNC_MIN_INTERVAL_MS;
+
+  if (shouldRun && !state.inFlight) {
+    const inFlight = (async () => {
+      await syncTimetableGroupThreads({ schoolId, campusId });
+      await syncAllocationGroupThreads({ schoolId, campusId });
+    })()
+      .catch(() => {})
+      .finally(() => {
+        const current = groupSyncState.get(scopeKey) || {};
+        groupSyncState.set(scopeKey, { ...current, inFlight: null, lastRunAt: Date.now() });
+      });
+    groupSyncState.set(scopeKey, { ...state, inFlight });
+  }
+
+  if (wait) {
+    const current = groupSyncState.get(scopeKey);
+    if (current?.inFlight) await current.inFlight;
+  }
 };
 
 // GET /api/chat/me — current user's display info
@@ -770,13 +795,12 @@ router.get('/threads', async (req, res) => {
     const userType = String(req.user?.userType || '').toLowerCase();
 
     try {
-      await ensureUserSubjectGroups(req);
+      await ensureUserSubjectGroups(req, { wait: false });
     } catch {
       // best effort self-heal if groups were deleted manually/out of sync
       if ((userType === 'teacher' || userType === 'student') && schoolId) {
         try {
-          await syncTimetableGroupThreads({ schoolId, campusId });
-          await syncAllocationGroupThreads({ schoolId, campusId });
+          await ensureUserSubjectGroups(req, { wait: true, force: true });
         } catch {
           // ignore; read path should still return whatever exists
         }
@@ -793,8 +817,7 @@ router.get('/threads', async (req, res) => {
 
     if (threads.length === 0 && (userType === 'teacher' || userType === 'student') && schoolId) {
       try {
-        await syncTimetableGroupThreads({ schoolId, campusId });
-        await syncAllocationGroupThreads({ schoolId, campusId });
+        await ensureUserSubjectGroups(req, { wait: true, force: true });
         threads = await ChatThread.find({
           schoolId,
           campusId,
@@ -833,18 +856,28 @@ router.get('/threads', async (req, res) => {
 
     const threadIds = result.map((item) => item._id).filter(Boolean);
     if (threadIds.length > 0) {
-      const latestMessages = await ChatMessage.find({
-        threadId: { $in: threadIds },
-        schoolId,
-        ...(campusId !== null ? { campusId } : {}),
-      })
-        .sort({ createdAt: -1 })
-        .select('threadId text encrypted createdAt')
-        .lean();
+      const latestMessages = await ChatMessage.aggregate([
+        {
+          $match: {
+            threadId: { $in: threadIds },
+            schoolId,
+            ...(campusId !== null ? { campusId } : {}),
+          },
+        },
+        { $sort: { threadId: 1, createdAt: -1 } },
+        {
+          $group: {
+            _id: '$threadId',
+            text: { $first: '$text' },
+            encrypted: { $first: '$encrypted' },
+            createdAt: { $first: '$createdAt' },
+          },
+        },
+      ]);
 
       const latestByThread = new Map();
       latestMessages.forEach((msg) => {
-        const key = String(msg.threadId);
+        const key = String(msg._id);
         if (!latestByThread.has(key)) latestByThread.set(key, msg);
       });
 
