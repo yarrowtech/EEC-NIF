@@ -388,6 +388,7 @@ const buildStudentAttendancePayload = (
   });
 
   const monthlySummary = buildSummary(monthEntries);
+  const overallSummary = buildSummary(attendance);
   const dayStart = startOfDay(selectedDate);
   const dayEnd = endOfDay(selectedDate);
   const selectedRecord = attendance.find((entry) => {
@@ -418,6 +419,7 @@ const buildStudentAttendancePayload = (
       }
       : null,
     monthlySummary,
+    overallSummary,
   };
 };
 
@@ -965,7 +967,7 @@ router.get('/admin/students', adminAuth, async (req, res) => {
     if (campusId) baseFilter.campusId = campusId;
 
     const scopeStudents = await StudentUser.find(baseFilter)
-      .select('name grade section roll attendance admissionDate createdAt')
+      .select('name username studentCode grade section roll attendance admissionDate createdAt')
       .lean();
 
     const normalized = scopeStudents.map((student) => buildStudentAttendancePayload(student, monthRange, selectedDate));

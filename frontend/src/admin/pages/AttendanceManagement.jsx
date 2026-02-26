@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { UserCheck, Search, Calendar, Download, Users, Clock, Loader2 } from 'lucide-react';
-import jsPDF from 'jspdf';
+import * as XLSX from 'xlsx';
 
 const API_BASE = (import.meta.env.VITE_API_URL || 'http://localhost:5000').replace(/\/$/, '');
 
@@ -31,6 +31,9 @@ const AttendanceManagement = ({ setShowAdminHeader }) => {
   const [selectedSection, setSelectedSection] = useState('');
   const [selectedStudent, setSelectedStudent] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
+  const [showExportModal, setShowExportModal] = useState(false);
+  const [exportFromMonth, setExportFromMonth] = useState(new Date().toISOString().slice(0, 7));
+  const [exportToMonth, setExportToMonth] = useState(new Date().toISOString().slice(0, 7));
 
   useEffect(() => {
     setShowAdminHeader(false);
@@ -69,13 +72,21 @@ const AttendanceManagement = ({ setShowAdminHeader }) => {
             const status = student?.selectedDateRecord?.status || '';
             return {
               id: student._id,
+              username: student.username || '',
               name: student.name || 'Student',
+              roll: student.roll || '',
               session: student.session || '',
               className: student.className || '',
               section: student.section || '',
               status,
               statusLabel: formatStatus(status),
               checkInTime: getCheckInTime(student?.selectedDateRecord?.date),
+              overallSummary: student?.overallSummary || student?.monthlySummary || {
+                totalClasses: 0,
+                presentDays: 0,
+                absentDays: 0,
+                attendancePercentage: 0,
+              },
             };
           })
         : [];
@@ -184,53 +195,153 @@ const AttendanceManagement = ({ setShowAdminHeader }) => {
     }
   };
 
-  const exportToPDF = () => {
-    const pdf = new jsPDF();
-    const pageWidth = pdf.internal.pageSize.width;
-    const currentDate = new Date().toLocaleDateString();
+  const listMonthsInRange = (fromMonth, toMonth) => {
+    const result = [];
+    const [fromYear, fromMon] = String(fromMonth).split('-').map(Number);
+    const [toYear, toMon] = String(toMonth).split('-').map(Number);
+    if (!fromYear || !fromMon || !toYear || !toMon) return result;
+    const cursor = new Date(fromYear, fromMon - 1, 1);
+    const end = new Date(toYear, toMon - 1, 1);
+    while (cursor <= end) {
+      result.push(`${cursor.getFullYear()}-${String(cursor.getMonth() + 1).padStart(2, '0')}`);
+      cursor.setMonth(cursor.getMonth() + 1);
+    }
+    return result;
+  };
 
-    pdf.setFontSize(20);
-    pdf.setFont(undefined, 'bold');
-    pdf.text('Student Attendance Report', pageWidth / 2, 30, { align: 'center' });
+  const applyCenterAlignment = (worksheet) => {
+    const range = XLSX.utils.decode_range(worksheet['!ref'] || 'A1:A1');
+    for (let row = range.s.r; row <= range.e.r; row += 1) {
+      for (let col = range.s.c; col <= range.e.c; col += 1) {
+        const addr = XLSX.utils.encode_cell({ r: row, c: col });
+        if (!worksheet[addr]) continue;
+        worksheet[addr].s = {
+          alignment: { horizontal: 'center', vertical: 'center' },
+        };
+      }
+    }
+  };
 
-    pdf.setFontSize(12);
-    pdf.setFont(undefined, 'normal');
-    pdf.text(`Generated on: ${currentDate}`, pageWidth / 2, 45, { align: 'center' });
+  const exportToExcel = async () => {
+    const token = localStorage.getItem('token');
+    if (!token) return;
+    if (!exportFromMonth || !exportToMonth) {
+      setError('Please select export from and to month.');
+      return;
+    }
+    if (exportFromMonth > exportToMonth) {
+      setError('From month must be before or equal to To month.');
+      return;
+    }
 
-    pdf.setFontSize(10);
-    pdf.setFont(undefined, 'bold');
-    const startY = 70;
-    const rowHeight = 12;
+    setError('');
+    setSuccess('');
+    try {
+      const months = listMonthsInRange(exportFromMonth, exportToMonth);
+      if (!months.length) {
+        setError('Invalid month range selected.');
+        return;
+      }
 
-    pdf.text('Student Name', 14, startY);
-    pdf.text('Session', 52, startY);
-    pdf.text('Class', 80, startY);
-    pdf.text('Section', 102, startY);
-    pdf.text('Status', 126, startY);
-    pdf.text('In Time', 153, startY);
+      const aggregateByStudent = new Map();
+      for (const month of months) {
+        const query = new URLSearchParams({
+          month,
+          date: `${month}-01`,
+        });
+        const response = await fetch(`${API_BASE}/api/attendance/admin/students?${query.toString()}`, {
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+        });
+        const data = await response.json();
+        if (!response.ok) {
+          throw new Error(data?.error || `Failed to load attendance for ${month}`);
+        }
+        const students = Array.isArray(data?.students) ? data.students : [];
+        students.forEach((student) => {
+          const id = String(student?._id || '');
+          if (!id) return;
+          const monthly = student?.monthlySummary || { totalClasses: 0, presentDays: 0, absentDays: 0 };
+          if (!aggregateByStudent.has(id)) {
+            aggregateByStudent.set(id, {
+              id,
+              username: student?.username || '',
+              name: student?.name || 'Student',
+              roll: student?.roll || '',
+              className: student?.className || '',
+              section: student?.section || '',
+              totalClasses: 0,
+              presentDays: 0,
+              absentDays: 0,
+            });
+          }
+          const row = aggregateByStudent.get(id);
+          row.totalClasses += Number(monthly.totalClasses || 0);
+          row.presentDays += Number(monthly.presentDays || 0);
+          row.absentDays += Number(monthly.absentDays || 0);
+        });
+      }
 
-    pdf.line(12, startY + 4, pageWidth - 12, startY + 4);
+      const sourceRows = [...aggregateByStudent.values()];
+      if (!sourceRows.length) {
+        setError('No attendance data available for selected range.');
+        return;
+      }
 
-    pdf.setFont(undefined, 'normal');
-    filteredRows.forEach((student, index) => {
-      const y = startY + rowHeight + index * rowHeight;
-      pdf.text(student.name, 14, y);
-      pdf.text(student.session || '-', 52, y);
-      pdf.text(student.className || '-', 80, y);
-      pdf.text(student.section || '-', 102, y);
-      pdf.text(student.statusLabel, 126, y);
-      pdf.text(student.checkInTime, 153, y);
-    });
+      const workbook = XLSX.utils.book_new();
+      const groupedByClass = sourceRows.reduce((acc, row) => {
+        const classKey = String(row.className || 'Unassigned');
+        if (!acc[classKey]) acc[classKey] = [];
+        acc[classKey].push(row);
+        return acc;
+      }, {});
 
-    const summaryY = startY + rowHeight + filteredRows.length * rowHeight + 15;
-    pdf.setFont(undefined, 'bold');
-    pdf.text('Summary', 14, summaryY);
-    pdf.setFont(undefined, 'normal');
-    pdf.text(`Total Students: ${filteredRows.length}`, 14, summaryY + 12);
-    pdf.text(`Present Today: ${presentStudents}`, 14, summaryY + 22);
-    pdf.text(`Absent Today: ${filteredRows.length - presentStudents}`, 14, summaryY + 32);
+      const classNames = Object.keys(groupedByClass).sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+      classNames.forEach((className) => {
+        const sorted = groupedByClass[className]
+          .sort((a, b) => String(a.section || '').localeCompare(String(b.section || ''), undefined, { numeric: true })
+            || Number(a.roll || 0) - Number(b.roll || 0)
+            || String(a.name || '').localeCompare(String(b.name || '')));
 
-    pdf.save(`attendance-report-${currentDate.replace(/\//g, '-')}.pdf`);
+        const sheetRows = sorted.map((student, idx) => ({
+          ID: idx + 1,
+          Username: student.username || '-',
+          Name: student.name || '-',
+          'Roll No': student.roll || '-',
+          Class: student.className || '-',
+          Section: student.section || '-',
+          'Present Days': Number(student.presentDays || 0),
+          'Absent Days': Number(student.absentDays || 0),
+          Attendance: student.totalClasses > 0
+            ? `${Math.round((student.presentDays / student.totalClasses) * 100)}%`
+            : '0%',
+        }));
+
+        const worksheet = XLSX.utils.json_to_sheet(sheetRows);
+        worksheet['!cols'] = [
+          { wch: 8 },
+          { wch: 24 },
+          { wch: 26 },
+          { wch: 10 },
+          { wch: 10 },
+          { wch: 10 },
+          { wch: 14 },
+          { wch: 14 },
+          { wch: 12 },
+        ];
+        applyCenterAlignment(worksheet);
+        const safeSheetName = String(className || 'Class').slice(0, 31);
+        XLSX.utils.book_append_sheet(workbook, worksheet, safeSheetName);
+      });
+
+      XLSX.writeFile(workbook, `attendance-report-${exportFromMonth}-to-${exportToMonth}.xlsx`);
+      setSuccess('Attendance report exported successfully.');
+      setShowExportModal(false);
+    } catch (err) {
+      setError(err.message || 'Failed to export attendance report.');
+    }
   };
 
   return (
@@ -332,7 +443,7 @@ const AttendanceManagement = ({ setShowAdminHeader }) => {
             </div>
             <button
               type="button"
-              onClick={exportToPDF}
+              onClick={() => setShowExportModal(true)}
               className="flex items-center space-x-2 bg-yellow-500 text-black px-4 py-2 rounded-lg hover:bg-yellow-600 transition-colors"
             >
               <Download className="w-4 h-4" />
@@ -441,6 +552,51 @@ const AttendanceManagement = ({ setShowAdminHeader }) => {
           </table>
         </div>
       </div>
+
+      {showExportModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="w-full max-w-md rounded-xl bg-white border border-gray-200 shadow-xl p-5">
+            <h3 className="text-lg font-bold text-gray-900">Export Attendance Report</h3>
+            <p className="text-sm text-gray-500 mt-1">Select month range to download class-wise Excel sheets.</p>
+            <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-semibold text-gray-600 mb-1">From Month</label>
+                <input
+                  type="month"
+                  value={exportFromMonth}
+                  onChange={(e) => setExportFromMonth(e.target.value)}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-yellow-500 focus:border-transparent"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-gray-600 mb-1">To Month</label>
+                <input
+                  type="month"
+                  value={exportToMonth}
+                  onChange={(e) => setExportToMonth(e.target.value)}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-yellow-500 focus:border-transparent"
+                />
+              </div>
+            </div>
+            <div className="mt-5 flex items-center justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setShowExportModal(false)}
+                className="px-4 py-2 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={exportToExcel}
+                className="px-4 py-2 rounded-lg bg-yellow-500 text-black hover:bg-yellow-600 font-semibold"
+              >
+                Download
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
