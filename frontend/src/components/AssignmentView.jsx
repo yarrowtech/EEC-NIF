@@ -155,7 +155,7 @@ const AssignmentView = ({ defaultType = "school" }) => {
   const typeTabs = [
     { key: "school", label: "School", icon: BookOpen },
     { key: "eec", label: "Practice", icon: GraduationCap },
-    // { key: "tryout", label: "Tryout", icon: Gamepad2 },
+    { key: "tryout", label: "Tryout", icon: Gamepad2 },
     // { key: "lab", label: "Lab", icon: FlaskConical },
     // { key: "flashcard", label: "FlashCard", icon: Layers },
   ];

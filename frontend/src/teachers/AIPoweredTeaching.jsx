@@ -1957,6 +1957,7 @@ const TryoutGenerator = () => {
   const [generatedTryout, setGeneratedTryout] = useState(null);
   const [loading, setLoading] = useState(false);
   const [previewMode, setPreviewMode] = useState(false);
+  const [generatorMode, setGeneratorMode] = useState('manual');
 
   const questionTypes = [
     { value: 'mcq', label: 'Multiple Choice Questions', description: 'Traditional A, B, C, D format' },
@@ -2154,7 +2155,49 @@ const TryoutGenerator = () => {
         <h2 className="text-2xl font-bold text-gray-800">Tryout Generator</h2>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      {/* Manual / AI sub-tabs */}
+      <div className="flex gap-1 bg-gray-100 p-1 rounded-xl w-fit">
+        <button
+          onClick={() => setGeneratorMode('manual')}
+          className={`px-5 py-2 rounded-lg text-sm font-semibold transition-all duration-150 ${
+            generatorMode === 'manual'
+              ? 'bg-white text-indigo-700 shadow'
+              : 'text-gray-500 hover:text-gray-700'
+          }`}
+        >
+          Manual
+        </button>
+        <button
+          onClick={() => setGeneratorMode('ai')}
+          className={`px-5 py-2 rounded-lg text-sm font-semibold transition-all duration-150 ${
+            generatorMode === 'ai'
+              ? 'bg-white text-indigo-700 shadow'
+              : 'text-gray-500 hover:text-gray-700'
+          }`}
+        >
+          AI
+        </button>
+      </div>
+
+      {/* AI — upcoming feature */}
+      {generatorMode === 'ai' && (
+        <div className="flex flex-col items-center justify-center py-20 gap-4 bg-indigo-50 rounded-2xl border border-indigo-100">
+          <div className="h-16 w-16 bg-gradient-to-br from-indigo-400 to-purple-500 rounded-2xl flex items-center justify-center">
+            <Brain className="h-8 w-8 text-white" />
+          </div>
+          <h3 className="text-xl font-bold text-gray-800">AI Tryout Generation</h3>
+          <p className="text-gray-500 text-sm text-center max-w-xs">
+            AI-powered tryout generation is coming soon. Stay tuned for smart, topic-aware question creation.
+          </p>
+          <span className="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-full bg-indigo-100 text-indigo-700 text-xs font-semibold">
+            <Zap className="h-3.5 w-3.5" />
+            Upcoming Feature
+          </span>
+        </div>
+      )}
+
+      {/* Manual form */}
+      {generatorMode === 'manual' && <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Tryout Configuration */}
         <div className="space-y-4">
           <div>
@@ -2350,7 +2393,7 @@ const TryoutGenerator = () => {
             </div>
           )}
         </div>
-      </div>
+      </div>}
     </div>
   );
 };
