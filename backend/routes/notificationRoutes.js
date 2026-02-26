@@ -351,6 +351,13 @@ router.get('/user', authAnyUser, async (req, res) => {
       ...(campusId ? { campusId } : {}),
       'dismissedBy.userId': { $ne: userId },
       $and: [
+        {
+          $or: [
+            { targetUserIds: { $exists: false } },
+            { targetUserIds: { $size: 0 } },
+            { targetUserIds: userId },
+          ],
+        },
         { $or: [{ audience: 'All' }, { audience: normalizedAudience }] },
         {
           $or: [
@@ -553,6 +560,15 @@ router.post('/user/read-all', authAnyUser, async (req, res) => {
     const filter = {
       schoolId,
       ...(campusId ? { campusId } : {}),
+      $and: [
+        {
+          $or: [
+            { targetUserIds: { $exists: false } },
+            { targetUserIds: { $size: 0 } },
+            { targetUserIds: userId },
+          ],
+        },
+      ],
       $or: [{ audience: 'All' }, { audience: normalizedAudience }],
       'readBy.userId': { $ne: userId },
       'dismissedBy.userId': { $ne: userId }
@@ -589,6 +605,15 @@ router.get('/user/unread-count', authAnyUser, async (req, res) => {
     const filter = {
       schoolId,
       ...(campusId ? { campusId } : {}),
+      $and: [
+        {
+          $or: [
+            { targetUserIds: { $exists: false } },
+            { targetUserIds: { $size: 0 } },
+            { targetUserIds: userId },
+          ],
+        },
+      ],
       $or: [{ audience: 'All' }, { audience: normalizedAudience }],
       'readBy.userId': { $ne: userId },
       'dismissedBy.userId': { $ne: userId }

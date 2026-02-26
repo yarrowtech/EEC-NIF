@@ -51,6 +51,7 @@ const notificationSchema = new mongoose.Schema(
         type: { type: String, default: '' },
       },
     ],
+    targetUserIds: [{ type: mongoose.Schema.Types.ObjectId, index: true }],
 
     // Read tracking
     readBy: [{

@@ -5,6 +5,7 @@ const ParentUser = require('../models/ParentUser');
 const Timetable = require('../models/Timetable');
 const LessonPlan = require('../models/LessonPlan');
 const LessonPlanCompletion = require('../models/LessonPlanCompletion');
+const Notification = require('../models/Notification');
 const authStudent = require('../middleware/authStudent');
 const authTeacher = require('../middleware/authTeacher');
 const authParent = require('../middleware/authParent');
@@ -12,6 +13,9 @@ const adminAuth = require('../middleware/adminAuth');
 
 const VALID_STATUSES = new Set(['present', 'absent']);
 const SUBSTITUTE_SUBJECT_PREFIX = 'general::';
+const LOW_ATTENDANCE_THRESHOLD = 75;
+const LOW_ATTENDANCE_NOTIFICATION_TITLE = 'Low Attendance Alert';
+const LOW_ATTENDANCE_NOTIFICATION_WINDOW_DAYS = 7;
 
 const normalizeStatus = (value) => String(value || '').trim().toLowerCase();
 
@@ -264,6 +268,95 @@ const isStudentAllowedForScope = (student, scope) => {
 
 const teacherHasRoutineScope = (scope) =>
   Boolean(scope?.hasAssignment && scope?.classSectionKeys instanceof Set && scope.classSectionKeys.size > 0);
+
+const notifyParentsForLowAttendance = async ({ schoolId, campusId, studentIds = [] }) => {
+  const uniqueStudentIds = [...new Set((studentIds || []).map((id) => String(id || '')).filter(Boolean))];
+  if (!uniqueStudentIds.length) return;
+
+  const studentFilter = { schoolId, _id: { $in: uniqueStudentIds } };
+  if (campusId) studentFilter.campusId = campusId;
+  const students = await StudentUser.find(studentFilter)
+    .select('name grade section attendance')
+    .lean();
+  if (!students.length) return;
+
+  const parentFilter = { schoolId };
+  if (campusId) parentFilter.campusId = campusId;
+  const parents = await ParentUser.find(parentFilter)
+    .select('_id childrenIds children')
+    .lean();
+
+  const parentIdsByStudentId = new Map();
+  students.forEach((student) => {
+    const sid = String(student._id);
+    parentIdsByStudentId.set(sid, new Set());
+  });
+
+  parents.forEach((parent) => {
+    const parentId = String(parent?._id || '');
+    if (!parentId) return;
+    const linkedIds = Array.isArray(parent?.childrenIds) ? parent.childrenIds.map((id) => String(id)) : [];
+    linkedIds.forEach((sid) => {
+      if (parentIdsByStudentId.has(sid)) parentIdsByStudentId.get(sid).add(parentId);
+    });
+  });
+
+  // Fallback matching by child name if childrenIds relation is missing.
+  parents.forEach((parent) => {
+    const parentId = String(parent?._id || '');
+    if (!parentId) return;
+    const childNames = Array.isArray(parent?.children)
+      ? parent.children.map((name) => normalizeText(name).toLowerCase()).filter(Boolean)
+      : [];
+    if (!childNames.length) return;
+    students.forEach((student) => {
+      const studentName = normalizeText(student?.name).toLowerCase();
+      if (studentName && childNames.includes(studentName)) {
+        parentIdsByStudentId.get(String(student._id))?.add(parentId);
+      }
+    });
+  });
+
+  const windowStart = new Date(Date.now() - (LOW_ATTENDANCE_NOTIFICATION_WINDOW_DAYS * 24 * 60 * 60 * 1000));
+
+  for (const student of students) {
+    const summary = buildSummary(Array.isArray(student?.attendance) ? student.attendance : []);
+    if (summary.attendancePercentage >= LOW_ATTENDANCE_THRESHOLD) continue;
+
+    const targetParentIds = [...(parentIdsByStudentId.get(String(student._id)) || new Set())];
+    if (!targetParentIds.length) continue;
+
+    const existing = await Notification.findOne({
+      schoolId,
+      ...(campusId ? { campusId } : {}),
+      audience: 'Parent',
+      title: LOW_ATTENDANCE_NOTIFICATION_TITLE,
+      'relatedEntity.entityType': 'result',
+      'relatedEntity.entityId': student._id,
+      createdAt: { $gte: windowStart },
+    }).lean();
+    if (existing) continue;
+
+    await Notification.create({
+      schoolId,
+      campusId: campusId || null,
+      title: LOW_ATTENDANCE_NOTIFICATION_TITLE,
+      message: `${student.name || 'Student'} attendance is ${summary.attendancePercentage}% (${summary.presentDays}/${summary.totalClasses} classes). This is below 75%.`,
+      audience: 'Parent',
+      className: normalizeText(student?.grade),
+      sectionName: normalizeText(student?.section),
+      type: 'general',
+      typeLabel: 'Weekly Attendance Alert',
+      priority: 'high',
+      category: 'academic',
+      relatedEntity: {
+        entityType: 'result',
+        entityId: student._id,
+      },
+      targetUserIds: targetParentIds,
+    });
+  }
+};
 
 const resolveLessonPlansForAttendance = async ({
   schoolId,
@@ -608,6 +701,7 @@ router.post('/teacher/bulk-upsert', authTeacher, async (req, res) => {
     }
 
     const stats = { updated: 0, created: 0, skipped: 0 };
+    const changedStudentIds = new Set();
     const lessonPlanMeta = {
       lessonPlansMatched: 0,
       lessonPlansCompleted: 0,
@@ -671,6 +765,7 @@ router.post('/teacher/bulk-upsert', authTeacher, async (req, res) => {
         });
         stats.created += 1;
       }
+      changedStudentIds.add(String(student._id));
       const normalizedSubjectText = normalizeSubject(subject);
       if (normalizedSubjectText && normalizedSubjectText !== 'general') {
         const studentClass = normalizeText(resolveStudentClass(student));
@@ -748,6 +843,11 @@ router.post('/teacher/bulk-upsert', authTeacher, async (req, res) => {
       Math.max(lessonPlanMeta.lessonPlansMatched - lessonPlanMeta.lessonPlansCompleted, 0)
     );
     lessonPlanMeta.lessonPlanIds = [...new Set(lessonPlanMeta.lessonPlanIds)];
+    await notifyParentsForLowAttendance({
+      schoolId,
+      campusId,
+      studentIds: [...changedStudentIds],
+    });
 
     res.json({
       message: 'Attendance saved successfully',
@@ -1065,8 +1165,14 @@ router.post('/admin/bulk-upsert', adminAuth, async (req, res) => {
         });
         stats.created += 1;
       }
+      changedStudentIds.add(String(student._id));
       await student.save();
     }
+    await notifyParentsForLowAttendance({
+      schoolId,
+      campusId,
+      studentIds: [...changedStudentIds],
+    });
 
     res.json({
       message: 'Attendance saved successfully',
