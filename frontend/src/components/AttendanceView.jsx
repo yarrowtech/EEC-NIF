@@ -25,6 +25,29 @@ const normalizeDisplaySubject = (value) => {
   return text;
 };
 
+const normalizeSubjectKey = (value) => String(value || '').trim().toLowerCase();
+const subjectTokens = (value) =>
+  normalizeSubjectKey(value)
+    .replace(/[^a-z0-9]+/g, ' ')
+    .split(' ')
+    .filter((token) => token.length > 2);
+
+const subjectsLikelyMatch = (a, b) => {
+  const aKey = normalizeSubjectKey(a);
+  const bKey = normalizeSubjectKey(b);
+  if (!aKey || !bKey) return false;
+  if (aKey === bKey) return true;
+  if (aKey.includes(bKey) || bKey.includes(aKey)) return true;
+  const aTokens = new Set(subjectTokens(aKey));
+  const bTokens = subjectTokens(bKey);
+  if (!aTokens.size || !bTokens.length) return false;
+  let overlap = 0;
+  bTokens.forEach((token) => {
+    if (aTokens.has(token)) overlap += 1;
+  });
+  return overlap >= Math.min(2, bTokens.length);
+};
+
 /** Returns YYYY-MM-DD in local timezone (avoids UTC offset bugs with toISOString) */
 const toLocalDateKey = (date) => {
   const d = date instanceof Date ? date : new Date(date);
@@ -314,6 +337,16 @@ const AttendanceView = () => {
   }, [attendanceRecords]);
 
   const selectedDateRecords = selectedDate ? recordsByDate[selectedDate] || [] : [];
+  const clickedDateAttendanceRecords = materialsDate ? recordsByDate[materialsDate] || [] : [];
+  const clickedAttendanceBySubject = useMemo(() => {
+    const map = new Map();
+    clickedDateAttendanceRecords.forEach((record) => {
+      const key = normalizeSubjectKey(record.subject);
+      if (!key || map.has(key)) return;
+      map.set(key, record);
+    });
+    return map;
+  }, [clickedDateAttendanceRecords]);
 
   const fmtDate = (dateStr, opts) =>
     new Date(dateStr).toLocaleDateString('en-US', opts || { weekday: 'short', month: 'short', day: 'numeric' });
@@ -938,31 +971,57 @@ const AttendanceView = () => {
                     <p className="text-xs text-slate-500">No lesson plan status found for this date.</p>
                   ) : (
                     <div className="space-y-2">
-                      {lessonPlanStatuses.map((plan) => (
-                        <div
-                          key={plan._id || `${plan.lessonPlanId}-${plan.date}`}
-                          className="rounded-lg border border-slate-200 bg-white px-3 py-2.5"
-                        >
-                          <div className="flex items-start justify-between gap-3">
-                            <div>
-                              <p className="text-sm font-semibold text-slate-900">{plan.title || 'Lesson Plan'}</p>
-                              <p className="text-xs text-slate-500 mt-1">{(plan.subject || 'General')} · {(plan.teacherName || 'Teacher')}</p>
+                      {lessonPlanStatuses.map((plan) => {
+                        const planSubject = normalizeDisplaySubject(plan.subject || 'General');
+                        const planSubjectKey = normalizeSubjectKey(planSubject);
+                        let attendanceForPlan = clickedAttendanceBySubject.get(planSubjectKey) || null;
+                        if (!attendanceForPlan) {
+                          attendanceForPlan = clickedDateAttendanceRecords.find((record) =>
+                            subjectsLikelyMatch(record.subject, planSubject)
+                          ) || null;
+                        }
+                        const isCompletedFromAttendance = Boolean(attendanceForPlan);
+                        const effectiveStatus = isCompletedFromAttendance ? 'completed' : plan.status;
+                        const effectiveCompletion = isCompletedFromAttendance
+                          ? 100
+                          : (Number.isFinite(Number(plan.completionPercent)) ? Number(plan.completionPercent) : 0);
+
+                        return (
+                          <div
+                            key={plan._id || `${plan.lessonPlanId}-${plan.date}`}
+                            className="rounded-lg border border-slate-200 bg-white px-3 py-2.5"
+                          >
+                            <div className="flex items-start justify-between gap-3">
+                              <div>
+                                <p className="text-sm font-semibold text-slate-900">{plan.title || 'Lesson Plan'}</p>
+                                <p className="text-xs text-slate-500 mt-1">{planSubject} · {(plan.teacherName || 'Teacher')}</p>
+                              </div>
+                              <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${
+                                effectiveStatus === 'completed'
+                                  ? 'bg-emerald-100 text-emerald-700'
+                                  : effectiveStatus === 'in_progress'
+                                  ? 'bg-amber-100 text-amber-700'
+                                  : 'bg-slate-200 text-slate-700'
+                              }`}>
+                                {effectiveStatus === 'completed' ? 'Completed' : effectiveStatus === 'in_progress' ? 'In Progress' : 'Pending'}
+                              </span>
                             </div>
-                            <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${
-                              plan.status === 'completed'
-                                ? 'bg-emerald-100 text-emerald-700'
-                                : plan.status === 'in_progress'
-                                ? 'bg-amber-100 text-amber-700'
-                                : 'bg-slate-200 text-slate-700'
-                            }`}>
-                              {plan.status === 'completed' ? 'Completed' : plan.status === 'in_progress' ? 'In Progress' : 'Pending'}
-                            </span>
+                            <p className="text-[11px] text-slate-500 mt-2">
+                              Completion: {effectiveCompletion}%
+                            </p>
+                            {attendanceForPlan?.status === 'present' && (
+                              <p className="text-[11px] text-emerald-600 mt-1.5 font-medium">
+                                Lesson is completed. You learned today these topics.
+                              </p>
+                            )}
+                            {attendanceForPlan?.status === 'absent' && (
+                              <p className="text-[11px] text-rose-600 mt-1.5 font-medium">
+                                Lesson is completed. You missed today these topics.
+                              </p>
+                            )}
                           </div>
-                          <p className="text-[11px] text-slate-500 mt-2">
-                            Completion: {Number.isFinite(Number(plan.completionPercent)) ? Number(plan.completionPercent) : 0}%
-                          </p>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   )}
                 </section>

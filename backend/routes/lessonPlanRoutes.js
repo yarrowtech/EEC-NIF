@@ -37,6 +37,15 @@ const buildTimetableFilter = (schoolId, campusId, classId, sectionId) => {
 };
 
 const parsePlanDate = (value) => {
+  const normalized = normalizeString(value);
+  const pureDateMatch = normalized.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (pureDateMatch) {
+    const year = Number(pureDateMatch[1]);
+    const month = Number(pureDateMatch[2]);
+    const day = Number(pureDateMatch[3]);
+    const localDate = new Date(year, month - 1, day);
+    if (!Number.isNaN(localDate.getTime())) return localDate;
+  }
   const parsed = new Date(value);
   if (Number.isNaN(parsed.getTime())) return null;
   return parsed;
@@ -534,6 +543,21 @@ router.get('/student/status', authStudent, async (req, res) => {
       sectionName: { $regex: `^${escapeRegex(sectionName)}$`, $options: 'i' },
     };
     if (campusId) planFilter.campusId = campusId;
+    if (req.query?.fromDate || req.query?.toDate) {
+      planFilter.date = {};
+      if (req.query?.fromDate) {
+        const from = toDayStart(req.query.fromDate);
+        if (from) planFilter.date.$gte = from;
+      }
+      if (req.query?.toDate) {
+        const to = toDayStart(req.query.toDate);
+        if (to) {
+          to.setHours(23, 59, 59, 999);
+          planFilter.date.$lte = to;
+        }
+      }
+      if (!Object.keys(planFilter.date).length) delete planFilter.date;
+    }
 
     const plans = await LessonPlan.find(planFilter).sort({ date: -1, createdAt: -1 }).lean();
     if (!plans.length) return res.json([]);
