@@ -522,7 +522,7 @@ const ProfileUpdate = () => {
         </div>
 
         {/* Floating card */}
-        <div className="px-3 -mt-9 pb-2">
+        <div className="px-3 pb-2">
           <div className="bg-white rounded-3xl shadow-2xl overflow-hidden ring-1 ring-black/5">
 
             {/* Pill tab switcher */}
@@ -645,7 +645,9 @@ const ProfileUpdate = () => {
                   <span className="relative z-10 flex items-center justify-center gap-2 tracking-wide">
                     {loading
                       ? <><div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />Saving...</>
-                      : <><Check className="w-4 h-4" />Save Changes</>
+                      : <>
+                      {/* <Check className="w-4 h-4" /> */}
+                      Save Changes</>
                     }
                   </span>
                 </button>
@@ -868,7 +870,7 @@ const ProfileUpdate = () => {
                       </span>
                     ) : (
                       <span className="flex items-center gap-2">
-                        <Check className="w-4 h-4" />
+                        {/* <Check className="w-4 h-4" /> */}
                         Save Changes
                       </span>
                     )}
