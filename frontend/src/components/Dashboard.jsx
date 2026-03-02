@@ -21,6 +21,7 @@ import StudentWellbeing from './StudentWellbeing';
 import LessonPlanStatusView from './LessonPlanStatusView';
 import StudyMaterials from './StudyMaterials';
 import { StudentDashboardProvider } from './StudentDashboardContext';
+import MobileBottomNav from './MobileBottomNav';
 
 const normalizeViewFromPath = (pathname) => {
   if (
@@ -119,10 +120,11 @@ const Dashboard = () => {
             setSidebarOpen={setSidebarOpen}
             onOpenProfile={() => navigate('/student/profile')}
           />
-          <main className={`flex-1 min-h-0 ${(activeView === 'chat' || activeView === 'excuse-letter') ? 'p-0' : ''} w-full flex flex-col`}>
+          <main className={`flex-1 min-h-0 ${(activeView === 'chat' || activeView === 'excuse-letter') ? 'p-0' : 'pb-16 md:pb-0'} w-full flex flex-col`}>
             {renderContent()}
           </main>
         </div>
+        <MobileBottomNav activeView={activeView} />
       </div>
     </StudentDashboardProvider>
   );
