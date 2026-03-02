@@ -453,7 +453,7 @@ const AttendanceView = () => {
   }
 
   return (
-    <div className="min-h-screen bg-linear-to-br from-slate-50 to-slate-100 p-3 sm:p-6">
+    <div className="min-h-screen bg-linear-to-br from-slate-50 to-slate-100 p-3 pb-24 sm:p-6 sm:pb-6">
       <div className="mx-auto max-w-6xl space-y-5">
 
         {/* ─── Header ─── */}
@@ -747,7 +747,7 @@ const AttendanceView = () => {
             </div>
 
             {/* Daily list */}
-            <div className="divide-y divide-slate-100 max-h-[600px] overflow-y-auto">
+            <div className="divide-y divide-slate-100 max-h-[600px] overflow-y-auto pb-20 md:pb-0">
               {filteredDailyDates.length === 0 && (
                 <p className="p-6 text-center text-sm text-slate-400">No records match the current filter.</p>
               )}
