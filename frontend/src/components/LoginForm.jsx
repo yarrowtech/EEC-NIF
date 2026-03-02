@@ -382,19 +382,26 @@ const LoginForm = () => {
 
           {/* Remember Me */}
           {!resetMode && (
-          <div className="flex items-center">
-            <input
-              type="checkbox"
-              id="remember"
-              name="rememberMe"
-              checked={formData.rememberMe}
-              onChange={handleInputChange}
-              className="w-4 h-4 text-yellow-600 border-gray-300 rounded focus:ring-yellow-500"
-            />
-            <label htmlFor="remember" className="ml-2 text-sm text-gray-700">
-              Remember me for 30 days
-            </label>
-          </div>
+            <div className="flex items-center">
+              <label htmlFor="remember" className="flex items-center gap-2.5 cursor-pointer select-none group">
+                <input
+                  type="checkbox"
+                  id="remember"
+                  name="rememberMe"
+                  checked={formData.rememberMe}
+                  onChange={handleInputChange}
+                  className="sr-only peer"
+                />
+                <div className="w-5 h-5 rounded border-2 border-gray-300 bg-white peer-checked:bg-linear-to-br peer-checked:from-yellow-400 peer-checked:to-amber-500 peer-checked:border-transparent peer-focus-visible:ring-2 peer-focus-visible:ring-yellow-400 peer-focus-visible:ring-offset-1 transition-all duration-200 shadow-sm flex items-center justify-center shrink-0">
+                  {formData.rememberMe && (
+                    <svg className="w-3 h-3 text-white" viewBox="0 0 12 10" fill="none">
+                      <path d="M1 5l3.5 3.5L11 1" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
+                  )}
+                </div>
+                <span className="text-sm text-gray-700 group-hover:text-gray-900 transition-colors">Remember me for 30 days</span>
+              </label>
+            </div>
           )}
 
           {/* Sign In Button */}
