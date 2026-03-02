@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { 
-  Home, 
-  Calendar, 
-  Users, 
-  FileText, 
+import {
+  Home,
+  Calendar,
+  Users,
+  FileText,
   BookOpen,
   Settings,
   LogOut,
@@ -22,7 +22,8 @@ import {
   Heart,
   Zap,
   Star,
-  Target
+  Target,
+  CreditCard
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useStudentDashboard } from './StudentDashboardContext';
@@ -129,9 +130,9 @@ const Sidebar = ({ activeView, isOpen, setIsOpen }) => {
         { id: 'noticeboard', name: 'Notice Board', icon: Bell },
       ]
     },
-    { 
-      id: 'wellness', 
-      name: 'Wellness', 
+    {
+      id: 'wellness',
+      name: 'Wellness',
       icon: Heart,
       gradient: 'from-pink-500 to-pink-600',
       description: 'Health & Wellbeing',
@@ -139,6 +140,13 @@ const Sidebar = ({ activeView, isOpen, setIsOpen }) => {
         { id: 'wellbeing', name: 'Emotional Wellbeing', icon: Heart },
         { id: 'achievements', name: 'Achievements', icon: Trophy },
       ]
+    },
+    {
+      id: 'id-card',
+      name: 'My ID Card',
+      icon: CreditCard,
+      gradient: 'from-violet-500 to-violet-600',
+      description: 'Download your ID card',
     },
   ];
 

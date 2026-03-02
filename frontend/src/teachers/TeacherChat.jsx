@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { io } from 'socket.io-client';
 import {
   MessageSquare, Send, Search, ChevronLeft,
-  Info, PlusCircle, X, Loader2, GraduationCap, Check, CheckCheck, User, Users, Palette, Lock
+  Info, PlusCircle, X, Loader2, GraduationCap, Check, CheckCheck, User, Users, Palette, Lock, Link2, ExternalLink
 } from 'lucide-react';
 import { decryptChatMessage, encryptChatMessage, ensureE2EEIdentity } from '../utils/chatE2EE';
 import { chatCacheKeys, readChatCache, writeChatCache } from '../utils/chatCache';
@@ -88,6 +88,95 @@ const resolveImg = (src) => {
     return src;
   }
   return `${API_URL}${src.startsWith('/') ? '' : '/'}${src}`;
+};
+
+const URL_REGEX = /\b((?:https?:\/\/|www\.)[^\s<]+)/gi;
+const TRAILING_PUNCTUATION_REGEX = /[),.!?;:]+$/;
+
+const normalizeUrl = (raw = '') => {
+  const trimmed = String(raw || '').trim().replace(TRAILING_PUNCTUATION_REGEX, '');
+  if (!trimmed) return '';
+  return /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
+};
+
+const extractMessageLinks = (text = '') => {
+  const value = String(text || '');
+  const links = [];
+  const seen = new Set();
+  let match;
+  const regex = new RegExp(URL_REGEX.source, 'gi');
+  while ((match = regex.exec(value)) !== null) {
+    const normalized = normalizeUrl(match[0]);
+    if (!normalized || seen.has(normalized)) continue;
+    seen.add(normalized);
+    links.push(normalized);
+  }
+  return links;
+};
+
+const linkifyMessageText = (text = '') => {
+  const value = String(text || '');
+  const parts = [];
+  let cursor = 0;
+  let match;
+  const regex = new RegExp(URL_REGEX.source, 'gi');
+  while ((match = regex.exec(value)) !== null) {
+    const raw = match[0] || '';
+    const cleanRaw = raw.replace(TRAILING_PUNCTUATION_REGEX, '');
+    const trailing = raw.slice(cleanRaw.length);
+    const start = match.index;
+    const end = start + raw.length;
+    if (start > cursor) parts.push({ type: 'text', value: value.slice(cursor, start) });
+    const href = normalizeUrl(cleanRaw);
+    if (href) parts.push({ type: 'link', href, label: cleanRaw });
+    else parts.push({ type: 'text', value: raw });
+    if (trailing) parts.push({ type: 'text', value: trailing });
+    cursor = end;
+  }
+  if (cursor < value.length) parts.push({ type: 'text', value: value.slice(cursor) });
+  return parts;
+};
+
+const getYouTubeVideoId = (url = '') => {
+  try {
+    const parsed = new URL(url);
+    const host = parsed.hostname.replace(/^www\./, '').toLowerCase();
+    if (host === 'youtu.be') return parsed.pathname.slice(1).split('/')[0] || '';
+    if (host === 'youtube.com' || host === 'm.youtube.com') {
+      if (parsed.pathname === '/watch') return parsed.searchParams.get('v') || '';
+      if (parsed.pathname.startsWith('/shorts/')) return parsed.pathname.split('/')[2] || '';
+      if (parsed.pathname.startsWith('/embed/')) return parsed.pathname.split('/')[2] || '';
+    }
+  } catch {
+    return '';
+  }
+  return '';
+};
+
+const getLinkPreviewData = (url = '') => {
+  try {
+    const parsed = new URL(url);
+    const host = parsed.hostname.replace(/^www\./, '');
+    const path = `${parsed.pathname || '/'}${parsed.search || ''}`;
+    const youtubeId = getYouTubeVideoId(url);
+    return {
+      href: url,
+      host,
+      path: path === '/' ? '' : path.slice(0, 60),
+      title: youtubeId ? 'YouTube video' : host,
+      thumbnail: youtubeId ? `https://i.ytimg.com/vi/${youtubeId}/hqdefault.jpg` : '',
+      favicon: `https://www.google.com/s2/favicons?sz=64&domain=${encodeURIComponent(host)}`,
+    };
+  } catch {
+    return {
+      href: url,
+      host: url,
+      path: '',
+      title: 'Open link',
+      thumbnail: '',
+      favicon: '',
+    };
+  }
 };
 
 // ── Chat wallpaper SVGs ────────────────────────────────────────────────────────
@@ -280,6 +369,44 @@ const isSeenByOther = (msg, myId) => {
   );
 };
 
+const MessageLinkPreview = ({ url, isMine, theme }) => {
+  const t = theme || THEMES.blue;
+  const preview = getLinkPreviewData(url);
+  const border = isMine ? 'rgba(255,255,255,0.35)' : '#e5e7eb';
+  const bg = isMine ? 'rgba(255,255,255,0.16)' : '#f9fafb';
+  const text = isMine ? 'text-white' : 'text-gray-800';
+  const subtext = isMine ? 'text-white/80' : 'text-gray-500';
+
+  return (
+    <a
+      href={preview.href}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="mt-2 block rounded-xl border overflow-hidden hover:opacity-95 transition-opacity"
+      style={{ borderColor: border, backgroundColor: bg }}
+    >
+      {preview.thumbnail && (
+        <div className="h-28 w-full bg-black/10">
+          <img src={preview.thumbnail} alt={preview.title} className="h-full w-full object-cover" loading="lazy" />
+        </div>
+      )}
+      <div className="px-3 py-2.5 flex items-start gap-2.5">
+        {preview.favicon ? (
+          <img src={preview.favicon} alt="" className="h-4 w-4 mt-0.5 rounded-sm shrink-0" loading="lazy" />
+        ) : (
+          <Link2 className="h-4 w-4 mt-0.5 shrink-0" style={{ color: isMine ? 'rgba(255,255,255,0.9)' : t.color }} />
+        )}
+        <div className="min-w-0">
+          <div className={`text-xs font-semibold truncate ${text}`}>{preview.title}</div>
+          <div className={`text-[11px] truncate ${subtext}`}>{preview.host}</div>
+          {preview.path && <div className={`text-[11px] truncate ${subtext}`}>{preview.path}</div>}
+        </div>
+        <ExternalLink className={`h-3.5 w-3.5 mt-0.5 shrink-0 ${subtext}`} />
+      </div>
+    </a>
+  );
+};
+
 const ChatMessage = ({ msg, isMine, myId, theme }) => {
   const t = theme || THEMES.blue;
   const isSystem = String(msg?.senderType || '').toLowerCase() === 'system';
@@ -302,6 +429,8 @@ const ChatMessage = ({ msg, isMine, myId, theme }) => {
   const visibleText = isLongMessage && !expanded
     ? `${fullText.slice(0, LONG_MESSAGE_LIMIT)}...`
     : fullText;
+  const textParts = useMemo(() => linkifyMessageText(visibleText), [visibleText]);
+  const links = useMemo(() => extractMessageLinks(fullText).slice(0, 2), [fullText]);
 
   return (
   <div className={`flex ${isMine ? 'justify-end' : 'justify-start'} mb-3`}>
@@ -314,9 +443,27 @@ const ChatMessage = ({ msg, isMine, myId, theme }) => {
         <div className="text-xs font-semibold mb-1" style={{ color: t.color }}>{msg.senderName}</div>
       )}
       <div className="whitespace-pre-wrap leading-relaxed wrap-break-word">
-        {visibleText}
+        {textParts.map((part, index) => (
+          part.type === 'link' ? (
+            <a
+              key={`${part.href}-${index}`}
+              href={part.href}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="underline break-all"
+              style={{ color: isMine ? 'rgba(255,255,255,0.96)' : t.color }}
+            >
+              {part.label}
+            </a>
+          ) : (
+            <React.Fragment key={`text-${index}`}>{part.value}</React.Fragment>
+          )
+        ))}
         <span className="inline-block w-14" aria-hidden="true" />
       </div>
+      {links.map((url) => (
+        <MessageLinkPreview key={url} url={url} isMine={isMine} theme={t} />
+      ))}
       {isLongMessage && (
         <button
           type="button"
@@ -1428,8 +1575,8 @@ const TeacherChat = () => {
               ))
             )}
             {syncingThreads && filteredThreads.length > 0 && (
-              <div className="px-4 py-2 border-t border-gray-100 bg-white/90 backdrop-blur-sm">
-                <div className="inline-flex items-center gap-1.5 text-[11px] text-gray-500">
+              <div className="text-center px-4 py-2 border-t border-gray-100 bg-white/90 backdrop-blur-sm">
+                <div className="inline-flex items-center justify-center text-center gap-1.5 text-[11px] text-gray-500">
                   <Loader2 className="h-3.5 w-3.5 animate-spin" />
                   Syncing latest chats...
                 </div>

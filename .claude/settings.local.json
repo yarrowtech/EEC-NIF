@@ -20,7 +20,8 @@
       "Bash(for role in student teacher parent admin principal superadmin)",
       "Bash(do npx mmdc -i \"docs/flow-$role.mmd\" -o \"docs/flow-$role.png\" -p \"docs/puppeteer-config.json\" -w 900 -H 1400 -s 2 -b white --quiet)",
       "Bash(ls:*)",
-      "Bash(grep:*)"
+      "Bash(grep:*)",
+      "Bash(npm install html2canvas --save)"
     ]
   }
 }
