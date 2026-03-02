@@ -652,7 +652,7 @@ const RoutineView = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-slate-50 p-4 sm:p-6 space-y-4">
+      <div className="min-h-screen bg-slate-50 px-4 pt-4 pb-24 sm:p-6 space-y-4">
         <div className="h-28 bg-white rounded-2xl shadow-sm animate-pulse" />
         <div className="h-52 bg-white rounded-2xl shadow-sm animate-pulse" />
       </div>
@@ -660,13 +660,13 @@ const RoutineView = () => {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 p-4 sm:p-6 space-y-6">
+    <div className="min-h-screen bg-slate-50 px-4 pt-4 pb-24 sm:p-6 space-y-6">
       <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-5 sm:p-6">
         <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <div>
             <div className="flex items-center gap-3 mb-2">
               <Calendar className="w-6 h-6 text-indigo-600" />
-              <h1 className="text-2xl font-bold text-slate-900">Daily Routine</h1>
+              <h1 className="text-xl sm:text-2xl font-bold text-slate-900">Daily Routine</h1>
             </div>
             <p className="text-slate-500 text-sm">
               Student view only
@@ -676,21 +676,23 @@ const RoutineView = () => {
                 ` | Section ${profile?.sectionName || profile?.section}`}
             </p>
           </div>
-          <div className="flex flex-col items-end gap-2 text-right text-sm text-slate-500">
-            <p>
-              Total sessions this week:{' '}
-              <span className="font-semibold text-slate-900">{totalSessions}</span>
-            </p>
-            <p className="text-xs text-slate-400">
-              {lastUpdated
-                ? `Updated ${lastUpdated.toLocaleString(undefined, {
-                    month: 'short',
-                    day: 'numeric',
-                    hour: 'numeric',
-                    minute: '2-digit',
-                  })}`
-                : 'Waiting for the first sync...'}
-            </p>
+          <div className="flex flex-col items-start md:items-end gap-2 md:text-right text-sm text-slate-500">
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5">
+              <p>
+                Total:{' '}
+                <span className="font-semibold text-slate-900">{totalSessions} sessions</span>
+              </p>
+              <p className="text-xs text-slate-400">
+                {lastUpdated
+                  ? `Updated ${lastUpdated.toLocaleString(undefined, {
+                      month: 'short',
+                      day: 'numeric',
+                      hour: 'numeric',
+                      minute: '2-digit',
+                    })}`
+                  : 'Waiting for first sync...'}
+              </p>
+            </div>
             <div className="flex items-center gap-2">
               <button
                 type="button"
@@ -743,21 +745,24 @@ const RoutineView = () => {
               Weekly
             </button>
           </div>
-          <p className="text-xs text-slate-500">Switch between daily and weekly routine</p>
+          <p className="hidden sm:block text-xs text-slate-500">Switch between daily and weekly routine</p>
         </div>
 
-        <div className="flex flex-wrap gap-2 mb-5">
+        <div className="flex overflow-x-auto gap-2 mb-5 pb-1 -mx-4 px-4 sm:mx-0 sm:px-0 sm:flex-wrap sm:overflow-visible">
           {dayOrder.map((day) => (
             <button
               key={day}
               onClick={() => setSelectedDay(day)}
-              className={`px-4 py-2 rounded-xl text-sm font-semibold transition-all ${
+              className={`shrink-0 px-3 sm:px-4 py-2 rounded-xl text-sm font-semibold transition-all active:scale-95 ${
                 selectedDay === day ? 'bg-indigo-600 text-white shadow' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
               }`}
             >
-              {dayLabels[day]}
+              <span className="sm:hidden">{dayLabels[day].slice(0, 3)}</span>
+              <span className="hidden sm:inline">{dayLabels[day]}</span>
               {filteredSchedule[day]?.length ? (
-                <span className="ml-2 text-xs text-indigo-100 bg-indigo-500 rounded-full px-2 py-0.5">
+                <span className={`ml-1.5 text-xs rounded-full px-1.5 py-0.5 ${
+                  selectedDay === day ? 'bg-indigo-500 text-indigo-100' : 'bg-slate-300 text-slate-600'
+                }`}>
                   {filteredSchedule[day].length}
                 </span>
               ) : null}
@@ -773,6 +778,9 @@ const RoutineView = () => {
             </p>
           </div>
         ) : viewMode === 'weekly' ? (
+          <><p className="sm:hidden text-xs text-slate-400 mb-2 flex items-center gap-1">
+            <span>←</span> Swipe to see full week
+          </p>
           <div className="overflow-x-auto rounded-xl border border-slate-200">
             <table className="min-w-[900px] w-full border-collapse">
               <thead>
@@ -831,39 +839,88 @@ const RoutineView = () => {
               </tbody>
             </table>
           </div>
+          </>
         ) : daySessions.length > 0 ? (
-          <div className="space-y-4">
-            {daySessions.map((session, index) => (
-              <div
-                key={session.id || `${selectedDay}-${index}`}
-                className="p-4 border border-indigo-100 rounded-2xl bg-gradient-to-r from-white to-indigo-50 shadow-sm flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4"
-              >
-                <div>
-                  <p className="text-xs uppercase font-medium text-indigo-600">
-                    {session.type || `Period ${session.period || index + 1}`}
-                  </p>
-                  <h3 className="text-lg font-semibold text-slate-900 flex items-center gap-2">
-                    <BookOpen size={16} className="text-indigo-600" />
-                    {session.course || session.subject || session.title || 'Class'}
-                  </h3>
-                  {!isBreakSession(session) && (session.instructor || session.teacher) && (
-                    <p className="text-sm text-slate-500">By {session.instructor || session.teacher}</p>
-                  )}
-                </div>
-                <div className="flex items-center gap-4 text-sm text-slate-600">
-                  <div className="flex items-center gap-1">
-                    <Clock size={16} className="text-indigo-600" />
-                    <span>{session.time || `${session.startTime || '--'}${session.endTime ? ` - ${session.endTime}` : ''}`}</span>
-                  </div>
-                  {!isBreakSession(session) && (
-                    <div className="flex items-center gap-1">
-                      <MapPin size={16} className="text-indigo-600" />
-                      <span>{session.room || session.location || 'TBD'}</span>
+          <div className="space-y-3">
+            {daySessions.map((session, index) => {
+              const isBreak = isBreakSession(session);
+              const timeLabel = session.time || `${session.startTime || '--'}${session.endTime ? ` - ${session.endTime}` : ''}`;
+              return (
+                <div
+                  key={session.id || `${selectedDay}-${index}`}
+                  className={`rounded-2xl shadow-sm border transition-transform active:scale-[0.99] ${
+                    isBreak
+                      ? 'border-amber-200 bg-amber-50'
+                      : 'border-indigo-100 bg-linear-to-r from-white to-indigo-50'
+                  }`}
+                >
+                  {/* Mobile layout */}
+                  <div className="sm:hidden p-4">
+                    {/* Row 1: period label + time chip */}
+                    <div className="flex items-center justify-between mb-2">
+                      <span className={`text-[10px] uppercase font-semibold tracking-wider ${isBreak ? 'text-amber-600' : 'text-indigo-500'}`}>
+                        {session.type || (isBreak ? 'Break' : `Period ${session.period || index + 1}`)}
+                      </span>
+                      <span className={`inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full ${
+                        isBreak ? 'bg-amber-100 text-amber-700' : 'bg-indigo-100 text-indigo-700'
+                      }`}>
+                        <Clock size={11} />
+                        {timeLabel}
+                      </span>
                     </div>
-                  )}
+                    {/* Row 2: subject */}
+                    <h3 className={`text-base font-bold flex items-center gap-2 ${isBreak ? 'text-amber-800' : 'text-slate-900'}`}>
+                      <BookOpen size={15} className={isBreak ? 'text-amber-500' : 'text-indigo-500'} />
+                      {session.course || session.subject || session.title || 'Class'}
+                    </h3>
+                    {/* Row 3: teacher + room */}
+                    {!isBreak && (
+                      <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 mt-1.5">
+                        {(session.instructor || session.teacher) && (
+                          <span className="text-xs text-slate-500">
+                            {session.instructor || session.teacher}
+                          </span>
+                        )}
+                        {(session.room || session.location) && (
+                          <span className="inline-flex items-center gap-1 text-xs text-slate-500">
+                            <MapPin size={11} className="text-indigo-400" />
+                            {session.room || session.location}
+                          </span>
+                        )}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Desktop layout — unchanged */}
+                  <div className="hidden sm:flex items-center justify-between gap-4 p-4">
+                    <div>
+                      <p className={`text-xs uppercase font-medium ${isBreak ? 'text-amber-600' : 'text-indigo-600'}`}>
+                        {session.type || (isBreak ? 'Break' : `Period ${session.period || index + 1}`)}
+                      </p>
+                      <h3 className={`text-lg font-semibold flex items-center gap-2 ${isBreak ? 'text-amber-800' : 'text-slate-900'}`}>
+                        <BookOpen size={16} className={isBreak ? 'text-amber-500' : 'text-indigo-600'} />
+                        {session.course || session.subject || session.title || 'Class'}
+                      </h3>
+                      {!isBreak && (session.instructor || session.teacher) && (
+                        <p className="text-sm text-slate-500">By {session.instructor || session.teacher}</p>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-4 text-sm text-slate-600">
+                      <div className="flex items-center gap-1">
+                        <Clock size={16} className={isBreak ? 'text-amber-500' : 'text-indigo-600'} />
+                        <span>{timeLabel}</span>
+                      </div>
+                      {!isBreak && (
+                        <div className="flex items-center gap-1">
+                          <MapPin size={16} className="text-indigo-600" />
+                          <span>{session.room || session.location || 'TBD'}</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         ) : (
           <div className="rounded-xl border border-slate-200 bg-slate-50 p-6 text-center text-slate-600">
