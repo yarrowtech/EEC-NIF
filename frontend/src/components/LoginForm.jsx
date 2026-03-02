@@ -186,7 +186,8 @@ const LoginForm = () => {
         },
         body: JSON.stringify({
           username: sanitizedUsername,
-          password: formData.password
+          password: formData.password,
+          rememberMe: formData.rememberMe
         })
       });
 

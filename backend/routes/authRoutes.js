@@ -17,9 +17,11 @@ const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '24h';
 
 const normalize = (value = '') => String(value).trim().toLowerCase();
 
-const signToken = (payload) => jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: JWT_EXPIRES_IN });
+const signToken = (payload, expiresIn = JWT_EXPIRES_IN) => jwt.sign(payload, process.env.JWT_SECRET, { expiresIn });
 
-const tryAdmin = async ({ username, password }) => {
+const parseRememberMe = (value) => value === true || value === 'true' || value === 1 || value === '1';
+
+const tryAdmin = async ({ username, password, rememberMe }) => {
   const admin = await Admin.findOne({ username });
   if (!admin) return null;
   if (!(await bcrypt.compare(password, admin.password))) return null;
@@ -47,7 +49,7 @@ const tryAdmin = async ({ username, password }) => {
     campusId: admin.campusId || null,
     campusName: admin.campusName || null,
     campusType: admin.campusType || null,
-  });
+  }, rememberMe ? '30d' : JWT_EXPIRES_IN);
 
   return {
     token,
@@ -55,7 +57,7 @@ const tryAdmin = async ({ username, password }) => {
   };
 };
 
-const tryTeacher = async ({ username, password }) => {
+const tryTeacher = async ({ username, password, rememberMe }) => {
   const user = await TeacherUser.findOne({
     $or: [{ username }, { employeeCode: username }],
   });
@@ -78,12 +80,12 @@ const tryTeacher = async ({ username, password }) => {
     userType: 'teacher',
     schoolId: user.schoolId || null,
     campusId: user.campusId || null,
-  });
+  }, rememberMe ? '30d' : JWT_EXPIRES_IN);
 
   return { token, userType: 'Teacher' };
 };
 
-const tryStudent = async ({ username, password }) => {
+const tryStudent = async ({ username, password, rememberMe }) => {
   const user = await StudentUser.findOne({
     $or: [{ username }, { studentCode: username }],
   });
@@ -106,12 +108,12 @@ const tryStudent = async ({ username, password }) => {
     userType: 'student',
     schoolId: user.schoolId || null,
     campusId: user.campusId || null,
-  });
+  }, rememberMe ? '30d' : JWT_EXPIRES_IN);
 
   return { token, userType: 'Student' };
 };
 
-const tryParent = async ({ username, password }) => {
+const tryParent = async ({ username, password, rememberMe }) => {
   const user = await ParentUser.findOne({ username });
   if (!user) return null;
   if (!(await bcrypt.compare(password, user.password))) return null;
@@ -125,12 +127,12 @@ const tryParent = async ({ username, password }) => {
     userType: 'parent',
     schoolId: user.schoolId || null,
     campusId: user.campusId || null,
-  });
+  }, rememberMe ? '30d' : JWT_EXPIRES_IN);
 
   return { token, userType: 'Parent' };
 };
 
-const tryPrincipal = async ({ username, password }) => {
+const tryPrincipal = async ({ username, password, rememberMe }) => {
   const identifier = normalize(username);
   if (!identifier) return null;
   const principal = await Principal.findOne({
@@ -149,12 +151,12 @@ const tryPrincipal = async ({ username, password }) => {
     campusId: principal.campusId || null,
     campusName: principal.campusName || null,
     campusType: principal.campusType || null,
-  });
+  }, rememberMe ? '30d' : JWT_EXPIRES_IN);
 
   return { token, userType: 'Principal' };
 };
 
-const tryStaff = async ({ username, password }) => {
+const tryStaff = async ({ username, password, rememberMe }) => {
   const user = await StaffUser.findOne({ username });
   if (!user) return null;
   if (!(await bcrypt.compare(password, user.password))) return null;
@@ -164,7 +166,7 @@ const tryStaff = async ({ username, password }) => {
     type: 'staff',
     schoolId: user.schoolId || null,
     campusId: user.campusId || null,
-  });
+  }, rememberMe ? '30d' : JWT_EXPIRES_IN);
 
   return { token, userType: 'Staff' };
 };
@@ -172,6 +174,7 @@ const tryStaff = async ({ username, password }) => {
 router.post('/login', rateLimit({ windowMs: 60 * 1000, max: 10 }), async (req, res) => {
   const username = String(req.body?.username || '').trim();
   const password = req.body?.password;
+  const rememberMe = parseRememberMe(req.body?.rememberMe);
   if (!username || !password) {
     return res.status(400).json({ error: 'Username and password are required' });
   }
@@ -179,7 +182,7 @@ router.post('/login', rateLimit({ windowMs: 60 * 1000, max: 10 }), async (req, r
   try {
     const resolvers = [tryAdmin, tryTeacher, tryPrincipal, tryStudent, tryParent, tryStaff];
     for (const resolver of resolvers) {
-      const result = await resolver({ username, password });
+      const result = await resolver({ username, password, rememberMe });
       if (!result) continue;
 
       if (result.errorStatus) {
