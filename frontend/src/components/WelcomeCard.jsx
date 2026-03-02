@@ -211,7 +211,7 @@ const WelcomeCard = () => {
                 <GreetingIcon size={20} className="text-yellow-100" />
                 <span className="text-lg font-medium opacity-90">{greeting.text},</span>
               </div>
-              <h1 className="text-2xl font-bold mb-1">{studentData.name}!</h1>
+              <h1 className="text-xl sm:text-2xl font-bold mb-1">{studentData.name}!</h1>
               <p className="text-yellow-100 text-sm">
                 {studentData.username && `Student ID: ${studentData.username}`}
                 {displayClass && displaySection && ` • ${displayClass} - Section ${displaySection}`}
@@ -289,7 +289,7 @@ const WelcomeCard = () => {
               </div>
               
               {/* Control Buttons */}
-              <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+              <div className="flex items-center gap-1 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity duration-300">
                 <button
                   onClick={previousTip}
                   className="p-1 hover:bg-white/20 rounded-full transition-colors"
@@ -349,7 +349,7 @@ const WelcomeCard = () => {
                 <p className="text-xs text-white/60">
                   {isPaused ? 'Auto-change paused' : 'Changes every 10 seconds'}
                 </p>
-                <div className="flex gap-1">
+                <div className="flex flex-wrap gap-1">
                   {quickTips.map((_, index) => (
                     <div
                       key={index}
@@ -364,7 +364,7 @@ const WelcomeCard = () => {
           </div>
 
           {/* Hover Instructions */}
-          <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+          <div className="absolute top-2 right-2 hidden sm:block opacity-0 group-hover:opacity-100 transition-opacity duration-300">
             <div className="text-xs text-white/60 bg-black/20 px-2 py-1 rounded">
               Hover to control
             </div>

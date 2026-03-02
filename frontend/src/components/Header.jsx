@@ -348,7 +348,7 @@ const Header = ({ sidebarOpen, setSidebarOpen, onOpenProfile }) => {
               </button>
 
               {showNotifications && (
-                <div className="absolute right-0 mt-2 w-80 sm:w-96 bg-white border border-gray-100 rounded-2xl shadow-2xl z-50 overflow-hidden">
+                <div className="absolute right-0 mt-2 w-[min(24rem,calc(100vw-1rem))] bg-white border border-gray-100 rounded-2xl shadow-2xl z-50 overflow-hidden">
                   <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between">
                     <div>
                       <h3 className="text-sm font-bold text-gray-900">Notifications</h3>

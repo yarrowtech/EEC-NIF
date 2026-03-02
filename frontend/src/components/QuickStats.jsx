@@ -156,19 +156,20 @@ const QuickStats = () => {
   }, [dashboardStats, course, loading, assignmentSummary]);
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+    <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-6">
       {stats.map((stat, index) => {
         const Icon = stat.icon;
-        
+
         return (
-          <div key={index} className="bg-white rounded-xl p-6 shadow-sm border border-purple-400 hover:shadow-md transition-shadow">
-            <div className="flex items-center justify-between mb-4">
-              <div className={`p-3 rounded-lg ${stat.color}`}>
-                <Icon size={24} className="text-white" />
+          <div key={index} className="bg-white rounded-xl p-4 sm:p-6 shadow-sm border border-purple-400 hover:shadow-md transition-shadow">
+            <div className="flex items-center justify-between mb-3 sm:mb-4">
+              <div className={`p-2 sm:p-3 rounded-lg ${stat.color}`}>
+                <Icon size={20} className="text-white sm:hidden" />
+                <Icon size={24} className="text-white hidden sm:block" />
               </div>
-              <div className={`text-xs font-medium px-2 py-1 rounded-full ${
-                stat.changeType === 'positive' 
-                  ? 'text-green-700 bg-green-100' 
+              <div className={`text-xs font-medium px-2 py-1 rounded-full max-w-20 sm:max-w-none truncate ${
+                stat.changeType === 'positive'
+                  ? 'text-green-700 bg-green-100'
                   : stat.changeType === 'negative'
                   ? 'text-red-700 bg-red-100'
                   : 'text-gray-700 bg-gray-100'
@@ -176,10 +177,10 @@ const QuickStats = () => {
                 {stat.change}
               </div>
             </div>
-            
+
             <div>
-              <p className="text-2xl font-bold text-gray-900 mb-1">{stat.value}</p>
-              <p className="text-sm text-gray-600">{stat.title}</p>
+              <p className="text-xl sm:text-2xl font-bold text-gray-900 mb-1">{stat.value}</p>
+              <p className="text-xs sm:text-sm text-gray-600">{stat.title}</p>
             </div>
           </div>
         );
