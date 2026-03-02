@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
   Home, BookOpen, Calendar, MessageCircle, User,
   X, FileText, File, Target, BarChart3, Users,
@@ -49,6 +49,50 @@ const isViewInSubMenu = (menuKey, activeView) =>
 const MobileBottomNav = ({ activeView }) => {
   const navigate = useNavigate();
   const [openMenu, setOpenMenu] = useState(null);
+  const [chatUnreadCount, setChatUnreadCount] = useState(0);
+
+  const loadChatUnreadCount = useCallback(async () => {
+    const token = localStorage.getItem('token');
+    if (!token) {
+      setChatUnreadCount(0);
+      return;
+    }
+    try {
+      const res = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api/chat/threads`, {
+        headers: {
+          'Content-Type': 'application/json',
+          authorization: `Bearer ${token}`,
+        },
+      });
+      if (!res.ok) return;
+      const data = await res.json().catch(() => []);
+      const totalUnread = (Array.isArray(data) ? data : []).reduce(
+        (sum, thread) => sum + Math.max(0, Number(thread?.unreadCount || 0)),
+        0
+      );
+      setChatUnreadCount(totalUnread);
+    } catch {
+      // Keep existing count on transient network errors.
+    }
+  }, []);
+
+  useEffect(() => {
+    loadChatUnreadCount();
+    const intervalId = window.setInterval(loadChatUnreadCount, 30000);
+    const onFocus = () => loadChatUnreadCount();
+    const onVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        loadChatUnreadCount();
+      }
+    };
+    window.addEventListener('focus', onFocus);
+    document.addEventListener('visibilitychange', onVisibility);
+    return () => {
+      window.clearInterval(intervalId);
+      window.removeEventListener('focus', onFocus);
+      document.removeEventListener('visibilitychange', onVisibility);
+    };
+  }, [loadChatUnreadCount]);
 
   const handleTabPress = (item) => {
     if (item.subMenu) {
@@ -158,7 +202,7 @@ const MobileBottomNav = ({ activeView }) => {
                 className="flex-1 flex flex-col items-center justify-center gap-0.5 active:scale-90 transition-transform"
               >
                 <div
-                  className={`p-1.5 rounded-xl transition-all duration-200 ${
+                  className={`relative p-1.5 rounded-xl transition-all duration-200 ${
                     isActive ? 'bg-amber-50' : ''
                   }`}
                 >
@@ -167,6 +211,11 @@ const MobileBottomNav = ({ activeView }) => {
                     strokeWidth={isActive ? 2.2 : 1.8}
                     className={isActive ? 'text-amber-500' : 'text-gray-400'}
                   />
+                  {item.id === 'chat' && chatUnreadCount > 0 && (
+                    <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-red-500 text-white text-[10px] font-bold leading-[18px] text-center shadow">
+                      {chatUnreadCount > 99 ? '99+' : chatUnreadCount}
+                    </span>
+                  )}
                 </div>
                 <span
                   className={`text-[10px] font-semibold leading-none ${

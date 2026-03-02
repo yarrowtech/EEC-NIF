@@ -1,5 +1,5 @@
 const mongoose = require("mongoose")
-const { questionPaper } = require("../../frontend/src/components/questionPaper")
+// const { questionPaper } = require("../../frontend/src/components/questionPaper")
 
 
 const behaviourSchema = new mongoose.Schema({

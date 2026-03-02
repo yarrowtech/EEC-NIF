@@ -1299,6 +1299,14 @@ const TeacherChat = () => {
     if (!q) return contacts;
     return contacts.filter(c => c.name.toLowerCase().includes(q) || c.subtitle?.toLowerCase().includes(q));
   }, [contacts, contactQuery]);
+  const totalUnreadCount = useMemo(
+    () =>
+      (Array.isArray(threads) ? threads : []).reduce(
+        (sum, thread) => sum + Math.max(0, Number(thread?.unreadCount || 0)),
+        0
+      ),
+    [threads]
+  );
 
   const theme          = THEMES[themeKey]         || THEMES.blue;
   const wallpaperStyle = (WALLPAPERS[wallpaperKey] || WALLPAPERS.doodle).style;
@@ -1592,6 +1600,14 @@ const TeacherChat = () => {
                 <p className="text-xs font-medium text-gray-700 truncate">{me?.name || 'Teacher'}</p>
                 <p className="text-xs text-gray-400">Teacher</p>
               </div>
+              {totalUnreadCount > 0 && (
+                <span
+                  className="text-xs px-2 py-0.5 rounded-full bg-red-500 text-white font-semibold min-w-[22px] text-center"
+                  title={`${totalUnreadCount} unread`}
+                >
+                  {totalUnreadCount > 99 ? '99+' : totalUnreadCount}
+                </span>
+              )}
               <span className="text-xs px-2 py-0.5 rounded-full bg-green-100 text-green-700 font-medium">Online</span>
             </div>
           </div>
