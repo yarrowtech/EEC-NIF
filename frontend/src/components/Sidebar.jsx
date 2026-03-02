@@ -141,13 +141,13 @@ const Sidebar = ({ activeView, isOpen, setIsOpen }) => {
         { id: 'achievements', name: 'Achievements', icon: Trophy },
       ]
     },
-    {
-      id: 'id-card',
-      name: 'My ID Card',
-      icon: CreditCard,
-      gradient: 'from-violet-500 to-violet-600',
-      description: 'Download your ID card',
-    },
+    // {
+    //   id: 'id-card',
+    //   name: 'My ID Card',
+    //   icon: CreditCard,
+    //   gradient: 'from-violet-500 to-violet-600',
+    //   description: 'Download your ID card',
+    // },
   ];
 
   const handleLogout = () => {
