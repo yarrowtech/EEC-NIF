@@ -183,7 +183,7 @@ const AssignmentView = ({ defaultType = "school" }) => {
 
   /* ═══════════════ RENDER ═══════════════ */
   return (
-    <div className="w-full min-h-screen bg-slate-50 px-3 sm:px-6 md:px-8 py-5 space-y-5 overflow-x-hidden">
+    <div className="w-full min-h-screen bg-slate-50 px-3 sm:px-6 md:px-8 py-5 pb-24 md:pb-6 space-y-5 overflow-x-hidden">
 
       {/* Header (non-journal) */}
       {assignmentType !== "journal" && (

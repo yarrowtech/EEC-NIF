@@ -736,156 +736,178 @@ const closeDetail = () => {
       <>
         {/* Controls */}
         <div className="flex flex-col gap-3 mb-4">
-          <div className="flex flex-col md:flex-row items-stretch md:items-center gap-3">
+          <div className="flex gap-2">
             {/* Search */}
-            <div className="relative flex-1 min-w-[220px]">
+            <div className="relative flex-1">
               <SearchIcon className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
               <input
                 value={schoolSearch}
                 onChange={(e) => setSchoolSearch(e.target.value)}
-                placeholder="Search title, course, or description..."
-                className="w-full pl-9 pr-3 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+                placeholder="Search assignments..."
+                className="w-full pl-9 pr-3 py-2.5 rounded-xl border border-gray-200 bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-sm"
               />
             </div>
             {/* Sort */}
             <select
               value={schoolSort}
               onChange={(e) => setSchoolSort(e.target.value)}
-              className="w-full md:w-auto px-3 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+              className="shrink-0 px-3 py-2.5 rounded-xl border border-gray-200 bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-sm"
             >
-              <option value="due_asc">Sort by Due (Earliest)</option>
-              <option value="due_desc">Sort by Due (Latest)</option>
-              <option value="priority">Sort by Priority</option>
-              <option value="status">Sort by Status</option>
+              <option value="due_asc">Due ↑</option>
+              <option value="due_desc">Due ↓</option>
+              <option value="priority">Priority</option>
+              <option value="status">Status</option>
             </select>
           </div>
-          {/* Filter Segmented */}
-          <div className="flex flex-wrap gap-2">
-            {['all', 'pending', 'completed', 'overdue'].map((filterType) => (
+          {/* Filter chips — horizontal scroll on mobile */}
+          <div className="flex overflow-x-auto gap-2 pb-0.5 scrollbar-hide">
+            {[
+              { key: 'all', label: 'All' },
+              { key: 'pending', label: '⏳ Pending' },
+              { key: 'completed', label: '✅ Done' },
+              { key: 'overdue', label: '🔴 Overdue' },
+            ].map(({ key, label }) => (
               <button
-                key={filterType}
-                onClick={() => setFilter(filterType)}
-                className={`px-3 py-1.5 rounded-full text-sm font-medium capitalize border transition ${
-                  filter === filterType
-                    ? 'bg-blue-600 text-white border-blue-600'
-                    : 'bg-white text-gray-700 hover:bg-gray-50 border-gray-300'
+                key={key}
+                onClick={() => setFilter(key)}
+                className={`shrink-0 px-4 py-1.5 rounded-full text-sm font-medium border transition ${
+                  filter === key
+                    ? 'bg-blue-600 text-white border-blue-600 shadow-sm'
+                    : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'
                 }`}
               >
-                {filterType}
+                {label}
               </button>
             ))}
           </div>
         </div>
 
         {/* Stats Cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 sm:gap-6">
-          <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          <div className="bg-white p-3 md:p-5 rounded-xl shadow-sm border border-gray-100">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-gray-600">Total</p>
+                <p className="text-xs font-medium text-gray-500">Total</p>
                 <p className="text-2xl font-bold text-gray-900">{assignments.length}</p>
               </div>
-              <FileText className="w-8 h-8 text-blue-600" />
+              <div className="p-2 bg-blue-50 rounded-lg">
+                <FileText className="w-5 h-5 text-blue-600" />
+              </div>
             </div>
           </div>
-          
-          <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
+          <div className="bg-white p-3 md:p-5 rounded-xl shadow-sm border border-gray-100">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-gray-600">Pending</p>
+                <p className="text-xs font-medium text-gray-500">Pending</p>
                 <p className="text-2xl font-bold text-yellow-600">
                   {assignments.filter(a => a.status === 'pending').length}
                 </p>
               </div>
-              <Clock className="w-8 h-8 text-yellow-600" />
+              <div className="p-2 bg-yellow-50 rounded-lg">
+                <Clock className="w-5 h-5 text-yellow-600" />
+              </div>
             </div>
           </div>
-          
-          <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
+          <div className="bg-white p-3 md:p-5 rounded-xl shadow-sm border border-gray-100">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-gray-600">Completed</p>
+                <p className="text-xs font-medium text-gray-500">Done</p>
                 <p className="text-2xl font-bold text-green-600">
                   {assignments.filter(a => a.status === 'completed').length}
                 </p>
               </div>
-              <CheckCircle className="w-8 h-8 text-green-600" />
+              <div className="p-2 bg-green-50 rounded-lg">
+                <CheckCircle className="w-5 h-5 text-green-600" />
+              </div>
             </div>
           </div>
-          
-          <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
+          <div className="bg-white p-3 md:p-5 rounded-xl shadow-sm border border-gray-100">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-gray-600">Overdue</p>
+                <p className="text-xs font-medium text-gray-500">Overdue</p>
                 <p className="text-2xl font-bold text-red-600">
                   {assignments.filter(a => a.status === 'overdue').length}
                 </p>
               </div>
-              <AlertCircle className="w-8 h-8 text-red-600" />
+              <div className="p-2 bg-red-50 rounded-lg">
+                <AlertCircle className="w-5 h-5 text-red-600" />
+              </div>
             </div>
           </div>
         </div>
 
         {/* Assignments Grid */}
         {loading ? (
-          <div className="text-center py-12">
-            <Clock className="w-12 h-12 text-blue-500 mx-auto mb-4 animate-spin" />
-            <p className="text-gray-500 text-lg">Loading assignments...</p>
+          <div className="flex flex-col items-center justify-center py-16 gap-3">
+            <Clock className="w-10 h-10 text-blue-400 animate-spin" />
+            <p className="text-gray-400 text-sm">Loading assignments...</p>
           </div>
         ) : (
           <>
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
               {filteredAssignments.map((assignment) => {
                 const days = getDaysRemaining(assignment.dueDate);
-                const daysText = days < 0 ? `${Math.abs(days)} days overdue` : days === 0 ? 'Due today' : `${days} days remaining`;
+                const daysText = days < 0 ? `${Math.abs(days)}d overdue` : days === 0 ? 'Due today' : `${days}d left`;
                 const daysColor = days < 0 ? 'text-red-600 bg-red-50 border-red-200' : days <= 3 ? 'text-amber-700 bg-amber-50 border-amber-200' : 'text-green-700 bg-green-50 border-green-200';
                 const requiresPdf = assignment.submissionFormat === 'pdf';
+                const statusBorderColor = assignment.status === 'completed' ? 'border-l-green-500' : assignment.status === 'overdue' ? 'border-l-red-500' : 'border-l-blue-500';
                 return (
                   <div
                     key={assignment.id}
                     onClick={() => openDetail(assignment)}
-                    className={`bg-white rounded-xl border shadow-sm hover:shadow-lg hover:-translate-y-0.5 transition-all cursor-pointer overflow-hidden ${getPriorityColor(assignment.priority)}`}
+                    className={`bg-white rounded-2xl border border-gray-100 border-l-4 ${statusBorderColor} shadow-sm active:scale-[0.99] hover:shadow-md transition-all cursor-pointer overflow-hidden`}
                   >
-                    <div className="p-5">
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="flex items-center gap-2 min-w-0">
-                          {getStatusIcon(assignment.status)}
-                          <h3 className="text-base font-semibold text-gray-900 line-clamp-2 leading-snug">{assignment.title}</h3>
-                        </div>
-                        <span className={`shrink-0 px-2 py-0.5 rounded-full text-xs font-medium capitalize border ${getStatusColor(assignment.status)}`}>
+                    <div className="p-4">
+                      {/* Title row */}
+                      <div className="flex items-start justify-between gap-2 mb-2">
+                        <h3 className="text-sm font-semibold text-gray-900 line-clamp-2 leading-snug flex-1">{assignment.title}</h3>
+                        <span className={`shrink-0 px-2 py-0.5 rounded-full text-[11px] font-semibold capitalize border ${getStatusColor(assignment.status)}`}>
                           {assignment.status}
                         </span>
                       </div>
-                      <div className="mt-3 flex flex-wrap items-center gap-2 text-sm text-gray-500">
+
+                      {/* Course + Teacher */}
+                      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mb-2">
                         {assignment.course && (
-                          <span className="inline-flex items-center gap-1"><Book className="w-3.5 h-3.5" />{assignment.course}</span>
-                        )}
-                        {assignment.dueDate && (
-                          <span className="inline-flex items-center gap-1"><Calendar className="w-3.5 h-3.5" />Due {formatDate(assignment.dueDate)}</span>
-                        )}
-                        <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold border ${requiresPdf ? 'border-purple-200 bg-purple-50 text-purple-700' : 'border-green-200 bg-green-50 text-green-700'}`}>
-                          {requiresPdf ? 'PDF Required' : 'Text Submission'}
-                        </span>
-                      </div>
-                      {assignment.teacherName && (
-                        <p className="mt-2 text-xs text-gray-500 flex items-center gap-1">
-                          <User className="w-3.5 h-3.5" />{assignment.teacherName}
-                        </p>
-                      )}
-                      <p className="mt-2 text-sm text-gray-600 line-clamp-2">{assignment.description}</p>
-                    </div>
-                    <div className="px-5 pb-4 flex items-center justify-between">
-                      <span className={`px-2 py-0.5 rounded border text-xs font-medium ${daysColor}`}>{daysText}</span>
-                      <div className="flex items-center gap-2">
-                        {assignment.maxMarks && (
-                          <span className="text-xs text-gray-400">{assignment.maxMarks} marks</span>
-                        )}
-                        {assignment.attachments?.length > 0 && (
-                          <span className="text-xs text-blue-500 flex items-center gap-0.5">
-                            <Paperclip className="w-3 h-3" />{assignment.attachments.length}
+                          <span className="inline-flex items-center gap-1 text-xs text-indigo-600 font-medium bg-indigo-50 px-2 py-0.5 rounded-full">
+                            <Book className="w-3 h-3" />{assignment.course}
                           </span>
                         )}
-                        <ChevronRight className="w-4 h-4 text-gray-400" />
+                        {assignment.teacherName && (
+                          <span className="inline-flex items-center gap-1 text-xs text-gray-400">
+                            <User className="w-3 h-3" />{assignment.teacherName}
+                          </span>
+                        )}
+                      </div>
+
+                      {/* Description */}
+                      {assignment.description && (
+                        <p className="text-xs text-gray-500 line-clamp-2 leading-relaxed mb-3">{assignment.description}</p>
+                      )}
+
+                      {/* Footer row */}
+                      <div className="flex items-center justify-between gap-2 pt-2 border-t border-gray-50">
+                        <div className="flex items-center gap-2">
+                          {assignment.dueDate && (
+                            <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full border text-[11px] font-semibold ${daysColor}`}>
+                              <Calendar className="w-3 h-3" />{daysText}
+                            </span>
+                          )}
+                          <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold border ${requiresPdf ? 'border-purple-200 bg-purple-50 text-purple-700' : 'border-emerald-200 bg-emerald-50 text-emerald-700'}`}>
+                            {requiresPdf ? '📎 PDF' : '📝 Text'}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          {assignment.maxMarks && (
+                            <span className="text-[11px] text-gray-400 font-medium">{assignment.maxMarks}mk</span>
+                          )}
+                          {assignment.attachments?.length > 0 && (
+                            <span className="text-[11px] text-blue-500 flex items-center gap-0.5">
+                              <Paperclip className="w-3 h-3" />{assignment.attachments.length}
+                            </span>
+                          )}
+                          <ChevronRight className="w-4 h-4 text-gray-300" />
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -894,9 +916,12 @@ const closeDetail = () => {
             </div>
 
             {filteredAssignments.length === 0 && (
-              <div className="text-center py-12">
-                <FileText className="w-12 h-12 text-gray-300 mx-auto mb-4" />
-                <p className="text-gray-500 text-lg">No assignments found.</p>
+              <div className="flex flex-col items-center py-16 gap-3 text-center">
+                <div className="p-4 bg-gray-50 rounded-2xl">
+                  <FileText className="w-10 h-10 text-gray-200" />
+                </div>
+                <p className="font-medium text-gray-500">No assignments found</p>
+                <p className="text-sm text-gray-400">Try changing the filter or search term.</p>
               </div>
             )}
           </>
@@ -916,16 +941,20 @@ const closeDetail = () => {
 
           return (
             <div
-              className="fixed inset-0 z-50 flex items-center justify-center p-4"
+              className="fixed inset-0 z-50 flex items-end sm:items-center justify-center sm:p-4"
               style={{ background: 'rgba(15,23,42,0.55)', backdropFilter: 'blur(4px)' }}
               onClick={closeDetail}
             >
               <div
-                className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto"
+                className="bg-white w-full sm:max-w-2xl sm:rounded-2xl rounded-t-3xl shadow-2xl max-h-[92vh] sm:max-h-[90vh] overflow-y-auto"
                 onClick={e => e.stopPropagation()}
               >
+                {/* Drag handle (mobile) */}
+                <div className="flex justify-center pt-3 pb-1 sm:hidden">
+                  <div className="w-10 h-1 rounded-full bg-gray-200" />
+                </div>
                 {/* Modal Header */}
-                <div className={`p-6 border-b border-gray-100 ${a.status === 'completed' ? 'bg-green-50' : a.status === 'overdue' ? 'bg-red-50' : 'bg-blue-50'}`}>
+                <div className={`px-4 sm:px-6 pt-3 sm:pt-6 pb-4 border-b border-gray-100 ${a.status === 'completed' ? 'bg-green-50' : a.status === 'overdue' ? 'bg-red-50' : 'bg-blue-50'}`}>
                   <div className="flex items-start justify-between gap-4">
                     <div className="flex items-start gap-3 min-w-0">
                       <div className={`shrink-0 p-2 rounded-lg ${a.status === 'completed' ? 'bg-green-100' : a.status === 'overdue' ? 'bg-red-100' : 'bg-blue-100'}`}>
@@ -966,7 +995,7 @@ const closeDetail = () => {
                 </div>
 
                 {/* Modal Body */}
-                <div className="p-6 space-y-6">
+                <div className="px-4 sm:px-6 py-4 sm:py-6 space-y-5">
 
                   {/* Info grid */}
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -1208,100 +1237,154 @@ const closeDetail = () => {
   }
 
   if (assignmentType === 'eec') {
+    const correctCount = practiceResults ? Object.values(practiceResults).filter((r) => r.isCorrect).length : 0;
+    const totalCount = practiceQuestions.length;
+    const scorePercent = practiceResults && totalCount > 0 ? Math.round((correctCount / totalCount) * 100) : null;
+
     return (
-      <div className="relative overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-        {/* Hero Header */}
-        <div className="relative overflow-hidden border-b border-slate-200 bg-gradient-to-r from-sky-50 via-indigo-50 to-violet-50 p-6 sm:p-8">
-          <div className="absolute inset-0 opacity-30" style={{ backgroundImage: 'radial-gradient(circle at 20% 20%, #93c5fd 0, transparent 40%), radial-gradient(circle at 80% 30%, #a5b4fc 0, transparent 40%)' }} />
-          <div className="relative flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+      <div className="flex flex-col gap-0 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm pb-24 md:pb-0">
+
+        {/* Header */}
+        <div className="relative overflow-hidden border-b border-slate-200 bg-gradient-to-br from-sky-500 via-indigo-500 to-violet-600 px-4 py-5 sm:px-6 sm:py-6">
+          <div className="absolute inset-0 opacity-20" style={{ backgroundImage: 'radial-gradient(circle at 10% 80%, #fff 0, transparent 50%), radial-gradient(circle at 90% 10%, #fff 0, transparent 40%)' }} />
+          <div className="relative flex items-start justify-between gap-3">
             <div>
-              <h2 className="text-2xl sm:text-3xl font-bold text-slate-900">EEC Practice Paper</h2>
-              <p className="mt-1 text-sm text-slate-600">Challenge yourself with curated questions</p>
+              <div className="mb-1.5 inline-flex items-center gap-1.5 rounded-full bg-white/20 px-2.5 py-0.5 text-[11px] font-semibold text-white/90 backdrop-blur-sm">
+                <span>📚</span>
+                <span>EEC Practice</span>
+              </div>
+              <h2 className="text-xl font-bold text-white sm:text-2xl">Practice Paper</h2>
+              <p className="mt-0.5 text-xs text-white/75">Challenge yourself with curated questions</p>
             </div>
-            <div className="flex flex-wrap items-center gap-3">
-              <div className="rounded-full border border-slate-200 bg-white/80 px-3 py-1.5 text-xs font-semibold text-slate-700">
-                Class: {practiceMeta ? `${practiceMeta.className}${practiceMeta.sectionName ? ` - ${practiceMeta.sectionName}` : ''}` : 'Loading...'}
+            {practiceMeta && (
+              <div className="shrink-0 rounded-xl bg-white/15 px-3 py-2 text-center backdrop-blur-sm">
+                <p className="text-[10px] font-medium uppercase tracking-wide text-white/70">Class</p>
+                <p className="text-sm font-bold text-white">
+                  {practiceMeta.className}{practiceMeta.sectionName ? ` · ${practiceMeta.sectionName}` : ''}
+                </p>
               </div>
-              <div className="flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 shadow-sm">
-                <span className="text-[10px] uppercase tracking-wide text-slate-400">Subject</span>
-                <select
-                  value={practiceSubjectId}
-                  onChange={(e) => setPracticeSubjectId(e.target.value)}
-                  className="bg-transparent text-xs font-semibold text-slate-700 focus:outline-none"
-                >
-                  {(practiceMeta?.subjects || []).map((subject) => (
-                    <option key={subject.id} value={subject.id}>
-                      {subject.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div className="flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 shadow-sm">
-                <span className="text-[10px] uppercase tracking-wide text-slate-400">Type</span>
-                <select
-                  value={practiceType}
-                  onChange={(e) => setPracticeType(e.target.value)}
-                  className="bg-transparent text-xs font-semibold text-slate-700 focus:outline-none"
-                >
-                  <option value="mcq">Multiple Choice</option>
-                  <option value="blank">Fill in the Blank</option>
-                </select>
-              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Selectors */}
+        <div className="border-b border-slate-100 bg-slate-50 px-4 py-3 sm:px-6">
+          <div className="grid grid-cols-2 gap-3">
+            <div className="flex flex-col gap-1">
+              <label className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">Subject</label>
+              <select
+                value={practiceSubjectId}
+                onChange={(e) => setPracticeSubjectId(e.target.value)}
+                className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-medium text-slate-800 shadow-sm focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-100"
+              >
+                {(practiceMeta?.subjects || []).map((subject) => (
+                  <option key={subject.id} value={subject.id}>
+                    {subject.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="flex flex-col gap-1">
+              <label className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">Question Type</label>
+              <select
+                value={practiceType}
+                onChange={(e) => setPracticeType(e.target.value)}
+                className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-medium text-slate-800 shadow-sm focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-100"
+              >
+                <option value="mcq">Multiple Choice</option>
+                <option value="blank">Fill in the Blank</option>
+              </select>
             </div>
           </div>
         </div>
 
-        {/* Summary Bar */}
-        <div className="flex flex-wrap items-center gap-3 border-b border-slate-200 bg-white px-6 py-4 text-sm text-slate-600">
-          <div className="rounded-lg bg-slate-50 px-3 py-1.5 text-xs font-medium text-slate-700">
-            Questions: {practiceQuestions.length}
+        {/* Stats Bar */}
+        <div className="flex items-center gap-3 border-b border-slate-100 bg-white px-4 py-3 sm:px-6">
+          <div className="flex items-center gap-2 rounded-xl bg-slate-50 px-3 py-2">
+            <span className="text-base">📝</span>
+            <div>
+              <p className="text-[10px] font-medium text-slate-400">Questions</p>
+              <p className="text-sm font-bold text-slate-800">{totalCount}</p>
+            </div>
           </div>
           {practiceResults && (
-            <div className="rounded-lg bg-emerald-50 px-3 py-1.5 text-xs font-medium text-emerald-700">
-              Score: {Object.values(practiceResults).filter((r) => r.isCorrect).length}/{practiceQuestions.length}
+            <div className={`flex items-center gap-2 rounded-xl px-3 py-2 ${scorePercent >= 70 ? 'bg-emerald-50' : scorePercent >= 40 ? 'bg-amber-50' : 'bg-red-50'}`}>
+              <span className="text-base">🎯</span>
+              <div>
+                <p className={`text-[10px] font-medium ${scorePercent >= 70 ? 'text-emerald-500' : scorePercent >= 40 ? 'text-amber-500' : 'text-red-500'}`}>Score</p>
+                <p className={`text-sm font-bold ${scorePercent >= 70 ? 'text-emerald-700' : scorePercent >= 40 ? 'text-amber-700' : 'text-red-700'}`}>{correctCount}/{totalCount} · {scorePercent}%</p>
+              </div>
             </div>
           )}
-          <div className="ml-auto text-xs text-slate-500">
-            Tip: Read carefully before selecting an answer.
-          </div>
+          <p className="ml-auto hidden text-xs text-slate-400 sm:block">Read carefully before answering</p>
         </div>
 
         {/* Content */}
-        <div className="p-6 sm:p-7">
+        <div className="p-4 sm:p-6">
           {practiceError && (
-            <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
-              {practiceError}
+            <div className="mb-4 flex items-start gap-2.5 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+              <span className="mt-0.5 shrink-0 text-base">⚠️</span>
+              <span>{practiceError}</span>
             </div>
           )}
           {practiceLoading && (
-            <div className="text-sm text-slate-500">Loading questions...</div>
+            <div className="flex items-center justify-center gap-3 py-12 text-sm text-slate-500">
+              <svg className="h-5 w-5 animate-spin text-indigo-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+              </svg>
+              <span>Loading questions...</span>
+            </div>
           )}
           {!practiceLoading && practiceQuestions.length === 0 && (
-            <div className="text-sm text-slate-500">No questions available for this subject.</div>
+            <div className="flex flex-col items-center justify-center gap-2 py-12">
+              <span className="text-4xl">📭</span>
+              <p className="text-sm font-medium text-slate-500">No questions available for this subject.</p>
+            </div>
           )}
           {!practiceLoading && practiceQuestions.length > 0 && (
-            practiceType === "mcq" 
+            practiceType === "mcq"
               ? <MCQ questions={practiceQuestions} />
               : <Blank questions={practiceQuestions} />
           )}
         </div>
 
         {/* Footer */}
-        <div className="flex flex-wrap items-center gap-3 border-t border-slate-200 bg-slate-50 px-6 py-4">
-          <button
-            className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-60"
-            onClick={handlePracticeSubmit}
-            disabled={practiceSubmitting || practiceQuestions.length === 0}
-          >
-            {practiceSubmitting ? 'Submitting...' : 'Submit Answers'}
-          </button>
-          <button
-            className={`rounded-lg border px-4 py-2 text-sm font-medium ${showAnswers ? 'border-emerald-300 text-emerald-700 hover:bg-emerald-50' : 'border-slate-300 text-slate-700 hover:bg-slate-100'}`}
-            onClick={() => setShowAnswers(!showAnswers)}
-            disabled={!practiceResults}
-          >
-            {showAnswers ? 'Hide Explanations' : 'Show Explanations'}
-          </button>
+        <div className="border-t border-slate-100 bg-slate-50 px-4 py-4 sm:px-6">
+          <div className="flex flex-col gap-2.5 sm:flex-row sm:items-center sm:gap-3">
+            <button
+              className="flex w-full items-center justify-center gap-2 rounded-xl bg-indigo-600 px-5 py-3 text-sm font-semibold text-white shadow-sm transition-all active:scale-[0.98] hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
+              onClick={handlePracticeSubmit}
+              disabled={practiceSubmitting || practiceQuestions.length === 0}
+            >
+              {practiceSubmitting ? (
+                <>
+                  <svg className="h-4 w-4 animate-spin" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                  </svg>
+                  <span>Submitting...</span>
+                </>
+              ) : (
+                <>
+                  <span>✅</span>
+                  <span>Submit Answers</span>
+                </>
+              )}
+            </button>
+            <button
+              className={`flex w-full items-center justify-center gap-2 rounded-xl border px-5 py-3 text-sm font-semibold transition-all active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto ${
+                showAnswers
+                  ? 'border-emerald-300 bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
+                  : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-100'
+              }`}
+              onClick={() => setShowAnswers(!showAnswers)}
+              disabled={!practiceResults}
+            >
+              <span>{showAnswers ? '🙈' : '💡'}</span>
+              <span>{showAnswers ? 'Hide Explanations' : 'Show Explanations'}</span>
+            </button>
+          </div>
         </div>
       </div>
     );
