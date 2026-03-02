@@ -32,7 +32,7 @@ const ParentClassRoutine = () => {
   const [children, setChildren] = useState([]);
   const [selectedChildId, setSelectedChildId] = useState('');
   const [selectedDay, setSelectedDay] = useState('Monday');
-  const [viewMode, setViewMode] = useState('weekly');
+  const [viewMode] = useState('weekly');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -195,23 +195,6 @@ const ParentClassRoutine = () => {
       </div>
 
       <div className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm space-y-4">
-        <div className="flex items-center justify-between flex-wrap gap-3">
-          <div className="inline-flex rounded-lg border border-gray-200 bg-gray-50 p-1">
-            <button
-              onClick={() => setViewMode('daily')}
-              className={`px-3 py-1.5 rounded-md text-sm font-medium ${viewMode === 'daily' ? 'bg-amber-600 text-white' : 'text-gray-700'}`}
-            >
-              Daily
-            </button>
-            <button
-              onClick={() => setViewMode('weekly')}
-              className={`px-3 py-1.5 rounded-md text-sm font-medium ${viewMode === 'weekly' ? 'bg-amber-600 text-white' : 'text-gray-700'}`}
-            >
-              Weekly Sheet
-            </button>
-          </div>
-        </div>
-
         <div className="flex flex-wrap gap-2">
           {DAYS.map((day) => (
             <button

@@ -117,7 +117,7 @@ const ClassRoutine = () => {
   const [teacherProfile, setTeacherProfile] = useState(null);
   const [routineMeta, setRoutineMeta] = useState({ campusScoped: true, timetableCount: 0, filterSource: 'campus' });
   const [selectedDay, setSelectedDay] = useState(DAYS[new Date().getDay() === 0 ? 6 : new Date().getDay() - 1]);
-  const [viewMode, setViewMode] = useState('daily');
+  const [viewMode] = useState('weekly');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
@@ -695,29 +695,7 @@ const ClassRoutine = () => {
 
       {/* View Controls */}
       <div className="bg-white rounded-2xl p-3 sm:p-4 border border-gray-100 space-y-3">
-        <div className="flex items-center justify-between gap-2">
-          <div className="flex items-center gap-1.5 bg-gray-100 p-1 rounded-xl">
-            <button
-              onClick={() => setViewMode('daily')}
-              className={`px-3.5 py-1.5 rounded-lg text-sm font-semibold transition-all duration-200 ${
-                viewMode === 'daily'
-                  ? 'bg-white text-gray-900 shadow-sm'
-                  : 'text-gray-500 hover:text-gray-700'
-              }`}
-            >
-              Daily
-            </button>
-            <button
-              onClick={() => setViewMode('weekly')}
-              className={`px-3.5 py-1.5 rounded-lg text-sm font-semibold transition-all duration-200 ${
-                viewMode === 'weekly'
-                  ? 'bg-white text-gray-900 shadow-sm'
-                  : 'text-gray-500 hover:text-gray-700'
-              }`}
-            >
-              Weekly
-            </button>
-          </div>
+        <div className="flex items-center justify-end gap-2">
           <div className="flex items-center gap-2">
             <button
               onClick={downloadPDF}

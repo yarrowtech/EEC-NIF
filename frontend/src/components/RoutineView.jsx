@@ -198,7 +198,7 @@ const RoutineView = () => {
   const { profile } = useStudentDashboard();
   const [schedule, setSchedule] = useState({});
   const [selectedDay, setSelectedDay] = useState(dayOrder[0]);
-  const [viewMode, setViewMode] = useState('daily');
+  const [viewMode] = useState('weekly');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [lastUpdated, setLastUpdated] = useState(null);
@@ -666,7 +666,7 @@ const RoutineView = () => {
           <div>
             <div className="flex items-center gap-3 mb-2">
               <Calendar className="w-6 h-6 text-indigo-600" />
-              <h1 className="text-2xl font-bold text-slate-900">Daily Routine</h1>
+              <h1 className="text-2xl font-bold text-slate-900">Weekly Routine</h1>
             </div>
             <p className="text-slate-500 text-sm">
               Student view only
@@ -724,26 +724,8 @@ const RoutineView = () => {
       </div>
 
       <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-4">
-        <div className="flex flex-wrap items-center justify-between gap-3 mb-5">
-          <div className="inline-flex rounded-xl border border-slate-200 p-1 bg-slate-50">
-            <button
-              onClick={() => setViewMode('daily')}
-              className={`px-3 py-1.5 rounded-lg text-sm font-semibold transition ${
-                viewMode === 'daily' ? 'bg-indigo-600 text-white' : 'text-slate-600 hover:bg-slate-200'
-              }`}
-            >
-              Daily
-            </button>
-            <button
-              onClick={() => setViewMode('weekly')}
-              className={`px-3 py-1.5 rounded-lg text-sm font-semibold transition ${
-                viewMode === 'weekly' ? 'bg-indigo-600 text-white' : 'text-slate-600 hover:bg-slate-200'
-              }`}
-            >
-              Weekly
-            </button>
-          </div>
-          <p className="text-xs text-slate-500">Switch between daily and weekly routine</p>
+        <div className="flex flex-wrap items-center justify-end gap-3 mb-5">
+          <p className="text-xs text-slate-500">Weekly timetable view</p>
         </div>
 
         <div className="flex flex-wrap gap-2 mb-5">

@@ -54,8 +54,11 @@ const resolveImageUrl = (value) => {
   return '';
 };
 
-const getTodayDayName = () =>
-  new Date().toLocaleDateString('en-US', { weekday: 'long' });
+const WEEK_DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+const normalizeDayLabel = (value) => {
+  const lower = String(value || '').trim().toLowerCase();
+  return WEEK_DAYS.find((day) => day.toLowerCase() === lower) || null;
+};
 
 const getTodayCacheDateKey = () => {
   const now = new Date();
@@ -63,9 +66,10 @@ const getTodayCacheDateKey = () => {
 };
 
 const formatScheduleMeta = (entry) => {
+  const dayLabel = entry?.dayOfWeek ? `${entry.dayOfWeek}:` : '';
   const classLabel = [entry?.className, entry?.sectionName].filter(Boolean).join('-');
   const timeLabel = [entry?.startTime, entry?.endTime].filter(Boolean).join('-');
-  return [classLabel, timeLabel].filter(Boolean).join(' ');
+  return [dayLabel, classLabel, timeLabel].filter(Boolean).join(' ');
 };
 
 const inputClass =
@@ -192,8 +196,6 @@ const Teachers = ({setShowAdminHeader}) => {
     const now = new Date();
     const monthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
     const todayKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
-    const todayDayName = getTodayDayName();
-
     const [teachersRes, attendanceRes, timetableRes] = await Promise.all([
       fetch(`${import.meta.env.VITE_API_URL}/api/admin/users/get-teachers`, {
         method: 'GET',
@@ -229,11 +231,13 @@ const Teachers = ({setShowAdminHeader}) => {
       const sectionName = timetable?.sectionId?.name || '';
       (Array.isArray(timetable?.entries) ? timetable.entries : []).forEach((entry) => {
         if (!entry?.teacherId || !entry?.dayOfWeek) return;
-        if (String(entry.dayOfWeek).toLowerCase() !== todayDayName.toLowerCase()) return;
         const teacherId = String(entry.teacherId?._id || entry.teacherId);
         if (!teacherId) return;
         if (!scheduleByTeacherId.has(teacherId)) scheduleByTeacherId.set(teacherId, []);
+        const dayOfWeek = normalizeDayLabel(entry.dayOfWeek);
+        if (!dayOfWeek) return;
         scheduleByTeacherId.get(teacherId).push({
+          dayOfWeek,
           period: entry.period,
           startTime: entry.startTime || '',
           endTime: entry.endTime || '',
@@ -257,7 +261,11 @@ const Teachers = ({setShowAdminHeader}) => {
       empId: teacher.employeeCode || teacher.empId || '-',
       profilePic: resolveImageUrl(teacher.profilePic || teacher.avatar || teacher.photo),
       scheduleTodayEntries: [...(scheduleByTeacherId.get(String(teacher._id || teacher.id || '')) || [])]
-        .sort((a, b) => (Number(a.period) || 0) - (Number(b.period) || 0)),
+        .sort((a, b) => {
+          const dayDiff = WEEK_DAYS.indexOf(a.dayOfWeek) - WEEK_DAYS.indexOf(b.dayOfWeek);
+          if (dayDiff !== 0) return dayDiff;
+          return (Number(a.period) || 0) - (Number(b.period) || 0);
+        }),
       status: resolveTeacherStatus(teacher, todayCheckedInTeacherIds, attendanceLoaded)
     }));
     setTeachers(normalized);
@@ -685,7 +693,7 @@ const Teachers = ({setShowAdminHeader}) => {
                   <th className="px-6 py-3.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Teacher</th>
                   <th className="px-6 py-3.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Contact</th>
                   <th className="px-6 py-3.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Subject & Dept</th>
-                  <th className="px-6 py-3.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Scheduled Today</th>
+                  <th className="px-6 py-3.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Weekly Routine</th>
                   {/* <th className="px-6 py-3.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Qualification</th> */}
                   <th className="px-6 py-3.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Status</th>
                   <th className="px-6 py-3.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Actions</th>
@@ -759,7 +767,7 @@ const Teachers = ({setShowAdminHeader}) => {
                             )}
                           </div>
                         ) : (
-                          <div className="text-sm text-gray-400">No classes scheduled</div>
+                          <div className="text-sm text-gray-400">No routine assigned</div>
                         )}
                       </td>
                       {/* <td className="px-6 py-4">
@@ -1322,7 +1330,7 @@ const Teachers = ({setShowAdminHeader}) => {
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden max-h-[90vh] flex flex-col">
             <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
               <div>
-                <h2 className="text-lg font-bold text-gray-900">Today's Schedule</h2>
+                <h2 className="text-lg font-bold text-gray-900">Weekly Routine</h2>
                 <p className="text-sm text-gray-500">{scheduleModal.teacherName}</p>
               </div>
               <button

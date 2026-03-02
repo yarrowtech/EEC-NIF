@@ -164,7 +164,7 @@ const Header = ({ sidebarOpen, setSidebarOpen, onOpenProfile }) => {
     { label: 'Results', hint: 'Academic results', action: () => navigate('/student/results') },
     { label: 'Notice Board', hint: 'School notices', action: () => navigate('/student/noticeboard') },
     { label: 'Excuse Letter', hint: 'Leave application', action: () => navigate('/student/excuse-letter') },
-    { label: 'Routine', hint: 'Daily routine', action: () => navigate('/student/routine') },
+    { label: 'Routine', hint: 'Weekly routine', action: () => navigate('/student/routine') },
     { label: 'Profile', hint: 'Update your profile', action: () => navigate('/student/profile') },
   ]), [navigate]);
 

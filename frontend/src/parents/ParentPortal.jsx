@@ -81,7 +81,7 @@ const ParentPortal = () => {
 
   const menuItems = [
     { icon: Home, label: 'Dashboard', description: 'Overview & insights', path: '/parents' },
-    { icon: Calendar, label: 'Class Routine', description: 'Daily schedule', path: '/parents/routine' },
+    { icon: Calendar, label: 'Class Routine', description: 'Weekly schedule', path: '/parents/routine' },
     { icon: Calendar, label: 'Attendance Report', description: 'Punctuality tracker', path: '/parents/attendance' },
     { icon: BookOpen, label: 'Academic Report', description: 'Learning progress', path: '/parents/academic' },
     { icon: CreditCard, label: 'Fees Payment', description: 'Bills & dues', path: '/parents/fees' },
@@ -167,7 +167,7 @@ const ParentPortal = () => {
                       Monitoring {childrenCount || 'your'} {childrenCount ? wardLabel : 'wards'}
                     </div>
                     <div className="text-white/70 text-xs mt-1">
-                      Stay updated with daily progress
+                      Stay updated with weekly progress
                     </div>
                   </div>
                 </div>

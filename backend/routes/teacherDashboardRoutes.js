@@ -285,7 +285,6 @@ router.get('/', authTeacher, async (req, res) => {
       .sort((a, b) => b.score - a.score)
       .slice(0, 4);
 
-    const weekday = today.toLocaleDateString('en-US', { weekday: 'long' });
     const timetables = teacherId
       ? await Timetable.find({
         schoolId,
@@ -303,7 +302,8 @@ router.get('/', authTeacher, async (req, res) => {
       if (timetable.sectionId) sectionIds.add(String(timetable.sectionId));
       (timetable.entries || []).forEach((entry) => {
         if (String(entry.teacherId) !== String(teacherId)) return;
-        if (entry.dayOfWeek !== weekday) return;
+        const normalizedDay = normalizeDayLabel(entry.dayOfWeek);
+        if (!normalizedDay) return;
         if (entry.subjectId) subjectIds.add(String(entry.subjectId));
       });
     });
@@ -343,10 +343,12 @@ router.get('/', authTeacher, async (req, res) => {
 
       (timetable.entries || []).forEach((entry) => {
         if (String(entry.teacherId) !== String(teacherId)) return;
-        if (entry.dayOfWeek !== weekday) return;
+        const normalizedDay = normalizeDayLabel(entry.dayOfWeek);
+        if (!normalizedDay) return;
         const subjectName = subjectMap.get(String(entry.subjectId)) || 'Subject';
         upcomingClasses.push({
-          id: `${timetable._id}-${entry.period}`,
+          id: `${timetable._id}-${normalizedDay}-${entry.period}`,
+          dayOfWeek: normalizedDay,
           subject: subjectName,
           class: classLabel,
           time: entry.startTime && entry.endTime
@@ -357,7 +359,11 @@ router.get('/', authTeacher, async (req, res) => {
         });
       });
     });
-    upcomingClasses.sort((a, b) => a.time.localeCompare(b.time));
+    upcomingClasses.sort((a, b) => {
+      const dayDiff = WEEK_DAYS.indexOf(a.dayOfWeek) - WEEK_DAYS.indexOf(b.dayOfWeek);
+      if (dayDiff !== 0) return dayDiff;
+      return a.time.localeCompare(b.time);
+    });
 
     const assignmentFilter = { schoolId, dueDate: { $gte: today } };
     if (campusId) {

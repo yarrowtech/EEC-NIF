@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Calendar, Clock, Users, MapPin, Filter, Download, Plus, Edit3, Trash2, X, ChevronLeft, ChevronRight, User, BookOpen, Grid, List } from 'lucide-react';
+import { Calendar, Clock, Users, MapPin, Filter, Download, Plus, Edit3, Trash2, X, ChevronLeft, ChevronRight, User, BookOpen, Grid } from 'lucide-react';
 import jsPDF from 'jspdf';
 import { academicApi, timetableApi, convertTo12Hour } from '../utils/timetableApi';
 
@@ -8,9 +8,7 @@ const TeacherTimetable = ({ setShowAdminHeader }) => {
     setShowAdminHeader(true);
   }, [setShowAdminHeader]);
   
-  const [currentView, setCurrentView] = useState('week');
   const [selectedTeacher, setSelectedTeacher] = useState('all');
-  const [selectedDay, setSelectedDay] = useState('Monday');
   const [currentWeek, setCurrentWeek] = useState(new Date());
   const [modalOpen, setModalOpen] = useState(false);
   const [modalTeacher, setModalTeacher] = useState(null);
@@ -137,15 +135,6 @@ const TeacherTimetable = ({ setShowAdminHeader }) => {
     return 'bg-gray-100 border-gray-300 text-gray-800';
   };
 
-  const formatDate = (date) => {
-    return date.toLocaleDateString('en-US', { 
-      weekday: 'long', 
-      year: 'numeric', 
-      month: 'long', 
-      day: 'numeric' 
-    });
-  };
-
   const openModal = (teacher) => {
     setModalTeacher(teacher);
     setModalOpen(true);
@@ -243,56 +232,54 @@ const TeacherTimetable = ({ setShowAdminHeader }) => {
     
     yPosition += 15;
 
-    if (currentView === 'week') {
-      // Weekly timetable
-      pdf.setFontSize(16);
-      pdf.setFont(undefined, 'bold');
-      pdf.text('Weekly Timetable', 20, yPosition);
-      yPosition += 12;
+    // Weekly timetable
+    pdf.setFontSize(16);
+    pdf.setFont(undefined, 'bold');
+    pdf.text('Weekly Timetable', 20, yPosition);
+    yPosition += 12;
 
-      // Table headers
-      pdf.setFontSize(8);
-      pdf.setFont(undefined, 'bold');
-      let xPosition = 20;
-      pdf.text('Time', xPosition, yPosition);
+    // Table headers
+    pdf.setFontSize(8);
+    pdf.setFont(undefined, 'bold');
+    let xPosition = 20;
+    pdf.text('Time', xPosition, yPosition);
+    xPosition += 45;
+    
+    weekDays.forEach(day => {
+      pdf.text(day, xPosition, yPosition);
+      xPosition += 45;
+    });
+    
+    pdf.line(15, yPosition + 2, pageWidth - 15, yPosition + 2);
+    yPosition += 8;
+
+    // Timetable data
+    pdf.setFont(undefined, 'normal');
+    timeSlots.forEach(slot => {
+      if (yPosition > 180) {
+        pdf.addPage();
+        yPosition = 20;
+      }
+      
+      xPosition = 20;
+      pdf.text(slot.label, xPosition, yPosition);
       xPosition += 45;
       
       weekDays.forEach(day => {
-        pdf.text(day, xPosition, yPosition);
+        const entries = timetableData[day]?.[slot.key] || [];
+        const classData = entries[0];
+        if (classData) {
+          const classLabel = `${classData.className}${classData.sectionName ? `-${classData.sectionName}` : ''}`;
+          const text = `${classData.subject}\n${classLabel}\n${classData.room}\n${classData.teacher}`;
+          pdf.text(text.split('\n')[0], xPosition, yPosition - 2);
+          pdf.text(text.split('\n')[1], xPosition, yPosition + 2);
+          pdf.text(text.split('\n')[2], xPosition, yPosition + 6);
+        }
         xPosition += 45;
       });
       
-      pdf.line(15, yPosition + 2, pageWidth - 15, yPosition + 2);
-      yPosition += 8;
-
-      // Timetable data
-      pdf.setFont(undefined, 'normal');
-      timeSlots.forEach(slot => {
-        if (yPosition > 180) {
-          pdf.addPage();
-          yPosition = 20;
-        }
-        
-        xPosition = 20;
-        pdf.text(slot.label, xPosition, yPosition);
-        xPosition += 45;
-        
-        weekDays.forEach(day => {
-          const entries = timetableData[day]?.[slot.key] || [];
-          const classData = entries[0];
-          if (classData) {
-            const classLabel = `${classData.className}${classData.sectionName ? `-${classData.sectionName}` : ''}`;
-            const text = `${classData.subject}\n${classLabel}\n${classData.room}\n${classData.teacher}`;
-            pdf.text(text.split('\n')[0], xPosition, yPosition - 2);
-            pdf.text(text.split('\n')[1], xPosition, yPosition + 2);
-            pdf.text(text.split('\n')[2], xPosition, yPosition + 6);
-          }
-          xPosition += 45;
-        });
-        
-        yPosition += 12;
-      });
-    }
+      yPosition += 12;
+    });
 
     // Teacher-wise breakdown
     yPosition += 10;
@@ -405,77 +392,39 @@ const TeacherTimetable = ({ setShowAdminHeader }) => {
               </select>
             </div>
             
-            {/* View Toggle matching RoutineView style */}
+            {/* Weekly-only timetable mode */}
             <div className="flex bg-white rounded-lg shadow-sm border border-purple-400 p-1">
-              <button
-                onClick={() => setCurrentView('week')}
-                className={`px-3 py-2 rounded-md text-sm font-medium transition-colors ${
-                  currentView === 'week' 
-                    ? 'bg-indigo-500 text-white' 
-                    : 'text-gray-600 hover:text-gray-900'
-                }`}
-              >
+              <span className="px-3 py-2 rounded-md text-sm font-medium bg-indigo-500 text-white inline-flex items-center">
                 <Grid size={16} className="inline mr-1" />
-                Week
-              </button>
-              <button
-                onClick={() => setCurrentView('day')}
-                className={`px-3 py-2 rounded-md text-sm font-medium transition-colors ${
-                  currentView === 'day' 
-                    ? 'bg-indigo-500 text-white' 
-                    : 'text-gray-600 hover:text-gray-900'
-                }`}
-              >
-                <List size={16} className="inline mr-1" />
-                Day
-              </button>
+                Weekly
+              </span>
             </div>
           </div>
 
           {/* Week Navigation */}
-          {currentView === 'week' && (
-            <div className="bg-white px-4 py-2 rounded-lg shadow-sm border border-purple-400">
-              <div className="flex items-center space-x-3">
-                <button 
-                  onClick={() => navigateWeek('prev')}
-                  className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-                >
-                  <ChevronLeft className="w-4 h-4" />
-                </button>
-                <div className="text-center">
-                  <div className="text-sm text-gray-500">Week of</div>
-                  <div className="font-semibold text-gray-900">
-                    {getCurrentWeekDates()[0].toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} - 
-                    {getCurrentWeekDates()[weekDays.length - 1].toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-                  </div>
+          <div className="bg-white px-4 py-2 rounded-lg shadow-sm border border-purple-400">
+            <div className="flex items-center space-x-3">
+              <button 
+                onClick={() => navigateWeek('prev')}
+                className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+              >
+                <ChevronLeft className="w-4 h-4" />
+              </button>
+              <div className="text-center">
+                <div className="text-sm text-gray-500">Week of</div>
+                <div className="font-semibold text-gray-900">
+                  {getCurrentWeekDates()[0].toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} - 
+                  {getCurrentWeekDates()[weekDays.length - 1].toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
                 </div>
-                <button 
-                  onClick={() => navigateWeek('next')}
-                  className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-                >
-                  <ChevronRight className="w-4 h-4" />
-                </button>
               </div>
+              <button 
+                onClick={() => navigateWeek('next')}
+                className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+              >
+                <ChevronRight className="w-4 h-4" />
+              </button>
             </div>
-          )}
-
-          {/* Day Selection for Day View */}
-          {currentView === 'day' && (
-            <div className="bg-white px-4 py-2 rounded-lg shadow-sm border border-purple-400">
-              <div className="flex items-center space-x-2">
-                <Calendar className="w-4 h-4 text-gray-600" />
-                <select
-                  value={selectedDay}
-                  onChange={(e) => setSelectedDay(e.target.value)}
-                  className="border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                >
-                  {weekDays.map(day => (
-                    <option key={day} value={day}>{day}</option>
-                  ))}
-                </select>
-              </div>
-            </div>
-          )}
+          </div>
         </div>
       </div>
 
@@ -490,7 +439,7 @@ const TeacherTimetable = ({ setShowAdminHeader }) => {
           {error}
         </div>
       )}
-      {!loading && !error && currentView === 'week' && (
+      {!loading && !error && (
         <div className="bg-white rounded-xl shadow-sm border border-purple-400 overflow-hidden">
           <div className="p-6 border-b border-gray-100">
             <h2 className="text-xl font-semibold text-gray-900">
@@ -590,132 +539,8 @@ const TeacherTimetable = ({ setShowAdminHeader }) => {
         </div>
       )}
 
-      {/* Day Selector (RoutineView style) */}
-      {!loading && !error && currentView === 'day' && (
-        <div className="bg-white rounded-xl shadow-sm border border-purple-400 p-6 mb-6">
-          <div className="grid grid-cols-5 gap-2">
-            {weekDays.map((day) => {
-              const isToday = new Date().toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase() === day.toLowerCase();
-              return (
-                <button
-                  key={day}
-                  onClick={() => setSelectedDay(day)}
-                  className={`p-3 rounded-lg text-center transition-all relative ${
-                    selectedDay === day
-                      ? 'bg-indigo-500 text-white shadow-lg'
-                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                  }`}
-                >
-                  {isToday && (
-                    <div className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full"></div>
-                  )}
-                  <div className="text-sm font-medium">{day.substring(0, 3)}</div>
-                  <div className="text-xs mt-1 opacity-75">
-                    {Object.values(timetableData[day] || {}).length} items
-                  </div>
-                </button>
-              );
-            })}
-          </div>
-        </div>
-      )}
-
-      {/* Enhanced Day View with RoutineView styling */}
-      {!loading && !error && currentView === 'day' && (
-        <div className="bg-white rounded-xl shadow-sm border border-purple-400">
-          <div className="p-6 border-b border-gray-100">
-            <div className="flex items-center justify-between">
-              <h2 className="text-xl font-semibold text-gray-900">
-                {selectedDay} Schedule
-                {new Date().toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase() === selectedDay.toLowerCase() && (
-                  <span className="ml-2 text-sm bg-red-100 text-red-800 px-2 py-1 rounded-full">Today</span>
-                )}
-              </h2>
-              <div className="text-sm text-gray-500">
-                {Object.values(timetableData[selectedDay] || {}).length} items
-              </div>
-            </div>
-          </div>
-          
-          <div className="p-6">
-            {Object.values(timetableData[selectedDay] || {}).length > 0 ? (
-              <div className="space-y-4">
-                {timeSlots.map((timeSlot) => {
-                  const entries = timetableData[selectedDay]?.[timeSlot.key] || [];
-                  const classData = entries[0];
-                  const extraCount = entries.length > 1 ? entries.length - 1 : 0;
-                  
-                  if (!classData) return null;
-                  
-                  return (
-                    <div key={timeSlot.key} className="border border-gray-200 rounded-lg p-6 hover:shadow-md transition-all hover:border-indigo-300">
-                      <div className="flex items-start space-x-4">
-                        <div className={`w-12 h-12 rounded-lg ${getSubjectColor(classData.subject).includes('blue') ? 'bg-blue-500' : 
-                          getSubjectColor(classData.subject).includes('green') ? 'bg-green-500' :
-                          getSubjectColor(classData.subject).includes('orange') ? 'bg-orange-500' :
-                          getSubjectColor(classData.subject).includes('purple') ? 'bg-purple-500' :
-                          getSubjectColor(classData.subject).includes('pink') ? 'bg-pink-500' :
-                          'bg-indigo-500'} flex items-center justify-center text-white flex-shrink-0`}>
-                          <BookOpen size={16} />
-                        </div>
-                        
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center justify-between mb-2">
-                            <h3 className="text-lg font-semibold text-gray-900 truncate">{classData.subject}</h3>
-                            <span className={`px-3 py-1 text-xs font-medium rounded-full ${getSubjectColor(classData.subject)} flex-shrink-0 ml-2`}>
-                              Lecture
-                            </span>
-                          </div>
-                          
-                          <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-sm text-gray-600">
-                            <div className="flex items-center space-x-2">
-                              <Clock size={16} className="text-gray-400 flex-shrink-0" />
-                              <span className="truncate">{timeSlot.label}</span>
-                            </div>
-                            
-                            <div className="flex items-center space-x-2">
-                              <MapPin size={16} className="text-gray-400 flex-shrink-0" />
-                              <span className="truncate">{classData.room}</span>
-                            </div>
-                            
-                            <div className="flex items-center space-x-2">
-                              <User size={16} className="text-gray-400 flex-shrink-0" />
-                              <span className="truncate">{classData.teacher}</span>
-                            </div>
-                          </div>
-                          
-                          <div className="mt-3">
-                            <div className="flex items-center space-x-2 text-sm text-gray-600">
-                              <Users size={16} className="text-gray-400 flex-shrink-0" />
-                              <span className="truncate">
-                                {classData.className}{classData.sectionName ? `-${classData.sectionName}` : ''}
-                              </span>
-                            </div>
-                            {extraCount > 0 && (
-                              <div className="mt-1 text-xs text-gray-500">+{extraCount} more</div>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  );
-                }).filter(Boolean)}
-              </div>
-            ) : (
-              <div className="text-center py-12">
-                <div className="w-16 h-16 bg-purple-400 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <Calendar className="text-white" size={24} />
-                </div>
-                <h3 className="text-lg font-medium text-gray-900 mb-2">No Schedule Today</h3>
-                <p className="text-gray-500">No classes scheduled for {selectedDay}</p>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-
       {/* Teacher Statistics (RoutineView style) */}
-      {!loading && !error && selectedTeacher === 'all' && currentView === 'week' && (
+      {!loading && !error && selectedTeacher === 'all' && (
         <div className="bg-white rounded-xl shadow-sm border border-purple-400">
           <div className="p-6 border-b border-gray-100">
             <h2 className="text-xl font-semibold text-gray-900">Teacher Statistics</h2>

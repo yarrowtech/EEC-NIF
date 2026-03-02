@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import {
   Users,
   Activity,
@@ -24,7 +24,6 @@ const TeacherDashboard = () => {
   const [classTeacherAllocations, setClassTeacherAllocations] = useState([]);
   const [dashboardError, setDashboardError] = useState('');
   const [dashboardLoading, setDashboardLoading] = useState(true);
-  const navigate = useNavigate();
 
   useEffect(() => {
     const timer = setInterval(() => setCurrentDateTime(new Date()), 1000);
@@ -115,7 +114,7 @@ const TeacherDashboard = () => {
     { label: 'Total Students', value: stats.totalStudents ?? 0, icon: Users, gradient: 'from-blue-500 to-indigo-600', bg: 'bg-blue-50', text: 'text-blue-600', change: 'Campus total' },
     { label: 'Attendance Today', value: `${stats.attendanceRate ?? 0}%`, icon: Activity, gradient: 'from-emerald-500 to-teal-600', bg: 'bg-emerald-50', text: 'text-emerald-600', change: 'Marked today' },
     { label: 'Pending Evaluations', value: stats.pendingEvaluations ?? 0, icon: FileText, gradient: 'from-amber-500 to-orange-600', bg: 'bg-amber-50', text: 'text-amber-600', change: 'Submissions pending' },
-    { label: 'Upcoming Events', value: stats.upcomingEvents ?? 0, icon: Calendar, gradient: 'from-violet-500 to-purple-600', bg: 'bg-violet-50', text: 'text-violet-600', change: 'Scheduled today' },
+    { label: 'Upcoming Events', value: stats.upcomingEvents ?? 0, icon: Calendar, gradient: 'from-violet-500 to-purple-600', bg: 'bg-violet-50', text: 'text-violet-600', change: 'Scheduled this week' },
   ];
 
   const activityIconMap = {
@@ -230,17 +229,17 @@ const TeacherDashboard = () => {
         </div>
       </div>
 
-      {/* Schedule + Activities */}
+      {/* Routine + Activities */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-5">
 
-        {/* Today's Schedule */}
+        {/* Weekly Routine Snapshot */}
         <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
           <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
             <div className="flex items-center gap-2">
               <div className="p-1.5 rounded-lg bg-blue-50">
                 <Clock size={16} className="text-blue-600" />
               </div>
-              <h2 className="text-sm font-bold text-gray-900">Today's Schedule</h2>
+              <h2 className="text-sm font-bold text-gray-900">Weekly Routine Snapshot</h2>
             </div>
           </div>
           <div className="p-4">
@@ -250,7 +249,7 @@ const TeacherDashboard = () => {
                   <div className="p-3 rounded-full bg-gray-50 mb-3">
                     <Calendar size={24} className="text-gray-300" />
                   </div>
-                  <p className="text-sm text-gray-400">No classes scheduled</p>
+                  <p className="text-sm text-gray-400">No routine assigned</p>
                 </div>
               )}
               {upcomingClasses.map((c) => (
@@ -258,7 +257,9 @@ const TeacherDashboard = () => {
                   <div className="w-1 h-10 rounded-full bg-linear-to-b from-blue-500 to-indigo-500 shrink-0" />
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-semibold text-gray-800 truncate">{c.subject}</p>
-                    <p className="text-[11px] text-gray-400">{c.class} &middot; {c.room}</p>
+                    <p className="text-[11px] text-gray-400">
+                      {c.dayOfWeek ? `${c.dayOfWeek} · ` : ''}{c.class} &middot; {c.room}
+                    </p>
                   </div>
                   <div className="text-right shrink-0">
                     <p className="text-xs font-bold text-gray-700">{c.time}</p>
@@ -273,7 +274,7 @@ const TeacherDashboard = () => {
               to="/teacher/class-routine"
               className="mt-4 flex items-center justify-center gap-1.5 py-2.5 text-xs font-semibold text-blue-600 hover:bg-blue-50 rounded-xl transition-colors"
             >
-              View Full Schedule
+              View Full Weekly Routine
               <ChevronRight size={14} />
             </Link>
           </div>

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import jsPDF from 'jspdf';
-import { Plus, Edit2, Trash2, Clock, Calendar, LayoutGrid, ChevronLeft, ChevronRight, Grid, List, User, Loader2, AlertCircle, Sparkles } from 'lucide-react';
+import { Plus, Edit2, Trash2, Clock, Calendar, LayoutGrid, ChevronLeft, ChevronRight, Grid, User, Loader2, AlertCircle, Sparkles } from 'lucide-react';
 import { timetableApi, academicApi, transformTimetablesToRoutines, convertTo24Hour, convertTo12Hour } from './utils/timetableApi';
 
 // Weekly builder for static routines
@@ -168,7 +168,6 @@ const Routines = ({setShowAdminHeader}) => {
   const [selectedClass, setSelectedClass] = useState('');
   const [selectedSection, setSelectedSection] = useState('');
   const [selectedDay, setSelectedDay] = useState('Monday');
-  const [viewMode, setViewMode] = useState('daily');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingRoutine, setEditingRoutine] = useState(null); // routine or null
   const [form, setForm] = useState({
@@ -181,12 +180,6 @@ const Routines = ({setShowAdminHeader}) => {
   const [paletteBlocks, setPaletteBlocks] = useState([]);
   const [weeklyDraft, setWeeklyDraft] = useState({});
   const [selectedCopyRoutine, setSelectedCopyRoutine] = useState('');
-
-  const filteredRoutines = routines.filter(routine =>
-    (!selectedClass || routine.class === selectedClass) &&
-    (!selectedSection || routine.section === selectedSection) &&
-    (viewMode === 'weekly' || !selectedDay || routine.day === selectedDay)
-  );
 
   const copyableRoutines = useMemo(() => {
     return routines
@@ -730,42 +723,6 @@ const Routines = ({setShowAdminHeader}) => {
     });
   };
 
-  // Delete handler
-  const handleDelete = async (routine) => {
-    if (!window.confirm(`Are you sure you want to delete the routine for ${routine.class}-${routine.section} on ${routine.day}?`)) {
-      return;
-    }
-
-    try {
-      let classId = getId(routine.classId);
-      let sectionId = getId(routine.sectionId);
-      if (!classId) {
-        const classDoc = classes.find((c) => c.name === routine.class);
-        classId = classDoc?._id || null;
-        if (!sectionId && classDoc) {
-          const sectionDoc = sections.find(
-            (s) => s.name === routine.section && String(getId(s.classId)) === String(classDoc._id)
-          );
-          sectionId = sectionDoc?._id || null;
-        }
-      }
-      if (!classId) {
-        showErrorToast('Unable to delete: classId is missing');
-        return;
-      }
-      await timetableApi.deleteDay({
-        classId,
-        sectionId,
-        dayOfWeek: routine.day
-      });
-      showSuccessToast('Routine deleted successfully!');
-      await loadInitialData();
-    } catch (err) {
-      console.error('Error deleting routine:', err);
-      showErrorToast(err.message || 'Failed to delete routine');
-    }
-  };
-
   // Save/Update handler
   const handleSave = async () => {
     try {
@@ -1099,55 +1056,18 @@ const Routines = ({setShowAdminHeader}) => {
               </select>
             </div>
             
-            {/* View Toggle matching RoutineView style */}
             <div className="flex bg-white rounded-lg shadow-sm border border-purple-400 p-1">
-              <button
-                onClick={() => setViewMode('weekly')}
-                className={`px-3 py-2 rounded-md text-sm font-medium transition-colors ${
-                  viewMode === 'weekly' 
-                    ? 'bg-indigo-500 text-white' 
-                    : 'text-gray-600 hover:text-gray-900'
-                }`}
-              >
+              <span className="px-3 py-2 rounded-md text-sm font-medium bg-indigo-500 text-white inline-flex items-center">
                 <Grid size={16} className="inline mr-1" />
-                Week
-              </button>
-              <button
-                onClick={() => setViewMode('daily')}
-                className={`px-3 py-2 rounded-md text-sm font-medium transition-colors ${
-                  viewMode === 'daily' 
-                    ? 'bg-indigo-500 text-white' 
-                    : 'text-gray-600 hover:text-gray-900'
-                }`}
-              >
-                <List size={16} className="inline mr-1" />
-                Daily
-              </button>
+                Weekly
+              </span>
             </div>
           </div>
-
-          {/* Day Selection for Daily View */}
-          {viewMode === 'daily' && (
-            <div className="bg-white px-4 py-2 rounded-lg shadow-sm border border-purple-400">
-              <div className="flex items-center space-x-2">
-                <Calendar className="w-4 h-4 text-gray-600" />
-                <select 
-                  className="border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                  value={selectedDay}
-                  onChange={(e) => setSelectedDay(e.target.value)}
-                >
-                  {DAYS.map(day => (
-                    <option key={day} value={day}>{day}</option>
-                  ))}
-                </select>
-              </div>
-            </div>
-          )}
         </div>
       </div>
 
         {/* Enhanced Weekly Grid inspired by RoutineView */}
-        {viewMode === 'weekly' && weeklyGrid && (
+        {weeklyGrid && (
           <div className="bg-white rounded-xl shadow-sm border border-purple-400 overflow-hidden mb-6">
             <div className="p-6 border-b border-gray-100">
               <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
@@ -1292,7 +1212,7 @@ const Routines = ({setShowAdminHeader}) => {
                 
                 {/* Time slots with enhanced styling */}
                 <div className="relative">
-                  {TIMES.map((time, timeIndex) => (
+                  {TIMES.map((time) => (
                     <div key={time} className="grid grid-cols-7 border-b border-purple-100 min-h-20">
                       <div className="p-3 bg-gray-50 text-sm text-gray-600 text-center border-r border-gray-200 flex items-center justify-center">
                         <div>
@@ -1319,7 +1239,7 @@ const Routines = ({setShowAdminHeader}) => {
                               let payload = {};
                               try {
                                 payload = JSON.parse(raw);
-                              } catch (err) {
+                              } catch {
                                 payload = {};
                               }
                               handleDropOnCell(day, time, payload);
@@ -1367,7 +1287,7 @@ const Routines = ({setShowAdminHeader}) => {
         )}
 
         {/* Weekly Statistics */}
-        {viewMode === 'weekly' && selectedClass && selectedSection && (
+        {selectedClass && selectedSection && (
           <div className="bg-white rounded-xl shadow-sm border border-purple-400 mb-6">
             <div className="p-6 border-b border-gray-100">
               <h2 className="text-xl font-semibold text-gray-900">Weekly Statistics</h2>
@@ -1426,141 +1346,6 @@ const Routines = ({setShowAdminHeader}) => {
           </div>
         )}
 
-        {/* Enhanced Daily View */}
-        {viewMode === 'daily' && (
-          <div>
-            {/* Day Selector for Daily View */}
-            <div className="bg-white rounded-xl shadow-sm border border-purple-400 p-6 mb-6">
-              <div className="grid grid-cols-6 gap-2">
-                {DAYS.map((day) => {
-                  const isToday = new Date().toLocaleDateString('en-US', { weekday: 'long' }) === day;
-                  const dayRoutines = routines.filter(r => 
-                    r.day === day && 
-                    (!selectedClass || r.class === selectedClass) && 
-                    (!selectedSection || r.section === selectedSection)
-                  );
-                  
-                  return (
-                    <button
-                      key={day}
-                      onClick={() => setSelectedDay(day)}
-                      className={`p-3 rounded-lg text-center transition-all relative ${
-                        selectedDay === day
-                          ? 'bg-indigo-500 text-white shadow-lg'
-                          : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                      }`}
-                    >
-                      {isToday && (
-                        <div className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full"></div>
-                      )}
-                      <div className="text-sm font-medium">{day.substring(0, 3)}</div>
-                      <div className="text-xs mt-1 opacity-75">
-                        {dayRoutines.length} routines
-                      </div>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-
-            {/* Daily Routines */}
-            {filteredRoutines.map(routine => (
-              <div key={routine.id} className="bg-white rounded-xl shadow-sm border border-purple-400 mb-6">
-                <div className="p-6 border-b border-gray-100">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <h3 className="text-xl font-semibold text-gray-900">
-                        Class {routine.class} - Section {routine.section}
-                        {new Date().toLocaleDateString('en-US', { weekday: 'long' }) === routine.day && (
-                          <span className="ml-2 text-sm bg-red-100 text-red-800 px-2 py-1 rounded-full">Today</span>
-                        )}
-                      </h3>
-                      <div className="flex items-center space-x-2 text-gray-600 mt-1">
-                        <Calendar size={16} />
-                        <span>{routine.day}</span>
-                      </div>
-                    </div>
-                    <div className="flex items-center space-x-2">
-                      <button
-                        className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
-                        onClick={() => {
-                          const schedule = buildScheduleForDay(routine.schedule);
-                          setForm({ class: routine.class, section: routine.section, day: routine.day, schedule });
-                          setEditingRoutine(routine);
-                          setIsModalOpen(true);
-                        }}
-                      >
-                        <Edit2 size={16} />
-                      </button>
-                      <button
-                        className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                        onClick={() => handleDelete(routine)}
-                      >
-                        <Trash2 size={16} />
-                      </button>
-                    </div>
-                  </div>
-                </div>
-                
-                <div className="p-6">
-                  <div className="space-y-4">
-                    {routine.schedule.map((period, index) => (
-                      <div key={index} className="border border-gray-200 rounded-lg p-4 hover:shadow-md transition-all hover:border-indigo-300">
-                        <div className="flex items-start space-x-4">
-                          <div className={`w-12 h-12 rounded-lg flex items-center justify-center text-white flex-shrink-0 ${
-                            period.subject === 'Break' ? 'bg-gray-400' :
-                            period.subject.includes('Mathematics') ? 'bg-blue-500' :
-                            period.subject.includes('Physics') ? 'bg-purple-500' :
-                            period.subject.includes('Chemistry') ? 'bg-orange-500' :
-                            period.subject.includes('Biology') ? 'bg-green-500' :
-                            period.subject.includes('English') ? 'bg-pink-500' :
-                            period.subject.includes('Science') ? 'bg-green-500' :
-                            period.subject.includes('Social') ? 'bg-yellow-500' :
-                            period.subject.includes('Hindi') ? 'bg-red-500' :
-                            period.subject.includes('Computer') ? 'bg-indigo-500' :
-                            'bg-gray-500'
-                          }`}>
-                            {period.subject === 'Break' ? <Clock size={16} /> : <Calendar size={16} />}
-                          </div>
-                          
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center justify-between mb-2">
-                              <h4 className="text-lg font-semibold text-gray-900 truncate">{period.subject}</h4>
-                              <span className={`px-3 py-1 text-xs font-medium rounded-full flex-shrink-0 ml-2 ${
-                                period.subject === 'Break' ? 'bg-gray-100 text-gray-800' :
-                                period.subject.includes('Mathematics') ? 'bg-blue-100 text-blue-800' :
-                                period.subject.includes('Physics') ? 'bg-purple-100 text-purple-800' :
-                                period.subject.includes('Chemistry') ? 'bg-orange-100 text-orange-800' :
-                                period.subject.includes('Biology') ? 'bg-green-100 text-green-800' :
-                                period.subject.includes('English') ? 'bg-pink-100 text-pink-800' :
-                                'bg-indigo-100 text-indigo-800'
-                              }`}>
-                                {period.subject === 'Break' ? 'Break' : 'Lecture'}
-                              </span>
-                            </div>
-                            
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm text-gray-600">
-                              <div className="flex items-center space-x-2">
-                                <Clock size={16} className="text-gray-400 flex-shrink-0" />
-                                <span className="truncate">{period.time}</span>
-                              </div>
-                              
-                              <div className="flex items-center space-x-2">
-                                <User size={16} className="text-gray-400 flex-shrink-0" />
-                                <span className="truncate">{period.teacher}</span>
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-
         {/* No Data State */}
         {routines.length === 0 && (
           <div className="bg-white rounded-xl shadow-sm border border-purple-400 p-12">
@@ -1594,7 +1379,7 @@ const Routines = ({setShowAdminHeader}) => {
         )}
 
         {/* Weekly View - No Selection State */}
-        {routines.length > 0 && viewMode === 'weekly' && (!selectedClass || !selectedSection) && (
+        {routines.length > 0 && (!selectedClass || !selectedSection) && (
           <div className="bg-white rounded-xl shadow-sm border border-purple-400 p-12">
             <div className="text-center">
               <div className="w-16 h-16 bg-purple-100 rounded-full flex items-center justify-center mx-auto mb-4">
@@ -1605,23 +1390,6 @@ const Routines = ({setShowAdminHeader}) => {
               </h3>
               <p className="text-gray-500">
                 Please select both class and section from the filters above to view the weekly schedule
-              </p>
-            </div>
-          </div>
-        )}
-
-        {/* Daily View - No Results State */}
-        {routines.length > 0 && viewMode === 'daily' && filteredRoutines.length === 0 && (
-          <div className="bg-white rounded-xl shadow-sm border border-purple-400 p-12">
-            <div className="text-center">
-              <div className="w-16 h-16 bg-purple-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                <Calendar className="text-purple-500" size={24} />
-              </div>
-              <h3 className="text-lg font-medium text-gray-900 mb-2">
-                No routines for selected filters
-              </h3>
-              <p className="text-gray-500">
-                Try adjusting your filters or create a new routine for this class/section/day
               </p>
             </div>
           </div>

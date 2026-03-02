@@ -470,7 +470,7 @@ const Dashboard = ({ setShowAdminHeader }) => {
                 {greeting}, Admin 👋
               </h1>
               <p className="text-slate-400 text-sm">
-                Here's what's happening across your school today.
+                Here's what's happening across your school this week.
               </p>
               {!statsLoading && (
                 <div className="flex flex-wrap gap-3 mt-4">

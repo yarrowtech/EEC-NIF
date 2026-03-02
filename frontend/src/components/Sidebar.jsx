@@ -111,7 +111,7 @@ const Sidebar = ({ activeView, isOpen, setIsOpen }) => {
       gradient: 'from-orange-500 to-orange-600',
       description: 'Time Management',
       children: [
-        { id: 'routine', name: 'Daily Routine', icon: Calendar },
+        { id: 'routine', name: 'Weekly Routine', icon: Calendar },
         { id: 'attendance', name: 'Attendance', icon: Users },
         { id: 'lesson-plan-status', name: 'Syllabus Status', icon: BookOpen },
       ]
