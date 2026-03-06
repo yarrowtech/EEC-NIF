@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { AlertCircle, BookOpen, Calendar, Clock, MapPin, User } from 'lucide-react';
+import { AlertCircle, Calendar, Users } from 'lucide-react';
 
 const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 const API_BASE_URL = (import.meta.env.VITE_API_URL || 'http://localhost:5000').replace(/\/$/, '');
@@ -31,8 +31,6 @@ const getTimeLabel = (entry, index) =>
 const ParentClassRoutine = () => {
   const [children, setChildren] = useState([]);
   const [selectedChildId, setSelectedChildId] = useState('');
-  const [selectedDay, setSelectedDay] = useState('Monday');
-  const [viewMode] = useState('weekly');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -132,155 +130,156 @@ const ParentClassRoutine = () => {
     return matrix;
   }, [schedule]);
 
-  const dayEntries = schedule[selectedDay] || [];
   const weeklyCount = useMemo(
     () => DAYS.reduce((sum, day) => sum + ((schedule[day] || []).length), 0),
     [schedule]
   );
+  const todayName = useMemo(
+    () => new Date().toLocaleDateString('en-US', { weekday: 'long' }),
+    []
+  );
+  const todayEntries = schedule[todayName] || [];
 
   if (loading) {
     return <div className="p-6 text-sm text-gray-600">Loading children routine...</div>;
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 p-6 space-y-5">
-      <div className="bg-white rounded-xl border border-gray-200 p-5 shadow-sm">
-        <div className="flex items-center gap-2">
-          <Calendar className="w-5 h-5 text-amber-600" />
-          <h1 className="text-xl font-semibold text-gray-900">Children Class Routine</h1>
-        </div>
-        {selectedChild && (
-          <p className="text-sm text-gray-600 mt-2">
-            {selectedChild.studentName} | Class {selectedChild.className || selectedChild.grade || '-'}
-            {selectedChild.sectionName || selectedChild.section ? ` | Section ${selectedChild.sectionName || selectedChild.section}` : ''}
-            {` | Weekly Classes ${weeklyCount}`}
-          </p>
-        )}
-        {error && (
-          <div className="mt-3 flex items-center gap-2 text-sm text-red-700 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
-            <AlertCircle className="w-4 h-4" />
-            {error}
+    <div className="min-h-screen bg-gray-50 p-4 sm:p-6">
+      <div className="mx-auto w-full max-w-[1500px] space-y-5">
+        <div className="rounded-2xl border border-amber-200/70 bg-gradient-to-r from-amber-50 via-orange-50 to-yellow-50 p-5 shadow-sm sm:p-6">
+          <div className="flex flex-wrap items-start justify-between gap-4">
+            <div>
+              <div className="flex items-center gap-2">
+                <Calendar className="h-5 w-5 text-amber-700" />
+                <h1 className="text-xl font-semibold text-gray-900 sm:text-2xl">Children Class Routine</h1>
+              </div>
+              {selectedChild && (
+                <p className="mt-2 text-sm text-gray-700">
+                  {selectedChild.studentName} | Class {selectedChild.className || selectedChild.grade || '-'}
+                  {selectedChild.sectionName || selectedChild.section ? ` | Section ${selectedChild.sectionName || selectedChild.section}` : ''}
+                </p>
+              )}
+              <p className="mt-1 text-xs text-gray-600">
+                Keep track of weekly schedule and class timings at a glance.
+              </p>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              {lastFetchedAt && (
+                <span className="rounded-lg bg-white/80 px-3 py-1.5 text-xs font-medium text-gray-600">
+                  Updated {lastFetchedAt.toLocaleTimeString()}
+                </span>
+              )}
+              <button
+                onClick={() => fetchRoutine()}
+                disabled={loading || isRefreshing}
+                className="inline-flex items-center gap-1 rounded-lg border border-amber-300 bg-white px-3 py-1.5 text-sm font-medium text-amber-700 hover:bg-amber-50 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {isRefreshing ? 'Refreshing...' : 'Refresh data'}
+              </button>
+            </div>
           </div>
-        )}
-        <div className="mt-4 flex flex-wrap items-center gap-3 text-sm text-gray-600">
-          {lastFetchedAt && (
-            <span>Last updated: {lastFetchedAt.toLocaleTimeString()}</span>
+
+          <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
+            <div className="rounded-xl border border-white/80 bg-white/80 px-4 py-3">
+              <p className="text-xs uppercase tracking-wide text-gray-500">Weekly Classes</p>
+              <p className="mt-1 text-xl font-semibold text-gray-900">{weeklyCount}</p>
+            </div>
+            <div className="rounded-xl border border-white/80 bg-white/80 px-4 py-3">
+              <p className="text-xs uppercase tracking-wide text-gray-500">Today ({todayName})</p>
+              <p className="mt-1 text-xl font-semibold text-gray-900">{todayEntries.length}</p>
+            </div>
+            <div className="rounded-xl border border-white/80 bg-white/80 px-4 py-3">
+              <p className="text-xs uppercase tracking-wide text-gray-500">Linked Children</p>
+              <p className="mt-1 text-xl font-semibold text-gray-900">{children.length}</p>
+            </div>
+          </div>
+
+          {error && (
+            <div className="mt-4 flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+              <AlertCircle className="h-4 w-4" />
+              {error}
+            </div>
           )}
-          <button
-            onClick={() => fetchRoutine()}
-            disabled={loading || isRefreshing}
-            className="inline-flex items-center gap-1 rounded-lg border border-amber-200 px-3 py-1.5 text-amber-700 hover:bg-amber-50 disabled:opacity-60 disabled:cursor-not-allowed"
-          >
-            {isRefreshing ? 'Refreshing...' : 'Refresh data'}
-          </button>
-        </div>
-      </div>
-
-      <div className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm">
-        <div className="flex flex-wrap gap-2">
-          {children.map((child) => (
-            <button
-              key={child.studentId}
-              onClick={() => setSelectedChildId(String(child.studentId))}
-              className={`px-3 py-2 rounded-lg text-sm font-medium ${
-                String(child.studentId) === String(selectedChildId)
-                  ? 'bg-amber-100 text-amber-800'
-                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-              }`}
-            >
-              {child.studentName}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      <div className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm space-y-4">
-        <div className="flex flex-wrap gap-2">
-          {DAYS.map((day) => (
-            <button
-              key={day}
-              onClick={() => setSelectedDay(day)}
-              className={`px-3 py-2 rounded-lg text-sm ${
-                selectedDay === day ? 'bg-amber-100 text-amber-800' : 'bg-gray-100 text-gray-700'
-              }`}
-            >
-              {day}
-            </button>
-          ))}
         </div>
 
-        {children.length === 0 ? (
-          <div className="text-sm text-gray-600">No linked children found for this parent account.</div>
-        ) : !selectedChild ? (
-          <div className="text-sm text-gray-600">Select a child to view routine.</div>
-        ) : weeklyCount === 0 ? (
-          <div className="text-sm text-gray-600">No routine assigned yet for {selectedChild.studentName}.</div>
-        ) : viewMode === 'weekly' ? (
-          <div className="overflow-x-auto rounded-lg border border-gray-200">
-            <table className="w-full min-w-[900px]">
-              <thead>
-                <tr className="bg-gray-50">
-                  <th className="text-left px-4 py-3 text-sm font-semibold text-gray-700 border-b">Time</th>
-                  {DAYS.map((day) => (
-                    <th key={day} className="text-left px-4 py-3 text-sm font-semibold text-gray-700 border-b">{day}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {weeklySlots.map((slot) => (
-                  <tr key={slot.time} className="align-top">
-                    <td className="px-4 py-3 text-sm text-gray-700 font-medium bg-gray-50 border-b">{slot.time}</td>
-                    {DAYS.map((day) => {
-                      const entry = weeklyMatrix[day]?.[slot.time];
-                      return (
-                        <td key={`${day}-${slot.time}`} className="px-3 py-3 border-b">
-                          {entry ? (
-                            <div className="rounded-lg border border-amber-100 bg-amber-50 px-3 py-2">
-                              <p className="text-sm font-semibold text-gray-900">{entry.subject || 'Subject'}</p>
-                              <p className="text-xs text-gray-600 mt-1">{entry.instructor || 'TBA'}</p>
-                              <p className="text-xs text-gray-500 mt-1">{entry.room || 'TBA'}</p>
-                            </div>
-                          ) : (
-                            <div className="rounded-lg border border-dashed border-gray-200 px-3 py-2 text-center text-xs text-gray-400">--</div>
-                          )}
-                        </td>
-                      );
-                    })}
+        <div className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
+          <div className="mb-3 flex items-center gap-2 text-sm font-semibold text-gray-700">
+            <Users className="h-4 w-4 text-amber-600" />
+            Select Child
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {children.map((child) => (
+              <button
+                key={child.studentId}
+                onClick={() => setSelectedChildId(String(child.studentId))}
+                className={`rounded-xl border px-3 py-2 text-left text-sm transition ${
+                  String(child.studentId) === String(selectedChildId)
+                    ? 'border-amber-300 bg-amber-50 text-amber-900'
+                    : 'border-gray-200 bg-gray-50 text-gray-700 hover:bg-gray-100'
+                }`}
+              >
+                <p className="font-semibold leading-tight">{child.studentName}</p>
+                <p className="mt-0.5 text-xs text-gray-500">
+                  Class {child.className || child.grade || '-'}
+                  {child.sectionName || child.section ? ` | Sec ${child.sectionName || child.section}` : ''}
+                </p>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="space-y-4 rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
+          {children.length === 0 ? (
+            <div className="rounded-xl border border-dashed border-gray-300 bg-gray-50 px-4 py-8 text-sm text-gray-600">
+              No linked children found for this parent account.
+            </div>
+          ) : !selectedChild ? (
+            <div className="rounded-xl border border-dashed border-gray-300 bg-gray-50 px-4 py-8 text-sm text-gray-600">
+              Select a child to view routine.
+            </div>
+          ) : weeklyCount === 0 ? (
+            <div className="rounded-xl border border-dashed border-gray-300 bg-gray-50 px-4 py-8 text-sm text-gray-600">
+              No routine assigned yet for {selectedChild.studentName}.
+            </div>
+          ) : (
+            <div className="overflow-x-auto rounded-xl border border-gray-200">
+              <table className="w-full min-w-[980px] border-separate border-spacing-0">
+                <thead>
+                  <tr className="bg-gray-50">
+                    <th className="sticky left-0 z-20 border-b border-r bg-gray-50 px-4 py-3 text-left text-sm font-semibold text-gray-700">Time</th>
+                    {DAYS.map((day) => (
+                      <th key={day} className="border-b px-4 py-3 text-left text-sm font-semibold text-gray-700">{day}</th>
+                    ))}
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        ) : (
-          <div className="space-y-3">
-            {dayEntries.length === 0 ? (
-              <div className="text-sm text-gray-600">No classes on {selectedDay}.</div>
-            ) : (
-              dayEntries.map((entry, index) => (
-                <div key={`${selectedDay}-${index}`} className="rounded-lg border border-gray-200 bg-gray-50 p-4">
-                  <h3 className="text-base font-semibold text-gray-900 flex items-center gap-2">
-                    <BookOpen className="w-4 h-4 text-amber-600" />
-                    {entry.subject || 'Subject'}
-                  </h3>
-                  <div className="mt-2 flex flex-wrap gap-4 text-sm text-gray-600">
-                    <span className="inline-flex items-center gap-1">
-                      <Clock className="w-4 h-4 text-amber-600" />
-                      {entry.time || 'TBA'}
-                    </span>
-                    <span className="inline-flex items-center gap-1">
-                      <User className="w-4 h-4 text-amber-600" />
-                      {entry.instructor || 'TBA'}
-                    </span>
-                    <span className="inline-flex items-center gap-1">
-                      <MapPin className="w-4 h-4 text-amber-600" />
-                      {entry.room || 'TBA'}
-                    </span>
-                  </div>
-                </div>
-              ))
-            )}
-          </div>
-        )}
+                </thead>
+                <tbody>
+                  {weeklySlots.map((slot) => (
+                    <tr key={slot.time} className="align-top">
+                      <td className="sticky left-0 z-10 border-b border-r bg-gray-50 px-4 py-3 text-sm font-semibold text-gray-700">{slot.time}</td>
+                      {DAYS.map((day) => {
+                        const entry = weeklyMatrix[day]?.[slot.time];
+                        return (
+                          <td key={`${day}-${slot.time}`} className="border-b p-2.5">
+                            {entry ? (
+                              <div className="rounded-lg border border-amber-100 bg-amber-50/60 px-3 py-2">
+                                <p className="text-sm font-semibold text-gray-900">{entry.subject || 'Subject'}</p>
+                                <p className="mt-1 text-xs text-gray-600">{entry.instructor || 'TBA'}</p>
+                                <p className="mt-1 text-xs text-gray-500">{entry.room || 'TBA'}</p>
+                              </div>
+                            ) : (
+                              <div className="rounded-lg border border-dashed border-gray-200 px-3 py-2 text-center text-xs text-gray-400">--</div>
+                            )}
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );

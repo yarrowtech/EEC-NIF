@@ -12,6 +12,13 @@ import {
 } from 'lucide-react';
 
 const API_BASE = import.meta.env.VITE_API_URL;
+const DATE_RANGE_OPTIONS = [
+  { value: '30d', label: 'Last 30 Days' },
+  { value: '7d', label: 'Last 7 Days' },
+  { value: 'all', label: 'All Time' },
+];
+
+const escapeCsv = (value) => `"${String(value ?? '').replace(/"/g, '""')}"`;
 
 const FeesDashboard = ({ setShowAdminHeader }) => {
   useEffect(() => {
@@ -19,7 +26,7 @@ const FeesDashboard = ({ setShowAdminHeader }) => {
   }, [setShowAdminHeader]);
 
   const [searchTerm, setSearchTerm] = useState('');
-  const [dateRange, setDateRange] = useState('Last 30 Days');
+  const [dateRange, setDateRange] = useState('30d');
   const [summary, setSummary] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -66,14 +73,36 @@ const FeesDashboard = ({ setShowAdminHeader }) => {
   const enrollmentData = summary?.enrollment || [];
   const outstandingFeesData = summary?.outstandingSegments || [];
   const recentPayments = summary?.recentPayments || [];
+  const dateRangeLabel =
+    DATE_RANGE_OPTIONS.find((option) => option.value === dateRange)?.label || 'Last 30 Days';
+
+  const rangeStart = useMemo(() => {
+    if (dateRange === 'all') return null;
+    const now = new Date();
+    const days = dateRange === '7d' ? 7 : 30;
+    const start = new Date(now);
+    start.setHours(0, 0, 0, 0);
+    start.setDate(start.getDate() - (days - 1));
+    return start;
+  }, [dateRange]);
+
+  const paymentsByDateRange = useMemo(() => {
+    if (!rangeStart) return recentPayments;
+    return recentPayments.filter((payment) => {
+      if (!payment?.paidOn) return false;
+      const paidOn = new Date(payment.paidOn);
+      if (Number.isNaN(paidOn.getTime())) return false;
+      return paidOn >= rangeStart;
+    });
+  }, [recentPayments, rangeStart]);
 
   const filteredPayments = useMemo(() => {
-    return recentPayments.filter(
+    return paymentsByDateRange.filter(
       (payment) =>
         (payment.studentName || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
         (payment.className || '').toLowerCase().includes(searchTerm.toLowerCase())
     );
-  }, [recentPayments, searchTerm]);
+  }, [paymentsByDateRange, searchTerm]);
 
   const formatCurrency = (amount = 0) =>
     new Intl.NumberFormat('en-IN', {
@@ -103,7 +132,7 @@ const FeesDashboard = ({ setShowAdminHeader }) => {
       map.set(entry.key, entry);
       return map;
     }, new Map());
-    recentPayments.forEach((payment) => {
+    paymentsByDateRange.forEach((payment) => {
       if (!payment.paidOn) return;
       const paidOnKey = new Date(payment.paidOn).toISOString().split('T')[0];
       if (seriesMap.has(paidOnKey)) {
@@ -111,7 +140,7 @@ const FeesDashboard = ({ setShowAdminHeader }) => {
       }
     });
     return result;
-  }, [recentPayments]);
+  }, [paymentsByDateRange]);
 
   const peakCollection = Math.max(
     ...collectionTrend.map((entry) => entry.value),
@@ -119,7 +148,68 @@ const FeesDashboard = ({ setShowAdminHeader }) => {
   );
 
   const generateReport = () => {
-    alert('Generating comprehensive fees report...');
+    const exportDate = new Date();
+    const rows = [];
+
+    rows.push(['FEES DASHBOARD REPORT']);
+    rows.push(['Generated At', exportDate.toLocaleString('en-IN')]);
+    rows.push(['Date Range', dateRangeLabel]);
+    rows.push([]);
+
+    rows.push(['SUMMARY']);
+    rows.push(['Metric', 'Value']);
+    rows.push(['Total Outstanding', totals.totalOutstanding]);
+    rows.push(['Overdue Invoices', totals.overdueInvoices]);
+    rows.push(['Students with Invoices', totals.totalStudents]);
+    rows.push(['Total Collected', totals.totalCollected]);
+    rows.push(['Total Invoiced', totals.totalInvoiced]);
+    rows.push([]);
+
+    rows.push(['COLLECTION TREND (LAST 7 DAYS)']);
+    rows.push(['Date', 'Amount']);
+    collectionTrend.forEach((entry) => {
+      rows.push([entry.label, entry.value]);
+    });
+    rows.push([]);
+
+    rows.push(['ENROLLMENT BY CLASS']);
+    rows.push(['Class', 'Students', 'Share %']);
+    enrollmentData.forEach((item) => {
+      rows.push([item.label, item.students, item.percentage]);
+    });
+    rows.push([]);
+
+    rows.push(['OUTSTANDING OVERVIEW']);
+    rows.push(['Class', 'Amount', 'Share %']);
+    outstandingFeesData.forEach((item) => {
+      rows.push([item.label, item.amount, item.percentage]);
+    });
+    rows.push([]);
+
+    rows.push(['RECENT PAYMENTS']);
+    rows.push(['Student', 'Class', 'Section', 'Amount', 'Paid On', 'Method', 'Status']);
+    filteredPayments.forEach((payment) => {
+      rows.push([
+        payment.studentName || '',
+        payment.className || '',
+        payment.section || '',
+        payment.amount || 0,
+        payment.paidOn ? new Date(payment.paidOn).toLocaleDateString('en-IN') : '',
+        payment.method || '',
+        payment.status || 'Paid',
+      ]);
+    });
+
+    const csvContent = rows.map((row) => row.map(escapeCsv).join(',')).join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `fees-dashboard-report-${exportDate.toISOString().slice(0, 10)}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
   };
 
   if (loading) {
@@ -244,7 +334,7 @@ const FeesDashboard = ({ setShowAdminHeader }) => {
                 </div>
                 <div className="flex items-center gap-3 text-sm text-slate-500">
                   <Calendar className="w-4 h-4 text-slate-500" />
-                  <span>{dateRange}</span>
+                  <span>{dateRangeLabel}</span>
                 </div>
               </div>
               <div className="flex gap-3 items-end h-48">
@@ -295,9 +385,9 @@ const FeesDashboard = ({ setShowAdminHeader }) => {
                     onChange={(e) => setDateRange(e.target.value)}
                     className="text-sm border border-slate-300 rounded-lg px-3 py-1.5 focus:ring-2 focus:ring-amber-500 focus:outline-none"
                   >
-                    <option>Last 30 Days</option>
-                    <option>Last 7 Days</option>
-                    <option>All Time</option>
+                    {DATE_RANGE_OPTIONS.map((option) => (
+                      <option key={option.value} value={option.value}>{option.label}</option>
+                    ))}
                   </select>
                   <button
                     onClick={generateReport}

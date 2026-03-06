@@ -49,6 +49,7 @@ const formatCurrency = (value) =>
     currency: 'INR',
     maximumFractionDigits: 0
   }).format(Math.round(value || 0));
+const formatNumber = (value) => Number(value || 0).toLocaleString('en-IN');
 
 const buildFeeChartData = (invoices) => {
   const now = new Date();
@@ -423,31 +424,134 @@ const Analytics = ({ setShowAdminHeader }) => {
 
   const exportAnalyticsToPDF = () => {
     const pdf = new jsPDF('p', 'mm', 'a4');
-    const currentDate = new Date().toLocaleDateString();
+    const pageWidth = pdf.internal.pageSize.getWidth();
+    const pageHeight = pdf.internal.pageSize.getHeight();
+    const margin = 14;
+    const contentWidth = pageWidth - margin * 2;
+    const now = new Date();
+    const generatedAt = now.toLocaleString('en-IN');
+    const generatedDate = now.toISOString().slice(0, 10);
+    let yPos = 16;
 
-    pdf.setFontSize(24);
+    const ensureSpace = (required = 8) => {
+      if (yPos + required > pageHeight - 14) {
+        pdf.addPage();
+        yPos = 16;
+      }
+    };
+
+    const addTitle = (text) => {
+      ensureSpace(12);
+      pdf.setFontSize(13);
+      pdf.setFont(undefined, 'bold');
+      pdf.text(text, margin, yPos);
+      yPos += 7;
+    };
+
+    const addLine = (label, value = '') => {
+      ensureSpace(7);
+      pdf.setFontSize(10);
+      pdf.setFont(undefined, 'normal');
+      const line = `${label}: ${value}`;
+      const wrapped = pdf.splitTextToSize(line, contentWidth);
+      pdf.text(wrapped, margin, yPos);
+      yPos += wrapped.length * 5;
+    };
+
+    const addTableRows = (headers, rows) => {
+      ensureSpace(9);
+      pdf.setFontSize(9.5);
+      pdf.setFont(undefined, 'bold');
+      pdf.text(headers.join(' | '), margin, yPos);
+      yPos += 5;
+      pdf.setFont(undefined, 'normal');
+      if (!rows.length) {
+        addLine('Info', 'No records available');
+        return;
+      }
+      rows.forEach((row) => {
+        const text = row.join(' | ');
+        const wrapped = pdf.splitTextToSize(text, contentWidth);
+        ensureSpace(wrapped.length * 5 + 1);
+        pdf.text(wrapped, margin, yPos);
+        yPos += wrapped.length * 5;
+      });
+    };
+
+    pdf.setFontSize(18);
     pdf.setFont(undefined, 'bold');
-    pdf.text('Analytics Report', 105, 20, { align: 'center' });
-
-    pdf.setFontSize(12);
-    pdf.setFont(undefined, 'normal');
-    pdf.text(`Generated on: ${currentDate}`, 105, 30, { align: 'center' });
-
-    let yPos = 50;
-
-    pdf.setFontSize(16);
-    pdf.setFont(undefined, 'bold');
-    pdf.text('Key Metrics', 20, yPos);
-    yPos += 10;
-
+    pdf.text('Admin Analytics Report', pageWidth / 2, yPos, { align: 'center' });
+    yPos += 8;
     pdf.setFontSize(10);
     pdf.setFont(undefined, 'normal');
-    keyMetrics.forEach(metric => {
-      pdf.text(`${metric.title}: ${metric.value}${metric.change ? ` (${metric.change})` : ''}`, 25, yPos);
-      yPos += 7;
+    pdf.text(`Generated: ${generatedAt}`, pageWidth / 2, yPos, { align: 'center' });
+    yPos += 6;
+    pdf.text(`Filters: ${selectedClass} | ${selectedSection === 'All Sections' ? 'All Sections' : `Sec ${selectedSection}`}`, pageWidth / 2, yPos, { align: 'center' });
+    yPos += 8;
+
+    addTitle('Key Metrics');
+    keyMetrics.forEach((metric) => {
+      addLine(metric.title, `${metric.value}${metric.change ? ` (${metric.change})` : ''}`);
     });
 
-    pdf.save(`analytics-report-${currentDate.replace(/\//g, '-')}.pdf`);
+    addTitle('Attendance & Users');
+    addLine('Attendance Rate', `${attendanceRate || 0}%`);
+    addLine('Present', formatNumber(reportsSummary?.attendance?.present || 0));
+    addLine('Absent', formatNumber(reportsSummary?.attendance?.absent || 0));
+    addLine('Total Marked', formatNumber(reportsSummary?.attendance?.totalMarked || 0));
+    addLine('Students', formatNumber(reportsSummary?.users?.students || progressAnalytics?.totalStudents || 0));
+    addLine('Teachers', formatNumber(reportsSummary?.users?.teachers || 0));
+
+    addTitle('Fees Overview');
+    addLine('Collected', formatCurrency(reportsSummary?.fees?.paidAmount || 0));
+    addLine('Outstanding', formatCurrency(reportsSummary?.fees?.balanceAmount || 0));
+    addLine('Total Invoiced', formatCurrency((reportsSummary?.fees?.paidAmount || 0) + (reportsSummary?.fees?.balanceAmount || 0)));
+    addLine('Invoices In Scope', formatNumber(filteredInvoices.length));
+
+    addTitle('Fees Collection Trend (6 Months)');
+    addTableRows(
+      ['Month', 'Collected', 'Pending'],
+      feesChartData.map((item) => [
+        item.month,
+        formatCurrency(item.paid),
+        formatCurrency(item.pending),
+      ])
+    );
+
+    addTitle('Subject Performance');
+    addTableRows(
+      ['Subject', 'Average', 'Students'],
+      subjectPerformance.slice(0, 12).map((item) => [
+        item.subject,
+        `${item.averageScore}%`,
+        formatNumber(item.studentCount),
+      ])
+    );
+
+    addTitle('Grade Distribution');
+    addTableRows(
+      ['Grade', 'Students'],
+      gradeDistributionData.map((item) => [item.grade, formatNumber(item.students)])
+    );
+
+    addTitle('Improvement Trends');
+    addTableRows(
+      ['Trend', 'Count', 'Share'],
+      improvementStats.map((item) => [item.label, formatNumber(item.count), `${item.value}%`])
+    );
+
+    addTitle('Recent Admin Activity');
+    addTableRows(
+      ['Actor', 'Action', 'Entity', 'Time'],
+      recentActivity.map((item) => [item.teacher, item.action, item.subject, item.time])
+    );
+
+    ensureSpace(8);
+    pdf.setFontSize(9);
+    pdf.setFont(undefined, 'normal');
+    pdf.text('Source: Live admin analytics, reports summary, fees invoices, and audit logs.', margin, yPos);
+
+    pdf.save(`admin-analytics-report-${generatedDate}.pdf`);
   };
 
   const activeErrors = [analyticsError, reportsError, feesError, activityError].filter(Boolean);

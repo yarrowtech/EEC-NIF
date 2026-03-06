@@ -245,6 +245,85 @@ router.get('/structures', adminAuth, async (req, res) => {
   }
 });
 
+router.get('/admin/structures/analytics', adminAuth, async (req, res) => {
+  // #swagger.tags = ['Fees']
+  try {
+    const schoolId = resolveSchoolId(req, res);
+    if (!schoolId) return;
+    if (!requireCampusId(req, res)) return;
+
+    const filter = { schoolId };
+    let campusClassIds = null;
+    if (req.campusId) {
+      const classDocs = await ClassModel.find(buildCampusFilter(schoolId, req.campusId))
+        .select('_id')
+        .lean();
+      campusClassIds = classDocs.map((doc) => doc._id);
+      if (campusClassIds.length === 0) {
+        return res.json({
+          count: 0,
+          totalValue: 0,
+          averageValue: 0,
+          classesCovered: 0,
+          lastUpdated: null,
+        });
+      }
+      filter.classId = { $in: campusClassIds };
+    }
+
+    if (req.query.classId && mongoose.isValidObjectId(req.query.classId)) {
+      if (campusClassIds && !campusClassIds.some((id) => String(id) === String(req.query.classId))) {
+        return res.json({
+          count: 0,
+          totalValue: 0,
+          averageValue: 0,
+          classesCovered: 0,
+          lastUpdated: null,
+        });
+      }
+      filter.classId = req.query.classId;
+    }
+
+    if (req.query.academicYearId && mongoose.isValidObjectId(req.query.academicYearId)) {
+      filter.academicYearId = req.query.academicYearId;
+    }
+
+    if (req.query.board) {
+      filter.board = String(req.query.board).trim().toUpperCase();
+    }
+
+    const result = await FeeStructure.aggregate([
+      { $match: filter },
+      {
+        $group: {
+          _id: null,
+          count: { $sum: 1 },
+          totalValue: { $sum: { $ifNull: ['$totalAmount', 0] } },
+          classIds: { $addToSet: '$classId' },
+          lastUpdated: { $max: '$updatedAt' },
+        },
+      },
+    ]);
+
+    const row = result[0] || {};
+    const count = Number(row.count || 0);
+    const totalValue = Math.round(Number(row.totalValue || 0));
+    const classesCovered = Array.isArray(row.classIds)
+      ? row.classIds.filter((id) => Boolean(id)).length
+      : 0;
+
+    res.json({
+      count,
+      totalValue,
+      averageValue: count > 0 ? Math.round(totalValue / count) : 0,
+      classesCovered,
+      lastUpdated: row.lastUpdated || null,
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message || 'Unable to load structure analytics' });
+  }
+});
+
 router.put('/structures/:id', adminAuth, async (req, res) => {
   // #swagger.tags = ['Fees']
   try {
