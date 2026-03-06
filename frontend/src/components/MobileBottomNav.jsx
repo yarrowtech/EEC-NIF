@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import {
   Home, BookOpen, Calendar, MessageCircle, User,
   X, FileText, File, Target, BarChart3, Users,
-  Bell, Heart, Trophy, Star, Brain,
+  Bell, Heart, Trophy, Star, Brain, Save,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
@@ -46,7 +46,7 @@ const isViewInSubMenu = (menuKey, activeView) =>
   ) ?? false;
 
 /* ─── Component ─────────────────────────────────────────────────────────── */
-const MobileBottomNav = ({ activeView }) => {
+const MobileBottomNav = ({ activeView, onSaveJournal }) => {
   const navigate = useNavigate();
   const [openMenu, setOpenMenu] = useState(null);
   const [chatUnreadCount, setChatUnreadCount] = useState(0);
@@ -185,49 +185,79 @@ const MobileBottomNav = ({ activeView }) => {
         className="fixed bottom-0 left-0 right-0 z-50 md:hidden bg-white border-t border-gray-100 shadow-[0_-4px_20px_rgba(0,0,0,0.07)]"
         style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
       >
-        <div className="flex items-stretch h-16">
-          {navItems.map((item) => {
-            const Icon = item.icon;
+        {/* Special Journal Save Footer */}
+        {activeView === 'assignments-journal' && onSaveJournal ? (
+          <div className="flex items-center justify-between px-4 h-16 gap-3">
+            <button
+              onClick={() => navigate('/student')}
+              className="flex items-center justify-center w-10 h-10 rounded-lg text-gray-500 hover:bg-gray-100 active:scale-90 transition-all"
+            >
+              <Home size={20} />
+            </button>
+            <button
+              onClick={onSaveJournal}
+              className="flex-1 flex items-center justify-center gap-2 h-11 rounded-full text-white font-bold text-sm active:scale-95 transition-all shadow-lg"
+              style={{
+                background: '#3d5a45',
+                boxShadow: '0 4px 14px -3px rgba(61,90,69,0.45)',
+              }}
+            >
+              <Save size={18} />
+              Save Entry
+            </button>
+            <button
+              onClick={() => setOpenMenu('academics')}
+              className="flex items-center justify-center w-10 h-10 rounded-lg text-gray-500 hover:bg-gray-100 active:scale-90 transition-all"
+            >
+              <BookOpen size={20} />
+            </button>
+          </div>
+        ) : (
+          /* Default Navigation */
+          <div className="flex items-stretch h-16">
+            {navItems.map((item) => {
+              const Icon = item.icon;
 
-            const isActive = item.subMenu
-              ? openMenu === item.subMenu || isViewInSubMenu(item.subMenu, activeView)
-              : item.id === 'dashboard'
-              ? activeView === 'dashboard' || activeView === 'home'
-              : activeView === item.id;
+              const isActive = item.subMenu
+                ? openMenu === item.subMenu || isViewInSubMenu(item.subMenu, activeView)
+                : item.id === 'dashboard'
+                ? activeView === 'dashboard' || activeView === 'home'
+                : activeView === item.id;
 
-            return (
-              <button
-                key={item.id}
-                onClick={() => handleTabPress(item)}
-                className="flex-1 flex flex-col items-center justify-center gap-0.5 active:scale-90 transition-transform"
-              >
-                <div
-                  className={`relative p-1.5 rounded-xl transition-all duration-200 ${
-                    isActive ? 'bg-amber-50' : ''
-                  }`}
+              return (
+                <button
+                  key={item.id}
+                  onClick={() => handleTabPress(item)}
+                  className="flex-1 flex flex-col items-center justify-center gap-0.5 active:scale-90 transition-transform"
                 >
-                  <Icon
-                    size={22}
-                    strokeWidth={isActive ? 2.2 : 1.8}
-                    className={isActive ? 'text-amber-500' : 'text-gray-400'}
-                  />
-                  {item.id === 'chat' && chatUnreadCount > 0 && (
-                    <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-red-500 text-white text-[10px] font-bold leading-[18px] text-center shadow">
-                      {chatUnreadCount > 99 ? '99+' : chatUnreadCount}
-                    </span>
-                  )}
-                </div>
-                <span
-                  className={`text-[10px] font-semibold leading-none ${
-                    isActive ? 'text-amber-500' : 'text-gray-400'
-                  }`}
-                >
-                  {item.label}
-                </span>
-              </button>
-            );
-          })}
-        </div>
+                  <div
+                    className={`relative p-1.5 rounded-xl transition-all duration-200 ${
+                      isActive ? 'bg-amber-50' : ''
+                    }`}
+                  >
+                    <Icon
+                      size={22}
+                      strokeWidth={isActive ? 2.2 : 1.8}
+                      className={isActive ? 'text-amber-500' : 'text-gray-400'}
+                    />
+                    {item.id === 'chat' && chatUnreadCount > 0 && (
+                      <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-red-500 text-white text-[10px] font-bold leading-[18px] text-center shadow">
+                        {chatUnreadCount > 99 ? '99+' : chatUnreadCount}
+                      </span>
+                    )}
+                  </div>
+                  <span
+                    className={`text-[10px] font-semibold leading-none ${
+                      isActive ? 'text-amber-500' : 'text-gray-400'
+                    }`}
+                  >
+                    {item.label}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        )}
       </nav>
     </>
   );

@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef, useCallback, useMemo } from "react";
+import React, { useEffect, useState, useRef, useCallback, useMemo, forwardRef, useImperativeHandle } from "react";
 import {
   Plus, Trash2, BookOpen, FlaskConical, Layers, PenLine, GraduationCap,
   Gamepad2, ChevronRight, ChevronLeft, X, Sparkles, Save, Clock,
@@ -20,7 +20,7 @@ const TOUR_STEPS = [
 ];
 const TOUR_STORAGE_KEY = "journal_tour_completed";
 
-const AssignmentView = ({ defaultType = "school" }) => {
+const AssignmentView = forwardRef(({ defaultType = "school" }, ref) => {
   const API_BASE = (import.meta.env.VITE_API_URL || "http://localhost:5000").replace(/\/$/, "");
   const [filter, setFilter] = useState("all");
   const [assignmentType, setAssignmentType] = useState(defaultType);
@@ -55,9 +55,9 @@ const AssignmentView = ({ defaultType = "school" }) => {
   /* Tour helpers */
   const tourNext = useCallback(() => setTourStep((s) => Math.min(s + 1, TOUR_STEPS.length - 1)), []);
   const tourPrev = useCallback(() => setTourStep((s) => Math.max(s - 1, 0)), []);
-  const tourFinish = useCallback(() => { setTourStep(-1); setTourDismissed(true); try { localStorage.setItem(TOUR_STORAGE_KEY, "true"); } catch {} }, []);
+  const tourFinish = useCallback(() => { setTourStep(-1); setTourDismissed(true); try { localStorage.setItem(TOUR_STORAGE_KEY, "true"); } catch { } }, []);
   const tourSkip = tourFinish;
-  const restartTour = useCallback(() => { setTourDismissed(false); setTourStep(0); try { localStorage.removeItem(TOUR_STORAGE_KEY); } catch {} }, []);
+  const restartTour = useCallback(() => { setTourDismissed(false); setTourStep(0); try { localStorage.removeItem(TOUR_STORAGE_KEY); } catch { } }, []);
 
   /* Auth */
   const getAuthHeaders = () => {
@@ -141,6 +141,11 @@ const AssignmentView = ({ defaultType = "school" }) => {
     setShowMobileIndex(false);
   };
 
+  /* Expose save method to parent via ref */
+  useImperativeHandle(ref, () => ({
+    saveJournal: handleSaveDraft,
+  }));
+
   /* Autosave debounce */
   useEffect(() => {
     if (assignmentType !== "journal") return;
@@ -183,7 +188,7 @@ const AssignmentView = ({ defaultType = "school" }) => {
 
   /* ═══════════════ RENDER ═══════════════ */
   return (
-    <div className="w-full min-h-screen bg-slate-50 px-3 sm:px-6 md:px-8 py-5 pb-24 md:pb-6 space-y-5 overflow-x-hidden">
+    <div className={assignmentType === "journal" ? "w-full h-full overflow-hidden" : "w-full min-h-screen bg-slate-50 px-3 sm:px-6 md:px-8 py-5 pb-24 md:pb-6 space-y-5 overflow-x-hidden"}>
 
       {/* Header (non-journal) */}
       {assignmentType !== "journal" && (
@@ -201,309 +206,464 @@ const AssignmentView = ({ defaultType = "school" }) => {
         <div className="flex gap-1 overflow-x-auto rounded-xl bg-gray-100 p-1">
           {typeTabs.map((t) => (
             <button key={t.key} onClick={() => setAssignmentType(t.key)}
-              className={`flex items-center gap-2 whitespace-nowrap rounded-lg px-4 py-2 text-sm font-medium transition ${
-                assignmentType === t.key ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-700"
-              }`}>
+              className={`flex items-center gap-2 whitespace-nowrap rounded-lg px-4 py-2 text-sm font-medium transition ${assignmentType === t.key ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-700"
+                }`}>
               <t.icon className="h-4 w-4" /> {t.label}
             </button>
           ))}
         </div>
       )}
 
-      {/* ═══════════════ JOURNAL - REAL NOTEBOOK ═══════════════ */}
+      {/* ═══════════════ JOURNAL - VIBRANT MINIMALIST ═══════════════ */}
       {assignmentType === "journal" && (
-        <div data-tour-root className="relative mx-auto max-w-7xl">
+        <div data-tour-root className="relative mx-auto max-w-7xl h-full">
 
-          {/* ── Notebook Cover ── */}
-          <div className="rounded-2xl shadow-2xl overflow-hidden"
+          {/* ── Journal Wrapper ── */}
+          <div
+            className="rounded-2xl overflow-hidden flex flex-col h-full"
             style={{
-              background: "linear-gradient(145deg, #5c3d2e 0%, #4a2f20 40%, #3d2518 100%)",
-              boxShadow: "0 25px 60px -12px rgba(60,30,15,0.5), 0 0 0 1px rgba(0,0,0,0.1), inset 0 1px 0 rgba(255,255,255,0.05)",
-            }}>
-
-            {/* Cover texture overlay */}
-            <div className="pointer-events-none absolute inset-0 rounded-2xl opacity-20"
-              style={{ backgroundImage: "url(\"data:image/svg+xml,%3Csvg width='6' height='6' viewBox='0 0 6 6' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='%23000' fill-opacity='0.15'%3E%3Cpath d='M5 0h1L0 6V5zM6 5v1H5z'/%3E%3C/g%3E%3C/svg%3E\")" }} />
-
-            {/* ── Notebook Top Bar (Cover) ── */}
-            <div className="relative px-4 sm:px-6 py-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-b border-white/10">
+              background: "#fdfcf8",
+              boxShadow: "0 20px 60px -10px rgba(61,90,69,0.15), 0 0 0 1px rgba(61,90,69,0.08)",
+            }}
+          >
+            {/* ── Sticky Header ── */}
+            <div
+              className="shrink-0 border-b flex items-center justify-between px-4 sm:px-6 h-16 z-20 sticky top-0"
+              style={{
+                borderColor: "rgba(61,90,69,0.12)",
+                background: "rgba(253,252,248,0.85)",
+                backdropFilter: "blur(12px)",
+              }}
+            >
+              {/* Left: Brand */}
               <div className="flex items-center gap-3">
-                <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-amber-600/30 backdrop-blur-sm border border-amber-500/30">
-                  <BookOpen className="h-4.5 w-4.5 text-amber-300" />
+                <div
+                  className="w-9 h-9 rounded-lg flex items-center justify-center shadow-md"
+                  style={{ background: "#3d5a45" }}
+                >
+                  <BookOpen className="h-4.5 w-4.5 text-white" />
                 </div>
                 <div>
-                  <h1 className="text-lg sm:text-xl font-bold text-amber-100" style={{ fontFamily: "'Georgia', serif" }}>
+                  <h1
+                    className="font-bold text-lg leading-none"
+                    style={{ color: "#3d5a45", fontFamily: "'Merriweather', Georgia, serif" }}
+                  >
                     My Learning Journal
                   </h1>
-                  <p className="text-[11px] text-amber-300/60">Personal Notebook</p>
+                  <p className="text-[10px] uppercase tracking-widest font-semibold mt-0.5" style={{ color: "#9ca3af" }}>
+                    Personal Growth Notebook
+                  </p>
                 </div>
               </div>
-              <div className="flex flex-wrap items-center gap-2">
+
+              {/* Right: Tour + Autosave + Points */}
+              <div className="flex items-center gap-2 sm:gap-3">
                 {tourDismissed && (
-                  <button onClick={restartTour}
-                    className="flex items-center gap-1 rounded-full border border-amber-500/30 bg-amber-600/20 px-2.5 py-1 text-[11px] font-medium text-amber-300 hover:bg-amber-600/30 transition">
-                    <Sparkles className="h-3 w-3" /> Tour
+                  <button
+                    onClick={restartTour}
+                    className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-full transition-all"
+                    style={{ color: "#6b7280", background: "transparent" }}
+                    onMouseEnter={e => e.currentTarget.style.background = "#f3f4f6"}
+                    onMouseLeave={e => e.currentTarget.style.background = "transparent"}
+                  >
+                    <Sparkles className="h-3.5 w-3.5" /> Tour
                   </button>
                 )}
-                <div className={`flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-medium ${
-                  autosaveLabel === "Saved" ? "bg-emerald-600/20 text-emerald-300 border border-emerald-500/30"
-                    : autosaveLabel.includes("Saving") ? "bg-amber-600/20 text-amber-300 border border-amber-500/30"
-                    : "bg-rose-600/20 text-rose-300 border border-rose-500/30"
-                }`}>
+                <div
+                  className={`flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-semibold border ${autosaveLabel === "Saved"
+                    ? "text-emerald-700 bg-emerald-50 border-emerald-100"
+                    : autosaveLabel.includes("Saving")
+                      ? "text-amber-700 bg-amber-50 border-amber-100"
+                      : "text-red-600 bg-red-50 border-red-100"
+                    }`}
+                >
                   {autosaveLabel === "Saved" ? <Save className="h-3 w-3" /> : <Clock className="h-3 w-3" />}
-                  {autosaveLabel}
+                  <span className="hidden sm:inline">{autosaveLabel}</span>
                 </div>
-                <PointsBadge />
+                <div
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-xs font-bold"
+                  style={{ background: "#fffbeb", borderColor: "#fde68a", color: "#b45309" }}
+                >
+                  <span>⚡</span>
+                  <PointsBadge />
+                </div>
               </div>
             </div>
 
-            {/* ── Notebook Inner Pages ── */}
-            <div className="relative h-auto min-h-[400px] sm:min-h-[520px] lg:h-[calc(100vh-180px)] lg:max-h-[860px]"
-              style={{ background: "#faf6ef" }}>
+            {/* ── Main Content: Sidebar + Editor ── */}
+            <div className="flex flex-1 min-h-0 flex-col sm:flex-row overflow-hidden">
 
-              {/* Spine shadow */}
-              <div className="absolute left-0 top-0 bottom-0 w-3 z-10 pointer-events-none hidden lg:block"
-                style={{ background: "linear-gradient(to right, rgba(0,0,0,0.08), transparent)" }} />
-              <div className="absolute right-0 top-0 bottom-0 w-2 z-10 pointer-events-none hidden lg:block"
-                style={{ background: "linear-gradient(to left, rgba(0,0,0,0.04), transparent)" }} />
-
-              {/* Center binding line */}
-              <div className="absolute left-1/2 top-0 bottom-0 w-px z-10 hidden lg:block"
-                style={{ background: "rgba(0,0,0,0.06)" }} />
-
-              <div className="flex h-full flex-col lg:grid lg:grid-cols-[340px_1fr]">
-
-                {/* ─── Left: Page Index (like a notebook index page) ─── */}
-                <div data-tour="tour-timeline"
-                  className="flex flex-col border-b lg:border-b-0 lg:border-r"
-                  style={{ borderColor: "rgba(0,0,0,0.08)", background: "#f7f2e8" }}>
-
-                  {/* Mobile toggle bar */}
-                  <button className="lg:hidden flex items-center justify-between w-full px-4 py-3"
-                    onClick={() => setShowMobileIndex(prev => !prev)}>
-                    <div className="flex items-center gap-2">
-                      <BookOpen className="h-4 w-4" style={{ color: "#6b4c3b" }} />
-                      <span className="text-sm font-bold" style={{ color: "#6b4c3b", fontFamily: "'Georgia', serif" }}>
-                        Index
+              {/* ─── Left Sidebar: Index ─── */}
+              <aside
+                data-tour="tour-timeline"
+                className="w-full sm:w-72 lg:w-80 shrink-0 flex flex-col border-r overflow-hidden"
+                style={{ borderColor: "rgba(61,90,69,0.1)", background: "#f9f8f5" }}
+              >
+                {/* Mobile Index Toggle */}
+                <button
+                  className="sm:hidden flex items-center justify-between w-full px-4 py-3 border-b"
+                  style={{ borderColor: "rgba(61,90,69,0.1)" }}
+                  onClick={() => setShowMobileIndex(prev => !prev)}
+                >
+                  <div className="flex items-center gap-2">
+                    <BookOpen className="h-4 w-4" style={{ color: "#3d5a45" }} />
+                    <span className="text-sm font-bold" style={{ color: "#3d5a45" }}>Index</span>
+                    {journalEntries.length > 0 && (
+                      <span
+                        className="text-[10px] font-bold px-1.5 py-0.5 rounded-full"
+                        style={{ background: "#d1fae5", color: "#065f46" }}
+                      >
+                        {journalEntries.length}
                       </span>
-                      {journalEntries.length > 0 && (
-                        <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full" style={{ background: "#e8dcc8", color: "#6b4c3b" }}>
-                          {journalEntries.length}
-                        </span>
-                      )}
-                    </div>
-                    <ChevronRight className={`h-4 w-4 transition-transform duration-200 ${showMobileIndex ? 'rotate-90' : ''}`} style={{ color: "#a08060" }} />
-                  </button>
+                    )}
+                  </div>
+                  <ChevronRight
+                    className={`h-4 w-4 transition-transform duration-200 ${showMobileIndex ? "rotate-90" : ""}`}
+                    style={{ color: "#9ca3af" }}
+                  />
+                </button>
 
-                  {/* Index content — collapsible on mobile, always visible on lg */}
-                  <div className={`${showMobileIndex ? 'flex' : 'hidden'} lg:flex flex-col flex-1 p-4 lg:p-5`}>
+                {/* Index Panel */}
+                <div className={`${showMobileIndex ? "flex" : "hidden"} sm:flex flex-col flex-1 p-4 lg:p-5 overflow-hidden`}>
 
-                  {/* Index header (desktop only, mobile has toggle bar) */}
-                  <div className="mb-4 text-center hidden lg:block">
-                    <h2 className="text-base font-bold tracking-wide uppercase" style={{ color: "#6b4c3b", fontFamily: "'Georgia', serif", letterSpacing: "0.15em" }}>
+                  {/* Index heading (desktop) */}
+                  <div className="hidden sm:flex items-center justify-between mb-4">
+                    <h2
+                      className="text-xs font-bold uppercase tracking-[0.2em]"
+                      style={{ color: "#9ca3af", fontFamily: "'Merriweather', Georgia, serif" }}
+                    >
                       Index
                     </h2>
-                    <div className="mx-auto mt-1 h-px w-16" style={{ background: "#c9a96e" }} />
+                    <span className="text-[10px] font-semibold" style={{ color: "#3d5a45" }}>
+                      {journalEntries.length} {journalEntries.length === 1 ? "page" : "pages"}
+                    </span>
                   </div>
 
-                  {/* New Page button */}
-                  <button data-tour="tour-new-entry" onClick={() => { resetJournalForm(); setShowMobileIndex(false); }}
-                    className="group mb-4 flex w-full items-center justify-center gap-2 rounded-lg border-2 border-dashed px-3 py-2.5 text-sm font-semibold transition hover:shadow-sm"
-                    style={{ borderColor: "#c9a96e", color: "#6b4c3b", background: "rgba(201,169,110,0.06)" }}>
-                    <Plus className="h-4 w-4 transition group-hover:rotate-90" /> New Page
+                  {/* New Entry Button */}
+                  <button
+                    data-tour="tour-new-entry"
+                    onClick={() => { resetJournalForm(); setShowMobileIndex(false); }}
+                    className="group mb-4 w-full flex items-center justify-center gap-2 py-3 rounded-xl border-2 border-dashed text-sm font-medium transition-all"
+                    style={{ borderColor: "#a3c4a8", color: "#3d5a45", background: "rgba(61,90,69,0.03)" }}
+                    onMouseEnter={e => { e.currentTarget.style.borderColor = "#3d5a45"; e.currentTarget.style.background = "rgba(61,90,69,0.06)"; }}
+                    onMouseLeave={e => { e.currentTarget.style.borderColor = "#a3c4a8"; e.currentTarget.style.background = "rgba(61,90,69,0.03)"; }}
+                  >
+                    <Plus className="h-4 w-4 transition-transform group-hover:rotate-90 duration-200" />
+                    New Entry
                   </button>
 
-                  {/* Entry list */}
-                  <div className="flex-1 space-y-1.5 overflow-y-auto pr-1 max-h-[280px] sm:max-h-[360px] lg:max-h-none custom-scrollbar">
+                  {/* Entry List */}
+                  <div className="flex-1 space-y-2.5 overflow-y-auto pr-1 custom-scrollbar">
                     {journalLoading && (
-                      <div className="flex items-center justify-center py-12" style={{ color: "#a08060" }}>
-                        <div className="h-5 w-5 animate-spin rounded-full border-2 border-amber-700/30 border-t-amber-700" />
-                        <span className="ml-2 text-sm">Loading...</span>
+                      <div className="flex flex-col items-center justify-center py-12 gap-3" style={{ color: "#9ca3af" }}>
+                        <div className="h-6 w-6 animate-spin rounded-full border-2 border-green-200 border-t-green-600" />
+                        <span className="text-xs">Loading entries…</span>
                       </div>
                     )}
 
-                    {!journalLoading && entriesWithIndex.map((entry) => {
+                    {!journalLoading && entriesWithIndex.map((entry, idx) => {
                       const isSelected = selectedEntryId === entry.id;
+                      const moodDotColors = {
+                        Happy: "#22c55e",
+                        Excited: "#f59e0b",
+                        Curious: "#6366f1",
+                        Challenged: "#ef4444",
+                        Neutral: "#94a3b8",
+                      };
+                      const entryNumber = String(journalEntries.length - idx).padStart(3, "0");
                       return (
-                        <div key={entry.id} onClick={() => loadEntry(entry)}
-                          className="group relative cursor-pointer rounded-lg px-3 py-2.5 transition-all"
+                        <div
+                          key={entry.id}
+                          onClick={() => loadEntry(entry)}
+                          className="group relative cursor-pointer rounded-xl transition-all"
                           style={{
-                            background: isSelected ? "#fef3c7" : "transparent",
-                            borderLeft: isSelected ? "3px solid #d97706" : "3px solid transparent",
-                          }}>
-                          {/* Page number tab */}
-                          <div className="flex items-start gap-2.5">
-                            <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-xs font-bold"
-                              style={{
-                                background: isSelected ? "#d97706" : "#e8dcc8",
-                                color: isSelected ? "#fff" : "#6b4c3b",
-                              }}>
-                              {entry._dateIndex}
-                            </div>
+                            padding: "12px 14px",
+                            background: isSelected ? "#3d5a45" : "#ffffff",
+                            boxShadow: isSelected
+                              ? "0 4px 14px -3px rgba(61,90,69,0.35)"
+                              : "0 1px 3px rgba(0,0,0,0.06), 0 0 0 1px rgba(0,0,0,0.04)",
+                          }}
+                          onMouseEnter={e => { if (!isSelected) { e.currentTarget.style.boxShadow = "0 4px 12px -2px rgba(0,0,0,0.12)"; e.currentTarget.style.transform = "translateY(-1px)"; } }}
+                          onMouseLeave={e => { if (!isSelected) { e.currentTarget.style.boxShadow = "0 1px 3px rgba(0,0,0,0.06), 0 0 0 1px rgba(0,0,0,0.04)"; e.currentTarget.style.transform = "none"; } }}
+                        >
+                          <div className="flex items-start justify-between gap-2">
                             <div className="min-w-0 flex-1">
-                              <p className="text-sm font-semibold truncate" style={{ color: "#4a3425" }}>
+                              <div
+                                className="text-[10px] font-bold uppercase tracking-widest mb-1"
+                                style={{ color: isSelected ? "rgba(255,255,255,0.55)" : "#9ca3af" }}
+                              >
+                                Entry #{entryNumber}
+                              </div>
+                              <h3
+                                className="text-sm font-bold leading-snug truncate"
+                                style={{
+                                  color: isSelected ? "#ffffff" : "#1e293b",
+                                  fontFamily: "'Merriweather', Georgia, serif",
+                                }}
+                              >
                                 {entry.title || "Untitled"}
-                              </p>
-                              <p className="text-[11px] mt-0.5" style={{ color: "#a08060" }}>
+                              </h3>
+                              <p
+                                className="text-[11px] mt-0.5"
+                                style={{ color: isSelected ? "rgba(255,255,255,0.6)" : "#9ca3af" }}
+                              >
                                 {entry._dateLabel}
-                                {entry.mood && entry.mood !== "Neutral" && (
-                                  <span className="ml-1.5">{moodEmojis[entry.mood] || ""}</span>
-                                )}
                               </p>
-                              {entry.tags?.length > 0 && (
-                                <div className="flex flex-wrap gap-1 mt-1">
-                                  {entry.tags.slice(0, 3).map((tag) => (
-                                    <span key={tag} className="rounded px-1.5 py-0.5 text-[9px] font-medium"
-                                      style={{ background: "#e8dcc8", color: "#6b4c3b" }}>
-                                      {tag}
-                                    </span>
-                                  ))}
-                                </div>
-                              )}
                             </div>
-                            <button onClick={(ev) => { ev.stopPropagation(); handleDeleteEntry(entry.id); }}
-                              className="shrink-0 rounded p-1 text-red-400 transition hover:bg-red-50">
-                              <Trash2 className="h-3 w-3" />
+                            <button
+                              onClick={ev => { ev.stopPropagation(); handleDeleteEntry(entry.id); }}
+                              className="shrink-0 rounded p-1 transition opacity-0 group-hover:opacity-100"
+                              style={{ color: isSelected ? "rgba(255,255,255,0.5)" : "#ef4444" }}
+                              onMouseEnter={e => e.currentTarget.style.opacity = "1"}
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
                             </button>
+                          </div>
+                          {/* Mood dot + category */}
+                          <div className="flex items-center gap-1.5 mt-2">
+                            <span
+                              className="w-2 h-2 rounded-full shrink-0"
+                              style={{ background: moodDotColors[entry.mood] || "#94a3b8" }}
+                            />
+                            {entry.tags?.length > 0 && (
+                              <span
+                                className="text-[9px] font-semibold uppercase tracking-wide"
+                                style={{ color: isSelected ? "rgba(255,255,255,0.5)" : "#9ca3af" }}
+                              >
+                                {entry.tags[0]}
+                              </span>
+                            )}
                           </div>
                         </div>
                       );
                     })}
 
                     {!journalLoading && journalEntries.length === 0 && (
-                      <div className="flex flex-col items-center py-12" style={{ color: "#a08060" }}>
-                        <PenLine className="mb-2 h-8 w-8 opacity-50" />
-                        <p className="text-sm font-medium">No pages yet</p>
-                        <p className="mt-1 text-xs opacity-70">Start by adding your first page!</p>
+                      <div className="flex flex-col items-center py-14 gap-2" style={{ color: "#9ca3af" }}>
+                        <PenLine className="h-9 w-9 opacity-40" />
+                        <p className="text-sm font-medium">No entries yet</p>
+                        <p className="text-xs opacity-70 text-center">Click "New Entry" to write your first page!</p>
                       </div>
                     )}
                   </div>
 
-                  {/* Page count */}
+                  {/* Total Pages footer */}
                   {journalEntries.length > 0 && (
-                    <div className="mt-3 text-center text-[10px] font-medium" style={{ color: "#a08060" }}>
-                      {journalEntries.length} page{journalEntries.length !== 1 ? "s" : ""}
+                    <div
+                      className="mt-3 pt-3 border-t flex items-center justify-between text-[10px] font-bold uppercase tracking-widest"
+                      style={{ borderColor: "rgba(61,90,69,0.1)", color: "#9ca3af" }}
+                    >
+                      <span>Total Pages</span>
+                      <span style={{ color: "#3d5a45" }}>{journalEntries.length}</span>
                     </div>
                   )}
-                  </div>{/* end collapsible wrapper */}
                 </div>
+              </aside>
 
-                {/* ─── Right: Writing Page (realistic notebook paper) ─── */}
-                <div className="flex flex-1 flex-col relative overflow-hidden" style={{ background: "#fefcf8" }}>
+              {/* ─── Right: Writing Canvas ─── */}
+              <section
+                className="flex-1 flex flex-col min-h-0"
+                style={{ background: "#ffffff" }}
+              >
+                {/* Scrollable writing area */}
+                <div className="flex-1 overflow-y-auto px-6 sm:px-10 lg:px-20 py-8 sm:py-12 pb-24 md:pb-12 custom-scrollbar">
+                  <div className="max-w-3xl mx-auto space-y-6">
 
-                  {/* Red margin line (hidden on small screens) */}
-                  <div className="absolute top-0 bottom-0 w-px z-5 pointer-events-none hidden sm:block"
-                    style={{ left: "48px", background: "rgba(220,80,80,0.25)" }} />
-
-                  {/* Top punched holes */}
-                  <div className="absolute top-0 left-0 right-0 h-8 z-5 pointer-events-none hidden lg:flex items-center justify-center gap-20">
-                    {[0, 1, 2].map((i) => (
-                      <div key={i} className="h-3 w-3 rounded-full border" style={{ background: "#f0ebe0", borderColor: "#ccc4b5" }} />
-                    ))}
-                  </div>
-
-                  <div className="flex flex-1 flex-col p-3 sm:p-5 sm:pl-16 lg:pr-6 lg:pt-10">
-
-                    {/* Date header */}
-                    <div className="mb-3 flex items-center gap-3">
-                      <div className="text-xs font-semibold uppercase tracking-widest" style={{ color: "#a08060" }}>
-                        {new Date().toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}
+                    {/* Date + decoration dots */}
+                    <div className="flex items-center justify-between">
+                      <span
+                        className="text-xs font-bold uppercase tracking-[0.2em]"
+                        style={{ color: "#94a3b8" }}
+                      >
+                        {new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" })}
+                      </span>
+                      <div className="flex gap-2">
+                        {[0, 1, 2].map(i => (
+                          <div
+                            key={i}
+                            className="w-3 h-3 rounded-full border-2"
+                            style={{ borderColor: "#e2e8f0" }}
+                          />
+                        ))}
                       </div>
                     </div>
 
-                    {/* Title */}
+                    {/* Title input */}
                     <input
                       data-tour="tour-title"
                       type="text"
                       value={journalTitle}
-                      onChange={(e) => setJournalTitle(e.target.value)}
+                      onChange={e => setJournalTitle(e.target.value)}
                       placeholder="Title this page..."
-                      className="w-full border-0 border-b-2 bg-transparent px-0 py-2 text-xl font-bold placeholder-gray-300 focus:outline-none focus:ring-0"
+                      className="w-full bg-transparent border-none p-0 focus:ring-0 focus:outline-none placeholder-slate-200"
                       style={{
-                        borderBottomColor: "#c9a96e",
-                        color: "#3d2518",
-                        fontFamily: "'Georgia', serif",
+                        fontSize: "clamp(1.75rem, 4vw, 3rem)",
+                        fontWeight: "800",
+                        fontFamily: "'Merriweather', Georgia, serif",
+                        color: "#1e293b",
+                        lineHeight: "1.2",
                       }}
                     />
 
-                    {/* Content - Lined notebook paper */}
-                    <div data-tour="tour-content" className="min-h-0 flex-1 mt-2">
+                    {/* Lined writing area */}
+                    <div
+                      data-tour="tour-content"
+                      className="relative"
+                      style={{ minHeight: "360px" }}
+                    >
+                      {/* Horizontal lines */}
+                      <div
+                        className="absolute inset-0 pointer-events-none opacity-40"
+                        style={{
+                          backgroundImage: "linear-gradient(#e2e8f0 1px, transparent 1px)",
+                          backgroundSize: "100% 2.5rem",
+                        }}
+                      />
                       <textarea
                         value={journalContent.replace(/<[^>]*>/g, "")}
-                        onChange={(e) => setJournalContent(e.target.value)}
+                        onChange={e => setJournalContent(e.target.value)}
                         placeholder="Write about what you learned today..."
-                        className="h-full min-h-[220px] sm:min-h-[280px] w-full resize-none border-0 bg-transparent p-0 placeholder-gray-300 focus:outline-none focus:ring-0"
+                        className="w-full bg-transparent border-none p-0 focus:ring-0 focus:outline-none resize-none placeholder-slate-200"
                         style={{
-                          color: "#374151",
-                          fontFamily: "'Georgia', serif",
-                          fontSize: "15px",
-                          backgroundImage: "repeating-linear-gradient(transparent, transparent 27px, #d6cfc4 27px, #d6cfc4 28px)",
-                          lineHeight: "28px",
-                          backgroundPosition: "0 -1px",
+                          minHeight: "360px",
+                          fontSize: "1.0625rem",
+                          lineHeight: "2.5rem",
+                          color: "#475569",
+                          fontFamily: "'Merriweather', Georgia, serif",
+                          position: "relative",
+                          zIndex: 1,
                         }}
                       />
                     </div>
 
-                    {/* Bottom area: Tags + Mood + Save */}
-                    <div className="shrink-0 mt-3 space-y-3 border-t pt-3" style={{ borderColor: "#e8dcc8" }}>
-
-                      {/* Tags & Mood row */}
-                      <div data-tour="tour-mood-tags" className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                        <div>
-                          <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-wider" style={{ color: "#a08060" }}>Tags</label>
+                    {/* Tags & Mood section */}
+                    <div
+                      data-tour="tour-mood-tags"
+                      className="pt-8 grid grid-cols-1 md:grid-cols-2 gap-6 border-t"
+                      style={{ borderColor: "#f1f5f9" }}
+                    >
+                      {/* Tags */}
+                      <div className="space-y-3">
+                        <label
+                          className="block text-[10px] font-bold uppercase tracking-widest"
+                          style={{ color: "#94a3b8" }}
+                        >
+                          Categories &amp; Tags
+                        </label>
+                        <div className="flex flex-wrap gap-2">
+                          {/* Render each tag as a pill */}
+                          {(journalTags || "").split(",").map(t => t.trim()).filter(Boolean).map(tag => (
+                            <span
+                              key={tag}
+                              className="flex items-center gap-1 px-3 py-1 rounded-full text-xs font-semibold border"
+                              style={{ background: "#f0fdf4", color: "#16a34a", borderColor: "#bbf7d0" }}
+                            >
+                              #{tag}
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setJournalTags(
+                                    (journalTags || "").split(",")
+                                      .map(t => t.trim())
+                                      .filter(t => t && t !== tag)
+                                      .join(", ")
+                                  )
+                                }
+                                className="ml-0.5 text-green-400 hover:text-green-700 leading-none text-sm"
+                              >
+                                ×
+                              </button>
+                            </span>
+                          ))}
+                          {/* Quick-add tag input / button */}
                           <input
                             type="text"
-                            value={journalTags}
-                            onChange={(e) => setJournalTags(e.target.value)}
-                            placeholder="e.g. science, math, reflection"
-                            className="w-full rounded-lg border px-3 py-2 text-sm focus:ring-1 focus:ring-amber-400 focus:border-amber-400 transition"
-                            style={{ background: "#faf6ef", borderColor: "#e0d5c0", color: "#4a3425" }}
+                            placeholder="+ Add Tag"
+                            className="px-3 py-1 rounded-full border-2 border-dotted text-xs font-bold transition focus:outline-none focus:ring-0"
+                            style={{ borderColor: "#e2e8f0", color: "#94a3b8", background: "transparent", width: "100px" }}
+                            onKeyDown={e => {
+                              if ((e.key === "Enter" || e.key === ",") && e.currentTarget.value.trim()) {
+                                e.preventDefault();
+                                const newTag = e.currentTarget.value.trim().replace(/,$/, "");
+                                const existing = (journalTags || "").split(",").map(t => t.trim()).filter(Boolean);
+                                if (newTag && !existing.includes(newTag)) {
+                                  setJournalTags([...existing, newTag].join(", "));
+                                }
+                                e.currentTarget.value = "";
+                              }
+                            }}
+                            onFocus={e => { e.currentTarget.style.borderColor = "#3d5a45"; e.currentTarget.style.color = "#3d5a45"; }}
+                            onBlur={e => { e.currentTarget.style.borderColor = "#e2e8f0"; e.currentTarget.style.color = "#94a3b8"; }}
                           />
                         </div>
-                        <div>
-                          <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-wider" style={{ color: "#a08060" }}>Mood</label>
-                          <div className="grid grid-cols-5 gap-1 sm:gap-1.5">
-                            {moodOptions.map((m) => (
-                              <button key={m} type="button" onClick={() => setJournalMood(m)}
-                                className={`rounded-lg border py-1.5 sm:py-2 text-center transition ${
-                                  journalMood === m ? "shadow-sm" : "hover:shadow-sm"
-                                }`}
-                                style={{
-                                  background: journalMood === m ? "#fef3c7" : "#faf6ef",
-                                  borderColor: journalMood === m ? "#d97706" : "#e0d5c0",
-                                }}
-                                title={m}>
-                                <span className="text-sm sm:text-base">{moodEmojis[m]}</span>
-                              </button>
-                            ))}
-                          </div>
+                      </div>
+
+                      {/* Mood */}
+                      <div className="space-y-3">
+                        <label
+                          className="block text-[10px] font-bold uppercase tracking-widest"
+                          style={{ color: "#94a3b8" }}
+                        >
+                          Current Mood
+                        </label>
+                        <div className="flex gap-2">
+                          {moodOptions.map(m => (
+                            <button
+                              key={m}
+                              type="button"
+                              onClick={() => setJournalMood(m)}
+                              title={m}
+                              className="w-11 h-11 flex items-center justify-center rounded-xl text-2xl transition-all border"
+                              style={{
+                                background: journalMood === m ? "#fef3c7" : "#f8fafc",
+                                borderColor: journalMood === m ? "#fbbf24" : "transparent",
+                                filter: journalMood === m ? "none" : "grayscale(1)",
+                                boxShadow: journalMood === m ? "0 0 0 2px #fde68a" : "none",
+                                transform: journalMood === m ? "scale(1.1)" : "scale(1)",
+                              }}
+                              onMouseEnter={e => { if (journalMood !== m) e.currentTarget.style.filter = "none"; }}
+                              onMouseLeave={e => { if (journalMood !== m) e.currentTarget.style.filter = "grayscale(1)"; }}
+                            >
+                              {moodEmojis[m]}
+                            </button>
+                          ))}
                         </div>
                       </div>
-
-                      {/* Save button */}
-                      <div data-tour="tour-save" className="flex items-center justify-end gap-3">
-                        <button onClick={handleSaveDraft}
-                          className="flex items-center gap-2 rounded-lg px-5 py-2 text-sm font-semibold text-white shadow-md transition hover:shadow-lg active:scale-[0.98]"
-                          style={{ background: "linear-gradient(135deg, #92400e 0%, #78350f 100%)" }}>
-                          <Save className="h-4 w-4" /> Save Entry
-                        </button>
-                      </div>
                     </div>
+
                   </div>
-
-                  {/* Page curl effect (bottom right) */}
-                  <div className="absolute bottom-0 right-0 w-12 h-12 pointer-events-none hidden lg:block"
-                    style={{
-                      background: "linear-gradient(315deg, #e8dcc8 0%, #e8dcc8 50%, transparent 50%)",
-                      borderTopLeftRadius: "8px",
-                    }} />
                 </div>
-              </div>
-            </div>
 
-            {/* ── Notebook Bottom Edge ── */}
-            <div className="h-2 relative" style={{ background: "linear-gradient(145deg, #4a2f20, #3d2518)" }}>
-              <div className="absolute inset-x-4 top-0 h-px bg-white/5" />
+                {/* ── Bottom Save Bar (sticky inside section) ── */}
+                <div
+                  className="shrink-0 md:flex items-center justify-between px-6 sm:px-10 lg:px-20 py-3 border-t pb-20 md:pb-3 hidden"
+                  style={{ borderColor: "#f1f5f9", background: "#ffffff" }}
+                >
+                  <span className="text-[11px] font-semibold" style={{ color: "#94a3b8" }}>
+                    {autosaveLabel === "Saved" ? "✓ All changes saved" : autosaveLabel.includes("Saving") ? "Saving…" : "Unsaved changes"}
+                  </span>
+                  <button
+                    data-tour="tour-save"
+                    onClick={handleSaveDraft}
+                    className="group flex items-center gap-2 text-white font-bold tracking-wide transition-all active:scale-95"
+                    style={{
+                      paddingLeft: "1.25rem",
+                      paddingRight: "1.5rem",
+                      paddingTop: "0.625rem",
+                      paddingBottom: "0.625rem",
+                      borderRadius: "9999px",
+                      background: "#3d5a45",
+                      boxShadow: "0 4px 14px -3px rgba(61,90,69,0.45)",
+                      fontSize: "0.875rem",
+                    }}
+                    onMouseEnter={e => { e.currentTarget.style.background = "#2d4535"; e.currentTarget.style.transform = "scale(1.03)"; }}
+                    onMouseLeave={e => { e.currentTarget.style.background = "#3d5a45"; e.currentTarget.style.transform = "scale(1)"; }}
+                  >
+                    <Save className="h-4 w-4" />
+                    Save Entry
+                  </button>
+                </div>
+              </section>
             </div>
           </div>
 
@@ -521,18 +681,22 @@ const AssignmentView = ({ defaultType = "school" }) => {
               <div className="absolute inset-0 z-50 rounded-2xl overflow-hidden">
                 <div className="absolute inset-0 bg-black/40 backdrop-blur-[1px]" onClick={tourSkip} />
                 {targetEl && rect && parentRect && (
-                  <div className="absolute rounded-lg ring-4 ring-amber-400/60 shadow-lg shadow-amber-300/30"
+                  <div className="absolute rounded-lg ring-4 ring-green-400/60 shadow-lg shadow-green-300/30"
                     style={{ top: relTop - 4, left: relLeft - 4, width: rect.width + 8, height: rect.height + 8, backgroundColor: "rgba(255,255,255,0.15)", pointerEvents: "none" }} />
                 )}
-                <div className={`absolute flex flex-col rounded-xl border border-amber-200 bg-white p-5 shadow-2xl ${isCentered ? "left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2" : ""}`}
+                <div
+                  className={`absolute flex flex-col rounded-xl border bg-white p-5 shadow-2xl ${isCentered ? "left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2" : ""}`}
                   style={{
-                    width: "min(340px, 85vw)", zIndex: 60,
+                    borderColor: "#dcfce7",
+                    width: "min(340px, 85vw)",
+                    zIndex: 60,
                     ...(!isCentered && rect && parentRect ? {
                       top: step.position === "top" ? Math.max(10, relTop - 180) : Math.min(Math.max(10, relTop + 10), parentRect.height - 220),
                       left: Math.max(10, Math.min(step.position === "right" ? relLeft + rect.width + 16 : step.position === "left" ? relLeft - 356 : relLeft, parentRect.width - 360)),
                     } : {}),
-                  }}>
-                  <button onClick={tourSkip} className="absolute right-2 top-2 rounded-full p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition">
+                  }}
+                >
+                  <button onClick={tourSkip} className="absolute right-2 top-2 rounded-full p-1 text-gray-400 hover:bg-gray-100 transition">
                     <X className="h-4 w-4" />
                   </button>
                   <div className="flex items-center gap-3 mb-2">
@@ -543,7 +707,7 @@ const AssignmentView = ({ defaultType = "school" }) => {
                   <div className="flex items-center justify-between">
                     <div className="flex gap-1.5">
                       {TOUR_STEPS.map((_, i) => (
-                        <div key={i} className={`h-2 rounded-full transition-all ${i === tourStep ? "w-5 bg-amber-500" : i < tourStep ? "w-2 bg-amber-300" : "w-2 bg-gray-200"}`} />
+                        <div key={i} className={`h-2 rounded-full transition-all ${i === tourStep ? "w-5 bg-green-500" : i < tourStep ? "w-2 bg-green-300" : "w-2 bg-gray-200"}`} />
                       ))}
                     </div>
                     <div className="flex items-center gap-2">
@@ -554,12 +718,12 @@ const AssignmentView = ({ defaultType = "school" }) => {
                       )}
                       {tourStep < TOUR_STEPS.length - 1 ? (
                         <button onClick={tourNext} className="flex items-center gap-1 rounded-lg px-3 py-1.5 text-xs font-medium text-white shadow transition hover:brightness-110"
-                          style={{ backgroundColor: "#D97706" }}>
+                          style={{ backgroundColor: "#3d5a45" }}>
                           Next <ChevronRight className="h-3 w-3" />
                         </button>
                       ) : (
                         <button onClick={tourFinish} className="flex items-center gap-1 rounded-lg px-4 py-1.5 text-xs font-medium text-white shadow transition hover:brightness-110"
-                          style={{ backgroundColor: "#16a34a" }}>
+                          style={{ backgroundColor: "#3d5a45" }}>
                           Start Writing!
                         </button>
                       )}
@@ -580,6 +744,8 @@ const AssignmentView = ({ defaultType = "school" }) => {
       {assignmentType === "tryout" && <Tryout />}
     </div>
   );
-};
+});
+
+AssignmentView.displayName = 'AssignmentView';
 
 export default AssignmentView;

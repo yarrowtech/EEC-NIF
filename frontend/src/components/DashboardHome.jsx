@@ -66,9 +66,9 @@ const DashboardHome = () => {
   };
 
   return (
-    <div 
+    <div
       ref={containerRef}
-      className="relative space-y-4 sm:space-y-6 p-4 sm:p-0 min-h-screen"
+      className="relative space-y-4 sm:space-y-6 p-4 sm:p-6"
     >
       {/* Welcome Section */}
       <WelcomeCard />

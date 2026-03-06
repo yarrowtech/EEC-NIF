@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import Sidebar from './Sidebar';
 import Header from './Header';
@@ -41,7 +41,8 @@ const Dashboard = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const [sidebarOpen, setSidebarOpen] = useState(false); // default to closed on mobile
-  
+  const journalRef = useRef(null);
+
   useEffect(() => {
     if (!location.pathname.startsWith('/dashboard')) return;
     const canonicalPath = location.pathname.replace('/dashboard', '/student');
@@ -54,6 +55,13 @@ const Dashboard = () => {
   const setActiveView = (view) => {
     const path = view === 'dashboard' ? '/student' : `/student/${view}`;
     navigate(path);
+  };
+
+  // Function to handle journal save from mobile nav
+  const handleSaveJournal = () => {
+    if (journalRef.current?.saveJournal) {
+      journalRef.current.saveJournal();
+    }
   };
 
   // Define view components in an object for cleaner code
@@ -69,7 +77,7 @@ const Dashboard = () => {
     schedule: RoutineView,
     'lesson-plan-status': LessonPlanStatusView,
     assignments: (props) => <AssignmentView {...props} defaultType="school" />,
-    'assignments-journal': (props) => <AssignmentView {...props} defaultType="journal" />,
+    'assignments-journal': (props) => <AssignmentView {...props} ref={journalRef} defaultType="journal" />,
     'assignments-academic-alcove': (props) => <AcademicAlcove {...props} />,
     'study-materials': StudyMaterials,
     courses: CoursesView,
@@ -94,7 +102,7 @@ const Dashboard = () => {
 
   const renderContent = () => {
     const Component = viewComponents[activeView];
-    
+
     if (Component) {
       return typeof Component === 'function' ? <Component /> : <Component setActiveView={setActiveView} />;
     } else {
@@ -105,29 +113,28 @@ const Dashboard = () => {
   return (
     <StudentDashboardProvider>
       <div className="min-h-screen w-full bg-gray-50 flex relative overflow-hidden">
-        <Sidebar 
+        <Sidebar
           activeView={activeView}
           isOpen={sidebarOpen}
           setIsOpen={setSidebarOpen}
         />
-        <div 
-          className={`flex-1 flex flex-col h-screen transition-all duration-300 ${
-            sidebarOpen ? '' : ''
-          } ${(activeView === 'chat' || activeView === 'excuse-letter') ? 'overflow-hidden' : 'overflow-y-auto custom-scrollbar'}`}
+        <div
+          className={`flex-1 flex flex-col h-screen transition-all duration-300 ${sidebarOpen ? '' : ''
+            } ${(activeView === 'chat' || activeView === 'excuse-letter' || activeView === 'assignments-journal') ? 'overflow-hidden' : 'overflow-y-auto custom-scrollbar'}`}
         >
-          <Header 
+          <Header
             sidebarOpen={sidebarOpen}
             setSidebarOpen={setSidebarOpen}
             onOpenProfile={() => navigate('/student/profile')}
           />
-          <main className={`flex-1 min-h-0 ${(activeView === 'chat' || activeView === 'excuse-letter') ? 'p-0' : ''} w-full flex flex-col`}>
+          <main className={`flex-1 min-h-0 ${(activeView === 'chat' || activeView === 'excuse-letter' || activeView === 'assignments-journal') ? 'p-0' : ''} w-full flex flex-col`}>
             {renderContent()}
-            {activeView !== 'chat' && activeView !== 'excuse-letter' && (
-              <div className="h-20 md:hidden shrink-0" aria-hidden="true" />
+            {activeView !== 'chat' && activeView !== 'excuse-letter' && activeView !== 'assignments-journal' && (
+              <div className="h-16 md:hidden shrink-0" aria-hidden="true" />
             )}
           </main>
         </div>
-        <MobileBottomNav activeView={activeView} />
+        <MobileBottomNav activeView={activeView} onSaveJournal={handleSaveJournal} />
       </div>
     </StudentDashboardProvider>
   );

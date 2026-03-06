@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Vibrant Minimalist Journal</title>
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Merriweather:ital,wght@0,300;0,400;0,700;1,400&amp;family=Inter:wght@300;400;500;600&amp;family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,typography"></script>
+<script>
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        primary: "#3d5a45", // Deep Forest Green
+                        accent: "#8b5e3c",  // Earthy Brown
+                        "background-light": "#fdfcf8", // Creamy Paper
+                        "background-dark": "#1a1c1a",  // Dark Moss
+                    },
+                    fontFamily: {
+                        display: ["Merriweather", "serif"],
+                        sans: ["Inter", "sans-serif"],
+                    },
+                    borderRadius: {
+                        DEFAULT: "12px",
+                        'xl': '20px',
+                    },
+                },
+            },
+        };
+    </script>
+<style>
+        .paper-lines {
+            background-image: linear-gradient(#e5e7eb 1px, transparent 1px);
+            background-size: 100% 2.5rem;
+        }
+        .dark .paper-lines {
+            background-image: linear-gradient(#2d312d 1px, transparent 1px);
+        }
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 6px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: #d1d5db;
+            border-radius: 10px;
+        }
+        .dark .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: #374151;
+        }
+    </style>
+</head>
+<body class="bg-background-light dark:bg-background-dark font-sans text-slate-800 dark:text-slate-200 min-h-screen flex flex-col transition-colors duration-300">
+<header class="border-b border-stone-200 dark:border-stone-800 bg-white/50 dark:bg-background-dark/50 backdrop-blur-md sticky top-0 z-30">
+<div class="max-w-[1600px] mx-auto px-6 h-16 flex items-center justify-between">
+<div class="flex items-center gap-3">
+<div class="w-10 h-10 bg-primary rounded-lg flex items-center justify-center text-white shadow-lg shadow-primary/20">
+<span class="material-symbols-outlined">auto_stories</span>
+</div>
+<div>
+<h1 class="font-display font-bold text-xl tracking-tight text-primary dark:text-green-400">My Learning Journal</h1>
+<p class="text-[10px] uppercase tracking-widest text-stone-500 dark:text-stone-400 font-semibold">Personal Growth Notebook</p>
+</div>
+</div>
+<div class="flex items-center gap-4">
+<button class="flex items-center gap-2 px-4 py-2 text-sm font-medium text-stone-600 dark:text-stone-300 hover:bg-stone-100 dark:hover:bg-stone-800 rounded-full transition-all">
+<span class="material-symbols-outlined text-lg">auto_awesome</span>
+<span>Tour</span>
+</button>
+<div class="h-6 w-[1px] bg-stone-200 dark:bg-stone-800"></div>
+<div class="flex items-center gap-2 bg-amber-50 dark:bg-amber-900/20 px-4 py-2 rounded-full border border-amber-100 dark:border-amber-800">
+<span class="material-symbols-outlined text-amber-600 dark:text-amber-400 text-lg">database</span>
+<span class="text-sm font-bold text-amber-700 dark:text-amber-300">1,240 Points</span>
+</div>
+<button class="p-2 rounded-full hover:bg-stone-100 dark:hover:bg-stone-800 transition-all" onclick="document.documentElement.classList.toggle('dark')">
+<span class="material-symbols-outlined text-stone-600 dark:text-stone-400">dark_mode</span>
+</button>
+</div>
+</div>
+</header>
+<main class="flex-1 flex max-w-[1600px] mx-auto w-full relative">
+<aside class="w-80 border-r border-stone-200 dark:border-stone-800 flex flex-col bg-stone-50/50 dark:bg-stone-900/30">
+<div class="p-6">
+<h2 class="font-display text-sm uppercase tracking-[0.2em] text-stone-400 mb-6 font-bold">Index</h2>
+<button class="w-full flex items-center justify-center gap-2 p-4 border-2 border-dashed border-stone-300 dark:border-stone-700 rounded-xl text-stone-500 dark:text-stone-400 hover:border-primary hover:text-primary dark:hover:border-green-500 dark:hover:text-green-500 transition-all group">
+<span class="material-symbols-outlined group-hover:rotate-90 transition-transform">add</span>
+<span class="font-medium">New Entry</span>
+</button>
+</div>
+<div class="flex-1 overflow-y-auto px-6 pb-6 custom-scrollbar space-y-4">
+<div class="p-4 bg-white dark:bg-stone-800 rounded-xl shadow-sm border border-stone-200 dark:border-stone-700 cursor-pointer hover:shadow-md hover:border-primary/30 dark:hover:border-green-500/30 transition-all group">
+<div class="flex justify-between items-start mb-2">
+<span class="text-[10px] font-bold text-stone-400 uppercase tracking-widest">Entry #042</span>
+<span class="material-symbols-outlined text-stone-300 dark:text-stone-600 text-sm group-hover:text-red-400 transition-colors">delete</span>
+</div>
+<h3 class="font-display font-bold text-stone-800 dark:text-stone-200 line-clamp-1 mb-1">Tailwind Design Systems</h3>
+<p class="text-xs text-stone-500 dark:text-stone-400 mb-3">Mar 06, 2026</p>
+<div class="flex items-center gap-2">
+<span class="w-2 h-2 rounded-full bg-green-500"></span>
+<span class="text-[10px] font-medium text-stone-400 uppercase">Coding</span>
+</div>
+</div>
+<div class="p-4 bg-primary dark:bg-green-900/40 rounded-xl shadow-lg border border-primary/10 cursor-pointer transition-all">
+<div class="flex justify-between items-start mb-2">
+<span class="text-[10px] font-bold text-white/60 uppercase tracking-widest">Entry #041</span>
+<span class="material-symbols-outlined text-white/40 text-sm">edit</span>
+</div>
+<h3 class="font-display font-bold text-white line-clamp-1 mb-1">Physics &amp; Daily Life</h3>
+<p class="text-xs text-white/70 mb-3">Mar 05, 2026</p>
+<div class="flex items-center gap-2">
+<span class="w-2 h-2 rounded-full bg-white/40"></span>
+<span class="text-[10px] font-medium text-white/60 uppercase">Science</span>
+</div>
+</div>
+<div class="p-4 bg-white dark:bg-stone-800 rounded-xl shadow-sm border border-stone-200 dark:border-stone-700 cursor-pointer hover:shadow-md transition-all group">
+<div class="flex justify-between items-start mb-2">
+<span class="text-[10px] font-bold text-stone-400 uppercase tracking-widest">Entry #040</span>
+<span class="material-symbols-outlined text-stone-300 dark:text-stone-600 text-sm group-hover:text-red-400 transition-colors">delete</span>
+</div>
+<h3 class="font-display font-bold text-stone-800 dark:text-stone-200 line-clamp-1 mb-1">Morning Reflection</h3>
+<p class="text-xs text-stone-500 dark:text-stone-400 mb-3">Mar 04, 2026</p>
+<div class="flex items-center gap-2">
+<span class="w-2 h-2 rounded-full bg-amber-400"></span>
+<span class="text-[10px] font-medium text-stone-400 uppercase">Personal</span>
+</div>
+</div>
+</div>
+<div class="p-6 border-t border-stone-200 dark:border-stone-800 bg-stone-50 dark:bg-stone-900/50">
+<div class="flex items-center justify-between text-stone-400 text-[10px] font-bold uppercase tracking-widest">
+<span>Total Pages</span>
+<span class="text-primary dark:text-green-500">42</span>
+</div>
+</div>
+</aside>
+<section class="flex-1 flex flex-col bg-white dark:bg-background-dark relative overflow-hidden">
+<div class="flex-1 overflow-y-auto px-8 lg:px-24 py-12 custom-scrollbar">
+<div class="max-w-3xl mx-auto space-y-8">
+<div class="flex items-center justify-between">
+<span class="text-xs font-bold uppercase tracking-[0.2em] text-stone-400 dark:text-stone-500">Friday, March 6, 2026</span>
+<div class="flex gap-2">
+<div class="w-3 h-3 rounded-full border-2 border-stone-200 dark:border-stone-700"></div>
+<div class="w-3 h-3 rounded-full border-2 border-stone-200 dark:border-stone-700"></div>
+<div class="w-3 h-3 rounded-full border-2 border-stone-200 dark:border-stone-700"></div>
+</div>
+</div>
+<input class="w-full bg-transparent border-none p-0 focus:ring-0 text-4xl lg:text-5xl font-display font-bold text-stone-800 dark:text-stone-100 placeholder-stone-200 dark:placeholder-stone-800" placeholder="Title this page..." type="text"/>
+<div class="relative min-h-[500px]">
+<div class="absolute inset-0 paper-lines pointer-events-none opacity-50 dark:opacity-20"></div>
+<textarea class="w-full min-h-[500px] bg-transparent border-none p-0 focus:ring-0 text-lg leading-[2.5rem] text-stone-600 dark:text-stone-300 placeholder-stone-300 dark:placeholder-stone-800 resize-none font-sans" placeholder="Write about what you learned today..."></textarea>
+</div>
+<div class="pt-12 grid grid-cols-1 md:grid-cols-2 gap-8 border-t border-stone-100 dark:border-stone-800">
+<div class="space-y-4">
+<label class="text-[10px] font-bold uppercase tracking-widest text-stone-400">Categories &amp; Tags</label>
+<div class="flex flex-wrap gap-2">
+<span class="px-3 py-1 bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400 text-xs font-semibold rounded-full border border-green-100 dark:border-green-800 flex items-center gap-1">
+                                    #learning <button class="material-symbols-outlined text-[14px]">close</button>
+</span>
+<span class="px-3 py-1 bg-stone-100 dark:bg-stone-800 text-stone-600 dark:text-stone-400 text-xs font-semibold rounded-full border border-stone-200 dark:border-stone-700 flex items-center gap-1">
+                                    #notes <button class="material-symbols-outlined text-[14px]">close</button>
+</span>
+<button class="px-3 py-1 border-2 border-dotted border-stone-200 dark:border-stone-800 text-stone-400 hover:text-primary transition-colors text-xs font-bold rounded-full">
+                                    + Add Tag
+                                </button>
+</div>
+</div>
+<div class="space-y-4">
+<label class="text-[10px] font-bold uppercase tracking-widest text-stone-400">Current Mood</label>
+<div class="flex gap-3">
+<button class="w-12 h-12 flex items-center justify-center rounded-xl bg-stone-50 dark:bg-stone-800 text-2xl grayscale hover:grayscale-0 hover:bg-amber-50 dark:hover:bg-amber-900/20 transition-all border border-transparent hover:border-amber-200">😊</button>
+<button class="w-12 h-12 flex items-center justify-center rounded-xl bg-amber-100 dark:bg-amber-900/40 text-2xl transition-all border border-amber-300 dark:border-amber-700 shadow-sm shadow-amber-200/50">😐</button>
+<button class="w-12 h-12 flex items-center justify-center rounded-xl bg-stone-50 dark:bg-stone-800 text-2xl grayscale hover:grayscale-0 hover:bg-stone-100 dark:hover:bg-stone-700 transition-all border border-transparent">🤔</button>
+<button class="w-12 h-12 flex items-center justify-center rounded-xl bg-stone-50 dark:bg-stone-800 text-2xl grayscale hover:grayscale-0 hover:bg-orange-50 dark:hover:bg-orange-900/20 transition-all border border-transparent">💪</button>
+<button class="w-12 h-12 flex items-center justify-center rounded-xl bg-stone-50 dark:bg-stone-800 text-2xl grayscale hover:grayscale-0 hover:bg-pink-50 dark:hover:bg-pink-900/20 transition-all border border-transparent">🎉</button>
+</div>
+</div>
+</div>
+</div>
+</div>
+<button class="absolute bottom-10 right-10 group flex items-center gap-3 bg-primary hover:bg-primary/90 text-white pl-6 pr-8 py-4 rounded-full shadow-2xl shadow-primary/40 transform transition-all hover:scale-105 active:scale-95">
+<span class="material-symbols-outlined group-hover:animate-pulse">save</span>
+<span class="font-bold tracking-wide">Save Entry</span>
+</button>
+</section>
+</main>
+<div class="hidden lg:block fixed bottom-4 left-4 text-[10px] text-stone-400 font-medium">
+        Press <kbd class="px-1 py-0.5 bg-stone-100 dark:bg-stone-800 rounded border border-stone-200 dark:border-stone-700">Cmd</kbd> + <kbd class="px-1 py-0.5 bg-stone-100 dark:bg-stone-800 rounded border border-stone-200 dark:border-stone-700">S</kbd> to save.
+    </div>
+
+</body></html>
