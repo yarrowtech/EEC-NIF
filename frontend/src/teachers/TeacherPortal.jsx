@@ -28,14 +28,12 @@ import {
 
 import HealthUpdates from './HealthUpdates';
 import ParentMeetings from './ParentMeetings';
-import AssignmentManagement from './AssignmentManagement';
-import AssignmentEvaluation from './AssignmentEvaluation';
+import AssignmentPortal from './AssignmentPortal';
 import AttendanceManagement from './AttendanceManagement';
 import TeacherDashboard from './TeacherDashboard';
 import LessonPlanDashboard from './LessonPlanDashboard';
 import TeacherChat from './TeacherChat';
-import StudentProgress from './StudentProgress';
-import WeakStudentIdentification from './WeakStudentIdentification';
+import StudentAnalyticsPortal from './StudentAnalyticsPortal';
 import AILearningPath from './AILearningPath';
 import TestTeacherPortal from './TestTeacherPortal';
 import AIPoweredTeaching from './AIPoweredTeaching';
@@ -67,8 +65,7 @@ const menuSections = [
     icon: Users,
     children: [
       { icon: UserCheck, label: 'Attendance', path: `${PORTAL_BASE}/attendance` },
-      { icon: BarChart3, label: 'Student Progress', path: `${PORTAL_BASE}/progress` },
-      { icon: AlertTriangle, label: 'Weak Students', path: `${PORTAL_BASE}/weak-students` },
+      { icon: BarChart3, label: 'Student Analytics', path: `${PORTAL_BASE}/student-analytics` },
       { icon: Activity, label: 'Student Health Updates', path: `${PORTAL_BASE}/health-updates` },
       { icon: Eye, label: 'Student Observations', path: `${PORTAL_BASE}/student-observations` },
     ],
@@ -79,8 +76,7 @@ const menuSections = [
     icon: BookOpen,
     children: [
       { icon: Brain, label: 'AI Powered Teaching', path: `${PORTAL_BASE}/ai-powered-teaching` },
-      { icon: FileText, label: 'Assignment Management', path: `${PORTAL_BASE}/assignments` },
-      { icon: ClipboardCheck, label: 'Assignment Evaluation', path: `${PORTAL_BASE}/evaluation` },
+      { icon: FileText, label: 'Assignments', path: `${PORTAL_BASE}/assignments` },
       { icon: FileText, label: 'Practice Questions', path: `${PORTAL_BASE}/practice-questions` },
       { icon: BookOpen, label: 'Lesson Plans', path: `${PORTAL_BASE}/lesson-plans` },
       { icon: FileText, label: 'Class Notes', path: `${PORTAL_BASE}/class-notes` },
@@ -227,11 +223,9 @@ const TeacherPortal = () => {
       )}
 
       <aside
-        className={`fixed lg:sticky top-0 left-0 z-40 h-screen flex flex-col bg-white shadow-2xl border-r border-gray-200 overflow-x-hidden ${
-          sidebarCollapsed ? 'lg:w-20' : 'lg:w-80'
-        } w-80 ${
-          sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
-        }`}
+        className={`fixed lg:sticky top-0 left-0 z-40 h-screen flex flex-col bg-white shadow-2xl border-r border-gray-200 overflow-x-hidden ${sidebarCollapsed ? 'lg:w-20' : 'lg:w-80'
+          } w-80 ${sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
+          }`}
         style={{
           transitionProperty: 'width, transform, box-shadow',
           transitionDuration: '0.4s',
@@ -241,11 +235,10 @@ const TeacherPortal = () => {
         {/* ── Sidebar Header ── */}
         <div className="relative shrink-0 overflow-hidden">
           {/* Expanded header */}
-          <div className={`transition-all duration-400 ease-in-out ${
-            !sidebarCollapsed
+          <div className={`transition-all duration-400 ease-in-out ${!sidebarCollapsed
               ? 'opacity-100 transform translate-x-0'
               : 'opacity-0 transform -translate-x-4 pointer-events-none absolute inset-0'
-          }`}>
+            }`}>
             <div className="absolute inset-0 bg-linear-to-br from-yellow-600 via-yellow-600 to-yellow-500 opacity-90" />
             <div className="relative p-3">
               <div className="flex items-center justify-between">
@@ -279,11 +272,10 @@ const TeacherPortal = () => {
           </div>
 
           {/* Collapsed header */}
-          <div className={`transition-all duration-400 ease-in-out ${
-            sidebarCollapsed
+          <div className={`transition-all duration-400 ease-in-out ${sidebarCollapsed
               ? 'opacity-100 transform translate-x-0'
               : 'opacity-0 transform translate-x-4 pointer-events-none absolute inset-0'
-          }`}>
+            }`}>
             <div className="p-2 border-b border-gray-200">
               <div className="flex flex-col items-center space-y-3">
                 <div className="relative">
@@ -360,9 +352,8 @@ const TeacherPortal = () => {
                           >
                             <item.icon
                               size={16}
-                              className={`shrink-0 transition-all duration-300 ${
-                                active ? 'text-yellow-600' : 'group-hover:text-blue-600 group-hover:scale-110'
-                              }`}
+                              className={`shrink-0 transition-all duration-300 ${active ? 'text-yellow-600' : 'group-hover:text-blue-600 group-hover:scale-110'
+                                }`}
                             />
                             <span className="text-sm font-medium transition-all duration-300">{item.label}</span>
                           </NavLink>
@@ -528,16 +519,17 @@ const TeacherPortal = () => {
               <Route path="my-work-portal" element={<MyWorkPortal />} />
               <Route path="class-routine" element={<ClassRoutine />} />
               <Route path="attendance" element={<AttendanceManagement />} />
-              <Route path="progress" element={<StudentProgress />} />
-              <Route path="weak-students" element={<WeakStudentIdentification />} />
+              <Route path="student-analytics" element={<StudentAnalyticsPortal />} />
+              <Route path="progress" element={<Navigate to="/teacher/student-analytics" replace />} />
+              <Route path="weak-students" element={<Navigate to="/teacher/student-analytics" replace />} />
               <Route path="ai-powered-teaching" element={<AIPoweredTeaching />} />
               <Route path="ai-learning/:studentId/:subject" element={<AILearningPath />} />
               <Route path="health-updates" element={<HealthUpdates />} />
               <Route path="student-observations" element={<StudentObservation />} />
               <Route path="parent-meetings" element={<ParentMeetings />} />
-              <Route path="assignments" element={<AssignmentManagement />} />
+              <Route path="assignments" element={<AssignmentPortal />} />
+              <Route path="evaluation" element={<Navigate to="/teacher/assignments" replace />} />
               <Route path="practice-questions" element={<PracticeQuestions />} />
-              <Route path="evaluation" element={<AssignmentEvaluation />} />
               <Route path="chat" element={<TeacherChat />} />
               <Route path="lesson-plans" element={<LessonPlanDashboard />} />
               <Route path="class-notes" element={<ClassNotes />} />
