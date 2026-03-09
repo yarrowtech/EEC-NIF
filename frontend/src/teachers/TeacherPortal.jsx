@@ -66,13 +66,7 @@ const menuSections = [
     icon: Users,
     children: [
       { icon: UserCheck, label: 'Attendance', path: `${PORTAL_BASE}/attendance` },
-<<<<<<< HEAD
-      { icon: BarChart3, label: 'Student Progress', path: `${PORTAL_BASE}/progress` },
-      { icon: FileText, label: 'Result Management', path: `${PORTAL_BASE}/results` },
-      { icon: AlertTriangle, label: 'Weak Students', path: `${PORTAL_BASE}/weak-students` },
-=======
       { icon: BarChart3, label: 'Student Analytics', path: `${PORTAL_BASE}/student-analytics` },
->>>>>>> 8118a6912100f00fbe831ee8c9fccc02ce3f1237
       { icon: Activity, label: 'Student Health Updates', path: `${PORTAL_BASE}/health-updates` },
       { icon: Eye, label: 'Student Observations', path: `${PORTAL_BASE}/student-observations` },
     ],
@@ -526,15 +520,9 @@ const TeacherPortal = () => {
               <Route path="my-work-portal" element={<MyWorkPortal />} />
               <Route path="class-routine" element={<ClassRoutine />} />
               <Route path="attendance" element={<AttendanceManagement />} />
-<<<<<<< HEAD
-              <Route path="progress" element={<StudentProgress />} />
-              <Route path="results" element={<ResultManagement />} />
-              <Route path="weak-students" element={<WeakStudentIdentification />} />
-=======
               <Route path="student-analytics" element={<StudentAnalyticsPortal />} />
               <Route path="progress" element={<Navigate to="/teacher/student-analytics" replace />} />
               <Route path="weak-students" element={<Navigate to="/teacher/student-analytics" replace />} />
->>>>>>> 8118a6912100f00fbe831ee8c9fccc02ce3f1237
               <Route path="ai-powered-teaching" element={<AIPoweredTeaching />} />
               <Route path="ai-learning/:studentId/:subject" element={<AILearningPath />} />
               <Route path="health-updates" element={<HealthUpdates />} />
