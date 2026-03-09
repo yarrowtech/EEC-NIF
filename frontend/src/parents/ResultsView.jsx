@@ -88,7 +88,7 @@ const ResultsView = () => {
     <div className="p-6">
       <div className="bg-gradient-to-r from-yellow-400 to-yellow-500 rounded-xl p-6 mb-6 text-white">
         <h1 className="text-3xl font-bold mb-2">Results</h1>
-        <p className="text-yellow-100">View your child's published marks and assignments</p>
+        <p className="text-yellow-100">Child performance, latest academic score, academic summary, and result overview</p>
       </div>
 
       {error && (
@@ -149,22 +149,22 @@ const ResultsView = () => {
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
             <div className="bg-white rounded-xl p-6 shadow-sm">
-              <h3 className="text-lg font-semibold text-gray-800 mb-2">Student Info</h3>
+              <h3 className="text-lg font-semibold text-gray-800 mb-2">Child Performance</h3>
               <p className="text-gray-600 text-sm">
                 {selectedReport?.studentName} • Grade {selectedReport?.grade} {selectedReport?.section}
               </p>
             </div>
             <div className="bg-white rounded-xl p-6 shadow-sm text-center">
               <h3 className="text-2xl font-bold text-yellow-600">{summary.averagePercentage ?? '--'}%</h3>
-              <p className="text-gray-600 text-sm">Average Score</p>
+              <p className="text-gray-600 text-sm">Latest Academic Score</p>
             </div>
             <div className="bg-white rounded-xl p-6 shadow-sm text-center">
               <h3 className="text-2xl font-bold text-blue-600">{summary.examCount ?? 0}</h3>
-              <p className="text-gray-600 text-sm">Published Exams</p>
+              <p className="text-gray-600 text-sm">Academic Summary (Exams)</p>
             </div>
             <div className="bg-white rounded-xl p-6 shadow-sm text-center">
               <h3 className="text-2xl font-bold text-green-600">{summary.assignmentCount ?? 0}</h3>
-              <p className="text-gray-600 text-sm">Graded Assignments</p>
+              <p className="text-gray-600 text-sm">Result Overview (Assignments)</p>
             </div>
           </div>
 

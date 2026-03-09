@@ -23,7 +23,7 @@ const Result = ({ setShowAdminHeader }) => {
   const [sections, setSections] = useState([]);
 
   // UI states
-  const [activeTab, setActiveTab] = useState('results');
+  const activeTab = 'results';
   const [loading, setLoading] = useState(true);
   const [loadingExams, setLoadingExams] = useState(false);
   const [loadingStudents, setLoadingStudents] = useState(false);
@@ -529,7 +529,7 @@ const Result = ({ setShowAdminHeader }) => {
           ))}
         </select>
         {exams.length === 0 && (
-          <p className="text-xs text-blue-600 mt-1">No exams found. <button type="button" onClick={() => setShowAddExamModal(true)} className="underline font-medium">Create one</button></p>
+          <p className="text-xs text-blue-600 mt-1">No exams found. Please create exams from Exam Management.</p>
         )}
       </div>
       <div>
@@ -603,14 +603,14 @@ const Result = ({ setShowAdminHeader }) => {
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
             <div>
               <h1 className="text-2xl font-bold text-gray-900">Result Management</h1>
-              <p className="text-sm text-gray-500 mt-0.5">Manage exams, record marks, and publish student results</p>
+              <p className="text-sm text-gray-500 mt-0.5">Record marks and publish student results linked to admin-created exams</p>
             </div>
             <div className="flex items-center gap-2">
               <button onClick={() => { fetchResults(); fetchExams(); }} className="flex items-center gap-1.5 px-3 py-2 text-sm text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors">
                 <RefreshCw className="w-4 h-4" /> Refresh
               </button>
-              <button onClick={() => setShowAddExamModal(true)} className="flex items-center gap-1.5 px-4 py-2 text-sm bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors font-medium">
-                <Plus className="w-4 h-4" /> New Exam
+              <button onClick={() => { window.location.href = '/admin/examination'; }} className="flex items-center gap-1.5 px-4 py-2 text-sm bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors font-medium">
+                <BookOpen className="w-4 h-4" /> Exam Management
               </button>
               <button
                 onClick={async () => { await Promise.all([fetchExams(), fetchStudentsByClass(true)]); setShowAddResultModal(true); }}
@@ -619,30 +619,6 @@ const Result = ({ setShowAdminHeader }) => {
                 <Plus className="w-4 h-4" /> Add Result
               </button>
             </div>
-          </div>
-
-          {/* Tabs */}
-          <div className="flex gap-1 mt-5 border-b border-gray-200">
-            {[
-              { key: 'results', label: 'Results', icon: FileSpreadsheet, count: results.length },
-              { key: 'exams', label: 'Exams', icon: BookOpen, count: exams.length },
-            ].map(tab => (
-              <button
-                key={tab.key}
-                onClick={() => setActiveTab(tab.key)}
-                className={`flex items-center gap-2 px-5 py-2.5 text-sm font-medium border-b-2 transition-colors -mb-px ${
-                  activeTab === tab.key
-                    ? 'border-blue-600 text-blue-600'
-                    : 'border-transparent text-gray-500 hover:text-gray-700'
-                }`}
-              >
-                <tab.icon className="w-4 h-4" />
-                {tab.label}
-                <span className={`px-1.5 py-0.5 rounded-full text-xs ${activeTab === tab.key ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-600'}`}>
-                  {tab.count}
-                </span>
-              </button>
-            ))}
           </div>
         </div>
       </div>
@@ -818,7 +794,7 @@ const Result = ({ setShowAdminHeader }) => {
                   <select value={selectedTerm} onChange={e => setSelectedTerm(e.target.value)}
                     className="px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
                     <option value="all">All Terms</option>
-                    {['Term 1', 'Term 2', 'Term 3', 'Final'].map(t => <option key={t} value={t}>{t}</option>)}
+                    {['Class Test', 'Unit Test', 'Monthly Test', 'Term 1', 'Term 2', 'Term 3', 'Half Yearly', 'Annual', 'Final'].map(t => <option key={t} value={t}>{t}</option>)}
                   </select>
                 </div>
                 <p className="text-sm text-gray-500">{filteredExams.length} exam{filteredExams.length !== 1 ? 's' : ''} found</p>

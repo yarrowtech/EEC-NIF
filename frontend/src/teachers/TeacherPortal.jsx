@@ -46,6 +46,7 @@ import ClassNotes from './ClassNotes';
 import PracticeQuestions from './PracticeQuestions';
 import TeacherFeedbackPortal from './TeacherFeedbackPortal';
 import ExcuseLetters from './ExcuseLetters';
+import ResultManagement from './ResultManagement';
 import { AUTH_NOTICE, logoutAndRedirect } from '../utils/authSession';
 
 const PORTAL_BASE = '/teacher';
@@ -68,6 +69,7 @@ const menuSections = [
     children: [
       { icon: UserCheck, label: 'Attendance', path: `${PORTAL_BASE}/attendance` },
       { icon: BarChart3, label: 'Student Progress', path: `${PORTAL_BASE}/progress` },
+      { icon: FileText, label: 'Result Management', path: `${PORTAL_BASE}/results` },
       { icon: AlertTriangle, label: 'Weak Students', path: `${PORTAL_BASE}/weak-students` },
       { icon: Activity, label: 'Student Health Updates', path: `${PORTAL_BASE}/health-updates` },
       { icon: Eye, label: 'Student Observations', path: `${PORTAL_BASE}/student-observations` },
@@ -529,6 +531,7 @@ const TeacherPortal = () => {
               <Route path="class-routine" element={<ClassRoutine />} />
               <Route path="attendance" element={<AttendanceManagement />} />
               <Route path="progress" element={<StudentProgress />} />
+              <Route path="results" element={<ResultManagement />} />
               <Route path="weak-students" element={<WeakStudentIdentification />} />
               <Route path="ai-powered-teaching" element={<AIPoweredTeaching />} />
               <Route path="ai-learning/:studentId/:subject" element={<AILearningPath />} />

@@ -7,7 +7,17 @@ const examSchema = new mongoose.Schema({
     subject: String,
     term: {
         type: String,
-        enum: ['Term 1', 'Term 2', 'Term 3', 'Class Test', 'Final'],
+        enum: [
+            'Class Test',
+            'Unit Test',
+            'Monthly Test',
+            'Term 1',
+            'Term 2',
+            'Term 3',
+            'Half Yearly',
+            'Annual',
+            'Final'
+        ],
         default: 'Term 1'
     },
     instructor: String,
@@ -19,6 +29,8 @@ const examSchema = new mongoose.Schema({
     noOfStudents: Number,
     status: String,
     classId: { type: mongoose.Schema.Types.ObjectId, ref: 'Class' },
+    sectionId: { type: mongoose.Schema.Types.ObjectId, ref: 'Section' },
+    subjectId: { type: mongoose.Schema.Types.ObjectId, ref: 'Subject' },
     grade: String,
     section: String,
     published: { type: Boolean, default: false },

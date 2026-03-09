@@ -118,14 +118,14 @@ export const ADMIN_MENU_ITEMS = [
     label: 'Lesson Plan',
     path: '/admin/lesson-plans'
   },
-  // {
-  //   icon: Calendar,
-  //   label: 'Examination Management',
-  //   path: '/admin/examination'
-  // },
+  {
+    icon: Calendar,
+    label: 'Exam Management',
+    path: '/admin/examination'
+  },
   {
     icon: FileText,
-    label: 'Result',
+    label: 'Result Management',
     path: '/admin/result'
   },
   {

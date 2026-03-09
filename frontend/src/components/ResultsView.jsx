@@ -108,7 +108,7 @@ const ResultsView = () => {
               <Trophy className="w-6 h-6 text-yellow-200" />
               <h1 className="text-xl md:text-3xl font-bold">My Results</h1>
             </div>
-            <p className="text-yellow-100 text-xs md:text-sm">Your academic performance at a glance</p>
+            <p className="text-yellow-100 text-xs md:text-sm">Score card, academic progress overview, and performance blocks</p>
           </div>
           <div className="text-right shrink-0">
             <div className="bg-white/20 rounded-xl px-3 py-2 backdrop-blur-sm">
@@ -130,6 +130,10 @@ const ResultsView = () => {
           {error}
         </div>
       )}
+
+      <div className="flex items-center justify-between">
+        <h2 className="text-sm font-semibold text-gray-800">Score Card</h2>
+      </div>
 
       {/* Summary stat cards — 2 col on mobile, 4 col on desktop */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
@@ -161,6 +165,15 @@ const ResultsView = () => {
         />
       </div>
 
+      <div className="rounded-xl border border-gray-100 bg-white p-4">
+        <h2 className="text-sm font-semibold text-gray-800 mb-2">Academic Progress Overview</h2>
+        <p className="text-xs text-gray-500">
+          Overall average: <span className="font-semibold text-gray-700">{overview.averagePercentage.toFixed(1)}%</span> |
+          Top performance: <span className="font-semibold text-gray-700"> {overview.topScore?.examName || 'N/A'}</span> |
+          Latest record: <span className="font-semibold text-gray-700"> {overview.recentExam?.examName || 'N/A'}</span>
+        </p>
+      </div>
+
       {/* Filter chips — horizontal scroll on mobile */}
       <div className="flex overflow-x-auto gap-2 pb-1 scrollbar-hide -mx-3 px-3 md:mx-0 md:px-0 md:flex-wrap">
         {examTypes.map(type => (
@@ -176,6 +189,10 @@ const ResultsView = () => {
             {type === 'all' ? 'All Results' : type === 'assignment' ? 'Assignments' : type.replace(/^\w/, c => c.toUpperCase())}
           </button>
         ))}
+      </div>
+
+      <div className="flex items-center justify-between">
+        <h2 className="text-sm font-semibold text-gray-800">Performance Blocks</h2>
       </div>
 
       {/* Results list */}

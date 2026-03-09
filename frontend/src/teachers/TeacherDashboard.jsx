@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
   Users,
@@ -8,7 +8,6 @@ import {
   ClipboardCheck,
   Bell,
   TrendingUp,
-  BookOpen,
   BarChart3,
   Clock,
   Eye,
@@ -82,9 +81,9 @@ const TeacherDashboard = () => {
 
   const getGreeting = () => {
     const hour = currentDateTime.getHours();
-    if (hour < 12) return 'Good Morning';
-    if (hour < 18) return 'Good Afternoon';
-    return 'Good Evening';
+    if (hour < 12) return 'Good morning';
+    if (hour < 18) return 'Good afternoon';
+    return 'Good evening';
   };
 
   const dateStr = currentDateTime.toLocaleDateString('en-US', {
@@ -145,28 +144,36 @@ const TeacherDashboard = () => {
   ];
 
   return (
-    <div className="space-y-4 sm:space-y-6">
+    <div className="min-h-screen bg-slate-50">
+    <div className="mx-auto max-w-screen-2xl space-y-4 p-4 sm:space-y-6 sm:p-6">
 
       {/* Welcome Banner */}
-      <div className="relative overflow-hidden rounded-2xl bg-linear-to-br from-blue-600 via-indigo-600 to-violet-700 p-5 sm:p-7 text-white">
-        <div className="absolute -top-10 -right-10 w-40 h-40 bg-white/5 rounded-full blur-2xl" />
-        <div className="absolute bottom-0 left-0 w-60 h-32 bg-white/5 rounded-full blur-3xl" />
+      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-slate-900 via-blue-950 to-slate-900 p-5 shadow-lg sm:p-7 text-white">
+        <div className="absolute top-0 right-0 w-72 h-72 bg-indigo-400/10 rounded-full -translate-y-1/3 translate-x-1/4 blur-2xl" />
+        <div className="absolute bottom-0 left-0 w-48 h-48 bg-cyan-500/10 rounded-full translate-y-1/3 -translate-x-1/4 blur-2xl" />
         <div className="relative flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
+            <div className="mb-1 flex items-center gap-2">
+              <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
+              <span className="text-xs font-semibold tracking-wider uppercase text-emerald-400">Teacher Portal Active</span>
+            </div>
             <h1 className="text-xl sm:text-2xl font-bold tracking-tight">
               {getGreeting()}, {dashboardData?.teacher?.name || 'Teacher'}
             </h1>
-            <p className="mt-1 text-sm text-white/70">{dateStr}</p>
+            <p className="mt-1 text-sm text-slate-300">{dateStr}</p>
           </div>
           <div className="flex items-center gap-3">
-            <div className="flex items-center gap-2 bg-white/10 backdrop-blur-sm px-4 py-2 rounded-xl border border-white/10">
-              <Clock size={16} className="text-white/70" />
-              <span className="font-semibold tabular-nums">{timeStr}</span>
+            <div className="flex flex-col items-end gap-1 bg-white/5 backdrop-blur-sm px-4 py-2 rounded-xl border border-white/10">
+              <p className="text-xs text-slate-400">Current Time</p>
+              <div className="flex items-center gap-2">
+                <Clock size={16} className="text-white/70" />
+                <span className="font-semibold tabular-nums text-lg">{timeStr}</span>
+              </div>
             </div>
           </div>
         </div>
         {classTeacherLabel && (
-          <div className="relative mt-4 inline-flex items-center rounded-xl border border-white/20 bg-white/10 px-3 py-2 text-xs font-medium text-white/95">
+          <div className="relative mt-4 inline-flex items-center rounded-full border border-white/20 bg-white/10 px-3 py-1.5 text-xs font-medium text-white/95">
             Class Teacher Of: {classTeacherLabel}
           </div>
         )}
@@ -186,27 +193,28 @@ const TeacherDashboard = () => {
       )}
 
       {/* Stats Grid */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3 sm:gap-4">
         {quickStats.map((stat, i) => {
           const Icon = stat.icon;
           return (
-            <div key={i} className="group relative bg-white rounded-2xl border border-gray-100 p-4 sm:p-5 hover:shadow-lg hover:-translate-y-0.5 transition-all duration-300">
+            <div key={i} className={`group relative overflow-hidden rounded-2xl p-5 shadow-md hover:shadow-xl transition-all duration-300 hover:-translate-y-0.5 bg-gradient-to-br ${stat.gradient}`}>
+              <div className="absolute -top-4 -right-4 w-24 h-24 rounded-full bg-white/15" />
               <div className="flex items-center justify-between mb-3">
-                <div className={`p-2.5 rounded-xl bg-linear-to-br ${stat.gradient} shadow-lg`}>
+                <div className="p-2.5 rounded-xl bg-white/20 backdrop-blur-sm">
                   <Icon size={18} className="text-white" />
                 </div>
               </div>
-              <p className="text-[22px] sm:text-2xl font-bold text-gray-900">{stat.value}</p>
-              <p className="text-xs font-medium text-gray-500 mt-0.5">{stat.label}</p>
-              <p className="text-[10px] text-gray-400 mt-1">{stat.change}</p>
+              <p className="text-[26px] sm:text-3xl font-black tracking-tight text-white">{stat.value}</p>
+              <p className="text-xs font-medium text-white/80 mt-0.5">{stat.label}</p>
+              <p className="text-[10px] text-white/70 mt-1">{stat.change}</p>
             </div>
           );
         })}
       </div>
 
       {/* Quick Actions */}
-      <div>
-        <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-3 px-1">Quick Actions</h2>
+      <div className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm">
+        <h2 className="text-sm font-semibold text-gray-700 uppercase tracking-wider mb-3">Quick Actions</h2>
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
           {quickActions.map((action) => {
             const Icon = action.icon;
@@ -214,7 +222,7 @@ const TeacherDashboard = () => {
               <Link
                 key={action.id}
                 to={action.path}
-                className="group flex flex-col items-center gap-2.5 bg-white rounded-2xl border border-gray-100 p-4 hover:shadow-lg hover:-translate-y-0.5 transition-all duration-300"
+                className="group flex flex-col items-center gap-2.5 bg-white rounded-2xl border border-gray-100 p-4 hover:shadow-md hover:-translate-y-0.5 transition-all duration-300"
               >
                 <div className={`p-3 rounded-xl bg-linear-to-br ${action.gradient} shadow-lg group-hover:scale-110 transition-transform duration-300`}>
                   <Icon size={20} className="text-white" />
@@ -233,7 +241,7 @@ const TeacherDashboard = () => {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-5">
 
         {/* Weekly Routine Snapshot */}
-        <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
+        <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden shadow-sm">
           <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
             <div className="flex items-center gap-2">
               <div className="p-1.5 rounded-lg bg-blue-50">
@@ -258,7 +266,7 @@ const TeacherDashboard = () => {
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-semibold text-gray-800 truncate">{c.subject}</p>
                     <p className="text-[11px] text-gray-400">
-                      {c.dayOfWeek ? `${c.dayOfWeek} · ` : ''}{c.class} &middot; {c.room}
+                      {c.dayOfWeek ? `${c.dayOfWeek} | ` : ''}{c.class} | {c.room}
                     </p>
                   </div>
                   <div className="text-right shrink-0">
@@ -281,7 +289,7 @@ const TeacherDashboard = () => {
         </div>
 
         {/* Recent Activities */}
-        <div className="lg:col-span-2 bg-white rounded-2xl border border-gray-100 overflow-hidden">
+        <div className="lg:col-span-2 bg-white rounded-2xl border border-gray-100 overflow-hidden shadow-sm">
           <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
             <div className="flex items-center gap-2">
               <div className="p-1.5 rounded-lg bg-amber-50">
@@ -326,7 +334,7 @@ const TeacherDashboard = () => {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-5">
 
         {/* Performance Overview */}
-        <div className="lg:col-span-2 bg-white rounded-2xl border border-gray-100 overflow-hidden">
+        <div className="lg:col-span-2 bg-white rounded-2xl border border-gray-100 overflow-hidden shadow-sm">
           <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
             <div className="flex items-center gap-2">
               <div className="p-1.5 rounded-lg bg-violet-50">
@@ -404,7 +412,7 @@ const TeacherDashboard = () => {
         </div>
 
         {/* Upcoming Deadlines */}
-        <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
+        <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden shadow-sm">
           <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
             <div className="flex items-center gap-2">
               <div className="p-1.5 rounded-lg bg-rose-50">
@@ -441,6 +449,7 @@ const TeacherDashboard = () => {
           </div>
         </div>
       </div>
+    </div>
     </div>
   );
 };
