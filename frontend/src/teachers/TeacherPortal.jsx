@@ -24,6 +24,7 @@ import {
   ChevronRight,
   User,
   CalendarDays,
+  GraduationCap,
 } from 'lucide-react';
 
 import HealthUpdates from './HealthUpdates';
@@ -44,6 +45,7 @@ import ClassNotes from './ClassNotes';
 import PracticeQuestions from './PracticeQuestions';
 import TeacherFeedbackPortal from './TeacherFeedbackPortal';
 import ExcuseLetters from './ExcuseLetters';
+import ExamManagement from './ExamManagement';
 import ResultManagement from './ResultManagement';
 import { AUTH_NOTICE, logoutAndRedirect } from '../utils/authSession';
 
@@ -81,6 +83,15 @@ const menuSections = [
       { icon: FileText, label: 'Practice Questions', path: `${PORTAL_BASE}/practice-questions` },
       { icon: BookOpen, label: 'Lesson Plans', path: `${PORTAL_BASE}/lesson-plans` },
       { icon: FileText, label: 'Class Notes', path: `${PORTAL_BASE}/class-notes` },
+    ],
+  },
+  {
+    id: 'assessment',
+    label: 'Assessment',
+    icon: GraduationCap,
+    children: [
+      { icon: Calendar, label: 'Exam Management', path: `${PORTAL_BASE}/exams` },
+      { icon: ClipboardCheck, label: 'Result Management', path: `${PORTAL_BASE}/result-management` },
     ],
   },
   {
@@ -534,6 +545,9 @@ const TeacherPortal = () => {
               <Route path="chat" element={<TeacherChat />} />
               <Route path="lesson-plans" element={<LessonPlanDashboard />} />
               <Route path="class-notes" element={<ClassNotes />} />
+              <Route path="exams" element={<ExamManagement />} />
+              <Route path="result-management" element={<ResultManagement />} />
+              <Route path="results" element={<Navigate to="/teacher/result-management" replace />} />
               <Route path="excuse-letters" element={<ExcuseLetters />} />
               <Route path="feedback" element={<TeacherFeedbackPortal />} />
             </Routes>

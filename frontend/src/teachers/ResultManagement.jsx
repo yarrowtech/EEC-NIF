@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { CheckCircle2, Edit2, Plus, Save, Search, Send, Trash2, X } from 'lucide-react';
+import { useLocation } from 'react-router-dom';
 
 const API_BASE = (import.meta.env.VITE_API_URL || 'http://localhost:5000').replace(/\/$/, '');
 
@@ -15,6 +16,7 @@ const EMPTY_FORM = {
 const STATUS_OPTIONS = ['pass', 'fail', 'absent'];
 
 const ResultManagement = () => {
+  const location = useLocation();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
@@ -34,6 +36,14 @@ const ResultManagement = () => {
   const [form, setForm] = useState(EMPTY_FORM);
 
   const token = localStorage.getItem('token');
+
+  useEffect(() => {
+    const params = new URLSearchParams(location.search || '');
+    const examIdFromQuery = params.get('examId') || '';
+    if (examIdFromQuery) {
+      setSelectedExamId(examIdFromQuery);
+    }
+  }, [location.search]);
 
   const apiFetch = useCallback(
     async (path, options = {}) => {
@@ -248,7 +258,7 @@ const ResultManagement = () => {
       setSuccess('');
       await apiFetch(`/api/exam/results/${item._id}`, {
         method: 'PUT',
-        body: JSON.stringify({ published: !Boolean(item.published) }),
+        body: JSON.stringify({ published: !item.published }),
       });
       setSuccess(`Result ${item.published ? 'unpublished' : 'published'} successfully`);
       await loadResults();

@@ -12,6 +12,8 @@ const Notification = require('../models/Notification');
 const ClassModel = require('../models/Class');
 const Section = require('../models/Section');
 const Subject = require('../models/Subject');
+const TeacherAllocation = require('../models/TeacherAllocation');
+const Timetable = require('../models/Timetable');
 const adminAuth = require('../middleware/adminAuth');
 const teacherAuth = require('../middleware/authTeacher');
 const NotificationService = require('../utils/notificationService');
@@ -63,6 +65,76 @@ const resolveAcademicContext = async ({ schoolId, campusId, classId, sectionId, 
     sectionDoc,
     subjectDoc,
   };
+};
+
+const toIdString = (value) => {
+  if (!value) return '';
+  if (typeof value === 'string') return value;
+  if (typeof value === 'object' && value._id) return String(value._id);
+  return String(value);
+};
+
+const buildScopeKey = (classId, sectionId, subjectId) =>
+  `${toIdString(classId)}_${toIdString(sectionId)}_${toIdString(subjectId || '*')}`;
+
+const getTeacherScopeKeys = async ({ schoolId, campusId, teacherId }) => {
+  const keys = new Set();
+  if (!schoolId || !teacherId) return keys;
+
+  const allocations = await TeacherAllocation.find({
+    schoolId,
+    teacherId,
+    ...(campusId
+      ? { $or: [{ campusId }, { campusId: null }, { campusId: { $exists: false } }] }
+      : {}),
+  })
+    .select('classId sectionId subjectId')
+    .lean();
+
+  if (allocations.length) {
+    allocations.forEach((item) => {
+      if (!item?.classId || !item?.sectionId) return;
+      const classId = toIdString(item.classId);
+      const sectionId = toIdString(item.sectionId);
+      const subjectId = item.subjectId ? toIdString(item.subjectId) : '*';
+      keys.add(buildScopeKey(classId, sectionId, subjectId));
+    });
+    return keys;
+  }
+
+  const timetables = await Timetable.find({
+    schoolId,
+    ...(campusId ? { campusId } : {}),
+    'entries.teacherId': teacherId,
+  })
+    .select('classId sectionId entries.teacherId entries.subjectId')
+    .lean();
+
+  timetables.forEach((tt) => {
+    const classId = toIdString(tt.classId);
+    const sectionId = toIdString(tt.sectionId);
+    if (!classId || !sectionId) return;
+    (tt.entries || []).forEach((entry) => {
+      if (toIdString(entry.teacherId) !== toIdString(teacherId)) return;
+      const subjectId = toIdString(entry.subjectId);
+      if (!subjectId) return;
+      keys.add(buildScopeKey(classId, sectionId, subjectId));
+    });
+  });
+
+  return keys;
+};
+
+const canTeacherManageExam = (scopeKeys, examDoc) => {
+  if (!examDoc) return false;
+  const classId = toIdString(examDoc.classId);
+  const sectionId = toIdString(examDoc.sectionId);
+  const subjectId = toIdString(examDoc.subjectId);
+  if (!classId || !sectionId || !subjectId) return false;
+  return (
+    scopeKeys.has(buildScopeKey(classId, sectionId, subjectId)) ||
+    scopeKeys.has(buildScopeKey(classId, sectionId, '*'))
+  );
 };
 
 
@@ -316,6 +388,16 @@ router.post("/results", adminOrTeacherAuth, async (req, res) => {
         if (!exam) {
             return res.status(404).json({ error: 'Exam not found' });
         }
+        if (req.userType === 'teacher') {
+            const scopeKeys = await getTeacherScopeKeys({
+                schoolId,
+                campusId,
+                teacherId: req.user?.id || null,
+            });
+            if (!canTeacherManageExam(scopeKeys, exam)) {
+                return res.status(403).json({ error: 'You are not allocated for this exam' });
+            }
+        }
         const student = await StudentUser.findOne({ _id: studentId, schoolId, ...(campusId ? { campusId } : {}) }).lean();
         if (!student) {
             return res.status(404).json({ error: 'Student not found' });
@@ -372,7 +454,17 @@ router.get("/results", adminOrTeacherAuth, async (req, res) => {
             .populate('examId', 'title subject date term grade section classId sectionId subjectId')
             .lean();
 
-        const filtered = results.filter((result) => {
+        let scopedResults = results;
+        if (req.userType === 'teacher') {
+          const scopeKeys = await getTeacherScopeKeys({
+            schoolId,
+            campusId,
+            teacherId: req.user?.id || null,
+          });
+          scopedResults = results.filter((result) => canTeacherManageExam(scopeKeys, result.examId));
+        }
+
+        const filtered = scopedResults.filter((result) => {
           const studentGrade = result.studentId?.grade || '';
           const studentSection = result.studentId?.section || '';
           const examSubject = result.examId?.subject || '';
@@ -417,13 +509,22 @@ router.get("/results/exam-options", adminOrTeacherAuth, async (req, res) => {
     if (!schoolId) return res.status(400).json({ error: 'schoolId is required' });
     const campusId = req.campusId || null;
 
-    const exams = await Exam.find({ schoolId, ...(campusId ? { campusId } : {}) })
+    let exams = await Exam.find({ schoolId, ...(campusId ? { campusId } : {}) })
       .select('title subject term date time marks grade section status classId sectionId subjectId')
       .populate('classId', 'name')
       .populate('sectionId', 'name classId')
       .populate('subjectId', 'name code classId')
       .sort({ date: -1, createdAt: -1 })
       .lean();
+
+    if (req.userType === 'teacher') {
+      const scopeKeys = await getTeacherScopeKeys({
+        schoolId,
+        campusId,
+        teacherId: req.user?.id || null,
+      });
+      exams = exams.filter((exam) => canTeacherManageExam(scopeKeys, exam));
+    }
 
     res.status(200).json(exams);
   } catch (err) {
@@ -641,6 +742,16 @@ router.put("/results/:id", adminOrTeacherAuth, async (req, res) => {
     ]);
 
     if (!exam) return res.status(404).json({ error: 'Exam not found' });
+    if (req.userType === 'teacher') {
+      const scopeKeys = await getTeacherScopeKeys({
+        schoolId,
+        campusId,
+        teacherId: req.user?.id || null,
+      });
+      if (!canTeacherManageExam(scopeKeys, exam)) {
+        return res.status(403).json({ error: 'You are not allocated for this exam' });
+      }
+    }
     if (!student) return res.status(404).json({ error: 'Student not found' });
     if (exam.grade && String(student.grade || '').trim() !== String(exam.grade || '').trim()) {
       return res.status(400).json({ error: 'Student does not belong to exam class' });
@@ -707,15 +818,32 @@ router.delete("/results/:id", adminOrTeacherAuth, async (req, res) => {
     if (!schoolId) return res.status(400).json({ error: 'schoolId is required' });
     const campusId = req.campusId || null;
 
+    const existing = await ExamResult.findOne({
+      _id: id,
+      schoolId,
+      ...(campusId ? { campusId } : {}),
+    }).populate('examId', 'classId sectionId subjectId').lean();
+
+    if (!existing) {
+      return res.status(404).json({ error: 'Result not found' });
+    }
+
+    if (req.userType === 'teacher') {
+      const scopeKeys = await getTeacherScopeKeys({
+        schoolId,
+        campusId,
+        teacherId: req.user?.id || null,
+      });
+      if (!canTeacherManageExam(scopeKeys, existing.examId)) {
+        return res.status(403).json({ error: 'You are not allocated for this exam' });
+      }
+    }
+
     const deleted = await ExamResult.findOneAndDelete({
       _id: id,
       schoolId,
       ...(campusId ? { campusId } : {}),
     }).lean();
-
-    if (!deleted) {
-      return res.status(404).json({ error: 'Result not found' });
-    }
 
     res.status(200).json({ message: 'Result deleted successfully' });
   } catch (err) {
@@ -891,6 +1019,236 @@ router.put("/results/bulk-publish", adminAuth, async (req, res) => {
         console.error('Bulk publish/unpublish results error:', err);
         res.status(500).json({ error: err.message });
     }
+});
+
+// Teacher exam management (scoped by allocations)
+router.get('/teacher/manage', teacherAuth, async (req, res) => {
+  try {
+    const schoolId = req.schoolId || req.user?.schoolId || null;
+    const campusId = req.campusId || req.user?.campusId || null;
+    const teacherId = req.user?.id || null;
+    if (!schoolId || !teacherId) {
+      return res.status(400).json({ error: 'schoolId and teacherId are required' });
+    }
+
+    const scopeKeys = await getTeacherScopeKeys({ schoolId, campusId, teacherId });
+    let exams = await Exam.find({ schoolId, ...(campusId ? { campusId } : {}) })
+      .populate('classId', 'name')
+      .populate('sectionId', 'name classId')
+      .populate('subjectId', 'name code classId')
+      .sort({ date: -1, createdAt: -1 })
+      .lean();
+    exams = exams.filter((exam) => canTeacherManageExam(scopeKeys, exam));
+
+    res.status(200).json(exams);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post('/teacher/add', teacherAuth, async (req, res) => {
+  try {
+    const schoolId = req.schoolId || req.user?.schoolId || null;
+    const campusId = req.campusId || req.user?.campusId || null;
+    const teacherId = req.user?.id || null;
+    if (!schoolId || !teacherId) {
+      return res.status(400).json({ error: 'schoolId and teacherId are required' });
+    }
+
+    const {
+      title,
+      term,
+      instructor,
+      venue,
+      date,
+      time,
+      duration,
+      marks,
+      noOfStudents,
+      status,
+      classId,
+      sectionId,
+      subjectId,
+      published,
+    } = req.body || {};
+
+    const academicContext = await resolveAcademicContext({ schoolId, campusId, classId, sectionId, subjectId });
+    if (academicContext.error) {
+      return res.status(400).json({ error: academicContext.error });
+    }
+    const { classDoc, sectionDoc, subjectDoc } = academicContext;
+
+    const scopeKeys = await getTeacherScopeKeys({ schoolId, campusId, teacherId });
+    if (!canTeacherManageExam(scopeKeys, { classId: classDoc._id, sectionId: sectionDoc._id, subjectId: subjectDoc._id })) {
+      return res.status(403).json({ error: 'You are not allocated for this class/section/subject' });
+    }
+
+    const exam = await Exam.create({
+      schoolId,
+      campusId: campusId || null,
+      title,
+      subject: subjectDoc.name,
+      term: term || 'Term 1',
+      instructor,
+      venue,
+      date,
+      time,
+      duration,
+      marks,
+      noOfStudents,
+      status,
+      classId: classDoc._id,
+      sectionId: sectionDoc._id,
+      subjectId: subjectDoc._id,
+      grade: classDoc.name || '',
+      section: sectionDoc.name || '',
+      published: Boolean(published),
+      publishedAt: published ? new Date() : null,
+    });
+
+    res.status(201).json({ message: 'Exam added successfully', exam });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+router.put('/teacher/:id', teacherAuth, async (req, res) => {
+  try {
+    const { id } = req.params;
+    if (!mongoose.isValidObjectId(id)) {
+      return res.status(400).json({ error: 'Invalid exam id' });
+    }
+
+    const schoolId = req.schoolId || req.user?.schoolId || null;
+    const campusId = req.campusId || req.user?.campusId || null;
+    const teacherId = req.user?.id || null;
+    if (!schoolId || !teacherId) {
+      return res.status(400).json({ error: 'schoolId and teacherId are required' });
+    }
+
+    const existingExam = await Exam.findOne({ _id: id, schoolId, ...(campusId ? { campusId } : {}) }).lean();
+    if (!existingExam) {
+      return res.status(404).json({ error: 'Exam not found' });
+    }
+
+    const scopeKeys = await getTeacherScopeKeys({ schoolId, campusId, teacherId });
+    if (!canTeacherManageExam(scopeKeys, existingExam)) {
+      return res.status(403).json({ error: 'You are not allocated for this exam' });
+    }
+
+    const {
+      title,
+      term,
+      instructor,
+      venue,
+      date,
+      time,
+      duration,
+      marks,
+      noOfStudents,
+      status,
+      classId,
+      sectionId,
+      subjectId,
+      published,
+    } = req.body || {};
+
+    let academicUpdates = {};
+    if (classId !== undefined || sectionId !== undefined || subjectId !== undefined) {
+      const academicContext = await resolveAcademicContext({
+        schoolId,
+        campusId,
+        classId: classId || existingExam.classId,
+        sectionId: sectionId || existingExam.sectionId,
+        subjectId: subjectId || existingExam.subjectId,
+      });
+      if (academicContext.error) {
+        return res.status(400).json({ error: academicContext.error });
+      }
+
+      const { classDoc, sectionDoc, subjectDoc } = academicContext;
+      if (!canTeacherManageExam(scopeKeys, { classId: classDoc._id, sectionId: sectionDoc._id, subjectId: subjectDoc._id })) {
+        return res.status(403).json({ error: 'You are not allocated for the updated class/section/subject' });
+      }
+
+      academicUpdates = {
+        classId: classDoc._id,
+        sectionId: sectionDoc._id,
+        subjectId: subjectDoc._id,
+        grade: classDoc.name || '',
+        section: sectionDoc.name || '',
+        subject: subjectDoc.name || '',
+      };
+    }
+
+    const updates = {
+      ...(title !== undefined ? { title } : {}),
+      ...(term !== undefined ? { term } : {}),
+      ...(instructor !== undefined ? { instructor } : {}),
+      ...(venue !== undefined ? { venue } : {}),
+      ...(date !== undefined ? { date } : {}),
+      ...(time !== undefined ? { time } : {}),
+      ...(duration !== undefined ? { duration } : {}),
+      ...(marks !== undefined ? { marks } : {}),
+      ...(noOfStudents !== undefined ? { noOfStudents } : {}),
+      ...(status !== undefined ? { status } : {}),
+      ...(published !== undefined ? { published: Boolean(published), publishedAt: published ? new Date() : null } : {}),
+      ...academicUpdates,
+    };
+
+    const exam = await Exam.findOneAndUpdate(
+      { _id: id, schoolId, ...(campusId ? { campusId } : {}) },
+      updates,
+      { new: true, runValidators: true }
+    )
+      .populate('classId', 'name')
+      .populate('sectionId', 'name classId')
+      .populate('subjectId', 'name code classId')
+      .lean();
+
+    res.status(200).json({ message: 'Exam updated successfully', exam });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+router.delete('/teacher/:id', teacherAuth, async (req, res) => {
+  try {
+    const { id } = req.params;
+    if (!mongoose.isValidObjectId(id)) {
+      return res.status(400).json({ error: 'Invalid exam id' });
+    }
+
+    const schoolId = req.schoolId || req.user?.schoolId || null;
+    const campusId = req.campusId || req.user?.campusId || null;
+    const teacherId = req.user?.id || null;
+    if (!schoolId || !teacherId) {
+      return res.status(400).json({ error: 'schoolId and teacherId are required' });
+    }
+
+    const scopeKeys = await getTeacherScopeKeys({ schoolId, campusId, teacherId });
+    const exam = await Exam.findOne({
+      _id: id,
+      schoolId,
+      ...(campusId ? { campusId } : {}),
+    }).lean();
+
+    if (!exam) {
+      return res.status(404).json({ error: 'Exam not found' });
+    }
+    if (!canTeacherManageExam(scopeKeys, exam)) {
+      return res.status(403).json({ error: 'You are not allocated for this exam' });
+    }
+
+    await Promise.all([
+      Exam.deleteOne({ _id: id, schoolId, ...(campusId ? { campusId } : {}) }),
+      ExamResult.deleteMany({ examId: id, schoolId, ...(campusId ? { campusId } : {}) }),
+    ]);
+
+    res.status(200).json({ message: 'Exam and linked results deleted successfully' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 module.exports = router;
