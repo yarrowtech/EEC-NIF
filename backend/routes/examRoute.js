@@ -137,6 +137,78 @@ const canTeacherManageExam = (scopeKeys, examDoc) => {
   );
 };
 
+const normalizeText = (value) => String(value || '').trim().toLowerCase();
+
+const getExamClassName = (exam) => exam?.classId?.name || exam?.grade || '';
+const getExamSectionName = (exam) => exam?.sectionId?.name || exam?.section || '';
+
+const studentMatchesExamScope = (student, exam) => {
+  const examClass = normalizeText(getExamClassName(exam));
+  const examSection = normalizeText(getExamSectionName(exam));
+  const studentClass = normalizeText(student?.grade || student?.className);
+  const studentSection = normalizeText(student?.section || student?.sectionName);
+
+  const classMatches = examClass ? studentClass === examClass : true;
+  const sectionMatches = examSection ? studentSection === examSection : true;
+  return classMatches && sectionMatches;
+};
+
+const getScopedStudentsForExam = async ({ schoolId, campusId, exam }) => {
+  const examClassName = String(getExamClassName(exam) || '').trim();
+  const examSectionName = String(getExamSectionName(exam) || '').trim();
+
+  const studentFilter = { schoolId, ...(campusId ? { campusId } : {}) };
+  if (examClassName) studentFilter.grade = examClassName;
+  if (examSectionName) studentFilter.section = examSectionName;
+
+  const students = await StudentUser.find(studentFilter)
+    .select('name grade section roll studentCode')
+    .lean();
+
+  return students.filter((student) => studentMatchesExamScope(student, exam));
+};
+
+const resolveExamStudentCount = async ({ schoolId, campusId, exam }) => {
+  const students = await getScopedStudentsForExam({ schoolId, campusId, exam });
+  return students.length;
+};
+
+const parseResultStatus = (value) => {
+  const normalized = normalizeText(value);
+  if (!normalized) return 'pass';
+  if (['pass', 'fail', 'absent'].includes(normalized)) return normalized;
+  return null;
+};
+
+const resolveResultScore = ({ marks, status, examMaxMarks, requireMarks = true }) => {
+  const normalizedStatus = parseResultStatus(status);
+  if (!normalizedStatus) {
+    return { error: 'Invalid result status' };
+  }
+
+  if (normalizedStatus === 'absent') {
+    return { status: normalizedStatus, score: 0 };
+  }
+
+  const marksMissing = marks === undefined || marks === null || String(marks).trim() === '';
+  if (marksMissing) {
+    if (!requireMarks) return { status: normalizedStatus, score: undefined };
+    return { error: 'Valid marks are required' };
+  }
+
+  const score = Number(marks);
+  if (!Number.isFinite(score) || score < 0) {
+    return { error: 'Valid marks are required' };
+  }
+
+  const maxMarks = Number(examMaxMarks);
+  if (Number.isFinite(maxMarks) && maxMarks >= 0 && score > maxMarks) {
+    return { error: `Marks cannot be greater than exam max marks (${maxMarks})` };
+  }
+
+  return { status: normalizedStatus, score };
+};
+
 
 
 const router = express.Router();
@@ -188,6 +260,11 @@ router.post("/add", adminAuth, async (req, res) => {
           return res.status(400).json({ error: academicContext.error });
         }
         const { classDoc, sectionDoc, subjectDoc } = academicContext;
+        const computedStudentCount = await resolveExamStudentCount({
+          schoolId,
+          campusId,
+          exam: { classId: classDoc, sectionId: sectionDoc, grade: classDoc.name, section: sectionDoc.name },
+        });
         const exam = await Exam.create({
             schoolId,
             campusId: campusId || null,
@@ -200,7 +277,10 @@ router.post("/add", adminAuth, async (req, res) => {
             time,
             duration,
             marks,
-            noOfStudents,
+            noOfStudents:
+              noOfStudents === undefined || noOfStudents === null || String(noOfStudents).trim() === ''
+                ? computedStudentCount
+                : Number(noOfStudents),
             status,
             classId: classDoc._id,
             sectionId: sectionDoc._id,
@@ -260,12 +340,15 @@ router.put("/:id", adminAuth, async (req, res) => {
       published
     } = req.body || {};
 
+    const existingExam = await Exam.findOne({ _id: id, schoolId, ...(campusId ? { campusId } : {}) }).lean();
+    if (!existingExam) {
+      return res.status(404).json({ error: 'Exam not found' });
+    }
+
     let academicUpdates = {};
+    let nextClassDoc = null;
+    let nextSectionDoc = null;
     if (classId !== undefined || sectionId !== undefined || subjectId !== undefined) {
-      const existingExam = await Exam.findOne({ _id: id, schoolId, ...(campusId ? { campusId } : {}) }).lean();
-      if (!existingExam) {
-        return res.status(404).json({ error: 'Exam not found' });
-      }
       const academicContext = await resolveAcademicContext({
         schoolId,
         campusId,
@@ -277,6 +360,8 @@ router.put("/:id", adminAuth, async (req, res) => {
         return res.status(400).json({ error: academicContext.error });
       }
       const { classDoc, sectionDoc, subjectDoc } = academicContext;
+      nextClassDoc = classDoc;
+      nextSectionDoc = sectionDoc;
       academicUpdates = {
         classId: classDoc._id,
         sectionId: sectionDoc._id,
@@ -285,6 +370,22 @@ router.put("/:id", adminAuth, async (req, res) => {
         section: sectionDoc.name || '',
         subject: subjectDoc.name || '',
       };
+    }
+
+    let resolvedNoOfStudents = noOfStudents;
+    if (resolvedNoOfStudents === undefined && (academicUpdates.classId || academicUpdates.sectionId)) {
+      const className = nextClassDoc?.name || existingExam.grade || '';
+      const sectionName = nextSectionDoc?.name || existingExam.section || '';
+      resolvedNoOfStudents = await resolveExamStudentCount({
+        schoolId,
+        campusId,
+        exam: {
+          classId: nextClassDoc?._id || existingExam.classId,
+          sectionId: nextSectionDoc?._id || existingExam.sectionId,
+          grade: className,
+          section: sectionName,
+        },
+      });
     }
 
     const updates = {
@@ -296,7 +397,7 @@ router.put("/:id", adminAuth, async (req, res) => {
       ...(time !== undefined ? { time } : {}),
       ...(duration !== undefined ? { duration } : {}),
       ...(marks !== undefined ? { marks } : {}),
-      ...(noOfStudents !== undefined ? { noOfStudents } : {}),
+      ...(resolvedNoOfStudents !== undefined ? { noOfStudents: Number(resolvedNoOfStudents) } : {}),
       ...(status !== undefined ? { status } : {}),
       ...(published !== undefined ? { published: Boolean(published), publishedAt: published ? new Date() : null } : {}),
       ...academicUpdates,
@@ -405,15 +506,17 @@ router.post("/results", adminOrTeacherAuth, async (req, res) => {
         if (campusId && student.campusId && String(student.campusId) !== String(campusId)) {
             return res.status(400).json({ error: 'Student does not belong to this campus' });
         }
-        if (exam.grade && String(student.grade || '').trim() !== String(exam.grade || '').trim()) {
+        if (!studentMatchesExamScope(student, exam)) {
             return res.status(400).json({ error: 'Student does not belong to exam class' });
         }
-        if (exam.section && String(student.section || '').trim() !== String(exam.section || '').trim()) {
-            return res.status(400).json({ error: 'Student does not belong to exam section' });
-        }
-        const score = Number(marks);
-        if (!Number.isFinite(score) || score < 0) {
-            return res.status(400).json({ error: 'Valid marks are required' });
+        const scoreResult = resolveResultScore({
+          marks,
+          status: status || 'pass',
+          examMaxMarks: exam?.marks,
+          requireMarks: true,
+        });
+        if (scoreResult.error) {
+          return res.status(400).json({ error: scoreResult.error });
         }
 
         const result = await ExamResult.findOneAndUpdate(
@@ -423,10 +526,10 @@ router.post("/results", adminOrTeacherAuth, async (req, res) => {
                 campusId: campusId || null,
                 examId,
                 studentId,
-                marks: score,
+                marks: scoreResult.score,
                 grade,
                 remarks,
-                status: status || 'pass',
+                status: scoreResult.status,
                 createdBy: req.user?.id || req.admin?.id || null,
             },
             { new: true, upsert: true, runValidators: true }
@@ -532,6 +635,87 @@ router.get("/results/exam-options", adminOrTeacherAuth, async (req, res) => {
   }
 });
 
+// Students eligible for a specific exam scope (admin/teacher)
+router.get("/results/exam-students", adminOrTeacherAuth, async (req, res) => {
+  try {
+    const schoolId = req.schoolId || req.user?.schoolId || req.admin?.schoolId || null;
+    if (!schoolId) return res.status(400).json({ error: 'schoolId is required' });
+    const campusId = req.campusId || null;
+    const examId = req.query?.examId ? String(req.query.examId) : '';
+    if (!mongoose.isValidObjectId(examId)) {
+      return res.status(400).json({ error: 'Valid examId is required' });
+    }
+
+    const exam = await Exam.findOne({ _id: examId, schoolId, ...(campusId ? { campusId } : {}) })
+      .populate('classId', 'name')
+      .populate('sectionId', 'name classId')
+      .populate('subjectId', 'name code classId')
+      .lean();
+    if (!exam) {
+      return res.status(404).json({ error: 'Exam not found' });
+    }
+
+    if (req.userType === 'teacher') {
+      const scopeKeys = await getTeacherScopeKeys({
+        schoolId,
+        campusId,
+        teacherId: req.user?.id || null,
+      });
+      if (!canTeacherManageExam(scopeKeys, exam)) {
+        return res.status(403).json({ error: 'You are not allocated for this exam' });
+      }
+    }
+
+    const [students, existingResults] = await Promise.all([
+      getScopedStudentsForExam({ schoolId, campusId, exam }),
+      ExamResult.find({ schoolId, examId, ...(campusId ? { campusId } : {}) })
+        .select('studentId marks grade remarks status published')
+        .lean(),
+    ]);
+
+    const resultByStudentId = new Map(existingResults.map((result) => [String(result.studentId), result]));
+
+    const payload = students
+      .map((student) => {
+        const existing = resultByStudentId.get(String(student._id)) || null;
+        return {
+          _id: student._id,
+          name: student.name || '',
+          grade: student.grade || '',
+          section: student.section || '',
+          roll: student.roll || null,
+          studentCode: student.studentCode || '',
+          hasResult: Boolean(existing),
+          resultId: existing?._id || null,
+          marks: existing?.marks ?? null,
+          gradeValue: existing?.grade || '',
+          status: existing?.status || null,
+          published: Boolean(existing?.published),
+        };
+      })
+      .sort((a, b) => {
+        const rollA = Number(a.roll);
+        const rollB = Number(b.roll);
+        if (Number.isFinite(rollA) && Number.isFinite(rollB) && rollA !== rollB) return rollA - rollB;
+        return String(a.name || '').localeCompare(String(b.name || ''), undefined, { sensitivity: 'base' });
+      });
+
+    res.status(200).json({
+      exam: {
+        _id: exam._id,
+        title: exam.title || '',
+        subject: exam.subject || exam.subjectId?.name || '',
+        className: getExamClassName(exam),
+        sectionName: getExamSectionName(exam),
+        maxMarks: exam.marks ?? null,
+      },
+      students: payload,
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // Admin view of results with enriched student/exam info
 router.get("/results/admin", adminAuth, async (req, res) => {
   // #swagger.tags = ['Exams']
@@ -628,8 +812,8 @@ router.post("/results/bulk-upload", adminAuth, upload.single('file'), async (req
             try {
                 const { examId, studentId, marks, grade, remarks, status } = row;
 
-                if (!examId || !studentId || !marks) {
-                    errors.push(`Row ${i + 2}: Missing required fields (examId, studentId, marks)`);
+                if (!examId || !studentId) {
+                    errors.push(`Row ${i + 2}: Missing required fields (examId, studentId)`);
                     errorCount++;
                     continue;
                 }
@@ -649,15 +833,31 @@ router.post("/results/bulk-upload", adminAuth, upload.single('file'), async (req
                     errorCount++;
                     continue;
                 }
+                if (!studentMatchesExamScope(student, exam)) {
+                    errors.push(`Row ${i + 2}: Student does not belong to exam class/section`);
+                    errorCount++;
+                    continue;
+                }
                 if (campusId && student.campusId && String(student.campusId) !== String(campusId)) {
                     errors.push(`Row ${i + 2}: Student does not belong to this campus`);
                     errorCount++;
                     continue;
                 }
 
-                const score = Number(marks);
-                if (!Number.isFinite(score) || score < 0) {
-                    errors.push(`Row ${i + 2}: Invalid marks value`);
+                const normalizedStatus = parseResultStatus(status);
+                if (!normalizedStatus) {
+                    errors.push(`Row ${i + 2}: Invalid status`);
+                    errorCount++;
+                    continue;
+                }
+                const scoreResult = resolveResultScore({
+                    marks,
+                    status: normalizedStatus,
+                    examMaxMarks: exam?.marks,
+                    requireMarks: normalizedStatus !== 'absent',
+                });
+                if (scoreResult.error) {
+                    errors.push(`Row ${i + 2}: ${scoreResult.error}`);
                     errorCount++;
                     continue;
                 }
@@ -670,10 +870,10 @@ router.post("/results/bulk-upload", adminAuth, upload.single('file'), async (req
                         campusId: campusId || null,
                         examId,
                         studentId,
-                        marks: score,
+                        marks: scoreResult.score,
                         grade: grade || '',
                         remarks: remarks || '',
-                        status: status || 'pass',
+                        status: scoreResult.status,
                         createdBy: req.admin?.id || null,
                     },
                     { new: true, upsert: true, runValidators: true }
@@ -753,11 +953,19 @@ router.put("/results/:id", adminOrTeacherAuth, async (req, res) => {
       }
     }
     if (!student) return res.status(404).json({ error: 'Student not found' });
-    if (exam.grade && String(student.grade || '').trim() !== String(exam.grade || '').trim()) {
+    if (!studentMatchesExamScope(student, exam)) {
       return res.status(400).json({ error: 'Student does not belong to exam class' });
     }
-    if (exam.section && String(student.section || '').trim() !== String(exam.section || '').trim()) {
-      return res.status(400).json({ error: 'Student does not belong to exam section' });
+
+    const nextStatus = status !== undefined ? status : current.status;
+    const scoreResult = resolveResultScore({
+      marks: marks !== undefined ? marks : current.marks,
+      status: nextStatus,
+      examMaxMarks: exam?.marks,
+      requireMarks: true,
+    });
+    if (scoreResult.error) {
+      return res.status(400).json({ error: scoreResult.error });
     }
 
     const updates = {
@@ -765,18 +973,11 @@ router.put("/results/:id", adminOrTeacherAuth, async (req, res) => {
       ...(studentId ? { studentId } : {}),
       ...(grade !== undefined ? { grade } : {}),
       ...(remarks !== undefined ? { remarks } : {}),
-      ...(status !== undefined ? { status } : {}),
+      status: scoreResult.status,
+      marks: scoreResult.score,
       ...(published !== undefined ? { published: Boolean(published), publishedAt: published ? new Date() : null } : {}),
       createdBy: req.user?.id || req.admin?.id || current.createdBy || null,
     };
-
-    if (marks !== undefined) {
-      const score = Number(marks);
-      if (!Number.isFinite(score) || score < 0) {
-        return res.status(400).json({ error: 'Valid marks are required' });
-      }
-      updates.marks = score;
-    }
 
     const duplicate = await ExamResult.findOne({
       _id: { $ne: id },
@@ -1082,6 +1283,11 @@ router.post('/teacher/add', teacherAuth, async (req, res) => {
     if (!canTeacherManageExam(scopeKeys, { classId: classDoc._id, sectionId: sectionDoc._id, subjectId: subjectDoc._id })) {
       return res.status(403).json({ error: 'You are not allocated for this class/section/subject' });
     }
+    const computedStudentCount = await resolveExamStudentCount({
+      schoolId,
+      campusId,
+      exam: { classId: classDoc, sectionId: sectionDoc, grade: classDoc.name, section: sectionDoc.name },
+    });
 
     const exam = await Exam.create({
       schoolId,
@@ -1095,7 +1301,10 @@ router.post('/teacher/add', teacherAuth, async (req, res) => {
       time,
       duration,
       marks,
-      noOfStudents,
+      noOfStudents:
+        noOfStudents === undefined || noOfStudents === null || String(noOfStudents).trim() === ''
+          ? computedStudentCount
+          : Number(noOfStudents),
       status,
       classId: classDoc._id,
       sectionId: sectionDoc._id,
@@ -1154,6 +1363,8 @@ router.put('/teacher/:id', teacherAuth, async (req, res) => {
     } = req.body || {};
 
     let academicUpdates = {};
+    let nextClassDoc = null;
+    let nextSectionDoc = null;
     if (classId !== undefined || sectionId !== undefined || subjectId !== undefined) {
       const academicContext = await resolveAcademicContext({
         schoolId,
@@ -1170,6 +1381,8 @@ router.put('/teacher/:id', teacherAuth, async (req, res) => {
       if (!canTeacherManageExam(scopeKeys, { classId: classDoc._id, sectionId: sectionDoc._id, subjectId: subjectDoc._id })) {
         return res.status(403).json({ error: 'You are not allocated for the updated class/section/subject' });
       }
+      nextClassDoc = classDoc;
+      nextSectionDoc = sectionDoc;
 
       academicUpdates = {
         classId: classDoc._id,
@@ -1181,6 +1394,22 @@ router.put('/teacher/:id', teacherAuth, async (req, res) => {
       };
     }
 
+    let resolvedNoOfStudents = noOfStudents;
+    if (resolvedNoOfStudents === undefined && (academicUpdates.classId || academicUpdates.sectionId)) {
+      const className = nextClassDoc?.name || existingExam.grade || '';
+      const sectionName = nextSectionDoc?.name || existingExam.section || '';
+      resolvedNoOfStudents = await resolveExamStudentCount({
+        schoolId,
+        campusId,
+        exam: {
+          classId: nextClassDoc?._id || existingExam.classId,
+          sectionId: nextSectionDoc?._id || existingExam.sectionId,
+          grade: className,
+          section: sectionName,
+        },
+      });
+    }
+
     const updates = {
       ...(title !== undefined ? { title } : {}),
       ...(term !== undefined ? { term } : {}),
@@ -1190,7 +1419,7 @@ router.put('/teacher/:id', teacherAuth, async (req, res) => {
       ...(time !== undefined ? { time } : {}),
       ...(duration !== undefined ? { duration } : {}),
       ...(marks !== undefined ? { marks } : {}),
-      ...(noOfStudents !== undefined ? { noOfStudents } : {}),
+      ...(resolvedNoOfStudents !== undefined ? { noOfStudents: Number(resolvedNoOfStudents) } : {}),
       ...(status !== undefined ? { status } : {}),
       ...(published !== undefined ? { published: Boolean(published), publishedAt: published ? new Date() : null } : {}),
       ...academicUpdates,

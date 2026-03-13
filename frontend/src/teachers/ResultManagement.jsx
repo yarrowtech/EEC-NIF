@@ -19,12 +19,13 @@ const ResultManagement = () => {
   const location = useLocation();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [loadingExamStudents, setLoadingExamStudents] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
 
   const [results, setResults] = useState([]);
   const [exams, setExams] = useState([]);
-  const [students, setStudents] = useState([]);
+  const [examStudentsByExamId, setExamStudentsByExamId] = useState({});
 
   const [selectedExamId, setSelectedExamId] = useState('');
   const [selectedClass, setSelectedClass] = useState('');
@@ -75,16 +76,9 @@ const ResultManagement = () => {
     setLoading(true);
     setError('');
     try {
-      const [examData, studentData] = await Promise.all([
-        apiFetch('/api/exam/results/exam-options'),
-        apiFetch('/api/teacher/dashboard/students'),
-      ]);
-
+      const examData = await apiFetch('/api/exam/results/exam-options');
       const examItems = Array.isArray(examData) ? examData : [];
-      const studentItems = Array.isArray(studentData?.students) ? studentData.students : [];
-
       setExams(examItems);
-      setStudents(studentItems);
     } catch (err) {
       setError(err.message || 'Failed to load result setup data');
     } finally {
@@ -111,6 +105,25 @@ const ResultManagement = () => {
     }
   }, [apiFetch, selectedClass, selectedExamId, selectedSection, token]);
 
+  const ensureExamStudents = useCallback(
+    async (examId) => {
+      if (!examId || examStudentsByExamId[examId]) return;
+      setLoadingExamStudents(true);
+      try {
+        const payload = await apiFetch(`/api/exam/results/exam-students?examId=${encodeURIComponent(examId)}`);
+        setExamStudentsByExamId((prev) => ({
+          ...prev,
+          [examId]: Array.isArray(payload?.students) ? payload.students : [],
+        }));
+      } catch (err) {
+        setError(err.message || 'Unable to load exam students');
+      } finally {
+        setLoadingExamStudents(false);
+      }
+    },
+    [apiFetch, examStudentsByExamId]
+  );
+
   useEffect(() => {
     loadBootstrap();
   }, [loadBootstrap]);
@@ -119,31 +132,40 @@ const ResultManagement = () => {
     loadResults();
   }, [loadResults]);
 
+  const selectedExam = useMemo(
+    () => exams.find((exam) => String(exam._id) === String(selectedExamId)) || null,
+    [exams, selectedExamId]
+  );
+
+  useEffect(() => {
+    if (!selectedExamId || !selectedExam) return;
+    setSelectedClass(selectedExam?.classId?.name || selectedExam?.grade || '');
+    setSelectedSection(selectedExam?.sectionId?.name || selectedExam?.section || '');
+  }, [selectedExam, selectedExamId]);
+
   const classOptions = useMemo(() => {
     const values = new Set();
-    students.forEach((s) => {
-      if (s?.grade) values.add(String(s.grade));
+    exams.forEach((exam) => {
+      const className = exam?.classId?.name || exam?.grade;
+      if (className) values.add(String(className));
     });
     return Array.from(values).sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
-  }, [students]);
+  }, [exams]);
 
   const sectionOptions = useMemo(() => {
     const values = new Set();
-    students
-      .filter((s) => (selectedClass ? String(s.grade) === String(selectedClass) : true))
-      .forEach((s) => {
-        if (s?.section) values.add(String(s.section));
+    exams
+      .filter((exam) => {
+        if (!selectedClass) return true;
+        const className = exam?.classId?.name || exam?.grade || '';
+        return String(className) === String(selectedClass);
+      })
+      .forEach((exam) => {
+        const sectionName = exam?.sectionId?.name || exam?.section;
+        if (sectionName) values.add(String(sectionName));
       });
     return Array.from(values).sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
-  }, [selectedClass, students]);
-
-  const filteredStudents = useMemo(() => {
-    return students.filter((s) => {
-      const matchesClass = selectedClass ? String(s.grade) === String(selectedClass) : true;
-      const matchesSection = selectedSection ? String(s.section) === String(selectedSection) : true;
-      return matchesClass && matchesSection;
-    });
-  }, [selectedClass, selectedSection, students]);
+  }, [exams, selectedClass]);
 
   const visibleResults = useMemo(() => {
     const query = search.trim().toLowerCase();
@@ -157,6 +179,21 @@ const ResultManagement = () => {
     });
   }, [results, search]);
 
+  const formExam = useMemo(
+    () => exams.find((exam) => String(exam._id) === String(form.examId)) || null,
+    [exams, form.examId]
+  );
+
+  const formStudents = useMemo(() => {
+    if (!form.examId) return [];
+    return examStudentsByExamId[form.examId] || [];
+  }, [examStudentsByExamId, form.examId]);
+
+  useEffect(() => {
+    if (!showForm || !form.examId) return;
+    ensureExamStudents(form.examId);
+  }, [ensureExamStudents, form.examId, showForm]);
+
   const openCreate = () => {
     setEditingResultId(null);
     setForm({
@@ -168,10 +205,11 @@ const ResultManagement = () => {
     setSuccess('');
   };
 
-  const openEdit = (item) => {
+  const openEdit = async (item) => {
+    const examId = item?.examId?._id || '';
     setEditingResultId(item?._id || null);
     setForm({
-      examId: item?.examId?._id || '',
+      examId,
       studentId: item?.studentId?._id || '',
       marks: item?.marks ?? '',
       grade: item?.grade || '',
@@ -181,6 +219,7 @@ const ResultManagement = () => {
     setShowForm(true);
     setError('');
     setSuccess('');
+    if (examId) await ensureExamStudents(examId);
   };
 
   const closeForm = () => {
@@ -196,6 +235,21 @@ const ResultManagement = () => {
       return;
     }
 
+    const maxMarks = Number(formExam?.marks);
+    const marksRequired = form.status !== 'absent';
+    let parsedMarks;
+    if (marksRequired) {
+      parsedMarks = Number(form.marks);
+      if (!Number.isFinite(parsedMarks) || parsedMarks < 0) {
+        setError('Enter valid marks');
+        return;
+      }
+      if (Number.isFinite(maxMarks) && maxMarks >= 0 && parsedMarks > maxMarks) {
+        setError(`Marks cannot be greater than ${maxMarks}`);
+        return;
+      }
+    }
+
     setSaving(true);
     setError('');
     setSuccess('');
@@ -204,15 +258,11 @@ const ResultManagement = () => {
       const payload = {
         examId: form.examId,
         studentId: form.studentId,
-        marks: Number(form.marks),
         grade: form.grade.trim(),
         remarks: form.remarks.trim(),
         status: form.status,
       };
-
-      if (!Number.isFinite(payload.marks) || payload.marks < 0) {
-        throw new Error('Enter valid marks');
-      }
+      if (marksRequired) payload.marks = parsedMarks;
 
       if (editingResultId) {
         await apiFetch(`/api/exam/results/${editingResultId}`, {
@@ -230,6 +280,14 @@ const ResultManagement = () => {
 
       closeForm();
       await loadResults();
+      if (form.examId) {
+        setExamStudentsByExamId((prev) => {
+          const next = { ...prev };
+          delete next[form.examId];
+          return next;
+        });
+        await ensureExamStudents(form.examId);
+      }
     } catch (err) {
       setError(err.message || 'Failed to save result');
     } finally {
@@ -329,7 +387,8 @@ const ResultManagement = () => {
               setSelectedClass(e.target.value);
               setSelectedSection('');
             }}
-            className={`${inputClass} max-w-[180px]`}
+            disabled={Boolean(selectedExamId)}
+            className={`${inputClass} max-w-[180px] disabled:bg-gray-100 disabled:text-gray-500`}
           >
             <option value="">All Classes</option>
             {classOptions.map((grade) => (
@@ -342,7 +401,8 @@ const ResultManagement = () => {
           <select
             value={selectedSection}
             onChange={(e) => setSelectedSection(e.target.value)}
-            className={`${inputClass} max-w-[180px]`}
+            disabled={Boolean(selectedExamId)}
+            className={`${inputClass} max-w-[180px] disabled:bg-gray-100 disabled:text-gray-500`}
           >
             <option value="">All Sections</option>
             {sectionOptions.map((section) => (
@@ -372,6 +432,17 @@ const ResultManagement = () => {
           </button>
         </div>
       </div>
+
+      {selectedExam && (
+        <div className="rounded-xl border border-indigo-100 bg-indigo-50 p-3 text-sm text-indigo-800">
+          {selectedExam.title || 'Exam'}: {selectedExam?.classId?.name || selectedExam?.grade || '-'}
+          {' - '}
+          {selectedExam?.sectionId?.name || selectedExam?.section || '-'}
+          {' - '}
+          {selectedExam?.subject || selectedExam?.subjectId?.name || '-'}
+          {Number.isFinite(Number(selectedExam?.marks)) ? ` (Max: ${Number(selectedExam.marks)})` : ''}
+        </div>
+      )}
 
       {error && <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div>}
       {success && <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700">{success}</div>}
@@ -474,7 +545,7 @@ const ResultManagement = () => {
                 <label className="mb-1 block text-xs font-medium text-gray-600">Exam</label>
                 <select
                   value={form.examId}
-                  onChange={(e) => setForm((prev) => ({ ...prev, examId: e.target.value }))}
+                  onChange={(e) => setForm((prev) => ({ ...prev, examId: e.target.value, studentId: '' }))}
                   className={inputClass}
                   required
                 >
@@ -487,6 +558,13 @@ const ResultManagement = () => {
                 </select>
               </div>
 
+              {formExam && (
+                <div className="rounded-lg border border-indigo-100 bg-indigo-50 px-3 py-2 text-xs text-indigo-800">
+                  Scope: {formExam?.classId?.name || formExam?.grade || '-'} - {formExam?.sectionId?.name || formExam?.section || '-'} - {formExam?.subject || formExam?.subjectId?.name || '-'}
+                  {Number.isFinite(Number(formExam?.marks)) ? ` | Max Marks: ${Number(formExam.marks)}` : ''}
+                </div>
+              )}
+
               <div>
                 <label className="mb-1 block text-xs font-medium text-gray-600">Student</label>
                 <select
@@ -494,11 +572,12 @@ const ResultManagement = () => {
                   onChange={(e) => setForm((prev) => ({ ...prev, studentId: e.target.value }))}
                   className={inputClass}
                   required
+                  disabled={!form.examId || loadingExamStudents}
                 >
-                  <option value="">Select student</option>
-                  {filteredStudents.map((student) => (
+                  <option value="">{loadingExamStudents ? 'Loading students...' : 'Select student'}</option>
+                  {formStudents.map((student) => (
                     <option key={student._id} value={student._id}>
-                      {student.name} ({student.grade || '-'} {student.section || ''})
+                      {student.name} ({student.grade || '-'} {student.section || ''}{student.roll ? `, Roll ${student.roll}` : ''})
                     </option>
                   ))}
                 </select>
@@ -510,10 +589,12 @@ const ResultManagement = () => {
                   <input
                     type="number"
                     min="0"
+                    max={Number.isFinite(Number(formExam?.marks)) ? Number(formExam?.marks) : undefined}
                     value={form.marks}
                     onChange={(e) => setForm((prev) => ({ ...prev, marks: e.target.value }))}
                     className={inputClass}
-                    required
+                    disabled={form.status === 'absent'}
+                    required={form.status !== 'absent'}
                   />
                 </div>
                 <div>
@@ -529,7 +610,10 @@ const ResultManagement = () => {
                   <label className="mb-1 block text-xs font-medium text-gray-600">Status</label>
                   <select
                     value={form.status}
-                    onChange={(e) => setForm((prev) => ({ ...prev, status: e.target.value }))}
+                    onChange={(e) => {
+                      const nextStatus = e.target.value;
+                      setForm((prev) => ({ ...prev, status: nextStatus, marks: nextStatus === 'absent' ? '' : prev.marks }));
+                    }}
                     className={inputClass}
                   >
                     {STATUS_OPTIONS.map((status) => (
