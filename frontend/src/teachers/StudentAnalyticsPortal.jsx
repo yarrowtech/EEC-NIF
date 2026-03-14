@@ -154,25 +154,139 @@ const StudentAnalyticsPortal = () => {
   }, [filters]);
 
   // ─────────────────────────────────────────────────────────────────────────
+  // IDENTIFY WEAK STUDENTS (Students with overall score < 60%)
+  // ─────────────────────────────────────────────────────────────────────────
+  const identifyWeakStudents = useCallback((studentsList) => {
+    const weak = studentsList
+      .map(student => {
+        const metrics = student.progressMetrics || [];
+
+        // Calculate overall score
+        const overallScore = metrics.length > 0
+          ? Math.round(metrics.reduce((sum, m) => sum + (m.averageScore || 0), 0) / metrics.length)
+          : 0;
+
+        // Only include students with score < 60%
+        if (overallScore >= 60) return null;
+
+        // Determine intervention level based on score
+        let interventionLevel = 'low';
+        if (overallScore < 35) {
+          interventionLevel = 'critical'; // < 35% = Critical
+        } else if (overallScore < 45) {
+          interventionLevel = 'high'; // 35-45% = High
+        } else if (overallScore < 60) {
+          interventionLevel = 'medium'; // 45-60% = Medium
+        }
+
+        // Calculate consistency score (based on variation in subject scores)
+        const scores = metrics.map(m => m.averageScore || 0);
+        const avgScore = scores.reduce((sum, s) => sum + s, 0) / (scores.length || 1);
+        const variance = scores.reduce((sum, s) => sum + Math.pow(s - avgScore, 2), 0) / (scores.length || 1);
+        const consistencyScore = Math.max(0, 100 - Math.sqrt(variance));
+
+        // Identify weak areas (subjects with score < 60%)
+        const weakAreas = metrics
+          .filter(m => (m.averageScore || 0) < 60)
+          .map(m => m.subject);
+
+        // Find focus subject (subject with lowest score)
+        const focusSubject = metrics.length > 0
+          ? metrics.reduce((lowest, m) =>
+              (m.averageScore || 0) < (lowest.averageScore || 0) ? m : lowest
+            ).subject
+          : 'General';
+
+        // Generate recommended topics based on weak subjects
+        const recommendedTopics = weakAreas.slice(0, 3).map(subject =>
+          `${subject} - Fundamental Concepts`
+        );
+
+        return {
+          _id: student._id,
+          studentId: student.studentId,
+          interventionLevel,
+          consistencyScore: Math.round(consistencyScore),
+          focusSubject,
+          weakAreas: weakAreas.length > 0 ? weakAreas : ['Needs comprehensive review'],
+          recommendedTopics: recommendedTopics.length > 0 ? recommendedTopics : ['General academic support needed'],
+          hasAIPath: false,
+          overallScore
+        };
+      })
+      .filter(Boolean); // Remove null values
+
+    return weak;
+  }, []);
+
+  // ─────────────────────────────────────────────────────────────────────────
   // FETCH WEAK STUDENTS
   // ─────────────────────────────────────────────────────────────────────────
   const fetchWeakStudents = useCallback(async () => {
     try {
       setLoadingWeak(true);
-      const response = await fetch(`/api/ai-learning/weak-students?${new URLSearchParams(interventionFilters)}`);
-      if (response.ok) {
-        const data = await response.json();
-        setWeakStudents(data);
+
+      // Fetch students data if not already available
+      if (students.length === 0) {
+        const params = new URLSearchParams();
+        if (interventionFilters.grade) params.set('grade', interventionFilters.grade);
+        if (interventionFilters.section) params.set('section', interventionFilters.section);
+        if (interventionFilters.subject) params.set('subject', interventionFilters.subject);
+
+        const studentsRes = await fetch(`${API_BASE}/api/progress/students?${params}`, {
+          headers: authHeaders()
+        });
+
+        if (studentsRes.ok) {
+          const data = await studentsRes.json();
+          const studentsList = Array.isArray(data) ? data : [];
+          const weak = identifyWeakStudents(studentsList);
+
+          // Apply intervention level filter if set
+          const filteredWeak = interventionFilters.interventionLevel
+            ? weak.filter(s => s.interventionLevel === interventionFilters.interventionLevel)
+            : weak;
+
+          setWeakStudents(filteredWeak);
+        } else {
+          // Fallback to empty array if API fails
+          setWeakStudents([]);
+        }
       } else {
-        setWeakStudents(mockWeakStudents);
+        // Use existing students data
+        let weak = identifyWeakStudents(students);
+
+        // Apply filters
+        if (interventionFilters.grade) {
+          weak = weak.filter(s =>
+            String(s.studentId?.grade || '').toLowerCase() === interventionFilters.grade.toLowerCase()
+          );
+        }
+        if (interventionFilters.section) {
+          weak = weak.filter(s =>
+            String(s.studentId?.section || '').toLowerCase() === interventionFilters.section.toLowerCase()
+          );
+        }
+        if (interventionFilters.subject) {
+          weak = weak.filter(s =>
+            s.weakAreas.some(area =>
+              area.toLowerCase().includes(interventionFilters.subject.toLowerCase())
+            )
+          );
+        }
+        if (interventionFilters.interventionLevel) {
+          weak = weak.filter(s => s.interventionLevel === interventionFilters.interventionLevel);
+        }
+
+        setWeakStudents(weak);
       }
     } catch (error) {
-      console.error('Error fetching weak students:', error);
-      setWeakStudents(mockWeakStudents);
+      console.error('Error identifying weak students:', error);
+      setWeakStudents([]);
     } finally {
       setLoadingWeak(false);
     }
-  }, [interventionFilters]);
+  }, [students, interventionFilters, identifyWeakStudents]);
 
   useEffect(() => {
     fetchProgressData();
@@ -181,6 +295,39 @@ const StudentAnalyticsPortal = () => {
   useEffect(() => {
     fetchWeakStudents();
   }, [fetchWeakStudents]);
+
+  // Re-identify weak students whenever students data changes
+  useEffect(() => {
+    if (students.length > 0 && activeTab === 'intervention') {
+      const weak = identifyWeakStudents(students);
+
+      // Apply filters
+      let filteredWeak = weak;
+      if (interventionFilters.grade) {
+        filteredWeak = filteredWeak.filter(s =>
+          String(s.studentId?.grade || '').toLowerCase() === interventionFilters.grade.toLowerCase()
+        );
+      }
+      if (interventionFilters.section) {
+        filteredWeak = filteredWeak.filter(s =>
+          String(s.studentId?.section || '').toLowerCase() === interventionFilters.section.toLowerCase()
+        );
+      }
+      if (interventionFilters.subject) {
+        filteredWeak = filteredWeak.filter(s =>
+          s.weakAreas.some(area =>
+            area.toLowerCase().includes(interventionFilters.subject.toLowerCase())
+          )
+        );
+      }
+      if (interventionFilters.interventionLevel) {
+        filteredWeak = filteredWeak.filter(s => s.interventionLevel === interventionFilters.interventionLevel);
+      }
+
+      setWeakStudents(filteredWeak);
+      setLoadingWeak(false);
+    }
+  }, [students, activeTab, interventionFilters, identifyWeakStudents]);
 
   // ─────────────────────────────────────────────────────────────────────────
   // ANALYZE STUDENT WEAKNESS
@@ -382,8 +529,8 @@ const ProgressTab = ({
       {[
         { label: 'Total Students', value: analytics?.totalStudents ?? students.length, sub: 'in your classes', icon: Users, gradient: 'from-purple-500 to-indigo-500' },
         { label: 'Average Score', value: analytics?.averageScore != null ? `${analytics.averageScore}%` : '—', sub: 'across subjects', icon: Target, gradient: 'from-blue-500 to-cyan-500' },
-        { label: 'Attendance Rate', value: analytics?.attendanceRate != null ? `${analytics.attendanceRate}%` : '—', sub: 'avg attendance', icon: Calendar, gradient: 'from-green-500 to-emerald-500' },
-        { label: 'Improving', value: analytics?.improvementTrends?.improving ?? '—', sub: 'students trending up', icon: TrendingUp, gradient: 'from-amber-500 to-orange-500' },
+        { label: 'Need Help', value: students.filter(s => overallScore(s) < 60).length, sub: 'scoring below 60%', icon: AlertTriangle, gradient: 'from-red-500 to-orange-500' },
+        { label: 'Improving', value: analytics?.improvementTrends?.improving ?? '—', sub: 'students trending up', icon: TrendingUp, gradient: 'from-green-500 to-emerald-500' },
       ].map((stat) => (
         <div key={stat.label} className="bg-white rounded-2xl p-4 border-[2.5px] border-purple-300 hover:shadow-md hover:-translate-y-0.5 transition-all duration-200">
           <div className="flex items-center gap-3">
@@ -492,14 +639,25 @@ const ProgressTab = ({
         <div className="divide-y divide-purple-50">
           {filteredStudents.map((student) => {
             const score = overallScore(student);
+            const needsIntervention = score < 60;
+            const interventionLevel = score < 35 ? 'critical' : score < 45 ? 'high' : 'medium';
+
             return (
-              <div key={student._id} className="flex items-center justify-between gap-4 px-5 py-4 hover:bg-purple-50/60 transition-colors">
+              <div key={student._id} className={`flex items-center justify-between gap-4 px-5 py-4 hover:bg-purple-50/60 transition-colors ${needsIntervention ? 'bg-red-50/30' : ''}`}>
                 <div className="flex items-center gap-4 min-w-0">
-                  <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-purple-600 to-indigo-600 flex items-center justify-center text-white text-sm font-black shrink-0">
+                  <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-white text-sm font-black shrink-0 ${needsIntervention ? 'bg-gradient-to-br from-red-500 to-orange-500' : 'bg-gradient-to-br from-purple-600 to-indigo-600'}`}>
                     {(student.studentId?.name || 'S').charAt(0)}
                   </div>
                   <div className="min-w-0">
-                    <p className="text-sm font-bold text-gray-900 truncate">{student.studentId?.name || 'Unknown'}</p>
+                    <div className="flex items-center gap-2">
+                      <p className="text-sm font-bold text-gray-900 truncate">{student.studentId?.name || 'Unknown'}</p>
+                      {needsIntervention && (
+                        <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold ${getInterventionColor(interventionLevel)}`}>
+                          {getInterventionIcon(interventionLevel)}
+                          <span className="capitalize">Needs Help</span>
+                        </span>
+                      )}
+                    </div>
                     <p className="text-xs text-gray-500 mt-0.5">
                       Grade {student.studentId?.grade || '—'}
                       {student.studentId?.section ? `-${student.studentId.section}` : ''}
@@ -548,16 +706,25 @@ const ProgressTab = ({
             <tbody className="divide-y divide-purple-50">
               {filteredStudents.map((student) => {
                 const score = overallScore(student);
+                const needsIntervention = score < 60;
+                const interventionLevel = score < 35 ? 'critical' : score < 45 ? 'high' : 'medium';
                 const subjects = [...new Set(filteredStudents.flatMap(s => (s.progressMetrics || []).map(m => m.subject)))].slice(0, 3);
                 return (
-                  <tr key={student._id} className="hover:bg-purple-50/60 transition-colors">
+                  <tr key={student._id} className={`hover:bg-purple-50/60 transition-colors ${needsIntervention ? 'bg-red-50/30' : ''}`}>
                     <td className="px-5 py-3">
                       <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-purple-600 to-indigo-600 flex items-center justify-center text-white text-xs font-black shrink-0">
+                        <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-white text-xs font-black shrink-0 ${needsIntervention ? 'bg-gradient-to-br from-red-500 to-orange-500' : 'bg-gradient-to-br from-purple-600 to-indigo-600'}`}>
                           {(student.studentId?.name || 'S').charAt(0)}
                         </div>
                         <div>
-                          <p className="font-bold text-gray-900">{student.studentId?.name || '—'}</p>
+                          <div className="flex items-center gap-2">
+                            <p className="font-bold text-gray-900">{student.studentId?.name || '—'}</p>
+                            {needsIntervention && (
+                              <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[9px] font-bold ${getInterventionColor(interventionLevel)}`}>
+                                {getInterventionIcon(interventionLevel)}
+                              </span>
+                            )}
+                          </div>
                           <p className="text-xs text-gray-400">Roll {student.studentId?.roll || '—'}</p>
                         </div>
                       </div>
@@ -1119,57 +1286,5 @@ const WeakStudentDetailModal = ({ student, onClose, generateLearningPath }) => (
     </div>
   </div>
 );
-
-// Mock data for development
-const mockWeakStudents = [
-  {
-    _id: '1',
-    studentId: {
-      _id: 'student1',
-      name: 'Alex Thompson',
-      grade: '10',
-      section: 'A',
-      roll: 15
-    },
-    interventionLevel: 'critical',
-    consistencyScore: 25,
-    focusSubject: 'Mathematics',
-    weakAreas: ['Basic Concepts', 'Problem Solving', 'Consistency in Performance'],
-    recommendedTopics: ['Number Systems', 'Basic Operations', 'Word Problems'],
-    hasAIPath: false
-  },
-  {
-    _id: '2',
-    studentId: {
-      _id: 'student2',
-      name: 'Sarah Wilson',
-      grade: '11',
-      section: 'B',
-      roll: 8
-    },
-    interventionLevel: 'high',
-    consistencyScore: 45,
-    focusSubject: 'Physics',
-    weakAreas: ['Conceptual Understanding', 'Formula Application'],
-    recommendedTopics: ['Physics Fundamentals', 'Laws of Motion'],
-    hasAIPath: true
-  },
-  {
-    _id: '3',
-    studentId: {
-      _id: 'student3',
-      name: 'Mike Johnson',
-      grade: '9',
-      section: 'C',
-      roll: 22
-    },
-    interventionLevel: 'medium',
-    consistencyScore: 55,
-    focusSubject: 'Chemistry',
-    weakAreas: ['Chemical Equations', 'Basic Concepts'],
-    recommendedTopics: ['Balancing Equations', 'Reaction Types'],
-    hasAIPath: false
-  }
-];
 
 export default StudentAnalyticsPortal;

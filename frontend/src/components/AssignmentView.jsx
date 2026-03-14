@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useRef, useCallback, useMemo, forwardRef, useImperativeHandle } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   Plus, Trash2, BookOpen, FlaskConical, Layers, PenLine, GraduationCap,
   Gamepad2, ChevronRight, ChevronLeft, X, Sparkles, Save, Clock,
@@ -22,6 +23,7 @@ const TOUR_STORAGE_KEY = "journal_tour_completed";
 
 const AssignmentView = forwardRef(({ defaultType = "school" }, ref) => {
   const API_BASE = (import.meta.env.VITE_API_URL || "http://localhost:5000").replace(/\/$/, "");
+  const navigate = useNavigate();
   const [filter, setFilter] = useState("all");
   const [assignmentType, setAssignmentType] = useState(defaultType);
 
@@ -205,7 +207,13 @@ const AssignmentView = forwardRef(({ defaultType = "school" }, ref) => {
       {assignmentType !== "journal" && (
         <div className="flex gap-1 overflow-x-auto rounded-xl bg-gray-100 p-1">
           {typeTabs.map((t) => (
-            <button key={t.key} onClick={() => setAssignmentType(t.key)}
+            <button key={t.key} onClick={() => {
+              if (t.key === 'tryout') {
+                navigate('/student/tryouts');
+                return;
+              }
+              setAssignmentType(t.key);
+            }}
               className={`flex items-center gap-2 whitespace-nowrap rounded-lg px-4 py-2 text-sm font-medium transition ${assignmentType === t.key ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-700"
                 }`}>
               <t.icon className="h-4 w-4" /> {t.label}

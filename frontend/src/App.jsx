@@ -45,6 +45,7 @@ const studentSections = [
   "assignments",
   "assignments-journal",
   "assignments-academic-alcove",
+  "tryouts",
   "results",
   "schedule",
   "routine",

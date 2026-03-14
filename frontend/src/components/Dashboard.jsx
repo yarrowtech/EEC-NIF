@@ -22,6 +22,7 @@ import LessonPlanStatusView from './LessonPlanStatusView';
 import StudyMaterials from './StudyMaterials';
 import { StudentDashboardProvider } from './StudentDashboardContext';
 import MobileBottomNav from './MobileBottomNav';
+import AdventureTryouts from './AdventureTryouts';
 
 const normalizeViewFromPath = (pathname) => {
   if (
@@ -90,6 +91,7 @@ const Dashboard = () => {
     wellness: StudentWellbeing,
     wellbeing: StudentWellbeing,
     achievements: AchievementsView,
+    tryouts: AdventureTryouts,
     profile: ProfileUpdate,
     themecustomizer: ThemeCustomizer,
   };
