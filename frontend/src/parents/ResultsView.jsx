@@ -1,5 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { FileText, Download, Award, TrendingUp } from 'lucide-react';
+import toast from 'react-hot-toast';
+import { downloadSingleReportCardPdf } from '../utils/reportCardPdf';
 
 const API_BASE_URL = (import.meta.env.VITE_API_URL || 'http://localhost:5000').replace(/\/$/, '');
 const CATEGORY_FILTERS = [
@@ -26,6 +28,7 @@ const ResultsView = () => {
   const [filterCategory, setFilterCategory] = useState('all');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [downloadingReportCard, setDownloadingReportCard] = useState(false);
 
   useEffect(() => {
     const load = async () => {
@@ -76,13 +79,51 @@ const ResultsView = () => {
     }
   }, [reports, selectedStudentId]);
 
-  const records = selectedReport?.records || [];
+  const records = useMemo(() => selectedReport?.records || [], [selectedReport]);
   const filteredRecords = useMemo(() => {
     if (filterCategory === 'all') return records;
     return records.filter((record) => record.category === filterCategory);
   }, [records, filterCategory]);
 
   const summary = selectedReport?.summary || {};
+
+  const handleDownloadReportCard = async () => {
+    if (!selectedStudentId) {
+      toast.error('Please select a child');
+      return;
+    }
+    const token = localStorage.getItem('token');
+    if (!token) {
+      toast.error('Please login again');
+      return;
+    }
+    setDownloadingReportCard(true);
+    try {
+      const response = await fetch(
+        `${API_BASE_URL}/api/reports/report-cards/parent?studentId=${encodeURIComponent(selectedStudentId)}`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(data?.error || 'Unable to fetch report card');
+      }
+      const reportCard = Array.isArray(data?.reportCards) ? data.reportCards[0] : null;
+      if (!reportCard) {
+        toast.error('No report card data available');
+        return;
+      }
+      await downloadSingleReportCardPdf({
+        template: data?.template || {},
+        reportCard,
+        fileName: `report_card_${String(reportCard.studentName || 'student').replace(/\s+/g, '_')}.pdf`,
+      });
+      toast.success('Report card downloaded');
+    } catch (err) {
+      toast.error(err.message || 'Unable to download report card');
+    } finally {
+      setDownloadingReportCard(false);
+    }
+  };
 
   return (
     <div className="p-6">
@@ -138,10 +179,12 @@ const ResultsView = () => {
                 </select>
                 <button
                   type="button"
+                  onClick={handleDownloadReportCard}
+                  disabled={downloadingReportCard}
                   className="inline-flex items-center gap-2 rounded-lg bg-yellow-500 px-4 py-2 text-sm font-semibold text-black hover:bg-yellow-600"
                 >
                   <Download className="w-4 h-4" />
-                  Download
+                  {downloadingReportCard ? 'Downloading...' : 'Download'}
                 </button>
               </div>
             </div>

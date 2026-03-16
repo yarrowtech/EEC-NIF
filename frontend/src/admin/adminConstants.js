@@ -129,6 +129,11 @@ export const ADMIN_MENU_ITEMS = [
     path: '/admin/result'
   },
   {
+    icon: FileText,
+    label: 'Report Cards',
+    path: '/admin/report-cards'
+  },
+  {
     icon: Users,
     label: 'Staff',
     path: '/admin/staff'

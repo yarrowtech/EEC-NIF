@@ -14,6 +14,8 @@ import {
   CheckCircle2,
   XCircle
 } from 'lucide-react';
+import toast from 'react-hot-toast';
+import { downloadSingleReportCardPdf } from '../utils/reportCardPdf';
 
 const ResultsView = () => {
   const [results, setResults] = useState([]);
@@ -27,6 +29,7 @@ const ResultsView = () => {
     recentExam: null
   });
   const [lastUpdated, setLastUpdated] = useState(null);
+  const [downloadingReportCard, setDownloadingReportCard] = useState(false);
 
   useEffect(() => {
     const fetchResults = async () => {
@@ -68,6 +71,42 @@ const ResultsView = () => {
 
     fetchResults();
   }, []);
+
+  const handleDownloadReportCard = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const userType = localStorage.getItem('userType');
+      if (!token || userType !== 'Student') {
+        toast.error('Please login as student');
+        return;
+      }
+      setDownloadingReportCard(true);
+      const response = await fetch(`${import.meta.env.VITE_API_URL}/api/reports/report-cards/me`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(data?.error || 'Unable to fetch report card');
+      }
+      if (!data?.reportCard) {
+        toast.error('No report card data available');
+        return;
+      }
+      await downloadSingleReportCardPdf({
+        template: data.template,
+        reportCard: data.reportCard,
+        fileName: `report_card_${String(data.reportCard?.studentName || 'student').replace(/\s+/g, '_')}.pdf`,
+      });
+      toast.success('Report card downloaded');
+    } catch (err) {
+      toast.error(err.message || 'Unable to download report card');
+    } finally {
+      setDownloadingReportCard(false);
+    }
+  };
 
   const examTypes = useMemo(() => {
     const uniqueTypes = new Set(results.map(result => result.type || 'general'));
@@ -205,7 +244,12 @@ const ResultsView = () => {
           </div>
         ) : (
           filteredResults.map((exam, index) => (
-            <ExamCard key={exam._id || index} exam={exam} />
+            <ExamCard
+              key={exam._id || index}
+              exam={exam}
+              onDownload={handleDownloadReportCard}
+              downloadingReportCard={downloadingReportCard}
+            />
           ))
         )}
       </div>
@@ -213,18 +257,21 @@ const ResultsView = () => {
   );
 };
 
-const SummaryCard = ({ icon: Icon, title, value, subtitle, accent }) => (
-  <div className="bg-white rounded-xl p-3 md:p-5 shadow-sm border border-gray-100">
-    <div className={`inline-flex p-2 rounded-lg ${accent} mb-2`}>
-      <Icon className="w-4 h-4 md:w-5 md:h-5" />
+const SummaryCard = ({ icon, title, value, subtitle, accent }) => {
+  const IconComponent = icon;
+  return (
+    <div className="bg-white rounded-xl p-3 md:p-5 shadow-sm border border-gray-100">
+      <div className={`inline-flex p-2 rounded-lg ${accent} mb-2`}>
+        <IconComponent className="w-4 h-4 md:w-5 md:h-5" />
+      </div>
+      <p className="text-xs text-gray-500 font-medium">{title}</p>
+      <p className="text-lg md:text-xl font-bold text-gray-900 leading-tight truncate">{value}</p>
+      {subtitle && <p className="text-[11px] text-gray-400 mt-0.5 truncate">{subtitle}</p>}
     </div>
-    <p className="text-xs text-gray-500 font-medium">{title}</p>
-    <p className="text-lg md:text-xl font-bold text-gray-900 leading-tight truncate">{value}</p>
-    {subtitle && <p className="text-[11px] text-gray-400 mt-0.5 truncate">{subtitle}</p>}
-  </div>
-);
+  );
+};
 
-const ExamCard = ({ exam }) => {
+const ExamCard = ({ exam, onDownload, downloadingReportCard }) => {
   const [expanded, setExpanded] = useState(false);
   const isAssignment = exam.resultType === 'assignment' || exam.type === 'assignment';
   const percentage = exam.percentage ?? (exam.obtainedMarks && exam.totalMarks
@@ -319,9 +366,14 @@ const ExamCard = ({ exam }) => {
             </span>
           )}
           {!isAssignment && (
-            <button className="ml-auto flex items-center gap-1 text-xs text-gray-500 border border-gray-200 rounded-full px-3 py-1 hover:bg-gray-50 transition-colors">
+            <button
+              type="button"
+              onClick={onDownload}
+              disabled={downloadingReportCard}
+              className="ml-auto flex items-center gap-1 text-xs text-gray-500 border border-gray-200 rounded-full px-3 py-1 hover:bg-gray-50 transition-colors disabled:opacity-60"
+            >
               <Download size={12} />
-              Download
+              {downloadingReportCard ? 'Downloading...' : 'Download'}
             </button>
           )}
         </div>
