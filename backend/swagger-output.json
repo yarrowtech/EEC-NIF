@@ -6301,9 +6301,6 @@
           }
         ],
         "responses": {
-          "200": {
-            "description": "OK"
-          },
           "201": {
             "description": "Created"
           },
@@ -6324,9 +6321,6 @@
                 "type": "object",
                 "properties": {
                   "title": {
-                    "example": "any"
-                  },
-                  "subject": {
                     "example": "any"
                   },
                   "term": {
@@ -6355,6 +6349,18 @@
                   },
                   "status": {
                     "example": "any"
+                  },
+                  "classId": {
+                    "example": "any"
+                  },
+                  "sectionId": {
+                    "example": "any"
+                  },
+                  "subjectId": {
+                    "example": "any"
+                  },
+                  "published": {
+                    "example": "any"
                   }
                 }
               }
@@ -6363,6 +6369,148 @@
         },
         "summary": "Create Exam / Add",
         "operationId": "post_api_exam_add"
+      }
+    },
+    "/api/exam/{id}": {
+      "put": {
+        "tags": [
+          "Exams"
+        ],
+        "description": "Update Exam.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "400": {
+            "description": "Bad Request"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          },
+          "404": {
+            "description": "Not Found"
+          }
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "title": {
+                    "example": "any"
+                  },
+                  "term": {
+                    "example": "any"
+                  },
+                  "instructor": {
+                    "example": "any"
+                  },
+                  "venue": {
+                    "example": "any"
+                  },
+                  "date": {
+                    "example": "any"
+                  },
+                  "time": {
+                    "example": "any"
+                  },
+                  "duration": {
+                    "example": "any"
+                  },
+                  "marks": {
+                    "example": "any"
+                  },
+                  "noOfStudents": {
+                    "example": "any"
+                  },
+                  "status": {
+                    "example": "any"
+                  },
+                  "classId": {
+                    "example": "any"
+                  },
+                  "sectionId": {
+                    "example": "any"
+                  },
+                  "subjectId": {
+                    "example": "any"
+                  },
+                  "published": {
+                    "example": "any"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "summary": "Update Exam",
+        "operationId": "put_api_exam_id"
+      },
+      "delete": {
+        "tags": [
+          "Exams"
+        ],
+        "description": "Delete Exam.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "400": {
+            "description": "Bad Request"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          },
+          "404": {
+            "description": "Not Found"
+          },
+          "500": {
+            "description": "Internal Server Error"
+          }
+        },
+        "summary": "Delete Exam",
+        "operationId": "delete_api_exam_id"
       }
     },
     "/api/exam/results": {
@@ -6386,6 +6534,9 @@
           },
           "400": {
             "description": "Bad Request"
+          },
+          "403": {
+            "description": "Forbidden"
           },
           "404": {
             "description": "Not Found"
@@ -6444,6 +6595,57 @@
             }
           },
           {
+            "name": "grade",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "section",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "subject",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "400": {
+            "description": "Bad Request"
+          },
+          "500": {
+            "description": "Internal Server Error"
+          }
+        },
+        "summary": "Fetch Exam / Results",
+        "operationId": "get_api_exam_results"
+      }
+    },
+    "/api/exam/fetch/manage": {
+      "get": {
+        "tags": [
+          "Exams"
+        ],
+        "description": "Fetch Exam / Fetch / Manage.",
+        "parameters": [
+          {
             "name": "authorization",
             "in": "header",
             "schema": {
@@ -6468,8 +6670,81 @@
             "description": "Internal Server Error"
           }
         },
-        "summary": "Fetch Exam / Results",
-        "operationId": "get_api_exam_results"
+        "summary": "Fetch Exam / Fetch / Manage",
+        "operationId": "get_api_exam_fetch_manage"
+      }
+    },
+    "/api/exam/results/exam-options": {
+      "get": {
+        "tags": [
+          "Exams"
+        ],
+        "description": "Fetch Exam / Results / Exam Options.",
+        "parameters": [
+          {
+            "name": "authorization",
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "400": {
+            "description": "Bad Request"
+          },
+          "500": {
+            "description": "Internal Server Error"
+          }
+        },
+        "summary": "Fetch Exam / Results / Exam Options",
+        "operationId": "get_api_exam_results_exam_options"
+      }
+    },
+    "/api/exam/results/exam-students": {
+      "get": {
+        "description": "Fetch Exam / Results / Exam Students.",
+        "parameters": [
+          {
+            "name": "req",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "400": {
+            "description": "Bad Request"
+          },
+          "403": {
+            "description": "Forbidden"
+          },
+          "404": {
+            "description": "Not Found"
+          },
+          "500": {
+            "description": "Internal Server Error"
+          }
+        },
+        "tags": [
+          "Exams"
+        ],
+        "summary": "Fetch Exam / Results / Exam Students",
+        "operationId": "get_api_exam_results_exam_students"
       }
     },
     "/api/exam/results/admin": {
@@ -6613,6 +6888,109 @@
         },
         "summary": "Create Exam / Results / Bulk Upload",
         "operationId": "post_api_exam_results_bulk_upload"
+      }
+    },
+    "/api/exam/results/{id}": {
+      "put": {
+        "tags": [
+          "Exams"
+        ],
+        "description": "Update Exam / Results.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "400": {
+            "description": "Bad Request"
+          },
+          "403": {
+            "description": "Forbidden"
+          },
+          "404": {
+            "description": "Not Found"
+          },
+          "409": {
+            "description": "Conflict"
+          },
+          "500": {
+            "description": "Internal Server Error"
+          }
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "campusId": {
+                    "example": "any"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "summary": "Update Exam / Results",
+        "operationId": "put_api_exam_results_id"
+      },
+      "delete": {
+        "tags": [
+          "Exams"
+        ],
+        "description": "Delete Exam / Results.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "400": {
+            "description": "Bad Request"
+          },
+          "403": {
+            "description": "Forbidden"
+          },
+          "404": {
+            "description": "Not Found"
+          },
+          "500": {
+            "description": "Internal Server Error"
+          }
+        },
+        "summary": "Delete Exam / Results",
+        "operationId": "delete_api_exam_results_id"
       }
     },
     "/api/exam/results/publish": {
@@ -6783,6 +7161,231 @@
         },
         "summary": "Update Exam / Results / Bulk Publish",
         "operationId": "put_api_exam_results_bulk_publish"
+      }
+    },
+    "/api/exam/teacher/manage": {
+      "get": {
+        "description": "Fetch Exam / Teacher / Manage.",
+        "parameters": [
+          {
+            "name": "authorization",
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "400": {
+            "description": "Bad Request"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          },
+          "500": {
+            "description": "Internal Server Error"
+          }
+        },
+        "tags": [
+          "Exams"
+        ],
+        "summary": "Fetch Exam / Teacher / Manage",
+        "operationId": "get_api_exam_teacher_manage"
+      }
+    },
+    "/api/exam/teacher/add": {
+      "post": {
+        "description": "Create Exam / Teacher / Add.",
+        "parameters": [
+          {
+            "name": "authorization",
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Created"
+          },
+          "400": {
+            "description": "Bad Request"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "title": {
+                    "example": "any"
+                  },
+                  "term": {
+                    "example": "any"
+                  },
+                  "instructor": {
+                    "example": "any"
+                  },
+                  "venue": {
+                    "example": "any"
+                  },
+                  "date": {
+                    "example": "any"
+                  },
+                  "time": {
+                    "example": "any"
+                  },
+                  "duration": {
+                    "example": "any"
+                  },
+                  "marks": {
+                    "example": "any"
+                  },
+                  "noOfStudents": {
+                    "example": "any"
+                  },
+                  "status": {
+                    "example": "any"
+                  },
+                  "classId": {
+                    "example": "any"
+                  },
+                  "sectionId": {
+                    "example": "any"
+                  },
+                  "subjectId": {
+                    "example": "any"
+                  },
+                  "published": {
+                    "example": "any"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Exams"
+        ],
+        "summary": "Create Exam / Teacher / Add",
+        "operationId": "post_api_exam_teacher_add"
+      }
+    },
+    "/api/exam/teacher/{id}": {
+      "put": {
+        "description": "Update Exam / Teacher.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "400": {
+            "description": "Bad Request"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          },
+          "404": {
+            "description": "Not Found"
+          }
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "campusId": {
+                    "example": "any"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Exams"
+        ],
+        "summary": "Update Exam / Teacher",
+        "operationId": "put_api_exam_teacher_id"
+      },
+      "delete": {
+        "description": "Delete Exam / Teacher.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "400": {
+            "description": "Bad Request"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          },
+          "404": {
+            "description": "Not Found"
+          },
+          "500": {
+            "description": "Internal Server Error"
+          }
+        },
+        "tags": [
+          "Exams"
+        ],
+        "summary": "Delete Exam / Teacher",
+        "operationId": "delete_api_exam_teacher_id"
       }
     },
     "/api/assignment/fetch": {
@@ -11023,6 +11626,63 @@
         "operationId": "get_api_fees_structures"
       }
     },
+    "/api/fees/admin/structures/analytics": {
+      "get": {
+        "tags": [
+          "Fees"
+        ],
+        "description": "Fetch Fees / Admin / Structures / Analytics.",
+        "parameters": [
+          {
+            "name": "classId",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "academicYearId",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "board",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "400": {
+            "description": "Bad Request"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          },
+          "500": {
+            "description": "Internal Server Error"
+          }
+        },
+        "summary": "Fetch Fees / Admin / Structures / Analytics",
+        "operationId": "get_api_fees_admin_structures_analytics"
+      }
+    },
     "/api/fees/structures/{id}": {
       "put": {
         "tags": [
@@ -11364,7 +12024,8 @@
         "tags": [
           "Fees"
         ],
-        "description": "Fetch Fees / Payments / Receipt.",
+        "summary": "Fetch Fees / Payments / Receipt",
+        "description": "Fetch a detailed fee payment receipt payload including school branding metadata for PDF generation.",
         "parameters": [
           {
             "name": "paymentId",
@@ -11372,37 +12033,118 @@
             "required": true,
             "schema": {
               "type": "string"
-            }
-          },
-          {
-            "name": "authorization",
-            "in": "header",
-            "schema": {
-              "type": "string"
-            }
+            },
+            "description": "Fee payment id"
           }
         ],
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "Detailed receipt payload",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "receipt": {
+                      "type": "object",
+                      "properties": {
+                        "paymentId": {
+                          "type": "string"
+                        },
+                        "transactionId": {
+                          "type": "string"
+                        },
+                        "receiptNo": {
+                          "type": "string"
+                        },
+                        "sid": {
+                          "type": "string"
+                        },
+                        "date": {
+                          "type": "string",
+                          "format": "date-time"
+                        },
+                        "payMode": {
+                          "type": "string"
+                        },
+                        "classSection": {
+                          "type": "string"
+                        },
+                        "academicYear": {
+                          "type": "string"
+                        },
+                        "fatherName": {
+                          "type": "string"
+                        },
+                        "motherName": {
+                          "type": "string"
+                        },
+                        "guardianName": {
+                          "type": "string"
+                        },
+                        "notes": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        },
+                        "generatedAt": {
+                          "type": "string",
+                          "format": "date-time"
+                        }
+                      }
+                    },
+                    "payment": {
+                      "type": "object"
+                    },
+                    "invoice": {
+                      "type": "object"
+                    },
+                    "student": {
+                      "type": "object"
+                    },
+                    "school": {
+                      "type": "object",
+                      "nullable": true,
+                      "properties": {
+                        "name": {
+                          "type": "string"
+                        },
+                        "address": {
+                          "type": "string"
+                        },
+                        "contactPhone": {
+                          "type": "string"
+                        },
+                        "contactEmail": {
+                          "type": "string"
+                        },
+                        "websiteURL": {
+                          "type": "string"
+                        },
+                        "logoUrl": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
           },
           "400": {
-            "description": "Bad Request"
-          },
-          "401": {
-            "description": "Unauthorized"
+            "description": "Invalid paymentId or missing context"
           },
           "403": {
-            "description": "Forbidden"
+            "description": "Payment not available for this campus"
           },
           "404": {
-            "description": "Not Found"
+            "description": "Payment or invoice not found"
           },
           "500": {
-            "description": "Internal Server Error"
+            "description": "Unable to load payment receipt"
           }
         },
-        "summary": "Fetch Fees / Payments / Receipt",
         "operationId": "get_api_fees_payments_paymentId_receipt"
       }
     },
@@ -12116,6 +12858,260 @@
         },
         "summary": "Fetch Reports / Summary",
         "operationId": "get_api_reports_summary"
+      }
+    },
+    "/api/reports/report-cards/template": {
+      "get": {
+        "description": "Fetch Reports / Report Cards / Template.",
+        "parameters": [
+          {
+            "name": "authorization",
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "400": {
+            "description": "Bad Request"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          },
+          "500": {
+            "description": "Internal Server Error"
+          }
+        },
+        "tags": [
+          "Reports"
+        ],
+        "summary": "Fetch Reports / Report Cards / Template",
+        "operationId": "get_api_reports_report_cards_template"
+      },
+      "put": {
+        "description": "Update Reports / Report Cards / Template.",
+        "parameters": [
+          {
+            "name": "authorization",
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "400": {
+            "description": "Bad Request"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "title": {
+                    "example": "any"
+                  },
+                  "subtitle": {
+                    "example": "any"
+                  },
+                  "schoolNameOverride": {
+                    "example": "any"
+                  },
+                  "logoUrlOverride": {
+                    "example": "any"
+                  },
+                  "schoolAddressLine": {
+                    "example": "any"
+                  },
+                  "schoolContactLine": {
+                    "example": "any"
+                  },
+                  "accentColor": {
+                    "example": "any"
+                  },
+                  "showPageBorder": {
+                    "example": "any"
+                  },
+                  "watermarkText": {
+                    "example": "any"
+                  },
+                  "footerNote": {
+                    "example": "any"
+                  },
+                  "signatureLabel": {
+                    "example": "any"
+                  },
+                  "principalLabel": {
+                    "example": "any"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Reports"
+        ],
+        "summary": "Update Reports / Report Cards / Template",
+        "operationId": "put_api_reports_report_cards_template"
+      }
+    },
+    "/api/reports/report-cards/bulk": {
+      "post": {
+        "description": "Create Reports / Report Cards / Bulk.",
+        "parameters": [
+          {
+            "name": "authorization",
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "400": {
+            "description": "Bad Request"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          },
+          "500": {
+            "description": "Internal Server Error"
+          }
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "classId": {
+                    "example": "any"
+                  },
+                  "sectionId": {
+                    "example": "any"
+                  },
+                  "academicYearId": {
+                    "example": "any"
+                  },
+                  "academicYear": {
+                    "example": "any"
+                  },
+                  "includeUnpublished": {
+                    "example": "any"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Reports"
+        ],
+        "summary": "Create Reports / Report Cards / Bulk",
+        "operationId": "post_api_reports_report_cards_bulk"
+      }
+    },
+    "/api/reports/report-cards/me": {
+      "get": {
+        "description": "Fetch Reports / Report Cards / Me.",
+        "parameters": [
+          {
+            "name": "authorization",
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "400": {
+            "description": "Bad Request"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          },
+          "404": {
+            "description": "Not Found"
+          },
+          "500": {
+            "description": "Internal Server Error"
+          }
+        },
+        "tags": [
+          "Reports"
+        ],
+        "summary": "Fetch Reports / Report Cards / Me",
+        "operationId": "get_api_reports_report_cards_me"
+      }
+    },
+    "/api/reports/report-cards/parent": {
+      "get": {
+        "description": "Fetch Reports / Report Cards / Parent.",
+        "parameters": [
+          {
+            "name": "authorization",
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "400": {
+            "description": "Bad Request"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          },
+          "404": {
+            "description": "Not Found"
+          },
+          "500": {
+            "description": "Internal Server Error"
+          }
+        },
+        "tags": [
+          "Reports"
+        ],
+        "summary": "Fetch Reports / Report Cards / Parent",
+        "operationId": "get_api_reports_report_cards_parent"
       }
     },
     "/api/timetable/": {

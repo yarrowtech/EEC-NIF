@@ -11,6 +11,7 @@ import {
   User,
   Wallet,
 } from 'lucide-react';
+import { downloadFeeReceiptPdf } from '../../utils/feeReceiptPdf';
 
 const API_BASE = (import.meta.env.VITE_API_URL || 'http://localhost:5000').replace(/\/$/, '');
 
@@ -275,6 +276,36 @@ const StudentFeeDetails = ({ setShowAdminHeader }) => {
     }
   };
 
+  const handleDownloadReceipt = async (payment) => {
+    if (!payment || !detail?.invoice) return;
+    try {
+      const res = await fetch(`${API_BASE}/api/fees/payments/${payment._id}/receipt`, {
+        headers: {
+          'Content-Type': 'application/json',
+          authorization: `Bearer ${localStorage.getItem('token')}`,
+        },
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data?.error || 'Unable to load receipt data');
+      }
+      await downloadFeeReceiptPdf({
+        invoice: data?.invoice || detail.invoice,
+        student: data?.student || detail.student,
+        payment: data?.payment || payment,
+        receipt: data?.receipt || null,
+        school: data?.school || null,
+        schoolName:
+          localStorage.getItem('schoolName') ||
+          localStorage.getItem('school') ||
+          'Electronic Educare School',
+        schoolSubtitle: 'Fee Payment Receipt',
+      });
+    } catch (err) {
+      setActionMessage({ type: 'error', text: err.message || 'Unable to download receipt' });
+    }
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-slate-50 flex items-center justify-center">
@@ -375,6 +406,15 @@ const StudentFeeDetails = ({ setShowAdminHeader }) => {
                   <Download size={16} />
                   Print Statement
                 </button>
+                {payments.length ? (
+                  <button
+                    onClick={() => handleDownloadReceipt(payments[0])}
+                    className="flex items-center justify-center gap-2 px-4 py-3 bg-slate-900 text-white rounded-2xl font-semibold"
+                  >
+                    <Download size={16} />
+                    Latest Receipt PDF
+                  </button>
+                ) : null}
               </div>
             </div>
           </div>
@@ -478,6 +518,13 @@ const StudentFeeDetails = ({ setShowAdminHeader }) => {
                           ? new Date(payment.paidOn).toLocaleDateString()
                           : '-'}
                       </p>
+                      <button
+                        onClick={() => handleDownloadReceipt(payment)}
+                        className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100"
+                      >
+                        <Download size={13} />
+                        Receipt
+                      </button>
                     </div>
                   ))}
                 </div>

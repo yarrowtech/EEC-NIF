@@ -164,6 +164,71 @@ const postProcessSwagger = (filePath) => {
     }
   }
 
+  const receiptPath = '/api/fees/payments/{paymentId}/receipt';
+  if (paths[receiptPath]?.get) {
+    const op = paths[receiptPath].get;
+    op.parameters = [
+      {
+        name: 'paymentId',
+        in: 'path',
+        required: true,
+        schema: { type: 'string' },
+        description: 'Fee payment id',
+      },
+    ];
+    op.responses = {
+      200: {
+        description: 'Detailed receipt payload',
+        content: {
+          'application/json': {
+            schema: {
+              type: 'object',
+              properties: {
+                receipt: {
+                  type: 'object',
+                  properties: {
+                    paymentId: { type: 'string' },
+                    transactionId: { type: 'string' },
+                    receiptNo: { type: 'string' },
+                    sid: { type: 'string' },
+                    date: { type: 'string', format: 'date-time' },
+                    payMode: { type: 'string' },
+                    classSection: { type: 'string' },
+                    academicYear: { type: 'string' },
+                    fatherName: { type: 'string' },
+                    motherName: { type: 'string' },
+                    guardianName: { type: 'string' },
+                    notes: { type: 'array', items: { type: 'string' } },
+                    generatedAt: { type: 'string', format: 'date-time' },
+                  },
+                },
+                payment: { type: 'object' },
+                invoice: { type: 'object' },
+                student: { type: 'object' },
+                school: {
+                  type: 'object',
+                  nullable: true,
+                  properties: {
+                    name: { type: 'string' },
+                    address: { type: 'string' },
+                    contactPhone: { type: 'string' },
+                    contactEmail: { type: 'string' },
+                    websiteURL: { type: 'string' },
+                    logoUrl: { type: 'string' },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+      400: { description: 'Invalid paymentId or missing context' },
+      403: { description: 'Payment not available for this campus' },
+      404: { description: 'Payment or invoice not found' },
+      500: { description: 'Unable to load payment receipt' },
+    };
+  }
+
   const discoveredTags = new Set();
   for (const ops of Object.values(paths)) {
     for (const method of methods) {

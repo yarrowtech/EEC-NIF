@@ -12,6 +12,7 @@ const ParentUser = require('../models/ParentUser');
 const ClassModel = require('../models/Class');
 const Section = require('../models/Section');
 const AcademicYear = require('../models/AcademicYear');
+const School = require('../models/School');
 const NotificationService = require('../utils/notificationService');
 const {
   buildRazorpayReceipt,
@@ -666,6 +667,8 @@ router.get('/payments', adminAuth, async (req, res) => {
 
 router.get('/payments/:paymentId/receipt', adminAuth, async (req, res) => {
   // #swagger.tags = ['Fees']
+  // #swagger.summary = 'Fetch Fees / Payments / Receipt'
+  // #swagger.description = 'Fetch a detailed fee payment receipt payload including school branding metadata for PDF generation.'
   try {
     const schoolId = resolveSchoolId(req, res);
     if (!schoolId) return;
@@ -693,19 +696,66 @@ router.get('/payments/:paymentId/receipt', adminAuth, async (req, res) => {
       return res.status(403).json({ error: 'Payment not available for this campus' });
     }
 
-    const student = await StudentUser.findOne({ _id: payment.studentId, schoolId })
-      .select('name grade section roll admissionNumber')
-      .lean();
+    const [student, school, academicYear] = await Promise.all([
+      StudentUser.findOne({ _id: payment.studentId, schoolId })
+        .select(
+          'name grade section roll admissionNumber studentCode fatherName motherName guardianName guardianPhone guardianEmail mobile email'
+        )
+        .lean(),
+      School.findById(schoolId)
+        .select(
+          'name address contactEmail contactPhone officialEmail websiteURL logo campuses'
+        )
+        .lean(),
+      invoice.academicYearId
+        ? AcademicYear.findOne({ _id: invoice.academicYearId, schoolId }).select('name startDate endDate').lean()
+        : null,
+    ]);
+
+    const campusInfo = school?.campuses?.find(
+      (campus) =>
+        String(campus?._id || '') === String(req.campusId || '') ||
+        String(campus?.name || '').toLowerCase() === String(student?.campusName || '').toLowerCase()
+    );
+
+    const classSection = [invoice.className || student?.grade || '', invoice.section || student?.section || '']
+      .filter(Boolean)
+      .join(' - ');
+    const notes = [
+      'In case of any discrepancy, contact the school fees office within 7 days.',
+      'This receipt is valid only after successful realization of payment.',
+      'Preserve this receipt for school and audit records.',
+    ];
 
     res.json({
       receipt: {
         paymentId: payment._id,
         transactionId: payment.transactionId || '',
+        receiptNo: payment.transactionId || payment.gatewayPaymentId || String(payment._id || ''),
+        sid: student?.studentCode || student?.admissionNumber || '',
+        date: payment.paidOn || payment.createdAt || new Date(),
+        payMode: payment.method || '',
+        classSection,
+        academicYear: academicYear?.name || '',
+        fatherName: student?.fatherName || '',
+        motherName: student?.motherName || '',
+        guardianName: student?.guardianName || '',
+        notes,
         generatedAt: new Date().toISOString(),
       },
       payment,
       invoice,
       student: student || null,
+      school: school
+        ? {
+            name: school.name || '',
+            address: campusInfo?.address || school.address || '',
+            contactPhone: campusInfo?.contactPhone || school.contactPhone || '',
+            contactEmail: school.contactEmail || school.officialEmail || '',
+            websiteURL: school.websiteURL || '',
+            logoUrl: school.logo?.secure_url || '',
+          }
+        : null,
     });
   } catch (err) {
     res.status(500).json({ error: err.message || 'Unable to load payment receipt' });
