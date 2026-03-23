@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Calendar, Clock, Video, Phone, Users, MessageSquare, Check, X, AlertCircle, Trash2 } from 'lucide-react';
 import axios from 'axios';
+import { formatStudentDisplay } from '../utils/studentDisplay';
 
 const ParentMeetings = () => {
   const [selectedMeeting, setSelectedMeeting] = useState(null);
@@ -301,7 +302,7 @@ const ParentMeetings = () => {
                   <option value="">Select Student</option>
                   {students.map((student) => (
                     <option key={student._id} value={student._id}>
-                      {student.name} ({student.grade} - {student.section})
+                      {formatStudentDisplay(student)}
                     </option>
                   ))}
                 </select>

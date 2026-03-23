@@ -7,6 +7,7 @@ import {
 import toast from 'react-hot-toast';
 import Swal from 'sweetalert2';
 import { getStoredAdminScope } from '../utils/adminScope';
+import { formatStudentDisplay } from '../../utils/studentDisplay';
 
 const API_BASE = import.meta.env.VITE_API_URL;
 
@@ -538,7 +539,7 @@ const Result = ({ setShowAdminHeader }) => {
           className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100">
           <option value="">{loadingStudents ? 'Loading...' : students.length === 0 ? 'No students' : 'Choose a student'}</option>
           {students.map(s => (
-            <option key={s._id} value={s._id}>{s.name} – Roll: {s.roll || 'N/A'} ({s.grade || '?'} {s.section || ''})</option>
+            <option key={s._id} value={s._id}>{formatStudentDisplay(s)}</option>
           ))}
         </select>
         {!loadingStudents && students.length > 0 && (

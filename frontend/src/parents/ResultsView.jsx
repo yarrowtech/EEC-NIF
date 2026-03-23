@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { FileText, Download, Award, TrendingUp } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { downloadSingleReportCardPdf } from '../utils/reportCardPdf';
+import { formatStudentDisplay } from '../utils/studentDisplay';
 
 const API_BASE_URL = (import.meta.env.VITE_API_URL || 'http://localhost:5000').replace(/\/$/, '');
 const CATEGORY_FILTERS = [
@@ -159,7 +160,12 @@ const ResultsView = () => {
                   >
                     {reports.map((child) => (
                       <option key={child.studentId} value={child.studentId}>
-                        {child.studentName} ({child.grade} {child.section})
+                        {formatStudentDisplay({
+                          studentName: child.studentName,
+                          studentId: child.studentId,
+                          roll: child.roll,
+                          section: child.section,
+                        })}
                       </option>
                     ))}
                   </select>
@@ -194,7 +200,12 @@ const ResultsView = () => {
             <div className="bg-white rounded-xl p-6 shadow-sm">
               <h3 className="text-lg font-semibold text-gray-800 mb-2">Child Performance</h3>
               <p className="text-gray-600 text-sm">
-                {selectedReport?.studentName} • Grade {selectedReport?.grade} {selectedReport?.section}
+                {formatStudentDisplay({
+                  studentName: selectedReport?.studentName,
+                  studentId: selectedReport?.studentId,
+                  roll: selectedReport?.roll,
+                  section: selectedReport?.section,
+                })}
               </p>
             </div>
             <div className="bg-white rounded-xl p-6 shadow-sm text-center">

@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Calendar, CheckCircle, XCircle, TrendingUp, Loader2, Users } from 'lucide-react';
+import { formatStudentDisplay } from '../utils/studentDisplay';
 
 const API_BASE = (import.meta.env.VITE_API_URL || 'http://localhost:5000').replace(/\/$/, '');
 
@@ -96,7 +97,13 @@ const AttendanceReport = () => {
               <option value="">Choose a child</option>
               {children.map((child) => (
                 <option key={child?.student?._id} value={child?.student?._id}>
-                  {child?.student?.name} ({child?.student?.grade || '-'} {child?.student?.section || ''})
+                  {formatStudentDisplay({
+                    name: child?.student?.name,
+                    studentName: child?.student?.studentName,
+                    studentId: child?.student?._id,
+                    roll: child?.student?.roll || child?.student?.rollNumber,
+                    section: child?.student?.section || child?.student?.sectionName,
+                  })}
                 </option>
               ))}
             </select>
@@ -150,7 +157,15 @@ const AttendanceReport = () => {
             <div className="p-4 border-b border-gray-100 bg-gray-50">
               <h2 className="font-semibold text-gray-800 flex items-center gap-2">
                 <Calendar className="w-4 h-4 text-amber-600" />
-                Daily Records ({selectedChild?.student?.name})
+                Daily Records (
+                {formatStudentDisplay({
+                  name: selectedChild?.student?.name,
+                  studentName: selectedChild?.student?.studentName,
+                  studentId: selectedChild?.student?._id,
+                  roll: selectedChild?.student?.roll || selectedChild?.student?.rollNumber,
+                  section: selectedChild?.student?.section || selectedChild?.student?.sectionName,
+                })}
+                )
               </h2>
             </div>
             <div className="overflow-x-auto">

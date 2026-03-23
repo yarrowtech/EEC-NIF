@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Eye, Calendar, TrendingUp, AlertCircle, Clock, User, CheckCircle } from 'lucide-react';
+import { formatStudentDisplay } from '../utils/studentDisplay';
 
 const API_BASE_URL = (import.meta.env.VITE_API_URL || 'http://localhost:5000').replace(/\/$/, '');
 
@@ -93,6 +94,8 @@ const ParentObservation = () => {
         const childOptions = (childrenPayload.children || []).map((entry) => ({
           id: entry.student?._id || entry.studentId,
           name: entry.student?.name || 'Student',
+          roll: entry.student?.roll || entry.student?.rollNo || entry.student?.rollNumber,
+          section: entry.student?.section || entry.student?.sectionName || '',
           classLabel: entry.student
             ? `Grade ${entry.student.grade || ''} ${entry.student.section || ''}`
             : '',
@@ -220,7 +223,12 @@ const ParentObservation = () => {
                     <option value="">Choose a child</option>
                     {children.map((child) => (
                       <option key={child.id} value={child.id}>
-                        {child.name} {child.classLabel ? `• ${child.classLabel}` : ''}
+                        {formatStudentDisplay({
+                          name: child.name,
+                          studentId: child.id,
+                          roll: child.roll,
+                          section: child.section,
+                        })}
                       </option>
                     ))}
                   </select>
@@ -369,7 +377,14 @@ const ParentObservation = () => {
                       <div className="flex items-start justify-between mb-2">
                         <div className="flex items-center space-x-2">
                           <User className="w-4 h-4 text-gray-400" />
-                          <span className="font-medium text-gray-900">{obs.studentName}</span>
+                          <span className="font-medium text-gray-900">
+                            {formatStudentDisplay({
+                              studentName: obs.studentName,
+                              studentId: obs.studentId,
+                              roll: obs.roll || obs.rollNo || obs.rollNumber,
+                              section: obs.section,
+                            })}
+                          </span>
                           <span className={`px-2 py-1 rounded-full text-xs font-medium ${concernBadge(obs.concernLevel || 'low')}`}>
                             {(obs.concernLevel || 'low').toUpperCase()}
                           </span>

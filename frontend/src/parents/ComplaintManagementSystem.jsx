@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { AlertCircle, FileText, Loader2, Plus, Send } from 'lucide-react';
+import { formatStudentDisplay } from '../utils/studentDisplay';
 
 const API_BASE_URL = (import.meta.env.VITE_API_URL || 'http://localhost:5000').replace(/\/$/, '');
 const STATUS_LABELS = {
@@ -304,7 +305,12 @@ const ComplaintManagementSystem = () => {
               >
                 {children.map((child) => (
                   <option key={child.studentId} value={child.studentId}>
-                    {child.name} ({child.grade || '-'} {child.section || ''})
+                    {formatStudentDisplay({
+                      name: child.name,
+                      studentId: child.studentId,
+                      roll: child.roll || child.rollNo || child.rollNumber,
+                      section: child.section,
+                    })}
                   </option>
                 ))}
               </select>
@@ -407,13 +413,12 @@ const ComplaintManagementSystem = () => {
                       )}
                       {complaint.studentName && (
                         <span className="px-2 py-1 bg-blue-50 rounded-md text-blue-700">
-                          {complaint.studentName}
-                          {(complaint.studentGrade || complaint.studentSection) && (
-                            <>
-                              {' '}
-                              ({complaint.studentGrade || ''} {complaint.studentSection || ''})
-                            </>
-                          )}
+                          {formatStudentDisplay({
+                            studentName: complaint.studentName,
+                            studentId: complaint.studentId,
+                            roll: complaint.studentRoll || complaint.roll,
+                            section: complaint.studentSection,
+                          })}
                         </span>
                       )}
                       {complaint.resolutionNotes && (

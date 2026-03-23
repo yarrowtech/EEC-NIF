@@ -28,7 +28,7 @@ import AchievementsView from './AchievementsView';
 import PTMPortal from './PTMPortal';
 import ParentDashboard from './ParentDashboard';
 import Observation from './Observation';
-import ParentObservation from './ParentObservation';
+import ParentObservationNonAcademic from './ParentObservationNonAcademic';
 import ParentChat from './ParentChat';
 import ClassRoutine from './ClassRoutine';
 import { AUTH_NOTICE, logoutAndRedirect } from '../utils/authSession';
@@ -294,7 +294,7 @@ const ParentPortal = () => {
           <Route path="chat" element={<ParentChat />} />
           <Route path="ptm" element={<PTMPortal />} />
           <Route path="observation" element={<Observation />} />
-          <Route path="parent-observation" element={<ParentObservation />} />
+          <Route path="parent-observation" element={<ParentObservationNonAcademic />} />
           <Route path="results" element={<ResultsView />} />
           <Route path="achievements" element={<AchievementsView />} />
         </Routes>

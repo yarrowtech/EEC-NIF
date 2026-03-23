@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Award, BookOpen, Calendar, Download, TrendingUp, AlertCircle } from 'lucide-react';
+import { formatStudentDisplay } from '../utils/studentDisplay';
 
 const API_BASE_URL = (import.meta.env.VITE_API_URL || 'http://localhost:5000').replace(/\/$/, '');
 
@@ -98,7 +99,12 @@ const AcademicReport = () => {
               {childrenReports.length === 0 && <option value="">No linked children</option>}
               {childrenReports.map((child) => (
                 <option key={child.studentId} value={child.studentId}>
-                  {child.studentName} ({child.grade || '-'} {child.section || ''})
+                  {formatStudentDisplay({
+                    studentName: child.studentName,
+                    studentId: child.studentId,
+                    roll: child.roll,
+                    section: child.section,
+                  })}
                 </option>
               ))}
             </select>

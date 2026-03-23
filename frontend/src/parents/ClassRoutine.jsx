@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { AlertCircle, Calendar, Users } from 'lucide-react';
+import { formatStudentDisplay } from '../utils/studentDisplay';
 
 const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 const API_BASE_URL = (import.meta.env.VITE_API_URL || 'http://localhost:5000').replace(/\/$/, '');
@@ -156,8 +157,12 @@ const ParentClassRoutine = () => {
               </div>
               {selectedChild && (
                 <p className="mt-2 text-sm text-gray-700">
-                  {selectedChild.studentName} | Class {selectedChild.className || selectedChild.grade || '-'}
-                  {selectedChild.sectionName || selectedChild.section ? ` | Section ${selectedChild.sectionName || selectedChild.section}` : ''}
+                  {formatStudentDisplay({
+                    studentName: selectedChild.studentName,
+                    studentId: selectedChild.studentId,
+                    roll: selectedChild.roll || selectedChild.rollNumber,
+                    section: selectedChild.sectionName || selectedChild.section,
+                  })}
                 </p>
               )}
               <p className="mt-1 text-xs text-gray-600">
@@ -219,7 +224,14 @@ const ParentClassRoutine = () => {
                     : 'border-gray-200 bg-gray-50 text-gray-700 hover:bg-gray-100'
                 }`}
               >
-                <p className="font-semibold leading-tight">{child.studentName}</p>
+                <p className="font-semibold leading-tight">
+                  {formatStudentDisplay({
+                    studentName: child.studentName,
+                    studentId: child.studentId,
+                    roll: child.roll || child.rollNumber,
+                    section: child.sectionName || child.section,
+                  })}
+                </p>
                 <p className="mt-0.5 text-xs text-gray-500">
                   Class {child.className || child.grade || '-'}
                   {child.sectionName || child.section ? ` | Sec ${child.sectionName || child.section}` : ''}
@@ -240,7 +252,13 @@ const ParentClassRoutine = () => {
             </div>
           ) : weeklyCount === 0 ? (
             <div className="rounded-xl border border-dashed border-gray-300 bg-gray-50 px-4 py-8 text-sm text-gray-600">
-              No routine assigned yet for {selectedChild.studentName}.
+              No routine assigned yet for{' '}
+              {formatStudentDisplay({
+                studentName: selectedChild.studentName,
+                studentId: selectedChild.studentId,
+                roll: selectedChild.roll || selectedChild.rollNumber,
+                section: selectedChild.sectionName || selectedChild.section,
+              })}.
             </div>
           ) : (
             <div className="overflow-x-auto rounded-xl border border-gray-200">

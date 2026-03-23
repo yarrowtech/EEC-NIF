@@ -15,6 +15,7 @@ import {
   TrendingUp,
   Activity
 } from 'lucide-react';
+import { formatStudentDisplay } from '../utils/studentDisplay';
 
 const API_BASE_URL = (import.meta.env.VITE_API_URL || 'http://localhost:5000').replace(/\/$/, '');
 
@@ -336,11 +337,9 @@ const StudentObservation = () => {
                   >
                     <option value="">Choose a student</option>
                     {filteredStudents.map((student) => {
-                      const classLabel = student.className || student.grade || 'Class';
-                      const rollLabel = student.roll || student.rollNo || '—';
                       return (
                         <option key={student._id || student.id} value={student._id || student.id}>
-                          {student.name} • {classLabel} ({rollLabel})
+                          {formatStudentDisplay(student)}
                         </option>
                       );
                     })}

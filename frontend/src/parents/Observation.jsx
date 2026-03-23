@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Activity, AlertTriangle, Clock, Eye, User } from 'lucide-react';
+import { formatStudentDisplay } from '../utils/studentDisplay';
 
 const API_BASE_URL = (import.meta.env.VITE_API_URL || 'http://localhost:5000').replace(/\/$/, '');
 const formatDate = (value) => {
@@ -207,7 +208,14 @@ const Observation = () => {
                     {teacherChildren.map((child) => (
                       <div key={child.studentId} className="flex items-center justify-between rounded-md border border-gray-100 px-3 py-2">
                         <div>
-                          <p className="text-sm font-medium text-gray-900">{child.studentName}</p>
+                          <p className="text-sm font-medium text-gray-900">
+                            {formatStudentDisplay({
+                              studentName: child.studentName,
+                              studentId: child.studentId,
+                              roll: child.roll,
+                              section: child.section,
+                            })}
+                          </p>
                           <p className="text-xs text-gray-500">
                             Grade {child.grade} {child.section}
                           </p>
@@ -235,7 +243,14 @@ const Observation = () => {
                         <div className="flex items-center justify-between">
                           <div className="flex items-center gap-2 text-sm font-medium text-gray-900">
                             <User className="h-4 w-4 text-gray-400" />
-                            <span>{item.studentName}</span>
+                            <span>
+                              {formatStudentDisplay({
+                                studentName: item.studentName,
+                                studentId: item.studentId,
+                                roll: item.roll,
+                                section: item.section,
+                              })}
+                            </span>
                           </div>
                           <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${
                             item.urgencyLevel === 'urgent'

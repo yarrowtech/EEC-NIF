@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { jsPDF } from 'jspdf';
+import { formatStudentDisplay } from '../../utils/studentDisplay';
 import {
   AlertCircle,
   CheckCircle2,
@@ -816,7 +817,7 @@ const FeesCollection = ({ setShowAdminHeader }) => {
                   <option value="">Select student</option>
                   {students.map((student) => (
                     <option key={student._id} value={student._id}>
-                      {student.name} ({student.grade || 'Class'}{student.section ? `-${student.section}` : ''})
+                      {formatStudentDisplay(student)}
                     </option>
                   ))}
                 </select>

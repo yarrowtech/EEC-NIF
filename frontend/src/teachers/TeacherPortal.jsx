@@ -27,7 +27,7 @@ import {
   GraduationCap,
 } from 'lucide-react';
 
-import HealthUpdates from './HealthUpdates';
+import HealthUpdatesAdvanced from './HealthUpdatesAdvanced';
 import ParentMeetings from './ParentMeetings';
 import AssignmentPortal from './AssignmentPortal';
 import AttendanceManagement from './AttendanceManagement';
@@ -40,7 +40,7 @@ import TestTeacherPortal from './TestTeacherPortal';
 import AIPoweredTeaching from './AIPoweredTeaching';
 import MyWorkPortal from './MyWorkPortal';
 import ClassRoutine from './ClassRoutine';
-import StudentObservation from './StudentObservation';
+import StudentObservationOverview from './StudentObservationOverview';
 import ClassNotes from './ClassNotes';
 import PracticeQuestions from './PracticeQuestions';
 import TeacherFeedbackPortal from './TeacherFeedbackPortal';
@@ -536,8 +536,8 @@ const TeacherPortal = () => {
               <Route path="weak-students" element={<Navigate to="/teacher/student-analytics" replace />} />
               <Route path="ai-powered-teaching" element={<AIPoweredTeaching />} />
               <Route path="ai-learning/:studentId/:subject" element={<AILearningPath />} />
-              <Route path="health-updates" element={<HealthUpdates />} />
-              <Route path="student-observations" element={<StudentObservation />} />
+              <Route path="health-updates" element={<HealthUpdatesAdvanced />} />
+              <Route path="student-observations" element={<StudentObservationOverview />} />
               <Route path="parent-meetings" element={<ParentMeetings />} />
               <Route path="assignments" element={<AssignmentPortal />} />
               <Route path="evaluation" element={<Navigate to="/teacher/assignments" replace />} />

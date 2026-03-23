@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { CheckCircle2, Edit2, Plus, Save, Search, Send, Trash2, X } from 'lucide-react';
 import { useLocation } from 'react-router-dom';
+import { formatStudentDisplay } from '../utils/studentDisplay';
 
 const API_BASE = (import.meta.env.VITE_API_URL || 'http://localhost:5000').replace(/\/$/, '');
 
@@ -577,7 +578,7 @@ const ResultManagement = () => {
                   <option value="">{loadingExamStudents ? 'Loading students...' : 'Select student'}</option>
                   {formStudents.map((student) => (
                     <option key={student._id} value={student._id}>
-                      {student.name} ({student.grade || '-'} {student.section || ''}{student.roll ? `, Roll ${student.roll}` : ''})
+                      {formatStudentDisplay(student)}
                     </option>
                   ))}
                 </select>
