@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Eye, EyeOff, Lock, User } from 'lucide-react';
+import { ArrowRight, ChartNoAxesCombined, Eye, EyeOff, Lock, MessagesSquare, NotepadText, User, UserCheck2 } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { AUTH_NOTICE, consumeAuthNotice } from '../utils/authSession';
@@ -235,194 +235,327 @@ const LoginForm = () => {
     }
   };
 
+  const features = [
+    { icon: <NotepadText size={16} />, label: 'Smart Assignments', desc: 'Manage homework & deadlines' },
+    { icon: <UserCheck2 size={16} />, label: 'Live Attendance', desc: 'Real-time tracking & alerts' },
+    { icon: <ChartNoAxesCombined size={16} />, label: 'Grade Reports', desc: 'Results & performance charts' },
+    { icon: <MessagesSquare size={16} />, label: 'Messaging', desc: 'Student–teacher communication' },
+  ];
+
   return (
-    <div className="min-h-screen w-full flex items-center justify-center bg-[url('/xavier.jpeg')] bg-no-repeat bg-cover bg-center px-4 py-8 sm:px-6">
-      <div className="bg-white/90 backdrop-blur-sm rounded-2xl shadow-2xl p-6 sm:p-8 max-w-md w-full mx-auto space-y-6 border border-purple-600">
-        {/* Header */}
-        <div className="text-center space-y-2">
-          <div className="mx-auto w-14 h-14 sm:w-16 sm:h-16 bg-gradient-to-r from-yellow-400 to-amber-500 rounded-full flex items-center justify-center mb-4">
-            <Lock className="w-7 h-7 sm:w-8 sm:h-8 text-white" />
+    <div className="min-h-screen flex bg-gray-50">
+
+      {/* ── LEFT PANEL ── */}
+      <div
+        className="hidden lg:flex lg:w-[44%] relative flex-col justify-between overflow-hidden p-12 xl:p-16"
+        style={{ background: 'linear-gradient(160deg,#92400e 0%,#b45309 30%,#d97706 60%,#f59e0b 100%)' }}
+      >
+        {/* Subtle grid texture */}
+        <div
+          className="absolute inset-0 pointer-events-none opacity-10"
+          style={{
+            backgroundImage: 'linear-gradient(rgba(255,255,255,0.3) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,0.3) 1px,transparent 1px)',
+            backgroundSize: '40px 40px'
+          }}
+        />
+        {/* Large decorative circle */}
+        <div className="absolute -top-24 -right-24 w-80 h-80 rounded-full bg-white/5 border border-white/10 pointer-events-none" />
+        <div className="absolute -bottom-20 -left-20 w-72 h-72 rounded-full bg-black/10 pointer-events-none" />
+        {/* Small accent circles */}
+        <div className="absolute top-1/2 right-8 w-24 h-24 rounded-full bg-yellow-300/10 border border-yellow-300/20 pointer-events-none" />
+
+        {/* Logo */}
+        <div className="relative z-10 flex items-center gap-3">
+          <div className="w-11 h-11 rounded-2xl bg-white/20 border border-white/30 backdrop-blur-sm flex items-center justify-center overflow-hidden">
+            <img src="/logo_new.png" alt="EEC" className="w-8 h-8 object-contain" />
           </div>
-          <h4 className="text-2xl sm:text-3xl font-bold bg-gradient-to-r from-yellow-500 to-amber-600 bg-clip-text text-transparent">
-            Welcome to EEC
-          </h4>
-          <p className="text-sm sm:text-base text-gray-600">
-            {resetMode ? 'Reset your password to continue' : 'Please sign in to your account'}
-          </p>
+          <div>
+            <div className="text-base font-black text-white leading-none">EEC</div>
+            <div className="text-xs text-amber-200/70 font-medium leading-none mt-0.5">Electronic Educare</div>
+          </div>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-4 sm:space-y-5">
-          {resetNotice && (
-            <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700">
-              {resetNotice}
+        {/* Hero */}
+        <div className="relative z-10 space-y-8">
+          <div>
+            <div className="inline-flex items-center gap-2 bg-white/10 border border-white/20 rounded-full px-3 py-1 mb-5">
+              <div className="w-1.5 h-1.5 rounded-full bg-yellow-300 animate-pulse" />
+              <span className="text-xs font-semibold text-amber-100/90 tracking-wide">School Management Platform</span>
             </div>
-          )}
-          {loginError && (
-            <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-              {loginError}
-            </div>
-          )}
-          {/* Username Field */}
-          <div className="space-y-2">
-            <label className="block text-sm font-semibold text-gray-700">User ID</label>
-            <div className="relative">
-              <User className="absolute left-3 top-3 w-5 h-5 text-gray-400" />
-              <input
-                type="text"
-                name="username"
-                value={formData.username}
-                onChange={handleInputChange}
-                placeholder="Enter your User ID"
-                className={`w-full pl-10 pr-4 py-2.5 sm:py-3 border rounded-xl shadow-sm transition-all duration-200 focus:ring-2 focus:ring-yellow-500 focus:border-transparent outline-none ${errors.username
-                    ? 'border-red-300 bg-red-50'
-                    : 'border-gray-300 hover:border-gray-400 focus:bg-white'
-                  }`}
-              />
-            </div>
-            {errors.username && (
-              <p className="text-red-500 text-sm">{errors.username}</p>
-            )}
+            <h1 className="text-4xl xl:text-[2.75rem] font-black text-white leading-[1.1] tracking-tight">
+              Empowering<br />
+              <span className="text-yellow-300">Education,</span><br />
+              Every Day
+            </h1>
+            <p className="mt-4 text-sm text-amber-100/60 leading-relaxed max-w-xs">
+              A unified platform connecting students, teachers, and parents — built for modern schools.
+            </p>
           </div>
 
-          {/* Password Field */}
-          {!resetMode && (
-          <div className="space-y-2">
-            <div className="flex justify-between items-center">
-              <label className="text-sm font-semibold text-gray-700">Password</label>
-              {/* <button
-                type="button"
-                className="text-sm text-yellow-600 hover:text-amber-700 transition-colors duration-200"
+          {/* Feature cards */}
+          <div className="grid grid-cols-2 gap-2.5">
+            {features.map(({ icon, label, desc }) => (
+              <div
+                key={label}
+                className="bg-white/8 hover:bg-white/12 border border-white/10 rounded-2xl p-3.5 transition-colors"
               >
-                Forgot password?
-              </button> */}
-            </div>
-            <div className="relative">
-              <Lock className="absolute left-3 top-3 w-5 h-5 text-gray-400" />
-              <input
-                type={showPass ? 'text' : 'password'}
-                name="password"
-                value={formData.password}
-                onChange={handleInputChange}
-                placeholder="Enter your password"
-                className={`w-full pl-10 pr-12 py-2.5 sm:py-3 border rounded-xl shadow-sm transition-all duration-200 focus:ring-2 focus:ring-yellow-500 focus:border-transparent outline-none ${errors.password
-                    ? 'border-red-300 bg-red-50'
-                    : 'border-gray-300 hover:border-gray-400 focus:bg-white'
-                  }`}
-              />
-              <div className='flex justify-center items-center'>
-                <button
-                  type="button"
-                  className="absolute right-3 top-3 text-gray-400 hover:text-gray-600"
-                  onClick={() => setShowPass(!showPass)}
-                >
-                  {showPass ? <EyeOff size={20} /> : <Eye size={20} />}
-                </button>
+                <div className="w-7 h-7 rounded-xl bg-white/15 flex items-center justify-center text-yellow-200 mb-2.5">
+                  {icon}
+                </div>
+                <div className="text-xs font-bold text-white leading-none mb-1">{label}</div>
+                <div className="text-[11px] text-amber-100/50 leading-snug">{desc}</div>
               </div>
-            </div>
-            {errors.password && (
-              <p className="text-red-500 text-sm ">{errors.password}</p>
-            )}
+            ))}
           </div>
-          )}
+        </div>
 
-          {resetMode && (
-            <>
-              <div className="space-y-2">
-                <label className="block text-sm font-semibold text-gray-700">New password</label>
+        {/* Bottom */}
+        <div className="relative z-10 flex items-center justify-between">
+          <p className="text-xs text-amber-200/40">© {new Date().getFullYear()} EEC · All rights reserved</p>
+          <div className="flex gap-1.5 items-center">
+            <div className="w-6 h-1.5 rounded-full bg-white/50" />
+            <div className="w-1.5 h-1.5 rounded-full bg-white/25" />
+            <div className="w-1.5 h-1.5 rounded-full bg-white/25" />
+          </div>
+        </div>
+      </div>
+
+      {/* ── RIGHT PANEL ── */}
+      <div className="flex-1 relative flex items-center justify-center px-5 py-10 sm:px-12 bg-gray-50">
+
+        {/* Background accent blobs */}
+        <div className="absolute top-0 right-0 w-72 h-72 rounded-full bg-amber-100/50 blur-3xl pointer-events-none" />
+        <div className="absolute bottom-0 left-0 w-56 h-56 rounded-full bg-orange-50/60 blur-2xl pointer-events-none" />
+
+        {/* Curved divider */}
+        <svg
+          className="hidden lg:block absolute top-0 left-0 h-full z-10 pointer-events-none"
+          style={{ width: 80, transform: 'translateX(-55%)' }}
+          viewBox="0 0 80 900"
+          preserveAspectRatio="none"
+          xmlns="http://www.w3.org/2000/svg"
+        >
+          <path d="M40 0 C18 150 62 300 40 450 C18 600 62 750 40 900 L80 900 L80 0 Z" fill="#f9fafb" />
+        </svg>
+
+        <div className="relative z-10 w-full max-w-[420px]">
+
+          {/* Mobile logo */}
+          <div className="flex items-center justify-center gap-3 mb-8 lg:hidden">
+            <div className="w-9 h-9 rounded-xl overflow-hidden bg-amber-500 flex items-center justify-center shadow-md">
+              <img src="/logo_new.png" alt="EEC" className="w-7 h-7 object-contain" />
+            </div>
+            <span className="text-base font-black text-gray-900">Electronic Educare</span>
+          </div>
+
+          {/* Card wrapper */}
+          <div className="bg-transparent">
+
+            {/* Heading */}
+            <div className="mb-7">
+              <div className="inline-flex items-center md:justify-start sm:justify-start justify-center gap-2 mb-4 w-full">
+                <div className="h-0.5 w-5 bg-amber-400 rounded-full" />
+                <span className="text-[11px] font-bold text-amber-600 uppercase tracking-[0.12em]">
+                  {resetMode ? 'Password Reset' : 'Portal Access'}
+                </span>
+                <div className="h-0.5 w-5 bg-amber-400 rounded-full" />
+              </div>
+              <h2 className="text-2xl sm:text-3xl font-black text-gray-900 leading-tight text-center md:text-left">
+                {resetMode ? 'Reset your password' : 'Welcome back!'}
+              </h2>
+              <p className="mt-1.5 text-sm text-gray-400 text-center md:text-left">
+                {resetMode
+                  ? 'Create a new secure password for your account'
+                  : 'Sign in to access your dashboard'}
+              </p>
+            </div>
+
+            {/* Notices */}
+            {resetNotice && (
+              <div className="mb-5 flex items-start gap-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+                <svg className="mt-0.5 w-4 h-4 shrink-0 text-amber-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M12 2a10 10 0 110 20A10 10 0 0112 2z"/>
+                </svg>
+                <span>{resetNotice}</span>
+              </div>
+            )}
+            {loginError && (
+              <div className="mb-5 flex items-start gap-3 rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-600">
+                <svg className="mt-0.5 w-4 h-4 shrink-0 text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01M12 2a10 10 0 110 20A10 10 0 0112 2z"/>
+                </svg>
+                <span>{loginError}</span>
+              </div>
+            )}
+
+            <form onSubmit={handleSubmit} className="space-y-4">
+
+              {/* User ID */}
+              <div className="space-y-1.5">
+                <label className="block text-xs font-semibold text-black uppercase tracking-wider">User ID</label>
                 <div className="relative">
-                  <Lock className="absolute left-3 top-3 w-5 h-5 text-gray-400" />
+                  <div className="absolute left-3.5 top-1/2 -translate-y-1/2 w-7 h-7 rounded-lg bg-amber-50 flex items-center justify-center pointer-events-none">
+                    <User className="w-3.5 h-3.5 text-amber-500" />
+                  </div>
                   <input
-                    type={showPass ? 'text' : 'password'}
-                    name="newPassword"
-                    value={formData.newPassword}
+                    type="text"
+                    name="username"
+                    value={formData.username}
                     onChange={handleInputChange}
-                    placeholder="Create a strong password"
-                    className={`w-full pl-10 pr-12 py-2.5 sm:py-3 border rounded-xl shadow-sm transition-all duration-200 focus:ring-2 focus:ring-yellow-500 focus:border-transparent outline-none ${errors.newPassword
-                        ? 'border-red-300 bg-red-50'
-                        : 'border-gray-300 hover:border-gray-400 focus:bg-white'
-                      }`}
+                    placeholder="Enter your User ID"
+                    className={`w-full pl-12 pr-4 py-3.5 rounded-full border text-gray-900 placeholder-gray-300 text-sm font-medium transition-all focus:outline-none focus:border-amber-400 focus:ring-4 focus:ring-amber-50 ${
+                      errors.username
+                        ? 'border-red-300 bg-red-50/30'
+                        : 'border-gray-200 bg-gray-50 hover:border-amber-200 hover:bg-white'
+                    }`}
                   />
-                  <div className='flex justify-center items-center'>
+                </div>
+                {errors.username && <p className="text-xs text-red-500 flex items-center gap-1 pl-1">⚠ {errors.username}</p>}
+              </div>
+
+              {/* Password (login mode) */}
+              {!resetMode && (
+                <div className="space-y-1.5">
+                  <label className="block text-xs font-semibold text-black uppercase tracking-wider">Password</label>
+                  <div className="relative">
+                    <div className="absolute left-3.5 top-1/2 -translate-y-1/2 w-7 h-7 rounded-lg bg-amber-50 flex items-center justify-center pointer-events-none">
+                      <Lock className="w-3.5 h-3.5 text-amber-500" />
+                    </div>
+                    <input
+                      type={showPass ? 'text' : 'password'}
+                      name="password"
+                      value={formData.password}
+                      onChange={handleInputChange}
+                      placeholder="Enter your password"
+                      className={`w-full pl-12 pr-12 py-3.5 rounded-full border text-gray-900 placeholder-gray-300 text-sm font-medium transition-all focus:outline-none focus:border-amber-400 focus:ring-4 focus:ring-amber-50 ${
+                        errors.password
+                          ? 'border-red-300 bg-red-50/30'
+                          : 'border-gray-200 bg-gray-50 hover:border-amber-200 hover:bg-white'
+                      }`}
+                    />
                     <button
                       type="button"
-                      className="absolute right-3 top-3 text-gray-400 hover:text-gray-600"
+                      className="absolute right-3.5 top-1/2 -translate-y-1/2 w-7 h-7 rounded-lg flex items-center justify-center text-gray-400 hover:text-amber-500 hover:bg-amber-50 transition-all"
                       onClick={() => setShowPass(!showPass)}
                     >
-                      {showPass ? <EyeOff size={20} /> : <Eye size={20} />}
+                      {showPass ? <EyeOff size={15} /> : <Eye size={15} />}
                     </button>
                   </div>
+                  {errors.password && <p className="text-xs text-red-500 flex items-center gap-1 pl-1">⚠ {errors.password}</p>}
                 </div>
-                {errors.newPassword && (
-                  <p className="text-red-500 text-sm ">{errors.newPassword}</p>
-                )}
-              </div>
+              )}
 
-              <div className="space-y-2">
-                <label className="block text-sm font-semibold text-gray-700">Confirm password</label>
-                <div className="relative">
-                  <Lock className="absolute left-3 top-3 w-5 h-5 text-gray-400" />
-                  <input
-                    type={showPass ? 'text' : 'password'}
-                    name="confirmPassword"
-                    value={formData.confirmPassword}
-                    onChange={handleInputChange}
-                    placeholder="Re-enter your password"
-                    className={`w-full pl-10 pr-4 py-2.5 sm:py-3 border rounded-xl shadow-sm transition-all duration-200 focus:ring-2 focus:ring-yellow-500 focus:border-transparent outline-none ${errors.confirmPassword
-                        ? 'border-red-300 bg-red-50'
-                        : 'border-gray-300 hover:border-gray-400 focus:bg-white'
-                      }`}
-                  />
-                </div>
-                {errors.confirmPassword && (
-                  <p className="text-red-500 text-sm ">{errors.confirmPassword}</p>
-                )}
-              </div>
-            </>
-          )}
+              {/* Reset fields */}
+              {resetMode && (
+                <>
+                  <div className="space-y-1.5">
+                    <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider">New Password</label>
+                    <div className="relative">
+                      <div className="absolute left-3.5 top-1/2 -translate-y-1/2 w-7 h-7 rounded-lg bg-amber-50 flex items-center justify-center pointer-events-none">
+                        <Lock className="w-3.5 h-3.5 text-amber-500" />
+                      </div>
+                      <input
+                        type={showPass ? 'text' : 'password'}
+                        name="newPassword"
+                        value={formData.newPassword}
+                        onChange={handleInputChange}
+                        placeholder="Create a strong password"
+                        className={`w-full pl-12 pr-12 py-3.5 rounded-full border text-gray-900 placeholder-gray-300 text-sm font-medium transition-all focus:outline-none focus:border-amber-400 focus:ring-4 focus:ring-amber-50 ${
+                          errors.newPassword
+                            ? 'border-red-300 bg-red-50/30'
+                            : 'border-gray-200 bg-gray-50 hover:border-amber-200 hover:bg-white'
+                        }`}
+                      />
+                      <button
+                        type="button"
+                        className="absolute right-3.5 top-1/2 -translate-y-1/2 w-7 h-7 rounded-lg flex items-center justify-center text-gray-400 hover:text-amber-500 hover:bg-amber-50 transition-all"
+                        onClick={() => setShowPass(!showPass)}
+                      >
+                        {showPass ? <EyeOff size={15} /> : <Eye size={15} />}
+                      </button>
+                    </div>
+                    {errors.newPassword && <p className="text-xs text-red-500 flex items-center gap-1 pl-1">⚠ {errors.newPassword}</p>}
+                  </div>
 
-          {/* Remember Me */}
-          {!resetMode && (
-            <div className="flex items-center">
-              <label htmlFor="remember" className="flex items-center gap-2.5 cursor-pointer select-none group">
-                <input
-                  type="checkbox"
-                  id="remember"
-                  name="rememberMe"
-                  checked={formData.rememberMe}
-                  onChange={handleInputChange}
-                  className="sr-only peer"
-                />
-                <div className="w-5 h-5 rounded border-2 border-gray-300 bg-white peer-checked:bg-linear-to-br peer-checked:from-yellow-400 peer-checked:to-amber-500 peer-checked:border-transparent peer-focus-visible:ring-2 peer-focus-visible:ring-yellow-400 peer-focus-visible:ring-offset-1 transition-all duration-200 shadow-sm flex items-center justify-center shrink-0">
-                  {formData.rememberMe && (
-                    <svg className="w-3 h-3 text-white" viewBox="0 0 12 10" fill="none">
-                      <path d="M1 5l3.5 3.5L11 1" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                    </svg>
-                  )}
-                </div>
-                <span className="text-sm text-gray-700 group-hover:text-gray-900 transition-colors">Remember me for 30 days</span>
-              </label>
+                  <div className="space-y-1.5">
+                    <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider">Confirm Password</label>
+                    <div className="relative">
+                      <div className="absolute left-3.5 top-1/2 -translate-y-1/2 w-7 h-7 rounded-lg bg-amber-50 flex items-center justify-center pointer-events-none">
+                        <Lock className="w-3.5 h-3.5 text-amber-500" />
+                      </div>
+                      <input
+                        type={showPass ? 'text' : 'password'}
+                        name="confirmPassword"
+                        value={formData.confirmPassword}
+                        onChange={handleInputChange}
+                        placeholder="Re-enter your password"
+                        className={`w-full pl-12 pr-4 py-3.5 rounded-2xl border text-gray-900 placeholder-gray-300 text-sm font-medium transition-all focus:outline-none focus:border-amber-400 focus:ring-4 focus:ring-amber-50 ${
+                          errors.confirmPassword
+                            ? 'border-red-300 bg-red-50/30'
+                            : 'border-gray-200 bg-gray-50 hover:border-amber-200 hover:bg-white'
+                        }`}
+                      />
+                    </div>
+                    {errors.confirmPassword && <p className="text-xs text-red-500 flex items-center gap-1 pl-1">⚠ {errors.confirmPassword}</p>}
+                  </div>
+                </>
+              )}
+
+              {/* Remember me */}
+              {!resetMode && (
+                <label htmlFor="remember" className="flex items-center gap-3 cursor-pointer select-none group pt-0.5">
+                  <input type="checkbox" id="remember" name="rememberMe" checked={formData.rememberMe} onChange={handleInputChange} className="sr-only peer" />
+                  <div className="w-[18px] h-[18px] rounded-md border-2 border-gray-200 bg-white peer-checked:bg-amber-500 peer-checked:border-amber-500 transition-all flex items-center justify-center shrink-0 shadow-sm">
+                    {formData.rememberMe && (
+                      <svg className="w-2.5 h-2.5 text-white" viewBox="0 0 12 10" fill="none">
+                        <path d="M1 5l3.5 3.5L11 1" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"/>
+                      </svg>
+                    )}
+                  </div>
+                  <span className="text-sm text-gray-400 group-hover:text-gray-600 transition-colors">Remember me for 30 days</span>
+                </label>
+              )}
+
+              {/* Submit */}
+              <button
+                type="submit"
+                disabled={isLoading}
+                className="w-full mt-1 py-3.5 rounded-full font-bold text-sm text-white transition-all active:scale-[0.98] disabled:opacity-60 flex items-center justify-center gap-2 shadow-lg shadow-amber-200/60 hover:shadow-xl hover:shadow-amber-300/50 hover:-translate-y-0.5"
+                style={{ background: 'linear-gradient(135deg,#d97706 0%,#f59e0b 60%,#fbbf24 100%)' }}
+              >
+                {isLoading ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />
+                    {resetMode ? 'Resetting...' : 'Signing in...'}
+                  </>
+                ) : (
+                  <>
+                    {resetMode ? 'Reset & Sign In' : 'Sign In'}
+                  </>
+                )}
+              </button>
+            </form>
+          </div>
+
+          {/* Trust badges */}
+          <div className="mt-5 flex items-center justify-center gap-5">
+            <div className="flex items-center gap-1.5 text-xs text-gray-400">
+              <svg className="w-3.5 h-3.5 text-amber-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
+              </svg>
+              <span>Secure login</span>
             </div>
-          )}
-
-          {/* Sign In Button */}
-          <button
-            type="submit"
-            disabled={isLoading}
-            className="w-full bg-gradient-to-r from-yellow-500 to-amber-500 text-white py-2.5 sm:py-3 rounded-xl hover:from-yellow-600 hover:to-amber-600 transition-all font-semibold shadow-lg hover:shadow-xl disabled:opacity-50 flex items-center justify-center gap-2"
-          >
-            {isLoading ? (
-              <>
-                <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
-                {resetMode ? 'Resetting...' : 'Signing in...'}
-              </>
-            ) : (
-              resetMode ? 'Reset Password & Sign In' : 'Sign In'
-            )}
-          </button>
-
-
-        </form>
-
+            <div className="w-1 h-1 rounded-full bg-gray-200" />
+            <div className="flex items-center gap-1.5 text-xs text-gray-400">
+              <svg className="w-3.5 h-3.5 text-amber-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>
+              </svg>
+              <span>Data protected</span>
+            </div>
+            <div className="w-1 h-1 rounded-full bg-gray-200" />
+            <span className="text-xs text-gray-400">© {new Date().getFullYear()} EEC</span>
+          </div>
+        </div>
       </div>
     </div>
   );
