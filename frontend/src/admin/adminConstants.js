@@ -20,7 +20,8 @@ import {
   UserRound,
   LifeBuoy,
   Bell,
-  ArrowUpCircle
+  ArrowUpCircle,
+  CalendarDays
 } from 'lucide-react';
 
 export const ADMIN_MENU_ITEMS = [
@@ -62,6 +63,11 @@ export const ADMIN_MENU_ITEMS = [
     icon: Bell,
     label: 'Notices',
     path: '/admin/notices'
+  },
+  {
+    icon: CalendarDays,
+    label: 'Holiday List',
+    path: '/admin/holidays'
   },
   {
     icon: GraduationCap,

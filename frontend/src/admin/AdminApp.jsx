@@ -29,6 +29,7 @@ import NoticeManagement from './pages/NoticeManagement';
 import AdminSettings from './pages/AdminSettings';
 import StudentPromotion from './pages/StudentPromotion';
 import ReportCardManagement from './pages/ReportCardManagement';
+import HolidayList from './pages/HolidayList';
 import { useState, useEffect, useMemo } from 'react';
 import { ADMIN_MENU_ITEMS } from './adminConstants';
 import { ensureAdminFetchScope, syncScopeFromProfile } from './utils/adminScope';
@@ -188,6 +189,7 @@ const AdminApp = () => {
         <Route path="hr" element={<HR setShowAdminHeader={setShowAdminHeader} />} />
         <Route path="support" element={<Support setShowAdminHeader={setShowAdminHeader} />} />
         <Route path="notices" element={<NoticeManagement setShowAdminHeader={setShowAdminHeader} />} />
+        <Route path="holidays" element={<HolidayList setShowAdminHeader={setShowAdminHeader} />} />
         <Route path="school-registrations" element={<SchoolRegistrations setShowAdminHeader={setShowAdminHeader} />} />
         <Route path="settings" element={<AdminSettings setShowAdminHeader={setShowAdminHeader} />} />
         <Route path="promotion" element={<StudentPromotion setShowAdminHeader={setShowAdminHeader} />} />

@@ -56,6 +56,7 @@ const excuseLetterRoutes = require('./routes/excuseLetterRoutes');
 const nifStudentRoutes = require('./routes/nifStudentRoutes');
 const lessonPlanRoutes = require('./routes/lessonPlanRoutes');
 const promotionRoutes = require('./routes/promotionRoutes');
+const holidayRoutes = require('./routes/holidayRoutes');
 const chatRoutes = require('./routes/chatRoutes');
 const ChatThread = require('./models/ChatThread');
 const ChatMessage = require('./models/ChatMessage');
@@ -333,6 +334,7 @@ app.use('/api/practice', practiceRoutes);
 app.use('/api/excuse-letters', excuseLetterRoutes);
 app.use('/api/nif', nifStudentRoutes);
 app.use('/api/lesson-plans', lessonPlanRoutes);
+app.use('/api/holidays', holidayRoutes);
 app.use('/api/chat', chatRoutes);
 
 app.use("/api/uploads", uploadRoutes);

@@ -23,6 +23,7 @@ import StudyMaterials from './StudyMaterials';
 import { StudentDashboardProvider } from './StudentDashboardContext';
 import MobileBottomNav from './MobileBottomNav';
 import AdventureTryouts from './AdventureTryouts';
+import HolidayListView from './HolidayListView';
 
 const normalizeViewFromPath = (pathname) => {
   if (
@@ -76,6 +77,7 @@ const Dashboard = () => {
     attendance: AttendanceView,
     routine: RoutineView,
     schedule: RoutineView,
+    holidays: HolidayListView,
     'lesson-plan-status': LessonPlanStatusView,
     assignments: (props) => <AssignmentView {...props} defaultType="school" />,
     'assignments-journal': (props) => <AssignmentView {...props} ref={journalRef} defaultType="journal" />,
