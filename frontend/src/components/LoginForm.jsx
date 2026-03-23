@@ -243,7 +243,7 @@ const LoginForm = () => {
   ];
 
   return (
-    <div className="min-h-screen flex bg-gray-50">
+    <div className="min-h-[100svh] flex bg-gray-50">
 
       {/* ── LEFT PANEL ── */}
       <div
@@ -321,7 +321,7 @@ const LoginForm = () => {
       </div>
 
       {/* ── RIGHT PANEL ── */}
-      <div className="flex-1 relative flex items-center justify-center px-5 py-10 sm:px-12 bg-gray-50">
+      <div className="flex-1 relative flex items-center justify-center min-h-[100svh] px-5 py-6 sm:px-12 sm:py-10 bg-gray-50">
 
         {/* Background accent blobs */}
         <div className="absolute top-0 right-0 w-72 h-72 rounded-full bg-amber-100/50 blur-3xl pointer-events-none" />
