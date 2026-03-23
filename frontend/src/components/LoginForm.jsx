@@ -403,7 +403,7 @@ const LoginForm = () => {
                     value={formData.username}
                     onChange={handleInputChange}
                     placeholder="Enter your User ID"
-                    className={`w-full pl-12 pr-4 py-3.5 rounded-full border text-gray-900 placeholder-gray-300 text-sm font-medium transition-all focus:outline-none focus:border-amber-400 focus:ring-4 focus:ring-amber-50 ${
+                    className={`bg-white w-full pl-12 pr-4 py-3.5 rounded-full border text-gray-900 placeholder-gray-300 text-sm font-medium transition-all focus:outline-none focus:border-amber-400 focus:ring-4 focus:ring-amber-50 ${
                       errors.username
                         ? 'border-red-300 bg-red-50/30'
                         : 'border-gray-200 bg-gray-50 hover:border-amber-200 hover:bg-white'
@@ -427,7 +427,7 @@ const LoginForm = () => {
                       value={formData.password}
                       onChange={handleInputChange}
                       placeholder="Enter your password"
-                      className={`w-full pl-12 pr-12 py-3.5 rounded-full border text-gray-900 placeholder-gray-300 text-sm font-medium transition-all focus:outline-none focus:border-amber-400 focus:ring-4 focus:ring-amber-50 ${
+                      className={`bg-white w-full pl-12 pr-12 py-3.5 rounded-full border text-gray-900 placeholder-gray-300 text-sm font-medium transition-all focus:outline-none focus:border-amber-400 focus:ring-4 focus:ring-amber-50 ${
                         errors.password
                           ? 'border-red-300 bg-red-50/30'
                           : 'border-gray-200 bg-gray-50 hover:border-amber-200 hover:bg-white'
