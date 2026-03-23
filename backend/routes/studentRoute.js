@@ -478,8 +478,20 @@ router.post('/register', adminAuth, async (req, res) => {
 // Login Student
 router.post('/login', rateLimit({ windowMs: 60 * 1000, max: 10 }), async (req, res) => {
   // #swagger.tags = ['Students']
-  const { username, password, studentId, id } = req.body;
-  const identifier = (username || studentId || id || '').trim();
+  const rawUsername = req.body?.username;
+  const rawStudentId = req.body?.studentId;
+  const rawId = req.body?.id;
+  const rawPassword = req.body?.password;
+  if (
+    (rawUsername !== undefined && typeof rawUsername !== 'string')
+    || (rawStudentId !== undefined && typeof rawStudentId !== 'string')
+    || (rawId !== undefined && typeof rawId !== 'string')
+    || typeof rawPassword !== 'string'
+  ) {
+    return res.status(400).json({ error: 'Student ID and password must be valid text values' });
+  }
+  const identifier = (rawUsername || rawStudentId || rawId || '').trim();
+  const password = rawPassword;
 
   try {
     if (!identifier || !password) {

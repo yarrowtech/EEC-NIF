@@ -172,8 +172,13 @@ const tryStaff = async ({ username, password, rememberMe }) => {
 };
 
 router.post('/login', rateLimit({ windowMs: 60 * 1000, max: 10 }), async (req, res) => {
-  const username = String(req.body?.username || '').trim();
-  const password = req.body?.password;
+  const rawUsername = req.body?.username;
+  const rawPassword = req.body?.password;
+  if (typeof rawUsername !== 'string' || typeof rawPassword !== 'string') {
+    return res.status(400).json({ error: 'Username and password must be valid text values' });
+  }
+  const username = rawUsername.trim();
+  const password = rawPassword;
   const rememberMe = parseRememberMe(req.body?.rememberMe);
   if (!username || !password) {
     return res.status(400).json({ error: 'Username and password are required' });

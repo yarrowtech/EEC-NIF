@@ -78,7 +78,13 @@ router.post('/register', adminAuth, async (req, res) => {
 // Login Staff
 router.post('/login', rateLimit({ windowMs: 60 * 1000, max: 10 }), async (req, res) => {
   // #swagger.tags = ['Staff']
-  const { username, password } = req.body;
+  const rawUsername = req.body?.username;
+  const rawPassword = req.body?.password;
+  if (typeof rawUsername !== 'string' || typeof rawPassword !== 'string') {
+    return res.status(400).json({ error: 'Username and password must be valid text values' });
+  }
+  const username = rawUsername;
+  const password = rawPassword;
 
   try {
     const loginId = String(username || '').trim();

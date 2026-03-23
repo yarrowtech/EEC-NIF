@@ -77,8 +77,17 @@ router.post('/register', async (req, res) => {
 // Login
 router.post('/login', rateLimit({ windowMs: 60 * 1000, max: 10 }), async (req, res) => {
   // #swagger.tags = ['Admin Auth']
-  const { username, password } = req.body;
+  const rawUsername = req.body?.username;
+  const rawPassword = req.body?.password;
+  if (typeof rawUsername !== 'string' || typeof rawPassword !== 'string') {
+    return res.status(400).json({ error: 'Username and password must be valid text values' });
+  }
+  const username = rawUsername.trim();
+  const password = rawPassword;
   try {
+    if (!username || !password) {
+      return res.status(400).json({ error: 'Username and password are required' });
+    }
     const admin = await Admin.findOne({ username });
     if (!admin || !(await bcrypt.compare(password, admin.password))) {
       return res.status(401).json({ error: 'Invalid credentials' });
