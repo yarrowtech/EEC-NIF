@@ -78,6 +78,8 @@ const ProfileUpdate = () => {
   const [activeTab, setActiveTab] = useState('personal');
   const fileInputRef = useRef(null);
   const touchStartRef = useRef({ x: 0, y: 0 });
+  const touchMoveRef = useRef({ x: 0, y: 0 });
+  const swipeLockRef = useRef(0);
   const [points, setPoints] = useState(0);
   const mobileTabs = ['personal', 'account', 'security'];
 
@@ -475,36 +477,60 @@ const ProfileUpdate = () => {
     const touch = e.touches?.[0];
     if (!touch) return;
     touchStartRef.current = { x: touch.clientX, y: touch.clientY };
+    touchMoveRef.current = { x: touch.clientX, y: touch.clientY };
+  };
+
+  const handleMobileTouchMove = (e) => {
+    const touch = e.touches?.[0];
+    if (!touch) return;
+    touchMoveRef.current = { x: touch.clientX, y: touch.clientY };
   };
 
   const handleMobileTouchEnd = (e) => {
+    const now = Date.now();
+    if (now - swipeLockRef.current < 220) return;
     const touch = e.changedTouches?.[0];
     if (!touch) return;
-    const deltaX = touch.clientX - touchStartRef.current.x;
-    const deltaY = touch.clientY - touchStartRef.current.y;
-    if (Math.abs(deltaX) < 40 || Math.abs(deltaX) < Math.abs(deltaY)) return;
+    const endX = touchMoveRef.current.x || touch.clientX;
+    const endY = touchMoveRef.current.y || touch.clientY;
+    const deltaX = endX - touchStartRef.current.x;
+    const deltaY = endY - touchStartRef.current.y;
+    const absX = Math.abs(deltaX);
+    const absY = Math.abs(deltaY);
+    if (absX < 28 || absX <= absY * 1.15) return;
 
     const currentIndex = mobileTabs.indexOf(activeTab);
     if (currentIndex < 0) return;
 
     if (deltaX > 0 && currentIndex < mobileTabs.length - 1) {
+      swipeLockRef.current = now;
       setActiveTab(mobileTabs[currentIndex + 1]);
       return;
     }
     if (deltaX < 0 && currentIndex > 0) {
+      swipeLockRef.current = now;
       setActiveTab(mobileTabs[currentIndex - 1]);
     }
   };
 
   return (
-    <div className="md:min-h-screen bg-gray-50 md:bg-linear-to-br md:from-slate-50 md:via-amber-50/30 md:to-orange-50/50">
+    <div
+      className="md:min-h-screen bg-gray-50 md:bg-linear-to-br md:from-slate-50 md:via-amber-50/30 md:to-orange-50/50 overflow-x-hidden"
+      style={{ scrollbarGutter: 'stable' }}
+    >
 
       <input type="file" accept="image/*" ref={fileInputRef} onChange={handleImageChange} className="hidden" />
 
       {/* ══════════════════════════════════════════════════════
           MOBILE  (md:hidden)
       ══════════════════════════════════════════════════════ */}
-      <div className="md:hidden overflow-x-hidden">
+      <div
+        className="md:hidden overflow-x-hidden"
+        style={{ touchAction: 'pan-y' }}
+        onTouchStart={handleMobileTouchStart}
+        onTouchMove={handleMobileTouchMove}
+        onTouchEnd={handleMobileTouchEnd}
+      >
         {/* Hero */}
         <div className="relative overflow-hidden px-5 pt-6 pb-16"
           style={{ background: 'linear-gradient(135deg, #f59e0b 0%, #fb923c 50%, #fbbf24 100%)' }}>
@@ -581,11 +607,7 @@ const ProfileUpdate = () => {
             </div>
 
             {/* Content */}
-            <div
-              className="p-4 space-y-3 min-w-0"
-              onTouchStart={handleMobileTouchStart}
-              onTouchEnd={handleMobileTouchEnd}
-            >
+            <div className="p-4 space-y-3 min-w-0">
 
               {/* Personal */}
               {activeTab === 'personal' && (
