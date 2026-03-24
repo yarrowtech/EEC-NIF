@@ -25,6 +25,7 @@ import {
   Image as ImageIcon,
   Paperclip
 } from 'lucide-react';
+import { fetchCachedJson } from '../utils/studentApiCache';
 
 const NoticeBoard = () => {
   const [searchQuery, setSearchQuery] = useState('');
@@ -54,34 +55,29 @@ const NoticeBoard = () => {
         const API_BASE = (import.meta.env.VITE_API_URL || 'http://localhost:5000')
           .replace(/\/$/, '')
           .replace(/\/api$/, '');
-        const response = await fetch(`${API_BASE}/api/notifications/user`, {
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json'
-          }
+        const { data } = await fetchCachedJson(`${API_BASE}/api/notifications/user`, {
+          ttlMs: 2 * 60 * 1000,
+          fetchOptions: {
+            headers: {
+              'Authorization': `Bearer ${token}`,
+              'Content-Type': 'application/json'
+            },
+          },
         });
-
-        if (!response.ok) {
-          throw new Error('Unable to load notices at the moment.');
-        }
-
-        const data = await response.json();
         setNotices(Array.isArray(data) ? data : []);
         setLastUpdated(new Date());
 
         setTeacherLoading(true);
-        const teacherRes = await fetch(`${API_BASE}/api/student/auth/class-teacher`, {
-          headers: {
-            Authorization: `Bearer ${token}`,
-            'Content-Type': 'application/json',
+        const { data: teacherData } = await fetchCachedJson(`${API_BASE}/api/student/auth/class-teacher`, {
+          ttlMs: 5 * 60 * 1000,
+          fetchOptions: {
+            headers: {
+              Authorization: `Bearer ${token}`,
+              'Content-Type': 'application/json',
+            },
           },
         });
-        if (teacherRes.ok) {
-          const teacherData = await teacherRes.json().catch(() => ({}));
-          setClassTeacher(teacherData?.teacher || null);
-        } else {
-          setClassTeacher(null);
-        }
+        setClassTeacher(teacherData?.teacher || null);
       } catch (err) {
         console.error('Failed to fetch notices:', err);
         setError(err.message);

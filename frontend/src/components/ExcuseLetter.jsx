@@ -4,6 +4,7 @@ import {
   Clock, ChevronRight, X, Loader2, AlertTriangle, Plus, History,
   Phone, Mail, Hash, BookOpen,
 } from 'lucide-react';
+import { fetchCachedJson } from '../utils/studentApiCache';
 
 const STATUS_MAP = {
   approved: { label: 'Approved', bg: 'bg-emerald-50', text: 'text-emerald-700', border: 'border-emerald-200', icon: CheckCircle, dot: 'bg-emerald-500' },
@@ -70,22 +71,23 @@ const ExcuseLetter = () => {
     try {
       const token = localStorage.getItem('token');
       if (!token) return;
-      const res = await fetch(`${API_BASE}/api/student/auth/profile`, {
-        headers: { Authorization: `Bearer ${token}` },
+      const { data } = await fetchCachedJson(`${API_BASE}/api/student/auth/profile`, {
+        ttlMs: 10 * 60 * 1000,
+        fetchOptions: {
+          headers: { Authorization: `Bearer ${token}` },
+        },
       });
-      if (!res.ok) return;
-      const data = await res.json().catch(() => ({}));
       let schoolName = data?.schoolName || data?.schoolInfo?.name || data?.school?.name || '';
       let schoolAddress = data?.schoolAddress || data?.schoolInfo?.address || data?.school?.address || '';
       if (!schoolName) {
-        const dashboardRes = await fetch(`${API_BASE}/api/student/auth/dashboard`, {
-          headers: { Authorization: `Bearer ${token}` },
+        const { data: dash } = await fetchCachedJson(`${API_BASE}/api/student/auth/dashboard`, {
+          ttlMs: 5 * 60 * 1000,
+          fetchOptions: {
+            headers: { Authorization: `Bearer ${token}` },
+          },
         });
-        if (dashboardRes.ok) {
-          const dash = await dashboardRes.json().catch(() => ({}));
-          schoolName = dash?.profile?.schoolName || dash?.profile?.school?.name || schoolName;
-          schoolAddress = dash?.profile?.schoolAddress || dash?.profile?.school?.address || schoolAddress;
-        }
+        schoolName = dash?.profile?.schoolName || dash?.profile?.school?.name || schoolName;
+        schoolAddress = dash?.profile?.schoolAddress || dash?.profile?.school?.address || schoolAddress;
       }
       setFormData((prev) => ({
         ...prev,

@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { jsPDF } from 'jspdf';
 import { CalendarDays, Download, Loader2 } from 'lucide-react';
 import { useStudentDashboard } from './StudentDashboardContext';
+import { fetchCachedJson } from '../utils/studentApiCache';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 
@@ -124,15 +125,14 @@ const HolidayListView = () => {
       setError('');
       try {
         const token = localStorage.getItem('token');
-        const res = await fetch(`${API_BASE}/api/holidays/student`, {
-          headers: {
-            authorization: `Bearer ${token}`,
+        const { data } = await fetchCachedJson(`${API_BASE}/api/holidays/student`, {
+          ttlMs: 10 * 60 * 1000,
+          fetchOptions: {
+            headers: {
+              authorization: `Bearer ${token}`,
+            },
           },
         });
-        const data = await res.json().catch(() => []);
-        if (!res.ok) {
-          throw new Error(data?.error || 'Unable to load holidays');
-        }
         setHolidays(Array.isArray(data) ? data : []);
       } catch (err) {
         setError(err.message || 'Unable to load holidays');

@@ -1,5 +1,6 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { clearCacheEntry, readCacheEntry, writeCacheEntry } from '../utils/studentCache';
+import { fetchCachedJson } from '../utils/studentApiCache';
 
 const StudentDashboardContext = createContext({
   loading: true,
@@ -14,6 +15,7 @@ const StudentDashboardContext = createContext({
 
 const DASHBOARD_CACHE_KEY = 'studentDashboardCacheV1';
 const DASHBOARD_CACHE_TTL_MS = 2 * 60 * 1000;
+const STUDENT_API_CACHE_TTL_MS = 5 * 60 * 1000;
 
 const emptyData = {
   profile: null,
@@ -52,27 +54,27 @@ export const StudentDashboardProvider = ({ children }) => {
         Authorization: `Bearer ${token}`,
         'Content-Type': 'application/json',
       };
-      const [response, teacherResponse] = await Promise.all([
-        fetch(`${import.meta.env.VITE_API_URL}/api/student/auth/dashboard`, {
-          signal: controller.signal,
-          headers,
+      const [dashboardResult, teacherResult] = await Promise.all([
+        fetchCachedJson(`${import.meta.env.VITE_API_URL}/api/student/auth/dashboard`, {
+          ttlMs: STUDENT_API_CACHE_TTL_MS,
+          forceRefresh: silent === false,
+          fetchOptions: {
+            signal: controller.signal,
+            headers,
+          },
         }),
-        fetch(`${import.meta.env.VITE_API_URL}/api/student/auth/class-teacher`, {
-          signal: controller.signal,
-          headers,
-        }).catch(() => null),
+        fetchCachedJson(`${import.meta.env.VITE_API_URL}/api/student/auth/class-teacher`, {
+          ttlMs: STUDENT_API_CACHE_TTL_MS,
+          forceRefresh: false,
+          fetchOptions: {
+            signal: controller.signal,
+            headers,
+          },
+        }).catch(() => ({ data: { teacher: null }, fromCache: false })),
       ]);
 
-      if (!response.ok) {
-        const payload = await response.json().catch(() => ({}));
-        throw new Error(payload?.error || 'Unable to load dashboard data');
-      }
-      const payload = await response.json();
-      let classTeacher = null;
-      if (teacherResponse?.ok) {
-        const teacherPayload = await teacherResponse.json().catch(() => ({}));
-        classTeacher = teacherPayload?.teacher || null;
-      }
+      const payload = dashboardResult?.data || {};
+      const classTeacher = teacherResult?.data?.teacher || null;
       const nextData = {
         profile: payload.profile || null,
         classTeacher,

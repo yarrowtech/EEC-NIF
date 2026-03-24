@@ -77,7 +77,9 @@ const ProfileUpdate = () => {
   const [errors, setErrors] = useState({});
   const [activeTab, setActiveTab] = useState('personal');
   const fileInputRef = useRef(null);
+  const touchStartRef = useRef({ x: 0, y: 0 });
   const [points, setPoints] = useState(0);
+  const mobileTabs = ['personal', 'account', 'security'];
 
   useEffect(() => {
     const fetchProfile = async () => {
@@ -402,7 +404,7 @@ const ProfileUpdate = () => {
   );
 
   /* ── Shared mobile field renderer ── */
-  const MobileField = ({ label, name, type, icon: Icon, placeholder, required: req }) => (
+  const MobileField = ({ label, name, type, icon: Icon, placeholder, required: req, disabled: dis = false }) => (
     <div>
       <label className="text-xs font-semibold text-gray-500 mb-1.5 block">
         {label}{req && <span className="text-red-500 ml-0.5">*</span>}
@@ -413,9 +415,15 @@ const ProfileUpdate = () => {
           type={type}
           name={name}
           value={profile[name]}
-          onChange={handleChange}
+          onChange={!dis ? handleChange : undefined}
+          readOnly={dis}
+          disabled={dis}
           className={`w-full pl-10 pr-4 py-2.5 text-sm border rounded-xl outline-none transition-all bg-white ${
-            errors[name] ? 'border-red-300 focus:border-red-400' : 'border-gray-200 focus:border-amber-400'
+            dis
+              ? 'border-gray-100 text-gray-400 cursor-not-allowed bg-gray-50'
+              : errors[name]
+                ? 'border-red-300 focus:border-red-400'
+                : 'border-gray-200 focus:border-amber-400'
           }`}
           placeholder={placeholder}
         />
@@ -463,6 +471,31 @@ const ProfileUpdate = () => {
     </div>
   );
 
+  const handleMobileTouchStart = (e) => {
+    const touch = e.touches?.[0];
+    if (!touch) return;
+    touchStartRef.current = { x: touch.clientX, y: touch.clientY };
+  };
+
+  const handleMobileTouchEnd = (e) => {
+    const touch = e.changedTouches?.[0];
+    if (!touch) return;
+    const deltaX = touch.clientX - touchStartRef.current.x;
+    const deltaY = touch.clientY - touchStartRef.current.y;
+    if (Math.abs(deltaX) < 40 || Math.abs(deltaX) < Math.abs(deltaY)) return;
+
+    const currentIndex = mobileTabs.indexOf(activeTab);
+    if (currentIndex < 0) return;
+
+    if (deltaX > 0 && currentIndex < mobileTabs.length - 1) {
+      setActiveTab(mobileTabs[currentIndex + 1]);
+      return;
+    }
+    if (deltaX < 0 && currentIndex > 0) {
+      setActiveTab(mobileTabs[currentIndex - 1]);
+    }
+  };
+
   return (
     <div className="md:min-h-screen bg-gray-50 md:bg-linear-to-br md:from-slate-50 md:via-amber-50/30 md:to-orange-50/50">
 
@@ -471,8 +504,7 @@ const ProfileUpdate = () => {
       {/* ══════════════════════════════════════════════════════
           MOBILE  (md:hidden)
       ══════════════════════════════════════════════════════ */}
-      <div className="md:hidden">
-
+      <div className="md:hidden overflow-x-hidden">
         {/* Hero */}
         <div className="relative overflow-hidden px-5 pt-6 pb-16"
           style={{ background: 'linear-gradient(135deg, #f59e0b 0%, #fb923c 50%, #fbbf24 100%)' }}>
@@ -522,7 +554,7 @@ const ProfileUpdate = () => {
         </div>
 
         {/* Floating card */}
-        <div className="px-3 pb-2">
+        <div className="px-3 pb-2 overflow-x-hidden">
           <div className="bg-white rounded-3xl shadow-2xl overflow-hidden ring-1 ring-black/5">
 
             {/* Pill tab switcher */}
@@ -549,11 +581,15 @@ const ProfileUpdate = () => {
             </div>
 
             {/* Content */}
-            <div className="p-4 space-y-3">
+            <div
+              className="p-4 space-y-3 min-w-0"
+              onTouchStart={handleMobileTouchStart}
+              onTouchEnd={handleMobileTouchEnd}
+            >
 
               {/* Personal */}
               {activeTab === 'personal' && (
-                <>
+                <div className="space-y-3 min-w-0">
                   {/* Color-coded stat tiles */}
                   <div className="grid grid-cols-2 gap-2">
                     {[
@@ -575,7 +611,7 @@ const ProfileUpdate = () => {
                   {/* Divider */}
                   <div className="flex items-center gap-2">
                     <div className="flex-1 h-px bg-gray-100" />
-                    <span className="text-[9px] font-black text-gray-300 uppercase tracking-[0.2em] bg-white px-2 py-0.5 rounded-full border border-gray-100">
+                    <span className="text-[9px] font-black text-gray-300 uppercase tracking-[0.12em] bg-white px-2 py-0.5 rounded-full border border-gray-100">
                       Editable
                     </span>
                     <div className="flex-1 h-px bg-gray-100" />
@@ -584,8 +620,8 @@ const ProfileUpdate = () => {
                   <MobileField label="Email"         name="email"   type="email"    icon={Mail}     placeholder="Email address" required />
                   <MobileField label="Phone"         name="phone"   type="tel"      icon={Phone}    placeholder="Phone number" />
                   <MobileField label="Address"       name="address" type="text"     icon={MapPin}   placeholder="Your address" />
-                  <MobileField label="Date of Birth" name="dob"     type="date"     icon={Calendar} placeholder="" />
-                </>
+                  <MobileField label="Date of Birth" name="dob"     type="date"     icon={Calendar} placeholder="" disabled />
+                </div>
               )}
 
               {/* Account */}
@@ -607,15 +643,6 @@ const ProfileUpdate = () => {
                     </div>
                   </div>
 
-                  <div>
-                    <label className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1.5 block">Language</label>
-                    <select className="w-full px-4 py-2.5 text-sm border-2 border-gray-100 rounded-2xl outline-none focus:border-amber-400 bg-gray-50 font-semibold text-gray-700 transition-all focus:bg-white">
-                      <option value="en">🇬🇧  English</option>
-                      <option value="bn">🇧🇩  Bengali</option>
-                      <option value="hi">🇮🇳  Hindi</option>
-                      <option value="ta">🇮🇳  Tamil</option>
-                    </select>
-                  </div>
                 </div>
               )}
 
@@ -779,7 +806,7 @@ const ProfileUpdate = () => {
                       <DField label="Section"      name="section"   icon={BookOpen}   disabled placeholder="Section" />
                       <DField label="Roll Number"  name="roll"      icon={CreditCard} disabled placeholder="Roll" />
                       <DField label="Phone"        name="phone"     icon={Phone}      type="tel"  placeholder="Phone number" />
-                      <DField label="Date of Birth" name="dob"      icon={Calendar}   type="date" placeholder="" />
+                      <DField label="Date of Birth" name="dob"      icon={Calendar}   type="date" placeholder="" disabled />
                     </div>
 
                     <div>
@@ -814,15 +841,6 @@ const ProfileUpdate = () => {
 
                     <div className="grid grid-cols-2 gap-4">
                       <DField label="Username" name="username" icon={AtSign} disabled placeholder="Username" />
-                      <div>
-                        <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Language</label>
-                        <select className="w-full px-4 py-3 text-sm rounded-2xl border-2 border-gray-100 outline-none focus:border-amber-400 bg-white font-semibold text-gray-700 hover:border-amber-200 transition-all">
-                          <option value="en">🇬🇧  English</option>
-                          <option value="bn">🇧🇩  Bengali</option>
-                          <option value="hi">🇮🇳  Hindi</option>
-                          <option value="ta">🇮🇳  Tamil</option>
-                        </select>
-                      </div>
                     </div>
                   </div>
                 )}

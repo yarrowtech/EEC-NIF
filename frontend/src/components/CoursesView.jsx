@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Book, Clock, Calendar, TrendingUp, Layers, GraduationCap } from 'lucide-react';
+import { fetchCachedJson } from '../utils/studentApiCache';
 
 const CoursesView = () => {
   const [course, setCourse] = useState(null);
@@ -22,18 +23,15 @@ const CoursesView = () => {
           return;
         }
 
-        const response = await fetch(`${import.meta.env.VITE_API_URL}/api/student/auth/dashboard`, {
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json'
-          }
+        const { data } = await fetchCachedJson(`${import.meta.env.VITE_API_URL}/api/student/auth/dashboard`, {
+          ttlMs: 5 * 60 * 1000,
+          fetchOptions: {
+            headers: {
+              'Authorization': `Bearer ${token}`,
+              'Content-Type': 'application/json'
+            }
+          },
         });
-
-        if (!response.ok) {
-          throw new Error('Unable to load course overview.');
-        }
-
-        const data = await response.json();
         setCourse(data.course || null);
         setStats(data.stats || null);
         setRecentAttendance((data.recentAttendance || []).slice(0, 5));
