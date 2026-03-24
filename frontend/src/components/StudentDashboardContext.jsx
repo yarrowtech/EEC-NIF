@@ -48,33 +48,30 @@ export const StudentDashboardProvider = ({ children }) => {
         setLoading(false);
         return;
       }
-      const response = await fetch(`${import.meta.env.VITE_API_URL}/api/student/auth/dashboard`, {
-        signal: controller.signal,
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-      });
+      const headers = {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      };
+      const [response, teacherResponse] = await Promise.all([
+        fetch(`${import.meta.env.VITE_API_URL}/api/student/auth/dashboard`, {
+          signal: controller.signal,
+          headers,
+        }),
+        fetch(`${import.meta.env.VITE_API_URL}/api/student/auth/class-teacher`, {
+          signal: controller.signal,
+          headers,
+        }).catch(() => null),
+      ]);
+
       if (!response.ok) {
         const payload = await response.json().catch(() => ({}));
         throw new Error(payload?.error || 'Unable to load dashboard data');
       }
       const payload = await response.json();
       let classTeacher = null;
-      try {
-        const teacherResponse = await fetch(`${import.meta.env.VITE_API_URL}/api/student/auth/class-teacher`, {
-          signal: controller.signal,
-          headers: {
-            Authorization: `Bearer ${token}`,
-            'Content-Type': 'application/json',
-          },
-        });
-        if (teacherResponse.ok) {
-          const teacherPayload = await teacherResponse.json().catch(() => ({}));
-          classTeacher = teacherPayload?.teacher || null;
-        }
-      } catch {
-        classTeacher = null;
+      if (teacherResponse?.ok) {
+        const teacherPayload = await teacherResponse.json().catch(() => ({}));
+        classTeacher = teacherPayload?.teacher || null;
       }
       const nextData = {
         profile: payload.profile || null,
