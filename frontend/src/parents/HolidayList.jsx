@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { jsPDF } from 'jspdf';
 import { CalendarDays, Download, Loader2 } from 'lucide-react';
 
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+const API_BASE = (import.meta.env.VITE_API_URL || 'http://localhost:5000').replace(/\/$/, '');
 
 const formatDate = (value) => {
   const dt = new Date(value);
@@ -84,67 +84,27 @@ const HolidayList = () => {
       setError('');
       try {
         const token = localStorage.getItem('token');
-        const res = await fetch(`${API_BASE}/api/holidays/teacher`, {
+        const res = await fetch(`${API_BASE}/api/holidays/parent`, {
           headers: {
             authorization: `Bearer ${token}`,
           },
         });
-        const data = await res.json().catch(() => []);
+        const data = await res.json().catch(() => ({}));
         if (!res.ok) {
           throw new Error(data?.error || 'Unable to load holidays');
         }
-        setHolidays(Array.isArray(data) ? data : []);
 
-        const trySetMetaFromPayload = (payload) => {
-          const source = payload?.teacher || payload || {};
-          const schoolName = source?.schoolName || source?.school?.name || source?.campusName || '';
-          const schoolAddress = source?.schoolAddress || source?.school?.address || source?.campusAddress || source?.address || '';
-          const schoolLogo = source?.schoolLogo || source?.school?.logo?.secure_url || source?.school?.logo || '';
-          if (schoolName || schoolAddress || schoolLogo) {
-            setSchoolMeta({
-              schoolName: schoolName || 'School',
-              schoolAddress: schoolAddress || '',
-              schoolLogo: schoolLogo || '',
-            });
-            return true;
-          }
-          return false;
-        };
-
-        try {
-          const routineRes = await fetch(`${API_BASE}/api/teacher/dashboard/routine`, {
-            headers: {
-              authorization: `Bearer ${token}`,
-            },
-          });
-          if (routineRes.ok) {
-            const routineData = await routineRes.json().catch(() => ({}));
-            if (trySetMetaFromPayload(routineData)) return;
-          }
-        } catch {
-          // ignore and continue fallback chain
-        }
-
-        try {
-          const dashRes = await fetch(`${API_BASE}/api/teacher/dashboard`, {
-            headers: {
-              authorization: `Bearer ${token}`,
-            },
-          });
-          if (dashRes.ok) {
-            const dashData = await dashRes.json().catch(() => ({}));
-            if (trySetMetaFromPayload(dashData)) return;
-          }
-        } catch {
-          // ignore and continue fallback chain
-        }
-
-        try {
-          const localUser = JSON.parse(localStorage.getItem('user') || '{}');
-          trySetMetaFromPayload(localUser);
-        } catch {
-          // ignore local parsing issues
-        }
+        const holidayItems = Array.isArray(data)
+          ? data
+          : Array.isArray(data?.holidays)
+            ? data.holidays
+            : [];
+        setHolidays(holidayItems);
+        setSchoolMeta({
+          schoolName: data?.school?.name || 'School',
+          schoolAddress: data?.school?.address || '',
+          schoolLogo: data?.school?.logo || '',
+        });
       } catch (err) {
         setError(err.message || 'Unable to load holidays');
       } finally {
@@ -233,7 +193,7 @@ const HolidayList = () => {
         doc.setTextColor(30, 41, 59);
         doc.text('#', ML + col.sl / 2, top + 5.3, { align: 'center' });
         doc.text('Holiday', ML + col.sl + 2, top + 5.3);
-        doc.text('Date Range', ML + col.sl + col.name + 2, top + 5.3);
+        doc.text('Date', ML + col.sl + col.name + 2, top + 5.3);
         doc.text('Day', ML + col.sl + col.name + col.date + col.day / 2, top + 5.3, { align: 'center' });
         doc.text('Days', ML + col.sl + col.name + col.date + col.day + col.days / 2, top + 5.3, { align: 'center' });
       };
