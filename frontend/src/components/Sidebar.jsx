@@ -100,7 +100,7 @@ const Sidebar = ({ activeView, isOpen, setIsOpen }) => {
       children: [
         { id: 'assignments', name: 'Assignments', icon: FileText },
         { id: 'assignments-journal', name: 'Journal', icon: File },
-        { id: 'assignments-academic-alcove', name: 'Study Hub', icon: Target },
+        { id: 'assignments-academic-alcove', name: 'The Wall', icon: Target },
         { id: 'study-materials', name: 'Study Materials', icon: BookOpen },
         { id: 'results', name: 'Results', icon: BarChart3 },
       ]

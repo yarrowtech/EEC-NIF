@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { BookOpen, Filter, Search as SearchIcon, Star, MessageSquare, Calendar as CalendarIcon, Layers, Users, Award, TrendingUp, Send, Heart, ThumbsUp, User, PlusCircle } from 'lucide-react';
+import { BookOpen, Filter, Search as SearchIcon, Star, MessageSquare, Calendar as CalendarIcon, Layers, Users, Award, TrendingUp, Send, Heart, ThumbsUp, User, PlusCircle, Check } from 'lucide-react';
 
 const API = import.meta.env.VITE_API_URL;
 
@@ -28,6 +28,13 @@ export default function AcademicAlcove() {
   const [newPostDifficulty, setNewPostDifficulty] = useState('medium');
   const [showNewPostForm, setShowNewPostForm] = useState(false);
   const [postingWall, setPostingWall] = useState(false);
+
+  // Submission state
+  const [submissions, setSubmissions] = useState([]);
+  const [mySubmission, setMySubmission] = useState(null);
+  const [answerText, setAnswerText] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [showSubmissions, setShowSubmissions] = useState(false);
 
   const fetchItems = async () => {
     setLoading(true);
@@ -63,13 +70,40 @@ export default function AcademicAlcove() {
   const openPost = async (post) => {
     setSelected(post);
     setComments([]);
+    setSubmissions([]);
+    setMySubmission(null);
+    setAnswerText('');
+    setShowSubmissions(false);
+
     try {
-      const res = await fetch(`${API}/api/alcove/posts/${post._id}/comments`);
-      if (res.ok) {
-        const data = await res.json();
-        setComments(data);
+      // Fetch comments (existing)
+      const commentsRes = await fetch(`${API}/api/alcove/posts/${post._id}/comments`, {
+        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+      });
+      if (commentsRes.ok) {
+        setComments(await commentsRes.json());
       }
-    } catch (_) { }
+
+      // Fetch submissions (NEW)
+      const submissionsRes = await fetch(`${API}/api/alcove/posts/${post._id}/submissions`, {
+        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+      });
+      if (submissionsRes.ok) {
+        const subs = await submissionsRes.json();
+        setSubmissions(subs);
+
+        // Find current student's submission
+        const userData = localStorage.getItem('user');
+        const myId = userData ? JSON.parse(userData)?.id : null;
+        const mine = subs.find(s => s.studentId === myId);
+        if (mine) {
+          setMySubmission(mine);
+          setAnswerText(mine.answerText);
+        }
+      }
+    } catch (err) {
+      console.error('Error loading post details:', err);
+    }
   };
 
   const submitComment = async () => {
@@ -93,6 +127,44 @@ export default function AcademicAlcove() {
       alert(e.message || 'Could not post comment');
     } finally {
       setPostingComment(false);
+    }
+  };
+
+  const submitAnswer = async () => {
+    if (!selected || !answerText.trim()) return;
+
+    setSubmitting(true);
+    try {
+      const res = await fetch(`${API}/api/alcove/posts/${selected._id}/submissions`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${localStorage.getItem('token')}`
+        },
+        body: JSON.stringify({ answerText })
+      });
+
+      if (!res.ok) {
+        const error = await res.json();
+        throw new Error(error.error || 'Failed to submit answer');
+      }
+
+      const data = await res.json();
+      setMySubmission(data.submission);
+
+      // Refresh submissions to show the new one
+      const refreshRes = await fetch(`${API}/api/alcove/posts/${selected._id}/submissions`, {
+        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+      });
+      if (refreshRes.ok) {
+        setSubmissions(await refreshRes.json());
+      }
+
+      alert('Answer submitted successfully!');
+    } catch (e) {
+      alert(e.message || 'Could not submit answer');
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -212,7 +284,7 @@ export default function AcademicAlcove() {
 
   return (
     <>
-      {/* <div className="w-full min-h-screen px-2 sm:px-4 md:px-8 py-4 sm:py-6" style={{ background: 'linear-gradient(135deg, #f3e8d7 0%, #e8dcc6 50%, #ddd0bb 100%)' }}>
+      <div className="w-full min-h-screen px-2 sm:px-4 md:px-8 py-4 sm:py-6" style={{ background: 'linear-gradient(135deg, #f3e8d7 0%, #e8dcc6 50%, #ddd0bb 100%)' }}>
         <div className="relative bg-white rounded-2xl shadow-2xl p-6 sm:p-8 mb-6 overflow-hidden" style={{ backgroundColor: '#fefcf8', border: '3px solid #8B7355' }}>
           <div className="absolute inset-0 opacity-5" style={{
             backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23d4af37' fill-opacity='0.1'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")`
@@ -221,7 +293,7 @@ export default function AcademicAlcove() {
           <div className="relative">
             <div className="text-center mb-6">
               <h1 className="text-3xl sm:text-4xl lg:text-5xl font-bold mb-3" style={{ color: '#8B4513', fontFamily: 'Georgia, serif' }}>
-                Academic Alcove
+                The Wall
               </h1>
               <div className="w-32 h-1 bg-amber-600 mx-auto mb-4 rounded"></div>
               <p className="text-lg text-gray-700 max-w-2xl mx-auto leading-relaxed" style={{ color: '#8B7355' }}>
@@ -648,6 +720,124 @@ export default function AcademicAlcove() {
                     {selected.solutionText}
                   </div>
                 </div>
+
+                {/* Submission Section - NEW */}
+                <div className="col-span-1 lg:col-span-2 bg-gradient-to-br from-blue-50 to-indigo-50 rounded-xl p-5 border-2" style={{ borderColor: '#3B82F6' }}>
+                  <div className="flex items-center gap-2 mb-4">
+                    <div className="w-3 h-3 bg-blue-500 rounded-full"></div>
+                    <h4 className="text-lg font-bold text-blue-800" style={{ fontFamily: 'Georgia, serif' }}>
+                      Your Answer
+                    </h4>
+                  </div>
+
+                  {mySubmission ? (
+                    <div className="bg-white rounded-lg p-4 border border-blue-200 shadow-sm">
+                      <div className="flex items-center gap-2 mb-3 text-sm text-green-600">
+                        <Check className="w-4 h-4" />
+                        <span className="font-semibold">Submitted on {new Date(mySubmission.submittedAt).toLocaleString()}</span>
+                      </div>
+                      <div className="prose prose-sm max-w-none text-gray-800 leading-relaxed whitespace-pre-wrap mb-4">
+                        {mySubmission.answerText}
+                      </div>
+                      <button
+                        onClick={() => {
+                          setMySubmission(null);
+                          setAnswerText('');
+                        }}
+                        className="text-sm text-blue-600 hover:text-blue-800 font-medium"
+                      >
+                        Edit Answer
+                      </button>
+                    </div>
+                  ) : (
+                    <>
+                      <textarea
+                        value={answerText}
+                        onChange={(e) => setAnswerText(e.target.value)}
+                        placeholder="Write your answer here..."
+                        rows={6}
+                        className="w-full px-4 py-3 border-2 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-none mb-3"
+                        style={{ borderColor: '#3B82F6', backgroundColor: '#eff6ff' }}
+                      />
+                      <button
+                        onClick={submitAnswer}
+                        disabled={submitting || !answerText.trim()}
+                        className={`px-6 py-3 rounded-lg font-semibold transition-all flex items-center gap-2 ${
+                          submitting || !answerText.trim()
+                            ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                            : 'bg-gradient-to-r from-blue-500 to-indigo-500 hover:from-blue-600 hover:to-indigo-600 text-white shadow-lg hover:scale-105'
+                        }`}
+                      >
+                        {submitting ? (
+                          <>
+                            <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                            Submitting...
+                          </>
+                        ) : (
+                          <>
+                            <Send className="w-4 h-4" />
+                            Submit Answer
+                          </>
+                        )}
+                      </button>
+                    </>
+                  )}
+                </div>
+
+                {/* Submissions from Other Students - NEW */}
+                <div className="col-span-1 lg:col-span-2 bg-gradient-to-br from-purple-50 to-pink-50 rounded-xl p-5 border-2" style={{ borderColor: '#A855F7' }}>
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="flex items-center gap-2">
+                      <Users className="w-5 h-5 text-purple-600" />
+                      <h4 className="text-lg font-bold text-purple-800" style={{ fontFamily: 'Georgia, serif' }}>
+                        Student Submissions ({submissions.length})
+                      </h4>
+                    </div>
+                    <button
+                      onClick={() => setShowSubmissions(!showSubmissions)}
+                      className="text-sm font-medium text-purple-600 hover:text-purple-800"
+                    >
+                      {showSubmissions ? 'Hide' : 'Show'} All
+                    </button>
+                  </div>
+
+                  {showSubmissions && (
+                    <div className="max-h-96 overflow-y-auto space-y-3">
+                      {submissions.length === 0 ? (
+                        <div className="text-center py-8 text-gray-500">
+                          <Users className="w-12 h-12 text-gray-300 mx-auto mb-2" />
+                          <p>No submissions yet. Be the first to submit!</p>
+                        </div>
+                      ) : (
+                        submissions.map((sub) => (
+                          <div key={sub._id} className="bg-white rounded-lg p-4 border-2 border-purple-200 shadow-sm">
+                            <div className="flex items-start gap-3">
+                              <div className="w-10 h-10 bg-gradient-to-r from-purple-400 to-pink-400 rounded-full flex items-center justify-center text-white font-bold text-sm flex-shrink-0">
+                                {sub.studentName[0].toUpperCase()}
+                              </div>
+                              <div className="flex-1">
+                                <div className="flex items-center gap-2 mb-2">
+                                  <span className="font-semibold text-purple-800">{sub.studentName}</span>
+                                  {sub.grade && sub.section && (
+                                    <span className="text-xs px-2 py-1 bg-purple-100 text-purple-700 rounded-full">
+                                      {sub.grade} - {sub.section}
+                                    </span>
+                                  )}
+                                  <span className="text-xs text-gray-500 ml-auto">
+                                    {new Date(sub.submittedAt).toLocaleDateString()}
+                                  </span>
+                                </div>
+                                <div className="text-gray-800 whitespace-pre-wrap leading-relaxed text-sm">
+                                  {sub.answerText}
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  )}
+                </div>
               </div>
 
               <div className="border-t-4 border-amber-200 bg-gradient-to-br from-orange-50 to-amber-50 p-6">
@@ -708,11 +898,6 @@ export default function AcademicAlcove() {
             </div>
           </div>
         )}
-      </div> */}
-      <div className="bg-white shadow-sm p-6 h-[90vh]">
-        <div className="text-center flex justify-center items-center h-full">
-          <p className="text-gray-600">Study Hub comming soon!</p>
-        </div>
       </div>
     </>
   );

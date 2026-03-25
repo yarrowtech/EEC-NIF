@@ -14,7 +14,7 @@ const subMenus = {
     items: [
       { id: 'assignments',                 name: 'Assignments',     icon: FileText,      color: 'bg-blue-500',   desc: 'Submit & track' },
       { id: 'assignments-journal',         name: 'Journal',         icon: File,          color: 'bg-green-500',  desc: 'My notes' },
-      { id: 'assignments-academic-alcove', name: 'Study Hub',       icon: Target,        color: 'bg-purple-500', desc: 'Deep focus' },
+      { id: 'assignments-academic-alcove', name: 'The Wall',        icon: Target,        color: 'bg-purple-500', desc: 'Deep focus' },
       { id: 'study-materials',             name: 'Study Materials', icon: BookOpen,      color: 'bg-orange-500', desc: 'Resources' },
       { id: 'results',                     name: 'Results',         icon: BarChart3,     color: 'bg-indigo-500', desc: 'Grades' },
     ],
