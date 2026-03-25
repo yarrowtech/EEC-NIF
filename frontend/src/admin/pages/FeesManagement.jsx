@@ -64,12 +64,6 @@ const normalizeInstallments = (items) =>
 const FeesManagement = ({ setShowAdminHeader }) => {
   const [filters, setFilters] = useState({ classes: [], academicYears: [] });
   const [structures, setStructures] = useState([]);
-  const [dashboard, setDashboard] = useState({
-    count: 0,
-    totalValue: 0,
-    averageValue: 0,
-    classesCovered: 0,
-  });
   const [form, setForm] = useState(EMPTY_FORM);
   const [activeId, setActiveId] = useState('');
   const [search, setSearch] = useState('');
@@ -77,7 +71,6 @@ const FeesManagement = ({ setShowAdminHeader }) => {
   const [selectedYear, setSelectedYear] = useState('');
   const [selectedBoard, setSelectedBoard] = useState('');
   const [loading, setLoading] = useState(false);
-  const [dashboardLoading, setDashboardLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
@@ -130,35 +123,35 @@ const FeesManagement = ({ setShowAdminHeader }) => {
     });
   }, [structures, selectedClass, selectedYear, selectedBoard, search]);
 
-  const fetchStructureAnalytics = useCallback(async (params = {}) => {
-    setDashboardLoading(true);
-    try {
-      const query = new URLSearchParams();
-      const classId = params.classId ?? selectedClass;
-      const academicYearId = params.academicYearId ?? selectedYear;
-      const board = params.board ?? selectedBoard;
-      if (classId) query.set('classId', classId);
-      if (academicYearId) query.set('academicYearId', academicYearId);
-      if (board) query.set('board', board);
-
-      const endpoint = `${API_BASE}/api/fees/admin/structures/analytics${query.toString() ? `?${query.toString()}` : ''}`;
-      const res = await fetch(endpoint, { headers: authHeaders() });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data?.error || 'Unable to load analytics');
-
-      setDashboard({
-        count: toAmount(data?.count),
-        totalValue: toAmount(data?.totalValue),
-        averageValue: toAmount(data?.averageValue),
-        classesCovered: toAmount(data?.classesCovered),
-      });
-    } catch (err) {
-      // On error, keep the current dashboard state or set to zeros
-      console.error('Failed to fetch analytics:', err);
-    } finally {
-      setDashboardLoading(false);
+  const dashboardStats = useMemo(() => {
+    if (!filteredStructures.length) {
+      return {
+        count: 0,
+        totalValue: 0,
+        averageValue: 0,
+        classesCovered: 0,
+      };
     }
-  }, [selectedClass, selectedYear, selectedBoard]);
+    const totalValue = filteredStructures.reduce(
+      (sum, item) => sum + toAmount(item.totalAmount),
+      0
+    );
+    const classIds = new Set(
+      filteredStructures
+        .map((item) => {
+          if (item.classId) return String(item.classId);
+          if (item.className) return `${item.className}-${item.board || 'GENERAL'}`;
+          return null;
+        })
+        .filter(Boolean)
+    );
+    return {
+      count: filteredStructures.length,
+      totalValue,
+      averageValue: Math.round(totalValue / filteredStructures.length),
+      classesCovered: classIds.size,
+    };
+  }, [filteredStructures]);
 
   const loadAll = useCallback(async () => {
     setLoading(true);
@@ -177,30 +170,16 @@ const FeesManagement = ({ setShowAdminHeader }) => {
         academicYears: filtersData.academicYears || [],
       });
       setStructures(Array.isArray(structuresData) ? structuresData : []);
-
-      // Fetch analytics after loading structures
-      await fetchStructureAnalytics();
     } catch (err) {
       setError(err.message || 'Unable to load fee builder data');
     } finally {
       setLoading(false);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
     loadAll();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  useEffect(() => {
-    // Only refetch analytics when filters change, not on initial mount
-    if (structures.length > 0) {
-      fetchStructureAnalytics();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedClass, selectedYear, selectedBoard]);
-
+  }, [loadAll]);
 
   const resetForm = () => {
     setActiveId('');
@@ -364,19 +343,19 @@ const FeesManagement = ({ setShowAdminHeader }) => {
         <div className="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
           <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
             <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-500">Structures</p>
-            <p className="mt-1 text-2xl font-semibold text-slate-900">{dashboardLoading ? '...' : dashboard.count}</p>
+            <p className="mt-1 text-2xl font-semibold text-slate-900">{loading ? '...' : dashboardStats.count}</p>
           </div>
           <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
             <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-500">Total Value</p>
-            <p className="mt-1 text-2xl font-semibold text-slate-900">{dashboardLoading ? '...' : money(dashboard.totalValue)}</p>
+            <p className="mt-1 text-2xl font-semibold text-slate-900">{loading ? '...' : money(dashboardStats.totalValue)}</p>
           </div>
           <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
             <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-500">Average Value</p>
-            <p className="mt-1 text-2xl font-semibold text-slate-900">{dashboardLoading ? '...' : money(dashboard.averageValue)}</p>
+            <p className="mt-1 text-2xl font-semibold text-slate-900">{loading ? '...' : money(dashboardStats.averageValue)}</p>
           </div>
           <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
             <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-500">Classes Covered</p>
-            <p className="mt-1 text-2xl font-semibold text-slate-900">{dashboardLoading ? '...' : dashboard.classesCovered}</p>
+            <p className="mt-1 text-2xl font-semibold text-slate-900">{loading ? '...' : dashboardStats.classesCovered}</p>
           </div>
         </div>
 
