@@ -119,18 +119,6 @@ const FeesManagement = ({ setShowAdminHeader }) => {
   const installmentsDone = configuredInstallments > 0;
   const flowCompleted = [basicsDone, headsDone, installmentsDone].filter(Boolean).length;
 
-  const fallbackDashboard = useMemo(() => {
-    const totals = structures.reduce((sum, item) => sum + toAmount(item.totalAmount), 0);
-    const classesCovered = new Set(
-      structures.map((item) => String(item.classId || '')).filter((value) => Boolean(value))
-    ).size;
-    return {
-      count: structures.length,
-      totalValue: totals,
-      averageValue: structures.length ? Math.round(totals / structures.length) : 0,
-      classesCovered,
-    };
-  }, [structures]);
 
   const filteredStructures = useMemo(() => {
     return structures.filter((item) => {
@@ -165,11 +153,12 @@ const FeesManagement = ({ setShowAdminHeader }) => {
         classesCovered: toAmount(data?.classesCovered),
       });
     } catch (err) {
-      setDashboard(fallbackDashboard);
+      // On error, keep the current dashboard state or set to zeros
+      console.error('Failed to fetch analytics:', err);
     } finally {
       setDashboardLoading(false);
     }
-  }, [selectedClass, selectedYear, selectedBoard, fallbackDashboard]);
+  }, [selectedClass, selectedYear, selectedBoard]);
 
   const loadAll = useCallback(async () => {
     setLoading(true);
@@ -188,27 +177,30 @@ const FeesManagement = ({ setShowAdminHeader }) => {
         academicYears: filtersData.academicYears || [],
       });
       setStructures(Array.isArray(structuresData) ? structuresData : []);
-      fetchStructureAnalytics();
+
+      // Fetch analytics after loading structures
+      await fetchStructureAnalytics();
     } catch (err) {
       setError(err.message || 'Unable to load fee builder data');
     } finally {
       setLoading(false);
     }
-  }, [fetchStructureAnalytics]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     loadAll();
-  }, [loadAll]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
-    fetchStructureAnalytics();
-  }, [fetchStructureAnalytics]);
-
-  useEffect(() => {
-    if (!dashboardLoading && (!dashboard.count || dashboard.totalValue === 0) && structures.length) {
-      setDashboard(fallbackDashboard);
+    // Only refetch analytics when filters change, not on initial mount
+    if (structures.length > 0) {
+      fetchStructureAnalytics();
     }
-  }, [dashboardLoading, dashboard.count, dashboard.totalValue, fallbackDashboard, structures.length]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedClass, selectedYear, selectedBoard]);
+
 
   const resetForm = () => {
     setActiveId('');
