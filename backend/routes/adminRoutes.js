@@ -9,6 +9,7 @@ const adminAuth = require('../middleware/adminAuth');
 const rateLimit = require('../middleware/rateLimit');
 const { isStrongPassword, passwordPolicyMessage } = require('../utils/passwordPolicy');
 const { sendSchoolApprovalEmail } = require('../utils/mailer');
+const { logAuthEvent } = require('../utils/authEventLogger');
 
 const ensureSuperAdmin = (req, res, next) => {
   if (!req.isSuperAdmin) {
@@ -57,6 +58,14 @@ router.post('/register', async (req, res) => {
           schoolId: resolved,
         });
         await admin.save();
+        logAuthEvent(req, {
+          action: 'register',
+          outcome: 'success',
+          userType: 'admin',
+          identifier: username,
+          userId: admin._id,
+          schoolId: resolved,
+        });
         return res.status(201).json({ message: 'Admin registered' });
       });
     }
@@ -68,8 +77,23 @@ router.post('/register', async (req, res) => {
     }
     const admin = new Admin({ username, password, name, role: 'super_admin', schoolId: null });
     await admin.save();
+    logAuthEvent(req, {
+      action: 'register',
+      outcome: 'success',
+      userType: 'super_admin',
+      identifier: username,
+      userId: admin._id,
+    });
     res.status(201).json({ message: 'Admin registered' });
   } catch (err) {
+    logAuthEvent(req, {
+      action: 'register',
+      outcome: 'failure',
+      userType: 'admin',
+      identifier: username,
+      reason: err.message,
+      statusCode: 400,
+    });
     res.status(400).json({ error: err.message });
   }
 });
@@ -90,18 +114,57 @@ router.post('/login', rateLimit({ windowMs: 60 * 1000, max: 10 }), async (req, r
     }
     const admin = await Admin.findOne({ username });
     if (!admin || !(await bcrypt.compare(password, admin.password))) {
+      logAuthEvent(req, {
+        action: 'login',
+        outcome: 'failure',
+        userType: 'admin',
+        identifier: username,
+        reason: 'Invalid credentials',
+        statusCode: 401,
+      });
       return res.status(401).json({ error: 'Invalid credentials' });
     }
     if (admin.status === 'inactive') {
+      logAuthEvent(req, {
+        action: 'login',
+        outcome: 'failure',
+        userType: admin.role || 'admin',
+        identifier: username,
+        userId: admin._id,
+        schoolId: admin.schoolId,
+        campusId: admin.campusId,
+        reason: 'Account inactive',
+        statusCode: 403,
+      });
       return res.status(403).json({ error: 'Account inactive. Contact EEC admin.' });
     }
     if (admin.role === 'admin') {
       const school = await School.findById(admin.schoolId).select('status').lean();
       if (!school || school.status === 'inactive') {
+        logAuthEvent(req, {
+          action: 'login',
+          outcome: 'failure',
+          userType: 'admin',
+          identifier: username,
+          userId: admin._id,
+          schoolId: admin.schoolId,
+          campusId: admin.campusId,
+          reason: 'School inactive',
+          statusCode: 403,
+        });
         return res.status(403).json({ error: 'School inactive. Contact EEC admin.' });
       }
     }
     if (admin.role === 'admin' && !admin.lastLoginAt) {
+      logAuthEvent(req, {
+        action: 'login.first_login_required',
+        outcome: 'success',
+        userType: 'admin',
+        identifier: username,
+        userId: admin._id,
+        schoolId: admin.schoolId,
+        campusId: admin.campusId,
+      });
       return res.json({ requiresPasswordReset: true, username: admin.username });
     }
     admin.lastLoginAt = new Date();
@@ -119,8 +182,25 @@ router.post('/login', rateLimit({ windowMs: 60 * 1000, max: 10 }), async (req, r
       process.env.JWT_SECRET,
       { expiresIn: process.env.JWT_EXPIRES_IN || '24h' }
     );
+    logAuthEvent(req, {
+      action: 'login',
+      outcome: 'success',
+      userType: admin.role || 'admin',
+      identifier: username,
+      userId: admin._id,
+      schoolId: admin.schoolId,
+      campusId: admin.campusId,
+    });
     res.json({ token });
   } catch (err) {
+    logAuthEvent(req, {
+      action: 'login',
+      outcome: 'failure',
+      userType: 'admin',
+      identifier: username,
+      reason: err.message,
+      statusCode: 400,
+    });
     res.status(400).json({ error: err.message });
   }
 });
@@ -155,8 +235,25 @@ router.post('/reset-first-password', rateLimit({ windowMs: 60 * 1000, max: 10 })
     admin.password = String(newPassword);
     admin.lastLoginAt = new Date();
     await admin.save();
+    logAuthEvent(req, {
+      action: 'reset_first_password',
+      outcome: 'success',
+      userType: 'admin',
+      identifier: admin.username,
+      userId: admin._id,
+      schoolId: admin.schoolId,
+      campusId: admin.campusId,
+    });
     res.json({ message: 'Password reset successful' });
   } catch (err) {
+    logAuthEvent(req, {
+      action: 'reset_first_password',
+      outcome: 'failure',
+      userType: 'admin',
+      identifier: username,
+      reason: err.message,
+      statusCode: 400,
+    });
     res.status(400).json({ error: err.message });
   }
 });

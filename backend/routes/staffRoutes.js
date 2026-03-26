@@ -8,6 +8,7 @@ const { generateEmployeeCode } = require('../utils/codeGenerator');
 const adminAuth = require('../middleware/adminAuth');
 const rateLimit = require('../middleware/rateLimit');
 const authStaff = require('../middleware/authStaff');
+const { logAuthEvent } = require('../utils/authEventLogger');
 
 // Register Staff (admin only)
 router.post('/register', adminAuth, async (req, res) => {
@@ -69,8 +70,27 @@ router.post('/register', adminAuth, async (req, res) => {
     });
 
     await user.save();
+    logAuthEvent(req, {
+      action: 'register',
+      outcome: 'success',
+      userType: 'staff',
+      identifier: username,
+      userId: user._id,
+      schoolId: resolvedSchoolId,
+      campusId: resolvedCampusId,
+    });
     res.status(201).json({ message: 'Staff registered successfully', username, password, empId, employeeCode });
   } catch (err) {
+    logAuthEvent(req, {
+      action: 'register',
+      outcome: 'failure',
+      userType: 'staff',
+      identifier: req.body?.email || req.body?.name,
+      schoolId: req.schoolId || req.body?.schoolId,
+      campusId: req.campusId || req.body?.campusId,
+      reason: err.message,
+      statusCode: 400,
+    });
     res.status(400).json({ error: err.message });
   }
 });
@@ -95,6 +115,14 @@ router.post('/login', rateLimit({ windowMs: 60 * 1000, max: 10 }), async (req, r
       $or: [{ username: loginId }, { employeeCode: loginId }],
     });
     if (!user || !(await bcrypt.compare(password, user.password))) {
+      logAuthEvent(req, {
+        action: 'login',
+        outcome: 'failure',
+        userType: 'staff',
+        identifier: loginId,
+        reason: 'Invalid credentials',
+        statusCode: 401,
+      });
       return res.status(401).json({ error: 'Invalid credentials' });
     }
     if (!user.employeeCode && user.schoolId) {
@@ -108,6 +136,15 @@ router.post('/login', rateLimit({ windowMs: 60 * 1000, max: 10 }), async (req, r
       { expiresIn: process.env.JWT_EXPIRES_IN || '24h' }
     );
 
+    logAuthEvent(req, {
+      action: 'login',
+      outcome: 'success',
+      userType: 'staff',
+      identifier: loginId,
+      userId: user._id,
+      schoolId: user.schoolId,
+      campusId: user.campusId,
+    });
     res.json({
       token,
       user: {
@@ -119,6 +156,14 @@ router.post('/login', rateLimit({ windowMs: 60 * 1000, max: 10 }), async (req, r
       },
     });
   } catch (err) {
+    logAuthEvent(req, {
+      action: 'login',
+      outcome: 'failure',
+      userType: 'staff',
+      identifier: username,
+      reason: err.message,
+      statusCode: 400,
+    });
     res.status(400).json({ error: err.message });
   }
 });

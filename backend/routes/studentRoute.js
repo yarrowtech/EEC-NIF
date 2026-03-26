@@ -238,6 +238,7 @@ const buildTeacherFeedbackContext = async (studentDoc = null) => {
 const rateLimit = require('../middleware/rateLimit');
 const { isStrongPassword, passwordPolicyMessage } = require('../utils/passwordPolicy');
 const authStudent = require('../middleware/authStudent');
+const { logAuthEvent } = require('../utils/authEventLogger');
 
 // Register Student
 router.post('/register', adminAuth, async (req, res) => {
@@ -469,7 +470,26 @@ router.post('/register', adminAuth, async (req, res) => {
       userId: studentUser._id,
       parentCredentials,
     });
+    logAuthEvent(req, {
+      action: 'register',
+      outcome: 'success',
+      userType: 'student',
+      identifier: payload.username || studentCode,
+      userId: studentUser._id,
+      schoolId: resolvedSchoolId,
+      campusId: resolvedCampusId,
+    });
   } catch (err) {
+    logAuthEvent(req, {
+      action: 'register',
+      outcome: 'failure',
+      userType: 'student',
+      identifier: req.body?.studentCode || req.body?.username || req.body?.name,
+      schoolId: req.schoolId || req.body?.schoolId,
+      campusId: req.campusId || req.body?.campusId,
+      reason: err.message,
+      statusCode: 400,
+    });
     console.error('Student register error:', err);
     res.status(400).json({ error: err.message });
   }
@@ -501,15 +521,53 @@ router.post('/login', rateLimit({ windowMs: 60 * 1000, max: 10 }), async (req, r
       $or: [{ username: identifier }, { studentCode: identifier }],
     });
     if (!user || !(await bcrypt.compare(password, user.password))) {
+      logAuthEvent(req, {
+        action: 'login',
+        outcome: 'failure',
+        userType: 'student',
+        identifier,
+        reason: 'Invalid credentials',
+        statusCode: 401,
+      });
       return res.status(401).json({ error: 'Invalid credentials' });
     }
     if (user.isArchived) {
+      logAuthEvent(req, {
+        action: 'login',
+        outcome: 'failure',
+        userType: 'student',
+        identifier,
+        userId: user._id,
+        schoolId: user.schoolId,
+        campusId: user.campusId,
+        reason: 'Account archived',
+        statusCode: 403,
+      });
       return res.status(403).json({ error: 'You have been blocked by your organization.' });
     }
     if (!user.campusId) {
+      logAuthEvent(req, {
+        action: 'login',
+        outcome: 'failure',
+        userType: 'student',
+        identifier,
+        userId: user._id,
+        schoolId: user.schoolId,
+        reason: 'campusId missing',
+        statusCode: 400,
+      });
       return res.status(400).json({ error: 'campusId is required for this account' });
     }
     if (!user.lastLoginAt) {
+      logAuthEvent(req, {
+        action: 'login.first_login_required',
+        outcome: 'success',
+        userType: 'student',
+        identifier,
+        userId: user._id,
+        schoolId: user.schoolId,
+        campusId: user.campusId,
+      });
       return res.json({ requiresPasswordReset: true, username: user.username || user.studentCode });
     }
     if (!user.studentCode) {
@@ -528,8 +586,25 @@ router.post('/login', rateLimit({ windowMs: 60 * 1000, max: 10 }), async (req, r
       { expiresIn: process.env.JWT_EXPIRES_IN || '24h' }
     );
 
+    logAuthEvent(req, {
+      action: 'login',
+      outcome: 'success',
+      userType: 'student',
+      identifier,
+      userId: user._id,
+      schoolId: user.schoolId,
+      campusId: user.campusId,
+    });
     res.json({ token });
   } catch (err) {
+    logAuthEvent(req, {
+      action: 'login',
+      outcome: 'failure',
+      userType: 'student',
+      identifier,
+      reason: err.message,
+      statusCode: 400,
+    });
     res.status(400).json({ error: err.message });
   }
 });
@@ -568,8 +643,25 @@ router.post('/reset-first-password', rateLimit({ windowMs: 60 * 1000, max: 10 })
       user.studentCode = user.username;
     }
     await user.save();
+    logAuthEvent(req, {
+      action: 'reset_first_password',
+      outcome: 'success',
+      userType: 'student',
+      identifier: user.username || user.studentCode || username,
+      userId: user._id,
+      schoolId: user.schoolId,
+      campusId: user.campusId,
+    });
     res.json({ message: 'Password reset successful' });
   } catch (err) {
+    logAuthEvent(req, {
+      action: 'reset_first_password',
+      outcome: 'failure',
+      userType: 'student',
+      identifier: username,
+      reason: err.message,
+      statusCode: 400,
+    });
     res.status(400).json({ error: err.message });
   }
 });

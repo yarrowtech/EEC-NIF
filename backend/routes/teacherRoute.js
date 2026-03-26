@@ -12,6 +12,7 @@ const School = require('../models/School');
 const Admin = require('../models/Admin');
 const { sendTeacherCredentialsEmail } = require('../utils/mailer');
 const authTeacher = require('../middleware/authTeacher');
+const { logAuthEvent } = require('../utils/authEventLogger');
 
 // Register Teacher
 router.post('/register', adminAuth, async (req, res) => {
@@ -70,6 +71,15 @@ router.post('/register', adminAuth, async (req, res) => {
     });
 
     await user.save();
+    logAuthEvent(req, {
+      action: 'register',
+      outcome: 'success',
+      userType: 'teacher',
+      identifier: username,
+      userId: user._id,
+      schoolId: resolvedSchoolId,
+      campusId: resolvedCampusId,
+    });
 
     let emailSent = false;
     if (email) {
@@ -99,6 +109,16 @@ router.post('/register', adminAuth, async (req, res) => {
       emailSent
     });
   } catch (err) {
+    logAuthEvent(req, {
+      action: 'register',
+      outcome: 'failure',
+      userType: 'teacher',
+      identifier: req.body?.email || req.body?.name,
+      schoolId: req.schoolId || req.body?.schoolId,
+      campusId: req.campusId || req.body?.campusId,
+      reason: err.message,
+      statusCode: 400,
+    });
     res.status(400).json({ error: err.message });
   }
 });
@@ -122,9 +142,27 @@ router.post('/login', rateLimit({ windowMs: 60 * 1000, max: 10 }), async (req, r
       $or: [{ username }, { employeeCode: username }],
     });
     if (!user || !(await bcrypt.compare(password, user.password))) {
+      logAuthEvent(req, {
+        action: 'login',
+        outcome: 'failure',
+        userType: 'teacher',
+        identifier: username,
+        reason: 'Invalid credentials',
+        statusCode: 401,
+      });
       return res.status(401).json({ error: 'Invalid credentials' });
     }
     if (!user.campusId) {
+      logAuthEvent(req, {
+        action: 'login',
+        outcome: 'failure',
+        userType: 'teacher',
+        identifier: username,
+        userId: user._id,
+        schoolId: user.schoolId,
+        reason: 'campusId missing',
+        statusCode: 400,
+      });
       return res.status(400).json({ error: 'campusId is required for this account' });
     }
     if (!user.employeeCode && user.schoolId) {
@@ -132,6 +170,15 @@ router.post('/login', rateLimit({ windowMs: 60 * 1000, max: 10 }), async (req, r
       await user.save();
     }
     if (!user.lastLoginAt) {
+      logAuthEvent(req, {
+        action: 'login.first_login_required',
+        outcome: 'success',
+        userType: 'teacher',
+        identifier: username,
+        userId: user._id,
+        schoolId: user.schoolId,
+        campusId: user.campusId,
+      });
       return res.json({ requiresPasswordReset: true, username: user.username });
     }
 
@@ -148,8 +195,25 @@ router.post('/login', rateLimit({ windowMs: 60 * 1000, max: 10 }), async (req, r
       { expiresIn: process.env.JWT_EXPIRES_IN || '24h' }
     );
 
+    logAuthEvent(req, {
+      action: 'login',
+      outcome: 'success',
+      userType: 'teacher',
+      identifier: username,
+      userId: user._id,
+      schoolId: user.schoolId,
+      campusId: user.campusId,
+    });
     res.json({ token });
   } catch (err) {
+    logAuthEvent(req, {
+      action: 'login',
+      outcome: 'failure',
+      userType: 'teacher',
+      identifier: username,
+      reason: err.message,
+      statusCode: 400,
+    });
     res.status(400).json({ error: err.message });
   }
 });
@@ -181,8 +245,25 @@ router.post('/reset-first-password', rateLimit({ windowMs: 60 * 1000, max: 10 })
     user.password = String(newPassword);
     user.lastLoginAt = new Date();
     await user.save();
+    logAuthEvent(req, {
+      action: 'reset_first_password',
+      outcome: 'success',
+      userType: 'teacher',
+      identifier: user.username || username,
+      userId: user._id,
+      schoolId: user.schoolId,
+      campusId: user.campusId,
+    });
     res.json({ message: 'Password reset successful' });
   } catch (err) {
+    logAuthEvent(req, {
+      action: 'reset_first_password',
+      outcome: 'failure',
+      userType: 'teacher',
+      identifier: username,
+      reason: err.message,
+      statusCode: 400,
+    });
     res.status(400).json({ error: err.message });
   }
 });

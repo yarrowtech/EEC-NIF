@@ -18,6 +18,7 @@ const authParent = require('../middleware/authParent');
 const { generateUsername, generatePassword } = require('../utils/generator');
 const rateLimit = require('../middleware/rateLimit');
 const { isStrongPassword, passwordPolicyMessage } = require('../utils/passwordPolicy');
+const { logAuthEvent } = require('../utils/authEventLogger');
 
 const normalizeKey = (value) =>
   String(value || '')
@@ -324,8 +325,27 @@ router.post('/register', adminAuth, async (req, res) => {
     });
 
     await user.save();
+    logAuthEvent(req, {
+      action: 'register',
+      outcome: 'success',
+      userType: 'parent',
+      identifier: username,
+      userId: user._id,
+      schoolId: resolvedSchoolId,
+      campusId: resolvedCampusId,
+    });
     res.status(201).json({ message: 'Parent registered successfully' });
   } catch (err) {
+    logAuthEvent(req, {
+      action: 'register',
+      outcome: 'failure',
+      userType: 'parent',
+      identifier: req.body?.email || req.body?.mobile || req.body?.name,
+      schoolId: req.schoolId || req.body?.schoolId,
+      campusId: req.campusId || req.body?.campusId,
+      reason: err.message,
+      statusCode: 400,
+    });
     res.status(400).json({ error: err.message });
   }
 });
@@ -347,12 +367,39 @@ router.post('/login', rateLimit({ windowMs: 60 * 1000, max: 10 }), async (req, r
     }
     const user = await ParentUser.findOne({ username });
     if (!user || !(await bcrypt.compare(password, user.password))) {
+      logAuthEvent(req, {
+        action: 'login',
+        outcome: 'failure',
+        userType: 'parent',
+        identifier: username,
+        reason: 'Invalid credentials',
+        statusCode: 401,
+      });
       return res.status(401).json({ error: 'Invalid credentials' });
     }
     if (!user.campusId) {
+      logAuthEvent(req, {
+        action: 'login',
+        outcome: 'failure',
+        userType: 'parent',
+        identifier: username,
+        userId: user._id,
+        schoolId: user.schoolId,
+        reason: 'campusId missing',
+        statusCode: 400,
+      });
       return res.status(400).json({ error: 'campusId is required for this account' });
     }
     if (!user.lastLoginAt) {
+      logAuthEvent(req, {
+        action: 'login.first_login_required',
+        outcome: 'success',
+        userType: 'parent',
+        identifier: username,
+        userId: user._id,
+        schoolId: user.schoolId,
+        campusId: user.campusId,
+      });
       return res.json({ requiresPasswordReset: true, username: user.username });
     }
 
@@ -362,8 +409,25 @@ router.post('/login', rateLimit({ windowMs: 60 * 1000, max: 10 }), async (req, r
       { expiresIn: process.env.JWT_EXPIRES_IN || '24h' }
     );
 
+    logAuthEvent(req, {
+      action: 'login',
+      outcome: 'success',
+      userType: 'parent',
+      identifier: username,
+      userId: user._id,
+      schoolId: user.schoolId,
+      campusId: user.campusId,
+    });
     res.json({ token });
   } catch (err) {
+    logAuthEvent(req, {
+      action: 'login',
+      outcome: 'failure',
+      userType: 'parent',
+      identifier: username,
+      reason: err.message,
+      statusCode: 400,
+    });
     res.status(400).json({ error: err.message });
   }
 });
@@ -869,8 +933,25 @@ router.post('/reset-first-password', rateLimit({ windowMs: 60 * 1000, max: 10 })
     user.initialPassword = "";
     user.lastLoginAt = new Date();
     await user.save();
+    logAuthEvent(req, {
+      action: 'reset_first_password',
+      outcome: 'success',
+      userType: 'parent',
+      identifier: user.username || username,
+      userId: user._id,
+      schoolId: user.schoolId,
+      campusId: user.campusId,
+    });
     res.json({ message: 'Password reset successful' });
   } catch (err) {
+    logAuthEvent(req, {
+      action: 'reset_first_password',
+      outcome: 'failure',
+      userType: 'parent',
+      identifier: username,
+      reason: err.message,
+      statusCode: 400,
+    });
     res.status(400).json({ error: err.message });
   }
 });

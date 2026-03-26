@@ -11,9 +11,14 @@ const cors = require('cors');
 const { Server: SocketServer } = require('socket.io');
 const jwt = require('jsonwebtoken');
 const swaggerUi = require('swagger-ui-express');
+const requestLogger = require('./middleware/requestLogger');
+const adminActionLogger = require('./middleware/adminActionLogger');
 let swaggerDocument;
 
 dotenv.config({ path: path.join(__dirname, '.env') });
+const { bindConsoleToLogger, logger } = require('./utils/logger');
+bindConsoleToLogger();
+logger.info('Winston logger initialized');
 // console.log(`[auth] JWT_EXPIRES_IN=${process.env.JWT_EXPIRES_IN || '24h (default)'}`);
 
 const adminAuthRoutes = require('./routes/adminRoutes');
@@ -226,6 +231,7 @@ app.use(
 );
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
+app.use(requestLogger);
 
 try {
   swaggerDocument = require('./swagger-output.json');
@@ -290,9 +296,9 @@ app.get("/health", (req, res) => {
 });
 
 // Auth & core routes (unchanged)
-app.use('/api/admin/users', adminUserManagementRoutes);
+app.use('/api/admin/users', adminActionLogger, adminUserManagementRoutes);
 app.use('/api/promotion', promotionRoutes);
-app.use('/api/admin/auth', adminAuthRoutes);
+app.use('/api/admin/auth', adminActionLogger, adminAuthRoutes);
 app.use('/api/teacher/auth', teacherAuthRoutes);
 app.use('/api/teacher/dashboard', teacherDashboardRoutes);
 app.use('/api/staff/auth', staffAuthRoutes);
@@ -325,7 +331,7 @@ app.use('/api/reports', reportRoutes);
 app.use('/api/timetable', timetableRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/audit-logs', auditLogRoutes);
-app.use('/api/super-admin', superAdminRoutes);
+app.use('/api/super-admin', adminActionLogger, superAdminRoutes);
 app.use('/api/support', supportRoutes);
 app.use('/api/issues', issueRoutes);
 app.use('/api/teacher-allocations', teacherAllocationRoutes);
