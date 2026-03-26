@@ -64,12 +64,6 @@ const normalizeInstallments = (items) =>
 const FeesManagement = ({ setShowAdminHeader }) => {
   const [filters, setFilters] = useState({ classes: [], academicYears: [] });
   const [structures, setStructures] = useState([]);
-  const [dashboard, setDashboard] = useState({
-    count: 0,
-    totalValue: 0,
-    averageValue: 0,
-    classesCovered: 0,
-  });
   const [form, setForm] = useState(EMPTY_FORM);
   const [activeId, setActiveId] = useState('');
   const [search, setSearch] = useState('');
@@ -77,7 +71,6 @@ const FeesManagement = ({ setShowAdminHeader }) => {
   const [selectedYear, setSelectedYear] = useState('');
   const [selectedBoard, setSelectedBoard] = useState('');
   const [loading, setLoading] = useState(false);
-  const [dashboardLoading, setDashboardLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
@@ -119,18 +112,6 @@ const FeesManagement = ({ setShowAdminHeader }) => {
   const installmentsDone = configuredInstallments > 0;
   const flowCompleted = [basicsDone, headsDone, installmentsDone].filter(Boolean).length;
 
-  const fallbackDashboard = useMemo(() => {
-    const totals = structures.reduce((sum, item) => sum + toAmount(item.totalAmount), 0);
-    const classesCovered = new Set(
-      structures.map((item) => String(item.classId || '')).filter((value) => Boolean(value))
-    ).size;
-    return {
-      count: structures.length,
-      totalValue: totals,
-      averageValue: structures.length ? Math.round(totals / structures.length) : 0,
-      classesCovered,
-    };
-  }, [structures]);
 
   const filteredStructures = useMemo(() => {
     return structures.filter((item) => {
@@ -142,34 +123,35 @@ const FeesManagement = ({ setShowAdminHeader }) => {
     });
   }, [structures, selectedClass, selectedYear, selectedBoard, search]);
 
-  const fetchStructureAnalytics = useCallback(async (params = {}) => {
-    setDashboardLoading(true);
-    try {
-      const query = new URLSearchParams();
-      const classId = params.classId ?? selectedClass;
-      const academicYearId = params.academicYearId ?? selectedYear;
-      const board = params.board ?? selectedBoard;
-      if (classId) query.set('classId', classId);
-      if (academicYearId) query.set('academicYearId', academicYearId);
-      if (board) query.set('board', board);
-
-      const endpoint = `${API_BASE}/api/fees/admin/structures/analytics${query.toString() ? `?${query.toString()}` : ''}`;
-      const res = await fetch(endpoint, { headers: authHeaders() });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data?.error || 'Unable to load analytics');
-
-      setDashboard({
-        count: toAmount(data?.count),
-        totalValue: toAmount(data?.totalValue),
-        averageValue: toAmount(data?.averageValue),
-        classesCovered: toAmount(data?.classesCovered),
-      });
-    } catch (err) {
-      setDashboard(fallbackDashboard);
-    } finally {
-      setDashboardLoading(false);
+  const dashboardStats = useMemo(() => {
+    if (!filteredStructures.length) {
+      return {
+        count: 0,
+        totalValue: 0,
+        averageValue: 0,
+        classesCovered: 0,
+      };
     }
-  }, [selectedClass, selectedYear, selectedBoard, fallbackDashboard]);
+    const totalValue = filteredStructures.reduce(
+      (sum, item) => sum + toAmount(item.totalAmount),
+      0
+    );
+    const classIds = new Set(
+      filteredStructures
+        .map((item) => {
+          if (item.classId) return String(item.classId);
+          if (item.className) return `${item.className}-${item.board || 'GENERAL'}`;
+          return null;
+        })
+        .filter(Boolean)
+    );
+    return {
+      count: filteredStructures.length,
+      totalValue,
+      averageValue: Math.round(totalValue / filteredStructures.length),
+      classesCovered: classIds.size,
+    };
+  }, [filteredStructures]);
 
   const loadAll = useCallback(async () => {
     setLoading(true);
@@ -188,27 +170,16 @@ const FeesManagement = ({ setShowAdminHeader }) => {
         academicYears: filtersData.academicYears || [],
       });
       setStructures(Array.isArray(structuresData) ? structuresData : []);
-      fetchStructureAnalytics();
     } catch (err) {
       setError(err.message || 'Unable to load fee builder data');
     } finally {
       setLoading(false);
     }
-  }, [fetchStructureAnalytics]);
+  }, []);
 
   useEffect(() => {
     loadAll();
   }, [loadAll]);
-
-  useEffect(() => {
-    fetchStructureAnalytics();
-  }, [fetchStructureAnalytics]);
-
-  useEffect(() => {
-    if (!dashboardLoading && (!dashboard.count || dashboard.totalValue === 0) && structures.length) {
-      setDashboard(fallbackDashboard);
-    }
-  }, [dashboardLoading, dashboard.count, dashboard.totalValue, fallbackDashboard, structures.length]);
 
   const resetForm = () => {
     setActiveId('');
@@ -372,19 +343,19 @@ const FeesManagement = ({ setShowAdminHeader }) => {
         <div className="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
           <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
             <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-500">Structures</p>
-            <p className="mt-1 text-2xl font-semibold text-slate-900">{dashboardLoading ? '...' : dashboard.count}</p>
+            <p className="mt-1 text-2xl font-semibold text-slate-900">{loading ? '...' : dashboardStats.count}</p>
           </div>
           <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
             <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-500">Total Value</p>
-            <p className="mt-1 text-2xl font-semibold text-slate-900">{dashboardLoading ? '...' : money(dashboard.totalValue)}</p>
+            <p className="mt-1 text-2xl font-semibold text-slate-900">{loading ? '...' : money(dashboardStats.totalValue)}</p>
           </div>
           <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
             <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-500">Average Value</p>
-            <p className="mt-1 text-2xl font-semibold text-slate-900">{dashboardLoading ? '...' : money(dashboard.averageValue)}</p>
+            <p className="mt-1 text-2xl font-semibold text-slate-900">{loading ? '...' : money(dashboardStats.averageValue)}</p>
           </div>
           <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
             <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-500">Classes Covered</p>
-            <p className="mt-1 text-2xl font-semibold text-slate-900">{dashboardLoading ? '...' : dashboard.classesCovered}</p>
+            <p className="mt-1 text-2xl font-semibold text-slate-900">{loading ? '...' : dashboardStats.classesCovered}</p>
           </div>
         </div>
 

@@ -22,8 +22,15 @@ const signToken = (payload, expiresIn = JWT_EXPIRES_IN) => jwt.sign(payload, pro
 
 const parseRememberMe = (value) => value === true || value === 'true' || value === 1 || value === '1';
 
-const tryAdmin = async ({ username, password, rememberMe }) => {
-  const admin = await Admin.findOne({ username });
+const runInBackground = (task) => {
+  Promise.resolve()
+    .then(task)
+    .catch((err) => {
+      console.error('[auth] background task failed:', err?.message || err);
+    });
+};
+
+const tryAdmin = async ({ admin, password, rememberMe }) => {
   if (!admin) return null;
   if (!(await bcrypt.compare(password, admin.password))) return null;
   if (admin.status === 'inactive') {
@@ -39,8 +46,9 @@ const tryAdmin = async ({ username, password, rememberMe }) => {
     return { requiresPasswordReset: true, username: admin.username, userType: 'Admin' };
   }
 
-  admin.lastLoginAt = new Date();
-  await admin.save();
+  runInBackground(() =>
+    Admin.updateOne({ _id: admin._id }, { $set: { lastLoginAt: new Date() } })
+  );
 
   const token = signToken({
     id: admin._id,
@@ -58,23 +66,23 @@ const tryAdmin = async ({ username, password, rememberMe }) => {
   };
 };
 
-const tryTeacher = async ({ username, password, rememberMe }) => {
-  const user = await TeacherUser.findOne({
-    $or: [{ username }, { employeeCode: username }],
-  });
+const tryTeacher = async ({ user, password, rememberMe }) => {
   if (!user) return null;
   if (!(await bcrypt.compare(password, user.password))) return null;
   if (!user.campusId) return { errorStatus: 400, error: 'campusId is required for this account', userType: 'Teacher' };
   if (!user.employeeCode && user.schoolId) {
-    user.employeeCode = await generateTeacherCode(user.schoolId);
-    await user.save();
+    runInBackground(async () => {
+      const employeeCode = await generateTeacherCode(user.schoolId);
+      await TeacherUser.updateOne({ _id: user._id }, { $set: { employeeCode } });
+    });
   }
   if (!user.lastLoginAt) {
     return { requiresPasswordReset: true, username: user.username, userType: 'Teacher' };
   }
 
-  user.lastLoginAt = new Date();
-  await user.save();
+  runInBackground(() =>
+    TeacherUser.updateOne({ _id: user._id }, { $set: { lastLoginAt: new Date() } })
+  );
 
   const token = signToken({
     id: user._id,
@@ -86,10 +94,7 @@ const tryTeacher = async ({ username, password, rememberMe }) => {
   return { token, userType: 'Teacher' };
 };
 
-const tryStudent = async ({ username, password, rememberMe }) => {
-  const user = await StudentUser.findOne({
-    $or: [{ username }, { studentCode: username }],
-  });
+const tryStudent = async ({ user, password, rememberMe }) => {
   if (!user) return null;
   if (!(await bcrypt.compare(password, user.password))) return null;
   if (user.isArchived) {
@@ -100,8 +105,9 @@ const tryStudent = async ({ username, password, rememberMe }) => {
     return { requiresPasswordReset: true, username: user.username || user.studentCode, userType: 'Student' };
   }
   if (!user.studentCode) {
-    user.studentCode = user.username;
-    await user.save();
+    runInBackground(() =>
+      StudentUser.updateOne({ _id: user._id }, { $set: { studentCode: user.username } })
+    );
   }
 
   const token = signToken({
@@ -114,8 +120,7 @@ const tryStudent = async ({ username, password, rememberMe }) => {
   return { token, userType: 'Student' };
 };
 
-const tryParent = async ({ username, password, rememberMe }) => {
-  const user = await ParentUser.findOne({ username });
+const tryParent = async ({ user, password, rememberMe }) => {
   if (!user) return null;
   if (!(await bcrypt.compare(password, user.password))) return null;
   if (!user.campusId) return { errorStatus: 400, error: 'campusId is required for this account', userType: 'Parent' };
@@ -133,16 +138,12 @@ const tryParent = async ({ username, password, rememberMe }) => {
   return { token, userType: 'Parent' };
 };
 
-const tryPrincipal = async ({ username, password, rememberMe }) => {
-  const identifier = normalize(username);
-  if (!identifier) return null;
-  const principal = await Principal.findOne({
-    $or: [{ username: identifier }, { email: identifier }],
-  });
+const tryPrincipal = async ({ principal, password, rememberMe }) => {
   if (!principal) return null;
   if (!(await bcrypt.compare(password, principal.password))) return null;
-  principal.lastLoginAt = new Date();
-  await principal.save();
+  runInBackground(() =>
+    Principal.updateOne({ _id: principal._id }, { $set: { lastLoginAt: new Date() } })
+  );
 
   const token = signToken({
     id: principal._id,
@@ -157,8 +158,7 @@ const tryPrincipal = async ({ username, password, rememberMe }) => {
   return { token, userType: 'Principal' };
 };
 
-const tryStaff = async ({ username, password, rememberMe }) => {
-  const user = await StaffUser.findOne({ username });
+const tryStaff = async ({ user, password, rememberMe }) => {
   if (!user) return null;
   if (!(await bcrypt.compare(password, user.password))) return null;
 
@@ -186,11 +186,40 @@ router.post('/login', rateLimit({ windowMs: 60 * 1000, max: 10 }), async (req, r
   }
 
   try {
-    const resolvers = [tryAdmin, tryTeacher, tryPrincipal, tryStudent, tryParent, tryStaff];
-    for (const resolver of resolvers) {
-      const result = await resolver({ username, password, rememberMe });
-      if (!result) continue;
+    const normalizedUsername = normalize(username);
+    const [admin, teacher, principal, student, parent, staff] = await Promise.all([
+      Admin.findOne({ username })
+        .select('_id username password role status schoolId campusId campusName campusType lastLoginAt')
+        .lean(),
+      TeacherUser.findOne({ $or: [{ username }, { employeeCode: username }] })
+        .select('_id username employeeCode password schoolId campusId lastLoginAt')
+        .lean(),
+      Principal.findOne({ $or: [{ username: normalizedUsername }, { email: normalizedUsername }] })
+        .select('_id username email password schoolId campusId campusName campusType lastLoginAt')
+        .lean(),
+      StudentUser.findOne({ $or: [{ username }, { studentCode: username }] })
+        .select('_id username studentCode password schoolId campusId lastLoginAt isArchived')
+        .lean(),
+      ParentUser.findOne({ username })
+        .select('_id username password schoolId campusId lastLoginAt')
+        .lean(),
+      StaffUser.findOne({ username })
+        .select('_id username password schoolId campusId')
+        .lean(),
+    ]);
 
+    const checks = [
+      () => tryAdmin({ admin, password, rememberMe }),
+      () => tryTeacher({ user: teacher, password, rememberMe }),
+      () => tryPrincipal({ principal, password, rememberMe }),
+      () => tryStudent({ user: student, password, rememberMe }),
+      () => tryParent({ user: parent, password, rememberMe }),
+      () => tryStaff({ user: staff, password, rememberMe }),
+    ];
+
+    for (const check of checks) {
+      const result = await check();
+      if (!result) continue;
       if (result.errorStatus) {
         logAuthEvent(req, {
           action: 'login',

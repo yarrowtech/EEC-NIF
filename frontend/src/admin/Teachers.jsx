@@ -196,7 +196,7 @@ const Teachers = ({setShowAdminHeader}) => {
     const now = new Date();
     const monthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
     const todayKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
-    const [teachersRes, attendanceRes, timetableRes] = await Promise.all([
+    const [teachersRes, attendanceRes, timetableRes, principalsRes] = await Promise.all([
       fetch(`${import.meta.env.VITE_API_URL}/api/admin/users/get-teachers`, {
         method: 'GET',
         headers
@@ -206,6 +206,10 @@ const Teachers = ({setShowAdminHeader}) => {
         headers
       }),
       fetch(`${import.meta.env.VITE_API_URL}/api/timetable/all`, {
+        method: 'GET',
+        headers
+      }),
+      fetch(`${import.meta.env.VITE_API_URL}/api/admin/users/get-principals`, {
         method: 'GET',
         headers
       })
@@ -248,6 +252,13 @@ const Teachers = ({setShowAdminHeader}) => {
       });
     });
 
+    const principalsData = principalsRes.ok ? await principalsRes.json().catch(() => []) : [];
+    const principalEmailSet = new Set(
+      (Array.isArray(principalsData) ? principalsData : [])
+        .map((principal) => String(principal?.email || principal?.username || '').trim().toLowerCase())
+        .filter(Boolean)
+    );
+
     const normalized = (Array.isArray(data) ? data : []).map((teacher, idx) => ({
       ...teacher,
       id: teacher._id || teacher.id || idx,
@@ -266,6 +277,7 @@ const Teachers = ({setShowAdminHeader}) => {
           if (dayDiff !== 0) return dayDiff;
           return (Number(a.period) || 0) - (Number(b.period) || 0);
         }),
+      isPrincipal: principalEmailSet.has(String(teacher.email || '').trim().toLowerCase()),
       status: resolveTeacherStatus(teacher, todayCheckedInTeacherIds, attendanceLoaded)
     }));
     setTeachers(normalized);
@@ -719,7 +731,15 @@ const Teachers = ({setShowAdminHeader}) => {
                             )}
                           </div>
                           <div>
-                            <div className="text-sm font-semibold text-gray-900">{teacher.name}</div>
+                            <div className="text-sm font-semibold text-gray-900 flex items-center gap-1.5">
+                              <span>{teacher.name}</span>
+                              {teacher.isPrincipal && (
+                                <span className="inline-flex items-center gap-1 rounded-full bg-purple-100 text-purple-700 px-2 py-0.5 text-[11px] font-semibold">
+                                  <Crown size={11} />
+                                  Principal
+                                </span>
+                              )}
+                            </div>
                             <div className="text-xs text-gray-400 font-mono">#{teacher.empId}</div>
                           </div>
                         </div>
@@ -796,9 +816,9 @@ const Teachers = ({setShowAdminHeader}) => {
                           </button>
                           <button
                             className="p-1.5 rounded-lg text-slate-400 hover:text-purple-600 hover:bg-purple-50 transition-all disabled:opacity-40"
-                            title="Make Principal"
+                            title={teacher.isPrincipal ? 'Already Principal' : 'Make Principal'}
                             onClick={() => setMakePrincipalConfirmTeacher(teacher)}
-                            disabled={principalLoadingId === (teacher._id || teacher.id)}
+                            disabled={teacher.isPrincipal || principalLoadingId === (teacher._id || teacher.id)}
                           >
                             <Crown size={15} />
                           </button>
@@ -1175,7 +1195,15 @@ const Teachers = ({setShowAdminHeader}) => {
                   )}
                 </div>
                 <div>
-                  <h2 className="text-xl font-bold text-white">{viewTeacher.name}</h2>
+                  <h2 className="text-xl font-bold text-white flex items-center gap-2">
+                    <span>{viewTeacher.name}</span>
+                    {viewTeacher.isPrincipal && (
+                      <span className="inline-flex items-center gap-1 rounded-full bg-purple-100/90 text-purple-700 px-2 py-0.5 text-[11px] font-semibold">
+                        <Crown size={11} />
+                        Principal
+                      </span>
+                    )}
+                  </h2>
                   <p className="text-indigo-200 text-sm mt-0.5 font-mono">#{viewTeacher.empId}</p>
                   <span className={`inline-flex items-center gap-1.5 mt-2 px-2.5 py-0.5 rounded-full text-xs font-semibold
                     ${viewTeacher.status === 'Active'

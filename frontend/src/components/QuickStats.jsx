@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { BookOpen, Trophy, Clock, TrendingUp, FileText } from 'lucide-react';
 import { useStudentDashboard } from './StudentDashboardContext';
+import { fetchCachedJson } from '../utils/studentApiCache';
 
 const QuickStats = () => {
   const { stats: dashboardStats, course, loading } = useStudentDashboard();
@@ -23,13 +24,12 @@ const QuickStats = () => {
           return;
         }
         const API_BASE = (import.meta.env.VITE_API_URL || 'http://localhost:5000').replace(/\/+$/, '');
-        const res = await fetch(`${API_BASE}/api/assignment/student/assignments`, {
-          headers: { Authorization: `Bearer ${token}` },
+        const { data } = await fetchCachedJson(`${API_BASE}/api/assignment/student/assignments`, {
+          ttlMs: 5 * 60 * 1000,
+          fetchOptions: {
+            headers: { Authorization: `Bearer ${token}` },
+          },
         });
-        if (!res.ok) {
-          throw new Error('Failed to load assignments');
-        }
-        const data = await res.json();
         const assignmentsPayload = Array.isArray(data)
           ? data
           : Array.isArray(data?.assignments)

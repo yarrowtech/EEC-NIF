@@ -47,6 +47,7 @@ import TeacherFeedbackPortal from './TeacherFeedbackPortal';
 import ExcuseLetters from './ExcuseLetters';
 import ExamManagement from './ExamManagement';
 import ResultManagement from './ResultManagement';
+import HolidayList from './HolidayList';
 import { AUTH_NOTICE, logoutAndRedirect } from '../utils/authSession';
 
 const PORTAL_BASE = '/teacher';
@@ -60,6 +61,7 @@ const menuSections = [
       { icon: Home, label: 'Dashboard', path: `${PORTAL_BASE}/dashboard` },
       { icon: Briefcase, label: 'My Work Portal', path: `${PORTAL_BASE}/my-work-portal` },
       { icon: Clock, label: 'Class Routine', path: `${PORTAL_BASE}/class-routine` },
+      { icon: CalendarDays, label: 'Holiday List', path: `${PORTAL_BASE}/holidays` },
     ],
   },
   {
@@ -530,6 +532,7 @@ const TeacherPortal = () => {
               <Route path="test" element={<TestTeacherPortal />} />
               <Route path="my-work-portal" element={<MyWorkPortal />} />
               <Route path="class-routine" element={<ClassRoutine />} />
+              <Route path="holidays" element={<HolidayList />} />
               <Route path="attendance" element={<AttendanceManagement />} />
               <Route path="student-analytics" element={<StudentAnalyticsPortal />} />
               <Route path="progress" element={<Navigate to="/teacher/student-analytics" replace />} />

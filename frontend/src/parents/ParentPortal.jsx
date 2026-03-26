@@ -31,6 +31,7 @@ import Observation from './Observation';
 import ParentObservationNonAcademic from './ParentObservationNonAcademic';
 import ParentChat from './ParentChat';
 import ClassRoutine from './ClassRoutine';
+import HolidayList from './HolidayList';
 import { AUTH_NOTICE, logoutAndRedirect } from '../utils/authSession';
 
 const ParentPortal = () => {
@@ -81,6 +82,7 @@ const ParentPortal = () => {
 
   const menuItems = [
     { icon: Home, label: 'Dashboard', description: 'Overview & insights', path: '/parents' },
+    { icon: Calendar, label: 'Holiday List', description: 'School holidays', path: '/parents/holidays' },
     { icon: Calendar, label: 'Class Routine', description: 'Weekly schedule', path: '/parents/routine' },
     { icon: Calendar, label: 'Attendance Report', description: 'Punctuality tracker', path: '/parents/attendance' },
     { icon: BookOpen, label: 'Academic Report', description: 'Learning progress', path: '/parents/academic' },
@@ -286,6 +288,7 @@ const ParentPortal = () => {
             }
           />
           <Route path="attendance" element={<AttendanceReport />} />
+          <Route path="holidays" element={<HolidayList />} />
           <Route path="routine" element={<ClassRoutine />} />
           <Route path="academic" element={<AcademicReport />} />
           <Route path="fees" element={<FeesPayment />} />

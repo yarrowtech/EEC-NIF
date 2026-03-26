@@ -48,6 +48,7 @@ const studentSections = [
   "tryouts",
   "results",
   "schedule",
+  "holidays",
   "routine",
   "attendance",
   "fees",

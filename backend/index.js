@@ -61,6 +61,7 @@ const excuseLetterRoutes = require('./routes/excuseLetterRoutes');
 const nifStudentRoutes = require('./routes/nifStudentRoutes');
 const lessonPlanRoutes = require('./routes/lessonPlanRoutes');
 const promotionRoutes = require('./routes/promotionRoutes');
+const holidayRoutes = require('./routes/holidayRoutes');
 const chatRoutes = require('./routes/chatRoutes');
 const ChatThread = require('./models/ChatThread');
 const ChatMessage = require('./models/ChatMessage');
@@ -72,6 +73,7 @@ const { isStrongPassword } = require('./utils/passwordPolicy');
 const principalDashboardRoutes = require('./routes/principalDashboardRoutes');
 const { getPresenceSnapshot, markUserOnline, markUserOffline } = require('./utils/chatPresence');
 const { syncAllocationGroupThreads } = require('./utils/chatGroupProvisioning');
+const { startHolidayReminderScheduler } = require('./utils/holidayNotificationScheduler');
 
 const fixChatThreadIndexes = async () => {
   try {
@@ -276,6 +278,7 @@ mongoose
     await ensureAdminRoles();
     await seedSuperAdmin();
     await seedPrincipal();
+    startHolidayReminderScheduler();
     try {
       const stats = await syncAllocationGroupThreads();
       console.log(`[chat] allocation group sync complete: ${stats.createdOrUpdated}/${stats.scanned}`);
@@ -339,6 +342,7 @@ app.use('/api/practice', practiceRoutes);
 app.use('/api/excuse-letters', excuseLetterRoutes);
 app.use('/api/nif', nifStudentRoutes);
 app.use('/api/lesson-plans', lessonPlanRoutes);
+app.use('/api/holidays', holidayRoutes);
 app.use('/api/chat', chatRoutes);
 
 app.use("/api/uploads", uploadRoutes);

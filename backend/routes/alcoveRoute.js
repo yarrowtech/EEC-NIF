@@ -2,8 +2,11 @@ const express = require('express');
 const router = express.Router();
 const AlcovePost = require('../models/AlcovePost');
 const AlcoveComment = require('../models/AlcoveComment');
+const AlcoveSubmission = require('../models/AlcoveSubmission');
+const StudentUser = require('../models/StudentUser');
 const teacherAuth = require('../middleware/authTeacher');
 const authAnyUser = require('../middleware/authAnyUser');
+const authStudent = require('../middleware/authStudent');
 
 const resolveSchoolId = (req, res) => {
   const schoolId = req.schoolId || req.user?.schoolId || null;
@@ -173,6 +176,146 @@ router.delete('/posts/:id/comments/:commentId', authAnyUser, async (req, res) =>
 
     await comment.deleteOne();
     res.json({ ok: true });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+// Submissions: submit answer (Student only)
+router.post('/posts/:postId/submissions', authStudent, async (req, res) => {
+  // #swagger.tags = ['Alcove']
+  try {
+    const { postId } = req.params;
+    const { answerText } = req.body;
+    const studentId = req.user.id;
+    const schoolId = resolveSchoolId(req, res);
+    if (!schoolId) return;
+
+    // Validate answer text
+    if (!answerText || !answerText.trim()) {
+      return res.status(400).json({ error: 'Answer text is required' });
+    }
+
+    // Verify post exists and belongs to same school
+    const post = await AlcovePost.findOne({ _id: postId, schoolId });
+    if (!post) {
+      return res.status(404).json({ error: 'Problem not found' });
+    }
+
+    // Get student details
+    const student = await StudentUser.findById(studentId);
+    if (!student) {
+      return res.status(404).json({ error: 'Student not found' });
+    }
+
+    // Create or update submission (upsert pattern)
+    const submission = await AlcoveSubmission.findOneAndUpdate(
+      { postId, studentId },
+      {
+        answerText: answerText.trim(),
+        studentName: student.name,
+        grade: student.grade,
+        section: student.section,
+        schoolId,
+        submittedAt: new Date()
+      },
+      {
+        new: true,
+        upsert: true,
+        runValidators: true
+      }
+    );
+
+    res.status(201).json({
+      message: 'Answer submitted successfully',
+      submission
+    });
+  } catch (err) {
+    if (err.code === 11000) {
+      // Duplicate key error (shouldn't happen with findOneAndUpdate)
+      res.status(400).json({ error: 'You have already submitted an answer' });
+    } else {
+      res.status(400).json({ error: err.message });
+    }
+  }
+});
+
+// Submissions: get all submissions for a post (Any authenticated user)
+router.get('/posts/:postId/submissions', authAnyUser, async (req, res) => {
+  // #swagger.tags = ['Alcove']
+  try {
+    const { postId } = req.params;
+    const schoolId = resolveSchoolId(req, res);
+    if (!schoolId) return;
+
+    // Verify post exists
+    const post = await AlcovePost.findOne({ _id: postId, schoolId });
+    if (!post) {
+      return res.status(404).json({ error: 'Problem not found' });
+    }
+
+    // Fetch all submissions for this post (public visibility)
+    const submissions = await AlcoveSubmission.find({
+      postId,
+      schoolId
+    })
+    .sort({ submittedAt: -1 })  // Most recent first
+    .select('studentId studentName answerText submittedAt grade section')
+    .lean();
+
+    res.json(submissions);
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+// Submissions: get student's own submission for a post (Student only)
+router.get('/posts/:postId/my-submission', authStudent, async (req, res) => {
+  // #swagger.tags = ['Alcove']
+  try {
+    const { postId } = req.params;
+    const studentId = req.user.id;
+    const schoolId = resolveSchoolId(req, res);
+    if (!schoolId) return;
+
+    const submission = await AlcoveSubmission.findOne({
+      postId,
+      studentId,
+      schoolId
+    });
+
+    res.json(submission || null);
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+// Submissions: teacher view all submissions for their posts (Teacher only)
+router.get('/teacher/submissions', teacherAuth, async (req, res) => {
+  // #swagger.tags = ['Alcove']
+  try {
+    const teacherId = req.teacher?.id || req.user?.id;
+    const schoolId = resolveSchoolId(req, res);
+    if (!schoolId) return;
+
+    // Get all posts created by this teacher
+    const posts = await AlcovePost.find({
+      author: teacherId,
+      schoolId
+    }).select('_id title subject');
+
+    const postIds = posts.map(p => p._id);
+
+    // Get all submissions for these posts
+    const submissions = await AlcoveSubmission.find({
+      postId: { $in: postIds },
+      schoolId
+    })
+    .populate('postId', 'title subject')
+    .sort({ submittedAt: -1 })
+    .lean();
+
+    res.json(submissions);
   } catch (err) {
     res.status(400).json({ error: err.message });
   }
