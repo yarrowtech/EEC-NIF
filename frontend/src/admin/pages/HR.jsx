@@ -706,12 +706,36 @@ const HR = ({ setShowAdminHeader }) => {
     </div>
   );
 
-  const Input = ({ label, type = 'text', className = '', inputClassName = '', ...props }) => (
-    <div className={`flex flex-col gap-1 ${className}`}>
-      <label className="text-sm text-gray-700">{label}</label>
-      <input type={type} className={`border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-yellow-500 focus:border-transparent ${inputClassName}`} {...props} />
-    </div>
-  );
+  const Input = ({ label, type = 'text', className = '', inputClassName = '', onFocus, onClick, ...props }) => {
+    const openDatePicker = (event) => {
+      if (type === 'date' && typeof event?.target?.showPicker === 'function') {
+        event.target.showPicker();
+      }
+    };
+
+    const handleFocus = (event) => {
+      openDatePicker(event);
+      if (typeof onFocus === 'function') onFocus(event);
+    };
+
+    const handleClick = (event) => {
+      openDatePicker(event);
+      if (typeof onClick === 'function') onClick(event);
+    };
+
+    return (
+      <div className={`flex flex-col gap-1 ${className}`}>
+        <label className="text-sm text-gray-700">{label}</label>
+        <input
+          type={type}
+          className={`border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-yellow-500 focus:border-transparent ${inputClassName}`}
+          onFocus={handleFocus}
+          onClick={handleClick}
+          {...props}
+        />
+      </div>
+    );
+  };
 
   const Select = ({ label, children, className = '', selectClassName = '', ...props }) => (
     <div className={`flex flex-col gap-1 ${className}`}>
