@@ -18,7 +18,7 @@ let swaggerDocument;
 dotenv.config({ path: path.join(__dirname, '.env') });
 const { bindConsoleToLogger, logger } = require('./utils/logger');
 bindConsoleToLogger();
-logger.info('Winston logger initialized');
+logger.info('Pino logger initialized');
 // console.log(`[auth] JWT_EXPIRES_IN=${process.env.JWT_EXPIRES_IN || '24h (default)'}`);
 
 const adminAuthRoutes = require('./routes/adminRoutes');
