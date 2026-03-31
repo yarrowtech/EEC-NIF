@@ -1,16 +1,9 @@
 const { logger } = require('./logger');
+const { getClientIp } = require('./request');
 
 const asString = (value) => {
   if (value === undefined || value === null) return undefined;
   return String(value);
-};
-
-const getClientIp = (req) => {
-  const forwarded = req?.headers?.['x-forwarded-for'];
-  if (typeof forwarded === 'string' && forwarded.trim()) {
-    return forwarded.split(',')[0].trim();
-  }
-  return req?.ip || req?.socket?.remoteAddress || undefined;
 };
 
 const isAdminPortalPath = (req) => {

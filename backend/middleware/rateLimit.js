@@ -1,8 +1,11 @@
+const { getClientIp } = require('../utils/request');
+
 const buckets = new Map();
 
 const getKey = (req) => {
-  const ip = req.ip || req.connection?.remoteAddress || 'unknown';
-  return `${ip}:${req.originalUrl}`;
+  const ip = getClientIp(req) || 'unknown';
+  const path = req.originalUrl || req.url || '/';
+  return `${ip}:${path}`;
 };
 
 const rateLimit = ({ windowMs = 60 * 1000, max = 10 } = {}) => {
@@ -20,6 +23,7 @@ const rateLimit = ({ windowMs = 60 * 1000, max = 10 } = {}) => {
     buckets.set(key, entry);
 
     if (entry.count > max) {
+      res.setHeader('Retry-After', Math.ceil(windowMs / 1000));
       return res.status(429).json({ error: 'Too many requests, please try again later.' });
     }
 

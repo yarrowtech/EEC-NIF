@@ -41,10 +41,10 @@ const SchoolRegistrationSuccess = () => {
                     {schoolData.campusCount || 1} Campus{(schoolData.campusCount || 1) !== 1 ? 'es' : ''}
                   </p>
                 </div>
-                <div>
+               {/* <div>
                   <p className="text-sm text-gray-600">School Code</p>
                   <p className="text-lg font-semibold text-amber-600">{schoolData.code}</p>
-                </div>
+                </div> */}
                 <div>
                   <p className="text-sm text-gray-600">Status</p>
                   <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-yellow-100 text-yellow-800">
@@ -89,6 +89,18 @@ const SchoolRegistrationSuccess = () => {
                   <span className="text-blue-600 font-semibold">3</span>
                 </div>
                 <div>
+                  <h3 className="font-semibold text-gray-800">Phone Call</h3>
+                  <p className="text-sm text-gray-600">
+                   Our sales team will connect you shortly.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-start gap-3">
+                <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center flex-shrink-0 mt-1">
+                  <span className="text-blue-600 font-semibold">4</span>
+                </div>
+                <div>
                   <h3 className="font-semibold text-gray-800">Get Started</h3>
                   <p className="text-sm text-gray-600">
                     After approval, you can create admin accounts and start using the platform.
@@ -104,11 +116,11 @@ const SchoolRegistrationSuccess = () => {
             <div className="flex flex-col md:flex-row items-center justify-center gap-6 text-sm">
               <div className="flex items-center gap-2 text-gray-600">
                 <Mail size={18} className="text-amber-500" />
-                <span>support@eec-platform.com</span>
+                <span>electroniceducaresales@yarrowtech.co.in</span>
               </div>
               <div className="flex items-center gap-2 text-gray-600">
                 <Phone size={18} className="text-amber-500" />
-                <span>+1 (555) 123-4567</span>
+                <span>+91 9830590929 </span>
               </div>
             </div>
           </div>
@@ -125,9 +137,9 @@ const SchoolRegistrationSuccess = () => {
           </div>
 
           {/* Additional Info */}
-          <p className="text-sm text-gray-500 mt-8">
+          {/*<p className="text-sm text-gray-500 mt-8">
             Please save your school code ({schoolData?.code}) for future reference.
-          </p>
+          </p> */}
         </div>
       </div>
     </div>

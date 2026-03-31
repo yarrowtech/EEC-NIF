@@ -338,6 +338,16 @@ const SchoolRegistrationForm = () => {
       });
       const data = await res.json();
       if (!res.ok) {
+        if (res.status === 429) {
+          const retryAfterSeconds = Number(res.headers.get('retry-after'));
+          if (Number.isFinite(retryAfterSeconds) && retryAfterSeconds > 0) {
+            const minutes = Math.max(1, Math.ceil(retryAfterSeconds / 60));
+            toast.error(`You've hit the submission limit. Please wait ${minutes} minute${minutes > 1 ? 's' : ''} and try again.`);
+          } else {
+            toast.error(data.error || 'Too many requests. Please try again later.');
+          }
+          return;
+        }
         if (data.errors) { setErrors(data.errors); setCurrentStep(1); toast.error('Please fix the errors and try again'); }
         else throw new Error(data.error || 'Registration failed');
         return;
@@ -692,7 +702,7 @@ const SchoolRegistrationForm = () => {
             <div>
               <Label required>
                 Verification Documents
-                <span className="text-gray-400 font-normal text-xs ml-1">— PDF / JPG / PNG, max 10 MB each, up to 5 files</span>
+                <span className="text-gray-400 font-normal text-xs ml-1">— PDF / JPG / PNG, max 10 MB </span>
               </Label>
 
               {formData.verificationDocs.length < 5 && (
@@ -717,9 +727,7 @@ const SchoolRegistrationForm = () => {
                     ) : (
                       <>
                         <FileText className="w-8 h-8 text-gray-400 mb-2" />
-                        <p className="text-sm font-medium text-gray-600">Click to upload documents</p>
-                        <p className="text-xs text-gray-400 mt-1">{formData.verificationDocs.length} / 5 uploaded</p>
-                      </>
+                        <p className="text-sm font-medium text-gray-600">Click to upload documents (Upload 1 only)</p>                      </>
                     )}
                   </label>
                 </>

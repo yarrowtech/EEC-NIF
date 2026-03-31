@@ -33,12 +33,21 @@ const schoolSchema = new mongoose.Schema(
     boardOther: { type: String, trim: true }, // If board is 'Other'
     academicYearStructure: {
       type: String,
-      enum: ['Semester', 'Trimester', 'Quarter'],
+      enum: ['Year', 'Semester', 'Trimester', 'Quarter'],
       required: false
     },
     estimatedUsers: {
       type: String,
-      enum: ['<100', '100-500', '500-1000', '1000+'],
+      enum: [
+        'Less than 100',
+        '100 \u2013 500',
+        '500 \u2013 1,000',
+        'More than 1,000',
+        '<100',
+        '100-500',
+        '500-1000',
+        '1000+'
+      ],
       required: false
     },
     websiteURL: { type: String, trim: true },
