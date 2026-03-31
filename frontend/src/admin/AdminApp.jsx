@@ -119,11 +119,50 @@ const AdminApp = () => {
   }, [adminProfile]);
 
   const isSuperAdmin = adminProfile?.role === 'super_admin';
+  const schoolAdminMenuOrder = useMemo(
+    () => [
+      'Dashboard',
+      'Analytics',
+      'Academic Setup',
+      'Subjects',
+      'Teachers',
+      'Teacher Timetable',
+      'Students',
+      'Student Attendance',
+      'Promotion & Leave',
+      'Parents',
+      'Routines',
+      'Lesson Plan',
+      'Exam Management',
+      'Result Management',
+      'Report Cards',
+      'Fees Management',
+      'Notices',
+      'Holiday List',
+      'Staff',
+      'HR',
+      'Support',
+    ],
+    []
+  );
 
   const menuItems = useMemo(() => {
     if (isSuperAdmin) return ADMIN_MENU_ITEMS;
-    return ADMIN_MENU_ITEMS.filter((item) => item.scope !== 'super');
-  }, [isSuperAdmin]);
+    const filteredMenuItems = ADMIN_MENU_ITEMS.filter((item) => item.scope !== 'super');
+    const orderIndexByLabel = new Map(
+      schoolAdminMenuOrder.map((label, index) => [label, index])
+    );
+
+    return [...filteredMenuItems].sort((a, b) => {
+      const indexA = orderIndexByLabel.has(a.label)
+        ? orderIndexByLabel.get(a.label)
+        : Number.MAX_SAFE_INTEGER;
+      const indexB = orderIndexByLabel.has(b.label)
+        ? orderIndexByLabel.get(b.label)
+        : Number.MAX_SAFE_INTEGER;
+      return indexA - indexB;
+    });
+  }, [isSuperAdmin, schoolAdminMenuOrder]);
 
   const adminUser = {
     name: adminProfile?.name || 'Admin User',

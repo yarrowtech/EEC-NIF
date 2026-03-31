@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   BarChart2,
   Users,
@@ -9,8 +10,6 @@ import {
   GraduationCap,
   UsersRound,
   Plus,
-  Bell,
-  FileBarChart,
   AlertCircle,
   Clock,
   ArrowUpRight,
@@ -20,6 +19,7 @@ import {
   CheckCircle2,
   Activity,
   ChevronRight,
+  Layers,
 } from 'lucide-react';
 import {
   BarChart,
@@ -33,6 +33,68 @@ import {
 } from 'recharts';
 
 // ── helpers ──────────────────────────────────────────────────────────────────
+
+const DASHBOARD_CACHE_PREFIX = 'admin_dashboard_cache_v1';
+const DASHBOARD_CACHE_TTLS = {
+  stats: 2 * 60 * 1000,
+  financial: 3 * 60 * 1000,
+  activity: 60 * 1000,
+};
+
+const getDashboardCacheStorage = () => {
+  try {
+    if (typeof window === 'undefined' || !window.sessionStorage) return null;
+    return window.sessionStorage;
+  } catch {
+    return null;
+  }
+};
+
+const getDashboardTokenScope = () => {
+  const token = localStorage.getItem('token');
+  if (!token) return 'anonymous';
+  try {
+    const base64 = token.split('.')[1]?.replace(/-/g, '+').replace(/_/g, '/');
+    const payload = JSON.parse(atob(base64));
+    const adminId = payload?.id || 'unknown';
+    const schoolId = payload?.schoolId || 'school';
+    const campusId = payload?.campusId || 'campus';
+    return `${adminId}_${schoolId}_${campusId}`;
+  } catch {
+    return 'fallback';
+  }
+};
+
+const getDashboardCacheKey = (segment) =>
+  `${DASHBOARD_CACHE_PREFIX}:${segment}:${getDashboardTokenScope()}`;
+
+const readDashboardCache = (key, ttlMs) => {
+  const storage = getDashboardCacheStorage();
+  if (!storage) return null;
+  try {
+    const raw = storage.getItem(key);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    const cachedAt = Number(parsed?.cachedAt || 0);
+    if (!cachedAt || Date.now() - cachedAt > ttlMs) {
+      storage.removeItem(key);
+      return null;
+    }
+    return parsed?.data ?? null;
+  } catch {
+    return null;
+  }
+};
+
+const writeDashboardCache = (key, data) => {
+  const storage = getDashboardCacheStorage();
+  if (!storage) return;
+  try {
+    storage.setItem(key, JSON.stringify({ cachedAt: Date.now(), data }));
+  } catch {
+    // Ignore cache write failures.
+  }
+};
 
 const formatCurrency = (value = 0) =>
   new Intl.NumberFormat('en-IN', {
@@ -220,6 +282,7 @@ const CustomTooltip = ({ active, payload, label }) => {
 // ── main component ────────────────────────────────────────────────────────────
 
 const Dashboard = ({ setShowAdminHeader }) => {
+  const navigate = useNavigate();
   const [selectedAction, setSelectedAction] = useState(null);
   const [dashboardStats, setDashboardStats] = useState(null);
   const [statsLoading, setStatsLoading] = useState(true);
@@ -242,9 +305,9 @@ const Dashboard = ({ setShowAdminHeader }) => {
     return () => clearInterval(t);
   }, []);
 
-  const handleActionClick = (action) => {
-    setSelectedAction(action);
-    setTimeout(() => setSelectedAction(null), 2000);
+  const handleActionClick = (actionKey, path) => {
+    setSelectedAction(actionKey);
+    navigate(path);
   };
 
   useEffect(() => {
@@ -253,6 +316,13 @@ const Dashboard = ({ setShowAdminHeader }) => {
 
   // fetch stats
   useEffect(() => {
+    const statsCacheKey = getDashboardCacheKey('stats');
+    const cachedStats = readDashboardCache(statsCacheKey, DASHBOARD_CACHE_TTLS.stats);
+    if (cachedStats) {
+      setDashboardStats(cachedStats);
+      setStatsLoading(false);
+    }
+
     const fetchStats = async () => {
       try {
         const res = await fetch(`${import.meta.env.VITE_API_URL}/api/admin/users/dashboard-stats`, {
@@ -261,8 +331,12 @@ const Dashboard = ({ setShowAdminHeader }) => {
         const data = await res.json();
         if (!res.ok) throw new Error(data?.error || 'Failed to load dashboard stats');
         setDashboardStats(data);
+        setStatsError('');
+        writeDashboardCache(statsCacheKey, data);
       } catch (err) {
-        setStatsError(err.message || 'Failed to load dashboard stats');
+        if (!cachedStats) {
+          setStatsError(err.message || 'Failed to load dashboard stats');
+        }
       } finally {
         setStatsLoading(false);
       }
@@ -273,9 +347,19 @@ const Dashboard = ({ setShowAdminHeader }) => {
   // fetch financials
   useEffect(() => {
     let cancelled = false;
+    const financialCacheKey = getDashboardCacheKey('financial');
+    const cachedFinancial = readDashboardCache(
+      financialCacheKey,
+      DASHBOARD_CACHE_TTLS.financial
+    );
+    if (cachedFinancial) {
+      setFinancialState(cachedFinancial);
+      setFinancialLoading(false);
+    }
+
     const loadFinancials = async () => {
       setFinancialError('');
-      setFinancialLoading(true);
+      if (!cachedFinancial) setFinancialLoading(true);
       try {
         const authHeaders = { authorization: `Bearer ${localStorage.getItem('token')}` };
         const [invoiceRes, paymentRes] = await Promise.all([
@@ -287,15 +371,15 @@ const Dashboard = ({ setShowAdminHeader }) => {
         if (!invoiceRes.ok) throw new Error(invoicesData?.error || 'Failed to load invoices');
         if (!paymentRes.ok) throw new Error(paymentsData?.error || 'Failed to load payments');
         if (!cancelled) {
-          setFinancialState(
-            buildFinancialState(
-              Array.isArray(invoicesData) ? invoicesData : [],
-              Array.isArray(paymentsData) ? paymentsData : []
-            )
+          const nextFinancialState = buildFinancialState(
+            Array.isArray(invoicesData) ? invoicesData : [],
+            Array.isArray(paymentsData) ? paymentsData : []
           );
+          setFinancialState(nextFinancialState);
+          writeDashboardCache(financialCacheKey, nextFinancialState);
         }
       } catch (err) {
-        if (!cancelled) {
+        if (!cancelled && !cachedFinancial) {
           setFinancialError(err.message || 'Failed to load fee data');
           setFinancialState({
             trend: [],
@@ -314,16 +398,27 @@ const Dashboard = ({ setShowAdminHeader }) => {
   // fetch audit logs
   useEffect(() => {
     let cancelled = false;
+    const activityCacheKey = getDashboardCacheKey('activity');
+    const cachedActivity = readDashboardCache(activityCacheKey, DASHBOARD_CACHE_TTLS.activity);
+    if (cachedActivity) {
+      setAuditLogs(Array.isArray(cachedActivity) ? cachedActivity : []);
+      setActivityLoading(false);
+    }
+
     const loadActivity = async () => {
       setActivityError('');
-      setActivityLoading(true);
+      if (!cachedActivity) setActivityLoading(true);
       try {
         const res = await fetch(`${import.meta.env.VITE_API_URL}/api/audit-logs`);
         const data = await res.json().catch(() => []);
         if (!res.ok) throw new Error(data?.error || 'Failed to load activity');
-        if (!cancelled) setAuditLogs(Array.isArray(data) ? data : []);
-      } catch (err) {
         if (!cancelled) {
+          const activityRows = Array.isArray(data) ? data : [];
+          setAuditLogs(activityRows);
+          writeDashboardCache(activityCacheKey, activityRows);
+        }
+      } catch (err) {
+        if (!cancelled && !cachedActivity) {
           setActivityError(err.message || 'Failed to load activity');
           setAuditLogs([]);
         }
@@ -386,8 +481,21 @@ const Dashboard = ({ setShowAdminHeader }) => {
 
   const quickActions = [
     {
+      label: 'Academic Setup',
+      action: 'academic-setup',
+      path: '/admin/academics',
+      icon: Layers,
+      color: {
+        border: 'border-indigo-200', hoverBg: 'bg-indigo-50', activeBg: 'bg-indigo-50',
+        iconBg: 'bg-indigo-100', iconBgActive: 'bg-indigo-200',
+        icon: 'text-indigo-600', iconActive: 'text-indigo-700',
+        textActive: 'text-indigo-700',
+      },
+    },
+    {
       label: 'Add Student',
       action: 'student',
+      path: '/admin/students',
       icon: Plus,
       color: {
         border: 'border-blue-200', hoverBg: 'bg-blue-50', activeBg: 'bg-blue-50',
@@ -397,25 +505,15 @@ const Dashboard = ({ setShowAdminHeader }) => {
       },
     },
     {
-      label: 'Send Notification',
-      action: 'notification',
-      icon: Bell,
+      label: 'Add Teacher',
+      action: 'teacher',
+      path: '/admin/teachers',
+      icon: UserCheck,
       color: {
         border: 'border-purple-200', hoverBg: 'bg-purple-50', activeBg: 'bg-purple-50',
         iconBg: 'bg-purple-100', iconBgActive: 'bg-purple-200',
         icon: 'text-purple-600', iconActive: 'text-purple-700',
         textActive: 'text-purple-700',
-      },
-    },
-    {
-      label: 'Generate Report',
-      action: 'report',
-      icon: FileBarChart,
-      color: {
-        border: 'border-amber-200', hoverBg: 'bg-amber-50', activeBg: 'bg-amber-50',
-        iconBg: 'bg-amber-100', iconBgActive: 'bg-amber-200',
-        icon: 'text-amber-600', iconActive: 'text-amber-700',
-        textActive: 'text-amber-700',
       },
     },
   ];
@@ -601,7 +699,7 @@ const Dashboard = ({ setShowAdminHeader }) => {
                   icon={qa.icon}
                   label={qa.label}
                   color={qa.color}
-                  onClick={() => handleActionClick(qa.action)}
+                  onClick={() => handleActionClick(qa.action, qa.path)}
                   active={selectedAction === qa.action}
                 />
               ))}

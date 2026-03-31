@@ -1,12 +1,21 @@
+const { getClientIp } = require('../utils/request');
+
 const buckets = new Map();
 const { logSecurityEvent } = require('../utils/securityEventLogger');
 
+<<<<<<< HEAD
 const getClientIp = (req, useForwardedFor = true) => {
   const forwarded = req?.headers?.['x-forwarded-for'];
   if (useForwardedFor && typeof forwarded === 'string' && forwarded.trim()) {
     return forwarded.split(',')[0].trim();
   }
   return req.ip || req.connection?.remoteAddress || req.socket?.remoteAddress || 'unknown';
+=======
+const getKey = (req) => {
+  const ip = getClientIp(req) || 'unknown';
+  const path = req.originalUrl || req.url || '/';
+  return `${ip}:${path}`;
+>>>>>>> 486e48fd558e37241102017daa47d6c334e68414
 };
 
 const getKey = (req, { useForwardedFor = true, keyGenerator } = {}) => {
@@ -39,6 +48,7 @@ const rateLimit = ({
     buckets.set(key, entry);
 
     if (entry.count > max) {
+<<<<<<< HEAD
       logSecurityEvent(req, {
         action: 'security.rate_limit_triggered',
         outcome: 'blocked',
@@ -57,6 +67,9 @@ const rateLimit = ({
           // Keep rate-limiter fail-safe.
         }
       }
+=======
+      res.setHeader('Retry-After', Math.ceil(windowMs / 1000));
+>>>>>>> 486e48fd558e37241102017daa47d6c334e68414
       return res.status(429).json({ error: 'Too many requests, please try again later.' });
     }
 

@@ -8,6 +8,7 @@ const { logSecurityEvent } = require('../utils/securityEventLogger');
 
 const router = express.Router();
 
+<<<<<<< HEAD
 const ALLOWED_SCHOOL_TYPES = ['Public', 'Private', 'Charter', 'International'];
 const ALLOWED_BOARDS = ['CBSE', 'ICSE', 'IB', 'IGCSE', 'State Board', 'NIOS', 'Other'];
 const ALLOWED_ACADEMIC_STRUCTURES = ['Semester', 'Trimester', 'Quarter'];
@@ -86,11 +87,22 @@ const logSchoolRegistrationEvent = (req, payload = {}) => {
     ...extra,
   });
 };
+=======
+const parsePositiveInt = (value, fallback) => {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+};
+
+const SCHOOL_REG_WINDOW_MINUTES = parsePositiveInt(process.env.SCHOOL_REG_WINDOW_MINUTES, 15); // defaults to 15 minutes
+const SCHOOL_REG_MAX_REQUESTS = parsePositiveInt(process.env.SCHOOL_REG_MAX_REQUESTS, 10); // defaults to 10 attempts
+const SCHOOL_REG_WINDOW_MS = SCHOOL_REG_WINDOW_MINUTES * 60 * 1000;
+>>>>>>> 486e48fd558e37241102017daa47d6c334e68414
 
 // PUBLIC ENDPOINT - No authentication required
 // POST /api/school-registration
 router.post(
   '/',
+<<<<<<< HEAD
   rateLimit({
     windowMs: 15 * 60 * 1000,
     max: 3,
@@ -106,6 +118,9 @@ router.post(
       });
     },
   }), // 3 requests per 15 minutes
+=======
+  rateLimit({ windowMs: SCHOOL_REG_WINDOW_MS, max: SCHOOL_REG_MAX_REQUESTS }),
+>>>>>>> 486e48fd558e37241102017daa47d6c334e68414
   async (req, res) => {
     // #swagger.tags = ['School Registration']
     try {
@@ -399,6 +414,14 @@ router.post(
         return res.status(409).json({
           error: 'A school with this information already exists'
         });
+      }
+
+      if (err.name === 'ValidationError') {
+        const validationErrors = {};
+        for (const [field, validationErr] of Object.entries(err.errors || {})) {
+          validationErrors[field] = validationErr?.message || 'Invalid value';
+        }
+        return res.status(400).json({ errors: validationErrors });
       }
 
       res.status(500).json({

@@ -1,5 +1,6 @@
 const { randomUUID } = require('crypto');
 const { logger } = require('../utils/logger');
+<<<<<<< HEAD
 const { logSecurityEvent } = require('../utils/securityEventLogger');
 
 const getClientIp = (req) => {
@@ -9,6 +10,9 @@ const getClientIp = (req) => {
   }
   return req?.ip || req?.socket?.remoteAddress || undefined;
 };
+=======
+const { getClientIp } = require('../utils/request');
+>>>>>>> 486e48fd558e37241102017daa47d6c334e68414
 
 const resolveActor = (req) => {
   if (req?.user?.id) {
