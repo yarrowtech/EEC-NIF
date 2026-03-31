@@ -3,28 +3,103 @@ import { useNavigate } from 'react-router-dom';
 import {
   Building2, MapPin, Phone, Mail, User, Globe,
   Upload, FileText, Check, ChevronLeft, ChevronRight,
-  AlertCircle, Loader2, X, GraduationCap, Plus, Trash2
+  AlertCircle, Loader2, X, GraduationCap, Plus, Trash2,
+  School, ClipboardList, Info, FolderOpen
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 const API_BASE = import.meta.env.VITE_API_URL;
+
+// Validation helpers
+const isValidPhone = (phone) => {
+  const cleaned = phone.replace(/[\s\-()]/g, '');
+  return /^\+?[1-9]\d{9,14}$/.test(cleaned);
+};
+
+const isValidEmail = (email) => {
+  return /^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$/.test(email.trim());
+};
+
+const isValidURL = (url) => {
+  try {
+    const u = new URL(url.startsWith('http') ? url : `https://${url}`);
+    return u.hostname.includes('.');
+  } catch {
+    return false;
+  }
+};
+
+const STEPS = [
+  { id: 1, label: 'School Info',  shortLabel: 'Info',    icon: School },
+  { id: 2, label: 'Contact',      shortLabel: 'Contact',  icon: ClipboardList },
+  { id: 3, label: 'Details',      shortLabel: 'Details',  icon: Info },
+  { id: 4, label: 'Files',        shortLabel: 'Files',    icon: FolderOpen },
+];
+
+const schoolTypes        = ['Public', 'Private', 'Charter', 'International'];
+const boards             = ['CBSE', 'ICSE', 'IB', 'IGCSE', 'State Board', 'NIOS', 'Other'];
+const academicStructures = ['Semester', 'Trimester', 'Quarter'];
+const userRanges         = ['Less than 100', '100 – 500', '500 – 1,000', 'More than 1,000'];
+const campusTypes        = ['Main', 'Branch'];
+
+/* ─── Reusable field error ─── */
+const FieldError = ({ msg }) =>
+  msg ? (
+    <p className="mt-1.5 flex items-center gap-1 text-xs text-red-500">
+      <AlertCircle size={12} className="shrink-0" />
+      {msg}
+    </p>
+  ) : null;
+
+/* ─── Reusable label ─── */
+const Label = ({ children, required, optional }) => (
+  <label className="block text-sm font-medium text-gray-700 mb-1.5">
+    {children}
+    {required && <span className="text-red-500 ml-0.5">*</span>}
+    {optional && <span className="text-gray-400 text-xs font-normal ml-1">(optional)</span>}
+  </label>
+);
+
+/* ─── Input wrapper with icon ─── */
+const InputWithIcon = ({ icon: Icon, error, children }) => (
+  <div className="relative">
+    <Icon
+      className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none"
+      size={17}
+    />
+    {React.cloneElement(children, {
+      className: `${children.props.className || ''} w-full pl-10 pr-4 py-2.5 border rounded-xl text-sm transition focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-transparent ${
+        error
+          ? 'border-red-400 bg-red-50'
+          : 'border-gray-300 bg-white hover:border-gray-400'
+      }`.trim(),
+    })}
+  </div>
+);
+
+/* ─── Textarea wrapper with icon ─── */
+const TextareaWithIcon = ({ icon: Icon, error, children }) => (
+  <div className="relative">
+    <Icon className="absolute left-3 top-3 text-gray-400 pointer-events-none" size={17} />
+    {React.cloneElement(children, {
+      className: `${children.props.className || ''} w-full pl-10 pr-4 py-2.5 border rounded-xl text-sm transition focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-transparent ${
+        error
+          ? 'border-red-400 bg-red-50'
+          : 'border-gray-300 bg-white hover:border-gray-400'
+      }`.trim(),
+    })}
+  </div>
+);
 
 const SchoolRegistrationForm = () => {
   const navigate = useNavigate();
   const [currentStep, setCurrentStep] = useState(1);
   const totalSteps = 4;
 
-  // Form data state
   const [formData, setFormData] = useState({
     name: '',
     campuses: [
-      {
-        name: '',
-        address: '',
-        campusType: 'Main',
-        contactPerson: '',
-        contactPhone: ''
-      }
+      { name: '', address: '', campusType: 'Main', contactPerson: '', contactPhone: '' }
     ],
     schoolType: '',
     board: '',
@@ -37,978 +112,638 @@ const SchoolRegistrationForm = () => {
     websiteURL: '',
     estimatedUsers: '',
     logo: null,
-    verificationDocs: []
+    verificationDocs: [],
   });
 
-  // Error state
-  const [errors, setErrors] = useState({});
-
-  // Loading states
+  const [errors, setErrors]             = useState({});
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isUploadingLogo, setIsUploadingLogo] = useState(false);
-  const [isUploadingDocs, setIsUploadingDocs] = useState(false);
+  const [isUploadingLogo, setIsUploadingLogo]   = useState(false);
+  const [isUploadingDocs, setIsUploadingDocs]   = useState(false);
+  const [logoPreview, setLogoPreview]   = useState(null);
+  const [docsPreview, setDocsPreview]   = useState([]);
 
-  // File preview states
-  const [logoPreview, setLogoPreview] = useState(null);
-  const [docsPreview, setDocsPreview] = useState([]);
-
-  // Options for dropdowns
-  const schoolTypes = ['Public', 'Private', 'Charter', 'International'];
-  const boards = ['CBSE', 'ICSE', 'IB', 'IGCSE', 'State Board', 'NIOS', 'Other'];
-  const academicStructures = ['Semester', 'Trimester', 'Quarter'];
-  const userRanges = ['<100', '100-500', '500-1000', '1000+'];
-  const campusTypes = ['Main', 'Branch'];
-
-  // Add campus
-  const addCampus = () => {
-    setFormData(prev => ({
-      ...prev,
-      campuses: [
-        ...prev.campuses,
-        {
-          name: '',
-          address: '',
-          campusType: 'Branch',
-          contactPerson: '',
-          contactPhone: ''
-        }
-      ]
-    }));
-  };
-
-  // Remove campus
-  const removeCampus = (index) => {
-    if (formData.campuses.length === 1) {
-      toast.error('At least one campus is required');
-      return;
-    }
-    setFormData(prev => ({
-      ...prev,
-      campuses: prev.campuses.filter((_, i) => i !== index)
-    }));
-    // Clear errors for this campus
-    const errorKeys = Object.keys(errors).filter(key => key.startsWith(`campus_${index}_`));
-    if (errorKeys.length > 0) {
-      setErrors(prev => {
-        const newErrors = { ...prev };
-        errorKeys.forEach(key => delete newErrors[key]);
-        return newErrors;
-      });
-    }
-  };
-
-  // Handle campus field change
-  const handleCampusChange = (index, field, value) => {
-    setFormData(prev => ({
-      ...prev,
-      campuses: prev.campuses.map((campus, i) =>
-        i === index ? { ...campus, [field]: value } : campus
-      )
+  /* ── campus helpers ── */
+  const addCampus = () =>
+    setFormData(p => ({
+      ...p,
+      campuses: [...p.campuses, { name: '', address: '', campusType: 'Branch', contactPerson: '', contactPhone: '' }],
     }));
 
-    // Clear error for this field
-    const errorKey = `campus_${index}_${field}`;
-    if (errors[errorKey]) {
-      setErrors(prev => ({ ...prev, [errorKey]: '' }));
-    }
+  const removeCampus = (idx) => {
+    if (formData.campuses.length === 1) { toast.error('At least one campus is required'); return; }
+    setFormData(p => ({ ...p, campuses: p.campuses.filter((_, i) => i !== idx) }));
+    setErrors(p => {
+      const next = { ...p };
+      Object.keys(next).filter(k => k.startsWith(`campus_${idx}_`)).forEach(k => delete next[k]);
+      return next;
+    });
   };
 
-  // Handle input changes
+  const handleCampusChange = (idx, field, value) => {
+    setFormData(p => ({
+      ...p,
+      campuses: p.campuses.map((c, i) => i === idx ? { ...c, [field]: value } : c),
+    }));
+    const key = `campus_${idx}_${field}`;
+    if (errors[key]) setErrors(p => ({ ...p, [key]: '' }));
+  };
+
+  /* ── input helper ── */
   const handleInputChange = (e) => {
     const { name, value } = e.target;
-    setFormData(prev => ({ ...prev, [name]: value }));
-
-    // Clear error for this field
-    if (errors[name]) {
-      setErrors(prev => ({ ...prev, [name]: '' }));
-    }
+    setFormData(p => ({ ...p, [name]: value }));
+    if (errors[name]) setErrors(p => ({ ...p, [name]: '' }));
   };
 
-  // Validation functions per step
+  /* ── validation ── */
   const validateStep1 = () => {
-    const newErrors = {};
+    const e = {};
+    if (!formData.name.trim())                 e.name = 'School name is required';
+    else if (formData.name.trim().length < 3)  e.name = 'School name must be at least 3 characters';
 
-    if (!formData.name.trim()) {
-      newErrors.name = 'School name is required';
-    } else if (formData.name.trim().length < 3) {
-      newErrors.name = 'School name must be at least 3 characters';
-    }
-
-    // Validate each campus
-    if (!formData.campuses || formData.campuses.length === 0) {
-      newErrors.campuses = 'At least one campus is required';
+    if (!formData.campuses?.length) {
+      e.campuses = 'At least one campus is required';
     } else {
-      formData.campuses.forEach((campus, index) => {
-        if (!campus.name.trim()) {
-          newErrors[`campus_${index}_name`] = 'Campus name is required';
-        }
-
-        if (!campus.address.trim()) {
-          newErrors[`campus_${index}_address`] = 'Campus address is required';
-        } else if (campus.address.trim().length < 10) {
-          newErrors[`campus_${index}_address`] = 'Please provide a complete address';
-        }
-
-        if (campus.contactPhone && !/^\+?[\d\s\-()]{10,}$/.test(campus.contactPhone)) {
-          newErrors[`campus_${index}_contactPhone`] = 'Invalid phone number';
-        }
+      formData.campuses.forEach((c, i) => {
+        if (!c.name.trim())
+          e[`campus_${i}_name`] = 'Campus name is required';
+        if (!c.address.trim())
+          e[`campus_${i}_address`] = 'Campus address is required';
+        else if (c.address.trim().length < 10)
+          e[`campus_${i}_address`] = 'Please provide a complete address (min 10 characters)';
+        if (c.contactPhone && !isValidPhone(c.contactPhone))
+          e[`campus_${i}_contactPhone`] = 'Please enter a valid phone number';
       });
     }
 
-    if (!formData.schoolType) {
-      newErrors.schoolType = 'Please select a school type';
-    }
+    if (!formData.schoolType)
+      e.schoolType = 'Please select a school type';
 
-    if (!formData.board) {
-      newErrors.board = 'Please select a school board/affiliation';
-    } else if (formData.board === 'Other' && !formData.boardOther.trim()) {
-      newErrors.boardOther = 'Please specify the board name';
-    }
+    if (!formData.board)
+      e.board = 'Please select a board/affiliation';
+    else if (formData.board === 'Other' && !formData.boardOther.trim())
+      e.boardOther = 'Please specify the board name';
 
-    if (!formData.academicYearStructure) {
-      newErrors.academicYearStructure = 'Please select academic year structure';
-    }
+    if (!formData.academicYearStructure)
+      e.academicYearStructure = 'Please select an academic year structure';
 
-    setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
+    setErrors(e);
+    return Object.keys(e).length === 0;
   };
 
   const validateStep2 = () => {
-    const newErrors = {};
+    const e = {};
+    if (!formData.contactPersonName.trim())
+      e.contactPersonName = 'Contact person name is required';
+    else if (formData.contactPersonName.trim().length < 2)
+      e.contactPersonName = 'Name must be at least 2 characters';
+    else if (!/^[a-zA-Z\s.'-]{2,}$/.test(formData.contactPersonName.trim()))
+      e.contactPersonName = 'Name should contain only letters and spaces';
 
-    if (!formData.contactPersonName.trim()) {
-      newErrors.contactPersonName = 'Contact person name is required';
-    }
+    if (!formData.contactPhone.trim())
+      e.contactPhone = 'Contact phone is required';
+    else if (!isValidPhone(formData.contactPhone))
+      e.contactPhone = 'Please enter a valid phone number (10–15 digits)';
 
-    if (!formData.contactPhone.trim()) {
-      newErrors.contactPhone = 'Contact phone is required';
-    } else if (!/^\+?[\d\s\-()]{10,}$/.test(formData.contactPhone)) {
-      newErrors.contactPhone = 'Please enter a valid phone number';
-    }
+    if (!formData.officialEmail.trim())
+      e.officialEmail = 'Official email is required';
+    else if (!isValidEmail(formData.officialEmail))
+      e.officialEmail = 'Please enter a valid email address';
 
-    if (!formData.officialEmail.trim()) {
-      newErrors.officialEmail = 'Official email is required';
-    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.officialEmail)) {
-      newErrors.officialEmail = 'Please enter a valid email address';
-    }
+    if (!formData.address.trim())
+      e.address = 'School address is required';
+    else if (formData.address.trim().length < 15)
+      e.address = 'Please provide a complete address (min 15 characters)';
 
-    if (!formData.address.trim()) {
-      newErrors.address = 'School address is required';
-    } else if (formData.address.trim().length < 10) {
-      newErrors.address = 'Please provide a complete address';
-    }
-
-    setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
+    setErrors(e);
+    return Object.keys(e).length === 0;
   };
 
   const validateStep3 = () => {
-    const newErrors = {};
-
-    if (formData.websiteURL && formData.websiteURL.trim()) {
-      const urlPattern = /^(https?:\/\/)?([\da-z\.-]+)\.([a-z\.]{2,6})([\/\w \.-]*)*\/?$/;
-      if (!urlPattern.test(formData.websiteURL)) {
-        newErrors.websiteURL = 'Please enter a valid URL';
-      }
-    }
-
-    if (!formData.estimatedUsers) {
-      newErrors.estimatedUsers = 'Please select estimated number of users';
-    }
-
-    setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
+    const e = {};
+    if (formData.websiteURL?.trim() && !isValidURL(formData.websiteURL.trim()))
+      e.websiteURL = 'Please enter a valid URL (e.g. https://example.com)';
+    if (!formData.estimatedUsers)
+      e.estimatedUsers = 'Please select the estimated number of users';
+    setErrors(e);
+    return Object.keys(e).length === 0;
   };
 
   const validateStep4 = () => {
-    const newErrors = {};
-
-    if (!formData.logo) {
-      newErrors.logo = 'School logo is required';
-    }
-
-    if (!formData.verificationDocs || formData.verificationDocs.length === 0) {
-      newErrors.verificationDocs = 'At least one verification document is required';
-    }
-
-    setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
+    const e = {};
+    if (!formData.logo)
+      e.logo = 'School logo is required';
+    if (!formData.verificationDocs?.length)
+      e.verificationDocs = 'Please upload at least one verification document';
+    setErrors(e);
+    return Object.keys(e).length === 0;
   };
 
-  // Handle logo upload
+  /* ── uploads ── */
   const handleLogoUpload = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
-
-    const allowedTypes = ['image/jpeg', 'image/png', 'image/jpg', 'image/webp'];
-    if (!allowedTypes.includes(file.type)) {
-      setErrors(prev => ({
-        ...prev,
-        logo: 'Please upload a valid image (JPG, PNG, or WebP)'
-      }));
-      return;
+    const allowed = ['image/jpeg', 'image/png', 'image/jpg', 'image/webp'];
+    if (!allowed.includes(file.type)) {
+      setErrors(p => ({ ...p, logo: 'Only JPG, PNG, or WebP images are accepted' })); return;
     }
-
     if (file.size > 5 * 1024 * 1024) {
-      setErrors(prev => ({
-        ...prev,
-        logo: 'Logo file size must be less than 5MB'
-      }));
-      return;
+      setErrors(p => ({ ...p, logo: 'Logo must be smaller than 5 MB' })); return;
     }
-
     setIsUploadingLogo(true);
-    setErrors(prev => ({ ...prev, logo: '' }));
-
+    setErrors(p => ({ ...p, logo: '' }));
     try {
-      const uploadData = new FormData();
-      uploadData.append('file', file);
-      uploadData.append('folder', 'school_logos');
-
-      const response = await fetch(`${API_BASE}/api/uploads/cloudinary/single`, {
-        method: 'POST',
-        body: uploadData
-      });
-
-      if (!response.ok) {
-        throw new Error('Upload failed');
-      }
-
-      const result = await response.json();
-      const uploadedFile = result.files[0];
-
-      setFormData(prev => ({
-        ...prev,
-        logo: {
-          public_id: uploadedFile.public_id,
-          secure_url: uploadedFile.secure_url,
-          originalName: uploadedFile.originalName
-        }
-      }));
-
-      setLogoPreview(uploadedFile.secure_url);
+      const fd = new FormData();
+      fd.append('file', file);
+      fd.append('folder', 'school_logos');
+      const res = await fetch(`${API_BASE}/api/uploads/cloudinary/single`, { method: 'POST', body: fd });
+      if (!res.ok) throw new Error('Upload failed');
+      const result = await res.json();
+      const f = result.files[0];
+      setFormData(p => ({ ...p, logo: { public_id: f.public_id, secure_url: f.secure_url, originalName: f.originalName } }));
+      setLogoPreview(f.secure_url);
       toast.success('Logo uploaded successfully');
-
-    } catch (error) {
-      console.error('Logo upload error:', error);
-      setErrors(prev => ({
-        ...prev,
-        logo: 'Failed to upload logo. Please try again.'
-      }));
+    } catch {
+      setErrors(p => ({ ...p, logo: 'Upload failed. Please try again.' }));
       toast.error('Logo upload failed');
     } finally {
       setIsUploadingLogo(false);
     }
   };
 
-  // Handle verification documents upload
   const handleDocsUpload = async (e) => {
     const files = Array.from(e.target.files);
-    if (files.length === 0) return;
-
+    if (!files.length) return;
     if (files.length + formData.verificationDocs.length > 5) {
-      setErrors(prev => ({
-        ...prev,
-        verificationDocs: 'Maximum 5 documents allowed'
-      }));
-      return;
+      setErrors(p => ({ ...p, verificationDocs: 'Maximum 5 documents allowed' })); return;
     }
-
-    const allowedTypes = [
-      'application/pdf',
-      'image/jpeg',
-      'image/png',
-      'image/jpg'
-    ];
-
-    for (const file of files) {
-      if (!allowedTypes.includes(file.type)) {
-        setErrors(prev => ({
-          ...prev,
-          verificationDocs: 'Only PDF and image files are allowed'
-        }));
-        return;
-      }
-
-      if (file.size > 10 * 1024 * 1024) {
-        setErrors(prev => ({
-          ...prev,
-          verificationDocs: 'Each file must be less than 10MB'
-        }));
-        return;
-      }
+    const allowed = ['application/pdf', 'image/jpeg', 'image/png', 'image/jpg'];
+    for (const f of files) {
+      if (!allowed.includes(f.type)) { setErrors(p => ({ ...p, verificationDocs: 'Only PDF and image files are allowed' })); return; }
+      if (f.size > 10 * 1024 * 1024) { setErrors(p => ({ ...p, verificationDocs: 'Each file must be under 10 MB' })); return; }
     }
-
     setIsUploadingDocs(true);
-    setErrors(prev => ({ ...prev, verificationDocs: '' }));
-
+    setErrors(p => ({ ...p, verificationDocs: '' }));
     try {
-      const uploadData = new FormData();
-      files.forEach(file => uploadData.append('files', file));
-      uploadData.append('folder', 'school_verification_docs');
-
-      const response = await fetch(`${API_BASE}/api/uploads/cloudinary/bulk`, {
-        method: 'POST',
-        body: uploadData
-      });
-
-      if (!response.ok) {
-        throw new Error('Upload failed');
-      }
-
-      const result = await response.json();
-      const uploadedFiles = result.files.map(file => ({
-        public_id: file.public_id,
-        secure_url: file.secure_url,
-        originalName: file.originalName
-      }));
-
-      setFormData(prev => ({
-        ...prev,
-        verificationDocs: [...prev.verificationDocs, ...uploadedFiles]
-      }));
-
-      setDocsPreview(prev => [
-        ...prev,
-        ...uploadedFiles.map(f => ({
-          name: f.originalName,
-          url: f.secure_url
-        }))
-      ]);
-
-      toast.success(`${uploadedFiles.length} document(s) uploaded successfully`);
-
-    } catch (error) {
-      console.error('Documents upload error:', error);
-      setErrors(prev => ({
-        ...prev,
-        verificationDocs: 'Failed to upload documents. Please try again.'
-      }));
+      const fd = new FormData();
+      files.forEach(f => fd.append('files', f));
+      fd.append('folder', 'school_verification_docs');
+      const res = await fetch(`${API_BASE}/api/uploads/cloudinary/bulk`, { method: 'POST', body: fd });
+      if (!res.ok) throw new Error('Upload failed');
+      const result = await res.json();
+      const uploaded = result.files.map(f => ({ public_id: f.public_id, secure_url: f.secure_url, originalName: f.originalName }));
+      setFormData(p => ({ ...p, verificationDocs: [...p.verificationDocs, ...uploaded] }));
+      setDocsPreview(p => [...p, ...uploaded.map(f => ({ name: f.originalName, url: f.secure_url }))]);
+      toast.success(`${uploaded.length} document${uploaded.length > 1 ? 's' : ''} uploaded`);
+    } catch {
+      setErrors(p => ({ ...p, verificationDocs: 'Upload failed. Please try again.' }));
       toast.error('Document upload failed');
     } finally {
       setIsUploadingDocs(false);
     }
   };
 
-  // Remove uploaded document
-  const removeDocument = (index) => {
-    setFormData(prev => ({
-      ...prev,
-      verificationDocs: prev.verificationDocs.filter((_, i) => i !== index)
-    }));
-    setDocsPreview(prev => prev.filter((_, i) => i !== index));
+  const removeDocument = (idx) => {
+    setFormData(p => ({ ...p, verificationDocs: p.verificationDocs.filter((_, i) => i !== idx) }));
+    setDocsPreview(p => p.filter((_, i) => i !== idx));
   };
 
-  // Navigation handlers
+  /* ── navigation ── */
+  const validators = { 1: validateStep1, 2: validateStep2, 3: validateStep3, 4: validateStep4 };
+
   const handleNext = () => {
-    let isValid = false;
-
-    switch (currentStep) {
-      case 1:
-        isValid = validateStep1();
-        break;
-      case 2:
-        isValid = validateStep2();
-        break;
-      case 3:
-        isValid = validateStep3();
-        break;
-      case 4:
-        isValid = validateStep4();
-        break;
-      default:
-        isValid = true;
-    }
-
-    if (isValid && currentStep < totalSteps) {
-      setCurrentStep(prev => prev + 1);
-      window.scrollTo(0, 0);
+    if (validators[currentStep]() && currentStep < totalSteps) {
+      setCurrentStep(p => p + 1);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
     }
   };
 
   const handlePrevious = () => {
     if (currentStep > 1) {
-      setCurrentStep(prev => prev - 1);
-      window.scrollTo(0, 0);
+      setCurrentStep(p => p - 1);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
     }
   };
 
-  // Form submission
+  /* ── submit ── */
   const handleSubmit = async (e) => {
     e.preventDefault();
-
-    if (!validateStep4()) {
-      return;
-    }
-
+    if (!validateStep4()) return;
     setIsSubmitting(true);
-
     try {
-      const response = await fetch(`${API_BASE}/api/school-registration`, {
+      const res = await fetch(`${API_BASE}/api/school-registration`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(formData)
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(formData),
       });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        if (data.errors) {
-          setErrors(data.errors);
-          setCurrentStep(1);
-          toast.error('Please fix the errors and try again');
-        } else {
-          throw new Error(data.error || 'Registration failed');
-        }
+      const data = await res.json();
+      if (!res.ok) {
+        if (data.errors) { setErrors(data.errors); setCurrentStep(1); toast.error('Please fix the errors and try again'); }
+        else throw new Error(data.error || 'Registration failed');
         return;
       }
-
       toast.success('Registration submitted successfully!');
       window.dispatchEvent(new Event('super-admin-refresh-requests'));
-      navigate('/school-registration/success', {
-        state: { schoolData: data.school }
-      });
-
-    } catch (error) {
-      console.error('Registration error:', error);
-      toast.error(error.message || 'Registration failed. Please try again.');
+      navigate('/school-registration/success', { state: { schoolData: data.school } });
+    } catch (err) {
+      toast.error(err.message || 'Registration failed. Please try again.');
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  // Render step content
-  const renderStepContent = () => {
+  /* ── select class helper ── */
+  const selectCls = (field) =>
+    `w-full px-4 py-2.5 border rounded-xl text-sm transition focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-transparent ${
+      errors[field]
+        ? 'border-red-400 bg-red-50'
+        : 'border-gray-300 bg-white hover:border-gray-400'
+    }`;
+
+  /* ════════════════════════════════
+     STEP CONTENT
+  ════════════════════════════════ */
+  const renderStep = () => {
     switch (currentStep) {
+      /* ─── STEP 1 ─── */
       case 1:
         return (
-          <div className="space-y-4 sm:space-y-6">
-            <h2 className="text-xl sm:text-2xl font-bold text-gray-800 mb-4 sm:mb-6">School Information</h2>
-
+          <div className="space-y-5">
             <div>
-              <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1.5 sm:mb-2">
-                School Name <span className="text-red-500">*</span>
-              </label>
-              <div className="relative">
-                <GraduationCap className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={18} />
+              <Label required>School Name</Label>
+              <InputWithIcon icon={GraduationCap} error={errors.name}>
                 <input
                   type="text"
                   name="name"
                   value={formData.name}
                   onChange={handleInputChange}
-                  className={`w-full pl-9 sm:pl-10 pr-3 sm:pr-4 py-2.5 sm:py-3 text-sm sm:text-base border ${errors.name ? 'border-red-500' : 'border-gray-300'} rounded-lg sm:rounded-xl focus:ring-2 focus:ring-amber-500 focus:border-transparent`}
-                  placeholder="Enter school name"
+                  placeholder="e.g. Greenfield International School"
                 />
-              </div>
-              {errors.name && (
-                <p className="mt-1 text-xs sm:text-sm text-red-500 flex items-center gap-1">
-                  <AlertCircle size={12} className="sm:w-3.5 sm:h-3.5" /> {errors.name}
-                </p>
-              )}
+              </InputWithIcon>
+              <FieldError msg={errors.name} />
             </div>
 
-            {/* Campus Management */}
+            {/* Campuses */}
             <div>
-              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-0 mb-3 sm:mb-4">
-                <label className="block text-xs sm:text-sm font-medium text-gray-700">
-                  Campus Details <span className="text-red-500">*</span>
-                  <span className="text-gray-500 text-xs ml-1 sm:ml-2">({formData.campuses.length} campus{formData.campuses.length !== 1 ? 'es' : ''})</span>
-                </label>
+              <div className="flex items-center justify-between mb-3">
+                <Label required>
+                  Campus Details
+                  <span className="text-gray-400 font-normal text-xs ml-1">
+                    ({formData.campuses.length} campus{formData.campuses.length !== 1 ? 'es' : ''})
+                  </span>
+                </Label>
                 <button
                   type="button"
                   onClick={addCampus}
-                  className="flex items-center justify-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2 bg-amber-100 text-amber-700 rounded-lg hover:bg-amber-200 transition-colors text-xs sm:text-sm font-medium"
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-50 text-amber-700 border border-amber-200 rounded-lg text-xs font-medium hover:bg-amber-100 transition"
                 >
-                  <Plus size={14} className="sm:w-4 sm:h-4" />
-                  Add Campus
+                  <Plus size={13} /> Add Campus
                 </button>
               </div>
 
-              <div className="space-y-3 sm:space-y-4">
-                {formData.campuses.map((campus, index) => (
-                  <div key={index} className="p-3 sm:p-4 bg-gray-50 rounded-lg sm:rounded-xl border-2 border-gray-200 space-y-3 sm:space-y-4">
-                    <div className="flex items-center justify-between mb-1 sm:mb-2">
-                      <h4 className="font-semibold text-gray-700 text-sm sm:text-base">Campus {index + 1}</h4>
+              <div className="space-y-4">
+                {formData.campuses.map((campus, idx) => (
+                  <div key={idx} className="p-4 bg-gray-50 border border-gray-200 rounded-xl space-y-3">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm font-semibold text-gray-700 flex items-center gap-1.5">
+                        <Building2 size={15} className="text-amber-500" />
+                        Campus {idx + 1}
+                        {idx === 0 && <span className="ml-1 text-xs text-amber-600 font-normal">(Main)</span>}
+                      </span>
                       {formData.campuses.length > 1 && (
                         <button
                           type="button"
-                          onClick={() => removeCampus(index)}
-                          className="text-red-500 hover:text-red-700 p-1.5 sm:p-2 hover:bg-red-50 rounded-lg transition-colors"
+                          onClick={() => removeCampus(idx)}
+                          className="p-1.5 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition"
                         >
-                          <Trash2 size={16} className="sm:w-[18px] sm:h-[18px]" />
+                          <Trash2 size={15} />
                         </button>
                       )}
                     </div>
 
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
-                      {/* Campus Name */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       <div>
-                        <label className="block text-[11px] sm:text-xs font-medium text-gray-600 mb-1">
-                          Campus Name <span className="text-red-500">*</span>
-                        </label>
+                        <Label required>Campus Name</Label>
                         <div className="relative">
-                          <Building2 className="absolute left-2.5 sm:left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={16} />
                           <input
                             type="text"
                             value={campus.name}
-                            onChange={(e) => handleCampusChange(index, 'name', e.target.value)}
-                            className={`w-full pl-8 sm:pl-9 pr-2.5 sm:pr-3 py-2 border ${errors[`campus_${index}_name`] ? 'border-red-500' : 'border-gray-300'} rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent text-xs sm:text-sm`}
-                            placeholder="e.g., Main Campus"
+                            onChange={(e) => handleCampusChange(idx, 'name', e.target.value)}
+                            placeholder="e.g. Main Campus"
+                            className={`w-full px-3 py-2 border rounded-lg text-sm transition focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-transparent ${
+                              errors[`campus_${idx}_name`] ? 'border-red-400 bg-red-50' : 'border-gray-300 bg-white'
+                            }`}
                           />
                         </div>
-                        {errors[`campus_${index}_name`] && (
-                          <p className="mt-1 text-[10px] sm:text-xs text-red-500">{errors[`campus_${index}_name`]}</p>
-                        )}
+                        <FieldError msg={errors[`campus_${idx}_name`]} />
                       </div>
 
-                      {/* Campus Type */}
                       <div>
-                        <label className="block text-[11px] sm:text-xs font-medium text-gray-600 mb-1">
-                          Campus Type
-                        </label>
+                        <Label>Campus Type</Label>
                         <select
                           value={campus.campusType}
-                          onChange={(e) => handleCampusChange(index, 'campusType', e.target.value)}
-                          className="w-full px-2.5 sm:px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent text-xs sm:text-sm"
+                          onChange={(e) => handleCampusChange(idx, 'campusType', e.target.value)}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-transparent transition"
                         >
-                          {campusTypes.map(type => (
-                            <option key={type} value={type}>{type}</option>
-                          ))}
+                          {campusTypes.map(t => <option key={t} value={t}>{t}</option>)}
                         </select>
                       </div>
                     </div>
 
-                    {/* Campus Address */}
                     <div>
-                      <label className="block text-[11px] sm:text-xs font-medium text-gray-600 mb-1">
-                        Campus Address <span className="text-red-500">*</span>
-                      </label>
-                      <div className="relative">
-                        <MapPin className="absolute left-2.5 sm:left-3 top-2.5 sm:top-3 text-gray-400" size={16} />
-                        <textarea
-                          value={campus.address}
-                          onChange={(e) => handleCampusChange(index, 'address', e.target.value)}
-                          rows="2"
-                          className={`w-full pl-8 sm:pl-9 pr-2.5 sm:pr-3 py-2 border ${errors[`campus_${index}_address`] ? 'border-red-500' : 'border-gray-300'} rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent text-xs sm:text-sm`}
-                          placeholder="Enter complete campus address"
-                        />
-                      </div>
-                      {errors[`campus_${index}_address`] && (
-                        <p className="mt-1 text-[10px] sm:text-xs text-red-500">{errors[`campus_${index}_address`]}</p>
-                      )}
+                      <Label required>Campus Address</Label>
+                      <textarea
+                        value={campus.address}
+                        onChange={(e) => handleCampusChange(idx, 'address', e.target.value)}
+                        rows={2}
+                        placeholder="Enter full campus address"
+                        className={`w-full px-3 py-2 border rounded-lg text-sm transition focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-transparent resize-none ${
+                          errors[`campus_${idx}_address`] ? 'border-red-400 bg-red-50' : 'border-gray-300 bg-white'
+                        }`}
+                      />
+                      <FieldError msg={errors[`campus_${idx}_address`]} />
                     </div>
 
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
-                      {/* Campus Contact Person (Optional) */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       <div>
-                        <label className="block text-[11px] sm:text-xs font-medium text-gray-600 mb-1">
-                          Contact Person <span className="text-gray-500">(Optional)</span>
-                        </label>
-                        <div className="relative">
-                          <User className="absolute left-2.5 sm:left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={16} />
-                          <input
-                            type="text"
-                            value={campus.contactPerson}
-                            onChange={(e) => handleCampusChange(index, 'contactPerson', e.target.value)}
-                            className="w-full pl-8 sm:pl-9 pr-2.5 sm:pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent text-xs sm:text-sm"
-                            placeholder="Campus contact"
-                          />
-                        </div>
+                        <Label optional>Contact Person</Label>
+                        <input
+                          type="text"
+                          value={campus.contactPerson}
+                          onChange={(e) => handleCampusChange(idx, 'contactPerson', e.target.value)}
+                          placeholder="Campus coordinator"
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-transparent transition"
+                        />
                       </div>
-
-                      {/* Campus Contact Phone (Optional) */}
                       <div>
-                        <label className="block text-[11px] sm:text-xs font-medium text-gray-600 mb-1">
-                          Contact Phone <span className="text-gray-500">(Optional)</span>
-                        </label>
-                        <div className="relative">
-                          <Phone className="absolute left-2.5 sm:left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={16} />
-                          <input
-                            type="tel"
-                            value={campus.contactPhone}
-                            onChange={(e) => handleCampusChange(index, 'contactPhone', e.target.value)}
-                            className={`w-full pl-8 sm:pl-9 pr-2.5 sm:pr-3 py-2 border ${errors[`campus_${index}_contactPhone`] ? 'border-red-500' : 'border-gray-300'} rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent text-xs sm:text-sm`}
-                            placeholder="Campus phone"
-                          />
-                        </div>
-                        {errors[`campus_${index}_contactPhone`] && (
-                          <p className="mt-1 text-[10px] sm:text-xs text-red-500">{errors[`campus_${index}_contactPhone`]}</p>
-                        )}
+                        <Label optional>Contact Phone</Label>
+                        <input
+                          type="tel"
+                          value={campus.contactPhone}
+                          onChange={(e) => handleCampusChange(idx, 'contactPhone', e.target.value)}
+                          placeholder="+91 98765 43210"
+                          className={`w-full px-3 py-2 border rounded-lg text-sm transition focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-transparent ${
+                            errors[`campus_${idx}_contactPhone`] ? 'border-red-400 bg-red-50' : 'border-gray-300 bg-white'
+                          }`}
+                        />
+                        <FieldError msg={errors[`campus_${idx}_contactPhone`]} />
                       </div>
                     </div>
                   </div>
                 ))}
               </div>
-
-              {errors.campuses && (
-                <p className="mt-2 text-sm text-red-500 flex items-center gap-1">
-                  <AlertCircle size={14} /> {errors.campuses}
-                </p>
-              )}
+              <FieldError msg={errors.campuses} />
             </div>
 
-            {/* School Type and Board - Side by Side */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+            {/* School Type + Board */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
-                <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1.5 sm:mb-2">
-                  School Type <span className="text-red-500">*</span>
-                </label>
-                <select
-                  name="schoolType"
-                  value={formData.schoolType}
-                  onChange={handleInputChange}
-                  className={`w-full px-3 sm:px-4 py-2.5 sm:py-3 text-sm sm:text-base border ${errors.schoolType ? 'border-red-500' : 'border-gray-300'} rounded-lg sm:rounded-xl focus:ring-2 focus:ring-amber-500 focus:border-transparent`}
-                >
-                  <option value="">Select school type</option>
-                  {schoolTypes.map(type => (
-                    <option key={type} value={type}>{type}</option>
-                  ))}
+                <Label required>School Type</Label>
+                <select name="schoolType" value={formData.schoolType} onChange={handleInputChange} className={selectCls('schoolType')}>
+                  <option value="">Select type</option>
+                  {schoolTypes.map(t => <option key={t} value={t}>{t}</option>)}
                 </select>
-                {errors.schoolType && (
-                  <p className="mt-1 text-xs sm:text-sm text-red-500 flex items-center gap-1">
-                    <AlertCircle size={12} className="sm:w-3.5 sm:h-3.5" /> {errors.schoolType}
-                  </p>
-                )}
+                <FieldError msg={errors.schoolType} />
               </div>
-
               <div>
-                <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1.5 sm:mb-2">
-                  School Board/Affiliation <span className="text-red-500">*</span>
-                </label>
-                <select
-                  name="board"
-                  value={formData.board}
-                  onChange={handleInputChange}
-                  className={`w-full px-3 sm:px-4 py-2.5 sm:py-3 text-sm sm:text-base border ${errors.board ? 'border-red-500' : 'border-gray-300'} rounded-lg sm:rounded-xl focus:ring-2 focus:ring-amber-500 focus:border-transparent`}
-                >
-                  <option value="">Select board/affiliation</option>
-                  {boards.map(board => (
-                    <option key={board} value={board}>{board}</option>
-                  ))}
+                <Label required>Board / Affiliation</Label>
+                <select name="board" value={formData.board} onChange={handleInputChange} className={selectCls('board')}>
+                  <option value="">Select board</option>
+                  {boards.map(b => <option key={b} value={b}>{b}</option>)}
                 </select>
-                {errors.board && (
-                  <p className="mt-1 text-xs sm:text-sm text-red-500 flex items-center gap-1">
-                    <AlertCircle size={12} className="sm:w-3.5 sm:h-3.5" /> {errors.board}
-                  </p>
-                )}
+                <FieldError msg={errors.board} />
               </div>
             </div>
 
             {formData.board === 'Other' && (
               <div>
-                <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1.5 sm:mb-2">
-                  Specify Board Name <span className="text-red-500">*</span>
-                </label>
+                <Label required>Specify Board Name</Label>
                 <input
                   type="text"
                   name="boardOther"
                   value={formData.boardOther}
                   onChange={handleInputChange}
-                  className={`w-full px-3 sm:px-4 py-2.5 sm:py-3 text-sm sm:text-base border ${errors.boardOther ? 'border-red-500' : 'border-gray-300'} rounded-lg sm:rounded-xl focus:ring-2 focus:ring-amber-500 focus:border-transparent`}
-                  placeholder="Enter board/affiliation name"
+                  placeholder="Enter board / affiliation name"
+                  className={`w-full px-4 py-2.5 border rounded-xl text-sm transition focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-transparent ${errors.boardOther ? 'border-red-400 bg-red-50' : 'border-gray-300 bg-white hover:border-gray-400'}`}
                 />
-                {errors.boardOther && (
-                  <p className="mt-1 text-xs sm:text-sm text-red-500 flex items-center gap-1">
-                    <AlertCircle size={12} className="sm:w-3.5 sm:h-3.5" /> {errors.boardOther}
-                  </p>
-                )}
+                <FieldError msg={errors.boardOther} />
               </div>
             )}
 
             <div>
-              <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1.5 sm:mb-2">
-                Academic Year Structure <span className="text-red-500">*</span>
-              </label>
-              <select
-                name="academicYearStructure"
-                value={formData.academicYearStructure}
-                onChange={handleInputChange}
-                className={`w-full px-3 sm:px-4 py-2.5 sm:py-3 text-sm sm:text-base border ${errors.academicYearStructure ? 'border-red-500' : 'border-gray-300'} rounded-lg sm:rounded-xl focus:ring-2 focus:ring-amber-500 focus:border-transparent`}
-              >
-                <option value="">Select academic structure</option>
-                {academicStructures.map(structure => (
-                  <option key={structure} value={structure}>{structure}</option>
-                ))}
+              <Label required>Academic Year Structure</Label>
+              <select name="academicYearStructure" value={formData.academicYearStructure} onChange={handleInputChange} className={selectCls('academicYearStructure')}>
+                <option value="">Select structure</option>
+                {academicStructures.map(s => <option key={s} value={s}>{s}</option>)}
               </select>
-              {errors.academicYearStructure && (
-                <p className="mt-1 text-xs sm:text-sm text-red-500 flex items-center gap-1">
-                  <AlertCircle size={12} className="sm:w-3.5 sm:h-3.5" /> {errors.academicYearStructure}
-                </p>
-              )}
+              <FieldError msg={errors.academicYearStructure} />
             </div>
           </div>
         );
 
+      /* ─── STEP 2 ─── */
       case 2:
         return (
-          <div className="space-y-4 sm:space-y-6">
-            <h2 className="text-xl sm:text-2xl font-bold text-gray-800 mb-4 sm:mb-6">Contact Details</h2>
-
+          <div className="space-y-5">
             <div>
-              <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1.5 sm:mb-2">
-                Contact Person's Name <span className="text-red-500">*</span>
-              </label>
-              <div className="relative">
-                <User className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={18} />
+              <Label required>Contact Person's Name</Label>
+              <InputWithIcon icon={User} error={errors.contactPersonName}>
                 <input
                   type="text"
                   name="contactPersonName"
                   value={formData.contactPersonName}
                   onChange={handleInputChange}
-                  className={`w-full pl-9 sm:pl-10 pr-3 sm:pr-4 py-2.5 sm:py-3 text-sm sm:text-base border ${errors.contactPersonName ? 'border-red-500' : 'border-gray-300'} rounded-lg sm:rounded-xl focus:ring-2 focus:ring-amber-500 focus:border-transparent`}
-                  placeholder="Enter contact person's name"
+                  placeholder="Full name of the primary contact"
                 />
-              </div>
-              {errors.contactPersonName && (
-                <p className="mt-1 text-xs sm:text-sm text-red-500 flex items-center gap-1">
-                  <AlertCircle size={12} className="sm:w-3.5 sm:h-3.5" /> {errors.contactPersonName}
-                </p>
-              )}
+              </InputWithIcon>
+              <FieldError msg={errors.contactPersonName} />
             </div>
 
             <div>
-              <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1.5 sm:mb-2">
-                Contact Phone Number <span className="text-red-500">*</span>
-              </label>
-              <div className="relative">
-                <Phone className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={18} />
+              <Label required>Contact Phone Number</Label>
+              <InputWithIcon icon={Phone} error={errors.contactPhone}>
                 <input
                   type="tel"
                   name="contactPhone"
                   value={formData.contactPhone}
                   onChange={handleInputChange}
-                  className={`w-full pl-9 sm:pl-10 pr-3 sm:pr-4 py-2.5 sm:py-3 text-sm sm:text-base border ${errors.contactPhone ? 'border-red-500' : 'border-gray-300'} rounded-lg sm:rounded-xl focus:ring-2 focus:ring-amber-500 focus:border-transparent`}
-                  placeholder="Enter phone number"
+                  placeholder="+91 98765 43210"
                 />
-              </div>
-              {errors.contactPhone && (
-                <p className="mt-1 text-xs sm:text-sm text-red-500 flex items-center gap-1">
-                  <AlertCircle size={12} className="sm:w-3.5 sm:h-3.5" /> {errors.contactPhone}
-                </p>
-              )}
+              </InputWithIcon>
+              <FieldError msg={errors.contactPhone} />
             </div>
 
             <div>
-              <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1.5 sm:mb-2">
-                Official School Email <span className="text-red-500">*</span>
-              </label>
-              <div className="relative">
-                <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={18} />
+              <Label required>Official School Email</Label>
+              <InputWithIcon icon={Mail} error={errors.officialEmail}>
                 <input
                   type="email"
                   name="officialEmail"
                   value={formData.officialEmail}
                   onChange={handleInputChange}
-                  className={`w-full pl-9 sm:pl-10 pr-3 sm:pr-4 py-2.5 sm:py-3 text-sm sm:text-base border ${errors.officialEmail ? 'border-red-500' : 'border-gray-300'} rounded-lg sm:rounded-xl focus:ring-2 focus:ring-amber-500 focus:border-transparent`}
-                  placeholder="school@example.com"
+                  placeholder="admin@yourschool.com"
                 />
-              </div>
-              {errors.officialEmail && (
-                <p className="mt-1 text-xs sm:text-sm text-red-500 flex items-center gap-1">
-                  <AlertCircle size={12} className="sm:w-3.5 sm:h-3.5" /> {errors.officialEmail}
-                </p>
-              )}
+              </InputWithIcon>
+              <FieldError msg={errors.officialEmail} />
             </div>
 
             <div>
-              <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1.5 sm:mb-2">
-                School Address <span className="text-red-500">*</span>
-              </label>
-              <div className="relative">
-                <MapPin className="absolute left-3 top-3 text-gray-400" size={18} />
+              <Label required>School Address</Label>
+              <TextareaWithIcon icon={MapPin} error={errors.address}>
                 <textarea
                   name="address"
                   value={formData.address}
                   onChange={handleInputChange}
-                  rows="3"
-                  className={`w-full pl-9 sm:pl-10 pr-3 sm:pr-4 py-2.5 sm:py-3 text-sm sm:text-base border ${errors.address ? 'border-red-500' : 'border-gray-300'} rounded-lg sm:rounded-xl focus:ring-2 focus:ring-amber-500 focus:border-transparent`}
-                  placeholder="Enter complete school address"
+                  rows={3}
+                  placeholder="Enter the complete registered address of your school"
+                  style={{ resize: 'none' }}
                 />
-              </div>
-              {errors.address && (
-                <p className="mt-1 text-xs sm:text-sm text-red-500 flex items-center gap-1">
-                  <AlertCircle size={12} className="sm:w-3.5 sm:h-3.5" /> {errors.address}
-                </p>
-              )}
+              </TextareaWithIcon>
+              <FieldError msg={errors.address} />
             </div>
           </div>
         );
 
+      /* ─── STEP 3 ─── */
       case 3:
         return (
-          <div className="space-y-4 sm:space-y-6">
-            <h2 className="text-xl sm:text-2xl font-bold text-gray-800 mb-4 sm:mb-6">Additional Information</h2>
-
+          <div className="space-y-5">
             <div>
-              <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1.5 sm:mb-2">
-                Website URL <span className="text-gray-500">(Optional)</span>
-              </label>
-              <div className="relative">
-                <Globe className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={18} />
+              <Label optional>Website URL</Label>
+              <InputWithIcon icon={Globe} error={errors.websiteURL}>
                 <input
                   type="url"
                   name="websiteURL"
                   value={formData.websiteURL}
                   onChange={handleInputChange}
-                  className={`w-full pl-9 sm:pl-10 pr-3 sm:pr-4 py-2.5 sm:py-3 text-sm sm:text-base border ${errors.websiteURL ? 'border-red-500' : 'border-gray-300'} rounded-lg sm:rounded-xl focus:ring-2 focus:ring-amber-500 focus:border-transparent`}
-                  placeholder="https://www.example.com"
+                  placeholder="https://www.yourschool.com"
                 />
-              </div>
-              {errors.websiteURL && (
-                <p className="mt-1 text-xs sm:text-sm text-red-500 flex items-center gap-1">
-                  <AlertCircle size={12} className="sm:w-3.5 sm:h-3.5" /> {errors.websiteURL}
-                </p>
-              )}
+              </InputWithIcon>
+              <FieldError msg={errors.websiteURL} />
             </div>
 
             <div>
-              <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1.5 sm:mb-2">
-                Estimated Number of Users <span className="text-red-500">*</span>
-              </label>
-              <select
-                name="estimatedUsers"
-                value={formData.estimatedUsers}
-                onChange={handleInputChange}
-                className={`w-full px-3 sm:px-4 py-2.5 sm:py-3 text-sm sm:text-base border ${errors.estimatedUsers ? 'border-red-500' : 'border-gray-300'} rounded-lg sm:rounded-xl focus:ring-2 focus:ring-amber-500 focus:border-transparent`}
-              >
-                <option value="">Select estimated users</option>
-                {userRanges.map(range => (
-                  <option key={range} value={range}>{range}</option>
-                ))}
+              <Label required>Estimated Number of Users</Label>
+              <select name="estimatedUsers" value={formData.estimatedUsers} onChange={handleInputChange} className={selectCls('estimatedUsers')}>
+                <option value="">Select a range</option>
+                {userRanges.map(r => <option key={r} value={r}>{r}</option>)}
               </select>
-              {errors.estimatedUsers && (
-                <p className="mt-1 text-xs sm:text-sm text-red-500 flex items-center gap-1">
-                  <AlertCircle size={12} className="sm:w-3.5 sm:h-3.5" /> {errors.estimatedUsers}
-                </p>
-              )}
+              <FieldError msg={errors.estimatedUsers} />
+            </div>
+
+            {/* Info card */}
+            <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-sm text-amber-800">
+              <p className="font-medium mb-1">Almost there!</p>
+              <p className="text-amber-700 text-xs leading-relaxed">
+                In the next step you'll upload your school logo and verification documents. Make sure they are ready before proceeding.
+              </p>
             </div>
           </div>
         );
 
+      /* ─── STEP 4 ─── */
       case 4:
         return (
-          <div className="space-y-4 sm:space-y-6">
-            <h2 className="text-xl sm:text-2xl font-bold text-gray-800 mb-4 sm:mb-6">File Uploads</h2>
-
-            {/* Logo Upload */}
+          <div className="space-y-6">
+            {/* Logo */}
             <div>
-              <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1.5 sm:mb-2">
-                School Logo <span className="text-red-500">*</span>
-                <span className="text-gray-500 text-[10px] sm:text-xs ml-1 sm:ml-2">(Max 5MB, JPG/PNG/WebP)</span>
-              </label>
+              <Label required>
+                School Logo
+                <span className="text-gray-400 font-normal text-xs ml-1">— JPG / PNG / WebP, max 5 MB</span>
+              </Label>
 
               {logoPreview ? (
-                <div className="flex items-center gap-3 sm:gap-4 p-3 sm:p-4 bg-gray-50 rounded-lg sm:rounded-xl border border-gray-200">
-                  <img src={logoPreview} alt="Logo preview" className="w-16 h-16 sm:w-20 sm:h-20 object-cover rounded-lg flex-shrink-0" />
+                <div className="flex items-center gap-4 p-4 bg-gray-50 border border-gray-200 rounded-xl">
+                  <img src={logoPreview} alt="Logo preview" className="w-16 h-16 object-cover rounded-lg shrink-0 border border-gray-200" />
                   <div className="flex-1 min-w-0">
-                    <p className="text-xs sm:text-sm font-medium text-gray-700 truncate">{formData.logo.originalName}</p>
-                    <p className="text-[10px] sm:text-xs text-gray-500">Logo uploaded successfully</p>
+                    <p className="text-sm font-medium text-gray-700 truncate">{formData.logo?.originalName}</p>
+                    <p className="text-xs text-green-600 mt-0.5 flex items-center gap-1"><Check size={12} /> Uploaded successfully</p>
                   </div>
                   <button
                     type="button"
-                    onClick={() => {
-                      setFormData(prev => ({ ...prev, logo: null }));
-                      setLogoPreview(null);
-                    }}
-                    className="text-red-500 hover:text-red-700 flex-shrink-0"
+                    onClick={() => { setFormData(p => ({ ...p, logo: null })); setLogoPreview(null); }}
+                    className="p-1.5 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition shrink-0"
+                    aria-label="Remove logo"
                   >
-                    <X size={18} className="sm:w-5 sm:h-5" />
+                    <X size={18} />
                   </button>
                 </div>
               ) : (
-                <div className="relative">
-                  <input
-                    type="file"
-                    accept="image/jpeg,image/png,image/jpg,image/webp"
-                    onChange={handleLogoUpload}
-                    disabled={isUploadingLogo}
-                    className="hidden"
-                    id="logo-upload"
-                  />
+                <>
+                  <input type="file" accept="image/jpeg,image/png,image/jpg,image/webp" onChange={handleLogoUpload} disabled={isUploadingLogo} className="hidden" id="logo-upload" />
                   <label
                     htmlFor="logo-upload"
-                    className={`flex flex-col items-center justify-center w-full h-28 sm:h-32 border-2 border-dashed ${errors.logo ? 'border-red-500' : 'border-gray-300'} rounded-lg sm:rounded-xl cursor-pointer hover:border-amber-500 transition-colors ${isUploadingLogo ? 'opacity-50 cursor-not-allowed' : ''}`}
+                    className={`flex flex-col items-center justify-center w-full h-32 border-2 border-dashed rounded-xl cursor-pointer transition ${
+                      errors.logo ? 'border-red-400 bg-red-50' : 'border-gray-300 hover:border-amber-400 hover:bg-amber-50'
+                    } ${isUploadingLogo ? 'opacity-60 cursor-not-allowed pointer-events-none' : ''}`}
                   >
                     {isUploadingLogo ? (
-                      <Loader2 className="w-7 h-7 sm:w-8 sm:h-8 text-amber-500 animate-spin" />
+                      <><Loader2 className="w-8 h-8 text-amber-500 animate-spin" /><p className="text-xs text-gray-500 mt-2">Uploading…</p></>
+                    ) : (
+                      <><Upload className="w-8 h-8 text-gray-400 mb-2" /><p className="text-sm font-medium text-gray-600">Click to upload logo</p><p className="text-xs text-gray-400 mt-1">JPG, PNG or WebP up to 5 MB</p></>
+                    )}
+                  </label>
+                </>
+              )}
+              <FieldError msg={errors.logo} />
+            </div>
+
+            {/* Verification Docs */}
+            <div>
+              <Label required>
+                Verification Documents
+                <span className="text-gray-400 font-normal text-xs ml-1">— PDF / JPG / PNG, max 10 MB each, up to 5 files</span>
+              </Label>
+
+              {formData.verificationDocs.length < 5 && (
+                <>
+                  <input
+                    type="file"
+                    accept="application/pdf,image/jpeg,image/png,image/jpg"
+                    onChange={handleDocsUpload}
+                    disabled={isUploadingDocs}
+                    multiple
+                    className="hidden"
+                    id="docs-upload"
+                  />
+                  <label
+                    htmlFor="docs-upload"
+                    className={`flex flex-col items-center justify-center w-full h-32 border-2 border-dashed rounded-xl cursor-pointer transition ${
+                      errors.verificationDocs ? 'border-red-400 bg-red-50' : 'border-gray-300 hover:border-amber-400 hover:bg-amber-50'
+                    } ${isUploadingDocs ? 'opacity-60 cursor-not-allowed pointer-events-none' : ''}`}
+                  >
+                    {isUploadingDocs ? (
+                      <><Loader2 className="w-8 h-8 text-amber-500 animate-spin" /><p className="text-xs text-gray-500 mt-2">Uploading…</p></>
                     ) : (
                       <>
-                        <Upload className="w-7 h-7 sm:w-8 sm:h-8 text-gray-400 mb-1.5 sm:mb-2" />
-                        <p className="text-xs sm:text-sm text-gray-600">Click to upload logo</p>
+                        <FileText className="w-8 h-8 text-gray-400 mb-2" />
+                        <p className="text-sm font-medium text-gray-600">Click to upload documents</p>
+                        <p className="text-xs text-gray-400 mt-1">{formData.verificationDocs.length} / 5 uploaded</p>
                       </>
                     )}
                   </label>
-                </div>
+                </>
               )}
-              {errors.logo && (
-                <p className="mt-1 text-xs sm:text-sm text-red-500 flex items-center gap-1">
-                  <AlertCircle size={12} className="sm:w-3.5 sm:h-3.5" /> {errors.logo}
-                </p>
-              )}
-            </div>
-
-            {/* Verification Documents Upload */}
-            <div>
-              <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1.5 sm:mb-2">
-                Verification Documents <span className="text-red-500">*</span>
-                <span className="text-gray-500 text-[10px] sm:text-xs ml-1 sm:ml-2">(Max 5 files, 10MB each, PDF/JPG/PNG)</span>
-              </label>
-
-              <div className="relative">
-                <input
-                  type="file"
-                  accept="application/pdf,image/jpeg,image/png,image/jpg"
-                  onChange={handleDocsUpload}
-                  disabled={isUploadingDocs || formData.verificationDocs.length >= 5}
-                  multiple
-                  className="hidden"
-                  id="docs-upload"
-                />
-                <label
-                  htmlFor="docs-upload"
-                  className={`flex flex-col items-center justify-center w-full h-28 sm:h-32 border-2 border-dashed ${errors.verificationDocs ? 'border-red-500' : 'border-gray-300'} rounded-lg sm:rounded-xl cursor-pointer hover:border-amber-500 transition-colors ${isUploadingDocs || formData.verificationDocs.length >= 5 ? 'opacity-50 cursor-not-allowed' : ''}`}
-                >
-                  {isUploadingDocs ? (
-                    <Loader2 className="w-7 h-7 sm:w-8 sm:h-8 text-amber-500 animate-spin" />
-                  ) : (
-                    <>
-                      <FileText className="w-7 h-7 sm:w-8 sm:h-8 text-gray-400 mb-1.5 sm:mb-2" />
-                      <p className="text-xs sm:text-sm text-gray-600">Click to upload documents</p>
-                      <p className="text-[10px] sm:text-xs text-gray-500 mt-1">
-                        {formData.verificationDocs.length} / 5 uploaded
-                      </p>
-                    </>
-                  )}
-                </label>
-              </div>
 
               {docsPreview.length > 0 && (
-                <div className="mt-3 sm:mt-4 space-y-2">
-                  {docsPreview.map((doc, index) => (
-                    <div key={index} className="flex items-center gap-2 sm:gap-3 p-2.5 sm:p-3 bg-gray-50 rounded-lg border border-gray-200">
-                      <FileText className="text-gray-400 flex-shrink-0" size={18} />
-                      <div className="flex-1 min-w-0">
-                        <p className="text-xs sm:text-sm font-medium text-gray-700 truncate">{doc.name}</p>
-                      </div>
+                <div className="mt-3 space-y-2">
+                  {docsPreview.map((doc, idx) => (
+                    <div key={idx} className="flex items-center gap-3 p-3 bg-gray-50 border border-gray-200 rounded-lg">
+                      <FileText className="text-gray-400 shrink-0" size={16} />
+                      <p className="flex-1 text-sm text-gray-700 truncate min-w-0">{doc.name}</p>
                       <button
                         type="button"
-                        onClick={() => removeDocument(index)}
-                        className="text-red-500 hover:text-red-700 flex-shrink-0"
+                        onClick={() => removeDocument(idx)}
+                        className="p-1 text-red-400 hover:text-red-600 hover:bg-red-50 rounded transition shrink-0"
+                        aria-label="Remove document"
                       >
-                        <X size={16} className="sm:w-[18px] sm:h-[18px]" />
+                        <X size={15} />
                       </button>
                     </div>
                   ))}
                 </div>
               )}
-
-              {errors.verificationDocs && (
-                <p className="mt-1 text-xs sm:text-sm text-red-500 flex items-center gap-1">
-                  <AlertCircle size={12} className="sm:w-3.5 sm:h-3.5" /> {errors.verificationDocs}
-                </p>
-              )}
+              <FieldError msg={errors.verificationDocs} />
             </div>
           </div>
         );
@@ -1018,62 +753,102 @@ const SchoolRegistrationForm = () => {
     }
   };
 
+  /* ════════════════════════════════
+     MAIN RENDER
+  ════════════════════════════════ */
   return (
-    <div className="min-h-screen bg-gradient-to-br from-yellow-50 via-amber-50 to-orange-50 py-6 sm:py-8 lg:py-12 px-3 sm:px-4 lg:px-6">
-      <div className="max-w-3xl mx-auto">
-        {/* Header */}
-        <div className="text-center mb-6 sm:mb-8">
-          <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-gray-800 mb-2">School Registration</h1>
-          <p className="text-sm sm:text-base text-gray-600 px-2">Register your school to get started with our platform</p>
+    <div className="min-h-screen bg-linear-to-br from-yellow-50 via-amber-50 to-orange-50 px-4 py-8 sm:py-12">
+      <div className="max-w-2xl mx-auto">
+
+        {/* ── Header ── */}
+        <div className="text-center mb-8">
+          <div className="inline-flex items-center justify-center w-14 h-14 bg-linear-to-br from-amber-400 to-orange-500 rounded-2xl shadow-lg mb-4">
+            <GraduationCap className="w-7 h-7 text-white" />
+          </div>
+          <h1 className="text-2xl sm:text-3xl font-bold text-gray-800">School Registration</h1>
+          <p className="text-sm sm:text-base text-gray-500 mt-1.5">
+            Register your school to get started with our platform
+          </p>
         </div>
 
-        {/* Progress Indicator */}
-        <div className="mb-6 sm:mb-8 px-2">
-          <div className="flex items-center justify-between mb-2 sm:mb-3">
-            {[1, 2, 3, 4].map((step) => (
-              <div key={step} className="flex items-center flex-1 last:flex-initial">
-                <div
-                  className={`w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center font-semibold text-sm sm:text-base flex-shrink-0 ${
-                    step <= currentStep
-                      ? 'bg-amber-500 text-white'
-                      : 'bg-gray-200 text-gray-600'
-                  }`}
-                >
-                  {step < currentStep ? <Check size={16} className="sm:w-5 sm:h-5" /> : step}
-                </div>
-                {step < 4 && (
+        {/* ── Step Indicator ── */}
+        <div className="mb-8">
+          {/* Progress bar */}
+          <div className="relative flex items-center justify-between mb-3">
+            {/* background track */}
+            <div className="absolute left-0 right-0 top-1/2 -translate-y-1/2 h-0.5 bg-gray-200 z-0" />
+            {/* filled track */}
+            <div
+              className="absolute left-0 top-1/2 -translate-y-1/2 h-0.5 bg-amber-400 z-0 transition-all duration-300"
+              style={{ width: `${((currentStep - 1) / (totalSteps - 1)) * 100}%` }}
+            />
+            {STEPS.map((step) => {
+              const done    = step.id < currentStep;
+              const active  = step.id === currentStep;
+              return (
+                <div key={step.id} className="relative z-10 flex flex-col items-center gap-1.5">
                   <div
-                    className={`h-0.5 sm:h-1 flex-1 mx-1 sm:mx-2 ${
-                      step < currentStep ? 'bg-amber-500' : 'bg-gray-200'
+                    className={`w-9 h-9 rounded-full flex items-center justify-center text-sm font-semibold border-2 transition-all duration-200 ${
+                      done
+                        ? 'bg-amber-500 border-amber-500 text-white'
+                        : active
+                        ? 'bg-white border-amber-500 text-amber-600 shadow-sm shadow-amber-200'
+                        : 'bg-white border-gray-300 text-gray-400'
                     }`}
-                  />
-                )}
-              </div>
-            ))}
+                  >
+                    {done ? <Check size={15} /> : step.id}
+                  </div>
+                </div>
+              );
+            })}
           </div>
-          <div className="flex justify-between text-[10px] sm:text-xs text-gray-600 px-0 sm:px-1">
-            <span className="text-center w-1/4">School Info</span>
-            <span className="text-center w-1/4">Contact</span>
-            <span className="text-center w-1/4">Details</span>
-            <span className="text-center w-1/4">Files</span>
+
+          {/* Labels */}
+          <div className="flex justify-between">
+            {STEPS.map((step) => {
+              const active = step.id === currentStep;
+              return (
+                <span
+                  key={step.id}
+                  className={`text-xs font-medium text-center transition-colors ${
+                    active ? 'text-amber-600' : 'text-gray-400'
+                  }`}
+                  style={{ width: '25%' }}
+                >
+                  <span className="hidden sm:inline">{step.label}</span>
+                  <span className="sm:hidden">{step.shortLabel}</span>
+                </span>
+              );
+            })}
           </div>
+
+          {/* Step counter */}
+          <p className="text-center text-xs text-gray-400 mt-2">
+            Step {currentStep} of {totalSteps}
+          </p>
         </div>
 
-        {/* Form Card */}
-        <div className="bg-white rounded-xl sm:rounded-2xl shadow-2xl p-4 sm:p-6 lg:p-8">
-          <form onSubmit={handleSubmit}>
-            {renderStepContent()}
+        {/* ── Form Card ── */}
+        <div className="bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden">
+          {/* Card header strip */}
+          <div className="bg-linear-to-r from-amber-400 to-orange-400 px-6 py-3 flex items-center gap-2">
+            {(() => { const S = STEPS[currentStep - 1]; return <S.icon className="w-4 h-4 text-white" />; })()}
+            <span className="text-white text-sm font-semibold">{STEPS[currentStep - 1].label}</span>
+          </div>
 
-            {/* Navigation Buttons */}
-            <div className="flex justify-between mt-6 sm:mt-8 pt-4 sm:pt-6 border-t border-gray-200">
+          <form onSubmit={handleSubmit} noValidate>
+            <div className="p-5 sm:p-7">{renderStep()}</div>
+
+            {/* ── Navigation ── */}
+            <div className="flex items-center justify-between gap-3 px-5 sm:px-7 py-4 bg-gray-50 border-t border-gray-100">
               {currentStep > 1 ? (
                 <button
                   type="button"
                   onClick={handlePrevious}
-                  className="flex items-center gap-1.5 sm:gap-2 px-4 sm:px-6 py-2.5 sm:py-3 bg-gray-200 text-gray-700 rounded-lg sm:rounded-xl hover:bg-gray-300 transition-colors text-sm sm:text-base font-medium"
+                  className="flex items-center gap-2 px-5 py-2.5 bg-white border border-gray-300 text-gray-700 rounded-xl text-sm font-medium hover:bg-gray-100 transition"
                 >
-                  <ChevronLeft size={18} className="sm:w-5 sm:h-5" />
-                  <span className="hidden xs:inline">Previous</span>
+                  <ChevronLeft size={16} />
+                  Previous
                 </button>
               ) : (
                 <div />
@@ -1083,35 +858,28 @@ const SchoolRegistrationForm = () => {
                 <button
                   type="button"
                   onClick={handleNext}
-                  className="flex items-center gap-1.5 sm:gap-2 px-4 sm:px-6 py-2.5 sm:py-3 bg-gradient-to-r from-amber-500 to-orange-500 text-white rounded-lg sm:rounded-xl hover:from-amber-600 hover:to-orange-600 transition-colors ml-auto text-sm sm:text-base font-medium"
+                  className="flex items-center gap-2 px-6 py-2.5 bg-linear-to-r from-amber-500 to-orange-500 text-white rounded-xl text-sm font-semibold hover:from-amber-600 hover:to-orange-600 transition shadow-sm shadow-amber-200 ml-auto"
                 >
                   Next
-                  <ChevronRight size={18} className="sm:w-5 sm:h-5" />
+                  <ChevronRight size={16} />
                 </button>
               ) : (
                 <button
                   type="submit"
                   disabled={isSubmitting}
-                  className="flex items-center gap-1.5 sm:gap-2 px-4 sm:px-6 py-2.5 sm:py-3 bg-gradient-to-r from-amber-500 to-orange-500 text-white rounded-lg sm:rounded-xl hover:from-amber-600 hover:to-orange-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed ml-auto text-sm sm:text-base font-medium"
+                  className="flex items-center gap-2 px-6 py-2.5 bg-linear-to-r from-amber-500 to-orange-500 text-white rounded-xl text-sm font-semibold hover:from-amber-600 hover:to-orange-600 transition shadow-sm shadow-amber-200 disabled:opacity-60 disabled:cursor-not-allowed ml-auto"
                 >
                   {isSubmitting ? (
-                    <>
-                      <Loader2 className="animate-spin" size={18} />
-                      <span className="hidden xs:inline">Submitting...</span>
-                      <span className="xs:hidden">Sending...</span>
-                    </>
+                    <><Loader2 className="animate-spin" size={16} /> Submitting…</>
                   ) : (
-                    <>
-                      <span className="hidden xs:inline">Submit Registration</span>
-                      <span className="xs:hidden">Submit</span>
-                      <Check size={18} className="sm:w-5 sm:h-5" />
-                    </>
+                    <><Check size={16} /> Submit Registration</>
                   )}
                 </button>
               )}
             </div>
           </form>
         </div>
+
       </div>
     </div>
   );
