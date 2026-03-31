@@ -1,18 +1,7 @@
 const { randomUUID } = require('crypto');
 const { logger } = require('../utils/logger');
-<<<<<<< HEAD
 const { logSecurityEvent } = require('../utils/securityEventLogger');
-
-const getClientIp = (req) => {
-  const forwarded = req?.headers?.['x-forwarded-for'];
-  if (typeof forwarded === 'string' && forwarded.trim()) {
-    return forwarded.split(',')[0].trim();
-  }
-  return req?.ip || req?.socket?.remoteAddress || undefined;
-};
-=======
 const { getClientIp } = require('../utils/request');
->>>>>>> 486e48fd558e37241102017daa47d6c334e68414
 
 const resolveActor = (req) => {
   if (req?.user?.id) {
