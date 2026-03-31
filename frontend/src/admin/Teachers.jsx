@@ -1,5 +1,6 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { jsPDF } from 'jspdf';
+import * as XLSX from 'xlsx';
 import {
   Search,
   Plus,
@@ -148,6 +149,8 @@ const Teachers = ({setShowAdminHeader}) => {
   const [principalDeleteLoadingId, setPrincipalDeleteLoadingId] = useState(null);
   const [deleteConfirmPrincipal, setDeleteConfirmPrincipal] = useState(null);
   const [makePrincipalConfirmTeacher, setMakePrincipalConfirmTeacher] = useState(null);
+  const [bulkUploading, setBulkUploading] = useState(false);
+  const bulkFileInputRef = useRef(null);
 
   const principalIdentitySet = useMemo(() => {
     return new Set(
@@ -869,6 +872,113 @@ const Teachers = ({setShowAdminHeader}) => {
     doc.save(`teachers_list_${fileDate}.pdf`);
   };
 
+  const generateBulkTeacherPassword = (seed = 0) => {
+    const randomPart = Math.random().toString(36).slice(2, 6).toUpperCase();
+    return `Teach@${randomPart}${seed % 10}a`;
+  };
+
+  const normalizeBulkTeacherRow = (row = {}, idx = 0) => {
+    const read = (keys = []) => {
+      for (const key of keys) {
+        if (Object.prototype.hasOwnProperty.call(row, key) && row[key] !== undefined && row[key] !== null) {
+          return String(row[key]).trim();
+        }
+      }
+      return '';
+    };
+    return {
+      name: read(['name', 'Name', 'teacherName', 'Teacher Name']),
+      email: read(['email', 'Email']),
+      mobile: read(['mobile', 'Mobile', 'phone', 'Phone']),
+      gender: read(['gender', 'Gender']),
+      qualification: read(['qualification', 'Qualification']),
+      subject: read(['subject', 'Subject']),
+      department: read(['department', 'Department']),
+      experience: read(['experience', 'Experience']),
+      joiningDate: read(['joiningDate', 'Joining Date', 'joining_date']),
+      address: read(['address', 'Address']),
+      pinCode: read(['pinCode', 'Pincode', 'Pin Code', 'pin_code']),
+      // password: read(['password', 'Password']) || generateBulkTeacherPassword(idx + 1),
+    };
+  };
+
+  const downloadTeacherDemoTemplate = () => {
+    const rows = [
+      {
+        name: 'Koushik Bala',
+        email: 'koushik.bala@example.com',
+        mobile: '1234567890',
+        gender: 'male',
+        qualification: 'M.Sc',
+        subject: 'Mathematics',
+        department: 'Science',
+        experience: '5',
+        joiningDate: '2026-04-01',
+        address: 'Kolkata',
+        pinCode: '700001',
+        // password: 'Teach@123a',
+      },
+    ];
+    const worksheet = XLSX.utils.json_to_sheet(rows);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Teachers');
+    XLSX.writeFile(workbook, 'teacher_bulk_upload_template.xlsx');
+  };
+
+  const handleBulkUploadTeachers = async (file) => {
+    if (!file) return;
+    setBulkUploading(true);
+    try {
+      const buffer = await file.arrayBuffer();
+      const workbook = XLSX.read(buffer, { type: 'array' });
+      const firstSheet = workbook.SheetNames[0];
+      if (!firstSheet) throw new Error('Uploaded file has no sheet.');
+      const worksheet = workbook.Sheets[firstSheet];
+      const rawRows = XLSX.utils.sheet_to_json(worksheet, { defval: '' });
+      const normalizedRows = rawRows
+        .map((row, idx) => normalizeBulkTeacherRow(row, idx))
+        .filter((row) => row.name || row.email || row.mobile);
+
+      if (!normalizedRows.length) {
+        throw new Error('No teacher rows found in the uploaded file.');
+      }
+
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/admin/users/bulk-create-users`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          authorization: `Bearer ${localStorage.getItem('token')}`,
+        },
+        body: JSON.stringify({
+          role: 'teacher',
+          users: normalizedRows,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data?.error || 'Bulk upload failed');
+      }
+
+      const created = Number(data?.created || 0);
+      const failed = Number(data?.failed || 0);
+      if (created > 0) {
+        toast.success(`${created} teacher(s) uploaded successfully.`);
+      }
+      if (failed > 0) {
+        const firstError = Array.isArray(data?.errors) && data.errors[0]?.error ? ` First error: ${data.errors[0].error}` : '';
+        toast.error(`${failed} row(s) failed.${firstError}`);
+      }
+      await fetchTeachers({ useCache: false });
+    } catch (error) {
+      toast.error(error.message || 'Unable to upload teachers');
+    } finally {
+      setBulkUploading(false);
+      if (bulkFileInputRef.current) {
+        bulkFileInputRef.current.value = '';
+      }
+    }
+  };
+
   const handleMakePrincipal = async (teacher) => {
     const teacherId = teacher?._id || teacher?.id;
     if (!teacherId) return;
@@ -932,6 +1042,29 @@ const Teachers = ({setShowAdminHeader}) => {
               >
                 Export PDF
               </button>
+              <button
+                onClick={downloadTeacherDemoTemplate}
+                className="inline-flex items-center gap-2 bg-white text-gray-700 px-4 py-2.5 rounded-xl hover:bg-gray-50 transition-all shadow-sm border border-gray-200 text-sm font-medium"
+              >
+                Demo Excel
+              </button>
+              <button
+                onClick={() => bulkFileInputRef.current?.click()}
+                disabled={bulkUploading}
+                className="inline-flex items-center gap-2 bg-white text-gray-700 px-4 py-2.5 rounded-xl hover:bg-gray-50 transition-all shadow-sm border border-gray-200 text-sm font-medium disabled:opacity-60 disabled:cursor-not-allowed"
+              >
+                {bulkUploading ? 'Uploading...' : 'Bulk Upload'}
+              </button>
+              <input
+                ref={bulkFileInputRef}
+                type="file"
+                accept=".xlsx,.xls,.csv"
+                className="hidden"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) handleBulkUploadTeachers(file);
+                }}
+              />
               <button
                 onClick={() => {
                   resetTeacherForm();
