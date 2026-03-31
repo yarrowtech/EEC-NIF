@@ -9,6 +9,33 @@ import toast from "react-hot-toast";
 
 const API_BASE = import.meta.env.VITE_API_URL;
 
+const EditModal = ({ isOpen, onClose, title, children, onSubmit, isSubmitting = false }) => {
+  if (!isOpen) return null;
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
+      <div className="w-full max-w-md rounded-2xl border border-gray-100 bg-white shadow-2xl">
+        <div className="flex items-center justify-between border-b border-gray-100 px-6 py-4">
+          <h2 className="text-lg font-semibold text-gray-800">{title}</h2>
+          <button type="button" onClick={onClose} disabled={isSubmitting} className="text-gray-400 hover:text-gray-600">
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+        <form onSubmit={onSubmit} className="px-6 py-5">
+          {children}
+          <div className="mt-6 flex gap-3">
+            <button type="button" onClick={onClose} disabled={isSubmitting} className="flex-1 rounded-lg border border-gray-200 px-4 py-2 text-sm text-gray-600 hover:bg-gray-50">
+              Cancel
+            </button>
+            <button type="submit" disabled={isSubmitting} className="flex-1 rounded-lg bg-amber-500 px-4 py-2 text-sm font-medium text-white hover:bg-amber-600 disabled:opacity-50">
+              {isSubmitting ? "Saving..." : "Save Changes"}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+};
+
 const AcademicSetup = ({ setShowAdminHeader }) => {
   const [activeTab, setActiveTab] = useState("years");
   const [years, setYears] = useState([]);
@@ -729,33 +756,6 @@ const AcademicSetup = ({ setShowAdminHeader }) => {
     </div>
   );
 
-  const EditModal = ({ isOpen, onClose, title, children, onSubmit }) => {
-    if (!isOpen) return null;
-    return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
-        <div className="w-full max-w-md rounded-2xl border border-gray-100 bg-white shadow-2xl">
-          <div className="flex items-center justify-between border-b border-gray-100 px-6 py-4">
-            <h2 className="text-lg font-semibold text-gray-800">{title}</h2>
-            <button type="button" onClick={onClose} disabled={isSubmitting} className="text-gray-400 hover:text-gray-600">
-              <X className="h-5 w-5" />
-            </button>
-          </div>
-          <form onSubmit={onSubmit} className="px-6 py-5">
-            {children}
-            <div className="mt-6 flex gap-3">
-              <button type="button" onClick={onClose} disabled={isSubmitting} className="flex-1 rounded-lg border border-gray-200 px-4 py-2 text-sm text-gray-600 hover:bg-gray-50">
-                Cancel
-              </button>
-              <button type="submit" disabled={isSubmitting} className="flex-1 rounded-lg bg-amber-500 px-4 py-2 text-sm font-medium text-white hover:bg-amber-600 disabled:opacity-50">
-                {isSubmitting ? "Saving..." : "Save Changes"}
-              </button>
-            </div>
-          </form>
-        </div>
-      </div>
-    );
-  };
-
   /* ═══════════════════════ TAB CONFIG ═══════════════════════ */
 
   const tabs = [
@@ -1354,7 +1354,7 @@ const AcademicSetup = ({ setShowAdminHeader }) => {
         {/* ═══════════════ EDIT MODALS ═══════════════ */}
 
         {/* Edit Year */}
-        <EditModal isOpen={editingYear !== null} onClose={() => setEditingYear(null)} title="Edit Academic Year" onSubmit={updateYear}>
+        <EditModal isOpen={editingYear !== null} onClose={() => setEditingYear(null)} title="Edit Academic Year" onSubmit={updateYear} isSubmitting={isSubmitting}>
           <div className="space-y-4">
             <div>
               <label className="mb-1 block text-xs font-medium text-gray-600">Year Name</label>
@@ -1385,7 +1385,7 @@ const AcademicSetup = ({ setShowAdminHeader }) => {
         </EditModal>
 
         {/* Edit Class */}
-        <EditModal isOpen={editingClass !== null} onClose={() => setEditingClass(null)} title="Edit Class" onSubmit={updateClass}>
+        <EditModal isOpen={editingClass !== null} onClose={() => setEditingClass(null)} title="Edit Class" onSubmit={updateClass} isSubmitting={isSubmitting}>
           <div className="space-y-4">
             <div>
               <label className="mb-1 block text-xs font-medium text-gray-600">Class Name</label>
@@ -1409,7 +1409,7 @@ const AcademicSetup = ({ setShowAdminHeader }) => {
         </EditModal>
 
         {/* Edit Section */}
-        <EditModal isOpen={editingSection !== null} onClose={() => setEditingSection(null)} title="Edit Section" onSubmit={updateSection}>
+        <EditModal isOpen={editingSection !== null} onClose={() => setEditingSection(null)} title="Edit Section" onSubmit={updateSection} isSubmitting={isSubmitting}>
           <div className="space-y-4">
             <div>
               <label className="mb-1 block text-xs font-medium text-gray-600">Section Name</label>
@@ -1428,7 +1428,7 @@ const AcademicSetup = ({ setShowAdminHeader }) => {
         </EditModal>
 
         {/* Edit Subject */}
-        <EditModal isOpen={editingSubject !== null} onClose={() => setEditingSubject(null)} title="Edit Subject" onSubmit={updateSubject}>
+        <EditModal isOpen={editingSubject !== null} onClose={() => setEditingSubject(null)} title="Edit Subject" onSubmit={updateSubject} isSubmitting={isSubmitting}>
           <div className="space-y-4">
             <div>
               <label className="mb-1 block text-xs font-medium text-gray-600">Subject Name</label>

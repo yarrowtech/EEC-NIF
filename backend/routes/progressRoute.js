@@ -6,6 +6,42 @@ const Assignment = require('../models/Assignment');
 const adminAuth = require('../middleware/adminAuth');
 const teacherAuth = require('../middleware/authTeacher');
 
+const escapeRegex = (value = '') => String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+const toGradeVariants = (value = '') => {
+  const raw = String(value || '').trim();
+  if (!raw) return [];
+
+  const variants = new Set([raw]);
+  const noClassPrefix = raw.replace(/^class\s*/i, '').trim();
+  if (noClassPrefix) {
+    variants.add(noClassPrefix);
+    variants.add(`Class ${noClassPrefix}`);
+  }
+
+  const num = noClassPrefix.match(/\d+/)?.[0];
+  if (num) {
+    variants.add(num);
+    variants.add(`Class ${num}`);
+  }
+
+  return Array.from(variants).filter(Boolean);
+};
+
+const applyGradeAndSectionFilter = (studentFilter, { grade, section }) => {
+  if (grade) {
+    const gradePatterns = toGradeVariants(grade).map(
+      (item) => new RegExp(`^${escapeRegex(item)}$`, 'i')
+    );
+    if (gradePatterns.length) {
+      studentFilter.grade = { $in: gradePatterns };
+    }
+  }
+
+  if (section) {
+    studentFilter.section = new RegExp(`^${escapeRegex(String(section).trim())}$`, 'i');
+  }
+};
+
 const resolveSchoolId = (req, res) => {
   const schoolId = req.schoolId || req.admin?.schoolId || req.user?.schoolId || null;
   if (!schoolId) {
@@ -24,8 +60,7 @@ router.get('/students', adminAuth, async (req, res) => {
     const { grade, section, subject } = req.query;
     
     let studentFilter = { schoolId };
-    if (grade) studentFilter.grade = grade;
-    if (section) studentFilter.section = section;
+    applyGradeAndSectionFilter(studentFilter, { grade, section });
 
     const students = await StudentUser.find(studentFilter).select('name grade section roll');
     const studentIds = students.map(student => student._id);
@@ -184,8 +219,7 @@ router.get('/analytics', adminAuth, async (req, res) => {
     const { grade, section, subject } = req.query;
 
     let studentFilter = { schoolId };
-    if (grade) studentFilter.grade = grade;
-    if (section) studentFilter.section = section;
+    applyGradeAndSectionFilter(studentFilter, { grade, section });
 
     const students = await StudentUser.find(studentFilter);
     const studentIds = students.map(student => student._id);

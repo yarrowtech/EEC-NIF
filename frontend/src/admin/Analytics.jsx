@@ -36,21 +36,29 @@ const ALL_SECTIONS = 'All Sections';
 
 const buildApiUrl = (path) => `${API_BASE}${path}`;
 
-const normalizeClassValue = (value) => {
-  if (!value || value === ALL_CLASSES) return '';
-  const match = value.match(/(\d+)/);
-  return match ? match[1] : '';
-};
-
 const normalizeSectionValue = (value) => (value === ALL_SECTIONS ? '' : value);
+const normalizeClassToken = (value) =>
+  String(value || '')
+    .trim()
+    .toLowerCase()
+    .replace(/^class\s*/i, '')
+    .replace(/\s+/g, '');
 
 const formatCurrency = (value) =>
-  new Intl.NumberFormat('en-IN', {
-    style: 'currency',
-    currency: 'INR',
+  `Rs. ${new Intl.NumberFormat('en-IN', {
     maximumFractionDigits: 0
-  }).format(Math.round(value || 0));
+  }).format(Math.round(value || 0))}`;
 const formatNumber = (value) => Number(value || 0).toLocaleString('en-IN');
+
+const toAmountNumber = (value) => {
+  if (typeof value === 'number') return Number.isFinite(value) ? value : 0;
+  if (typeof value === 'string') {
+    const cleaned = value.replace(/[^\d.-]/g, '');
+    const parsed = Number(cleaned);
+    return Number.isFinite(parsed) ? parsed : 0;
+  }
+  return 0;
+};
 
 const buildFeeChartData = (invoices) => {
   const now = new Date();
@@ -74,8 +82,11 @@ const buildFeeChartData = (invoices) => {
     const key = `${parsedDate.getFullYear()}-${parsedDate.getMonth()}`;
     const bucket = map.get(key);
     if (!bucket) return;
-    bucket.paid += Number(invoice.paidAmount || 0);
-    bucket.pending += Number(invoice.balanceAmount || 0);
+    const totalAmount = toAmountNumber(invoice.totalAmount);
+    const balanceAmount = toAmountNumber(invoice.balanceAmount);
+    const derivedPaid = Math.max(totalAmount - balanceAmount, 0);
+    bucket.paid += derivedPaid;
+    bucket.pending += balanceAmount;
   });
   return buckets.map(({ month, paid, pending }) => ({
     month,
@@ -109,6 +120,7 @@ const Analytics = ({ setShowAdminHeader }) => {
   const [sessionOptions, setSessionOptions] = useState([{ _id: '', name: ALL_SESSIONS }]);
   const [classCatalog, setClassCatalog] = useState([]);
   const [sectionCatalog, setSectionCatalog] = useState([]);
+  const [classScopedSections, setClassScopedSections] = useState([]);
   const [progressAnalytics, setProgressAnalytics] = useState(null);
   const [analyticsLoading, setAnalyticsLoading] = useState(false);
   const [analyticsError, setAnalyticsError] = useState('');
@@ -176,23 +188,58 @@ const Analytics = ({ setShowAdminHeader }) => {
     return () => controller.abort();
   }, []);
 
+  useEffect(() => {
+    const controller = new AbortController();
+    const selectedClassDoc = classCatalog.find((item) => item?.name === selectedClass);
+    const classId = selectedClassDoc?._id ? String(selectedClassDoc._id) : '';
+
+    const loadClassScopedSections = async () => {
+      if (!classId) {
+        setClassScopedSections([]);
+        return;
+      }
+      try {
+        const params = new URLSearchParams({ classId });
+        const res = await fetch(buildApiUrl(`/api/academic/sections?${params.toString()}`), {
+          headers: getAuthHeaders(),
+          signal: controller.signal,
+        });
+        const data = await res.json().catch(() => []);
+        if (!res.ok) throw new Error(data?.error || 'Unable to load sections');
+        if (!controller.signal.aborted) {
+          setClassScopedSections(Array.isArray(data) ? data : []);
+        }
+      } catch {
+        if (!controller.signal.aborted) {
+          setClassScopedSections([]);
+        }
+      }
+    };
+
+    loadClassScopedSections();
+    return () => controller.abort();
+  }, [selectedClass, classCatalog]);
+
   const availableClassOptions = useMemo(
     () => [ALL_CLASSES, ...classCatalog.map((item) => item?.name).filter(Boolean)],
     [classCatalog]
   );
 
   const availableSectionOptions = useMemo(() => {
-    if (!sectionCatalog.length) return [ALL_SECTIONS];
-    if (selectedClass === ALL_CLASSES) {
-      return [ALL_SECTIONS, ...sectionCatalog.map((item) => item?.name).filter(Boolean)];
-    }
+    if (selectedClass === ALL_CLASSES) return [ALL_SECTIONS];
+    const scopedNames = classScopedSections
+      .map((item) => item?.name)
+      .filter(Boolean);
+    if (scopedNames.length) return [ALL_SECTIONS, ...scopedNames];
+
+    // Fallback: local catalog by classId (if scoped API returns empty unexpectedly).
     const selectedClassDoc = classCatalog.find((item) => item?.name === selectedClass);
-    const allowedSections = sectionCatalog
+    const fallbackNames = sectionCatalog
       .filter((item) => String(item?.classId) === String(selectedClassDoc?._id || ''))
       .map((item) => item?.name)
       .filter(Boolean);
-    return [ALL_SECTIONS, ...allowedSections];
-  }, [sectionCatalog, classCatalog, selectedClass]);
+    return [ALL_SECTIONS, ...fallbackNames];
+  }, [selectedClass, classScopedSections, classCatalog, sectionCatalog]);
 
   useEffect(() => {
     if (selectedSection !== ALL_SECTIONS && !availableSectionOptions.includes(selectedSection)) {
@@ -207,7 +254,7 @@ const Analytics = ({ setShowAdminHeader }) => {
       setAnalyticsError('');
       try {
         const params = new URLSearchParams();
-        const grade = normalizeClassValue(selectedClass);
+        const grade = selectedClass === ALL_CLASSES ? '' : selectedClass;
         const section = normalizeSectionValue(selectedSection);
         const sessionObj = sessionOptions.find((item) => item?.name === selectedSession);
         const academicYearId = sessionObj?._id ? String(sessionObj._id) : '';
@@ -395,20 +442,47 @@ const Analytics = ({ setShowAdminHeader }) => {
   const filteredInvoices = useMemo(() => {
     const sessionObj = sessionOptions.find((item) => item?.name === selectedSession);
     const academicYearId = sessionObj?._id ? String(sessionObj._id) : '';
-    const grade = normalizeClassValue(selectedClass);
+    const selectedClassToken = normalizeClassToken(selectedClass === ALL_CLASSES ? '' : selectedClass);
     const section = normalizeSectionValue(selectedSection);
     return feeInvoices.filter((invoice) => {
       const invoiceYearId = invoice?.academicYearId ? String(invoice.academicYearId) : '';
-      const classValue = `${invoice.className || ''}`.match(/(\d+)/)?.[1] || '';
+      const classValueToken = normalizeClassToken(invoice.className || '');
       const sectionValue = (invoice.section || '').toUpperCase();
       const sessionMatches = !academicYearId || invoiceYearId === academicYearId;
-      const gradeMatches = !grade || classValue === grade;
+      const gradeMatches = !selectedClassToken || classValueToken === selectedClassToken;
       const sectionMatches = !section || sectionValue === section.toUpperCase();
       return sessionMatches && gradeMatches && sectionMatches;
     });
   }, [feeInvoices, selectedClass, selectedSection, selectedSession, sessionOptions]);
 
   const feesChartData = useMemo(() => buildFeeChartData(filteredInvoices), [filteredInvoices]);
+
+  const filteredFeeTotals = useMemo(
+    () =>
+      filteredInvoices.reduce(
+        (acc, invoice) => {
+          const totalAmount = toAmountNumber(invoice?.totalAmount);
+          const balanceAmount = toAmountNumber(invoice?.balanceAmount);
+          const derivedPaid = Math.max(totalAmount - balanceAmount, 0);
+          acc.paidAmount += derivedPaid;
+          acc.balanceAmount += balanceAmount;
+          return acc;
+        },
+        { paidAmount: 0, balanceAmount: 0 }
+      ),
+    [filteredInvoices]
+  );
+
+  const isFilterApplied =
+    selectedSession !== ALL_SESSIONS ||
+    selectedClass !== ALL_CLASSES ||
+    selectedSection !== ALL_SECTIONS;
+
+  const scopedStudentCount = Number(progressAnalytics?.totalStudents ?? reportsSummary?.users?.students ?? 0);
+  const scopedAttendanceRate = Number(
+    progressAnalytics?.attendanceRate ?? attendanceRate ?? 0
+  );
+  const scopedAverageScore = Number(progressAnalytics?.averageScore ?? 0);
 
   const recentActivity = useMemo(() => {
     if (!auditLogs.length) return [];
@@ -424,34 +498,36 @@ const Analytics = ({ setShowAdminHeader }) => {
   }, [auditLogs]);
 
   const keyMetrics = useMemo(() => {
-    const totalStudents = reportsSummary?.users?.students || progressAnalytics?.totalStudents || 0;
-    const fees = reportsSummary?.fees || {};
+    const totalStudents = scopedStudentCount;
     const improvement = progressAnalytics?.improvementTrends || {};
     const improvingCount = improvement.improving || 0;
     const decliningCount = improvement.declining || 0;
+    const paidAmount = filteredFeeTotals.paidAmount;
+    const balanceAmount = filteredFeeTotals.balanceAmount;
+
     return [
       {
         title: 'Total Students',
-        value: totalStudents ? totalStudents.toLocaleString() : '—',
+        value: formatNumber(totalStudents),
         change: reportsSummary?.users?.teachers ? `${reportsSummary.users.teachers} teachers` : '',
         trend: 'up',
         icon: Users,
         color: 'blue',
-        description: 'Active in this school',
+        description: isFilterApplied ? 'In selected filters' : 'Active in this school',
       },
       {
         title: 'Attendance Rate',
-        value: attendanceRate ? `${attendanceRate}%` : '—',
-        change: reportsSummary?.attendance ? `${reportsSummary.attendance.present || 0} marked present` : '',
-        trend: attendanceRate >= 85 ? 'up' : 'down',
+        value: `${Math.max(0, Math.round(scopedAttendanceRate))}%`,
+        change: `${formatNumber(totalStudents)} students in scope`,
+        trend: scopedAttendanceRate >= 85 ? 'up' : 'down',
         icon: CheckCircle,
         color: 'green',
-        description: 'Across all classes',
+        description: isFilterApplied ? 'Filtered attendance' : 'Across all classes',
       },
       {
         title: 'Average Score',
-        value: progressAnalytics ? `${progressAnalytics.averageScore || 0}%` : '—',
-        change: progressAnalytics ? `${improvingCount} improving` : '',
+        value: `${Math.max(0, Math.round(scopedAverageScore))}%`,
+        change: `${improvingCount} improving`,
         trend: improvingCount >= decliningCount ? 'up' : 'down',
         icon: GraduationCap,
         color: 'purple',
@@ -459,15 +535,23 @@ const Analytics = ({ setShowAdminHeader }) => {
       },
       {
         title: 'Fees Collected',
-        value: fees ? formatCurrency(fees.paidAmount || 0) : '—',
-        change: fees ? `Outstanding ${formatCurrency(fees.balanceAmount || 0)}` : '',
-        trend: (fees?.paidAmount || 0) >= (fees?.balanceAmount || 0) ? 'up' : 'down',
+        value: formatCurrency(paidAmount),
+        change: `Outstanding ${formatCurrency(balanceAmount)}`,
+        trend: paidAmount >= balanceAmount ? 'up' : 'down',
         icon: DollarSign,
         color: 'orange',
-        description: 'Collections to date',
+        description: isFilterApplied ? 'Filtered collections' : 'Collections to date',
       },
     ];
-  }, [attendanceRate, progressAnalytics, reportsSummary]);
+  }, [
+    scopedStudentCount,
+    scopedAttendanceRate,
+    scopedAverageScore,
+    filteredFeeTotals,
+    progressAnalytics,
+    reportsSummary,
+    isFilterApplied,
+  ]);
 
   const getColorClasses = (color) => {
     const colors = {
@@ -512,100 +596,183 @@ const Analytics = ({ setShowAdminHeader }) => {
     const now = new Date();
     const generatedAt = now.toLocaleString('en-IN');
     const generatedDate = now.toISOString().slice(0, 10);
-    let yPos = 16;
+    let yPos = 48;
+
+    const colors = {
+      brand: [37, 99, 235],
+      brandDark: [30, 64, 175],
+      accent: [99, 102, 241],
+      surface: [248, 250, 252],
+      border: [226, 232, 240],
+      text: [30, 41, 59],
+      muted: [100, 116, 139],
+      success: [16, 185, 129],
+      warn: [245, 158, 11],
+    };
+
+    const drawPageTopBar = () => {
+      // Continuation pages: keep only a thin accent strip to avoid overlaying content.
+      pdf.setFillColor(...colors.accent);
+      pdf.rect(0, 0, pageWidth, 1.8, 'F');
+    };
 
     const ensureSpace = (required = 8) => {
-      if (yPos + required > pageHeight - 14) {
+      if (yPos + required > pageHeight - 16) {
         pdf.addPage();
-        yPos = 16;
+        drawPageTopBar();
+        yPos = 18;
       }
     };
 
-    const addTitle = (text) => {
-      ensureSpace(12);
-      pdf.setFontSize(13);
+    const addSectionTitle = (title) => {
+      ensureSpace(10);
+      pdf.setFillColor(...colors.brand);
+      pdf.roundedRect(margin, yPos - 1, contentWidth, 7, 1.2, 1.2, 'F');
+      pdf.setTextColor(255, 255, 255);
+      pdf.setFontSize(11.5);
       pdf.setFont(undefined, 'bold');
-      pdf.text(text, margin, yPos);
-      yPos += 7;
+      pdf.text(title, margin + 3, yPos + 3.8);
+      pdf.setTextColor(...colors.text);
+      yPos += 10;
     };
 
-    const addLine = (label, value = '') => {
-      ensureSpace(7);
-      pdf.setFontSize(10);
-      pdf.setFont(undefined, 'normal');
-      const line = `${label}: ${value}`;
-      const wrapped = pdf.splitTextToSize(line, contentWidth);
-      pdf.text(wrapped, margin, yPos);
-      yPos += wrapped.length * 5;
+    const addKVRows = (rows) => {
+      rows.forEach(([label, value], idx) => {
+        ensureSpace(7);
+        if (idx % 2 === 0) {
+          pdf.setFillColor(245, 247, 250);
+          pdf.rect(margin, yPos - 1.8, contentWidth, 6.2, 'F');
+        }
+        pdf.setFontSize(9.5);
+        pdf.setFont(undefined, 'bold');
+        pdf.setTextColor(...colors.text);
+        pdf.text(`${label}:`, margin + 2, yPos + 2);
+        pdf.setFont(undefined, 'normal');
+        pdf.setTextColor(...colors.muted);
+        const wrapped = pdf.splitTextToSize(String(value ?? ''), contentWidth - 44);
+        pdf.text(wrapped, margin + 38, yPos + 2);
+        yPos += Math.max(6, wrapped.length * 4);
+      });
+      yPos += 1.5;
     };
 
-    const addTableRows = (headers, rows) => {
-      ensureSpace(9);
-      pdf.setFontSize(9.5);
+    const addDataTable = (headers, rows) => {
+      const colWidth = contentWidth / headers.length;
+      ensureSpace(11);
+      pdf.setFillColor(...colors.brandDark);
+      pdf.rect(margin, yPos - 1, contentWidth, 7, 'F');
+      pdf.setTextColor(255, 255, 255);
+      pdf.setFontSize(9);
       pdf.setFont(undefined, 'bold');
-      pdf.text(headers.join(' | '), margin, yPos);
-      yPos += 5;
+      headers.forEach((header, idx) => {
+        pdf.text(String(header), margin + idx * colWidth + 2, yPos + 3.4);
+      });
+      yPos += 8;
+
+      pdf.setTextColor(...colors.text);
       pdf.setFont(undefined, 'normal');
       if (!rows.length) {
-        addLine('Info', 'No records available');
+        ensureSpace(7);
+        pdf.setFillColor(250, 250, 250);
+        pdf.rect(margin, yPos - 1.8, contentWidth, 6.5, 'F');
+        pdf.text('No records available', margin + 2, yPos + 2.1);
+        yPos += 8;
         return;
       }
-      rows.forEach((row) => {
-        const text = row.join(' | ');
-        const wrapped = pdf.splitTextToSize(text, contentWidth);
-        ensureSpace(wrapped.length * 5 + 1);
-        pdf.text(wrapped, margin, yPos);
-        yPos += wrapped.length * 5;
+
+      rows.forEach((row, rowIdx) => {
+        ensureSpace(7);
+        if (rowIdx % 2 === 0) {
+          pdf.setFillColor(247, 250, 252);
+          pdf.rect(margin, yPos - 1.8, contentWidth, 6.4, 'F');
+        }
+        row.forEach((cell, colIdx) => {
+          const text = String(cell ?? '');
+          const clipped = text.length > 26 ? `${text.slice(0, 25)}...` : text;
+          pdf.text(clipped, margin + colIdx * colWidth + 2, yPos + 2.1);
+        });
+        yPos += 6.5;
       });
+      yPos += 2;
     };
 
-    pdf.setFontSize(18);
+    // Header block
+    pdf.setFillColor(...colors.brandDark);
+    pdf.rect(0, 0, pageWidth, 36, 'F');
+    pdf.setFillColor(...colors.accent);
+    pdf.rect(0, 34, pageWidth, 2, 'F');
+    pdf.setTextColor(255, 255, 255);
+    pdf.setFontSize(20);
     pdf.setFont(undefined, 'bold');
-    pdf.text('Admin Analytics Report', pageWidth / 2, yPos, { align: 'center' });
-    yPos += 8;
-    pdf.setFontSize(10);
+    pdf.text('Admin Analytics Report', margin, 14);
+    pdf.setFontSize(9.5);
     pdf.setFont(undefined, 'normal');
-    pdf.text(`Generated: ${generatedAt}`, pageWidth / 2, yPos, { align: 'center' });
-    yPos += 6;
+    pdf.text(`Generated: ${generatedAt}`, margin, 21);
     pdf.text(
-      `Filters: ${selectedSession} | ${selectedClass} | ${selectedSection === ALL_SECTIONS ? ALL_SECTIONS : `Sec ${selectedSection}`}`,
-      pageWidth / 2,
-      yPos,
-      { align: 'center' }
+      `Session: ${selectedSession} | Class: ${selectedClass} | Section: ${selectedSection}`,
+      margin,
+      27
     );
-    yPos += 8;
+    pdf.setTextColor(...colors.text);
 
-    addTitle('Key Metrics');
-    keyMetrics.forEach((metric) => {
-      addLine(metric.title, `${metric.value}${metric.change ? ` (${metric.change})` : ''}`);
+    // Key metric cards
+    addSectionTitle('Key Metrics');
+    const cards = keyMetrics.slice(0, 4);
+    const cardGap = 4;
+    const cardWidth = (contentWidth - cardGap) / 2;
+    const cardHeight = 16;
+    cards.forEach((metric, idx) => {
+      if (idx % 2 === 0) ensureSpace(cardHeight + 2);
+      const col = idx % 2;
+      const row = Math.floor(idx / 2);
+      const x = margin + col * (cardWidth + cardGap);
+      const y = yPos + row * (cardHeight + 3);
+      pdf.setFillColor(...colors.surface);
+      pdf.setDrawColor(...colors.border);
+      pdf.roundedRect(x, y, cardWidth, cardHeight, 1.5, 1.5, 'FD');
+      pdf.setFillColor(...colors.brand);
+      pdf.rect(x, y, cardWidth, 2, 'F');
+      pdf.setFontSize(8);
+      pdf.setFont(undefined, 'bold');
+      pdf.setTextColor(...colors.muted);
+      pdf.text(metric.title, x + 2, y + 6.5);
+      pdf.setFontSize(11);
+      pdf.setTextColor(...colors.text);
+      pdf.text(String(metric.value), x + 2, y + 11.8);
+      if (metric.change) {
+        pdf.setFontSize(7.5);
+        pdf.setTextColor(...colors.accent);
+        const changeText = String(metric.change);
+        pdf.text(changeText.length > 30 ? `${changeText.slice(0, 29)}...` : changeText, x + 2, y + 15);
+      }
     });
+    yPos += Math.ceil(cards.length / 2) * (cardHeight + 3) + 1;
 
-    addTitle('Attendance & Users');
-    addLine('Attendance Rate', `${attendanceRate || 0}%`);
-    addLine('Present', formatNumber(reportsSummary?.attendance?.present || 0));
-    addLine('Absent', formatNumber(reportsSummary?.attendance?.absent || 0));
-    addLine('Total Marked', formatNumber(reportsSummary?.attendance?.totalMarked || 0));
-    addLine('Students', formatNumber(reportsSummary?.users?.students || progressAnalytics?.totalStudents || 0));
-    addLine('Teachers', formatNumber(reportsSummary?.users?.teachers || 0));
+    addSectionTitle('Attendance & Users');
+    addKVRows([
+      ['Attendance Rate', `${Math.max(0, Math.round(scopedAttendanceRate))}%`],
+      ['Students In Scope', formatNumber(scopedStudentCount)],
+      ['Average Score', `${Math.max(0, Math.round(scopedAverageScore))}%`],
+      ['Teachers', formatNumber(reportsSummary?.users?.teachers || 0)],
+      ['Scope', isFilterApplied ? 'Filtered values' : 'School-wide values'],
+    ]);
 
-    addTitle('Fees Overview');
-    addLine('Collected', formatCurrency(reportsSummary?.fees?.paidAmount || 0));
-    addLine('Outstanding', formatCurrency(reportsSummary?.fees?.balanceAmount || 0));
-    addLine('Total Invoiced', formatCurrency((reportsSummary?.fees?.paidAmount || 0) + (reportsSummary?.fees?.balanceAmount || 0)));
-    addLine('Invoices In Scope', formatNumber(filteredInvoices.length));
+    addSectionTitle('Fees Overview');
+    addKVRows([
+      ['Collected', formatCurrency(filteredFeeTotals.paidAmount || 0)],
+      ['Outstanding', formatCurrency(filteredFeeTotals.balanceAmount || 0)],
+      ['Total Invoiced', formatCurrency((filteredFeeTotals.paidAmount || 0) + (filteredFeeTotals.balanceAmount || 0))],
+      ['Invoices In Scope', formatNumber(filteredInvoices.length)],
+    ]);
 
-    addTitle('Fees Collection Trend (6 Months)');
-    addTableRows(
+    addSectionTitle('Fees Collection Trend (6 Months)');
+    addDataTable(
       ['Month', 'Collected', 'Pending'],
-      feesChartData.map((item) => [
-        item.month,
-        formatCurrency(item.paid),
-        formatCurrency(item.pending),
-      ])
+      feesChartData.map((item) => [item.month, formatCurrency(item.paid), formatCurrency(item.pending)])
     );
 
-    addTitle('Subject Performance');
-    addTableRows(
+    addSectionTitle('Subject Performance');
+    addDataTable(
       ['Subject', 'Average', 'Students'],
       subjectPerformance.slice(0, 12).map((item) => [
         item.subject,
@@ -614,28 +781,34 @@ const Analytics = ({ setShowAdminHeader }) => {
       ])
     );
 
-    addTitle('Grade Distribution');
-    addTableRows(
+    addSectionTitle('Grade Distribution');
+    addDataTable(
       ['Grade', 'Students'],
       gradeDistributionData.map((item) => [item.grade, formatNumber(item.students)])
     );
 
-    addTitle('Improvement Trends');
-    addTableRows(
+    addSectionTitle('Improvement Trends');
+    addDataTable(
       ['Trend', 'Count', 'Share'],
       improvementStats.map((item) => [item.label, formatNumber(item.count), `${item.value}%`])
     );
 
-    addTitle('Recent Admin Activity');
-    addTableRows(
+    addSectionTitle('Recent Admin Activity');
+    addDataTable(
       ['Actor', 'Action', 'Entity', 'Time'],
       recentActivity.map((item) => [item.teacher, item.action, item.subject, item.time])
     );
 
-    ensureSpace(8);
-    pdf.setFontSize(9);
-    pdf.setFont(undefined, 'normal');
-    pdf.text('Source: Live admin analytics, reports summary, fees invoices, and audit logs.', margin, yPos);
+    ensureSpace(10);
+    pdf.setDrawColor(...colors.border);
+    pdf.line(margin, pageHeight - 14, pageWidth - margin, pageHeight - 14);
+    pdf.setFontSize(8.5);
+    pdf.setTextColor(...colors.muted);
+    pdf.text(
+      'Source: Filtered progress analytics, fees invoices, school summary, and audit logs.',
+      margin,
+      pageHeight - 9
+    );
 
     pdf.save(`admin-analytics-report-${generatedDate}.pdf`);
   };
@@ -647,13 +820,17 @@ const Analytics = ({ setShowAdminHeader }) => {
     !reportsSummary;
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <div className="mx-auto p-6 space-y-6">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-blue-50/20">
+      <div className="mx-auto max-w-7xl px-4 sm:px-6 py-8 space-y-5">
         {initialLoading ? (
           <div className="min-h-[60vh] flex items-center justify-center">
-            <div className="text-center text-gray-600">
-              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-              Loading analytics...
+            <div className="text-center">
+              <div className="relative inline-flex mb-5">
+                <div className="w-16 h-16 rounded-full border-4 border-blue-100"></div>
+                <div className="w-16 h-16 rounded-full border-4 border-blue-600 border-t-transparent animate-spin absolute inset-0"></div>
+              </div>
+              <p className="text-gray-500 font-medium">Loading analytics...</p>
+              <p className="text-gray-400 text-sm mt-1">Fetching data from all sources</p>
             </div>
           </div>
         ) : (
@@ -661,201 +838,252 @@ const Analytics = ({ setShowAdminHeader }) => {
             {activeErrors.length > 0 && (
               <div className="space-y-2">
                 {activeErrors.map((err, idx) => (
-                  <div key={idx} className="flex items-center gap-2 bg-red-50 text-red-700 border border-red-200 rounded-lg px-4 py-2 text-sm">
-                    <AlertCircle className="w-4 h-4" />
+                  <div key={idx} className="flex items-center gap-3 bg-red-50 text-red-700 border border-red-200 rounded-xl px-4 py-3 text-sm">
+                    <AlertCircle className="w-4 h-4 flex-shrink-0" />
                     <span>{err}</span>
                   </div>
                 ))}
               </div>
             )}
 
-            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-              <div>
-                <h1 className="text-3xl font-bold text-gray-900 mb-2">Analytics</h1>
-                <p className="text-gray-600">Comprehensive insights and performance metrics</p>
-              </div>
-              <button
-                onClick={exportAnalyticsToPDF}
-                className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-lg hover:from-blue-600 hover:to-blue-700 transition-all shadow-sm hover:shadow-md"
-              >
-                <Download className="w-4 h-4" />
-                Export Report
-              </button>
-            </div>
-
-            <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-200">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                <select
-                  value={selectedSession}
-                  onChange={(e) => setSelectedSession(e.target.value)}
-                  className="px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            {/* Page Header */}
+            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+              <div className="h-1 bg-gradient-to-r from-blue-500 via-indigo-500 to-purple-500"></div>
+              <div className="px-6 py-5 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                <div className="flex items-center gap-4">
+                  <div className="p-3 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl shadow-md">
+                    <Activity className="w-6 h-6 text-white" />
+                  </div>
+                  <div>
+                    <h1 className="text-2xl font-bold text-gray-900">Analytics Dashboard</h1>
+                    <p className="text-sm text-gray-500 mt-0.5">Comprehensive insights &amp; performance metrics</p>
+                  </div>
+                </div>
+                <button
+                  onClick={exportAnalyticsToPDF}
+                  className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-xl font-medium hover:from-blue-700 hover:to-indigo-700 transition-all shadow-md hover:shadow-lg text-sm"
                 >
-                  {sessionOptions.map((session) => (
-                    <option key={session?._id || ALL_SESSIONS} value={session?.name || ALL_SESSIONS}>
-                      {session?.name || ALL_SESSIONS}
-                    </option>
-                  ))}
-                </select>
-                <select
-                  value={selectedClass}
-                  onChange={(e) => setSelectedClass(e.target.value)}
-                  className="px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                >
-                  {availableClassOptions.map((className) => (
-                    <option key={className} value={className}>
-                      {className}
-                    </option>
-                  ))}
-                </select>
-                <select
-                  value={selectedSection}
-                  onChange={(e) => setSelectedSection(e.target.value)}
-                  className="px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                >
-                  {availableSectionOptions.map((section) => (
-                    <option key={section} value={section}>
-                      {section === ALL_SECTIONS ? section : `Sec ${section}`}
-                    </option>
-                  ))}
-                </select>
+                  <Download className="w-4 h-4" />
+                  Export PDF
+                </button>
               </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            {/* Filters */}
+            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
+              <div className="flex items-center gap-2 mb-4">
+                <div className="w-1 h-4 bg-blue-500 rounded-full"></div>
+                <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-widest">Filters</h2>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <div>
+                  <label className="block text-xs font-medium text-gray-500 mb-1.5">Academic Session</label>
+                  <select
+                    value={selectedSession}
+                    onChange={(e) => setSelectedSession(e.target.value)}
+                    className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 bg-gray-50 hover:bg-white transition-colors"
+                  >
+                    {sessionOptions.map((session) => (
+                      <option key={session?._id || ALL_SESSIONS} value={session?.name || ALL_SESSIONS}>
+                        {session?.name || ALL_SESSIONS}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-500 mb-1.5">Class</label>
+                  <select
+                    value={selectedClass}
+                    onChange={(e) => setSelectedClass(e.target.value)}
+                    className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 bg-gray-50 hover:bg-white transition-colors"
+                  >
+                    {availableClassOptions.map((className) => (
+                      <option key={className} value={className}>{className}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-500 mb-1.5">Section</label>
+                  <select
+                    value={selectedSection}
+                    onChange={(e) => setSelectedSection(e.target.value)}
+                    className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 bg-gray-50 hover:bg-white transition-colors"
+                  >
+                    {availableSectionOptions.map((section) => (
+                      <option key={section} value={section}>
+                        {section === ALL_SECTIONS ? section : `Section ${section}`}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="flex items-end">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedSession(ALL_SESSIONS);
+                      setSelectedClass(ALL_CLASSES);
+                      setSelectedSection(ALL_SECTIONS);
+                    }}
+                    className="w-full px-3 py-2.5 text-sm font-medium border border-gray-200 rounded-xl bg-gray-50 hover:bg-gray-100 text-gray-700 transition-colors"
+                  >
+                    Clear Filters
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* Key Metrics */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
               {keyMetrics.map((metric, idx) => {
                 const Icon = metric.icon;
                 const colors = getColorClasses(metric.color);
                 const TrendIcon = metric.trend === 'up' ? TrendingUp : TrendingDown;
 
                 return (
-                  <div key={idx} className="bg-white rounded-xl p-6 shadow-sm border border-gray-200 hover:shadow-md transition-shadow">
-                    <div className="flex items-start justify-between mb-4">
-                      <div className={`p-3 rounded-lg ${colors.bg}`}>
-                        <Icon className={`w-6 h-6 ${colors.icon}`} />
-                      </div>
-                      {metric.change && (
-                        <div className={`flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium ${
-                          metric.trend === 'up' ? 'bg-green-50 text-green-600' : 'bg-red-50 text-red-600'
-                        }`}>
-                          <TrendIcon className="w-3 h-3" />
-                          {metric.change}
+                  <div key={idx} className="bg-white rounded-2xl border border-gray-100 shadow-sm hover:shadow-md transition-all overflow-hidden group">
+                    <div className={`h-1 bg-gradient-to-r ${colors.gradient}`}></div>
+                    <div className="p-5">
+                      <div className="flex items-start justify-between mb-4">
+                        <div className={`p-3 rounded-xl ${colors.bg} group-hover:scale-105 transition-transform`}>
+                          <Icon className={`w-5 h-5 ${colors.icon}`} />
                         </div>
-                      )}
+                        {metric.change && (
+                          <div className={`flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium max-w-[130px] ${
+                            metric.trend === 'up' ? 'bg-green-50 text-green-600' : 'bg-red-50 text-red-600'
+                          }`}>
+                            <TrendIcon className="w-3 h-3 flex-shrink-0" />
+                            <span className="truncate">{metric.change}</span>
+                          </div>
+                        )}
+                      </div>
+                      <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1">{metric.title}</p>
+                      <p className="text-3xl font-bold text-gray-900 mb-1">{metric.value}</p>
+                      <p className="text-xs text-gray-400">{metric.description}</p>
                     </div>
-                    <h3 className="text-sm font-medium text-gray-600 mb-1">{metric.title}</h3>
-                    <p className="text-3xl font-bold text-gray-900 mb-1">{metric.value}</p>
-                    <p className="text-xs text-gray-500">{metric.description}</p>
                   </div>
                 );
               })}
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-
-              <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-200">
-                <div className="mb-6">
-                  <h2 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
-                    <Activity className="w-5 h-5 text-gray-700" />
-                    Subject Performance
-                  </h2>
-                  <p className="text-sm text-gray-600 mt-1">Average scores by subject</p>
+            {/* Charts Row 1 */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
+                <div className="flex items-start gap-3 mb-5">
+                  <div className="p-2 bg-indigo-50 rounded-xl mt-0.5">
+                    <Activity className="w-4 h-4 text-indigo-600" />
+                  </div>
+                  <div>
+                    <h2 className="text-base font-semibold text-gray-900">Subject Performance</h2>
+                    <p className="text-xs text-gray-400 mt-0.5">Average scores by subject</p>
+                  </div>
                 </div>
                 {analyticsLoading && !subjectPerformance.length ? (
-                  <div className="text-center text-gray-500 py-10 text-sm">Loading performance data...</div>
+                  <div className="flex items-center justify-center py-14 text-gray-400 text-sm">Loading performance data...</div>
                 ) : subjectPerformance.length ? (
-                  <ResponsiveContainer width="100%" height={300}>
+                  <ResponsiveContainer width="100%" height={280}>
                     <AreaChart data={subjectPerformance}>
                       <defs>
                         <linearGradient id="scoreGradient" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="5%" stopColor="#6366f1" stopOpacity={0.3}/>
+                          <stop offset="5%" stopColor="#6366f1" stopOpacity={0.2}/>
                           <stop offset="95%" stopColor="#6366f1" stopOpacity={0}/>
                         </linearGradient>
                       </defs>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                      <XAxis dataKey="subject" stroke="#9ca3af" style={{ fontSize: '12px' }} />
-                      <YAxis stroke="#9ca3af" style={{ fontSize: '12px' }} domain={[0, 100]} />
+                      <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" />
+                      <XAxis dataKey="subject" stroke="#e5e7eb" tick={{ fill: '#9ca3af', fontSize: 11 }} />
+                      <YAxis stroke="#e5e7eb" tick={{ fill: '#9ca3af', fontSize: 11 }} domain={[0, 100]} />
                       <Tooltip
                         contentStyle={{
                           backgroundColor: 'white',
                           border: '1px solid #e5e7eb',
-                          borderRadius: '8px',
-                          fontSize: '12px'
+                          borderRadius: '12px',
+                          fontSize: '12px',
+                          boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.07)'
                         }}
                       />
-                      <Area type="monotone" dataKey="averageScore" stroke="#6366f1" fillOpacity={1} fill="url(#scoreGradient)" name="Average Score" />
+                      <Area type="monotone" dataKey="averageScore" stroke="#6366f1" strokeWidth={2} fillOpacity={1} fill="url(#scoreGradient)" name="Average Score" />
                     </AreaChart>
                   </ResponsiveContainer>
                 ) : (
-                  <div className="text-center text-gray-500 py-10 text-sm">No subject analytics available yet.</div>
+                  <div className="flex flex-col items-center justify-center py-14 text-gray-300">
+                    <GraduationCap className="w-12 h-12 mb-3" />
+                    <p className="text-sm text-gray-400">No subject analytics available yet.</p>
+                  </div>
                 )}
               </div>
 
-              <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-200">
-                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
-                  <div>
-                    <h2 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
-                      <DollarSign className="w-5 h-5 text-gray-700" />
-                      Fees Collection
-                    </h2>
-                    <p className="text-sm text-gray-600 mt-1">Paid vs pending over the last 6 months</p>
+              <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
+                <div className="flex items-start justify-between mb-5">
+                  <div className="flex items-start gap-3">
+                    <div className="p-2 bg-emerald-50 rounded-xl mt-0.5">
+                      <DollarSign className="w-4 h-4 text-emerald-600" />
+                    </div>
+                    <div>
+                      <h2 className="text-base font-semibold text-gray-900">Fees Collection</h2>
+                      <p className="text-xs text-gray-400 mt-0.5">Paid vs pending — last 6 months</p>
+                    </div>
                   </div>
-                  <span className="text-xs text-gray-500">
-                    Filter: {selectedSession} | {selectedClass} | {selectedSection}
+                  <span className="text-xs text-gray-400 bg-gray-50 px-2.5 py-1 rounded-lg border border-gray-100 flex-shrink-0">
+                    {selectedSession === ALL_SESSIONS ? 'All Sessions' : selectedSession}
                   </span>
                 </div>
                 {feesLoading && !feesChartData.length ? (
-                  <div className="text-center text-gray-500 py-10 text-sm">Loading fee analytics...</div>
+                  <div className="flex items-center justify-center py-14 text-gray-400 text-sm">Loading fee analytics...</div>
                 ) : feesChartData.length ? (
-                  <ResponsiveContainer width="100%" height={300}>
-                    <BarChart data={feesChartData}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                      <XAxis dataKey="month" stroke="#9ca3af" style={{ fontSize: '12px' }} />
-                      <YAxis stroke="#9ca3af" style={{ fontSize: '12px' }} />
+                  <ResponsiveContainer width="100%" height={280}>
+                    <BarChart data={feesChartData} barGap={4}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" />
+                      <XAxis dataKey="month" stroke="#e5e7eb" tick={{ fill: '#9ca3af', fontSize: 11 }} />
+                      <YAxis stroke="#e5e7eb" tick={{ fill: '#9ca3af', fontSize: 11 }} />
                       <Tooltip
                         contentStyle={{
                           backgroundColor: 'white',
                           border: '1px solid #e5e7eb',
-                          borderRadius: '8px',
-                          fontSize: '12px'
+                          borderRadius: '12px',
+                          fontSize: '12px',
+                          boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.07)'
                         }}
                       />
-                      <Legend wrapperStyle={{ fontSize: '12px' }} />
-                      <Bar dataKey="paid" fill="#10b981" radius={[4, 4, 0, 0]} name="Collected" />
-                      <Bar dataKey="pending" fill="#f59e0b" radius={[4, 4, 0, 0]} name="Pending" />
+                      <Legend wrapperStyle={{ fontSize: '12px', paddingTop: '8px' }} />
+                      <Bar dataKey="paid" fill="#10b981" radius={[4, 4, 0, 0]} name="Collected" maxBarSize={36} />
+                      <Bar dataKey="pending" fill="#f59e0b" radius={[4, 4, 0, 0]} name="Pending" maxBarSize={36} />
                     </BarChart>
                   </ResponsiveContainer>
                 ) : (
-                  <div className="text-center text-gray-500 py-10 text-sm">No fee data for this filter.</div>
+                  <div className="flex flex-col items-center justify-center py-14 text-gray-300">
+                    <DollarSign className="w-12 h-12 mb-3" />
+                    <p className="text-sm text-gray-400">No fee data for this filter.</p>
+                  </div>
                 )}
               </div>
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-
-              <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-200">
-                <div className="flex justify-between items-start mb-6">
+            {/* Charts Row 2 */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+              <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
+                <div className="flex items-start justify-between mb-5">
                   <div>
-                    <h2 className="text-lg font-semibold text-gray-900">Attendance Breakdown</h2>
-                    <p className="text-sm text-gray-600">Based on reported sessions</p>
+                    <h2 className="text-base font-semibold text-gray-900">Attendance</h2>
+                    <p className="text-xs text-gray-400 mt-0.5">Based on reported sessions</p>
                   </div>
-                  <div className="bg-green-50 px-3 py-1 rounded-lg">
-                    <p className="text-sm font-semibold text-green-600">{attendanceRate || 0}% Present</p>
+                  <div className="bg-emerald-50 px-3 py-1.5 rounded-xl border border-emerald-100 text-center">
+                    <p className="text-base font-bold text-emerald-600 leading-none">{attendanceRate || 0}%</p>
+                    <p className="text-xs text-emerald-400 mt-0.5">Present</p>
                   </div>
                 </div>
                 {reportsLoading && !attendanceData.length ? (
-                  <div className="text-center text-gray-500 py-10 text-sm">Loading attendance breakdown...</div>
+                  <div className="flex items-center justify-center py-10 text-gray-400 text-sm">Loading...</div>
                 ) : attendanceData.length ? (
-                  <div className="flex flex-col sm:flex-row gap-6 items-center">
-                    <ResponsiveContainer width="50%" height={200}>
+                  <div className="flex flex-col sm:flex-row gap-4 items-center">
+                    <ResponsiveContainer width="50%" height={170}>
                       <PieChart>
                         <Pie
                           data={attendanceData}
                           cx="50%"
                           cy="50%"
-                          innerRadius={60}
-                          outerRadius={80}
+                          innerRadius={50}
+                          outerRadius={68}
                           dataKey="value"
-                          paddingAngle={2}
+                          paddingAngle={3}
                         >
                           {attendanceData.map((entry, index) => (
                             <Cell key={`cell-${index}`} fill={entry.color} />
@@ -863,65 +1091,72 @@ const Analytics = ({ setShowAdminHeader }) => {
                         </Pie>
                       </PieChart>
                     </ResponsiveContainer>
-                    <div className="flex-1 space-y-3">
+                    <div className="flex-1 space-y-2">
                       {attendanceData.map((item, idx) => (
-                        <div key={idx} className="flex justify-between items-center">
+                        <div key={idx} className="flex justify-between items-center p-2.5 rounded-xl bg-gray-50">
                           <div className="flex items-center gap-2">
-                            <div className="w-2 h-2 rounded-full" style={{ backgroundColor: item.color }}></div>
-                            <span className="text-sm text-gray-600">{item.name}</span>
+                            <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: item.color }}></div>
+                            <span className="text-xs font-medium text-gray-600">{item.name}</span>
                           </div>
-                          <span className="text-sm font-semibold text-gray-900">{item.value}</span>
+                          <span className="text-xs font-bold text-gray-900">{formatNumber(item.value)}</span>
                         </div>
                       ))}
                     </div>
                   </div>
                 ) : (
-                  <div className="text-center text-gray-500 py-10 text-sm">No attendance data recorded.</div>
+                  <div className="flex flex-col items-center justify-center py-10 text-gray-300">
+                    <CheckCircle className="w-10 h-10 mb-2" />
+                    <p className="text-sm text-gray-400">No attendance data recorded.</p>
+                  </div>
                 )}
               </div>
 
-              <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-200">
-                <h2 className="text-lg font-semibold text-gray-900 mb-1">Subject Progress</h2>
-                <p className="text-sm text-gray-600 mb-4">Average mastery across subjects</p>
+              <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
+                <h2 className="text-base font-semibold text-gray-900 mb-0.5">Subject Progress</h2>
+                <p className="text-xs text-gray-400 mb-5">Average mastery across subjects</p>
                 <div className="space-y-4">
                   {subjectPerformance.slice(0, 6).map((course, idx) => (
                     <div key={idx}>
-                      <div className="flex justify-between items-center mb-1">
-                        <span className="text-sm font-medium text-gray-700">{course.subject}</span>
-                        <span className="text-sm font-semibold text-gray-900">{course.averageScore}%</span>
+                      <div className="flex justify-between items-center mb-1.5">
+                        <span className="text-xs font-medium text-gray-700 truncate mr-2">{course.subject}</span>
+                        <span className="text-xs font-bold text-gray-900 flex-shrink-0">{course.averageScore}%</span>
                       </div>
-                      <div className="w-full bg-gray-200 rounded-full h-2">
+                      <div className="w-full bg-gray-100 rounded-full h-2">
                         <div
-                          className="bg-gradient-to-r from-blue-500 to-purple-500 h-2 rounded-full transition-all duration-300"
+                          className="bg-gradient-to-r from-blue-500 to-indigo-500 h-2 rounded-full transition-all duration-500"
                           style={{ width: `${course.averageScore}%` }}
                         ></div>
                       </div>
                     </div>
                   ))}
                   {!subjectPerformance.length && (
-                    <p className="text-sm text-gray-500 text-center py-6">No subject performance data available.</p>
+                    <div className="flex flex-col items-center justify-center py-8 text-gray-300">
+                      <GraduationCap className="w-10 h-10 mb-2" />
+                      <p className="text-sm text-gray-400">No subject performance data available.</p>
+                    </div>
                   )}
                 </div>
               </div>
 
-              <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-200">
-                <h2 className="text-lg font-semibold text-gray-900 mb-1">Grade Distribution</h2>
-                <p className="text-sm text-gray-600 mb-6">Latest performance snapshot</p>
+              <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
+                <h2 className="text-base font-semibold text-gray-900 mb-0.5">Grade Distribution</h2>
+                <p className="text-xs text-gray-400 mb-5">Latest performance snapshot</p>
                 {gradeDistributionData.length ? (
-                  <ResponsiveContainer width="100%" height={200}>
+                  <ResponsiveContainer width="100%" height={210}>
                     <BarChart data={gradeDistributionData} layout="vertical">
-                      <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                      <XAxis type="number" stroke="#9ca3af" style={{ fontSize: '12px' }} />
-                      <YAxis type="category" dataKey="grade" stroke="#9ca3af" style={{ fontSize: '12px' }} />
+                      <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" />
+                      <XAxis type="number" stroke="#e5e7eb" tick={{ fill: '#9ca3af', fontSize: 11 }} />
+                      <YAxis type="category" dataKey="grade" stroke="#e5e7eb" tick={{ fill: '#9ca3af', fontSize: 11 }} />
                       <Tooltip
                         contentStyle={{
                           backgroundColor: 'white',
                           border: '1px solid #e5e7eb',
-                          borderRadius: '8px',
-                          fontSize: '12px'
+                          borderRadius: '12px',
+                          fontSize: '12px',
+                          boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.07)'
                         }}
                       />
-                      <Bar dataKey="students" radius={[0, 4, 4, 0]}>
+                      <Bar dataKey="students" radius={[0, 4, 4, 0]} maxBarSize={18}>
                         {gradeDistributionData.map((entry, index) => (
                           <Cell key={`cell-${index}`} fill={entry.color} />
                         ))}
@@ -929,69 +1164,79 @@ const Analytics = ({ setShowAdminHeader }) => {
                     </BarChart>
                   </ResponsiveContainer>
                 ) : (
-                  <div className="text-center text-gray-500 py-6 text-sm">No grade distribution data yet.</div>
+                  <div className="flex flex-col items-center justify-center py-10 text-gray-300">
+                    <FileText className="w-10 h-10 mb-2" />
+                    <p className="text-sm text-gray-400">No grade distribution data yet.</p>
+                  </div>
                 )}
               </div>
-
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-
-              <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-200">
-                <h2 className="text-lg font-semibold text-gray-900 mb-1 flex items-center gap-2">
-                  <FileText className="w-5 h-5 text-gray-700" />
-                  Improvement Trends
-                </h2>
-                <p className="text-sm text-gray-600 mb-6">Student momentum over the last term</p>
-                <div className="grid grid-cols-2 gap-4">
+            {/* Bottom Row */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
+                <div className="flex items-start gap-3 mb-5">
+                  <div className="p-2 bg-purple-50 rounded-xl mt-0.5">
+                    <FileText className="w-4 h-4 text-purple-600" />
+                  </div>
+                  <div>
+                    <h2 className="text-base font-semibold text-gray-900">Improvement Trends</h2>
+                    <p className="text-xs text-gray-400 mt-0.5">Student momentum over the last term</p>
+                  </div>
+                </div>
+                <div className="grid grid-cols-3 gap-3">
                   {improvementStats.length ? (
                     improvementStats.map((stat, idx) => (
-                      <div key={idx} className="p-4 rounded-lg border-2" style={{ borderColor: stat.color, backgroundColor: stat.color + '10' }}>
-                        <div className="flex items-center justify-between mb-2">
-                          <span className="text-xs font-medium text-gray-600">{stat.label}</span>
-                          <div className="w-2 h-2 rounded-full" style={{ backgroundColor: stat.color }}></div>
-                        </div>
-                        <p className="text-2xl font-bold" style={{ color: stat.color }}>{stat.value}%</p>
-                        <p className="text-xs text-gray-500 mt-1">{stat.count} students</p>
+                      <div key={idx} className="p-4 rounded-xl text-center" style={{ backgroundColor: stat.color + '10', border: `1px solid ${stat.color}25` }}>
+                        <div className="w-3 h-3 rounded-full mx-auto mb-2.5" style={{ backgroundColor: stat.color }}></div>
+                        <p className="text-2xl font-bold mb-0.5" style={{ color: stat.color }}>{stat.value}%</p>
+                        <p className="text-xs font-semibold text-gray-700 mb-0.5">{stat.label}</p>
+                        <p className="text-xs text-gray-400">{formatNumber(stat.count)} students</p>
                       </div>
                     ))
                   ) : (
-                    <p className="text-sm text-gray-500 col-span-2 text-center py-4">No improvement data yet.</p>
+                    <p className="text-sm text-gray-400 col-span-3 text-center py-8">No improvement data yet.</p>
                   )}
                 </div>
               </div>
 
-              <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-200">
-                <h2 className="text-lg font-semibold text-gray-900 mb-1 flex items-center gap-2">
-                  <Clock className="w-5 h-5 text-gray-700" />
-                  Recent Activity
-                </h2>
-                <p className="text-sm text-gray-600 mb-4">Latest admin actions</p>
+              <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
+                <div className="flex items-start gap-3 mb-5">
+                  <div className="p-2 bg-orange-50 rounded-xl mt-0.5">
+                    <Clock className="w-4 h-4 text-orange-500" />
+                  </div>
+                  <div>
+                    <h2 className="text-base font-semibold text-gray-900">Recent Activity</h2>
+                    <p className="text-xs text-gray-400 mt-0.5">Latest admin actions</p>
+                  </div>
+                </div>
                 {activityLoading && !recentActivity.length ? (
-                  <div className="text-center text-gray-500 py-6 text-sm">Loading activity...</div>
+                  <div className="flex items-center justify-center py-8 text-gray-400 text-sm">Loading activity...</div>
                 ) : recentActivity.length ? (
-                  <div className="space-y-3">
+                  <div className="space-y-1.5">
                     {recentActivity.map((activity) => {
                       const colors = getColorClasses(activity.color);
                       return (
-                        <div key={activity.id} className="flex items-start gap-3 p-3 rounded-lg bg-gray-50 hover:bg-gray-100 transition-colors">
-                          <div className={`w-10 h-10 rounded-full ${colors.bg} flex items-center justify-center flex-shrink-0`}>
-                            <Activity className={`w-5 h-5 ${colors.icon}`} />
+                        <div key={activity.id} className="flex items-center gap-3 p-3 rounded-xl hover:bg-gray-50 transition-colors group">
+                          <div className={`w-9 h-9 rounded-xl ${colors.bg} flex items-center justify-center flex-shrink-0`}>
+                            <Activity className={`w-4 h-4 ${colors.icon}`} />
                           </div>
                           <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium text-gray-900">{activity.teacher}</p>
-                            <p className="text-xs text-gray-600">{activity.action}{activity.subject ? `: ${activity.subject}` : ''}</p>
-                            <p className="text-xs text-gray-500 mt-1">{activity.time}</p>
+                            <p className="text-sm font-semibold text-gray-900 truncate">{activity.teacher}</p>
+                            <p className="text-xs text-gray-500 truncate">{activity.action}{activity.subject ? `: ${activity.subject}` : ''}</p>
                           </div>
+                          <span className="text-xs text-gray-400 flex-shrink-0 bg-gray-50 group-hover:bg-white px-2 py-1 rounded-lg border border-gray-100">{activity.time}</span>
                         </div>
                       );
                     })}
                   </div>
                 ) : (
-                  <div className="text-center text-gray-500 py-6 text-sm">No recent activity logged.</div>
+                  <div className="flex flex-col items-center justify-center py-8 text-gray-300">
+                    <Clock className="w-10 h-10 mb-2" />
+                    <p className="text-sm text-gray-400">No recent activity logged.</p>
+                  </div>
                 )}
               </div>
-
             </div>
           </>
         )}
