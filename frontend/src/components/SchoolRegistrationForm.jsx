@@ -38,7 +38,7 @@ const STEPS = [
 
 const schoolTypes        = ['Public', 'Private', 'Charter', 'International'];
 const boards             = ['CBSE', 'ICSE', 'IB', 'IGCSE', 'State Board', 'NIOS', 'Other'];
-const academicStructures = ['Semester', 'Trimester', 'Quarter'];
+const academicStructures = ['Year', 'Semester', 'Trimester', 'Quarter',];
 const userRanges         = ['Less than 100', '100 – 500', '500 – 1,000', 'More than 1,000'];
 const campusTypes        = ['Main', 'Branch'];
 
@@ -377,7 +377,7 @@ const SchoolRegistrationForm = () => {
                   name="name"
                   value={formData.name}
                   onChange={handleInputChange}
-                  placeholder="e.g. Greenfield International School"
+                  placeholder="e.g. Harrow Hall School"
                 />
               </InputWithIcon>
               <FieldError msg={errors.name} />
