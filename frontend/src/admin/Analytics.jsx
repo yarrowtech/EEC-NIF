@@ -30,18 +30,19 @@ import {
 } from 'lucide-react';
 
 const API_BASE = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '');
-const classOptions = ['All Classes', 'Class 6', 'Class 7', 'Class 8', 'Class 9', 'Class 10', 'Class 11', 'Class 12'];
-const sectionOptions = ['All Sections', 'A', 'B', 'C', 'D'];
+const ALL_SESSIONS = 'All Sessions';
+const ALL_CLASSES = 'All Classes';
+const ALL_SECTIONS = 'All Sections';
 
 const buildApiUrl = (path) => `${API_BASE}${path}`;
 
 const normalizeClassValue = (value) => {
-  if (!value || value === 'All Classes') return '';
+  if (!value || value === ALL_CLASSES) return '';
   const match = value.match(/(\d+)/);
   return match ? match[1] : '';
 };
 
-const normalizeSectionValue = (value) => (value === 'All Sections' ? '' : value);
+const normalizeSectionValue = (value) => (value === ALL_SECTIONS ? '' : value);
 
 const formatCurrency = (value) =>
   new Intl.NumberFormat('en-IN', {
@@ -102,8 +103,12 @@ const formatRelativeTime = (dateString) => {
 };
 
 const Analytics = ({ setShowAdminHeader }) => {
-  const [selectedClass, setSelectedClass] = useState(classOptions[0]);
-  const [selectedSection, setSelectedSection] = useState(sectionOptions[0]);
+  const [selectedSession, setSelectedSession] = useState(ALL_SESSIONS);
+  const [selectedClass, setSelectedClass] = useState(ALL_CLASSES);
+  const [selectedSection, setSelectedSection] = useState(ALL_SECTIONS);
+  const [sessionOptions, setSessionOptions] = useState([{ _id: '', name: ALL_SESSIONS }]);
+  const [classCatalog, setClassCatalog] = useState([]);
+  const [sectionCatalog, setSectionCatalog] = useState([]);
   const [progressAnalytics, setProgressAnalytics] = useState(null);
   const [analyticsLoading, setAnalyticsLoading] = useState(false);
   const [analyticsError, setAnalyticsError] = useState('');
@@ -128,6 +133,75 @@ const Analytics = ({ setShowAdminHeader }) => {
 
   useEffect(() => {
     const controller = new AbortController();
+    const loadFilterOptions = async () => {
+      try {
+        const [yearsRes, classesRes, sectionsRes] = await Promise.all([
+          fetch(buildApiUrl('/api/academic/years'), {
+            headers: getAuthHeaders(),
+            signal: controller.signal,
+          }),
+          fetch(buildApiUrl('/api/academic/classes'), {
+            headers: getAuthHeaders(),
+            signal: controller.signal,
+          }),
+          fetch(buildApiUrl('/api/academic/sections'), {
+            headers: getAuthHeaders(),
+            signal: controller.signal,
+          }),
+        ]);
+
+        const [years, classes, sections] = await Promise.all([
+          yearsRes.json().catch(() => []),
+          classesRes.json().catch(() => []),
+          sectionsRes.json().catch(() => []),
+        ]);
+
+        if (!controller.signal.aborted) {
+          const normalizedYears = Array.isArray(years) ? years : [];
+          const normalizedClasses = Array.isArray(classes) ? classes : [];
+          const normalizedSections = Array.isArray(sections) ? sections : [];
+          setSessionOptions([{ _id: '', name: ALL_SESSIONS }, ...normalizedYears]);
+          setClassCatalog(normalizedClasses);
+          setSectionCatalog(normalizedSections);
+        }
+      } catch {
+        if (!controller.signal.aborted) {
+          setSessionOptions([{ _id: '', name: ALL_SESSIONS }]);
+          setClassCatalog([]);
+          setSectionCatalog([]);
+        }
+      }
+    };
+    loadFilterOptions();
+    return () => controller.abort();
+  }, []);
+
+  const availableClassOptions = useMemo(
+    () => [ALL_CLASSES, ...classCatalog.map((item) => item?.name).filter(Boolean)],
+    [classCatalog]
+  );
+
+  const availableSectionOptions = useMemo(() => {
+    if (!sectionCatalog.length) return [ALL_SECTIONS];
+    if (selectedClass === ALL_CLASSES) {
+      return [ALL_SECTIONS, ...sectionCatalog.map((item) => item?.name).filter(Boolean)];
+    }
+    const selectedClassDoc = classCatalog.find((item) => item?.name === selectedClass);
+    const allowedSections = sectionCatalog
+      .filter((item) => String(item?.classId) === String(selectedClassDoc?._id || ''))
+      .map((item) => item?.name)
+      .filter(Boolean);
+    return [ALL_SECTIONS, ...allowedSections];
+  }, [sectionCatalog, classCatalog, selectedClass]);
+
+  useEffect(() => {
+    if (selectedSection !== ALL_SECTIONS && !availableSectionOptions.includes(selectedSection)) {
+      setSelectedSection(ALL_SECTIONS);
+    }
+  }, [availableSectionOptions, selectedSection]);
+
+  useEffect(() => {
+    const controller = new AbortController();
     const loadAnalytics = async () => {
       setAnalyticsLoading(true);
       setAnalyticsError('');
@@ -135,8 +209,11 @@ const Analytics = ({ setShowAdminHeader }) => {
         const params = new URLSearchParams();
         const grade = normalizeClassValue(selectedClass);
         const section = normalizeSectionValue(selectedSection);
+        const sessionObj = sessionOptions.find((item) => item?.name === selectedSession);
+        const academicYearId = sessionObj?._id ? String(sessionObj._id) : '';
         if (grade) params.append('grade', grade);
         if (section) params.append('section', section);
+        if (academicYearId) params.append('academicYearId', academicYearId);
         const query = params.toString() ? `?${params.toString()}` : '';
         const res = await fetch(buildApiUrl(`/api/progress/analytics${query}`), {
           headers: getAuthHeaders(),
@@ -159,7 +236,7 @@ const Analytics = ({ setShowAdminHeader }) => {
     };
     loadAnalytics();
     return () => controller.abort();
-  }, [selectedClass, selectedSection]);
+  }, [selectedClass, selectedSection, selectedSession, sessionOptions]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -316,16 +393,20 @@ const Analytics = ({ setShowAdminHeader }) => {
   }, [progressAnalytics]);
 
   const filteredInvoices = useMemo(() => {
+    const sessionObj = sessionOptions.find((item) => item?.name === selectedSession);
+    const academicYearId = sessionObj?._id ? String(sessionObj._id) : '';
     const grade = normalizeClassValue(selectedClass);
     const section = normalizeSectionValue(selectedSection);
     return feeInvoices.filter((invoice) => {
+      const invoiceYearId = invoice?.academicYearId ? String(invoice.academicYearId) : '';
       const classValue = `${invoice.className || ''}`.match(/(\d+)/)?.[1] || '';
       const sectionValue = (invoice.section || '').toUpperCase();
+      const sessionMatches = !academicYearId || invoiceYearId === academicYearId;
       const gradeMatches = !grade || classValue === grade;
       const sectionMatches = !section || sectionValue === section.toUpperCase();
-      return gradeMatches && sectionMatches;
+      return sessionMatches && gradeMatches && sectionMatches;
     });
-  }, [feeInvoices, selectedClass, selectedSection]);
+  }, [feeInvoices, selectedClass, selectedSection, selectedSession, sessionOptions]);
 
   const feesChartData = useMemo(() => buildFeeChartData(filteredInvoices), [filteredInvoices]);
 
@@ -486,7 +567,12 @@ const Analytics = ({ setShowAdminHeader }) => {
     pdf.setFont(undefined, 'normal');
     pdf.text(`Generated: ${generatedAt}`, pageWidth / 2, yPos, { align: 'center' });
     yPos += 6;
-    pdf.text(`Filters: ${selectedClass} | ${selectedSection === 'All Sections' ? 'All Sections' : `Sec ${selectedSection}`}`, pageWidth / 2, yPos, { align: 'center' });
+    pdf.text(
+      `Filters: ${selectedSession} | ${selectedClass} | ${selectedSection === ALL_SECTIONS ? ALL_SECTIONS : `Sec ${selectedSection}`}`,
+      pageWidth / 2,
+      yPos,
+      { align: 'center' }
+    );
     yPos += 8;
 
     addTitle('Key Metrics');
@@ -597,6 +683,44 @@ const Analytics = ({ setShowAdminHeader }) => {
               </button>
             </div>
 
+            <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-200">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                <select
+                  value={selectedSession}
+                  onChange={(e) => setSelectedSession(e.target.value)}
+                  className="px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  {sessionOptions.map((session) => (
+                    <option key={session?._id || ALL_SESSIONS} value={session?.name || ALL_SESSIONS}>
+                      {session?.name || ALL_SESSIONS}
+                    </option>
+                  ))}
+                </select>
+                <select
+                  value={selectedClass}
+                  onChange={(e) => setSelectedClass(e.target.value)}
+                  className="px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  {availableClassOptions.map((className) => (
+                    <option key={className} value={className}>
+                      {className}
+                    </option>
+                  ))}
+                </select>
+                <select
+                  value={selectedSection}
+                  onChange={(e) => setSelectedSection(e.target.value)}
+                  className="px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  {availableSectionOptions.map((section) => (
+                    <option key={section} value={section}>
+                      {section === ALL_SECTIONS ? section : `Sec ${section}`}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
               {keyMetrics.map((metric, idx) => {
                 const Icon = metric.icon;
@@ -675,28 +799,9 @@ const Analytics = ({ setShowAdminHeader }) => {
                     </h2>
                     <p className="text-sm text-gray-600 mt-1">Paid vs pending over the last 6 months</p>
                   </div>
-                  <div className="flex gap-2">
-                    <select
-                      value={selectedClass}
-                      onChange={(e) => setSelectedClass(e.target.value)}
-                      className="px-3 py-1.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    >
-                      {classOptions.map((c) => (
-                        <option key={c} value={c}>{c}</option>
-                      ))}
-                    </select>
-                    <select
-                      value={selectedSection}
-                      onChange={(e) => setSelectedSection(e.target.value)}
-                      className="px-3 py-1.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    >
-                      {sectionOptions.map((section) => (
-                        <option key={section} value={section}>
-                          {section === 'All Sections' ? section : `Sec ${section}`}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
+                  <span className="text-xs text-gray-500">
+                    Filter: {selectedSession} | {selectedClass} | {selectedSection}
+                  </span>
                 </div>
                 {feesLoading && !feesChartData.length ? (
                   <div className="text-center text-gray-500 py-10 text-sm">Loading fee analytics...</div>
