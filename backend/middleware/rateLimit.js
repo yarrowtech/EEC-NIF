@@ -1,13 +1,32 @@
 const buckets = new Map();
+const { logSecurityEvent } = require('../utils/securityEventLogger');
 
-const getKey = (req) => {
-  const ip = req.ip || req.connection?.remoteAddress || 'unknown';
-  return `${ip}:${req.originalUrl}`;
+const getClientIp = (req, useForwardedFor = true) => {
+  const forwarded = req?.headers?.['x-forwarded-for'];
+  if (useForwardedFor && typeof forwarded === 'string' && forwarded.trim()) {
+    return forwarded.split(',')[0].trim();
+  }
+  return req.ip || req.connection?.remoteAddress || req.socket?.remoteAddress || 'unknown';
 };
 
-const rateLimit = ({ windowMs = 60 * 1000, max = 10 } = {}) => {
+const getKey = (req, { useForwardedFor = true, keyGenerator } = {}) => {
+  if (typeof keyGenerator === 'function') {
+    return String(keyGenerator(req));
+  }
+  const ip = getClientIp(req, useForwardedFor);
+  const routePath = `${req.baseUrl || ''}${req.path || req.originalUrl || ''}`;
+  return `${ip}:${routePath}`;
+};
+
+const rateLimit = ({
+  windowMs = 60 * 1000,
+  max = 10,
+  onLimit,
+  useForwardedFor = true,
+  keyGenerator,
+} = {}) => {
   return (req, res, next) => {
-    const key = getKey(req);
+    const key = getKey(req, { useForwardedFor, keyGenerator });
     const now = Date.now();
     const entry = buckets.get(key) || { count: 0, start: now };
 
@@ -20,6 +39,24 @@ const rateLimit = ({ windowMs = 60 * 1000, max = 10 } = {}) => {
     buckets.set(key, entry);
 
     if (entry.count > max) {
+      logSecurityEvent(req, {
+        action: 'security.rate_limit_triggered',
+        outcome: 'blocked',
+        severity: 'medium',
+        statusCode: 429,
+        limiterKey: key,
+        currentCount: entry.count,
+        maxRequests: max,
+        windowMs,
+      });
+
+      if (typeof onLimit === 'function') {
+        try {
+          onLimit({ req, res, key, windowMs, max, currentCount: entry.count });
+        } catch (_err) {
+          // Keep rate-limiter fail-safe.
+        }
+      }
       return res.status(429).json({ error: 'Too many requests, please try again later.' });
     }
 

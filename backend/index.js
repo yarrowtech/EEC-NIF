@@ -10,7 +10,12 @@ const dotenv = require('dotenv');
 const cors = require('cors');
 const { Server: SocketServer } = require('socket.io');
 const jwt = require('jsonwebtoken');
-const swaggerUi = require('swagger-ui-express');
+let swaggerUi = null;
+try {
+  swaggerUi = require('swagger-ui-express');
+} catch (_err) {
+  swaggerUi = null;
+}
 const requestLogger = require('./middleware/requestLogger');
 const adminActionLogger = require('./middleware/adminActionLogger');
 let swaggerDocument;
@@ -231,9 +236,9 @@ app.use(
     },
   })
 );
+app.use(requestLogger);
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
-app.use(requestLogger);
 
 try {
   swaggerDocument = require('./swagger-output.json');
@@ -249,25 +254,27 @@ try {
   };
 }
 
-app.use(
-  '/api/docs',
-  swaggerUi.serve,
-  swaggerUi.setup(swaggerDocument, {
-    swaggerOptions: {
-      docExpansion: 'list',
-      tagsSorter: 'alpha',
-      operationsSorter: 'alpha',
-      persistAuthorization: true,
-      tryItOutEnabled: true,
-      displayRequestDuration: true,
-    },
-    customSiteTitle: 'Electronic Educare API Docs',
-    customCss: '.swagger-ui .topbar { background-color: #0f172a; }',
-  })
-);
-app.get('/api/docs.json', (_req, res) => {
-  res.json(swaggerDocument);
-});
+if (swaggerUi) {
+  app.use(
+    '/api/docs',
+    swaggerUi.serve,
+    swaggerUi.setup(swaggerDocument, {
+      swaggerOptions: {
+        docExpansion: 'list',
+        tagsSorter: 'alpha',
+        operationsSorter: 'alpha',
+        persistAuthorization: true,
+        tryItOutEnabled: true,
+        displayRequestDuration: true,
+      },
+      customSiteTitle: 'Electronic Educare API Docs',
+      customCss: '.swagger-ui .topbar { background-color: #0f172a; }',
+    })
+  );
+  app.get('/api/docs.json', (_req, res) => {
+    res.json(swaggerDocument);
+  });
+}
 
 // Mongo connect
 mongoose
