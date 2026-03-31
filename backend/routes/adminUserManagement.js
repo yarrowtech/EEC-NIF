@@ -752,6 +752,33 @@ router.put('/teachers/:id', adminAuth, async (req, res) => {
   }
 });
 
+router.get('/teachers/:id/credentials', adminAuth, async (req, res) => {
+  // #swagger.tags = ['Admin Users']
+  try {
+    const filter = buildScopedIdFilter(req, req.params.id);
+    if (!filter) {
+      return res.status(400).json({ error: 'Invalid id' });
+    }
+    const teacher = await TeacherUser.findOne(filter)
+      .select('name username employeeCode initialPassword lastLoginAt')
+      .lean();
+    if (!teacher) {
+      return res.status(404).json({ error: 'Teacher not found' });
+    }
+
+    return res.json({
+      teacherId: teacher._id,
+      name: teacher.name || 'Teacher',
+      username: teacher.username,
+      employeeCode: teacher.employeeCode,
+      initialPassword: teacher.initialPassword || '',
+      lastLoginAt: teacher.lastLoginAt || null,
+    });
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
 router.post('/teachers/:id/credentials', adminAuth, async (req, res) => {
   // #swagger.tags = ['Admin Users']
   try {
@@ -765,10 +792,12 @@ router.post('/teachers/:id/credentials', adminAuth, async (req, res) => {
     }
     const password = generatePassword();
     teacher.password = password;
+    teacher.initialPassword = password;
     teacher.lastLoginAt = null;
     await teacher.save();
     res.json({
       teacherId: teacher._id,
+      name: teacher.name || 'Teacher',
       username: teacher.username,
       employeeCode: teacher.employeeCode,
       password
@@ -1074,7 +1103,13 @@ router.get('/teacher-leaves', adminAuth, async (req, res) => {
     const filter = buildScopedFilter(req);
     const query = {};
     if (filter.schoolId) query.schoolId = filter.schoolId;
-    if (filter.campusId) query.campusId = filter.campusId;
+    if (req.campusId) {
+      query.$or = [
+        { campusId: req.campusId },
+        { campusId: { $exists: false } },
+        { campusId: null },
+      ];
+    }
     if (req.query?.status) query.status = String(req.query.status).trim();
     if (req.query?.teacherId && mongoose.isValidObjectId(req.query.teacherId)) {
       query.teacherId = req.query.teacherId;
@@ -1117,7 +1152,13 @@ router.patch('/teacher-leaves/:id/status', adminAuth, async (req, res) => {
     const scope = buildScopedFilter(req);
     const query = { _id: req.params.id };
     if (scope.schoolId) query.schoolId = scope.schoolId;
-    if (scope.campusId) query.campusId = scope.campusId;
+    if (req.campusId) {
+      query.$or = [
+        { campusId: req.campusId },
+        { campusId: { $exists: false } },
+        { campusId: null },
+      ];
+    }
 
     const updated = await TeacherLeave.findOneAndUpdate(
       query,
@@ -1205,7 +1246,13 @@ router.patch('/teacher-expenses/:id/status', adminAuth, async (req, res) => {
     const scope = buildScopedFilter(req);
     const query = { _id: req.params.id };
     if (scope.schoolId) query.schoolId = scope.schoolId;
-    if (scope.campusId) query.campusId = scope.campusId;
+    if (req.campusId) {
+      query.$or = [
+        { campusId: req.campusId },
+        { campusId: { $exists: false } },
+        { campusId: null },
+      ];
+    }
 
     const updated = await TeacherExpense.findOneAndUpdate(
       query,
@@ -1266,6 +1313,63 @@ router.get('/teacher-attendance-settings', adminAuth, async (req, res) => {
   }
 });
 
+router.get('/teacher-leave-policy', adminAuth, async (req, res) => {
+  // #swagger.tags = ['Admin Users']
+  try {
+    const schoolId = req.schoolId || req.query?.schoolId || null;
+    if (!schoolId || !mongoose.isValidObjectId(schoolId)) {
+      return res.status(400).json({ error: 'Valid schoolId is required' });
+    }
+
+    const school = await School.findById(schoolId).select('teacherLeaveSettings').lean();
+    if (!school) return res.status(404).json({ error: 'School not found' });
+
+    const casualLeaveDays = Number.isFinite(Number(school?.teacherLeaveSettings?.casualLeaveDays))
+      ? Number(school.teacherLeaveSettings.casualLeaveDays)
+      : 12;
+
+    res.json({
+      policy: {
+        casualLeaveDays: Math.max(0, Math.min(365, Math.round(casualLeaveDays))),
+      },
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message || 'Unable to load teacher leave policy' });
+  }
+});
+
+router.put('/teacher-leave-policy', adminAuth, async (req, res) => {
+  // #swagger.tags = ['Admin Users']
+  try {
+    const schoolId = req.schoolId || req.body?.schoolId || null;
+    if (!schoolId || !mongoose.isValidObjectId(schoolId)) {
+      return res.status(400).json({ error: 'Valid schoolId is required' });
+    }
+
+    const casualLeaveDaysRaw = req.body?.casualLeaveDays;
+    const casualLeaveDays = Math.max(0, Math.min(365, Math.round(Number(casualLeaveDaysRaw) || 0)));
+
+    const updated = await School.findByIdAndUpdate(
+      schoolId,
+      { $set: { teacherLeaveSettings: { casualLeaveDays } } },
+      { new: true, runValidators: true }
+    ).select('teacherLeaveSettings').lean();
+
+    if (!updated) return res.status(404).json({ error: 'School not found' });
+
+    res.json({
+      message: 'Teacher leave policy updated',
+      policy: {
+        casualLeaveDays: Number.isFinite(Number(updated?.teacherLeaveSettings?.casualLeaveDays))
+          ? Number(updated.teacherLeaveSettings.casualLeaveDays)
+          : casualLeaveDays,
+      },
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message || 'Unable to update teacher leave policy' });
+  }
+});
+
 router.put('/teacher-attendance-settings', adminAuth, async (req, res) => {
   // #swagger.tags = ['Admin Users']
   try {
@@ -1317,7 +1421,13 @@ router.get('/teacher-attendance', adminAuth, async (req, res) => {
     const scope = buildScopedFilter(req);
     const query = {};
     if (scope.schoolId) query.schoolId = scope.schoolId;
-    if (scope.campusId) query.campusId = scope.campusId;
+    if (req.campusId) {
+      query.$or = [
+        { campusId: req.campusId },
+        { campusId: { $exists: false } },
+        { campusId: null },
+      ];
+    }
     if (req.query?.teacherId && mongoose.isValidObjectId(req.query.teacherId)) {
       query.teacherId = req.query.teacherId;
     }

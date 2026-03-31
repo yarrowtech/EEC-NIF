@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState, useRef } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { jsPDF } from 'jspdf';
 import { FileText, Users, Building2, CalendarCheck, Plus, X, CreditCard, Search, Filter, ChevronDown, ChevronUp, Clock, CheckCircle, XCircle, AlertCircle, RefreshCw, IndianRupee } from 'lucide-react';
 import IDCard from '../components/IDCard';
@@ -6,6 +7,7 @@ import IDCard from '../components/IDCard';
 const API_BASE = (import.meta.env.VITE_API_URL || 'http://localhost:5000').replace(/\/$/, '');
 
 const HR = ({ setShowAdminHeader }) => {
+  const [searchParams] = useSearchParams();
   useEffect(() => { setShowAdminHeader(true); }, []);
 
   const [tab, setTab] = useState('attendance'); // payroll | vendors | attendance | employees | leaves | expenses | recruitment | policies | add-new
@@ -94,6 +96,8 @@ const HR = ({ setShowAdminHeader }) => {
   const [teacherAttendanceRecords, setTeacherAttendanceRecords] = useState([]);
   const [attendanceSettings, setAttendanceSettings] = useState({ entryTime: '09:00', exitTime: '17:00', graceMinutes: 0 });
   const [attendanceSettingsSaving, setAttendanceSettingsSaving] = useState(false);
+  const [leavePolicy, setLeavePolicy] = useState({ casualLeaveDays: 12 });
+  const [leavePolicySaving, setLeavePolicySaving] = useState(false);
   const [attendanceTeacherFilter, setAttendanceTeacherFilter] = useState('all');
   const [attendanceStatusFilter, setAttendanceStatusFilter] = useState('all');
   const [attendanceSearch, setAttendanceSearch] = useState('');
@@ -298,7 +302,7 @@ const HR = ({ setShowAdminHeader }) => {
       const token = localStorage.getItem('token');
       if (!token) throw new Error('Admin login required');
 
-      const [leavesRes, expensesRes, attendanceRes, attendanceSettingsRes] = await Promise.all([
+      const [leavesRes, expensesRes, attendanceRes, attendanceSettingsRes, leavePolicyRes] = await Promise.all([
         fetch(`${API_BASE}/api/admin/users/teacher-leaves`, {
           headers: { authorization: `Bearer ${token}` }
         }),
@@ -311,19 +315,24 @@ const HR = ({ setShowAdminHeader }) => {
         fetch(`${API_BASE}/api/admin/users/teacher-attendance-settings`, {
           headers: { authorization: `Bearer ${token}` }
         }),
+        fetch(`${API_BASE}/api/admin/users/teacher-leave-policy`, {
+          headers: { authorization: `Bearer ${token}` }
+        }),
       ]);
 
-      const [leavesData, expensesData, attendanceData, attendanceSettingsData] = await Promise.all([
+      const [leavesData, expensesData, attendanceData, attendanceSettingsData, leavePolicyData] = await Promise.all([
         leavesRes.json().catch(() => ({})),
         expensesRes.json().catch(() => ({})),
         attendanceRes.json().catch(() => ({})),
         attendanceSettingsRes.json().catch(() => ({})),
+        leavePolicyRes.json().catch(() => ({})),
       ]);
 
       if (!leavesRes.ok) throw new Error(leavesData?.error || 'Unable to load teacher leaves');
       if (!expensesRes.ok) throw new Error(expensesData?.error || 'Unable to load teacher expenses');
       if (!attendanceRes.ok) throw new Error(attendanceData?.error || 'Unable to load teacher attendance');
       if (!attendanceSettingsRes.ok) throw new Error(attendanceSettingsData?.error || 'Unable to load attendance settings');
+      if (!leavePolicyRes.ok) throw new Error(leavePolicyData?.error || 'Unable to load leave policy');
 
       setTeacherLeaves(Array.isArray(leavesData.leaves) ? leavesData.leaves : []);
       setTeacherExpenses(Array.isArray(expensesData.expenses) ? expensesData.expenses : []);
@@ -335,10 +344,45 @@ const HR = ({ setShowAdminHeader }) => {
           ? attendanceSettingsData.settings.graceMinutes
           : 0,
       });
+      setLeavePolicy({
+        casualLeaveDays: Number.isFinite(Number(leavePolicyData?.policy?.casualLeaveDays))
+          ? Number(leavePolicyData.policy.casualLeaveDays)
+          : 12,
+      });
     } catch (err) {
       setActivityError(err.message || 'Unable to load teacher activities');
     } finally {
       setActivityLoading(false);
+    }
+  };
+
+  const saveLeavePolicy = async () => {
+    setActivityError('');
+    setLeavePolicySaving(true);
+    try {
+      const token = localStorage.getItem('token');
+      if (!token) throw new Error('Admin login required');
+      const res = await fetch(`${API_BASE}/api/admin/users/teacher-leave-policy`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          casualLeaveDays: leavePolicy.casualLeaveDays,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data?.error || 'Unable to save leave policy');
+      setLeavePolicy({
+        casualLeaveDays: Number.isFinite(Number(data?.policy?.casualLeaveDays))
+          ? Number(data.policy.casualLeaveDays)
+          : Number(leavePolicy.casualLeaveDays) || 0,
+      });
+    } catch (err) {
+      setActivityError(err.message || 'Unable to save leave policy');
+    } finally {
+      setLeavePolicySaving(false);
     }
   };
 
@@ -382,6 +426,13 @@ const HR = ({ setShowAdminHeader }) => {
       fetchTeacherActivities(teacherActivityMonth);
     }
   }, [tab, teacherActivityMonth]);
+
+  useEffect(() => {
+    const tabParam = String(searchParams.get('tab') || '').trim().toLowerCase();
+    if (tabParam === 'attendance' || tabParam === 'leaves' || tabParam === 'expenses') {
+      setTab(tabParam);
+    }
+  }, [searchParams]);
 
   const reviewLeaveRequest = async (leaveId, status) => {
     try {
@@ -1152,6 +1203,33 @@ const HR = ({ setShowAdminHeader }) => {
               <div className="bg-white rounded-xl border border-red-200 p-5 flex items-center gap-4">
                 <div className="w-12 h-12 rounded-lg bg-red-100 flex items-center justify-center"><XCircle size={22} className="text-red-600" /></div>
                 <div><div className="text-sm text-gray-500">Rejected</div><div className="text-2xl font-bold text-red-700">{leaveSummary.rejected}</div></div>
+              </div>
+            </div>
+
+            <div className="bg-white rounded-xl border border-gray-200 p-4">
+              <div className="flex flex-col sm:flex-row sm:items-end gap-3">
+                <div className="flex-1">
+                  <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wide mb-1">
+                    Casual Leave Days (Per Teacher)
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    max="365"
+                    value={leavePolicy.casualLeaveDays}
+                    onChange={(e) => setLeavePolicy((prev) => ({ ...prev, casualLeaveDays: e.target.value }))}
+                    className="w-full sm:w-56 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-yellow-500 focus:border-transparent"
+                  />
+                  <p className="text-xs text-gray-500 mt-1">Teachers can apply casual leave up to this approved quota.</p>
+                </div>
+                <button
+                  onClick={saveLeavePolicy}
+                  disabled={leavePolicySaving}
+                  className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-yellow-600 text-white hover:bg-yellow-700 disabled:opacity-60 text-sm font-medium"
+                >
+                  {leavePolicySaving ? <RefreshCw size={14} className="animate-spin" /> : <CheckCircle size={14} />}
+                  {leavePolicySaving ? 'Saving...' : 'Save Policy'}
+                </button>
               </div>
             </div>
 

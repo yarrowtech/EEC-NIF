@@ -96,7 +96,13 @@ const NoticeManagement = ({ setShowAdminHeader }) => {
 
   const filteredNotices = useMemo(() => {
     if (activeTab === 'class_note') return notices.filter((n) => n.type === 'class_note');
-    return notices.filter((n) => n.type !== 'class_note');
+    return notices.filter((n) => {
+      if (n.type === 'class_note') return false;
+      const title = String(n?.title || '').toLowerCase();
+      const typeLabel = String(n?.typeLabel || '').toLowerCase();
+      const isLeaveRequestNotice = typeLabel.includes('leave request') || title.includes('leave request');
+      return !isLeaveRequestNotice;
+    });
   }, [notices, activeTab]);
 
   const searchedNotices = useMemo(() => {

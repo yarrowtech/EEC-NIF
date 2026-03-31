@@ -8,6 +8,63 @@ import Swal from "sweetalert2";
 import toast from "react-hot-toast";
 
 const API_BASE = import.meta.env.VITE_API_URL;
+const ACADEMIC_SETUP_CACHE_PREFIX = "academic_setup_cache_v1";
+const ACADEMIC_SETUP_CACHE_TTL_MS = 5 * 60 * 1000;
+
+const getAcademicCacheStorage = () => {
+  try {
+    if (typeof window === "undefined" || !window.sessionStorage) return null;
+    return window.sessionStorage;
+  } catch {
+    return null;
+  }
+};
+
+const getAcademicCacheScope = () => {
+  const token = localStorage.getItem("token");
+  if (!token) return "anonymous";
+  try {
+    const base64 = token.split(".")[1]?.replace(/-/g, "+").replace(/_/g, "/");
+    const payload = JSON.parse(atob(base64));
+    const adminId = payload?.id || "unknown";
+    const schoolId = payload?.schoolId || "school";
+    const campusId = payload?.campusId || "campus";
+    return `${adminId}_${schoolId}_${campusId}`;
+  } catch {
+    return "fallback";
+  }
+};
+
+const getAcademicCacheKey = (segment) =>
+  `${ACADEMIC_SETUP_CACHE_PREFIX}:${segment}:${getAcademicCacheScope()}`;
+
+const readAcademicCache = (key) => {
+  const storage = getAcademicCacheStorage();
+  if (!storage) return null;
+  try {
+    const raw = storage.getItem(key);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    const cachedAt = Number(parsed?.cachedAt || 0);
+    if (!cachedAt || Date.now() - cachedAt > ACADEMIC_SETUP_CACHE_TTL_MS) {
+      storage.removeItem(key);
+      return null;
+    }
+    return parsed?.data ?? null;
+  } catch {
+    return null;
+  }
+};
+
+const writeAcademicCache = (key, data) => {
+  const storage = getAcademicCacheStorage();
+  if (!storage) return;
+  try {
+    storage.setItem(key, JSON.stringify({ cachedAt: Date.now(), data }));
+  } catch {
+    // Ignore cache write failures.
+  }
+};
 
 const EditModal = ({ isOpen, onClose, title, children, onSubmit, isSubmitting = false }) => {
   if (!isOpen) return null;
@@ -241,6 +298,15 @@ const AcademicSetup = ({ setShowAdminHeader }) => {
   };
 
   const loadAcademicData = async () => {
+    const cacheKey = getAcademicCacheKey("core");
+    const cached = readAcademicCache(cacheKey);
+    if (cached) {
+      setYears(Array.isArray(cached.years) ? cached.years : []);
+      setClasses(Array.isArray(cached.classes) ? cached.classes : []);
+      setSections(Array.isArray(cached.sections) ? cached.sections : []);
+      setSubjects(Array.isArray(cached.subjects) ? cached.subjects : []);
+    }
+
     try {
       const [hierarchyRes, subjectsRes] = await Promise.all([
         fetch(`${API_BASE}/api/academic/hierarchy`, { method: "GET", headers: authHeaders }),
@@ -255,30 +321,65 @@ const AcademicSetup = ({ setShowAdminHeader }) => {
       if (subjectsRes.ok) {
         const subData = await subjectsRes.json();
         setSubjects(Array.isArray(subData) ? subData : []);
+        writeAcademicCache(cacheKey, {
+          years: Array.isArray(data.years) ? data.years : [],
+          classes: Array.isArray(data.classes) ? data.classes : [],
+          sections: Array.isArray(data.sections) ? data.sections : [],
+          subjects: Array.isArray(subData) ? subData : [],
+        });
+      } else {
+        writeAcademicCache(cacheKey, {
+          years: Array.isArray(data.years) ? data.years : [],
+          classes: Array.isArray(data.classes) ? data.classes : [],
+          sections: Array.isArray(data.sections) ? data.sections : [],
+          subjects: [],
+        });
       }
     } catch (err) {
-      handleApiError(err);
-      throw err;
+      if (!cached) {
+        handleApiError(err);
+        throw err;
+      }
+      console.warn("Academic setup fetch failed, showing cached data:", err);
     }
   };
 
   const loadClassTeachers = async () => {
+    const cacheKey = getAcademicCacheKey("class-teachers");
+    const cached = readAcademicCache(cacheKey);
+    if (cached) {
+      setTeachers(Array.isArray(cached.teachers) ? cached.teachers : []);
+      setTeacherAllocations(Array.isArray(cached.teacherAllocations) ? cached.teacherAllocations : []);
+    }
+
     try {
       const [teacherRes, allocationRes] = await Promise.all([
         fetch(`${API_BASE}/api/admin/users/get-teachers`, { method: "GET", headers: authHeaders }),
         fetch(`${API_BASE}/api/teacher-allocations`, { method: "GET", headers: authHeaders }),
       ]);
+      let nextTeachers = [];
+      let nextAllocations = [];
       if (teacherRes.ok) {
         const teacherData = await teacherRes.json().catch(() => []);
-        setTeachers(Array.isArray(teacherData) ? teacherData : []);
+        nextTeachers = Array.isArray(teacherData) ? teacherData : [];
+        setTeachers(nextTeachers);
       }
       if (allocationRes.ok) {
         const allocData = await allocationRes.json().catch(() => []);
-        setTeacherAllocations(Array.isArray(allocData) ? allocData : []);
+        nextAllocations = Array.isArray(allocData) ? allocData : [];
+        setTeacherAllocations(nextAllocations);
       }
+      writeAcademicCache(cacheKey, {
+        teachers: nextTeachers,
+        teacherAllocations: nextAllocations,
+      });
     } catch (err) {
-      console.error(err);
-      setError("Unable to load class teacher data.");
+      if (!cached) {
+        console.error(err);
+        setError("Unable to load class teacher data.");
+      } else {
+        console.warn("Class teacher fetch failed, showing cached data:", err);
+      }
     }
   };
 

@@ -52,6 +52,7 @@ router.post('/register', adminAuth, async (req, res) => {
     const user = new TeacherUser({
       username,
       password,
+      initialPassword: password,
       schoolId: resolvedSchoolId,
       campusId: resolvedCampusId,
       campusName: req.isSuperAdmin ? req.body?.campusName : req.admin?.campusName,
@@ -243,6 +244,7 @@ router.post('/reset-first-password', rateLimit({ windowMs: 60 * 1000, max: 10 })
     }
 
     user.password = String(newPassword);
+    user.initialPassword = "";
     user.lastLoginAt = new Date();
     await user.save();
     logAuthEvent(req, {

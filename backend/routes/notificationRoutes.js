@@ -234,7 +234,9 @@ router.get('/', adminAuth, async (req, res) => {
     const campusId = req.campusId || null;
     const items = await Notification.find({
       schoolId,
-      ...(campusId ? { campusId } : {}),
+      ...(campusId
+        ? { $or: [{ campusId }, { campusId: null }, { campusId: { $exists: false } }] }
+        : {}),
     })
       .sort({ createdAt: -1 })
       .lean();

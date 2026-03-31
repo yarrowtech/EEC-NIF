@@ -85,7 +85,8 @@ const MyWorkPortal = () => {
     endDate: '',
     reason: ''
   });
-  const TOTAL_LEAVE_DAYS = 15;
+  const [leavePolicy, setLeavePolicy] = useState({ casualLeaveDays: 12 });
+  const [leaveQuota, setLeaveQuota] = useState({ casualUsedDays: 0, casualAvailableDays: 12 });
 
   const [profileData, setProfileData] = useState({
     name: '',
@@ -298,6 +299,19 @@ const MyWorkPortal = () => {
       }
 
       setLeaveData(Array.isArray(data.leaves) ? data.leaves : []);
+      setLeavePolicy({
+        casualLeaveDays: Number.isFinite(Number(data?.leavePolicy?.casualLeaveDays))
+          ? Number(data.leavePolicy.casualLeaveDays)
+          : 12,
+      });
+      setLeaveQuota({
+        casualUsedDays: Number.isFinite(Number(data?.leaveStats?.casualUsedDays))
+          ? Number(data.leaveStats.casualUsedDays)
+          : 0,
+        casualAvailableDays: Number.isFinite(Number(data?.leaveStats?.casualAvailableDays))
+          ? Number(data.leaveStats.casualAvailableDays)
+          : 12,
+      });
     } catch (error) {
       setLeaveError(error.message || 'Unable to load leave requests');
     } finally {
@@ -320,6 +334,7 @@ const MyWorkPortal = () => {
 
     const usedDays = leaveData
       .filter((leave) => String(leave.status).toLowerCase() === 'approved')
+      .filter((leave) => String(leave.type || '').toLowerCase() === 'casual leave')
       .reduce((sum, leave) => sum + getLeaveDays(leave.startDate, leave.endDate), 0);
 
     const pendingRequests = leaveData.filter(
@@ -329,9 +344,9 @@ const MyWorkPortal = () => {
     return {
       usedDays,
       pendingRequests,
-      availableDays: Math.max(TOTAL_LEAVE_DAYS - usedDays, 0),
+      availableDays: Math.max((leavePolicy.casualLeaveDays || 0) - usedDays, 0),
     };
-  }, [leaveData]);
+  }, [leaveData, leavePolicy.casualLeaveDays]);
 
   const submitLeaveRequest = async (e) => {
     e.preventDefault();
@@ -1033,8 +1048,8 @@ const MyWorkPortal = () => {
         <div className="bg-linear-to-br from-green-50 to-emerald-50 p-5 rounded-xl border border-green-100 shadow-sm">
           <div className="flex items-center justify-between">
             <div>
-              <div className="text-3xl font-bold text-green-600">{leaveStats.availableDays}</div>
-              <div className="text-sm font-medium text-green-700 mt-1">Available Days</div>
+              <div className="text-3xl font-bold text-green-600">{leaveQuota.casualAvailableDays}</div>
+              <div className="text-sm font-medium text-green-700 mt-1">Casual Leave Available</div>
             </div>
             <div className="bg-green-100 p-3 rounded-xl">
               <CheckCircle className="w-6 h-6 text-green-600" />
@@ -1044,8 +1059,8 @@ const MyWorkPortal = () => {
         <div className="bg-linear-to-br from-amber-50 to-yellow-50 p-5 rounded-xl border border-amber-100 shadow-sm">
           <div className="flex items-center justify-between">
             <div>
-              <div className="text-3xl font-bold text-amber-600">{leaveStats.usedDays}</div>
-              <div className="text-sm font-medium text-amber-700 mt-1">Used Days</div>
+              <div className="text-3xl font-bold text-amber-600">{leaveQuota.casualUsedDays}</div>
+              <div className="text-sm font-medium text-amber-700 mt-1">Casual Leave Used</div>
             </div>
             <div className="bg-amber-100 p-3 rounded-xl">
               <CalendarDays className="w-6 h-6 text-amber-600" />
@@ -1354,8 +1369,8 @@ const MyWorkPortal = () => {
               {/* Available Leave Info */}
               <div className="bg-blue-50 border border-blue-100 rounded-xl p-3">
                 <div className="flex items-center justify-between text-sm">
-                  <span className="text-blue-700">Available Leave Days:</span>
-                  <span className="font-semibold text-blue-800">{leaveStats.availableDays} days</span>
+                  <span className="text-blue-700">Casual Leave Remaining:</span>
+                  <span className="font-semibold text-blue-800">{leaveQuota.casualAvailableDays} / {leavePolicy.casualLeaveDays} days</span>
                 </div>
               </div>
 
