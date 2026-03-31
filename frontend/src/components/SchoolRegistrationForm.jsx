@@ -765,6 +765,7 @@ const SchoolRegistrationForm = () => {
           <div className="inline-flex items-center justify-center w-14 h-14 bg-linear-to-br from-amber-400 to-orange-500 rounded-2xl shadow-lg mb-4">
             <GraduationCap className="w-7 h-7 text-white" />
           </div>
+          <h1 className="text-2xl sm:text-3xl font-bold text-gray-800">Electronic Educare</h1>
           <h1 className="text-2xl sm:text-3xl font-bold text-gray-800">School Registration</h1>
           <p className="text-sm sm:text-base text-gray-500 mt-1.5">
             Register your school to get started with our platform
