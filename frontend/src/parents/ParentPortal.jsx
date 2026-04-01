@@ -7,11 +7,16 @@ import {
   CreditCard, 
   Activity,
   MessageSquare,
+  MessageCircle,
+  AlertOctagon,
+  FileEdit,
+  Search,
   Menu,
   X,
   Award,
   GraduationCap,
   Video,
+  Clock,
   ChevronLeft,
   ChevronRight,
   Home,
@@ -27,7 +32,6 @@ import ResultsView from './ResultsView';
 import AchievementsView from './AchievementsView';
 import PTMPortal from './PTMPortal';
 import ParentDashboard from './ParentDashboard';
-import Observation from './Observation';
 import ParentObservationNonAcademic from './ParentObservationNonAcademic';
 import ParentChat from './ParentChat';
 import ClassRoutine from './ClassRoutine';
@@ -83,16 +87,15 @@ const ParentPortal = () => {
   const menuItems = [
     { icon: Home, label: 'Dashboard', description: 'Overview & insights', path: '/parents' },
     { icon: Calendar, label: 'Holiday List', description: 'School holidays', path: '/parents/holidays' },
-    { icon: Calendar, label: 'Class Routine', description: 'Weekly schedule', path: '/parents/routine' },
+    { icon: Clock, label: 'Class Routine', description: 'Weekly schedule', path: '/parents/routine' },
     { icon: Calendar, label: 'Attendance Report', description: 'Punctuality tracker', path: '/parents/attendance' },
     { icon: BookOpen, label: 'Academic Report', description: 'Learning progress', path: '/parents/academic' },
     { icon: CreditCard, label: 'Fees Payment', description: 'Bills & dues', path: '/parents/fees' },
     { icon: Activity, label: 'Health Report', description: 'Wellness records', path: '/parents/health' },
-    { icon: MessageSquare, label: 'Chat', description: 'Connect with staff', path: '/parents/chat' },
-    { icon: MessageSquare, label: 'Complaints', description: 'Issue resolution', path: '/parents/complaints' },
+    { icon: MessageCircle, label: 'Chat', description: 'Connect with staff', path: '/parents/chat' },
+    { icon: AlertOctagon, label: 'Complaints', description: 'Issue resolution', path: '/parents/complaints' },
     { icon: Video, label: 'Parent-Teacher Meetings', description: 'Upcoming PTMs', path: '/parents/ptm' },
-    { icon: Eye, label: 'Observation', description: 'Teacher notes', path: '/parents/observation' },
-    { icon: Eye, label: 'Parent Observation', description: 'Share feedback', path: '/parents/parent-observation' },
+    { icon: FileEdit, label: 'Parent Observation', description: 'Share feedback', path: '/parents/parent-observation' },
     { icon: GraduationCap, label: 'Results', description: 'Performance summary', path: '/parents/results' },
     { icon: Award, label: 'Achievements', description: 'Celebrate wins', path: '/parents/achievements' },
   ];
@@ -296,7 +299,6 @@ const ParentPortal = () => {
           <Route path="complaints" element={<ComplaintManagementSystem />} />
           <Route path="chat" element={<ParentChat />} />
           <Route path="ptm" element={<PTMPortal />} />
-          <Route path="observation" element={<Observation />} />
           <Route path="parent-observation" element={<ParentObservationNonAcademic />} />
           <Route path="results" element={<ResultsView />} />
           <Route path="achievements" element={<AchievementsView />} />

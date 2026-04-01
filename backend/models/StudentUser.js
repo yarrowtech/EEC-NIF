@@ -85,6 +85,16 @@ const studentUserSchema = new mongoose.Schema({
 
   // Embedded attendance array
   attendance: [attendanceSchema],
+
+  achievements: [{
+    title: { type: String, required: true },
+    category: { type: String, enum: ['Academic', 'Extra-Curricular', 'Sports', 'Other'], default: 'Academic' },
+    date: { type: Date, default: Date.now },
+    description: { type: String },
+    awardType: { type: String }, // e.g., Certificate, Medal, Trophy
+    issuer: { type: String }, // e.g., School Name, Association
+    certificateUrl: { type: String }
+  }],
 }, { timestamps: true });
 
 studentUserSchema.pre('save', async function (next) {

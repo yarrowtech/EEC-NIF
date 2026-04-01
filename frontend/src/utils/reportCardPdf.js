@@ -1,17 +1,17 @@
 import { jsPDF } from 'jspdf';
 
 const DEFAULT_TEMPLATE = {
-  title: 'Report Card',
-  subtitle: 'Academic Performance Report',
-  schoolName: 'School',
-  schoolAddressLine: '',
-  schoolContactLine: '',
-  accentColor: '#1f2937',
+  title: 'ACADEMIC PERFORMANCE REPORT',
+  subtitle: 'Official Student Progress Record',
+  schoolName: 'Electronic Educare Academy',
+  schoolAddressLine: 'Main Campus, Educational District',
+  schoolContactLine: 'Contact: +1 234 567 890 | email: info@educare.edu',
+  accentColor: '#0f172a', // Slate 900
   showPageBorder: true,
-  watermarkText: '',
-  footerNote: 'This is a computer-generated report card.',
+  watermarkText: 'OFFICIAL',
+  footerNote: 'This is an official computer-generated document. No signature is required unless specified.',
   signatureLabel: 'Class Teacher',
-  principalLabel: 'Principal',
+  principalLabel: 'Head of Institution',
 };
 
 const toText = (value) => String(value ?? '').trim();
@@ -24,7 +24,7 @@ const toFileSafe = (value) =>
 
 const parseHexColor = (value) => {
   const input = toText(value).replace('#', '');
-  if (!/^[0-9a-fA-F]{6}$/.test(input)) return [31, 41, 55];
+  if (!/^[0-9a-fA-F]{6}$/.test(input)) return [15, 23, 42];
   return [
     Number.parseInt(input.slice(0, 2), 16),
     Number.parseInt(input.slice(2, 4), 16),
@@ -50,156 +50,208 @@ const loadLogoDataUrl = async (logoUrl) => {
   }
 };
 
-const drawHeader = (doc, template, reportCard, logoDataUrl) => {
-  const mergedTemplate = { ...DEFAULT_TEMPLATE, ...(template || {}) };
-  const [r, g, b] = parseHexColor(mergedTemplate.accentColor);
+const drawPageStructure = (doc, template, r, g, b) => {
   const pageWidth = doc.internal.pageSize.getWidth();
-  const margin = 14;
+  const pageHeight = doc.internal.pageSize.getHeight();
 
-  if (mergedTemplate.showPageBorder) {
+  if (template.showPageBorder) {
     doc.setDrawColor(r, g, b);
-    doc.setLineWidth(0.7);
-    doc.rect(7, 7, pageWidth - 14, doc.internal.pageSize.getHeight() - 14);
+    doc.setLineWidth(0.5);
+    doc.rect(5, 5, pageWidth - 10, pageHeight - 10);
+    doc.setLineWidth(0.2);
+    doc.rect(6, 6, pageWidth - 12, pageHeight - 12);
   }
 
+  // Header background
   doc.setFillColor(r, g, b);
-  doc.rect(0, 0, pageWidth, 40, 'F');
+  doc.rect(7, 7, pageWidth - 14, 35, 'F');
+};
 
+const drawHeader = (doc, template, reportCard, logoDataUrl, r, g, b) => {
+  const pageWidth = doc.internal.pageSize.getWidth();
+  
+  // School Info
   doc.setTextColor(255, 255, 255);
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(14);
-  doc.text(toText(mergedTemplate.schoolName || 'School'), pageWidth / 2, 12, { align: 'center' });
-  doc.setFontSize(9);
-  if (toText(mergedTemplate.schoolAddressLine)) {
-    doc.text(toText(mergedTemplate.schoolAddressLine), pageWidth / 2, 18, { align: 'center' });
-  }
-  if (toText(mergedTemplate.schoolContactLine)) {
-    doc.text(toText(mergedTemplate.schoolContactLine), pageWidth / 2, 23, { align: 'center' });
-  }
-
-  doc.setFontSize(15);
-  doc.text(toText(mergedTemplate.title || 'Report Card'), margin, 33);
+  doc.setFontSize(16);
+  doc.text(toText(template.schoolName).toUpperCase(), pageWidth / 2, 18, { align: 'center' });
+  
   doc.setFont('helvetica', 'normal');
-  doc.setFontSize(9);
-  doc.text(toText(mergedTemplate.subtitle || ''), margin, 38);
+  doc.setFontSize(8);
+  doc.text(toText(template.schoolAddressLine), pageWidth / 2, 24, { align: 'center' });
+  doc.text(toText(template.schoolContactLine), pageWidth / 2, 28, { align: 'center' });
 
+  // Report Title
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(12);
+  doc.text(toText(template.title), pageWidth / 2, 36, { align: 'center' });
+
+  // Logo
   if (logoDataUrl) {
     try {
-      doc.addImage(logoDataUrl, 'PNG', 10, 7, 22, 22);
-      doc.addImage(logoDataUrl, 'PNG', pageWidth - 32, 7, 22, 22);
-    } catch {
-      // Ignore logo render errors and continue report generation.
-    }
+      doc.setFillColor(255, 255, 255);
+      doc.roundedRect(12, 10, 20, 20, 2, 2, 'F');
+      doc.addImage(logoDataUrl, 'PNG', 13, 11, 18, 18);
+    } catch {}
   }
 
-  if (toText(mergedTemplate.watermarkText)) {
-    doc.setTextColor(230, 233, 238);
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(28);
-    doc.text(toText(mergedTemplate.watermarkText), pageWidth / 2, 165, {
-      align: 'center',
-      angle: 30,
-    });
-  }
+  // Student Info Box
+  doc.setTextColor(30, 41, 59);
+  doc.setFillColor(248, 250, 252);
+  doc.setDrawColor(226, 232, 240);
+  doc.roundedRect(10, 48, pageWidth - 20, 28, 2, 2, 'FD');
 
-  doc.setTextColor(33, 37, 41);
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(13);
-  doc.text(`Student: ${toText(reportCard.studentName || 'Student')}`, margin, 50);
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(10);
-  doc.text(
-    `Class: ${toText(reportCard.grade)}   Section: ${toText(reportCard.section)}   Roll: ${toText(reportCard.roll || '-')}`,
-    margin,
-    57
-  );
-  doc.text(
-    `Academic Year: ${toText(reportCard.academicYear || '-')}   Admission No: ${toText(reportCard.admissionNumber || '-')}`,
-    margin,
-    63
-  );
-};
-
-const drawSummary = (doc, reportCard) => {
-  const margin = 14;
-  const y = 72;
-  const totals = reportCard?.totals || {};
-  doc.setFillColor(245, 247, 250);
-  doc.roundedRect(margin, y, 182, 18, 2, 2, 'F');
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(10);
-  doc.text(`Total: ${totals.obtainedMarks || 0}/${totals.totalMarks || 0}`, margin + 4, y + 7);
-  doc.text(`Percentage: ${Number(totals.percentage || 0).toFixed(2)}%`, margin + 72, y + 7);
-  doc.text(`Grade: ${toText(totals.grade || '-')}`, margin + 150, y + 7);
-};
-
-const drawSubjectsTable = (doc, reportCard) => {
-  const margin = 14;
-  let y = 96;
-  const rowH = 8;
-  const headers = ['Subject', 'Obtained', 'Total', '%', 'Grade'];
-  const widths = [84, 28, 22, 20, 28];
-
-  doc.setFillColor(230, 234, 239);
-  doc.rect(margin, y, widths.reduce((sum, item) => sum + item, 0), rowH, 'F');
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(9);
+  doc.text('STUDENT INFORMATION', 14, 54);
+  doc.setLineWidth(0.1);
+  doc.line(14, 55, 55, 55);
 
-  let cursorX = margin + 2;
-  headers.forEach((head, index) => {
-    doc.text(head, cursorX, y + 5.5);
-    cursorX += widths[index];
-  });
-  y += rowH;
-
-  doc.setFont('helvetica', 'normal');
-  const subjects = Array.isArray(reportCard?.subjects) ? reportCard.subjects : [];
-  if (!subjects.length) {
-    doc.text('No published exam marks available.', margin + 2, y + 6);
-    y += rowH;
-  } else {
-    subjects.forEach((subject) => {
-      if (y > 255) return;
-      cursorX = margin + 2;
-      const cells = [
-        toText(subject.name || '-'),
-        String(subject.obtainedMarks ?? 0),
-        String(subject.totalMarks ?? 0),
-        `${Number(subject.percentage || 0).toFixed(0)}%`,
-        toText(subject.grade || '-'),
-      ];
-      cells.forEach((value, index) => {
-        const maxW = widths[index] - 3;
-        const clipped = doc.splitTextToSize(value, maxW)[0] || '';
-        doc.text(clipped, cursorX, y + 5.5);
-        cursorX += widths[index];
-      });
-      y += rowH;
-    });
-  }
-  return y;
+  doc.setFontSize(10);
+  doc.text(`Name: ${toText(reportCard.studentName).toUpperCase()}`, 14, 62);
+  doc.text(`ID / Roll: ${toText(reportCard.roll || reportCard.studentCode || '-')}`, 14, 68);
+  
+  doc.text(`Class: ${toText(reportCard.grade || '-')}`, 100, 62);
+  doc.text(`Section: ${toText(reportCard.section || '-')}`, 100, 68);
+  
+  doc.text(`Academic Year: ${toText(reportCard.academicYear || '-')}`, 155, 62);
+  doc.text(`Date: ${new Date().toLocaleDateString()}`, 155, 68);
 };
 
-const drawFooter = (doc, template, startY) => {
-  const mergedTemplate = { ...DEFAULT_TEMPLATE, ...(template || {}) };
+const drawGradingScale = (doc, startY) => {
   const pageWidth = doc.internal.pageSize.getWidth();
-  const margin = 14;
-  const y = Math.max(startY + 12, 250);
-
-  doc.setDrawColor(210, 214, 219);
-  doc.line(margin, y - 8, pageWidth - margin, y - 8);
+  const margin = 10;
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(8);
+  doc.setTextColor(100, 116, 139);
+  doc.text('GRADING SCALE:', margin, startY);
+  
   doc.setFont('helvetica', 'normal');
-  doc.setFontSize(9);
-  doc.text(toText(mergedTemplate.footerNote), margin, y - 2);
-  doc.text(toText(mergedTemplate.signatureLabel), margin, y + 8);
-  doc.text(toText(mergedTemplate.principalLabel), pageWidth - margin, y + 8, { align: 'right' });
+  const scale = 'A+: 90-100% | A: 80-89% | B: 70-79% | C: 60-69% | D: 50-59% | F: <50%';
+  doc.text(scale, margin + 28, startY);
+};
+
+const drawTable = (doc, headers, data, startY, widths, title, accentColor) => {
+  const margin = 10;
+  let currentY = startY;
+  const [r, g, b] = accentColor;
+
+  // Table Title
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(10);
+  doc.setTextColor(r, g, b);
+  doc.text(title.toUpperCase(), margin, currentY);
+  currentY += 4;
+
+  // Header row
+  doc.setFillColor(r, g, b);
+  doc.rect(margin, currentY, widths.reduce((a, b) => a + b, 0), 8, 'F');
+  
+  doc.setTextColor(255, 255, 255);
+  doc.setFontSize(8);
+  let currentX = margin;
+  headers.forEach((h, i) => {
+    doc.text(h, currentX + 2, currentY + 5.5);
+    currentX += widths[i];
+  });
+  
+  currentY += 8;
+  doc.setTextColor(30, 41, 59);
+  doc.setFont('helvetica', 'normal');
+
+  data.forEach((row, rowIndex) => {
+    // Page break check
+    if (currentY > 260) {
+      doc.addPage();
+      currentY = 20;
+      // Re-draw header background? Maybe just continue
+    }
+
+    if (rowIndex % 2 === 0) {
+      doc.setFillColor(241, 245, 249);
+      doc.rect(margin, currentY, widths.reduce((a, b) => a + b, 0), 7, 'F');
+    }
+
+    currentX = margin;
+    row.forEach((cell, cellIndex) => {
+      const text = toText(cell);
+      const clipped = doc.splitTextToSize(text, widths[cellIndex] - 3)[0];
+      doc.text(clipped, currentX + 2, currentY + 5);
+      currentX += widths[cellIndex];
+    });
+    currentY += 7;
+  });
+
+  return currentY + 5;
 };
 
 const renderReportCardPage = (doc, template, reportCard, logoDataUrl) => {
-  drawHeader(doc, template, reportCard || {}, logoDataUrl);
-  drawSummary(doc, reportCard || {});
-  const endY = drawSubjectsTable(doc, reportCard || {});
-  drawFooter(doc, template, endY);
+  const mergedTemplate = { ...DEFAULT_TEMPLATE, ...(template || {}) };
+  const [r, g, b] = parseHexColor(mergedTemplate.accentColor);
+  
+  drawPageStructure(doc, mergedTemplate, r, g, b);
+  drawHeader(doc, mergedTemplate, reportCard, logoDataUrl, r, g, b);
+
+  // Consolidated Summary
+  const subjectsHeaders = ['SUBJECT', 'OBTAINED', 'TOTAL MARKS', 'PERCENTAGE', 'GRADE'];
+  const subjectsWidths = [80, 30, 30, 25, 25];
+  const subjectsData = (reportCard.subjects || []).map(s => [
+    s.name,
+    s.obtainedMarks,
+    s.totalMarks,
+    `${s.percentage}%`,
+    s.grade
+  ]);
+
+  let y = 85;
+  y = drawTable(doc, subjectsHeaders, subjectsData, y, subjectsWidths, 'Subject-wise Performance', [r, g, b]);
+
+  // Overall Totals
+  const totals = reportCard.totals || {};
+  doc.setFillColor(r, g, b);
+  doc.rect(10, y, doc.internal.pageSize.getWidth() - 20, 10, 'F');
+  doc.setTextColor(255, 255, 255);
+  doc.setFont('helvetica', 'bold');
+  doc.text(`OVERALL PERFORMANCE:    MARKS: ${totals.obtainedMarks}/${totals.totalMarks}    |    PERCENTAGE: ${totals.percentage}%    |    GRADE: ${totals.grade}`, 14, y + 6.5);
+  
+  y += 18;
+
+  // Detailed Assessment Table
+  const examHeaders = ['ASSESSMENT', 'SUBJECT', 'TERM', 'DATE', 'MARKS', 'GRADE'];
+  const examWidths = [50, 45, 30, 25, 20, 20];
+  const examData = (reportCard.exams || []).map(e => [
+    e.examName,
+    e.subject,
+    e.term || 'General',
+    e.date ? new Date(e.date).toLocaleDateString() : '-',
+    `${e.obtainedMarks}/${e.totalMarks}`,
+    e.grade || '-'
+  ]);
+
+  if (examData.length > 0) {
+    y = drawTable(doc, examHeaders, examData, y, examWidths, 'Detailed Assessment History', [r, g, b]);
+  }
+
+  // Footer & Legend
+  const pageHeight = doc.internal.pageSize.getHeight();
+  if (y > pageHeight - 40) {
+    doc.addPage();
+    y = 20;
+  }
+  
+  drawGradingScale(doc, y + 5);
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(8);
+  doc.setTextColor(100, 116, 139);
+  doc.text(toText(mergedTemplate.footerNote), 10, pageHeight - 15);
+  
+  doc.setFont('helvetica', 'bold');
+  doc.text('__________________________', 10, pageHeight - 25);
+  doc.text(toText(mergedTemplate.signatureLabel), 10, pageHeight - 21);
+  
+  doc.text('__________________________', doc.internal.pageSize.getWidth() - 60, pageHeight - 25);
+  doc.text(toText(mergedTemplate.principalLabel), doc.internal.pageSize.getWidth() - 60, pageHeight - 21);
 };
 
 export const downloadSingleReportCardPdf = async ({ template, reportCard, fileName }) => {

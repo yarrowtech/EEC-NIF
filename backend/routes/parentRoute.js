@@ -964,4 +964,87 @@ router.post('/reset-first-password', rateLimit({ windowMs: 60 * 1000, max: 10 })
   }
 });
 
+router.get('/achievements', authParent, async (req, res) => {
+  try {
+    const parent = await ParentUser.findById(req.user.id)
+      .select('name schoolId campusId childrenIds children')
+      .lean();
+
+    if (!parent) return res.status(404).json({ error: 'Parent not found' });
+
+    const schoolId = parent.schoolId || null;
+    const campusId = parent.campusId || null;
+
+    if (!schoolId) {
+      console.warn(`[parent-achievements] No schoolId found for parent ${parent._id}`);
+      return res.status(400).json({ error: 'School ID not linked to parent profile' });
+    }
+
+    const studentFilter = { schoolId };
+    if (campusId) studentFilter.campusId = campusId;
+
+    let students = [];
+    
+    // Strategy 1: Explicit childrenIds
+    if (Array.isArray(parent.childrenIds) && parent.childrenIds.length > 0) {
+      students = await StudentUser.find({
+        ...studentFilter,
+        _id: { $in: parent.childrenIds },
+      })
+        .select('name grade section studentCode roll admissionNumber username achievements')
+        .lean();
+    }
+
+    // Strategy 2: Match by name array (if Strategy 1 yielded nothing)
+    if (students.length === 0 && Array.isArray(parent.children) && parent.children.length > 0) {
+      const validNames = parent.children.map((name) => String(name || '').trim()).filter(Boolean);
+      if (validNames.length > 0) {
+        students = await StudentUser.find({
+          ...studentFilter,
+          name: { $in: validNames },
+        })
+          .select('name grade section studentCode roll admissionNumber username achievements')
+          .lean();
+      }
+    }
+
+    // Strategy 3: Match by parent name (Fallback)
+    if (students.length === 0 && parent.name) {
+      students = await StudentUser.find({
+        ...studentFilter,
+        $or: [
+          { fatherName: parent.name },
+          { motherName: parent.name },
+          { guardianName: parent.name }
+        ]
+      })
+        .select('name grade section studentCode roll admissionNumber username achievements')
+        .lean();
+    }
+
+    if (students.length === 0) {
+      console.log(`[parent-achievements] No children found for parent ${parent._id} (${parent.name})`);
+    }
+
+    const childrenAchievements = students.map(student => ({
+      studentId: student._id,
+      studentName: student.name || 'Student',
+      studentCode: student.studentCode || '',
+      username: student.username || '',
+      roll: student.roll || null,
+      grade: student.grade || '',
+      section: student.section || '',
+      achievements: Array.isArray(student.achievements) ? student.achievements : []
+    }));
+
+    res.json({
+      children: childrenAchievements,
+      meta: { childCount: childrenAchievements.length }
+    });
+  } catch (err) {
+    console.error('Fetch parent achievements error:', err);
+    res.status(500).json({ error: err.message || 'Unable to load achievements' });
+  }
+});
+
 module.exports = router;

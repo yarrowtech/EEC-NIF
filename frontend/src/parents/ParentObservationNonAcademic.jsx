@@ -1,5 +1,28 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { CheckCircle, Clock, Eye, User } from 'lucide-react';
+import { 
+  CheckCircle, 
+  Clock, 
+  Eye, 
+  User, 
+  Search, 
+  Filter, 
+  Calendar, 
+  FileEdit, 
+  ChevronRight, 
+  AlertCircle,
+  TrendingUp,
+  Activity,
+  Heart,
+  Brain,
+  Users,
+  Smile,
+  Zap,
+  Star,
+  MessageSquare,
+  ClipboardList,
+  Loader2
+} from 'lucide-react';
+import toast from 'react-hot-toast';
 import { formatStudentDisplay } from '../utils/studentDisplay';
 
 const API_BASE_URL = (import.meta.env.VITE_API_URL || 'http://localhost:5000').replace(/\/$/, '');
@@ -11,15 +34,15 @@ const LIFE_OPTIONS = ['Healthy', 'Mostly Healthy', 'Inconsistent', 'Needs Attent
 const field = (label, options) => ({ label, options });
 
 const SECTIONS = [
-  { title: '1. Behavior at Home', fields: [field('Obedience level', POSITIVE_OPTIONS), field('Respect towards elders', POSITIVE_OPTIONS), field('Listening habits', POSITIVE_OPTIONS), field('Following instructions', POSITIVE_OPTIONS), field('Discipline at home', POSITIVE_OPTIONS)] },
-  { title: '2. Communication', fields: [field('Talks openly with parents', POSITIVE_OPTIONS), field('Expresses feelings clearly', POSITIVE_OPTIONS), field('Confidence in speaking', POSITIVE_OPTIONS), field('Shares daily experiences', POSITIVE_OPTIONS), field('Listening skills', POSITIVE_OPTIONS)] },
-  { title: '3. Emotional Behavior', fields: [field('Mood stability', POSITIVE_OPTIONS), field('Anger control', POSITIVE_OPTIONS), field('Sensitivity level', SCORE_OPTIONS), field('Stress or anxiety signs', CONCERN_OPTIONS), field('Happiness level', SCORE_OPTIONS)] },
-  { title: '4. Social Behavior', fields: [field('Interaction with siblings', POSITIVE_OPTIONS), field('Behavior with relatives', POSITIVE_OPTIONS), field('Making friends outside school', POSITIVE_OPTIONS), field('Sharing and caring nature', POSITIVE_OPTIONS), field('Conflict handling', POSITIVE_OPTIONS)] },
-  { title: '5. Responsibility & Habits', fields: [field('Completes daily tasks', POSITIVE_OPTIONS), field('Helps in household work', POSITIVE_OPTIONS), field('Time management', POSITIVE_OPTIONS), field('Follows routine', POSITIVE_OPTIONS), field('Screen time control', POSITIVE_OPTIONS)] },
-  { title: '6. Lifestyle & Daily Routine', fields: [field('Sleep pattern', LIFE_OPTIONS), field('Eating habits', LIFE_OPTIONS), field('Mobile/TV usage', LIFE_OPTIONS), field('Outdoor activity', LIFE_OPTIONS), field('Physical activity level', LIFE_OPTIONS)] },
-  { title: '7. Interests & Hobbies', fields: [field('Hobbies (sports, music, drawing, etc.)', POSITIVE_OPTIONS), field('Creativity at home', POSITIVE_OPTIONS), field('Learning new things', POSITIVE_OPTIONS), field('Passion areas', POSITIVE_OPTIONS)] },
-  { title: '8. Personality Traits', fields: [field('Confidence', POSITIVE_OPTIONS), field('Independence', POSITIVE_OPTIONS), field('Honesty', POSITIVE_OPTIONS), field('Patience', POSITIVE_OPTIONS), field('Adaptability', POSITIVE_OPTIONS)] },
-  { title: '9. Concerns (If Any)', fields: [field('Behavioral issues', CONCERN_OPTIONS), field('Addiction (mobile, games, etc.)', CONCERN_OPTIONS), field('Fear or anxiety', CONCERN_OPTIONS), field('Sudden changes in behavior', CONCERN_OPTIONS)] },
+  { title: 'Home Behavior', icon: Heart, color: 'text-rose-500 bg-rose-50', fields: [field('Obedience level', POSITIVE_OPTIONS), field('Respect towards elders', POSITIVE_OPTIONS), field('Listening habits', POSITIVE_OPTIONS), field('Following instructions', POSITIVE_OPTIONS), field('Discipline at home', POSITIVE_OPTIONS)] },
+  { title: 'Communication', icon: MessageSquare, color: 'text-blue-500 bg-blue-50', fields: [field('Talks openly with parents', POSITIVE_OPTIONS), field('Expresses feelings clearly', POSITIVE_OPTIONS), field('Confidence in speaking', POSITIVE_OPTIONS), field('Shares daily experiences', POSITIVE_OPTIONS), field('Listening skills', POSITIVE_OPTIONS)] },
+  { title: 'Emotional State', icon: Brain, color: 'text-purple-500 bg-purple-50', fields: [field('Mood stability', POSITIVE_OPTIONS), field('Anger control', POSITIVE_OPTIONS), field('Sensitivity level', SCORE_OPTIONS), field('Stress or anxiety signs', CONCERN_OPTIONS), field('Happiness level', SCORE_OPTIONS)] },
+  { title: 'Social Skills', icon: Users, color: 'text-emerald-500 bg-emerald-50', fields: [field('Interaction with siblings', POSITIVE_OPTIONS), field('Behavior with relatives', POSITIVE_OPTIONS), field('Making friends outside school', POSITIVE_OPTIONS), field('Sharing and caring nature', POSITIVE_OPTIONS), field('Conflict handling', POSITIVE_OPTIONS)] },
+  { title: 'Habits', icon: Zap, color: 'text-amber-500 bg-amber-50', fields: [field('Completes daily tasks', POSITIVE_OPTIONS), field('Helps in household work', POSITIVE_OPTIONS), field('Time management', POSITIVE_OPTIONS), field('Follows routine', POSITIVE_OPTIONS), field('Screen time control', POSITIVE_OPTIONS)] },
+  { title: 'Lifestyle', icon: Activity, color: 'text-cyan-500 bg-cyan-50', fields: [field('Sleep pattern', LIFE_OPTIONS), field('Eating habits', LIFE_OPTIONS), field('Mobile/TV usage', LIFE_OPTIONS), field('Outdoor activity', LIFE_OPTIONS), field('Physical activity level', LIFE_OPTIONS)] },
+  { title: 'Hobbies', icon: Star, color: 'text-yellow-500 bg-yellow-50', fields: [field('Hobbies (sports, music, drawing, etc.)', POSITIVE_OPTIONS), field('Creativity at home', POSITIVE_OPTIONS), field('Learning new things', POSITIVE_OPTIONS), field('Passion areas', POSITIVE_OPTIONS)] },
+  { title: 'Personality', icon: Smile, color: 'text-orange-500 bg-orange-50', fields: [field('Confidence', POSITIVE_OPTIONS), field('Independence', POSITIVE_OPTIONS), field('Honesty', POSITIVE_OPTIONS), field('Patience', POSITIVE_OPTIONS), field('Adaptability', POSITIVE_OPTIONS)] },
+  { title: 'Key Concerns', icon: AlertCircle, color: 'text-red-500 bg-red-50', fields: [field('Behavioral issues', CONCERN_OPTIONS), field('Addiction (mobile, games, etc.)', CONCERN_OPTIONS), field('Fear or anxiety', CONCERN_OPTIONS), field('Sudden changes in behavior', CONCERN_OPTIONS)] },
 ];
 
 const REMARK_FIELDS = ['General observation', 'Strengths of the child', 'Areas needing improvement', 'Expectations from school'];
@@ -47,7 +70,7 @@ const getEmoji = (option) => {
 };
 
 const concernBadge = (level) =>
-  level === 'high' ? 'text-red-600 bg-red-100' : level === 'medium' ? 'text-yellow-600 bg-yellow-100' : 'text-green-600 bg-green-100';
+  level === 'high' ? 'text-red-600 bg-red-100 border-red-200' : level === 'medium' ? 'text-amber-600 bg-amber-100 border-amber-200' : 'text-emerald-600 bg-emerald-100 border-emerald-200';
 
 const parseSortNumber = (value) => {
   const text = String(value ?? '').trim();
@@ -70,7 +93,6 @@ const ParentObservationNonAcademic = () => {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
-  const [submitted, setSubmitted] = useState(false);
   const [studentId, setStudentId] = useState('');
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
   const [ratings, setRatings] = useState(buildRatings);
@@ -101,6 +123,8 @@ const ParentObservationNonAcademic = () => {
           session: entry.student?.session || '',
           className: entry.student?.grade || '',
           section: entry.student?.section || entry.student?.sectionName || '',
+          studentCode: entry.student?.studentCode || '',
+          username: entry.student?.username || '',
         }));
         const sessionSet = new Set(childOptions.map((c) => String(c.session || '').trim()).filter(Boolean));
         const classSet = new Set(childOptions.map((c) => String(c.className || '').trim()).filter(Boolean));
@@ -114,8 +138,6 @@ const ParentObservationNonAcademic = () => {
       } catch (err) {
         console.error('Parent observation load error:', err);
         setError(err.message || 'Unable to load data');
-        setChildren([]);
-        setObservations([]);
       } finally {
         setLoading(false);
       }
@@ -174,11 +196,6 @@ const ParentObservationNonAcademic = () => {
     return Boolean(studentId && (hasRatings || hasRemarks));
   }, [studentId, ratings, remarks]);
 
-  const onDropValue = (fieldLabel, options, dropped) => {
-    if (!options.includes(dropped)) return;
-    setRatings((prev) => ({ ...prev, [fieldLabel]: dropped }));
-  };
-
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!isValid) return;
@@ -213,171 +230,363 @@ const ParentObservationNonAcademic = () => {
       setRatings(buildRatings());
       setRemarks(buildRemarks());
       setDate(new Date().toISOString().split('T')[0]);
-      setSubmitted(true);
-      setTimeout(() => setSubmitted(false), 2500);
+      toast.success('Observation recorded successfully');
     } catch (err) {
       console.error('Parent observation submit error:', err);
       setError(err.message || 'Unable to save observation');
+      toast.error(err.message || 'Submission failed');
     } finally {
       setSubmitting(false);
     }
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 py-4 sm:py-6">
-      <div className="w-full px-3 sm:px-3 md:px-4 lg:px-4">
-        <div className="bg-white rounded-lg shadow-sm p-6 mb-6">
-          <div className="flex items-center space-x-3">
-            <div className="p-3 bg-blue-100 rounded-full"><Eye className="w-6 h-6 text-blue-600" /></div>
-            <div>
-              <h1 className="text-2xl font-bold text-gray-900">Parent Observation (Non-Academic)</h1>
-              <p className="text-gray-600">Emoji style input with click + drag-and-drop.</p>
+    <div className="min-h-screen bg-slate-50/50 p-4 sm:p-6 lg:p-8 space-y-8 max-w-7xl mx-auto">
+      {/* Header */}
+      <header className="relative overflow-hidden bg-white border border-slate-200 rounded-3xl p-6 sm:p-8 shadow-sm group transition-all hover:shadow-md">
+        <div className="absolute top-0 right-0 w-64 h-64 bg-blue-50 rounded-full -mr-32 -mt-32 transition-transform group-hover:scale-110 duration-700" />
+        <div className="relative flex flex-col sm:flex-row sm:items-center sm:justify-between gap-6">
+          <div className="space-y-2">
+            <div className="inline-flex items-center space-x-2 bg-blue-100 text-blue-700 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider">
+              <Eye size={14} />
+              <span>Wellbeing tracker</span>
             </div>
+            <h1 className="text-3xl font-extrabold text-slate-900 tracking-tight">Parent Observation</h1>
+            <p className="text-slate-600 max-w-2xl text-sm sm:text-base leading-relaxed">
+              Record and track your child's behavior, communication, and emotional growth at home to help us provide better support at school.
+            </p>
           </div>
-          {error && <div className="bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded text-sm mt-4">{error}</div>}
         </div>
+      </header>
 
-        <div className="grid gap-6 lg:grid-cols-2">
-          <div className="bg-white rounded-lg shadow-sm">
-            <div className="p-6 border-b border-gray-200"><h2 className="text-xl font-semibold text-gray-900">New Observation</h2></div>
-            <form onSubmit={handleSubmit} className="p-6 space-y-6">
-              <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Academic Year</label>
-                  <select value={selectedSession} onChange={(e) => setSelectedSession(e.target.value)} className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
-                    <option value="">All Years</option>
-                    {sessionOptions.map((s) => (
-                      <option key={s} value={s}>{s}</option>
-                    ))}
-                  </select>
+      {error && (
+        <div className="flex items-center gap-3 text-sm text-rose-700 bg-rose-50 border border-rose-100 rounded-2xl p-4 animate-in fade-in slide-in-from-top-1">
+          <AlertCircle className="w-5 h-5 flex-shrink-0" />
+          <p className="font-medium">{error}</p>
+        </div>
+      )}
+
+      <div className="grid gap-8 lg:grid-cols-12 items-start">
+        {/* Main Form */}
+        <div className="lg:col-span-8 space-y-8">
+          <div className="bg-white border border-slate-200 rounded-3xl shadow-sm overflow-hidden transition-all">
+            <div className="px-6 py-5 border-b border-slate-100 bg-slate-50/50 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 bg-slate-900 rounded-lg flex items-center justify-center text-white">
+                  <FileEdit size={16} />
                 </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Class</label>
-                  <select value={selectedClass} onChange={(e) => setSelectedClass(e.target.value)} className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
-                    <option value="">All Classes</option>
-                    {classOptions.map((c) => (
-                      <option key={c} value={c}>{c}</option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Section</label>
-                  <select value={selectedSection} onChange={(e) => setSelectedSection(e.target.value)} className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
-                    <option value="">All Sections</option>
-                    {sectionOptions.map((s) => (
-                      <option key={s} value={s}>{s}</option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Select Child</label>
-                  <p className="text-xs text-gray-500 pt-2">Choose from filtered list below.</p>
-                </div>
-                <div>
-                  <label className="text-sm font-medium text-gray-700 mb-2">Date</label>
-                  <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500" />
-                </div>
+                <h2 className="text-lg font-bold text-slate-900">New Observation</h2>
               </div>
+              <div className="flex items-center gap-2 text-xs font-bold text-slate-500 bg-white border border-slate-200 px-3 py-1.5 rounded-full">
+                <Calendar size={12} />
+                <span>{new Date(date).toLocaleDateString()}</span>
+              </div>
+            </div>
 
-              <div className="border border-gray-200 rounded-lg p-4">
-                <h3 className="text-sm font-semibold text-gray-900 mb-3">Children (Filtered)</h3>
-                {loading ? (
-                  <p className="text-sm text-gray-500">Loading children...</p>
-                ) : filteredChildren.length === 0 ? (
-                  <p className="text-sm text-gray-500">No children found for selected filters.</p>
-                ) : (
-                  <div className="max-h-48 overflow-y-auto space-y-2">
-                    {filteredChildren.map((child) => (
-                      <label
-                        key={child.id}
-                        className={`flex items-center gap-3 border rounded-lg px-3 py-2 cursor-pointer ${String(studentId) === String(child.id) ? 'border-blue-400 bg-blue-50' : 'border-gray-200'}`}
+            <form onSubmit={handleSubmit} className="p-6 sm:p-8 space-y-8">
+              {/* Target Child Section */}
+              <div className="space-y-6">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">Academic Year</label>
+                    <div className="relative group">
+                      <select 
+                        value={selectedSession} 
+                        onChange={(e) => setSelectedSession(e.target.value)} 
+                        className="w-full appearance-none bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm font-semibold focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 outline-none transition-all cursor-pointer group-hover:bg-white"
                       >
-                        <input
-                          type="radio"
-                          name="selectedChild"
-                          value={child.id}
-                          checked={String(studentId) === String(child.id)}
-                          onChange={(e) => setStudentId(e.target.value)}
-                          className="h-4 w-4 text-blue-600"
-                          required
-                        />
-                        <span className="text-sm text-gray-800">{formatStudentDisplay({ name: child.name, studentId: child.id, roll: child.roll, section: child.section })}</span>
-                      </label>
-                    ))}
+                        <option value="">All Years</option>
+                        {sessionOptions.map((s) => <option key={s} value={s}>{s}</option>)}
+                      </select>
+                      <ChevronRight className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 rotate-90 pointer-events-none" size={14} />
+                    </div>
                   </div>
-                )}
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">Class</label>
+                    <div className="relative group">
+                      <select 
+                        value={selectedClass} 
+                        onChange={(e) => setSelectedClass(e.target.value)} 
+                        className="w-full appearance-none bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm font-semibold focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 outline-none transition-all cursor-pointer group-hover:bg-white"
+                      >
+                        <option value="">All Classes</option>
+                        {classOptions.map((c) => <option key={c} value={c}>{c}</option>)}
+                      </select>
+                      <ChevronRight className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 rotate-90 pointer-events-none" size={14} />
+                    </div>
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">Section</label>
+                    <div className="relative group">
+                      <select 
+                        value={selectedSection} 
+                        onChange={(e) => setSelectedSection(e.target.value)} 
+                        className="w-full appearance-none bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm font-semibold focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 outline-none transition-all cursor-pointer group-hover:bg-white"
+                      >
+                        <option value="">All Sections</option>
+                        {sectionOptions.map((s) => <option key={s} value={s}>{s}</option>)}
+                      </select>
+                      <ChevronRight className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 rotate-90 pointer-events-none" size={14} />
+                    </div>
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">Report Date</label>
+                    <input 
+                      type="date" 
+                      value={date} 
+                      onChange={(e) => setDate(e.target.value)} 
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm font-semibold focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 outline-none transition-all" 
+                    />
+                  </div>
+                </div>
+
+                <div className="bg-slate-50 border border-slate-100 rounded-2xl p-5">
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-sm font-bold text-slate-700 flex items-center gap-2">
+                      <Users size={16} className="text-slate-400" />
+                      Select Child
+                    </h3>
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider bg-white px-2 py-1 rounded-md border border-slate-100">
+                      {filteredChildren.length} children matching filters
+                    </span>
+                  </div>
+                  
+                  {loading ? (
+                    <div className="flex items-center gap-2 text-slate-400 p-4 justify-center">
+                      <Loader2 size={16} className="animate-spin" />
+                      <span className="text-sm font-medium">Syncing roster...</span>
+                    </div>
+                  ) : filteredChildren.length === 0 ? (
+                    <div className="text-center p-6 text-slate-400 border border-dashed border-slate-200 rounded-xl">
+                      <Search size={24} className="mx-auto mb-2 opacity-20" />
+                      <p className="text-sm">No children found matching these filters.</p>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-48 overflow-y-auto pr-2 custom-scrollbar">
+                      {filteredChildren.map((child) => (
+                        <label
+                          key={child.id}
+                          className={`flex items-center gap-3 border rounded-xl px-4 py-3 cursor-pointer transition-all hover:shadow-sm ${
+                            String(studentId) === String(child.id) 
+                              ? 'border-blue-500 bg-white ring-2 ring-blue-500/10 shadow-md' 
+                              : 'border-slate-200 bg-white hover:border-slate-300'
+                          }`}
+                        >
+                          <div className={`w-8 h-8 rounded-full flex items-center justify-center transition-colors ${
+                            String(studentId) === String(child.id) ? 'bg-blue-500 text-white' : 'bg-slate-100 text-slate-400'
+                          }`}>
+                            <User size={16} />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className={`text-sm font-bold truncate ${String(studentId) === String(child.id) ? 'text-slate-900' : 'text-slate-700'}`}>
+                              {child.name}
+                            </p>
+                            <p className="text-[10px] font-semibold text-slate-400">
+                              {child.className} {child.section} • Roll {child.roll || '-'}
+                            </p>
+                          </div>
+                          <input
+                            type="radio"
+                            name="selectedChild"
+                            value={child.id}
+                            checked={String(studentId) === String(child.id)}
+                            onChange={(e) => setStudentId(e.target.value)}
+                            className="hidden"
+                          />
+                        </label>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </div>
 
-              <p className="text-sm text-gray-600">
-                Selected fields: <span className="font-semibold text-gray-900">{selectedCount}</span> | Concern level:
-                <span className={`ml-2 px-2 py-0.5 rounded-full text-xs font-medium ${concernBadge(concernLevel)}`}>{concernLevel.toUpperCase()}</span>
-              </p>
+              {/* Assessment Status Bar */}
+              <div className="flex flex-wrap items-center justify-between gap-4 py-3 px-6 bg-slate-900 rounded-2xl text-white">
+                <div className="flex items-center gap-4">
+                  <div className="flex items-center gap-2">
+                    <ClipboardList size={16} className="text-blue-400" />
+                    <span className="text-xs font-bold uppercase tracking-wider">{selectedCount} Fields Rated</span>
+                  </div>
+                  <div className="h-4 w-px bg-slate-700" />
+                  <div className="flex items-center gap-2">
+                    <Activity size={16} className="text-emerald-400" />
+                    <span className="text-xs font-bold uppercase tracking-wider">
+                      Concern: <span className={concernLevel === 'high' ? 'text-rose-400' : concernLevel === 'medium' ? 'text-amber-400' : 'text-emerald-400'}>{concernLevel.toUpperCase()}</span>
+                    </span>
+                  </div>
+                </div>
+                <div className="text-[10px] font-bold text-slate-400 italic">Progress autosaved in session</div>
+              </div>
 
-              {SECTIONS.map((section) => (
-                <div key={section.title} className="border border-gray-200 rounded-lg p-4">
-                  <h3 className="text-sm font-semibold text-gray-900 mb-3">{section.title}</h3>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                    {section.fields.map((f) => (
-                      <label key={f.label} className="block">
-                        <span className="block text-xs font-medium text-gray-700 mb-1">{f.label}</span>
-                        <div className="w-full p-2 border border-gray-300 rounded-lg bg-white" onDragOver={(e) => e.preventDefault()} onDrop={(e) => { e.preventDefault(); onDropValue(f.label, f.options, e.dataTransfer.getData('text/plain')); }}>
-                          <div className="flex items-center justify-between mb-2">
-                            <p className="text-xs text-gray-500">{ratings[f.label] ? `Selected: ${ratings[f.label]}` : 'Click or drag emoji option'}</p>
-                            {ratings[f.label] && <button type="button" className="text-xs text-red-600 hover:text-red-700" onClick={() => setRatings((prev) => ({ ...prev, [f.label]: '' }))}>Clear</button>}
-                          </div>
-                          <div className="flex flex-wrap gap-2">
+              {/* Observation Sections */}
+              <div className="space-y-12 pt-4">
+                {SECTIONS.map((section, sIdx) => (
+                  <div key={section.title} className="space-y-6">
+                    <div className="flex items-center gap-4 border-b border-slate-100 pb-2">
+                      <div className={`w-10 h-10 rounded-2xl flex items-center justify-center ${section.color} shadow-sm transition-transform hover:scale-110`}>
+                        <section.icon size={20} />
+                      </div>
+                      <div>
+                        <h3 className="text-lg font-extrabold text-slate-900">{section.title}</h3>
+                        <p className="text-xs font-semibold text-slate-400">Section {sIdx + 1} Assessment</p>
+                      </div>
+                    </div>
+                    
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-8">
+                      {section.fields.map((f) => (
+                        <div key={f.label} className="space-y-3 group">
+                          <label className="block text-sm font-bold text-slate-700 group-hover:text-slate-900 transition-colors">
+                            {f.label}
+                          </label>
+                          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                             {f.options.map((opt) => {
                               const active = ratings[f.label] === opt;
                               return (
-                                <button key={opt} type="button" draggable={!submitting} onDragStart={(e) => e.dataTransfer.setData('text/plain', opt)} onClick={() => setRatings((prev) => ({ ...prev, [f.label]: opt }))} className={`inline-flex items-center gap-1.5 px-2 py-1.5 rounded-md text-xs border transition ${active ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-gray-200 bg-gray-50 text-gray-700 hover:bg-gray-100'}`}>
-                                  <span className="text-sm">{getEmoji(opt)}</span><span>{opt}</span>
+                                <button 
+                                  key={opt} 
+                                  type="button" 
+                                  onClick={() => setRatings((prev) => ({ ...prev, [f.label]: opt }))} 
+                                  className={`flex flex-col items-center justify-center p-2.5 rounded-xl border transition-all active:scale-95 ${
+                                    active 
+                                      ? 'border-blue-500 bg-blue-50 text-blue-700 shadow-sm ring-1 ring-blue-500' 
+                                      : 'border-slate-200 bg-white text-slate-500 hover:border-slate-300 hover:bg-slate-50'
+                                  }`}
+                                >
+                                  <span className="text-xl mb-1">{getEmoji(opt)}</span>
+                                  <span className="text-[10px] font-bold text-center leading-tight uppercase tracking-tighter">{opt}</span>
                                 </button>
                               );
                             })}
                           </div>
                         </div>
-                      </label>
-                    ))}
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Remarks Section */}
+              <div className="space-y-6 pt-8 border-t border-slate-100">
+                <div className="flex items-center gap-4">
+                  <div className="w-10 h-10 rounded-2xl flex items-center justify-center bg-indigo-50 text-indigo-500 shadow-sm">
+                    <MessageSquare size={20} />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-extrabold text-slate-900">Parent Remarks</h3>
+                    <p className="text-xs font-semibold text-slate-400">Additional Qualitative Feedback</p>
                   </div>
                 </div>
-              ))}
 
-              <div className="border border-gray-200 rounded-lg p-4">
-                <h3 className="text-sm font-semibold text-gray-900 mb-3">10. Parent Remarks</h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   {REMARK_FIELDS.map((f) => (
-                    <label key={f} className="block">
-                      <span className="block text-xs font-medium text-gray-700 mb-1">{f}</span>
-                      <textarea rows={3} value={remarks[f]} onChange={(e) => setRemarks((prev) => ({ ...prev, [f]: e.target.value }))} className="w-full p-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500" />
-                    </label>
+                    <div key={f} className="space-y-2">
+                      <label className="text-xs font-bold text-slate-500 uppercase tracking-widest ml-1">{f}</label>
+                      <textarea 
+                        rows={4} 
+                        value={remarks[f]} 
+                        onChange={(e) => setRemarks((prev) => ({ ...prev, [f]: e.target.value }))} 
+                        className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl text-sm font-medium focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 outline-none transition-all resize-none placeholder:text-slate-400"
+                        placeholder={`Share your thoughts on ${f.toLowerCase()}...`}
+                      />
+                    </div>
                   ))}
                 </div>
               </div>
 
-              <button type="submit" disabled={!isValid || submitting} className={`w-full py-3 px-4 rounded-lg font-medium transition-colors ${isValid ? 'bg-blue-600 hover:bg-blue-700 text-white' : 'bg-gray-300 text-gray-500 cursor-not-allowed'}`}>
-                {submitting ? 'Submitting...' : 'Record Observation'}
-              </button>
-              {submitted && <div className="mt-3 flex items-center text-sm text-green-600 gap-2"><CheckCircle className="w-4 h-4" />Observation submitted successfully.</div>}
+              <div className="pt-8">
+                <button 
+                  type="submit" 
+                  disabled={!isValid || submitting} 
+                  className={`w-full py-4 px-6 rounded-2xl font-bold text-lg transition-all shadow-lg flex items-center justify-center gap-3 ${
+                    isValid 
+                      ? 'bg-blue-600 hover:bg-blue-700 text-white shadow-blue-200 active:scale-[0.98]' 
+                      : 'bg-slate-200 text-slate-400 cursor-not-allowed shadow-none'
+                  }`}
+                >
+                  {submitting ? <Loader2 size={24} className="animate-spin" /> : <CheckCircle size={24} />}
+                  <span>{submitting ? 'Recording Insight...' : 'Submit Observation'}</span>
+                </button>
+              </div>
             </form>
           </div>
+        </div>
 
-          <div className="bg-white rounded-lg shadow-sm">
-            <div className="p-6 border-b border-gray-200"><h2 className="text-xl font-semibold text-gray-900">Recent Observations</h2></div>
-            <div className="p-6">
-              {recentObservations.length === 0 ? <div className="text-center text-sm text-gray-500">No observations recorded yet.</div> : (
-                <div className="space-y-4 max-h-96 overflow-y-auto">
+        {/* Sidebar Insights */}
+        <div className="lg:col-span-4 space-y-6">
+          <div className="bg-slate-900 rounded-3xl p-6 text-white shadow-xl shadow-slate-200">
+            <h3 className="text-lg font-bold mb-4 flex items-center gap-2">
+              <TrendingUp size={20} className="text-blue-400" />
+              Quick Summary
+            </h3>
+            <div className="space-y-4">
+              <div className="bg-white/10 rounded-2xl p-4 flex items-center justify-between">
+                <div>
+                  <p className="text-[10px] font-bold text-blue-300 uppercase tracking-widest">Active Child</p>
+                  <p className="text-sm font-bold truncate max-w-[150px]">
+                    {filteredChildren.find(c => String(c.id) === String(studentId))?.name || 'None Selected'}
+                  </p>
+                </div>
+                <div className="w-10 h-10 rounded-xl bg-blue-500 flex items-center justify-center">
+                  <User size={18} />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="bg-white/10 rounded-2xl p-4">
+                  <p className="text-[10px] font-bold text-blue-300 uppercase tracking-widest">Total Logs</p>
+                  <p className="text-xl font-bold">{observations.length}</p>
+                </div>
+                <div className="bg-white/10 rounded-2xl p-4">
+                  <p className="text-[10px] font-bold text-blue-300 uppercase tracking-widest">Urgency</p>
+                  <p className={`text-xl font-bold ${concernLevel === 'high' ? 'text-rose-400' : 'text-emerald-400'}`}>
+                    {concernLevel.toUpperCase()}
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-white border border-slate-200 rounded-3xl shadow-sm overflow-hidden">
+            <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
+              <h2 className="text-sm font-bold text-slate-900 uppercase tracking-widest flex items-center gap-2">
+                <Clock size={16} className="text-slate-400" />
+                Recent History
+              </h2>
+            </div>
+            <div className="p-4">
+              {recentObservations.length === 0 ? (
+                <div className="text-center py-12 px-6 text-slate-400">
+                  <ClipboardList size={32} className="mx-auto mb-3 opacity-20" />
+                  <p className="text-xs font-medium italic">Your recorded observations will appear here.</p>
+                </div>
+              ) : (
+                <div className="space-y-4 max-h-[600px] overflow-y-auto pr-2 custom-scrollbar">
                   {recentObservations.map((obs) => (
-                    <div key={obs.id} className="border border-gray-200 rounded-lg p-4">
-                      <div className="flex items-start justify-between mb-2">
-                        <div className="flex items-center space-x-2">
-                          <User className="w-4 h-4 text-gray-400" />
-                          <span className="font-medium text-gray-900">{formatStudentDisplay({ studentName: obs.studentName, studentId: obs.studentId, roll: obs.roll || obs.rollNo || obs.rollNumber, section: obs.section })}</span>
-                          <span className={`px-2 py-1 rounded-full text-xs font-medium ${concernBadge(obs.concernLevel || 'low')}`}>{(obs.concernLevel || 'low').toUpperCase()}</span>
+                    <div key={obs.id} className="group relative border border-slate-100 rounded-2xl p-4 transition-all hover:bg-slate-50 hover:border-blue-100">
+                      <div className="flex items-start justify-between mb-3">
+                        <div className="space-y-0.5">
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs font-bold text-slate-900">{obs.studentName}</span>
+                            <span className={`px-2 py-0.5 rounded-full text-[10px] font-black border uppercase tracking-wider ${concernBadge(obs.concernLevel || 'low')}`}>
+                              {obs.concernLevel || 'low'}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-1.5 text-[10px] font-bold text-slate-400">
+                            <Calendar size={10} />
+                            <span>{obs.recordedAt ? new Date(obs.recordedAt).toLocaleDateString() : obs.date}</span>
+                          </div>
                         </div>
-                        <div className="flex items-center space-x-2 text-sm text-gray-500"><Clock className="w-4 h-4" /><span>{obs.recordedAt ? new Date(obs.recordedAt).toLocaleDateString() : obs.date}</span></div>
                       </div>
-                      <p className="text-gray-700 text-sm mb-2">{obs.observationText || obs.observation || ''}</p>
-                      {obs.behaviorNotes && <div className="text-xs text-gray-500 whitespace-pre-line">Notes: {obs.behaviorNotes}</div>}
+                      <p className="text-xs font-semibold text-slate-600 line-clamp-2 leading-relaxed italic">
+                        "{obs.observationText || obs.observation || 'No quantitative details recorded.'}"
+                      </p>
+                      {obs.behaviorNotes && (
+                        <div className="mt-3 pt-3 border-t border-slate-100/50">
+                          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter mb-1">Qualitative Feedback</p>
+                          <p className="text-[10px] text-slate-500 line-clamp-3 whitespace-pre-line">
+                            {obs.behaviorNotes}
+                          </p>
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -386,6 +595,23 @@ const ParentObservationNonAcademic = () => {
           </div>
         </div>
       </div>
+      
+      <style>{`
+        .custom-scrollbar::-webkit-scrollbar {
+          width: 4px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+          background: #f1f5f9;
+          border-radius: 10px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+          background: #cbd5e1;
+          border-radius: 10px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+          background: #94a3b8;
+        }
+      `}</style>
     </div>
   );
 };
