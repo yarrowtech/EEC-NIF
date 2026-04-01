@@ -135,39 +135,6 @@ export const initialIssues = [
   }
 ];
 
-export const initialTickets = [
-  {
-    id: 'TCK-801',
-    schoolName: 'Heritage Valley School',
-    category: 'Access',
-    subject: 'Principal login locked',
-    openedAt: '2024-02-05T06:00:00Z',
-    status: 'open',
-    owner: 'Support Team A',
-    priority: 'high'
-  },
-  {
-    id: 'TCK-802',
-    schoolName: 'International School of Mumbai',
-    category: 'Integration',
-    subject: 'Need ERP API credentials',
-    openedAt: '2024-02-03T15:20:00Z',
-    status: 'in_progress',
-    owner: 'Solutions Desk',
-    priority: 'medium'
-  },
-  {
-    id: 'TCK-803',
-    schoolName: 'Cambridge Academy Bangalore',
-    category: 'Billing',
-    subject: 'GST update for invoices',
-    openedAt: '2024-02-01T08:10:00Z',
-    status: 'resolved',
-    owner: 'Finance Ops',
-    priority: 'low'
-  }
-];
-
 export const initialAnnouncements = [
   {
     id: 'BC-201',

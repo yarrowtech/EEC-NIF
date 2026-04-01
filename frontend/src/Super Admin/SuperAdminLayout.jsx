@@ -6,7 +6,6 @@ import {
   Building2,
   MessageSquare,
   AlertTriangle,
-  LifeBuoy,
   Menu,
   KeyRound,
   Activity,
@@ -22,7 +21,6 @@ const navLinks = [
   { to: '/super-admin/requests', label: 'Requests', icon: Building2 },
   { to: '/super-admin/feedback', label: 'Feedback', icon: MessageSquare },
   { to: '/super-admin/issues', label: 'Issues', icon: AlertTriangle },
-  { to: '/super-admin/tickets', label: 'Tickets', icon: LifeBuoy },
   { to: '/super-admin/credentials', label: 'Passwords', icon: KeyRound },
   { to: '/super-admin/id-pass', label: 'ID Pass', icon: IdCard },
   { to: '/super-admin/operations', label: 'Operations', icon: Activity },
@@ -42,7 +40,9 @@ const SuperAdminLayout = ({ children, sidebarCollapsed, onToggleSidebar, insight
   const closeMobileMenu = () => setMobileMenuOpen(false);
 
   const renderNavItems = (showLabel = true) =>
-    navLinks.map(({ to, label, icon: Icon }) => (
+    navLinks.map(({ to, label, icon }) => {
+      const IconComponent = icon;
+      return (
       <NavLink
         key={to}
         to={to}
@@ -57,12 +57,12 @@ const SuperAdminLayout = ({ children, sidebarCollapsed, onToggleSidebar, insight
               ? 'bg-gradient-to-r from-amber-100 to-orange-50 text-amber-700 shadow-sm border-l-4 border-amber-500'
               : 'text-gray-600 hover:bg-gradient-to-r hover:from-amber-50 hover:to-orange-50 hover:text-gray-900 hover:shadow-sm hover:border-l-4 hover:border-amber-300'}
           `}>
-            <Icon size={20} className={`flex-shrink-0 transition-colors duration-200 ${isActive ? 'text-amber-600' : 'group-hover:text-amber-600'}`} />
+            <IconComponent size={20} className={`flex-shrink-0 transition-colors duration-200 ${isActive ? 'text-amber-600' : 'group-hover:text-amber-600'}`} />
             {showLabel && <span className="font-medium flex-1 opacity-100 transition-opacity duration-200">{label}</span>}
           </div>
         )}
       </NavLink>
-    ));
+    )});
 
   return (
     <div className="min-h-screen flex bg-slate-50">

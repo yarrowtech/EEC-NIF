@@ -1,4 +1,6 @@
-import { Building2, CheckCircle2, AlertCircle, LifeBuoy, Clock, Mail, Phone } from 'lucide-react';
+import { useState } from 'react';
+import { Link } from 'react-router-dom';
+import { Building2, CheckCircle2, AlertCircle, Clock, Mail, Phone, RefreshCw, Trash2 } from 'lucide-react';
 
 const formatDate = (value) =>
   new Date(value).toLocaleString('en-IN', {
@@ -18,20 +20,51 @@ const Overview = ({
   requests,
   feedbackItems,
   issues,
-  tickets,
+  requestLoading = false,
+  bulkDeleteLoading = false,
+  requestError = null,
+  onRefreshRequests,
+  onDeleteAllPendingRequests,
   onRequestAction,
   onIssueUpdate,
-  onTicketUpdate,
   onFeedbackUpdate
 }) => {
+  const [activeRequestAction, setActiveRequestAction] = useState(null);
+  const [showBulkDeleteConfirm, setShowBulkDeleteConfirm] = useState(false);
+  const [bulkDeleteConfirmText, setBulkDeleteConfirmText] = useState('');
+  const [actionError, setActionError] = useState(null);
+
   const pendingRequests = requests.filter((request) => request.status === 'pending');
   const urgentIssues = issues.filter((issue) => issue.status !== 'resolved');
-  const activeTickets = tickets.filter((ticket) => ticket.status !== 'resolved');
   const feedbackQueue = feedbackItems.filter((item) => item.status !== 'resolved');
 
   const recentRequests = [...requests]
     .sort((a, b) => new Date(b.submittedAt) - new Date(a.submittedAt))
     .slice(0, 3);
+
+  const handleRequestAction = async (requestId, status) => {
+    try {
+      setActionError(null);
+      setActiveRequestAction(`${requestId}:${status}`);
+      await onRequestAction(requestId, status);
+    } catch (error) {
+      setActionError(error?.message || 'Unable to update request');
+    } finally {
+      setActiveRequestAction(null);
+    }
+  };
+
+  const handleBulkDelete = async () => {
+    if (!onDeleteAllPendingRequests) return;
+    try {
+      setActionError(null);
+      await onDeleteAllPendingRequests(bulkDeleteConfirmText);
+      setBulkDeleteConfirmText('');
+      setShowBulkDeleteConfirm(false);
+    } catch (error) {
+      setActionError(error?.message || 'Unable to delete pending requests');
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -44,6 +77,74 @@ const Overview = ({
             </div>
             <span className="text-sm text-slate-500">{pendingRequests.length} pending</span>
           </div>
+
+          <div className="mb-4 flex flex-wrap items-center gap-2">
+            <button
+              className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-slate-200 text-sm text-slate-600 hover:bg-slate-50 disabled:opacity-60 disabled:cursor-not-allowed"
+              onClick={onRefreshRequests}
+              disabled={requestLoading || bulkDeleteLoading}
+            >
+              <RefreshCw size={14} className={requestLoading ? 'animate-spin' : ''} />
+              Refresh
+            </button>
+            <Link
+              to="/super-admin/requests"
+              className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-slate-200 text-sm text-slate-600 hover:bg-slate-50"
+            >
+              Open Requests Page
+            </Link>
+            <button
+              className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-rose-300 bg-rose-50 text-sm text-rose-700 hover:bg-rose-100 disabled:opacity-60 disabled:cursor-not-allowed"
+              onClick={() => setShowBulkDeleteConfirm((prev) => !prev)}
+              disabled={pendingRequests.length === 0 || requestLoading || bulkDeleteLoading}
+            >
+              <Trash2 size={14} />
+              Delete All Pending
+            </button>
+          </div>
+
+          {(requestError || actionError) && (
+            <div className="mb-4 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">
+              {actionError || requestError}
+            </div>
+          )}
+
+          {showBulkDeleteConfirm && (
+            <div className="mb-4 rounded-xl border border-rose-200 bg-rose-50 p-4 space-y-3">
+              <p className="text-sm text-rose-800 font-medium">
+                This will permanently delete all pending school registrations.
+              </p>
+              <p className="text-xs text-rose-700">
+                Type <span className="font-semibold">DELETE</span> to confirm.
+              </p>
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                <input
+                  type="text"
+                  value={bulkDeleteConfirmText}
+                  onChange={(event) => setBulkDeleteConfirmText(event.target.value)}
+                  className="w-full sm:w-64 rounded-lg border border-rose-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-rose-300"
+                  placeholder="Type DELETE"
+                />
+                <button
+                  className="px-4 py-2 rounded-lg bg-rose-600 text-white text-sm disabled:opacity-60 disabled:cursor-not-allowed"
+                  onClick={handleBulkDelete}
+                  disabled={bulkDeleteLoading || bulkDeleteConfirmText.trim().toUpperCase() !== 'DELETE'}
+                >
+                  {bulkDeleteLoading ? 'Deleting...' : 'Confirm delete'}
+                </button>
+                <button
+                  className="px-4 py-2 rounded-lg border border-slate-300 text-slate-700 text-sm"
+                  onClick={() => {
+                    setShowBulkDeleteConfirm(false);
+                    setBulkDeleteConfirmText('');
+                  }}
+                  disabled={bulkDeleteLoading}
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          )}
 
           {pendingRequests.length === 0 && (
             <p className="text-sm text-slate-500">All caught up! Every school request is processed.</p>
@@ -70,16 +171,18 @@ const Overview = ({
                 </div>
                 <div className="flex flex-col sm:flex-row gap-2">
                   <button
-                    className="px-4 py-2 rounded-lg border border-slate-200 text-sm text-slate-600 hover:bg-slate-50"
-                    onClick={() => onRequestAction(request.id, 'review')}
+                    className="px-4 py-2 rounded-lg border border-slate-200 text-sm text-slate-600 hover:bg-slate-50 disabled:opacity-60 disabled:cursor-not-allowed"
+                    onClick={() => handleRequestAction(request.id, 'review')}
+                    disabled={Boolean(activeRequestAction)}
                   >
-                    Request Info
+                    {activeRequestAction === `${request.id}:review` ? 'Updating...' : 'Request Info'}
                   </button>
                   <button
-                    className="px-4 py-2 rounded-lg bg-emerald-600 text-white text-sm hover:bg-emerald-700"
-                    onClick={() => onRequestAction(request.id, 'approved')}
+                    className="px-4 py-2 rounded-lg bg-emerald-600 text-white text-sm hover:bg-emerald-700 disabled:opacity-60 disabled:cursor-not-allowed"
+                    onClick={() => handleRequestAction(request.id, 'approved')}
+                    disabled={Boolean(activeRequestAction)}
                   >
-                    Approve Now
+                    {activeRequestAction === `${request.id}:approved` ? 'Approving...' : 'Approve Now'}
                   </button>
                 </div>
               </div>
@@ -116,52 +219,6 @@ const Overview = ({
             </div>
           </div>
 
-          <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6">
-            <div className="flex items-center gap-3 mb-4">
-              <div className="p-2 rounded-lg bg-sky-50 text-sky-500">
-                <LifeBuoy size={18} />
-              </div>
-              <div>
-                <p className="text-xs uppercase text-slate-400">Tickets</p>
-                <p className="font-semibold text-slate-800">Live queue</p>
-              </div>
-            </div>
-            {activeTickets.length === 0 ? (
-              <p className="text-sm text-slate-500">No open tickets. Support team is up to date.</p>
-            ) : (
-              <div className="space-y-3">
-                {activeTickets.slice(0, 4).map((ticket) => (
-                  <div key={ticket.id} className="border border-slate-100 rounded-lg p-3">
-                    <div className="flex items-center justify-between">
-                      <p className="text-sm font-semibold text-slate-700">{ticket.subject}</p>
-                      <span className={`text-xs px-2 py-1 rounded-full ${
-                        ticket.status === 'open'
-                          ? 'bg-red-100 text-red-600'
-                          : 'bg-blue-100 text-blue-600'
-                      }`}>
-                        {ticket.status.replace('_', ' ')}
-                      </span>
-                    </div>
-                    <p className="text-xs text-slate-500">{ticket.schoolName} • {ticket.owner}</p>
-                    <div className="flex gap-2 mt-2">
-                      <button
-                        className="text-xs px-3 py-1 border border-slate-200 rounded-lg text-slate-600"
-                        onClick={() => onTicketUpdate(ticket.id, { status: 'in_progress' })}
-                      >
-                        Assign
-                      </button>
-                      <button
-                        className="text-xs px-3 py-1 rounded-lg bg-emerald-50 text-emerald-600"
-                        onClick={() => onTicketUpdate(ticket.id, { status: 'resolved' })}
-                      >
-                        Resolve
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
         </div>
       </div>
 
