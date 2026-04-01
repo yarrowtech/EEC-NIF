@@ -137,6 +137,9 @@ const schoolSchema = new mongoose.Schema(
       exitTime: { type: String, default: '17:00' }, // HH:mm
       graceMinutes: { type: Number, default: 0 }, // Minutes allowed after entryTime
     },
+    teacherLeaveSettings: {
+      casualLeaveDays: { type: Number, default: 12 },
+    },
   },
   { timestamps: true }
 );

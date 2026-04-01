@@ -16,6 +16,7 @@ const TeacherExpense = require('../models/TeacherExpense');
 const TeacherAllocation = require('../models/TeacherAllocation');
 const TeacherFeedback = require('../models/TeacherFeedback');
 const SupportRequest = require('../models/SupportRequest');
+const Notification = require('../models/Notification');
 
 const router = express.Router();
 const WEEK_DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
@@ -90,6 +91,41 @@ const getSchoolAttendanceSettings = async (schoolId) => {
     exitTime: TIME_24H_RE.test(String(exitTime || '').trim()) ? String(exitTime).trim() : defaults.exitTime,
     graceMinutes: Number.isFinite(Number(graceMinutes)) ? Number(graceMinutes) : defaults.graceMinutes,
   };
+};
+
+const getSchoolLeaveSettings = async (schoolId) => {
+  if (!schoolId) return { casualLeaveDays: 12 };
+  const school = await School.findById(schoolId).select('teacherLeaveSettings').lean();
+  const casualLeaveDays = Number.isFinite(Number(school?.teacherLeaveSettings?.casualLeaveDays))
+    ? Number(school.teacherLeaveSettings.casualLeaveDays)
+    : 12;
+  return {
+    casualLeaveDays: Math.max(0, Math.min(365, Math.round(casualLeaveDays))),
+  };
+};
+
+const dateOnlyValue = (value) => {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate());
+};
+
+const countInclusiveDays = (startDate, endDate) => {
+  const start = dateOnlyValue(startDate);
+  const end = dateOnlyValue(endDate);
+  if (!start || !end || end < start) return 0;
+  const msPerDay = 24 * 60 * 60 * 1000;
+  return Math.floor((end.getTime() - start.getTime()) / msPerDay) + 1;
+};
+
+const formatDateLabel = (value) => {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return String(value || '');
+  return date.toLocaleDateString('en-GB', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+  });
 };
 
 const buildMonthRange = (month) => {
@@ -793,7 +829,16 @@ router.get('/leave-requests', authTeacher, async (req, res) => {
     if (campusId) query.campusId = campusId;
     if (req.query?.status) query.status = String(req.query.status);
 
-    const leaves = await TeacherLeave.find(query).sort({ createdAt: -1 }).lean();
+    const [leaves, leavePolicy] = await Promise.all([
+      TeacherLeave.find(query).sort({ createdAt: -1 }).lean(),
+      getSchoolLeaveSettings(schoolId),
+    ]);
+    const casualUsedDays = leaves
+      .filter((leave) => String(leave?.status || '').toLowerCase() === 'approved')
+      .filter((leave) => String(leave?.type || '').trim().toLowerCase() === 'casual leave')
+      .reduce((sum, leave) => sum + countInclusiveDays(leave.startDate, leave.endDate), 0);
+    const casualAvailableDays = Math.max((leavePolicy.casualLeaveDays || 0) - casualUsedDays, 0);
+
     res.json({
       leaves: leaves.map((leave) => ({
         id: leave._id,
@@ -805,6 +850,11 @@ router.get('/leave-requests', authTeacher, async (req, res) => {
         adminNote: leave.adminNote || '',
         createdAt: leave.createdAt,
       })),
+      leavePolicy,
+      leaveStats: {
+        casualUsedDays,
+        casualAvailableDays,
+      },
     });
   } catch (err) {
     res.status(500).json({ error: err.message || 'Unable to load leave requests' });
@@ -828,18 +878,60 @@ router.post('/leave-requests', authTeacher, async (req, res) => {
       return res.status(400).json({ error: 'Start date cannot be after end date' });
     }
 
+    const normalizedType = String(type).trim();
+    if (normalizedType.toLowerCase() === 'casual leave') {
+      const [leavePolicy, approvedCasualLeaves] = await Promise.all([
+        getSchoolLeaveSettings(schoolId),
+        TeacherLeave.find({
+          schoolId,
+          teacherId,
+          ...(campusId ? { campusId } : {}),
+          status: 'Approved',
+          type: { $regex: '^casual leave$', $options: 'i' },
+        })
+          .select('startDate endDate')
+          .lean(),
+      ]);
+      const usedDays = approvedCasualLeaves.reduce((sum, leave) => sum + countInclusiveDays(leave.startDate, leave.endDate), 0);
+      const requestedDays = countInclusiveDays(startDate, endDate);
+      const availableDays = Math.max((leavePolicy.casualLeaveDays || 0) - usedDays, 0);
+      if (requestedDays > availableDays) {
+        return res.status(400).json({ error: `Casual leave balance exceeded. Available: ${availableDays} day(s)` });
+      }
+    }
+
     const teacher = await TeacherUser.findById(teacherId).select('name').lean();
     const created = await TeacherLeave.create({
       schoolId,
       campusId: campusId || null,
       teacherId,
       teacherName: teacher?.name || 'Teacher',
-      type: String(type).trim(),
+      type: normalizedType,
       startDate: String(startDate),
       endDate: String(endDate),
       reason: String(reason || '').trim(),
       status: 'Pending',
     });
+
+    try {
+      const teacherName = teacher?.name || 'Teacher';
+      await Notification.create({
+        schoolId,
+        campusId: campusId || null,
+        title: 'New Teacher Leave Request',
+        message: `${teacherName} applied for ${normalizedType} from ${formatDateLabel(startDate)} to ${formatDateLabel(endDate)}.`,
+        audience: 'Admin',
+        createdByType: 'teacher',
+        createdByTeacherId: teacherId,
+        createdByName: teacherName,
+        type: 'general',
+        typeLabel: 'Leave Request',
+        priority: 'medium',
+        category: 'general',
+      });
+    } catch (notifErr) {
+      console.error('Failed to create teacher leave notification:', notifErr?.message || notifErr);
+    }
 
     res.status(201).json({
       message: 'Leave request submitted successfully',
@@ -880,6 +972,30 @@ router.patch('/leave-requests/:id', authTeacher, async (req, res) => {
     const { type, startDate, endDate, reason } = req.body || {};
     if (startDate && endDate && new Date(startDate) > new Date(endDate)) {
       return res.status(400).json({ error: 'Start date cannot be after end date' });
+    }
+
+    const nextType = type !== undefined ? String(type).trim() : String(existing.type || '').trim();
+    const nextStartDate = startDate !== undefined ? String(startDate) : String(existing.startDate || '');
+    const nextEndDate = endDate !== undefined ? String(endDate) : String(existing.endDate || '');
+    if (nextType.toLowerCase() === 'casual leave') {
+      const [leavePolicy, approvedCasualLeaves] = await Promise.all([
+        getSchoolLeaveSettings(schoolId),
+        TeacherLeave.find({
+          schoolId,
+          teacherId,
+          ...(campusId ? { campusId } : {}),
+          status: 'Approved',
+          type: { $regex: '^casual leave$', $options: 'i' },
+        })
+          .select('startDate endDate')
+          .lean(),
+      ]);
+      const usedDays = approvedCasualLeaves.reduce((sum, leave) => sum + countInclusiveDays(leave.startDate, leave.endDate), 0);
+      const requestedDays = countInclusiveDays(nextStartDate, nextEndDate);
+      const availableDays = Math.max((leavePolicy.casualLeaveDays || 0) - usedDays, 0);
+      if (requestedDays > availableDays) {
+        return res.status(400).json({ error: `Casual leave balance exceeded. Available: ${availableDays} day(s)` });
+      }
     }
 
     if (type !== undefined) existing.type = String(type).trim();

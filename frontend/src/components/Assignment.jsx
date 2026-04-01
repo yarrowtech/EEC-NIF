@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect, useMemo } from "react";
 import {
   Calendar,
   Clock,
@@ -16,13 +16,242 @@ import {
   SendHorizonal,
   Paperclip,
   Award,
-  Upload
+  Upload,
+  FlaskConical
 } from "lucide-react";
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+import { DRACOLoader } from 'three/examples/jsm/loaders/DRACOLoader.js';
+import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { addPoints, hasAward, markAwarded } from '../utils/points';
 import axios from 'axios';
 import { useLocation } from 'react-router-dom';
+
+const labModelUrl = (file) => new URL(`../models/${file}`, import.meta.url).href;
+
+const LAB_EXPERIMENTS = [
+  {
+    id: 'water',
+    title: 'Water Molecule',
+    formula: 'H2O',
+    field: 'Chemistry',
+    difficulty: 'Beginner',
+    model: labModelUrl('h2o-model.glb'),
+    summary: 'Visualize bent geometry and polarity in one of the most familiar molecules on Earth.',
+    focus: ['Bent geometry', 'Hydrogen bonding', 'Partial charges'],
+    steps: [
+      'Begin from the side to estimate the roughly 104.5 deg bond angle.',
+      'Rotate so that a hydrogen points toward you while talking about polarity.',
+      'Use the zoom slider to highlight how lone pairs push the hydrogens downward.'
+    ],
+    safety: 'Use this demo to talk about polar liquids before handling any actual reagents.',
+    tags: ['Molecule', 'Polarity', 'Bond angles']
+  },
+  {
+    id: 'carbon-dioxide',
+    title: 'Carbon Dioxide',
+    formula: 'CO2',
+    field: 'Chemistry',
+    difficulty: 'Beginner',
+    model: labModelUrl('co2.glb'),
+    summary: 'Study a linear molecule with two double bonds and perfect symmetry.',
+    focus: ['Linear geometry', 'Double bonds', 'Symmetry'],
+    steps: [
+      'Observe the equal spacing between the oxygens and carbon.',
+      'Rotate 90 deg so learners see the molecule stays linear from every angle.',
+      'Zoom in on the double bonds and compare to single bond lengths.'
+    ],
+    safety: 'Discuss ventilation and monitoring when real CO2 is released in a lab.',
+    tags: ['Molecule', 'Linear', 'Gas']
+  },
+  {
+    id: 'methane',
+    title: 'Methane',
+    formula: 'CH4',
+    field: 'Chemistry',
+    difficulty: 'Beginner',
+    model: labModelUrl('methane.glb'),
+    summary: 'Demonstrate a tetrahedral molecule and sp3 hybridization.',
+    focus: ['Tetrahedral geometry', 'Hybrid orbitals', 'Hydrocarbon'],
+    steps: [
+      'Align one C-H bond with the camera to show trigonal projections.',
+      'Rotate continuously to talk about the symmetry of sp3 bonds.',
+      'Zoom close to compare bond lengths and identical angles.'
+    ],
+    safety: 'Review open flame precautions because methane is highly flammable.',
+    tags: ['Hydrocarbon', 'Geometry', 'Gas']
+  },
+  {
+    id: 'ethane',
+    title: 'Ethane',
+    formula: 'C2H6',
+    field: 'Organic',
+    difficulty: 'Intermediate',
+    model: labModelUrl('ethane.glb'),
+    summary: 'Compare staggered and eclipsed conformations by rotating the sigma bond.',
+    focus: ['Sigma bonds', 'Conformations', 'Torsional strain'],
+    steps: [
+      'Look down the C-C bond to see the staggered arrangement.',
+      'Adjust rotation slowly to move toward an eclipsed view.',
+      'Discuss how torsional strain increases as hydrogens overlap.'
+    ],
+    safety: 'Relate the model to safe handling of low boiling hydrocarbons.',
+    tags: ['Hydrocarbon', 'Conformations', 'Rotation']
+  },
+  {
+    id: 'ethanol',
+    title: 'Ethanol',
+    formula: 'C2H5OH',
+    field: 'Organic',
+    difficulty: 'Intermediate',
+    model: labModelUrl('ethanol.glb'),
+    summary: 'Highlight the hydroxyl functional group and hydrogen bonding sites.',
+    focus: ['Functional groups', 'Hydrogen bonding', 'Organic structure'],
+    steps: [
+      'Rotate to isolate the O-H group and identify the polar region.',
+      'Compare carbon backbone flexibility versus rigid O-H bond.',
+      'Zoom out and point out how polarity influences solubility.'
+    ],
+    safety: 'Remind learners about flammability and ventilation when using alcohols.',
+    tags: ['Alcohol', 'Polarity', 'Functional group']
+  },
+  {
+    id: 'glucose',
+    title: 'Glucose',
+    formula: 'C6H12O6',
+    field: 'Biochemistry',
+    difficulty: 'Advanced',
+    model: labModelUrl('glucose.glb'),
+    summary: 'Observe a monosaccharide ring and the orientation of hydroxyl groups.',
+    focus: ['Ring formation', 'Chirality', 'Hydroxyl pattern'],
+    steps: [
+      'Start with the ring laying flat to label carbon numbers.',
+      'Rotate to show axial versus equatorial hydroxyl positions.',
+      'Zoom in on the anomeric carbon to discuss alpha and beta forms.'
+    ],
+    safety: 'Use food safe sugars for physical demos, but still stress clean benches.',
+    tags: ['Biomolecule', 'Carbohydrate', 'Ring structure']
+  },
+  {
+    id: 'sucrose',
+    title: 'Sucrose',
+    formula: 'C12H22O11',
+    field: 'Biochemistry',
+    difficulty: 'Advanced',
+    model: labModelUrl('SUCROSE.glb'),
+    summary: 'Show how two sugar rings connect through a glycosidic linkage.',
+    focus: ['Glycosidic bond', 'Disaccharide', 'Hydroxyl network'],
+    steps: [
+      'Identify each ring (glucose and fructose) with the camera centered.',
+      'Trace the bonding oxygen that links the two monosaccharides.',
+      'Zoom in to count hydrogen bond donors across the entire molecule.'
+    ],
+    safety: 'Point out how sticky sugars demand wipe downs to avoid pests.',
+    tags: ['Disaccharide', 'Biomolecule', 'Linkage']
+  },
+  {
+    id: 'benzene',
+    title: 'Benzene',
+    formula: 'C6H6',
+    field: 'Organic',
+    difficulty: 'Intermediate',
+    model: labModelUrl('benzene.glb'),
+    summary: 'Explore aromaticity, planarity, and delocalized electrons.',
+    focus: ['Aromatic ring', 'Delocalized pi system', 'Planar structure'],
+    steps: [
+      'View the ring edge on to stress planarity.',
+      'Rotate 90 deg to show pi clouds above and below the ring.',
+      'Compare bond lengths to show that they are equal due to resonance.'
+    ],
+    safety: 'Discuss fume hood requirements for volatile aromatic solvents.',
+    tags: ['Aromatic', 'Resonance', 'Planar']
+  },
+  {
+    id: 'ammonia',
+    title: 'Ammonia',
+    formula: 'NH3',
+    field: 'Chemistry',
+    difficulty: 'Beginner',
+    model: labModelUrl('amonia.glb'),
+    summary: 'Highlight trigonal pyramidal geometry and lone pair effects.',
+    focus: ['Trigonal pyramidal', 'Lone pair', 'Bond angles'],
+    steps: [
+      'Orient the nitrogen on top to show the pyramid shape.',
+      'Rotate slowly to visualize the lone pair region.',
+      'Use zoom to compare the NH bond lengths with other molecules.'
+    ],
+    safety: 'Emphasize goggles and ventilation for any ammonia handling.',
+    tags: ['Molecule', 'Lone pair', 'Geometry']
+  },
+  {
+    id: 'nitric-acid',
+    title: 'Nitric Acid',
+    formula: 'HNO3',
+    field: 'Chemistry',
+    difficulty: 'Advanced',
+    model: labModelUrl('nitric acidglb.glb'),
+    summary: 'Showcase resonance structures and the acidic proton.',
+    focus: ['Resonance', 'Strong acid', 'NO3 group'],
+    steps: [
+      'Point out the hydrogen attached to oxygen and why it is acidic.',
+      'Rotate to illustrate the trigonal planar nitrate arrangement.',
+      'Zoom in on N-O bonds to compare resonance stabilized lengths.'
+    ],
+    safety: 'Review strict PPE, gloves, and neutralization plans for strong acids.',
+    tags: ['Acid', 'Resonance', 'Oxoacid']
+  },
+  {
+    id: 'phenolphthalein',
+    title: 'Phenolphthalein Indicator',
+    formula: 'C20H14O4',
+    field: 'Analytical',
+    difficulty: 'Advanced',
+    model: labModelUrl('phenlopthalin.glb'),
+    summary: 'Study a conjugated system used to visualize pH changes.',
+    focus: ['Conjugation', 'Indicator chemistry', 'Resonance'],
+    steps: [
+      'Highlight the two benzene like rings and connecting lactone.',
+      'Rotate to show how conjugation extends across the molecule.',
+      'Discuss how structure changes in basic solution to create color.'
+    ],
+    safety: 'Remind students to avoid ingestion and to wash hands after indicator use.',
+    tags: ['Indicator', 'Organic', 'Conjugated system']
+  },
+  {
+    id: 'trinitrotoluene',
+    title: 'Trinitrotoluene (TNT)',
+    formula: 'C7H5N3O6',
+    field: 'Chemistry',
+    difficulty: 'Advanced',
+    model: labModelUrl('trinitrotolune.glb'),
+    summary: 'Investigate nitro substitutions on an aromatic ring.',
+    focus: ['Nitro groups', 'Aromatic substitution', 'Energetic material'],
+    steps: [
+      'Identify the methyl group and each nitro substituent.',
+      'Rotate to see how the nitro groups sit slightly out of plane.',
+      'Discuss electron withdrawing effects and stability considerations.'
+    ],
+    safety: 'Use this only as a visualization; never attempt to synthesize TNT in school labs.',
+    tags: ['Aromatic', 'Nitro', 'Explosive']
+  },
+  {
+    id: 'trinitrophenol',
+    title: '2,4,6-Trinitrophenol',
+    formula: 'C6H3N3O7',
+    field: 'Chemistry',
+    difficulty: 'Advanced',
+    model: labModelUrl('246-trinitro.glb'),
+    summary: 'Compare a phenol core with three nitro substituents.',
+    focus: ['Phenol', 'Nitro substitution', 'Acid strength'],
+    steps: [
+      'Show the phenolic hydroxyl and how it interacts with nitro groups.',
+      'Rotate to compare substitution positions around the ring.',
+      'Zoom to explain why the molecule is acidic and energetic.'
+    ],
+    safety: 'Discuss storage rules for energetic compounds and why schools use simulations.',
+    tags: ['Phenol', 'Nitro', 'Acidic']
+  },
+];
 
 const Assignment = ({ assignmentType, filter, setFilter }) => {
   const location = useLocation();
@@ -75,6 +304,17 @@ const Assignment = ({ assignmentType, filter, setFilter }) => {
     zoom: 1,
     lightIntensity: 1
   });
+  const [selectedExperimentId, setSelectedExperimentId] = useState(LAB_EXPERIMENTS[0]?.id || null);
+  const selectedExperiment = useMemo(() => {
+    return LAB_EXPERIMENTS.find((exp) => exp.id === selectedExperimentId) || LAB_EXPERIMENTS[0];
+  }, [selectedExperimentId]);
+  const [labLoading, setLabLoading] = useState(false);
+  const [labError, setLabError] = useState('');
+  const [labRefreshKey, setLabRefreshKey] = useState(0);
+  const labControlsRef = useRef(labControls);
+  useEffect(() => {
+    labControlsRef.current = labControls;
+  }, [labControls]);
 
   // Fetch assignments from API
   useEffect(() => {
@@ -131,6 +371,21 @@ const Assignment = ({ assignmentType, filter, setFilter }) => {
       setLoading(false);
     }
   };
+
+  const handleExperimentSelect = (experimentId) => {
+    if (experimentId === selectedExperimentId) {
+      setLabRefreshKey((key) => key + 1);
+      return;
+    }
+    setSelectedExperimentId(experimentId);
+    setLabControls({
+      rotation: 0,
+      zoom: 1,
+      lightIntensity: 1
+    });
+  };
+
+  const retryLabLoad = () => setLabRefreshKey((key) => key + 1);
 
 const openDetail = (assignment) => {
   setSelectedAssignment(assignment);
@@ -363,78 +618,142 @@ const closeDetail = () => {
   useEffect(() => {
     if (assignmentType !== 'lab') {
       if (labAnimRef.current) cancelAnimationFrame(labAnimRef.current);
-      if (labRendererRef.current) {
-        labRendererRef.current.dispose();
-        labRendererRef.current = null;
-      }
+      return;
+    }
+    if (!selectedExperiment || !labContainerRef.current) {
       return;
     }
 
-    if (!labContainerRef.current) return;
+    const container = labContainerRef.current;
+    while (container.firstChild) {
+      container.removeChild(container.firstChild);
+    }
 
-    // Initialize Three.js scene
+    setLabLoading(true);
+    setLabError('');
+
     const scene = new THREE.Scene();
-    scene.background = new THREE.Color(0xf5f5f5);
+    scene.background = new THREE.Color(0x0f172a);
     labSceneRef.current = scene;
 
-    const camera = new THREE.PerspectiveCamera(75, labContainerRef.current.clientWidth / labContainerRef.current.clientHeight, 0.1, 1000);
-    camera.position.set(0, 5, 10);
+    const camera = new THREE.PerspectiveCamera(
+      60,
+      container.clientWidth / container.clientHeight,
+      0.1,
+      100
+    );
+    camera.position.set(0, 1.5, 6);
     labCameraRef.current = camera;
 
-    const renderer = new THREE.WebGLRenderer({ antialias: true });
-    renderer.setSize(labContainerRef.current.clientWidth, labContainerRef.current.clientHeight);
+    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+    renderer.setSize(container.clientWidth, container.clientHeight);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
     renderer.shadowMap.enabled = true;
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    container.appendChild(renderer.domElement);
     labRendererRef.current = renderer;
 
-    labContainerRef.current.appendChild(renderer.domElement);
+    const controls = new OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+    controls.enablePan = false;
+    controls.dampingFactor = 0.05;
+    controls.minDistance = 2;
+    controls.maxDistance = 12;
 
-    // Add lighting
-    const ambientLight = new THREE.AmbientLight(0x404040, 0.6);
+    const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
     scene.add(ambientLight);
 
-    const directionalLight = new THREE.DirectionalLight(0xffffff, labControls.lightIntensity);
-    directionalLight.position.set(5, 10, 5);
+    const directionalLight = new THREE.DirectionalLight(
+      0xffffff,
+      labControlsRef.current.lightIntensity
+    );
+    directionalLight.position.set(4, 6, 4);
     directionalLight.castShadow = true;
     scene.add(directionalLight);
 
-    // Add a simple cube for demonstration
-    const geometry = new THREE.BoxGeometry(2, 2, 2);
-    const material = new THREE.MeshLambertMaterial({ color: 0x00ff00 });
-    const cube = new THREE.Mesh(geometry, material);
-    cube.castShadow = true;
-    scene.add(cube);
+    const floor = new THREE.Mesh(
+      new THREE.CircleGeometry(4, 48),
+      new THREE.MeshPhongMaterial({ color: 0x1f2937, opacity: 0.4, transparent: true })
+    );
+    floor.rotation.x = -Math.PI / 2;
+    floor.position.y = -1.5;
+    floor.receiveShadow = true;
+    scene.add(floor);
 
-    // Add ground plane
-    const planeGeometry = new THREE.PlaneGeometry(20, 20);
-    const planeMaterial = new THREE.MeshLambertMaterial({ color: 0xcccccc });
-    const plane = new THREE.Mesh(planeGeometry, planeMaterial);
-    plane.rotation.x = -Math.PI / 2;
-    plane.position.y = -2;
-    plane.receiveShadow = true;
-    scene.add(plane);
+    const loader = new GLTFLoader();
 
-    // Animation loop
+    // Configure DRACOLoader for compressed models - using local decoder files
+    const dracoLoader = new DRACOLoader();
+    dracoLoader.setDecoderPath('/draco/');
+    loader.setDRACOLoader(dracoLoader);
+
+    let modelGroup = null;
+
+    console.log('Loading model:', selectedExperiment.title);
+    console.log('Model URL:', selectedExperiment.model);
+
+    loader.load(
+      selectedExperiment.model,
+      (gltf) => {
+        modelGroup = gltf.scene;
+        modelGroup.traverse((child) => {
+          if (child.isMesh) {
+            child.castShadow = true;
+            child.receiveShadow = true;
+            if (child.material) {
+              child.material.side = THREE.DoubleSide;
+            }
+          }
+        });
+        const box = new THREE.Box3().setFromObject(modelGroup);
+        const size = new THREE.Vector3();
+        box.getSize(size);
+        const center = new THREE.Vector3();
+        box.getCenter(center);
+        modelGroup.position.sub(center);
+        const maxAxis = Math.max(size.x, size.y, size.z);
+        if (maxAxis > 0) {
+          const scale = 4 / maxAxis;
+          modelGroup.scale.setScalar(scale);
+        }
+        scene.add(modelGroup);
+        setLabLoading(false);
+        setLabError('');
+      },
+      (progress) => {
+        // Optional: log loading progress
+        if (progress.lengthComputable) {
+          const percentComplete = (progress.loaded / progress.total) * 100;
+          console.log(`Loading model: ${Math.round(percentComplete)}%`);
+        }
+      },
+      (error) => {
+        console.error('Virtual lab model failed to load:', error);
+        console.error('Model path:', selectedExperiment.model);
+        console.error('Error details:', error.message || error);
+        setLabLoading(false);
+        setLabError(`Unable to load the 3D model: ${error.message || 'Unknown error'}. Please try again.`);
+      }
+    );
+
     const animate = () => {
       labAnimRef.current = requestAnimationFrame(animate);
-      
-      cube.rotation.x += 0.01;
-      cube.rotation.y += 0.01;
-      cube.rotation.z = labControls.rotation * Math.PI / 180;
-      
-      camera.position.z = 10 / labControls.zoom;
-      directionalLight.intensity = labControls.lightIntensity;
-      
+      const controlValues = labControlsRef.current;
+      if (modelGroup) {
+        modelGroup.rotation.y = (controlValues.rotation * Math.PI) / 180;
+      }
+      const zoomValue = Math.min(Math.max(controlValues.zoom, 0.5), 3);
+      camera.position.set(0, 1.5, 6 / zoomValue);
+      directionalLight.intensity = controlValues.lightIntensity;
+      controls.update();
       renderer.render(scene, camera);
     };
-    
     animate();
 
-    // Handle resize
     const handleResize = () => {
-      if (!labContainerRef.current) return;
-      const width = labContainerRef.current.clientWidth;
-      const height = labContainerRef.current.clientHeight;
+      if (!container) return;
+      const width = container.clientWidth;
+      const height = container.clientHeight;
       camera.aspect = width / height;
       camera.updateProjectionMatrix();
       renderer.setSize(width, height);
@@ -445,12 +764,14 @@ const closeDetail = () => {
     return () => {
       window.removeEventListener('resize', handleResize);
       if (labAnimRef.current) cancelAnimationFrame(labAnimRef.current);
-      if (labRendererRef.current) {
-        labContainerRef.current?.removeChild(renderer.domElement);
-        labRendererRef.current.dispose();
+      controls.dispose();
+      renderer.dispose();
+      dracoLoader.dispose();
+      if (container.contains(renderer.domElement)) {
+        container.removeChild(renderer.domElement);
       }
     };
-  }, [assignmentType, labControls]);
+  }, [assignmentType, selectedExperiment, labRefreshKey]);
 
   // Practice handlers
   const handlePracticeAnswer = (questionId, value) => {
@@ -1392,26 +1713,99 @@ const closeDetail = () => {
 
   if (assignmentType === 'lab') {
     return (
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-        <div className="mb-6">
-          <h2 className="text-2xl font-bold text-gray-900 mb-4">Virtual Lab</h2>
-          <p className="text-gray-600 mb-6">Explore interactive 3D models and simulations for enhanced learning</p>
+      <div className="space-y-6">
+        <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+          <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+            <div>
+              <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
+                <FlaskConical className="h-4 w-4" />
+                Virtual Lab
+              </div>
+              <h2 className="mt-2 text-2xl font-bold text-slate-900">Interactive Molecule Explorer</h2>
+              <p className="text-sm text-slate-600">Load high fidelity GLB assets directly from the lab library and inspect them with real time controls.</p>
+            </div>
+            <div className="flex flex-wrap gap-2 text-xs font-semibold text-slate-600">
+              <span className="rounded-full border border-slate-200 bg-slate-50 px-4 py-1">{LAB_EXPERIMENTS.length}+ curated models</span>
+              <span className="rounded-full border border-slate-200 bg-slate-50 px-4 py-1">Three.js powered viewer</span>
+            </div>
+          </div>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* 3D Model Viewer */}
-          <div className="bg-gray-50 rounded-lg p-6 border border-gray-200">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">3D Model Viewer</h3>
-            <div ref={labContainerRef} className="w-full h-96 bg-gray-50 rounded-lg border border-gray-200 overflow-hidden" />
+        <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">
+          <div className="xl:col-span-2 space-y-4">
+            <div className="relative overflow-hidden rounded-2xl border border-slate-900/20 bg-slate-900 text-white shadow-xl">
+              <div className="absolute inset-x-0 top-0 z-10 bg-gradient-to-b from-slate-900/90 via-slate-900/10 to-transparent p-6">
+                <p className="text-xs font-semibold uppercase tracking-[0.35em] text-slate-200/80">Current model</p>
+                <div className="mt-2 flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
+                  <div>
+                    <p className="text-2xl font-semibold">{selectedExperiment?.title}</p>
+                    <p className="text-sm text-slate-200/90">{selectedExperiment?.summary}</p>
+                  </div>
+                  <div className="flex flex-wrap gap-2 text-xs font-semibold">
+                    <span className="rounded-full border border-white/30 px-3 py-1">{selectedExperiment?.field}</span>
+                    <span className="rounded-full border border-white/30 px-3 py-1">{selectedExperiment?.difficulty}</span>
+                    <span className="rounded-full bg-emerald-500/20 px-3 py-1 text-emerald-100">Formula: {selectedExperiment?.formula}</span>
+                  </div>
+                </div>
+              </div>
+              <div className="relative">
+                <div ref={labContainerRef} className="h-[28rem] w-full rounded-2xl bg-slate-900" />
+                {labLoading && (
+                  <div className="absolute inset-0 z-20 flex flex-col items-center justify-center gap-3 bg-slate-900/80 text-center text-white">
+                    <div className="h-12 w-12 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+                    <p className="text-sm font-medium">Loading {selectedExperiment?.title}</p>
+                  </div>
+                )}
+                {labError && !labLoading && (
+                  <div className="absolute inset-0 z-20 flex flex-col items-center justify-center gap-4 bg-slate-900/80 p-6 text-center text-white">
+                    <p className="text-sm font-semibold">{labError}</p>
+                    <button
+                      onClick={retryLabLoad}
+                      className="rounded-full border border-white/40 bg-white/10 px-4 py-2 text-xs font-semibold uppercase tracking-wide transition hover:bg-white/20"
+                    >
+                      Retry Load
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
-
-          {/* Lab Controls */}
-          <div className="space-y-6">
-            <div className="bg-gray-50 rounded-lg p-6 border border-gray-200">
-              <h3 className="text-lg font-semibold text-gray-900 mb-4">Lab Controls</h3>
-              <div className="space-y-4">
+          <div className="space-y-4">
+            <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+              <h3 className="text-lg font-semibold text-slate-900">Model Details</h3>
+              <p className="mt-1 text-sm text-slate-600">{selectedExperiment?.summary}</p>
+              <dl className="mt-4 grid grid-cols-2 gap-4 text-sm">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <dt className="text-xs uppercase tracking-wide text-slate-400">Field</dt>
+                  <dd className="font-semibold text-slate-800">{selectedExperiment?.field}</dd>
+                </div>
+                <div>
+                  <dt className="text-xs uppercase tracking-wide text-slate-400">Difficulty</dt>
+                  <dd className="font-semibold text-slate-800">{selectedExperiment?.difficulty}</dd>
+                </div>
+                <div>
+                  <dt className="text-xs uppercase tracking-wide text-slate-400">Formula</dt>
+                  <dd className="font-mono text-base text-slate-900">{selectedExperiment?.formula}</dd>
+                </div>
+                <div>
+                  <dt className="text-xs uppercase tracking-wide text-slate-400">Focus</dt>
+                  <dd className="text-slate-700">{selectedExperiment?.focus?.[0] || 'Key concept'}</dd>
+                </div>
+              </dl>
+              <div className="mt-4 flex flex-wrap gap-2">
+                {(selectedExperiment?.focus || []).map((concept) => (
+                  <span key={concept} className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-semibold text-slate-600">
+                    {concept}
+                  </span>
+                ))}
+              </div>
+            </div>
+
+            <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+              <h3 className="text-lg font-semibold text-slate-900">Lab Controls</h3>
+              <div className="mt-4 space-y-5">
+                <div>
+                  <label className="mb-2 block text-xs font-semibold uppercase tracking-wide text-slate-500">
                     Model Rotation ({Math.round(labControls.rotation)}°)
                   </label>
                   <input
@@ -1419,13 +1813,13 @@ const closeDetail = () => {
                     min="0"
                     max="360"
                     value={labControls.rotation}
-                    onChange={e => setLabControls(prev => ({ ...prev, rotation: parseInt(e.target.value) }))}
-                    className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
+                    onChange={(e) => setLabControls((prev) => ({ ...prev, rotation: parseInt(e.target.value, 10) }))}
+                    className="h-2 w-full cursor-pointer rounded-full bg-slate-200"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Zoom Level ({labControls.zoom.toFixed(1)}x)
+                  <label className="mb-2 block text-xs font-semibold uppercase tracking-wide text-slate-500">
+                    Zoom ({labControls.zoom.toFixed(1)}x)
                   </label>
                   <input
                     type="range"
@@ -1433,12 +1827,12 @@ const closeDetail = () => {
                     max="3"
                     step="0.1"
                     value={labControls.zoom}
-                    onChange={e => setLabControls(prev => ({ ...prev, zoom: parseFloat(e.target.value) }))}
-                    className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
+                    onChange={(e) => setLabControls((prev) => ({ ...prev, zoom: parseFloat(e.target.value) }))}
+                    className="h-2 w-full cursor-pointer rounded-full bg-slate-200"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <label className="mb-2 block text-xs font-semibold uppercase tracking-wide text-slate-500">
                     Light Intensity ({labControls.lightIntensity.toFixed(1)})
                   </label>
                   <input
@@ -1447,22 +1841,73 @@ const closeDetail = () => {
                     max="2"
                     step="0.1"
                     value={labControls.lightIntensity}
-                    onChange={e => setLabControls(prev => ({ ...prev, lightIntensity: parseFloat(e.target.value) }))}
-                    className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
+                    onChange={(e) => setLabControls((prev) => ({ ...prev, lightIntensity: parseFloat(e.target.value) }))}
+                    className="h-2 w-full cursor-pointer rounded-full bg-slate-200"
                   />
                 </div>
               </div>
             </div>
 
-            <div className="bg-blue-50 rounded-lg p-4 border border-blue-200">
-              <h4 className="text-sm font-semibold text-blue-900 mb-2">Lab Instructions</h4>
-              <ul className="text-sm text-blue-800 space-y-1">
-                <li>• Use the controls to manipulate the 3D model</li>
-                <li>• Adjust rotation to view from different angles</li>
-                <li>• Change zoom to examine details closely</li>
-                <li>• Modify lighting for better visibility</li>
-              </ul>
+            <div className="rounded-2xl border border-amber-100 bg-amber-50 p-5 shadow-sm">
+              <h3 className="text-lg font-semibold text-amber-900">Investigation Steps</h3>
+              <ol className="mt-3 space-y-2 text-sm text-amber-900">
+                {(selectedExperiment?.steps || []).map((step, idx) => (
+                  <li key={step} className="flex gap-2">
+                    <span className="font-semibold text-amber-600">{idx + 1}.</span>
+                    <span>{step}</span>
+                  </li>
+                ))}
+              </ol>
+              <p className="mt-4 rounded-lg bg-white/60 px-3 py-2 text-xs font-semibold uppercase tracking-wide text-amber-700">
+                {selectedExperiment?.safety}
+              </p>
             </div>
+          </div>
+        </div>
+
+        <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+            <div>
+              <h3 className="text-xl font-semibold text-slate-900">Experiment Library</h3>
+              <p className="text-sm text-slate-600">Pick any molecule to load it in the viewer instantly.</p>
+            </div>
+            <div className="flex flex-wrap gap-2 text-xs font-semibold text-slate-600">
+              <span className="rounded-full border border-slate-200 bg-slate-50 px-4 py-1">Chemistry & Biology</span>
+              <span className="rounded-full border border-slate-200 bg-slate-50 px-4 py-1">Interactive GLB files</span>
+            </div>
+          </div>
+          <div className="mt-6 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+            {LAB_EXPERIMENTS.map((experiment) => {
+              const isActive = experiment.id === selectedExperiment?.id;
+              return (
+                <button
+                  type="button"
+                  key={experiment.id}
+                  onClick={() => handleExperimentSelect(experiment.id)}
+                  className={`rounded-2xl border-2 p-4 text-left transition-all ${
+                    isActive
+                      ? 'border-blue-600 bg-blue-50 shadow-lg shadow-blue-100'
+                      : 'border-slate-200 bg-white hover:border-blue-300 hover:shadow'
+                  }`}
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-base font-semibold text-slate-900">{experiment.title}</p>
+                    <span className={`text-xs font-semibold uppercase ${isActive ? 'text-blue-700' : 'text-slate-500'}`}>
+                      {experiment.difficulty}
+                    </span>
+                  </div>
+                  <p className="mt-1 text-sm text-slate-600">{experiment.summary}</p>
+                  <div className="mt-3 flex flex-wrap gap-2 text-xs font-semibold text-slate-600">
+                    <span className="rounded-full border border-slate-200 bg-white px-3 py-1 font-mono text-slate-700">{experiment.formula}</span>
+                    {experiment.tags.slice(0, 2).map((tag) => (
+                      <span key={tag} className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1">
+                        {tag}
+                      </span>
+                    ))}
+                  </div>
+                </button>
+              );
+            })}
           </div>
         </div>
       </div>

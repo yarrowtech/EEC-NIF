@@ -1,4 +1,6 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { jsPDF } from 'jspdf';
+import * as XLSX from 'xlsx';
 import {
   Search,
   Plus,
@@ -25,9 +27,11 @@ import {
   Hash,
   Crown
 } from 'lucide-react';
+import toast from 'react-hot-toast';
 import CredentialGeneratorButton from './components/CredentialGeneratorButton';
 
 const TEACHERS_CACHE_PREFIX = 'admin_teachers_cache_v1';
+const TEACHERS_CACHE_TTL_MS = 5 * 60 * 1000;
 
 const AVATAR_COLORS = [
   { bg: 'bg-violet-100', text: 'text-violet-700' },
@@ -65,6 +69,39 @@ const getTodayCacheDateKey = () => {
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
 };
 
+const parseDateOnly = (value) => {
+  const text = String(value || '').trim();
+  if (!text) return null;
+  const primary = text.slice(0, 10);
+  const matched = primary.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (matched) {
+    const year = Number(matched[1]);
+    const month = Number(matched[2]);
+    const day = Number(matched[3]);
+    const d = new Date(year, month - 1, day);
+    if (
+      d.getFullYear() === year &&
+      d.getMonth() === (month - 1) &&
+      d.getDate() === day
+    ) {
+      return d;
+    }
+  }
+  const parsed = new Date(text);
+  if (Number.isNaN(parsed.getTime())) return null;
+  return new Date(parsed.getFullYear(), parsed.getMonth(), parsed.getDate());
+};
+
+const toLocalDateKey = (value) => {
+  if (!value) return '';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+};
+
 const formatScheduleMeta = (entry) => {
   const dayLabel = entry?.dayOfWeek ? `${entry.dayOfWeek}:` : '';
   const classLabel = [entry?.className, entry?.sectionName].filter(Boolean).join('-');
@@ -75,14 +112,15 @@ const formatScheduleMeta = (entry) => {
 const inputClass =
   'w-full rounded-xl border border-gray-200 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:border-transparent transition-all bg-white';
 
-const resolveTeacherStatus = (teacher, todayCheckedInTeacherIds, attendanceLoaded) => {
-  if (attendanceLoaded) {
-    const teacherId = String(teacher?._id || teacher?.id || '');
-    return todayCheckedInTeacherIds.has(teacherId) ? 'Active' : 'On Leave';
+const resolveTeacherStatus = (teacher, todayCheckedInTeacherIds, todayApprovedLeaveTeacherIds) => {
+  const teacherId = String(teacher?._id || teacher?.id || '');
+  if (todayCheckedInTeacherIds.has(teacherId)) {
+    return 'Present';
   }
-  const rawStatus = String(teacher?.status || '').trim().toLowerCase();
-  if (rawStatus === 'on leave' || rawStatus === 'leave' || rawStatus === 'absent') return 'On Leave';
-  return 'Active';
+  if (todayApprovedLeaveTeacherIds.has(teacherId)) {
+    return 'On Leave';
+  }
+  return 'Absent';
 };
 
 const Teachers = ({setShowAdminHeader}) => {
@@ -91,6 +129,7 @@ const Teachers = ({setShowAdminHeader}) => {
   const [filterStatus, setFilterStatus] = useState('All');
   const [teachers, setTeachers] = useState([]);
   const [showAddForm, setShowAddForm] = useState(false);
+  const [editingTeacherId, setEditingTeacherId] = useState(null);
   const [submitStatus, setSubmitStatus] = useState(null);
   const [credentialLoadingId, setCredentialLoadingId] = useState(null);
   const [deletingTeacherId, setDeletingTeacherId] = useState(null);
@@ -110,6 +149,28 @@ const Teachers = ({setShowAdminHeader}) => {
   const [principalDeleteLoadingId, setPrincipalDeleteLoadingId] = useState(null);
   const [deleteConfirmPrincipal, setDeleteConfirmPrincipal] = useState(null);
   const [makePrincipalConfirmTeacher, setMakePrincipalConfirmTeacher] = useState(null);
+  const [bulkUploading, setBulkUploading] = useState(false);
+  const bulkFileInputRef = useRef(null);
+
+  const principalIdentitySet = useMemo(() => {
+    return new Set(
+      (Array.isArray(principals) ? principals : [])
+        .map((principal) => String(principal?.email || principal?.username || '').trim().toLowerCase())
+        .filter(Boolean)
+    );
+  }, [principals]);
+
+  const teacherPhotoByIdentity = useMemo(() => {
+    const map = new Map();
+    (Array.isArray(teachers) ? teachers : []).forEach((teacher) => {
+      const identity = String(teacher?.email || teacher?.username || '').trim().toLowerCase();
+      if (!identity) return;
+      const photo = resolveImageUrl(teacher?.profilePic || teacher?.avatar || teacher?.photo);
+      if (!photo) return;
+      map.set(identity, photo);
+    });
+    return map;
+  }, [teachers]);
 
   // Pagination states
   const [currentPage, setCurrentPage] = useState(1);
@@ -131,6 +192,8 @@ const Teachers = ({setShowAdminHeader}) => {
     location: '',
     avatar: ''
   });
+  const [formErrors, setFormErrors] = useState({});
+  const [formTouched, setFormTouched] = useState({});
 
   // Filter teachers based on search and status
   const filteredTeachers = teachers.filter(teacher => {
@@ -171,19 +234,37 @@ const Teachers = ({setShowAdminHeader}) => {
     }
   };
 
+  const readTeachersCache = () => {
+    try {
+      const cachedRaw = sessionStorage.getItem(getTeachersCacheKey());
+      if (!cachedRaw) return null;
+      const cached = JSON.parse(cachedRaw);
+      if (!Array.isArray(cached?.teachers)) return null;
+      const cachedAt = Number(cached?.cachedAt || 0);
+      const isFresh = cachedAt > 0 && (Date.now() - cachedAt) <= TEACHERS_CACHE_TTL_MS;
+      return { teachers: cached.teachers, isFresh };
+    } catch (err) {
+      console.warn('Unable to read teachers cache', err);
+      return null;
+    }
+  };
+
+  const writeTeachersCache = (teachersData) => {
+    try {
+      sessionStorage.setItem(
+        getTeachersCacheKey(),
+        JSON.stringify({ teachers: teachersData, cachedAt: Date.now() })
+      );
+    } catch (err) {
+      console.warn('Unable to cache teachers data', err);
+    }
+  };
+
   const fetchTeachers = async ({ useCache = false } = {}) => {
     if (useCache) {
-      try {
-        const cachedRaw = sessionStorage.getItem(getTeachersCacheKey());
-        if (cachedRaw) {
-          const cached = JSON.parse(cachedRaw);
-          if (Array.isArray(cached?.teachers)) {
-            setTeachers(cached.teachers);
-            return;
-          }
-        }
-      } catch (err) {
-        console.warn('Unable to read teachers cache', err);
+      const cached = readTeachersCache();
+      if (cached?.teachers?.length) {
+        setTeachers(cached.teachers);
       }
     }
 
@@ -196,7 +277,7 @@ const Teachers = ({setShowAdminHeader}) => {
     const now = new Date();
     const monthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
     const todayKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
-    const [teachersRes, attendanceRes, timetableRes, principalsRes] = await Promise.all([
+    const [teachersRes, attendanceRes, timetableRes, principalsRes, leavesRes] = await Promise.all([
       fetch(`${import.meta.env.VITE_API_URL}/api/admin/users/get-teachers`, {
         method: 'GET',
         headers
@@ -212,6 +293,10 @@ const Teachers = ({setShowAdminHeader}) => {
       fetch(`${import.meta.env.VITE_API_URL}/api/admin/users/get-principals`, {
         method: 'GET',
         headers
+      }),
+      fetch(`${import.meta.env.VITE_API_URL}/api/admin/users/teacher-leaves?status=Approved`, {
+        method: 'GET',
+        headers
       })
     ]);
 
@@ -222,12 +307,32 @@ const Teachers = ({setShowAdminHeader}) => {
     const data = await teachersRes.json();
     const attendanceData = attendanceRes.ok ? await attendanceRes.json().catch(() => ({})) : {};
     const timetableData = timetableRes.ok ? await timetableRes.json().catch(() => []) : [];
+    const leavesData = leavesRes.ok ? await leavesRes.json().catch(() => ({})) : {};
     const todayCheckedInTeacherIds = new Set(
       (Array.isArray(attendanceData?.records) ? attendanceData.records : [])
-        .filter((record) => record?.date === todayKey && record?.checkInAt)
+        .filter((record) => {
+          if (!record?.checkInAt) return false;
+          const recordDateKey = String(record?.date || '').trim();
+          const checkInDateKey = toLocalDateKey(record?.checkInAt);
+          return recordDateKey === todayKey || checkInDateKey === todayKey;
+        })
         .map((record) => String(record?.teacherId))
     );
-    const attendanceLoaded = attendanceRes.ok;
+    const todayDate = parseDateOnly(todayKey);
+    const todayApprovedLeaveTeacherIds = new Set(
+      (Array.isArray(leavesData?.leaves) ? leavesData.leaves : [])
+        .filter((leave) => {
+          const leaveStatus = String(leave?.status || '').trim().toLowerCase();
+          if (!(leaveStatus === 'approved' || leaveStatus === 'accepted')) return false;
+          const start = parseDateOnly(leave?.startDate);
+          const end = parseDateOnly(leave?.endDate);
+          if (!todayDate || !start || !end) return false;
+          if (end < start) return false;
+          return start <= todayDate && todayDate <= end;
+        })
+        .map((leave) => String(leave?.teacherId || ''))
+        .filter(Boolean)
+    );
     const scheduleByTeacherId = new Map();
 
     (Array.isArray(timetableData) ? timetableData : []).forEach((timetable) => {
@@ -253,6 +358,7 @@ const Teachers = ({setShowAdminHeader}) => {
     });
 
     const principalsData = principalsRes.ok ? await principalsRes.json().catch(() => []) : [];
+    setPrincipals(Array.isArray(principalsData) ? principalsData : []);
     const principalEmailSet = new Set(
       (Array.isArray(principalsData) ? principalsData : [])
         .map((principal) => String(principal?.email || principal?.username || '').trim().toLowerCase())
@@ -278,17 +384,10 @@ const Teachers = ({setShowAdminHeader}) => {
           return (Number(a.period) || 0) - (Number(b.period) || 0);
         }),
       isPrincipal: principalEmailSet.has(String(teacher.email || '').trim().toLowerCase()),
-      status: resolveTeacherStatus(teacher, todayCheckedInTeacherIds, attendanceLoaded)
+      status: resolveTeacherStatus(teacher, todayCheckedInTeacherIds, todayApprovedLeaveTeacherIds)
     }));
     setTeachers(normalized);
-    try {
-      sessionStorage.setItem(
-        getTeachersCacheKey(),
-        JSON.stringify({ teachers: normalized, cachedAt: Date.now() })
-      );
-    } catch (err) {
-      console.warn('Unable to cache teachers data', err);
-    }
+    writeTeachersCache(normalized);
   };
 
   // Reset pagination when filters change
@@ -350,6 +449,7 @@ const Teachers = ({setShowAdminHeader}) => {
   const handleDeletePrincipal = async (principal) => {
     const principalId = principal?._id || principal?.id;
     if (!principalId || principalDeleteLoadingId) return;
+    const removedPrincipalEmail = String(principal?.email || principal?.username || '').trim().toLowerCase();
 
     setPrincipalDeleteLoadingId(principalId);
     try {
@@ -366,10 +466,24 @@ const Teachers = ({setShowAdminHeader}) => {
       }
 
       setPrincipals((prev) => prev.filter((item) => String(item._id || item.id) !== String(principalId)));
-      setSubmitStatus({ type: 'success', message: `${principal?.name || 'Principal'} deleted successfully.` });
-      fetchPrincipals().catch(console.error);
+      if (removedPrincipalEmail) {
+        setTeachers((prev) =>
+          prev.map((teacher) => {
+            const teacherEmail = String(teacher?.email || '').trim().toLowerCase();
+            if (teacherEmail !== removedPrincipalEmail) return teacher;
+            return { ...teacher, isPrincipal: false };
+          })
+        );
+      }
+      setSubmitStatus(null);
+      toast.success(`${principal?.name || 'Principal'} deleted successfully.`);
+      await Promise.allSettled([
+        fetchPrincipals(),
+        fetchTeachers({ useCache: false }),
+      ]);
     } catch (error) {
-      setSubmitStatus({ type: 'error', message: error.message || 'Unable to delete principal' });
+      setSubmitStatus(null);
+      toast.error(error.message || 'Unable to delete principal');
     } finally {
       setPrincipalDeleteLoadingId(null);
       setDeleteConfirmPrincipal(null);
@@ -385,67 +499,227 @@ const Teachers = ({setShowAdminHeader}) => {
   }, [setShowAdminHeader]);
 
   useEffect(() => {
+    if (activeTab !== 'teachers') return undefined;
+    const intervalId = window.setInterval(() => {
+      fetchTeachers({ useCache: false }).catch((err) => {
+        console.error('Error refreshing teachers:', err);
+      });
+    }, 30000);
+    return () => window.clearInterval(intervalId);
+  }, [activeTab]);
+
+  useEffect(() => {
     if (activeTab === 'principals' && principals.length === 0) {
       fetchPrincipals();
     }
   }, [activeTab]);
 
+  const validateTeacherForm = (data) => {
+    const errors = {};
+    if (!data.name.trim()) {
+      errors.name = 'Full name is required.';
+    } else if (data.name.trim().length < 2) {
+      errors.name = 'Name must be at least 2 characters.';
+    }
+    if (!data.email.trim()) {
+      errors.email = 'Email address is required.';
+    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(data.email.trim())) {
+      errors.email = 'Enter a valid email address.';
+    }
+    if (!data.mobile.trim()) {
+      errors.mobile = 'Contact number is required.';
+    } else if (!/^\+?[\d\s\-]{7,15}$/.test(data.mobile.trim())) {
+      errors.mobile = 'Enter a valid contact number (7–15 digits).';
+    }
+    if (data.experience !== '' && (isNaN(Number(data.experience)) || Number(data.experience) < 0)) {
+      errors.experience = 'Experience must be a non-negative number.';
+    }
+    if (data.pinCode && !/^\d{4,10}$/.test(data.pinCode.trim())) {
+      errors.pinCode = 'Enter a valid pin code (4–10 digits).';
+    }
+    if (data.joiningDate) {
+      const d = new Date(data.joiningDate);
+      if (isNaN(d.getTime())) errors.joiningDate = 'Enter a valid date.';
+    }
+    return errors;
+  };
+
   const handleAddTeacherChange = (e) => {
     const { name, value } = e.target;
     setNewTeacher(prev => ({ ...prev, [name]: value }));
+    if (formTouched[name]) {
+      const errors = validateTeacherForm({ ...newTeacher, [name]: value });
+      setFormErrors(prev => ({ ...prev, [name]: errors[name] || '' }));
+    }
+  };
+
+  const handleFormBlur = (e) => {
+    const { name } = e.target;
+    setFormTouched(prev => ({ ...prev, [name]: true }));
+    const errors = validateTeacherForm(newTeacher);
+    setFormErrors(prev => ({ ...prev, [name]: errors[name] || '' }));
+  };
+
+  const resetTeacherForm = () => {
+    setNewTeacher({
+      name: '',
+      email: '',
+      mobile: '',
+      subject: '',
+      department: '',
+      experience: '',
+      qualification: '',
+      status: 'Active',
+      joiningDate: '',
+      gender: '',
+      address: '',
+      pinCode: '',
+      location: '',
+      avatar: ''
+    });
+    setEditingTeacherId(null);
+    setFormErrors({});
+    setFormTouched({});
+  };
+
+  const handleEditTeacher = (teacher) => {
+    const teacherId = teacher?._id || teacher?.id;
+    if (!teacherId) return;
+    setEditingTeacherId(teacherId);
+    setNewTeacher({
+      name: teacher?.name || '',
+      email: teacher?.email || '',
+      mobile: teacher?.mobile || '',
+      subject: teacher?.subject || '',
+      department: teacher?.department || '',
+      experience: teacher?.experience || '',
+      qualification: teacher?.qualification || '',
+      status: teacher?.status || 'Active',
+      joiningDate: teacher?.joiningDate || '',
+      gender: teacher?.gender || '',
+      address: teacher?.address || '',
+      pinCode: teacher?.pinCode || '',
+      location: teacher?.location || '',
+      avatar: teacher?.avatar || ''
+    });
+    setShowAddForm(true);
   };
 
   const handleAddTeacherSubmit = async (e) => {
     e.preventDefault();
+    const allFields = ['name', 'email', 'mobile', 'experience', 'pinCode', 'joiningDate'];
+    setFormTouched(allFields.reduce((acc, f) => ({ ...acc, [f]: true }), {}));
+    const errors = validateTeacherForm(newTeacher);
+    setFormErrors(errors);
+    if (Object.values(errors).some(Boolean)) return;
     try {
       setSubmitStatus(null);
-      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/teacher/auth/register`,{
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'authorization': `Bearer ${localStorage.getItem('token')}`
-          },
-          body: JSON.stringify(newTeacher)
-        })
-        const data = await res.json();
-        if (!res.ok) {
-          console.error('Registration failed:', data);
-          throw new Error(data?.error || 'Registration failed');
-        }
-      setSubmitStatus({
-        type: 'success',
-        message: data?.emailSent
-          ? 'Teacher added and credentials emailed.'
-          : 'Teacher added. Email not sent.'
+      const payload = {
+        name: newTeacher.name,
+        email: newTeacher.email,
+        mobile: newTeacher.mobile,
+        subject: newTeacher.subject,
+        department: newTeacher.department,
+        experience: newTeacher.experience,
+        qualification: newTeacher.qualification,
+        status: newTeacher.status,
+        joiningDate: newTeacher.joiningDate,
+        gender: newTeacher.gender,
+        address: newTeacher.address,
+        pinCode: newTeacher.pinCode
+      };
+
+      const isEditMode = Boolean(editingTeacherId);
+      const endpoint = isEditMode
+        ? `${import.meta.env.VITE_API_URL}/api/admin/users/teachers/${editingTeacherId}`
+        : `${import.meta.env.VITE_API_URL}/api/teacher/auth/register`;
+      const method = isEditMode ? 'PUT' : 'POST';
+
+      const res = await fetch(endpoint, {
+        method,
+        headers: {
+          'Content-Type': 'application/json',
+          'authorization': `Bearer ${localStorage.getItem('token')}`
+        },
+        body: JSON.stringify(payload)
       });
-      if (data?.username && data?.password) {
-        setCredentialView({
-          name: newTeacher.name,
-          username: data.username,
-          employeeCode: data.employeeCode || data.username,
-          password: data.password
-        });
+      const data = await res.json();
+      if (!res.ok) {
+        console.error('Teacher save failed:', data);
+        throw new Error(data?.error || 'Unable to save teacher');
+      }
+
+      if (isEditMode) {
+        setSubmitStatus({ type: 'success', message: 'Teacher updated successfully.' });
+      } else {
+        setSubmitStatus(null);
+        toast.success(
+          data?.emailSent
+            ? 'Teacher added and credentials emailed.'
+            : 'Teacher added. Email not sent.'
+        );
+        if (data?.username && data?.password) {
+          setCredentialView({
+            name: newTeacher.name,
+            username: data.username,
+            employeeCode: data.employeeCode || data.username,
+            password: data.password
+          });
+        }
       }
       setShowAddForm(false);
       await fetchTeachers();
-      // Reset form
-      setNewTeacher({
-        name: '', email: '', mobile: '', subject: '', department: '', experience: '', qualification: '', joiningDate: '', address: '', pinCode: '', gender: ''
-      });
+      resetTeacherForm();
     }
     catch (error) {
-      console.error('Error adding teacher:', error);
-      setSubmitStatus({ type: 'error', message: error.message || 'Unable to add teacher' });
+      console.error('Error saving teacher:', error);
+      if (editingTeacherId) {
+        setSubmitStatus({ type: 'error', message: error.message || 'Unable to save teacher' });
+      } else {
+        setSubmitStatus(null);
+        toast.error(error.message || 'Unable to add teacher');
+      }
     }
   };
 
   const handleViewCredentials = async (teacher) => {
     const teacherId = teacher?._id || teacher?.id;
     if (!teacherId) return;
-    const confirmReset = window.confirm(
-      `This will reset ${teacher.name || 'the teacher'}'s password and generate a new one. Continue?`
-    );
-    if (!confirmReset) return;
+    setCredentialLoadingId(teacherId);
+    try {
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/admin/users/teachers/${teacherId}/credentials`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'authorization': `Bearer ${localStorage.getItem('token')}`
+        }
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data?.error || 'Unable to load credentials');
+      }
+      const teacherResetAt = data?.lastLoginAt ? new Date(data.lastLoginAt) : null;
+      const hasUserReset = Boolean(teacherResetAt);
+      setCredentialView({
+        id: teacherId,
+        name: data?.name || teacher.name,
+        username: data?.username || teacher.username || teacher.employeeCode,
+        employeeCode: data.employeeCode || data.username,
+        password: hasUserReset
+          ? `Password reset by the user at ${teacherResetAt.toLocaleString()}`
+          : (data?.initialPassword || 'Not available'),
+        canCopyPassword: !hasUserReset && Boolean(data?.initialPassword)
+      });
+    } catch (error) {
+      setSubmitStatus({ type: 'error', message: error.message || 'Unable to load credentials' });
+    } finally {
+      setCredentialLoadingId(null);
+    }
+  };
+
+  const handleResetCredentials = async () => {
+    const teacherId = credentialView?.id;
+    if (!teacherId) return;
     setCredentialLoadingId(teacherId);
     try {
       const res = await fetch(`${import.meta.env.VITE_API_URL}/api/admin/users/teachers/${teacherId}/credentials`, {
@@ -457,16 +731,20 @@ const Teachers = ({setShowAdminHeader}) => {
       });
       const data = await res.json();
       if (!res.ok) {
-        throw new Error(data?.error || 'Unable to generate credentials');
+        throw new Error(data?.error || 'Unable to reset credentials');
       }
-      setCredentialView({
-        name: teacher.name,
-        username: data.username,
-        employeeCode: data.employeeCode || data.username,
-        password: data.password
-      });
+      setCredentialView((prev) => ({
+        ...(prev || {}),
+        id: teacherId,
+        name: data?.name || prev?.name || 'Teacher',
+        username: data?.username || prev?.username || '',
+        employeeCode: data?.employeeCode || data?.username || prev?.employeeCode || '',
+        password: data?.password || 'Not available',
+        canCopyPassword: Boolean(data?.password)
+      }));
+      setSubmitStatus({ type: 'success', message: 'Teacher password reset successfully.' });
     } catch (error) {
-      setSubmitStatus({ type: 'error', message: error.message || 'Unable to generate credentials' });
+      setSubmitStatus({ type: 'error', message: error.message || 'Unable to reset credentials' });
     } finally {
       setCredentialLoadingId(null);
     }
@@ -502,13 +780,202 @@ const Teachers = ({setShowAdminHeader}) => {
       }
 
       setTeachers((prev) => prev.filter((item) => String(item._id || item.id) !== String(teacherId)));
-      setSubmitStatus({ type: 'success', message: `${teacher.name || 'Teacher'} deleted successfully.` });
+      setSubmitStatus(null);
+      toast.success(`${teacher.name || 'Teacher'} deleted successfully.`);
       fetchTeachers().catch(console.error);
     } catch (error) {
-      setSubmitStatus({ type: 'error', message: error.message || 'Unable to delete teacher' });
+      setSubmitStatus(null);
+      toast.error(error.message || 'Unable to delete teacher');
     } finally {
       setDeletingTeacherId(null);
       setDeleteConfirmTeacher(null);
+    }
+  };
+
+  const exportTeachersPdf = () => {
+    const doc = new jsPDF('l', 'pt', 'a4');
+    const marginX = 36;
+    let y = 36;
+    const now = new Date();
+    const tableHeaders = ['#', 'Name', 'Employee ID', 'Email', 'Mobile', 'Subject', 'Department', 'Status'];
+    const columnWidths = [24, 120, 90, 170, 90, 100, 100, 70];
+    const rows = [...teachers]
+      .sort((a, b) => String(a?.name || '').localeCompare(String(b?.name || '')))
+      .map((teacher, index) => ([
+        String(index + 1),
+        String(teacher?.name || '-'),
+        String(teacher?.empId || teacher?.employeeCode || teacher?.username || '-'),
+        String(teacher?.email || '-'),
+        String(teacher?.mobile || '-'),
+        String(teacher?.subject || '-'),
+        String(teacher?.department || '-'),
+        String(teacher?.status || '-'),
+      ]));
+
+    doc.setFillColor(37, 99, 235);
+    doc.rect(0, 0, doc.internal.pageSize.getWidth(), 78, 'F');
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(22);
+    doc.text('Teachers List Report', marginX, 42);
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(10);
+    doc.text(`Generated: ${now.toLocaleString('en-IN')}`, marginX, 62);
+    doc.text(`Total Teachers: ${teachers.length}`, marginX + 260, 62);
+
+    y = 100;
+    const rowHeight = 24;
+    const drawHeader = () => {
+      let x = marginX;
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(9);
+      doc.setTextColor(255, 255, 255);
+      tableHeaders.forEach((header, idx) => {
+        const width = columnWidths[idx];
+        doc.setFillColor(30, 64, 175);
+        doc.rect(x, y, width, rowHeight, 'F');
+        doc.text(header, x + 4, y + 16);
+        x += width;
+      });
+      y += rowHeight;
+    };
+
+    const drawRow = (row, isAlt) => {
+      let x = marginX;
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(8.5);
+      doc.setTextColor(15, 23, 42);
+      row.forEach((cell, idx) => {
+        const width = columnWidths[idx];
+        doc.setFillColor(isAlt ? 248 : 255, isAlt ? 250 : 255, isAlt ? 252 : 255);
+        doc.rect(x, y, width, rowHeight, 'F');
+        doc.setDrawColor(226, 232, 240);
+        doc.rect(x, y, width, rowHeight);
+        const text = doc.splitTextToSize(String(cell), width - 8);
+        doc.text(text[0] || '-', x + 4, y + 16);
+        x += width;
+      });
+      y += rowHeight;
+    };
+
+    drawHeader();
+    rows.forEach((row, index) => {
+      if (y + rowHeight > doc.internal.pageSize.getHeight() - 30) {
+        doc.addPage();
+        y = 36;
+        drawHeader();
+      }
+      drawRow(row, index % 2 === 0);
+    });
+
+    const fileDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+    doc.save(`teachers_list_${fileDate}.pdf`);
+  };
+
+  const generateBulkTeacherPassword = (seed = 0) => {
+    const randomPart = Math.random().toString(36).slice(2, 6).toUpperCase();
+    return `Teach@${randomPart}${seed % 10}a`;
+  };
+
+  const normalizeBulkTeacherRow = (row = {}, idx = 0) => {
+    const read = (keys = []) => {
+      for (const key of keys) {
+        if (Object.prototype.hasOwnProperty.call(row, key) && row[key] !== undefined && row[key] !== null) {
+          return String(row[key]).trim();
+        }
+      }
+      return '';
+    };
+    return {
+      name: read(['name', 'Name', 'teacherName', 'Teacher Name']),
+      email: read(['email', 'Email']),
+      mobile: read(['mobile', 'Mobile', 'phone', 'Phone']),
+      gender: read(['gender', 'Gender']),
+      qualification: read(['qualification', 'Qualification']),
+      subject: read(['subject', 'Subject']),
+      department: read(['department', 'Department']),
+      experience: read(['experience', 'Experience']),
+      joiningDate: read(['joiningDate', 'Joining Date', 'joining_date']),
+      address: read(['address', 'Address']),
+      pinCode: read(['pinCode', 'Pincode', 'Pin Code', 'pin_code']),
+      // password: read(['password', 'Password']) || generateBulkTeacherPassword(idx + 1),
+    };
+  };
+
+  const downloadTeacherDemoTemplate = () => {
+    const rows = [
+      {
+        name: 'Koushik Bala',
+        email: 'koushik.bala@example.com',
+        mobile: '1234567890',
+        gender: 'male',
+        qualification: 'M.Sc',
+        subject: 'Mathematics',
+        department: 'Science',
+        experience: '5',
+        joiningDate: '2026-04-01',
+        address: 'Kolkata',
+        pinCode: '700001',
+        // password: 'Teach@123a',
+      },
+    ];
+    const worksheet = XLSX.utils.json_to_sheet(rows);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Teachers');
+    XLSX.writeFile(workbook, 'teacher_bulk_upload_template.xlsx');
+  };
+
+  const handleBulkUploadTeachers = async (file) => {
+    if (!file) return;
+    setBulkUploading(true);
+    try {
+      const buffer = await file.arrayBuffer();
+      const workbook = XLSX.read(buffer, { type: 'array' });
+      const firstSheet = workbook.SheetNames[0];
+      if (!firstSheet) throw new Error('Uploaded file has no sheet.');
+      const worksheet = workbook.Sheets[firstSheet];
+      const rawRows = XLSX.utils.sheet_to_json(worksheet, { defval: '' });
+      const normalizedRows = rawRows
+        .map((row, idx) => normalizeBulkTeacherRow(row, idx))
+        .filter((row) => row.name || row.email || row.mobile);
+
+      if (!normalizedRows.length) {
+        throw new Error('No teacher rows found in the uploaded file.');
+      }
+
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/admin/users/bulk-create-users`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          authorization: `Bearer ${localStorage.getItem('token')}`,
+        },
+        body: JSON.stringify({
+          role: 'teacher',
+          users: normalizedRows,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data?.error || 'Bulk upload failed');
+      }
+
+      const created = Number(data?.created || 0);
+      const failed = Number(data?.failed || 0);
+      if (created > 0) {
+        toast.success(`${created} teacher(s) uploaded successfully.`);
+      }
+      if (failed > 0) {
+        const firstError = Array.isArray(data?.errors) && data.errors[0]?.error ? ` First error: ${data.errors[0].error}` : '';
+        toast.error(`${failed} row(s) failed.${firstError}`);
+      }
+      await fetchTeachers({ useCache: false });
+    } catch (error) {
+      toast.error(error.message || 'Unable to upload teachers');
+    } finally {
+      setBulkUploading(false);
+      if (bulkFileInputRef.current) {
+        bulkFileInputRef.current.value = '';
+      }
     }
   };
 
@@ -534,9 +1001,11 @@ const Teachers = ({setShowAdminHeader}) => {
         email: data.email,
         password: data.password
       });
-      setSubmitStatus({ type: 'success', message: `Principal account created for ${teacher.name || 'teacher'}` });
+      setSubmitStatus(null);
+      toast.success(`Principal account created for ${teacher.name || 'teacher'}`);
     } catch (error) {
-      setSubmitStatus({ type: 'error', message: error.message || 'Unable to create principal account' });
+      setSubmitStatus(null);
+      toast.error(error.message || 'Unable to create principal account');
     } finally {
       setPrincipalLoadingId(null);
       setMakePrincipalConfirmTeacher(null);
@@ -568,7 +1037,39 @@ const Teachers = ({setShowAdminHeader}) => {
                 buttonClassName="bg-white text-gray-700 border border-gray-200 hover:bg-gray-50 shadow-sm"
               /> */}
               <button
-                onClick={() => setShowAddForm(true)}
+                onClick={exportTeachersPdf}
+                className="inline-flex items-center gap-2 bg-white text-gray-700 px-4 py-2.5 rounded-xl hover:bg-gray-50 transition-all shadow-sm border border-gray-200 text-sm font-medium"
+              >
+                Export PDF
+              </button>
+              <button
+                onClick={downloadTeacherDemoTemplate}
+                className="inline-flex items-center gap-2 bg-white text-gray-700 px-4 py-2.5 rounded-xl hover:bg-gray-50 transition-all shadow-sm border border-gray-200 text-sm font-medium"
+              >
+                Demo Excel
+              </button>
+              <button
+                onClick={() => bulkFileInputRef.current?.click()}
+                disabled={bulkUploading}
+                className="inline-flex items-center gap-2 bg-white text-gray-700 px-4 py-2.5 rounded-xl hover:bg-gray-50 transition-all shadow-sm border border-gray-200 text-sm font-medium disabled:opacity-60 disabled:cursor-not-allowed"
+              >
+                {bulkUploading ? 'Uploading...' : 'Bulk Upload'}
+              </button>
+              <input
+                ref={bulkFileInputRef}
+                type="file"
+                accept=".xlsx,.xls,.csv"
+                className="hidden"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) handleBulkUploadTeachers(file);
+                }}
+              />
+              <button
+                onClick={() => {
+                  resetTeacherForm();
+                  setShowAddForm(true);
+                }}
                 className="inline-flex items-center gap-2 bg-gradient-to-r from-indigo-600 to-purple-600 text-white px-4 py-2.5 rounded-xl hover:from-indigo-700 hover:to-purple-700 transition-all shadow-md shadow-indigo-200 text-sm font-medium"
               >
                 <Plus size={18} />
@@ -593,8 +1094,8 @@ const Teachers = ({setShowAdminHeader}) => {
             <div className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm hover:shadow-md transition-shadow">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Active</p>
-                  <p className="text-2xl font-bold text-emerald-600 mt-1">{teachers.filter(t => t.status === 'Active').length}</p>
+                  <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Present</p>
+                  <p className="text-2xl font-bold text-emerald-600 mt-1">{teachers.filter(t => t.status === 'Present').length}</p>
                 </div>
                 <div className="w-10 h-10 rounded-xl bg-emerald-50 flex items-center justify-center">
                   <UserCheck size={20} className="text-emerald-600" />
@@ -690,7 +1191,8 @@ const Teachers = ({setShowAdminHeader}) => {
               onChange={(e) => setFilterStatus(e.target.value)}
             >
               <option value="All">All Status</option>
-              <option value="Active">Active</option>
+              <option value="Present">Present</option>
+              <option value="Absent">Absent</option>
               <option value="On Leave">On Leave</option>
             </select>
           </div>}
@@ -703,8 +1205,8 @@ const Teachers = ({setShowAdminHeader}) => {
               <thead>
                 <tr className="bg-gradient-to-r from-gray-50 to-slate-50/80 border-b border-gray-100">
                   <th className="px-6 py-3.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Teacher</th>
-                  <th className="px-6 py-3.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Contact</th>
-                  <th className="px-6 py-3.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Subject & Dept</th>
+                  {/* <th className="px-6 py-3.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Contact</th> */}
+                  {/* <th className="px-6 py-3.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Subject & Dept</th> */}
                   <th className="px-6 py-3.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Weekly Routine</th>
                   {/* <th className="px-6 py-3.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Qualification</th> */}
                   <th className="px-6 py-3.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Status</th>
@@ -715,6 +1217,7 @@ const Teachers = ({setShowAdminHeader}) => {
                 {currentTeachers.map((teacher) => {
                   const avatarColor = getAvatarColor(teacher.name);
                   const teacherInitials = (teacher.name || 'NA').split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase();
+                  const teacherIsPrincipal = principalIdentitySet.has(String(teacher?.email || '').trim().toLowerCase());
                   return (
                     <tr key={teacher._id || teacher.id} className="hover:bg-indigo-50/30 transition-colors">
                       <td className="px-6 py-4">
@@ -733,18 +1236,18 @@ const Teachers = ({setShowAdminHeader}) => {
                           <div>
                             <div className="text-sm font-semibold text-gray-900 flex items-center gap-1.5">
                               <span>{teacher.name}</span>
-                              {teacher.isPrincipal && (
+                              {teacherIsPrincipal && (
                                 <span className="inline-flex items-center gap-1 rounded-full bg-purple-100 text-purple-700 px-2 py-0.5 text-[11px] font-semibold">
                                   <Crown size={11} />
                                   Principal
                                 </span>
                               )}
                             </div>
-                            <div className="text-xs text-gray-400 font-mono">#{teacher.empId}</div>
+                            <div className="text-xs text-gray-400 font-mono">ID:{teacher.empId}</div>
                           </div>
                         </div>
                       </td>
-                      <td className="px-6 py-4">
+                      {/* <td className="px-6 py-4">
                         <div className="space-y-1.5">
                           <div className="flex items-center text-sm text-gray-600">
                             <Mail size={13} className="mr-2 text-indigo-400 flex-shrink-0" />
@@ -755,8 +1258,8 @@ const Teachers = ({setShowAdminHeader}) => {
                             <span>{teacher.mobile}</span>
                           </div>
                         </div>
-                      </td>
-                      <td className="px-6 py-4">
+                      </td> */}
+                      {/* <td className="px-6 py-4">
                         <div className="space-y-1.5">
                           <div className="flex items-center text-sm font-medium text-gray-800">
                             <BookOpen size={13} className="mr-2 text-violet-400 flex-shrink-0" />
@@ -766,7 +1269,7 @@ const Teachers = ({setShowAdminHeader}) => {
                             {teacher.department}
                           </span>
                         </div>
-                      </td>
+                      </td> */}
                       <td className="px-6 py-4">
                         {teacher.scheduleTodayEntries?.length ? (
                           <div className="space-y-2 min-w-[250px]">
@@ -798,15 +1301,33 @@ const Teachers = ({setShowAdminHeader}) => {
                       </td> */}
                       <td className="px-6 py-4">
                         <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold
-                          ${teacher.status === 'Active'
+                          ${teacher.status === 'Present'
                             ? 'bg-emerald-100 text-emerald-700'
-                            : 'bg-amber-100 text-amber-700'}`}>
-                          <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${teacher.status === 'Active' ? 'bg-emerald-500' : 'bg-amber-500'}`} />
+                            : teacher.status === 'Absent'
+                              ? 'bg-rose-100 text-rose-700'
+                              : 'bg-amber-100 text-amber-700'}`}>
+                          <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${
+                            teacher.status === 'Present'
+                              ? 'bg-emerald-500'
+                              : teacher.status === 'Absent'
+                                ? 'bg-rose-500'
+                                : 'bg-amber-500'
+                          }`} />
                           {teacher.status}
                         </span>
                       </td>
                       <td className="px-6 py-4">
-                        <div className="flex items-center gap-1">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <button
+                            type="button"
+                            onClick={() => handleViewCredentials(teacher)}
+                            disabled={credentialLoadingId === (teacher._id || teacher.id)}
+                            className="inline-flex items-center gap-1.5 rounded-md font-medium bg-amber-500 text-white hover:bg-amber-600 transition px-2.5 py-1 text-xs disabled:opacity-60 disabled:cursor-not-allowed"
+                            title="View Credentials"
+                          >
+                            <KeyRound size={13} />
+                            {credentialLoadingId === (teacher._id || teacher.id) ? 'Loading...' : 'Credentials'}
+                          </button>
                           <button
                             className="p-1.5 rounded-lg text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 transition-all"
                             title="View Details"
@@ -816,23 +1337,16 @@ const Teachers = ({setShowAdminHeader}) => {
                           </button>
                           <button
                             className="p-1.5 rounded-lg text-slate-400 hover:text-purple-600 hover:bg-purple-50 transition-all disabled:opacity-40"
-                            title={teacher.isPrincipal ? 'Already Principal' : 'Make Principal'}
+                            title={teacherIsPrincipal ? 'Already Principal' : 'Make Principal'}
                             onClick={() => setMakePrincipalConfirmTeacher(teacher)}
-                            disabled={teacher.isPrincipal || principalLoadingId === (teacher._id || teacher.id)}
+                            disabled={teacherIsPrincipal || principalLoadingId === (teacher._id || teacher.id)}
                           >
                             <Crown size={15} />
                           </button>
-                          {/* <button
-                            className="p-1.5 rounded-lg text-slate-400 hover:text-teal-600 hover:bg-teal-50 transition-all"
-                            title="Generate Credentials"
-                            onClick={() => handleViewCredentials(teacher)}
-                            disabled={credentialLoadingId === (teacher._id || teacher.id)}
-                          >
-                            <KeyRound size={15} />
-                          </button> */}
                           <button
                             className="p-1.5 rounded-lg text-slate-400 hover:text-amber-600 hover:bg-amber-50 transition-all"
                             title="Edit"
+                            onClick={() => handleEditTeacher(teacher)}
                           >
                             <Edit2 size={15} />
                           </button>
@@ -978,13 +1492,15 @@ const Teachers = ({setShowAdminHeader}) => {
                           const avatarColor = getAvatarColor(principal.name);
                           const initials = (principal.name || 'P').split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase();
                           const loginId = principal.username || principal.employeeCode || principal.email || '—';
+                          const principalIdentity = String(principal?.email || principal?.username || '').trim().toLowerCase();
+                          const principalPhoto = resolveImageUrl(principal?.profilePic) || teacherPhotoByIdentity.get(principalIdentity) || '';
                           return (
                             <tr key={principal._id || principal.id} className="hover:bg-purple-50/30 transition-colors">
                               <td className="px-6 py-4">
                                 <div className="flex items-center gap-3">
                                   <div className={`w-9 h-9 rounded-xl ${avatarColor.bg} flex items-center justify-center text-sm font-bold ${avatarColor.text} flex-shrink-0 overflow-hidden`}>
-                                    {principal.profilePic ? (
-                                      <img src={resolveImageUrl(principal.profilePic)} alt={principal.name} className="w-full h-full object-cover" />
+                                    {principalPhoto ? (
+                                      <img src={principalPhoto} alt={principal.name} className="w-full h-full object-cover" />
                                     ) : initials}
                                   </div>
                                   <div>
@@ -1064,110 +1580,329 @@ const Teachers = ({setShowAdminHeader}) => {
         )}
       </div>
 
-      {/* Add Teacher Modal */}
-      {showAddForm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
-            <div className="sticky top-0 bg-white border-b border-gray-100 px-6 py-4 flex items-center justify-between rounded-t-2xl z-10">
-              <div className="flex items-center gap-3">
-                <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-md shadow-indigo-200">
-                  <Plus size={18} className="text-white" />
-                </div>
-                <div>
-                  <h2 className="text-base font-bold text-gray-900">Add New Teacher</h2>
-                  <p className="text-xs text-gray-500">Fill in the teacher's information</p>
-                </div>
-              </div>
-              <button
-                onClick={() => setShowAddForm(false)}
-                className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-all"
-              >
-                <XCircle size={18} />
-              </button>
-            </div>
+      {/* Add / Edit Teacher Modal */}
+      {showAddForm && (() => {
+        const fe = (field) => formTouched[field] && formErrors[field];
+        const fieldClass = (field) =>
+          `w-full rounded-xl border px-3 py-2.5 text-sm focus:outline-none focus:ring-2 transition-all bg-white ${
+            fe(field)
+              ? 'border-red-400 focus:ring-red-300 bg-red-50/30'
+              : 'border-gray-200 focus:ring-indigo-400 focus:border-transparent'
+          }`;
+        const hasErrors = Object.values(formErrors).some(Boolean);
+        return (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[92vh] flex flex-col overflow-hidden">
 
-            <form onSubmit={handleAddTeacherSubmit} className="p-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">Full Name *</label>
-                  <input type="text" name="name" value={newTeacher.name} onChange={handleAddTeacherChange} className={inputClass} required />
+              {/* Modal header */}
+              <div className="flex-shrink-0 border-b border-gray-100 px-6 py-4 flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-md shadow-indigo-200">
+                    {editingTeacherId ? <Edit2 size={17} className="text-white" /> : <Plus size={17} className="text-white" />}
+                  </div>
+                  <div>
+                    <h2 className="text-base font-bold text-gray-900">{editingTeacherId ? 'Edit Teacher' : 'Add New Teacher'}</h2>
+                    <p className="text-xs text-gray-400">{editingTeacherId ? 'Update the teacher\'s information' : 'Fill in all required fields to register a teacher'}</p>
+                  </div>
                 </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">Email *</label>
-                  <input type="email" name="email" value={newTeacher.email} onChange={handleAddTeacherChange} className={inputClass} required />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">Contact Number *</label>
-                  <input type="tel" name="mobile" value={newTeacher.mobile} onChange={handleAddTeacherChange} className={inputClass} required />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">Gender</label>
-                  <select name="gender" value={newTeacher.gender} onChange={handleAddTeacherChange} className={inputClass}>
-                    <option value="">Select</option>
-                    <option value="male">Male</option>
-                    <option value="female">Female</option>
-                    <option value="other">Other</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">Qualification</label>
-                  <input type="text" name="qualification" value={newTeacher.qualification} onChange={handleAddTeacherChange} className={inputClass} placeholder="e.g., M.Sc, B.Ed" />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">Subject</label>
-                  <input type="text" name="subject" value={newTeacher.subject} onChange={handleAddTeacherChange} className={inputClass} placeholder="e.g., Mathematics" />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">Department</label>
-                  <input type="text" name="department" value={newTeacher.department} onChange={handleAddTeacherChange} className={inputClass} />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">Experience (years)</label>
-                  <input type="number" name="experience" value={newTeacher.experience} onChange={handleAddTeacherChange} className={inputClass} min="0" />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">Joining Date</label>
-                  <input type="date" name="joiningDate" value={newTeacher.joiningDate} onChange={handleAddTeacherChange} className={inputClass} />
-                </div>
-
-                <div className="md:col-span-2">
-                  <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">Address</label>
-                  <input type="text" name="address" value={newTeacher.address} onChange={handleAddTeacherChange} className={inputClass} />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">Pin Code</label>
-                  <input type="text" name="pinCode" value={newTeacher.pinCode} onChange={handleAddTeacherChange} className={inputClass} />
-                </div>
-              </div>
-
-              <div className="mt-6 flex items-center justify-end gap-3 border-t border-gray-100 pt-4">
                 <button
                   type="button"
-                  onClick={() => setShowAddForm(false)}
-                  className="px-4 py-2 rounded-xl border border-gray-200 text-gray-700 hover:bg-gray-50 transition-colors text-sm font-medium"
+                  onClick={() => { setShowAddForm(false); resetTeacherForm(); }}
+                  className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-all"
                 >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="px-5 py-2 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 text-white hover:from-indigo-700 hover:to-purple-700 transition-all shadow-md shadow-indigo-200 text-sm font-medium"
-                >
-                  Add Teacher
+                  <XCircle size={18} />
                 </button>
               </div>
-            </form>
+
+              {/* Scrollable body */}
+              <form onSubmit={handleAddTeacherSubmit} className="flex flex-col flex-1 overflow-hidden" noValidate>
+                <div className="flex-1 overflow-y-auto px-6 py-5 space-y-6">
+
+                  {/* Section: Basic Info */}
+                  <div>
+                    <div className="flex items-center gap-2 mb-4">
+                      <User size={13} className="text-indigo-500" />
+                      <span className="text-xs font-bold text-indigo-600 uppercase tracking-widest">Basic Information</span>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+
+                      {/* Full Name */}
+                      <div>
+                        <label className="block text-xs font-semibold text-gray-600 mb-1.5">
+                          Full Name <span className="text-red-500">*</span>
+                        </label>
+                        <div className="relative">
+                          <User size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+                          <input
+                            type="text"
+                            name="name"
+                            value={newTeacher.name}
+                            onChange={handleAddTeacherChange}
+                            onBlur={handleFormBlur}
+                            placeholder="e.g., Priya Sharma"
+                            className={`${fieldClass('name')} pl-9`}
+                          />
+                        </div>
+                        {fe('name') && (
+                          <p className="mt-1.5 text-xs text-red-500 flex items-center gap-1">
+                            <XCircle size={11} /> {formErrors.name}
+                          </p>
+                        )}
+                      </div>
+
+                      {/* Gender */}
+                      <div>
+                        <label className="block text-xs font-semibold text-gray-600 mb-1.5">Gender</label>
+                        <select
+                          name="gender"
+                          value={newTeacher.gender}
+                          onChange={handleAddTeacherChange}
+                          onBlur={handleFormBlur}
+                          className={fieldClass('gender')}
+                        >
+                          <option value="">Select gender</option>
+                          <option value="male">Male</option>
+                          <option value="female">Female</option>
+                          <option value="other">Other</option>
+                        </select>
+                      </div>
+
+                      {/* Email */}
+                      <div>
+                        <label className="block text-xs font-semibold text-gray-600 mb-1.5">
+                          Email Address <span className="text-red-500">*</span>
+                        </label>
+                        <div className="relative">
+                          <Mail size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+                          <input
+                            type="email"
+                            name="email"
+                            value={newTeacher.email}
+                            onChange={handleAddTeacherChange}
+                            onBlur={handleFormBlur}
+                            placeholder="teacher@school.edu"
+                            className={`${fieldClass('email')} pl-9`}
+                            autoComplete="off"
+                          />
+                        </div>
+                        {fe('email') && (
+                          <p className="mt-1.5 text-xs text-red-500 flex items-center gap-1">
+                            <XCircle size={11} /> {formErrors.email}
+                          </p>
+                        )}
+                      </div>
+
+                      {/* Mobile */}
+                      <div>
+                        <label className="block text-xs font-semibold text-gray-600 mb-1.5">
+                          Contact Number <span className="text-red-500">*</span>
+                        </label>
+                        <div className="relative">
+                          <Phone size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+                          <input
+                            type="tel"
+                            name="mobile"
+                            value={newTeacher.mobile}
+                            onChange={handleAddTeacherChange}
+                            onBlur={handleFormBlur}
+                            placeholder="e.g., 9876543210"
+                            className={`${fieldClass('mobile')} pl-9`}
+                          />
+                        </div>
+                        {fe('mobile') && (
+                          <p className="mt-1.5 text-xs text-red-500 flex items-center gap-1">
+                            <XCircle size={11} /> {formErrors.mobile}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Section: Academic Details */}
+                  <div>
+                    <div className="flex items-center gap-2 mb-4">
+                      <GraduationCap size={13} className="text-purple-500" />
+                      <span className="text-xs font-bold text-purple-600 uppercase tracking-widest">Academic Details</span>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+
+                      {/* Qualification */}
+                      <div>
+                        <label className="block text-xs font-semibold text-gray-600 mb-1.5">Qualification</label>
+                        <div className="relative">
+                          <Award size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+                          <input
+                            type="text"
+                            name="qualification"
+                            value={newTeacher.qualification}
+                            onChange={handleAddTeacherChange}
+                            onBlur={handleFormBlur}
+                            placeholder="e.g., M.Sc, B.Ed"
+                            className={`${fieldClass('qualification')} pl-9`}
+                          />
+                        </div>
+                      </div>
+
+                      {/* Subject */}
+                      <div>
+                        <label className="block text-xs font-semibold text-gray-600 mb-1.5">Subject</label>
+                        <div className="relative">
+                          <BookOpen size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+                          <input
+                            type="text"
+                            name="subject"
+                            value={newTeacher.subject}
+                            onChange={handleAddTeacherChange}
+                            onBlur={handleFormBlur}
+                            placeholder="e.g., Mathematics"
+                            className={`${fieldClass('subject')} pl-9`}
+                          />
+                        </div>
+                      </div>
+
+                      {/* Department */}
+                      <div>
+                        <label className="block text-xs font-semibold text-gray-600 mb-1.5">Department</label>
+                        <div className="relative">
+                          <Building2 size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+                          <input
+                            type="text"
+                            name="department"
+                            value={newTeacher.department}
+                            onChange={handleAddTeacherChange}
+                            onBlur={handleFormBlur}
+                            placeholder="e.g., Science"
+                            className={`${fieldClass('department')} pl-9`}
+                          />
+                        </div>
+                      </div>
+
+                      {/* Experience */}
+                      <div>
+                        <label className="block text-xs font-semibold text-gray-600 mb-1.5">Experience (years)</label>
+                        <div className="relative">
+                          <Briefcase size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+                          <input
+                            type="number"
+                            name="experience"
+                            value={newTeacher.experience}
+                            onChange={handleAddTeacherChange}
+                            onBlur={handleFormBlur}
+                            placeholder="0"
+                            min="0"
+                            max="60"
+                            className={`${fieldClass('experience')} pl-9`}
+                          />
+                        </div>
+                        {fe('experience') && (
+                          <p className="mt-1.5 text-xs text-red-500 flex items-center gap-1">
+                            <XCircle size={11} /> {formErrors.experience}
+                          </p>
+                        )}
+                      </div>
+
+                      {/* Joining Date */}
+                      <div>
+                        <label className="block text-xs font-semibold text-gray-600 mb-1.5">Joining Date</label>
+                        <div className="relative">
+                          <Calendar size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+                          <input
+                            type="date"
+                            name="joiningDate"
+                            value={newTeacher.joiningDate}
+                            onChange={handleAddTeacherChange}
+                            onBlur={handleFormBlur}
+                            className={`${fieldClass('joiningDate')} pl-9`}
+                          />
+                        </div>
+                        {fe('joiningDate') && (
+                          <p className="mt-1.5 text-xs text-red-500 flex items-center gap-1">
+                            <XCircle size={11} /> {formErrors.joiningDate}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Section: Location */}
+                  <div>
+                    <div className="flex items-center gap-2 mb-4">
+                      <MapPin size={13} className="text-rose-500" />
+                      <span className="text-xs font-bold text-rose-600 uppercase tracking-widest">Location</span>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="md:col-span-2">
+                        <label className="block text-xs font-semibold text-gray-600 mb-1.5">Address</label>
+                        <div className="relative">
+                          <MapPin size={14} className="absolute left-3 top-3 text-gray-400 pointer-events-none" />
+                          <input
+                            type="text"
+                            name="address"
+                            value={newTeacher.address}
+                            onChange={handleAddTeacherChange}
+                            onBlur={handleFormBlur}
+                            placeholder="Street, City, State"
+                            className={`${fieldClass('address')} pl-9`}
+                          />
+                        </div>
+                      </div>
+                      <div>
+                        <label className="block text-xs font-semibold text-gray-600 mb-1.5">Pin Code</label>
+                        <div className="relative">
+                          <Hash size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+                          <input
+                            type="text"
+                            name="pinCode"
+                            value={newTeacher.pinCode}
+                            onChange={handleAddTeacherChange}
+                            onBlur={handleFormBlur}
+                            placeholder="e.g., 110001"
+                            maxLength={10}
+                            className={`${fieldClass('pinCode')} pl-9`}
+                          />
+                        </div>
+                        {fe('pinCode') && (
+                          <p className="mt-1.5 text-xs text-red-500 flex items-center gap-1">
+                            <XCircle size={11} /> {formErrors.pinCode}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Required fields note */}
+                  <p className="text-xs text-gray-400"><span className="text-red-500">*</span> Required fields</p>
+                </div>
+
+                {/* Footer */}
+                <div className="flex-shrink-0 border-t border-gray-100 px-6 py-4">
+                  {hasErrors && Object.values(formTouched).some(Boolean) && (
+                    <p className="text-xs text-red-500 flex items-center gap-1.5 mb-3">
+                      <XCircle size={13} />
+                      Please fix the errors above before submitting.
+                    </p>
+                  )}
+                  <div className="flex items-center justify-end gap-3">
+                    <button
+                      type="button"
+                      onClick={() => { setShowAddForm(false); resetTeacherForm(); }}
+                      className="px-5 py-2.5 rounded-xl border border-gray-200 text-gray-700 hover:bg-gray-50 transition-colors text-sm font-medium"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 text-white hover:from-indigo-700 hover:to-purple-700 transition-all shadow-md shadow-indigo-200 text-sm font-semibold flex items-center gap-2"
+                    >
+                      {editingTeacherId ? <><Check size={15} /> Update Teacher</> : <><Plus size={15} /> Add Teacher</>}
+                    </button>
+                  </div>
+                </div>
+              </form>
+            </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* Teacher Details Modal */}
       {viewTeacher && (
@@ -1197,7 +1932,7 @@ const Teachers = ({setShowAdminHeader}) => {
                 <div>
                   <h2 className="text-xl font-bold text-white flex items-center gap-2">
                     <span>{viewTeacher.name}</span>
-                    {viewTeacher.isPrincipal && (
+                    {principalIdentitySet.has(String(viewTeacher?.email || '').trim().toLowerCase()) && (
                       <span className="inline-flex items-center gap-1 rounded-full bg-purple-100/90 text-purple-700 px-2 py-0.5 text-[11px] font-semibold">
                         <Crown size={11} />
                         Principal
@@ -1206,10 +1941,18 @@ const Teachers = ({setShowAdminHeader}) => {
                   </h2>
                   <p className="text-indigo-200 text-sm mt-0.5 font-mono">#{viewTeacher.empId}</p>
                   <span className={`inline-flex items-center gap-1.5 mt-2 px-2.5 py-0.5 rounded-full text-xs font-semibold
-                    ${viewTeacher.status === 'Active'
+                    ${viewTeacher.status === 'Present'
                       ? 'bg-emerald-100 text-emerald-700'
-                      : 'bg-amber-100 text-amber-700'}`}>
-                    <span className={`w-1.5 h-1.5 rounded-full ${viewTeacher.status === 'Active' ? 'bg-emerald-500' : 'bg-amber-500'}`} />
+                      : viewTeacher.status === 'Absent'
+                        ? 'bg-rose-100 text-rose-700'
+                        : 'bg-amber-100 text-amber-700'}`}>
+                    <span className={`w-1.5 h-1.5 rounded-full ${
+                      viewTeacher.status === 'Present'
+                        ? 'bg-emerald-500'
+                        : viewTeacher.status === 'Absent'
+                          ? 'bg-rose-500'
+                          : 'bg-amber-500'
+                    }`} />
                     {viewTeacher.status}
                   </span>
                 </div>
@@ -1580,27 +2323,36 @@ const Teachers = ({setShowAdminHeader}) => {
                   <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Password</p>
                   <div className="flex items-center justify-between rounded-xl border border-gray-200 bg-gray-50 px-4 py-3">
                     <code className="text-sm font-mono text-gray-800">{credentialView.password}</code>
-                    <button
-                      onClick={() => copyCredential(credentialView.password, 'pass')}
-                      className={`flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-lg transition-all font-medium ${
-                        copiedField === 'pass'
-                          ? 'bg-emerald-100 text-emerald-700'
-                          : 'bg-gray-200 hover:bg-indigo-100 hover:text-indigo-700 text-gray-600'
-                      }`}
-                    >
-                      {copiedField === 'pass' ? <Check size={12} /> : <Copy size={12} />}
-                      {copiedField === 'pass' ? 'Copied' : 'Copy'}
-                    </button>
+                    {credentialView.canCopyPassword && (
+                      <button
+                        onClick={() => copyCredential(credentialView.password, 'pass')}
+                        className={`flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-lg transition-all font-medium ${
+                          copiedField === 'pass'
+                            ? 'bg-emerald-100 text-emerald-700'
+                            : 'bg-gray-200 hover:bg-indigo-100 hover:text-indigo-700 text-gray-600'
+                        }`}
+                      >
+                        {copiedField === 'pass' ? <Check size={12} /> : <Copy size={12} />}
+                        {copiedField === 'pass' ? 'Copied' : 'Copy'}
+                      </button>
+                    )}
                   </div>
                 </div>
               </div>
 
               <p className="text-xs text-gray-400">
-                Please ask the teacher to reset their password after first login.
+                If the teacher has already reset the password, only the reset status is shown.
               </p>
             </div>
 
-            <div className="border-t border-gray-100 px-6 py-4 flex justify-end bg-gray-50/50">
+            <div className="border-t border-gray-100 px-6 py-4 flex items-center justify-end bg-gray-50/50">
+              {/* <button
+                onClick={handleResetCredentials}
+                disabled={credentialLoadingId === credentialView.id}
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-amber-500 text-white hover:bg-amber-600 transition-colors text-sm font-medium disabled:opacity-60 disabled:cursor-not-allowed"
+              >
+                {credentialLoadingId === credentialView.id ? 'Resetting...' : 'Reset Password'}
+              </button> */}
               <button
                 onClick={() => setCredentialView(null)}
                 className="px-4 py-2 rounded-xl border border-gray-200 text-gray-700 hover:bg-gray-100 transition-colors text-sm font-medium"

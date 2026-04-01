@@ -9,5 +9,9 @@ export default defineConfig({
     allowedHosts: true,
     host: '0.0.0.0',
     port: 5173,
+  },
+  assetsInclude: ['**/*.glb', '**/*.gltf'],
+  build: {
+    assetsInlineLimit: 0, // Don't inline GLB files
   }
 })

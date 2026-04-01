@@ -8,6 +8,90 @@ import Swal from "sweetalert2";
 import toast from "react-hot-toast";
 
 const API_BASE = import.meta.env.VITE_API_URL;
+const ACADEMIC_SETUP_CACHE_PREFIX = "academic_setup_cache_v1";
+const ACADEMIC_SETUP_CACHE_TTL_MS = 5 * 60 * 1000;
+
+const getAcademicCacheStorage = () => {
+  try {
+    if (typeof window === "undefined" || !window.sessionStorage) return null;
+    return window.sessionStorage;
+  } catch {
+    return null;
+  }
+};
+
+const getAcademicCacheScope = () => {
+  const token = localStorage.getItem("token");
+  if (!token) return "anonymous";
+  try {
+    const base64 = token.split(".")[1]?.replace(/-/g, "+").replace(/_/g, "/");
+    const payload = JSON.parse(atob(base64));
+    const adminId = payload?.id || "unknown";
+    const schoolId = payload?.schoolId || "school";
+    const campusId = payload?.campusId || "campus";
+    return `${adminId}_${schoolId}_${campusId}`;
+  } catch {
+    return "fallback";
+  }
+};
+
+const getAcademicCacheKey = (segment) =>
+  `${ACADEMIC_SETUP_CACHE_PREFIX}:${segment}:${getAcademicCacheScope()}`;
+
+const readAcademicCache = (key) => {
+  const storage = getAcademicCacheStorage();
+  if (!storage) return null;
+  try {
+    const raw = storage.getItem(key);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    const cachedAt = Number(parsed?.cachedAt || 0);
+    if (!cachedAt || Date.now() - cachedAt > ACADEMIC_SETUP_CACHE_TTL_MS) {
+      storage.removeItem(key);
+      return null;
+    }
+    return parsed?.data ?? null;
+  } catch {
+    return null;
+  }
+};
+
+const writeAcademicCache = (key, data) => {
+  const storage = getAcademicCacheStorage();
+  if (!storage) return;
+  try {
+    storage.setItem(key, JSON.stringify({ cachedAt: Date.now(), data }));
+  } catch {
+    // Ignore cache write failures.
+  }
+};
+
+const EditModal = ({ isOpen, onClose, title, children, onSubmit, isSubmitting = false }) => {
+  if (!isOpen) return null;
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
+      <div className="w-full max-w-md rounded-2xl border border-gray-100 bg-white shadow-2xl">
+        <div className="flex items-center justify-between border-b border-gray-100 px-6 py-4">
+          <h2 className="text-lg font-semibold text-gray-800">{title}</h2>
+          <button type="button" onClick={onClose} disabled={isSubmitting} className="text-gray-400 hover:text-gray-600">
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+        <form onSubmit={onSubmit} className="px-6 py-5">
+          {children}
+          <div className="mt-6 flex gap-3">
+            <button type="button" onClick={onClose} disabled={isSubmitting} className="flex-1 rounded-lg border border-gray-200 px-4 py-2 text-sm text-gray-600 hover:bg-gray-50">
+              Cancel
+            </button>
+            <button type="submit" disabled={isSubmitting} className="flex-1 rounded-lg bg-amber-500 px-4 py-2 text-sm font-medium text-white hover:bg-amber-600 disabled:opacity-50">
+              {isSubmitting ? "Saving..." : "Save Changes"}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+};
 
 const AcademicSetup = ({ setShowAdminHeader }) => {
   const [activeTab, setActiveTab] = useState("years");
@@ -214,6 +298,15 @@ const AcademicSetup = ({ setShowAdminHeader }) => {
   };
 
   const loadAcademicData = async () => {
+    const cacheKey = getAcademicCacheKey("core");
+    const cached = readAcademicCache(cacheKey);
+    if (cached) {
+      setYears(Array.isArray(cached.years) ? cached.years : []);
+      setClasses(Array.isArray(cached.classes) ? cached.classes : []);
+      setSections(Array.isArray(cached.sections) ? cached.sections : []);
+      setSubjects(Array.isArray(cached.subjects) ? cached.subjects : []);
+    }
+
     try {
       const [hierarchyRes, subjectsRes] = await Promise.all([
         fetch(`${API_BASE}/api/academic/hierarchy`, { method: "GET", headers: authHeaders }),
@@ -228,30 +321,65 @@ const AcademicSetup = ({ setShowAdminHeader }) => {
       if (subjectsRes.ok) {
         const subData = await subjectsRes.json();
         setSubjects(Array.isArray(subData) ? subData : []);
+        writeAcademicCache(cacheKey, {
+          years: Array.isArray(data.years) ? data.years : [],
+          classes: Array.isArray(data.classes) ? data.classes : [],
+          sections: Array.isArray(data.sections) ? data.sections : [],
+          subjects: Array.isArray(subData) ? subData : [],
+        });
+      } else {
+        writeAcademicCache(cacheKey, {
+          years: Array.isArray(data.years) ? data.years : [],
+          classes: Array.isArray(data.classes) ? data.classes : [],
+          sections: Array.isArray(data.sections) ? data.sections : [],
+          subjects: [],
+        });
       }
     } catch (err) {
-      handleApiError(err);
-      throw err;
+      if (!cached) {
+        handleApiError(err);
+        throw err;
+      }
+      console.warn("Academic setup fetch failed, showing cached data:", err);
     }
   };
 
   const loadClassTeachers = async () => {
+    const cacheKey = getAcademicCacheKey("class-teachers");
+    const cached = readAcademicCache(cacheKey);
+    if (cached) {
+      setTeachers(Array.isArray(cached.teachers) ? cached.teachers : []);
+      setTeacherAllocations(Array.isArray(cached.teacherAllocations) ? cached.teacherAllocations : []);
+    }
+
     try {
       const [teacherRes, allocationRes] = await Promise.all([
         fetch(`${API_BASE}/api/admin/users/get-teachers`, { method: "GET", headers: authHeaders }),
         fetch(`${API_BASE}/api/teacher-allocations`, { method: "GET", headers: authHeaders }),
       ]);
+      let nextTeachers = [];
+      let nextAllocations = [];
       if (teacherRes.ok) {
         const teacherData = await teacherRes.json().catch(() => []);
-        setTeachers(Array.isArray(teacherData) ? teacherData : []);
+        nextTeachers = Array.isArray(teacherData) ? teacherData : [];
+        setTeachers(nextTeachers);
       }
       if (allocationRes.ok) {
         const allocData = await allocationRes.json().catch(() => []);
-        setTeacherAllocations(Array.isArray(allocData) ? allocData : []);
+        nextAllocations = Array.isArray(allocData) ? allocData : [];
+        setTeacherAllocations(nextAllocations);
       }
+      writeAcademicCache(cacheKey, {
+        teachers: nextTeachers,
+        teacherAllocations: nextAllocations,
+      });
     } catch (err) {
-      console.error(err);
-      setError("Unable to load class teacher data.");
+      if (!cached) {
+        console.error(err);
+        setError("Unable to load class teacher data.");
+      } else {
+        console.warn("Class teacher fetch failed, showing cached data:", err);
+      }
     }
   };
 
@@ -728,33 +856,6 @@ const AcademicSetup = ({ setShowAdminHeader }) => {
       <p className="text-sm">{search ? `No matching ${entity} found.` : `No ${entity} yet.`}</p>
     </div>
   );
-
-  const EditModal = ({ isOpen, onClose, title, children, onSubmit }) => {
-    if (!isOpen) return null;
-    return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
-        <div className="w-full max-w-md rounded-2xl border border-gray-100 bg-white shadow-2xl">
-          <div className="flex items-center justify-between border-b border-gray-100 px-6 py-4">
-            <h2 className="text-lg font-semibold text-gray-800">{title}</h2>
-            <button type="button" onClick={onClose} disabled={isSubmitting} className="text-gray-400 hover:text-gray-600">
-              <X className="h-5 w-5" />
-            </button>
-          </div>
-          <form onSubmit={onSubmit} className="px-6 py-5">
-            {children}
-            <div className="mt-6 flex gap-3">
-              <button type="button" onClick={onClose} disabled={isSubmitting} className="flex-1 rounded-lg border border-gray-200 px-4 py-2 text-sm text-gray-600 hover:bg-gray-50">
-                Cancel
-              </button>
-              <button type="submit" disabled={isSubmitting} className="flex-1 rounded-lg bg-amber-500 px-4 py-2 text-sm font-medium text-white hover:bg-amber-600 disabled:opacity-50">
-                {isSubmitting ? "Saving..." : "Save Changes"}
-              </button>
-            </div>
-          </form>
-        </div>
-      </div>
-    );
-  };
 
   /* ═══════════════════════ TAB CONFIG ═══════════════════════ */
 
@@ -1354,7 +1455,7 @@ const AcademicSetup = ({ setShowAdminHeader }) => {
         {/* ═══════════════ EDIT MODALS ═══════════════ */}
 
         {/* Edit Year */}
-        <EditModal isOpen={editingYear !== null} onClose={() => setEditingYear(null)} title="Edit Academic Year" onSubmit={updateYear}>
+        <EditModal isOpen={editingYear !== null} onClose={() => setEditingYear(null)} title="Edit Academic Year" onSubmit={updateYear} isSubmitting={isSubmitting}>
           <div className="space-y-4">
             <div>
               <label className="mb-1 block text-xs font-medium text-gray-600">Year Name</label>
@@ -1385,7 +1486,7 @@ const AcademicSetup = ({ setShowAdminHeader }) => {
         </EditModal>
 
         {/* Edit Class */}
-        <EditModal isOpen={editingClass !== null} onClose={() => setEditingClass(null)} title="Edit Class" onSubmit={updateClass}>
+        <EditModal isOpen={editingClass !== null} onClose={() => setEditingClass(null)} title="Edit Class" onSubmit={updateClass} isSubmitting={isSubmitting}>
           <div className="space-y-4">
             <div>
               <label className="mb-1 block text-xs font-medium text-gray-600">Class Name</label>
@@ -1409,7 +1510,7 @@ const AcademicSetup = ({ setShowAdminHeader }) => {
         </EditModal>
 
         {/* Edit Section */}
-        <EditModal isOpen={editingSection !== null} onClose={() => setEditingSection(null)} title="Edit Section" onSubmit={updateSection}>
+        <EditModal isOpen={editingSection !== null} onClose={() => setEditingSection(null)} title="Edit Section" onSubmit={updateSection} isSubmitting={isSubmitting}>
           <div className="space-y-4">
             <div>
               <label className="mb-1 block text-xs font-medium text-gray-600">Section Name</label>
@@ -1428,7 +1529,7 @@ const AcademicSetup = ({ setShowAdminHeader }) => {
         </EditModal>
 
         {/* Edit Subject */}
-        <EditModal isOpen={editingSubject !== null} onClose={() => setEditingSubject(null)} title="Edit Subject" onSubmit={updateSubject}>
+        <EditModal isOpen={editingSubject !== null} onClose={() => setEditingSubject(null)} title="Edit Subject" onSubmit={updateSubject} isSubmitting={isSubmitting}>
           <div className="space-y-4">
             <div>
               <label className="mb-1 block text-xs font-medium text-gray-600">Subject Name</label>

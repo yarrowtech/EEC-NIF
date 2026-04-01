@@ -1,6 +1,10 @@
 const express = require('express');
 const router = express.Router();
 const StudentUser = require('../models/StudentUser');
+const TeacherAllocation = require('../models/TeacherAllocation');
+const Class = require('../models/Class');
+const Section = require('../models/Section');
+const Subject = require('../models/Subject');
 const auth = require('../middleware/authStudent');
 const multer = require('multer');
 
@@ -54,6 +58,71 @@ router.get('/profile', auth, async (req, res) => {
     }
     res.json(student);
   } catch (err) {
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// GET allocated subjects for the logged-in student
+router.get('/allocated-subjects', auth, async (req, res) => {
+  // #swagger.tags = ['Student Profile']
+  try {
+    const schoolId = req.schoolId || req.user?.schoolId || null;
+    const campusId = req.campusId || req.user?.campusId || null;
+    if (!schoolId) return res.status(400).json({ error: 'schoolId is required' });
+
+    // Get student details
+    const student = await StudentUser.findOne({ _id: req.user.id, schoolId }).select('grade section');
+    if (!student) {
+      return res.status(404).json({ error: 'Student not found' });
+    }
+
+    // Find class and section by name
+    const classDoc = await Class.findOne({ schoolId, name: student.grade });
+    const sectionDoc = await Section.findOne({ schoolId, name: student.section });
+
+    if (!classDoc || !sectionDoc) {
+      return res.json({ subjects: [] });
+    }
+
+    // Find all teacher allocations for this class/section
+    const allocations = await TeacherAllocation.find({
+      schoolId,
+      ...(campusId ? { campusId } : {}),
+      classId: classDoc._id,
+      sectionId: sectionDoc._id,
+      subjectId: { $ne: null }
+    })
+      .populate('subjectId', 'name code')
+      .populate('teacherId', 'name')
+      .lean();
+
+    // Extract unique subjects with teacher info
+    const subjectMap = new Map();
+    allocations.forEach(allocation => {
+      if (allocation.subjectId) {
+        const subjectId = allocation.subjectId._id.toString();
+        if (!subjectMap.has(subjectId)) {
+          subjectMap.set(subjectId, {
+            _id: allocation.subjectId._id,
+            name: allocation.subjectId.name,
+            code: allocation.subjectId.code,
+            teachers: []
+          });
+        }
+        if (allocation.teacherId) {
+          subjectMap.get(subjectId).teachers.push({
+            id: allocation.teacherId._id,
+            name: allocation.teacherId.name
+          });
+        }
+      }
+    });
+
+    const subjects = Array.from(subjectMap.values());
+
+    res.json({ subjects });
+  } catch (err) {
+    console.error('Error fetching allocated subjects:', err);
     res.status(500).json({ error: 'Server error' });
   }
 });

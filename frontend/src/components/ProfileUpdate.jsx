@@ -787,16 +787,16 @@ const ProfileUpdate = () => {
 
                 {/* Mini stats */}
                 <div className="mt-8 space-y-2">
-                  <p className="text-[10px] font-black text-gray-300 uppercase tracking-[0.2em] px-3 mb-3">Info</p>
+                  <p className="text-[10px] font-black text-black uppercase tracking-[0.2em] px-3 mb-3">Info</p>
                   {[
                     { icon: BookOpen, label: 'Class',   value: profile.grade   },
                     { icon: User,     label: 'Section', value: profile.section },
                     { icon: CreditCard, label: 'Roll',  value: profile.roll    },
                   ].map(({ icon: Icon, label, value }) => value ? (
-                    <div key={label} className="flex items-center gap-2.5 px-3 py-2 rounded-xl bg-white border border-gray-100">
+                    <div key={label} className="flex items-center gap-2.5 px-3 py-2 rounded-xl text-black bg-white border border-gray-100">
                       <Icon className="w-3.5 h-3.5 text-amber-400 shrink-0" />
                       <div className="min-w-0">
-                        <p className="text-[9px] font-bold text-gray-300 uppercase">{label}</p>
+                        <p className="text-[9px] font-bold text-black uppercase">{label}</p>
                         <p className="text-xs font-bold text-gray-700 truncate">{value}</p>
                       </div>
                     </div>

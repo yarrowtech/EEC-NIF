@@ -7,6 +7,63 @@ import Swal from 'sweetalert2';
 import toast from 'react-hot-toast';
 
 const API_BASE = import.meta.env.VITE_API_URL || '';
+const SUBJECT_MGMT_CACHE_PREFIX = 'subject_mgmt_cache_v1';
+const SUBJECT_MGMT_CACHE_TTL_MS = 5 * 60 * 1000;
+
+const getSubjectCacheStorage = () => {
+  try {
+    if (typeof window === 'undefined' || !window.sessionStorage) return null;
+    return window.sessionStorage;
+  } catch {
+    return null;
+  }
+};
+
+const getSubjectCacheScope = () => {
+  const token = localStorage.getItem('token');
+  if (!token) return 'anonymous';
+  try {
+    const base64 = token.split('.')[1]?.replace(/-/g, '+').replace(/_/g, '/');
+    const payload = JSON.parse(atob(base64));
+    const adminId = payload?.id || 'unknown';
+    const schoolId = payload?.schoolId || 'school';
+    const campusId = payload?.campusId || 'campus';
+    return `${adminId}_${schoolId}_${campusId}`;
+  } catch {
+    return 'fallback';
+  }
+};
+
+const getSubjectCacheKey = (segment) =>
+  `${SUBJECT_MGMT_CACHE_PREFIX}:${segment}:${getSubjectCacheScope()}`;
+
+const readSubjectCache = (key) => {
+  const storage = getSubjectCacheStorage();
+  if (!storage) return null;
+  try {
+    const raw = storage.getItem(key);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    const cachedAt = Number(parsed?.cachedAt || 0);
+    if (!cachedAt || Date.now() - cachedAt > SUBJECT_MGMT_CACHE_TTL_MS) {
+      storage.removeItem(key);
+      return null;
+    }
+    return parsed?.data ?? null;
+  } catch {
+    return null;
+  }
+};
+
+const writeSubjectCache = (key, data) => {
+  const storage = getSubjectCacheStorage();
+  if (!storage) return;
+  try {
+    storage.setItem(key, JSON.stringify({ cachedAt: Date.now(), data }));
+  } catch {
+    // Ignore cache write failures.
+  }
+};
 
 const SubjectManagement = ({ setShowAdminHeader }) => {
   const [classes, setClasses] = useState([]);
@@ -53,15 +110,29 @@ const SubjectManagement = ({ setShowAdminHeader }) => {
   };
 
   const loadData = async () => {
+    const cacheKey = getSubjectCacheKey('core');
+    const cached = readSubjectCache(cacheKey);
+    if (cached) {
+      setClasses(Array.isArray(cached.classes) ? cached.classes : []);
+      setSubjects(Array.isArray(cached.subjects) ? cached.subjects : []);
+    }
+
     try {
       const [classData, subjectData] = await Promise.all([
         apiRequest('/api/academic/classes'),
         apiRequest('/api/academic/subjects'),
       ]);
-      setClasses(Array.isArray(classData) ? classData : []);
-      setSubjects(Array.isArray(subjectData) ? subjectData : []);
+      const nextClasses = Array.isArray(classData) ? classData : [];
+      const nextSubjects = Array.isArray(subjectData) ? subjectData : [];
+      setClasses(nextClasses);
+      setSubjects(nextSubjects);
+      writeSubjectCache(cacheKey, { classes: nextClasses, subjects: nextSubjects });
     } catch (err) {
-      toast.error(err.message || 'Failed to load data');
+      if (!cached) {
+        toast.error(err.message || 'Failed to load data');
+      } else {
+        console.warn('Subject data fetch failed, showing cached data:', err);
+      }
     }
   };
 
@@ -451,14 +522,14 @@ const SubjectManagement = ({ setShowAdminHeader }) => {
                   className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-amber-400 focus:outline-none focus:ring-2 focus:ring-amber-100"
                   placeholder="Mathematics" required />
               </div>
-              <div>
+              {/* <div>
                 <label className="mb-1 block text-xs font-medium text-gray-600">Subject Code</label>
                 <input type="text" value={subjectForm.code} onChange={(e) => setSubjectForm((p) => ({ ...p, code: e.target.value }))}
                   className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-amber-400 focus:outline-none focus:ring-2 focus:ring-amber-100"
                   placeholder="MATH101" />
-              </div>
+              </div> */}
               <div>
-                <label className="mb-1 block text-xs font-medium text-gray-600">Class (optional)</label>
+                <label className="mb-1 block text-xs font-medium text-gray-600">Class</label>
                 <select value={subjectForm.classId} onChange={(e) => setSubjectForm((p) => ({ ...p, classId: e.target.value }))}
                   className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-amber-400 focus:outline-none focus:ring-2 focus:ring-amber-100">
                   <option value="">All Classes</option>
@@ -539,7 +610,7 @@ const SubjectManagement = ({ setShowAdminHeader }) => {
                       className="h-4 w-4 rounded border-gray-300 text-amber-500" />
                   </th>
                   <SortableHeader label="Name" field="name" />
-                  <SortableHeader label="Code" field="code" />
+                  {/* <SortableHeader label="Code" field="code" /> */}
                   <SortableHeader label="Class" field="className" />
                   <th className="bg-gray-50 px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-gray-500">Actions</th>
                 </tr>
@@ -553,11 +624,11 @@ const SubjectManagement = ({ setShowAdminHeader }) => {
                         className="h-4 w-4 rounded border-gray-300 text-amber-500" />
                     </td>
                     <td className="px-4 py-3 text-sm font-medium text-gray-900">{subject.name}</td>
-                    <td className="px-4 py-3 text-sm text-gray-500">
+                    {/* <td className="px-4 py-3 text-sm text-gray-500">
                       {subject.code ? (
                         <span className="inline-flex rounded-md bg-gray-100 px-2 py-0.5 text-xs font-mono">{subject.code}</span>
                       ) : '—'}
-                    </td>
+                    </td> */}
                     <td className="px-4 py-3 text-sm text-gray-500">{classMap[subject.classId] || 'All'}</td>
                     <td className="px-4 py-3 text-right">
                       <div className="flex items-center justify-end gap-1">

@@ -180,6 +180,8 @@ const Routines = ({setShowAdminHeader}) => {
   const [paletteBlocks, setPaletteBlocks] = useState([]);
   const [weeklyDraft, setWeeklyDraft] = useState({});
   const [selectedCopyRoutine, setSelectedCopyRoutine] = useState('');
+  const [showAdvancedBoard, setShowAdvancedBoard] = useState(false);
+  const [showAdvancedModalTools, setShowAdvancedModalTools] = useState(false);
 
   const copyableRoutines = useMemo(() => {
     return routines
@@ -311,6 +313,7 @@ const Routines = ({setShowAdminHeader}) => {
   useEffect(() => {
     if (!isModalOpen) {
       setSelectedCopyRoutine('');
+      setShowAdvancedModalTools(false);
     }
   }, [isModalOpen]);
 
@@ -911,6 +914,35 @@ const Routines = ({setShowAdminHeader}) => {
     doc.save(`routine_${selectedClass}_${selectedSection}.pdf`);
   };
 
+  const openRoutineEditor = ({ className, sectionName, day = 'Monday' } = {}) => {
+    const targetClass = className || selectedClass || (classes.length > 0 ? classes[0].name : '');
+    const classDoc = classes.find((c) => c.name === targetClass);
+    const availableSections = sections.filter(
+      (s) => !classDoc || getId(s.classId) === classDoc._id
+    );
+    const targetSection =
+      sectionName ||
+      selectedSection ||
+      (availableSections.length > 0 ? availableSections[0].name : '');
+
+    const existingRoutine = routines.find(
+      (routine) =>
+        routine.class === targetClass &&
+        routine.section === targetSection &&
+        routine.day === day
+    );
+
+    setForm({
+      class: targetClass,
+      section: targetSection,
+      day,
+      schedule: buildScheduleForDay(existingRoutine?.schedule || []),
+    });
+    setEditingRoutine(existingRoutine || null);
+    setShowAdvancedModalTools(false);
+    setIsModalOpen(true);
+  };
+
   return (
     <div className="min-h-screen bg-gray-50 p-6">
       {/* Toast Notification */}
@@ -989,19 +1021,11 @@ const Routines = ({setShowAdminHeader}) => {
               PDF
             </button>
             <button
-              onClick={() => {
-                const defClass = selectedClass || (classes.length > 0 ? classes[0].name : '');
-                const defSection = selectedSection || (sections.length > 0 ? sections[0].name : '');
-                const defDay = selectedDay || 'Monday';
-                const schedule = buildScheduleForDay();
-                setForm({ class: defClass, section: defSection, day: defDay, schedule });
-                setEditingRoutine(null);
-                setIsModalOpen(true);
-              }}
+              onClick={() => openRoutineEditor({ day: selectedDay })}
               className="bg-indigo-500 hover:bg-indigo-600 text-white px-4 py-2 rounded-lg flex items-center space-x-2"
             >
               <Plus size={16} />
-              <span>Add Routine</span>
+              <span>Open Day Editor</span>
             </button>
             <button
               onClick={handleAutoGenerate}
@@ -1066,8 +1090,53 @@ const Routines = ({setShowAdminHeader}) => {
         </div>
       </div>
 
+      {(selectedClass && selectedSection) && (
+        <div className="bg-white rounded-xl shadow-sm border border-purple-400 p-6 mb-6">
+          <h2 className="text-lg font-semibold text-gray-900">Quick Routine Builder</h2>
+          <p className="text-sm text-gray-600 mt-1">
+            1) Pick class & section 2) Select day 3) Click edit and save.
+          </p>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 mt-5">
+            {DAYS.map((day) => {
+              const dayRoutine = routines.find(
+                (routine) =>
+                  routine.class === selectedClass &&
+                  routine.section === selectedSection &&
+                  routine.day === day
+              );
+              const assignedSlots = dayRoutine
+                ? dayRoutine.schedule.filter((slot) => slot.subject !== 'Break').length
+                : 0;
+              return (
+                <div key={day} className="rounded-lg border border-gray-200 p-4 bg-gray-50">
+                  <div className="flex items-center justify-between">
+                    <p className="font-semibold text-gray-900">{day}</p>
+                    <span className="text-xs text-gray-500">{assignedSlots} periods</span>
+                  </div>
+                  <button
+                    onClick={() => openRoutineEditor({ day })}
+                    className="mt-3 w-full px-3 py-2 text-sm rounded-lg bg-indigo-500 hover:bg-indigo-600 text-white"
+                  >
+                    {dayRoutine ? 'Edit Day' : 'Add Day Routine'}
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+
+          <button
+            type="button"
+            onClick={() => setShowAdvancedBoard((prev) => !prev)}
+            className="mt-5 text-sm text-indigo-700 hover:text-indigo-800 font-medium"
+          >
+            {showAdvancedBoard ? 'Hide advanced weekly board' : 'Show advanced weekly board'}
+          </button>
+        </div>
+      )}
+
         {/* Enhanced Weekly Grid inspired by RoutineView */}
-        {weeklyGrid && (
+        {weeklyGrid && showAdvancedBoard && (
           <div className="bg-white rounded-xl shadow-sm border border-purple-400 overflow-hidden mb-6">
             <div className="p-6 border-b border-gray-100">
               <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
@@ -1076,7 +1145,7 @@ const Routines = ({setShowAdminHeader}) => {
                     Class {selectedClass} - Section {selectedSection} Weekly Overview
                   </h2>
                   <p className="text-sm text-gray-500 mt-1">
-                    Drag blocks into cells. Break slots are locked.
+                    Advanced mode: drag blocks into cells. Break slots are locked.
                   </p>
                 </div>
                 <div className="flex items-center gap-3">
@@ -1287,7 +1356,7 @@ const Routines = ({setShowAdminHeader}) => {
         )}
 
         {/* Weekly Statistics */}
-        {selectedClass && selectedSection && (
+        {selectedClass && selectedSection && showAdvancedBoard && (
           <div className="bg-white rounded-xl shadow-sm border border-purple-400 mb-6">
             <div className="p-6 border-b border-gray-100">
               <h2 className="text-xl font-semibold text-gray-900">Weekly Statistics</h2>
@@ -1360,15 +1429,7 @@ const Routines = ({setShowAdminHeader}) => {
                 Get started by creating your first class routine. You can add schedules for different classes, sections, and days.
               </p>
               <button
-                onClick={() => {
-                  const defClass = classes.length > 0 ? classes[0].name : '';
-                  const defSection = sections.length > 0 ? sections[0].name : '';
-                  const defDay = 'Monday';
-                  const schedule = buildScheduleForDay();
-                  setForm({ class: defClass, section: defSection, day: defDay, schedule });
-                  setEditingRoutine(null);
-                  setIsModalOpen(true);
-                }}
+                onClick={() => openRoutineEditor({ day: 'Monday' })}
                 className="bg-indigo-500 hover:bg-indigo-600 text-white px-6 py-3 rounded-lg inline-flex items-center space-x-2"
               >
                 <Plus size={20} />
@@ -1464,89 +1525,89 @@ const Routines = ({setShowAdminHeader}) => {
                 </div>
 
               <div className="bg-indigo-50 border border-dashed border-indigo-200 rounded-2xl p-4 space-y-4">
-                <div>
-                  <p className="text-sm font-semibold text-indigo-900">Quick templates</p>
-                  <p className="text-xs text-indigo-700 opacity-80">Apply a curated subject order and tweak from there.</p>
-                  <div className="flex flex-wrap gap-2 mt-3">
-                    {ROUTINE_TEMPLATES.map((template) => (
-                      <button
-                        key={template.id}
-                        type="button"
-                        onClick={() => handleApplyTemplate(template.id)}
-                        className="px-3 py-2 rounded-xl bg-white shadow-sm text-sm font-medium text-indigo-700 hover:bg-indigo-100 transition-colors border border-white hover:border-indigo-200"
-                        title={template.description}
-                      >
-                        {template.name}
-                      </button>
-                    ))}
+                <div className="flex flex-wrap gap-2 items-center justify-between">
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={handleAutoAssignRooms}
+                      className="px-3 py-2 rounded-lg border border-indigo-200 text-indigo-700 text-sm font-medium hover:bg-indigo-50 transition-colors"
+                    >
+                      Auto assign rooms
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleClearSubjects}
+                      className="px-3 py-2 rounded-lg border border-amber-200 text-amber-700 text-sm font-medium hover:bg-amber-50 transition-colors"
+                    >
+                      Clear subjects
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleResetSchedule}
+                      className="px-3 py-2 rounded-lg border border-gray-200 text-gray-700 text-sm font-medium hover:bg-gray-50 transition-colors"
+                    >
+                      Reset day
+                    </button>
                   </div>
+                  <button
+                    type="button"
+                    onClick={() => setShowAdvancedModalTools((prev) => !prev)}
+                    className="text-sm text-indigo-700 hover:text-indigo-800 font-medium"
+                  >
+                    {showAdvancedModalTools ? 'Hide advanced tools' : 'Show advanced tools'}
+                  </button>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="bg-white border border-indigo-100 rounded-xl p-3">
-                    <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Copy from existing routine</p>
-                    <div className="mt-2 flex gap-2">
-                      <select
-                        value={selectedCopyRoutine}
-                        onChange={(e) => setSelectedCopyRoutine(e.target.value)}
-                        className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                      >
-                        <option value="">Choose routine</option>
-                        {copyableRoutines.map((routine) => (
-                          <option key={routine.id} value={routine.id}>{routine.label}</option>
+                <div className="text-xs text-gray-600">
+                  Day progress: <span className="font-semibold text-gray-900">{scheduleStats.filled}/{scheduleStats.total || 0}</span>
+                  {scheduleStats.pending > 0 ? ` (${scheduleStats.pending} pending)` : ' (all set)'}
+                </div>
+
+                {showAdvancedModalTools && (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="bg-white border border-indigo-100 rounded-xl p-3">
+                      <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Quick templates</p>
+                      <p className="text-[11px] text-gray-500 mt-1">Apply a ready routine pattern</p>
+                      <div className="flex flex-wrap gap-2 mt-3">
+                        {ROUTINE_TEMPLATES.map((template) => (
+                          <button
+                            key={template.id}
+                            type="button"
+                            onClick={() => handleApplyTemplate(template.id)}
+                            className="px-3 py-2 rounded-xl bg-indigo-50 text-sm font-medium text-indigo-700 hover:bg-indigo-100 transition-colors border border-indigo-100"
+                            title={template.description}
+                          >
+                            {template.name}
+                          </button>
                         ))}
-                      </select>
-                      <button
-                        type="button"
-                        onClick={handleCopyFromExistingRoutine}
-                        disabled={!selectedCopyRoutine}
-                        className="px-3 py-2 rounded-lg bg-indigo-600 text-white text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
-                      >
-                        Copy
-                      </button>
+                      </div>
                     </div>
-                    <p className="text-[11px] text-gray-500 mt-2">
-                      Same class & section routines bubble to the top of this list.
-                    </p>
-                  </div>
 
-                  <div className="bg-white border border-indigo-100 rounded-xl p-3 flex flex-col gap-3">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Day progress</p>
-                        <p className="text-lg font-semibold text-gray-900">
-                          {scheduleStats.filled}/{scheduleStats.total || 0} slots assigned
-                        </p>
+                    <div className="bg-white border border-indigo-100 rounded-xl p-3">
+                      <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Copy from existing routine</p>
+                      <div className="mt-2 flex gap-2">
+                        <select
+                          value={selectedCopyRoutine}
+                          onChange={(e) => setSelectedCopyRoutine(e.target.value)}
+                          className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                        >
+                          <option value="">Choose routine</option>
+                          {copyableRoutines.map((routine) => (
+                            <option key={routine.id} value={routine.id}>{routine.label}</option>
+                          ))}
+                        </select>
+                        <button
+                          type="button"
+                          onClick={handleCopyFromExistingRoutine}
+                          disabled={!selectedCopyRoutine}
+                          className="px-3 py-2 rounded-lg bg-indigo-600 text-white text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          Copy
+                        </button>
                       </div>
-                      <div className="text-xs text-gray-500">
-                        {scheduleStats.pending > 0 ? `${scheduleStats.pending} pending` : 'All set'}
-                      </div>
-                    </div>
-                    <div className="flex flex-wrap gap-2">
-                      <button
-                        type="button"
-                        onClick={handleAutoAssignRooms}
-                        className="px-3 py-2 rounded-lg border border-indigo-200 text-indigo-700 text-sm font-medium hover:bg-indigo-50 transition-colors"
-                      >
-                        Auto assign rooms
-                      </button>
-                      <button
-                        type="button"
-                        onClick={handleClearSubjects}
-                        className="px-3 py-2 rounded-lg border border-amber-200 text-amber-700 text-sm font-medium hover:bg-amber-50 transition-colors"
-                      >
-                        Clear subjects
-                      </button>
-                      <button
-                        type="button"
-                        onClick={handleResetSchedule}
-                        className="px-3 py-2 rounded-lg border border-gray-200 text-gray-700 text-sm font-medium hover:bg-gray-50 transition-colors"
-                      >
-                        Reset day
-                      </button>
                     </div>
                   </div>
-                </div>
+                )}
               </div>
 
               <div className="overflow-x-auto">

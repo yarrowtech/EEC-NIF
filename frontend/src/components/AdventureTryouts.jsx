@@ -1,81 +1,78 @@
-    import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useStudentDashboard } from './StudentDashboardContext';
 import Tryout from './Tryout';
+import toast from 'react-hot-toast';
 
-/* ───────────────────────────── QUEST CARD DATA ───────────────────────────── */
-const QUESTS = [
-    {
-        id: 'math',
-        title: 'Math Magic',
-        description: 'Master the world of numbers! Fractions, decimals, and fun word problems await you in this quest.',
-        questions: 20,
+const API_BASE = (import.meta.env.VITE_API_URL || 'http://localhost:5000').replace(/\/$/, '');
+
+/* ───────────────────────────── SUBJECT TO VISUAL MAPPING ───────────────────────────── */
+const SUBJECT_VISUALS = {
+    // Math-related subjects
+    'mathematics': { gradient: 'from-blue-400 to-indigo-600', icon: 'calculate', questionsColor: 'bg-blue-100 text-blue-700' },
+    'math': { gradient: 'from-blue-400 to-indigo-600', icon: 'calculate', questionsColor: 'bg-blue-100 text-blue-700' },
+    'algebra': { gradient: 'from-blue-400 to-indigo-600', icon: 'calculate', questionsColor: 'bg-blue-100 text-blue-700' },
+    'geometry': { gradient: 'from-blue-400 to-indigo-600', icon: 'calculate', questionsColor: 'bg-blue-100 text-blue-700' },
+
+    // Science-related subjects
+    'science': { gradient: 'from-emerald-400 to-teal-600', icon: 'biotech', questionsColor: 'bg-teal-100 text-teal-700' },
+    'physics': { gradient: 'from-emerald-400 to-teal-600', icon: 'biotech', questionsColor: 'bg-teal-100 text-teal-700' },
+    'chemistry': { gradient: 'from-emerald-400 to-teal-600', icon: 'science', questionsColor: 'bg-teal-100 text-teal-700' },
+    'biology': { gradient: 'from-emerald-400 to-teal-600', icon: 'biotech', questionsColor: 'bg-teal-100 text-teal-700' },
+
+    // Language-related subjects
+    'english': { gradient: 'from-orange-400 to-pink-600', icon: 'menu_book', questionsColor: 'bg-orange-100 text-orange-700' },
+    'hindi': { gradient: 'from-orange-400 to-pink-600', icon: 'menu_book', questionsColor: 'bg-orange-100 text-orange-700' },
+    'language': { gradient: 'from-orange-400 to-pink-600', icon: 'menu_book', questionsColor: 'bg-orange-100 text-orange-700' },
+
+    // Social studies
+    'history': { gradient: 'from-amber-600 to-amber-900', icon: 'explore', questionsColor: 'bg-amber-100 text-amber-700' },
+    'geography': { gradient: 'from-cyan-500 to-blue-700', icon: 'public', questionsColor: 'bg-cyan-100 text-cyan-700' },
+    'social': { gradient: 'from-amber-600 to-amber-900', icon: 'explore', questionsColor: 'bg-amber-100 text-amber-700' },
+    'civics': { gradient: 'from-amber-600 to-amber-900', icon: 'gavel', questionsColor: 'bg-amber-100 text-amber-700' },
+
+    // Computer Science
+    'computer': { gradient: 'from-purple-400 to-indigo-600', icon: 'computer', questionsColor: 'bg-purple-100 text-purple-700' },
+
+    // Default fallback
+    'default': { gradient: 'from-purple-400 to-pink-600', icon: 'school', questionsColor: 'bg-purple-100 text-purple-700' }
+};
+
+const getDifficultyConfig = (index) => {
+    const configs = [
+        { difficulty: 'Easy Peasy', difficultyIcon: 'sentiment_satisfied', difficultyColor: 'bg-green-100 text-green-700' },
+        { difficulty: 'Challenger', difficultyIcon: 'bolt', difficultyColor: 'bg-yellow-100 text-yellow-700' },
+        { difficulty: 'Master Mind', difficultyIcon: 'psychology', difficultyColor: 'bg-purple-100 text-purple-700' }
+    ];
+    return configs[index % configs.length];
+};
+
+const getSubjectVisuals = (subjectName) => {
+    const normalizedName = (subjectName || '').toLowerCase();
+    for (const [key, visuals] of Object.entries(SUBJECT_VISUALS)) {
+        if (normalizedName.includes(key)) {
+            return visuals;
+        }
+    }
+    return SUBJECT_VISUALS.default;
+};
+
+const transformSubjectToQuest = (subject, index) => {
+    const visuals = getSubjectVisuals(subject.name);
+    const difficultyConfig = getDifficultyConfig(index);
+
+    return {
+        id: subject._id,
+        title: subject.name,
+        description: `Master ${subject.name}! Test your knowledge and skills in this exciting quest.`,
+        questions: 20 + (index * 5),
         time: '15 Mins',
-        difficulty: 'Easy Peasy',
-        difficultyIcon: 'sentiment_satisfied',
-        difficultyColor: 'bg-green-100 text-green-700',
-        gradient: 'from-blue-400 to-indigo-600',
-        icon: 'calculate',
-        questionsColor: 'bg-blue-100 text-blue-700',
+        ...difficultyConfig,
+        ...visuals,
         unlocked: true,
-    },
-    {
-        id: 'science',
-        title: 'Science Lab',
-        description: 'Discover how the world works. From tiny atoms to giant galaxies, test your inner Einstein!',
-        questions: 35,
-        time: '25 Mins',
-        difficulty: 'Master Mind',
-        difficultyIcon: 'psychology',
-        difficultyColor: 'bg-purple-100 text-purple-700',
-        gradient: 'from-emerald-400 to-teal-600',
-        icon: 'biotech',
-        questionsColor: 'bg-teal-100 text-teal-700',
-        unlocked: true,
-    },
-    {
-        id: 'english',
-        title: 'Word Wonders',
-        description: 'Enhance your vocabulary and grammar. Become a master of the English language through creative quests.',
-        questions: 25,
-        time: '20 Mins',
-        difficulty: 'Challenger',
-        difficultyIcon: 'bolt',
-        difficultyColor: 'bg-yellow-100 text-yellow-700',
-        gradient: 'from-orange-400 to-pink-600',
-        icon: 'menu_book',
-        questionsColor: 'bg-orange-100 text-orange-700',
-        unlocked: true,
-    },
-    {
-        id: 'history',
-        title: 'History Hikers',
-        description: 'Travel back in time! Explore ancient civilizations and famous leaders who shaped our world.',
-        questions: 30,
-        time: '30 Mins',
-        difficulty: 'Easy Peasy',
-        difficultyIcon: 'sentiment_satisfied',
-        difficultyColor: 'bg-green-100 text-green-700',
-        gradient: 'from-amber-600 to-amber-900',
-        icon: 'explore',
-        questionsColor: 'bg-amber-100 text-amber-700',
-        unlocked: true,
-    },
-    {
-        id: 'geography',
-        title: 'Geo Giants',
-        description: 'Mountains, rivers, and capitals. How well do you know your planet? Test your geography skills!',
-        questions: 15,
-        time: '15 Mins',
-        difficulty: 'Challenger',
-        difficultyIcon: 'bolt',
-        difficultyColor: 'bg-yellow-100 text-yellow-700',
-        gradient: 'from-cyan-500 to-blue-700',
-        icon: 'public',
-        questionsColor: 'bg-cyan-100 text-cyan-700',
-        unlocked: true,
-    },
-];
+        teachers: subject.teachers || []
+    };
+};
 
 /* ───────────────────────────── GOOGLE MATERIAL SYMBOLS ───────────────────────────── */
 const MaterialIcon = ({ name, className = '', filled = false, style = {} }) => (
@@ -138,7 +135,7 @@ const QuestCard = ({ quest, onStart }) => {
 };
 
 /* ───────────────────────────── LOCKED CARD ───────────────────────────── */
-const LockedCard = () => (
+{/*const LockedCard = () => (
     <div className="flex flex-col bg-slate-100 rounded-2xl overflow-hidden border border-dashed border-slate-300 relative group opacity-80 min-h-[320px]">
         <div className="absolute inset-0 flex flex-col items-center justify-center z-10 bg-slate-900/10 backdrop-blur-[2px]">
             <div className="bg-white p-4 rounded-full shadow-lg text-amber-400 mb-2">
@@ -152,7 +149,7 @@ const LockedCard = () => (
             <div className="h-10 w-full bg-slate-200 rounded-lg"></div>
         </div>
     </div>
-);
+); */}
 
 /* ───────────────────────────── MAIN PAGE COMPONENT ───────────────────────────── */
 const AdventureTryouts = () => {
@@ -161,12 +158,53 @@ const AdventureTryouts = () => {
     const [activeQuest, setActiveQuest] = useState(null);
     const [selectedBoard, setSelectedBoard] = useState('CBSE');
     const [selectedClass, setSelectedClass] = useState('Class 6');
+    const [quests, setQuests] = useState([]);
+    const [loading, setLoading] = useState(true);
 
     const studentName = profile?.name || 'Explorer';
     const level = stats?.achievements || 4;
     const xp = 1250;
     const maxXp = 2000;
     const streak = 3;
+
+    // Fetch allocated subjects from API
+    useEffect(() => {
+        const fetchAllocatedSubjects = async () => {
+            try {
+                setLoading(true);
+                const token = localStorage.getItem('token');
+                if (!token) {
+                    toast.error('Please login to view your subjects');
+                    return;
+                }
+
+                const response = await fetch(`${API_BASE}/api/student/allocated-subjects`, {
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
+
+                if (!response.ok) {
+                    throw new Error('Failed to fetch subjects');
+                }
+
+                const data = await response.json();
+                const transformedQuests = (data.subjects || []).map((subject, index) =>
+                    transformSubjectToQuest(subject, index)
+                );
+                setQuests(transformedQuests);
+            } catch (error) {
+                console.error('Error fetching allocated subjects:', error);
+                toast.error('Failed to load subjects');
+                setQuests([]);
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        fetchAllocatedSubjects();
+    }, []);
 
     const handleStartQuest = useCallback((quest) => {
         setActiveQuest(quest);
@@ -270,20 +308,30 @@ const AdventureTryouts = () => {
                 )}
 
                 {/* ── Quests Grid ── */}
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-                    {QUESTS.map((quest) => (
-                        <QuestCard key={quest.id} quest={quest} onStart={handleStartQuest} />
-                    ))}
-                    <LockedCard />
-                </div>
-
-                {/* ── Load More ── */}
-                <div className="mt-12 text-center">
-                    <button className="bg-white text-slate-900 border border-slate-200 font-bold px-8 py-3 rounded-full hover:bg-slate-50 transition-colors shadow-sm inline-flex items-center gap-2 cursor-pointer">
-                        Load More Quests
-                        <MaterialIcon name="expand_more" />
-                    </button>
-                </div>
+                {loading ? (
+                    <div className="flex items-center justify-center py-20">
+                        <div className="flex flex-col items-center gap-4">
+                            <div className="w-12 h-12 border-4 border-amber-400 border-t-transparent rounded-full animate-spin"></div>
+                            <p className="text-slate-600 font-medium">Loading your subjects...</p>
+                        </div>
+                    </div>
+                ) : quests.length > 0 ? (
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                        {quests.map((quest) => (
+                            <QuestCard key={quest.id} quest={quest} onStart={handleStartQuest} />
+                        ))}
+                    </div>
+                ) : (
+                    <div className="flex flex-col items-center justify-center py-20">
+                        <div className="bg-amber-50 p-6 rounded-full mb-4">
+                            <MaterialIcon name="school" className="text-amber-500" style={{ fontSize: '3rem' }} />
+                        </div>
+                        <h3 className="text-xl font-bold text-slate-900 mb-2">No Subjects Allocated</h3>
+                        <p className="text-slate-600 text-center max-w-md">
+                            It looks like no subjects have been allocated to you yet. Please contact your teacher or administrator.
+                        </p>
+                    </div>
+                )}
             </main>
 
             {/* ── Explorer Status Floating Sidebar ── */}
@@ -311,7 +359,7 @@ const AdventureTryouts = () => {
                 </div>
             </div>
 
-            {/* ── Footer ── */}
+            {/* ── Footer ── 
             <footer className="mt-auto border-t border-slate-200 py-10 bg-white">
                 <div className="max-w-[1200px] mx-auto px-6 md:px-10 flex flex-col md:flex-row justify-between items-center gap-6">
                     <div className="flex items-center gap-3">
@@ -330,7 +378,7 @@ const AdventureTryouts = () => {
                     </div>
                 </div>
             </footer>
-
+                    */}
             {/* ── Inline Styles for Material Symbols ── */}
             <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap');

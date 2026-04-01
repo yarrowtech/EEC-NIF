@@ -75,7 +75,7 @@ const AdminHeader = ({ adminUser }) => {
           .filter((item) => {
             if (isSuperAdmin) return true;
             const audience = String(item?.audience || 'All').toLowerCase();
-            return audience === 'all' || audience === 'student';
+            return audience === 'all' || audience === 'student' || audience === 'admin';
           })
           .sort((a, b) => new Date(b?.createdAt || 0) - new Date(a?.createdAt || 0));
 
@@ -107,6 +107,17 @@ const AdminHeader = ({ adminUser }) => {
   const markNotificationRead = (notificationId) => {
     if (!notificationId) return;
     persistReadIds([...readNotificationIds, String(notificationId)]);
+  };
+
+  const resolveNotificationPath = (notice) => {
+    const title = String(notice?.title || '').toLowerCase();
+    const typeLabel = String(notice?.typeLabel || '').toLowerCase();
+    const looksLikeLeaveRequest =
+      typeLabel.includes('leave request') || title.includes('leave request');
+    if (looksLikeLeaveRequest) {
+      return '/admin/hr?tab=leaves';
+    }
+    return '/admin/notices';
   };
 
   const markAllNotificationsRead = () => {
@@ -352,7 +363,7 @@ const AdminHeader = ({ adminUser }) => {
                           onClick={() => {
                             markNotificationRead(id);
                             setShowNotifications(false);
-                            navigate('/admin/notices');
+                            navigate(resolveNotificationPath(notice));
                           }}
                           className={`w-full text-left px-4 py-3 cursor-pointer border-b border-gray-50 hover:bg-gray-50 ${isRead ? 'bg-white' : 'bg-blue-50/60'}`}
                         >
