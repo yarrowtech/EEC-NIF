@@ -361,6 +361,7 @@ app.use((err, _req, res, _next) => {
 });
 
 const PORT = process.env.PORT || 5000;
+const HOST = process.env.HOST || '::';
 const httpServer = http.createServer(app);
 
 const io = new SocketServer(httpServer, {
@@ -632,11 +633,17 @@ io.on('connection', (socket) => {
 const KEEP_ALIVE_ENABLED = process.env.KEEP_ALIVE_ENABLED !== 'false';
 const KEEP_ALIVE_INTERVAL_MS = Number(process.env.KEEP_ALIVE_INTERVAL_MS || 120000);
 
+const getDefaultHealthUrl = () => {
+  if (HOST === '::') return `http://localhost:${PORT}/health`;
+  if (HOST === '0.0.0.0') return `http://127.0.0.1:${PORT}/health`;
+  return `http://${HOST}:${PORT}/health`;
+};
+
 const pingKeepAliveUrl = () => {
   const targetUrl =
     process.env.KEEP_ALIVE_URL ||
     process.env.RENDER_EXTERNAL_URL ||
-    `http://127.0.0.1:${PORT}/health`;
+    getDefaultHealthUrl();
 
   try {
     const parsedUrl = new URL(targetUrl);
@@ -656,16 +663,30 @@ const pingKeepAliveUrl = () => {
   }
 };
 
-httpServer.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
+const startServer = (host) => {
+  httpServer.listen(PORT, host, () => {
+    console.log(`Server running on ${host}:${PORT}`);
 
-  if (KEEP_ALIVE_ENABLED && KEEP_ALIVE_INTERVAL_MS > 0) {
-    pingKeepAliveUrl();
-    setInterval(pingKeepAliveUrl, KEEP_ALIVE_INTERVAL_MS);
-    console.log(
-      `[keep-alive] Enabled. Interval=${KEEP_ALIVE_INTERVAL_MS}ms, URL=${
-        process.env.KEEP_ALIVE_URL || process.env.RENDER_EXTERNAL_URL || `http://127.0.0.1:${PORT}/health`
-      }`
-    );
+    if (KEEP_ALIVE_ENABLED && KEEP_ALIVE_INTERVAL_MS > 0) {
+      pingKeepAliveUrl();
+      setInterval(pingKeepAliveUrl, KEEP_ALIVE_INTERVAL_MS);
+      console.log(
+        `[keep-alive] Enabled. Interval=${KEEP_ALIVE_INTERVAL_MS}ms, URL=${
+          process.env.KEEP_ALIVE_URL || process.env.RENDER_EXTERNAL_URL || getDefaultHealthUrl()
+        }`
+      );
+    }
+  });
+};
+
+httpServer.on('error', (err) => {
+  // If IPv6 host is unavailable on this machine, retry with IPv4 bind.
+  if (err && err.code === 'EADDRNOTAVAIL' && HOST === '::') {
+    console.warn('[server] IPv6 bind unavailable. Retrying on 0.0.0.0');
+    setTimeout(() => startServer('0.0.0.0'), 250);
+    return;
   }
+  throw err;
 });
+
+startServer(HOST);
