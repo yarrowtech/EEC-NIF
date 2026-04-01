@@ -32,7 +32,6 @@ import ResultsView from './ResultsView';
 import AchievementsView from './AchievementsView';
 import PTMPortal from './PTMPortal';
 import ParentDashboard from './ParentDashboard';
-import Observation from './Observation';
 import ParentObservationNonAcademic from './ParentObservationNonAcademic';
 import ParentChat from './ParentChat';
 import ClassRoutine from './ClassRoutine';
@@ -96,7 +95,6 @@ const ParentPortal = () => {
     { icon: MessageCircle, label: 'Chat', description: 'Connect with staff', path: '/parents/chat' },
     { icon: AlertOctagon, label: 'Complaints', description: 'Issue resolution', path: '/parents/complaints' },
     { icon: Video, label: 'Parent-Teacher Meetings', description: 'Upcoming PTMs', path: '/parents/ptm' },
-    { icon: Search, label: 'Observation', description: 'Teacher notes', path: '/parents/observation' },
     { icon: FileEdit, label: 'Parent Observation', description: 'Share feedback', path: '/parents/parent-observation' },
     { icon: GraduationCap, label: 'Results', description: 'Performance summary', path: '/parents/results' },
     { icon: Award, label: 'Achievements', description: 'Celebrate wins', path: '/parents/achievements' },
@@ -301,7 +299,6 @@ const ParentPortal = () => {
           <Route path="complaints" element={<ComplaintManagementSystem />} />
           <Route path="chat" element={<ParentChat />} />
           <Route path="ptm" element={<PTMPortal />} />
-          <Route path="observation" element={<Observation />} />
           <Route path="parent-observation" element={<ParentObservationNonAcademic />} />
           <Route path="results" element={<ResultsView />} />
           <Route path="achievements" element={<AchievementsView />} />

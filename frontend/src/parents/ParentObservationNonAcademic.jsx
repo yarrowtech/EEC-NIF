@@ -595,13 +595,7 @@ const ParentObservationNonAcademic = () => {
           </div>
         </div>
       </div>
-
-      <footer className="text-center pb-8">
-        <p className="text-xs font-medium text-slate-400 uppercase tracking-widest">
-          Electronic Educare • Home Wellbeing Analytics
-        </p>
-      </footer>
-
+      
       <style>{`
         .custom-scrollbar::-webkit-scrollbar {
           width: 4px;
