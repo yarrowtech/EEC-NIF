@@ -143,6 +143,30 @@ const buildScheduleForDay = (existingSchedule = []) => {
 
 const isBreakSlot = (time) => DEFAULT_BREAK_TIMES.includes(time);
 
+const normalizeDayLabel = (value = '') => {
+  const raw = String(value || '').trim().toLowerCase();
+  const aliases = {
+    mon: 'Monday',
+    monday: 'Monday',
+    tue: 'Tuesday',
+    tues: 'Tuesday',
+    tuesday: 'Tuesday',
+    wed: 'Wednesday',
+    wednesday: 'Wednesday',
+    thu: 'Thursday',
+    thur: 'Thursday',
+    thurs: 'Thursday',
+    thursday: 'Thursday',
+    fri: 'Friday',
+    friday: 'Friday',
+    sat: 'Saturday',
+    saturday: 'Saturday',
+    sun: 'Sunday',
+    sunday: 'Sunday',
+  };
+  return aliases[raw] || String(value || '').trim();
+};
+
 const Routines = ({setShowAdminHeader}) => {
   // Data state
   const [routines, setRoutines] = useState([]);
@@ -185,7 +209,6 @@ const Routines = ({setShowAdminHeader}) => {
 
   const copyableRoutines = useMemo(() => {
     return routines
-      .filter((routine) => !editingRoutine || routine.id !== editingRoutine.id)
       .sort((a, b) => {
         const aMatch = a.class === form.class && a.section === form.section ? 1 : 0;
         const bMatch = b.class === form.class && b.section === form.section ? 1 : 0;
@@ -193,9 +216,9 @@ const Routines = ({setShowAdminHeader}) => {
       })
       .map((routine) => ({
         id: String(routine.id),
-        label: `Class ${routine.class}-${routine.section} • ${routine.day}`
+        label: `Class ${routine.class}-${routine.section} • ${normalizeDayLabel(routine.day)}`
       }));
-  }, [routines, form.class, form.section, editingRoutine]);
+  }, [routines, form.class, form.section]);
 
   const scheduleStats = useMemo(() => {
     const total = form.schedule.filter((slot) => !slot.isBreak).length;
@@ -359,7 +382,12 @@ const Routines = ({setShowAdminHeader}) => {
     sections.find(s => s.name === selectedSection && getId(s.classId) === classDoc?._id);
 
   const getRoutineForDay = (day) =>
-    routines.find(r => r.class === selectedClass && r.section === selectedSection && r.day === day);
+    routines.find(
+      (r) =>
+        r.class === selectedClass &&
+        r.section === selectedSection &&
+        normalizeDayLabel(r.day) === normalizeDayLabel(day)
+    );
 
   const getBaseCell = (day, time) => {
     const routine = getRoutineForDay(day);
@@ -645,7 +673,7 @@ const Routines = ({setShowAdminHeader}) => {
     const schedule = buildScheduleForDay(routine.schedule);
     setForm((prev) => ({ ...prev, schedule }));
     setSelectedCopyRoutine('');
-    showSuccessToast(`Copied ${routine.day} routine`);
+    showSuccessToast(`Copied ${normalizeDayLabel(routine.day)} routine`);
   };
 
   const handleResetSchedule = () => {
@@ -929,7 +957,7 @@ const Routines = ({setShowAdminHeader}) => {
       (routine) =>
         routine.class === targetClass &&
         routine.section === targetSection &&
-        routine.day === day
+        normalizeDayLabel(routine.day) === normalizeDayLabel(day)
     );
 
     setForm({
@@ -1103,7 +1131,7 @@ const Routines = ({setShowAdminHeader}) => {
                 (routine) =>
                   routine.class === selectedClass &&
                   routine.section === selectedSection &&
-                  routine.day === day
+                  normalizeDayLabel(routine.day) === normalizeDayLabel(day)
               );
               const assignedSlots = dayRoutine
                 ? dayRoutine.schedule.filter((slot) => slot.subject !== 'Break').length
@@ -1272,7 +1300,7 @@ const Routines = ({setShowAdminHeader}) => {
                       }`}>
                         <div className="text-sm">{day.substring(0, 3)}</div>
                         <div className="text-xs opacity-75 mt-1">
-                          {routines.find(r => r.class === selectedClass && r.section === selectedSection && r.day === day)?.schedule.length || 0} periods
+                          {routines.find((r) => r.class === selectedClass && r.section === selectedSection && normalizeDayLabel(r.day) === normalizeDayLabel(day))?.schedule.length || 0} periods
                         </div>
                       </div>
                     );

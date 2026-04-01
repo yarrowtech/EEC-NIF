@@ -81,6 +81,12 @@ const studentUserSchema = new mongoose.Schema({
   lastLoginAt: { type: Date, default: null },
   isArchived: { type: Boolean, default: false },
   archivedAt: { type: Date, default: null },
+  archivedPlacement: {
+    grade: { type: String, default: '' },
+    section: { type: String, default: '' },
+    roll: { type: Number, default: null },
+    previousStatus: { type: String, default: '' },
+  },
 
 
   // Embedded attendance array

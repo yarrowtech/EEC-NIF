@@ -10,9 +10,16 @@ const ActiveSchools = ({
   admins = []
 }) => {
   const [query, setQuery] = useState('');
+  const [statusFilter, setStatusFilter] = useState('all');
   const [selected, setSelected] = useState(null);
   const [statusUpdating, setStatusUpdating] = useState(false);
   const [statusOverrides, setStatusOverrides] = useState({});
+  const [resettingAdminId, setResettingAdminId] = useState(null);
+
+  const isSchoolApproved = (school) => {
+    const registrationStatus = String(school?.registrationStatus || '').trim().toLowerCase();
+    return registrationStatus === 'approved';
+  };
 
   useEffect(() => {
     fetchActiveSchools?.();
@@ -33,10 +40,14 @@ const ActiveSchools = ({
   }, [admins]);
 
   const filteredSchools = useMemo(() => {
-    if (!query.trim()) return schools;
-    const needle = query.toLowerCase();
-    return schools.filter((school) =>
-      [
+    const needle = query.trim().toLowerCase();
+    return schools.filter((school) => {
+      if (!isSchoolApproved(school)) return false;
+
+      const effectiveStatus = getSchoolStatus(school);
+      if (statusFilter !== 'all' && effectiveStatus !== statusFilter) return false;
+      if (!needle) return true;
+      return [
         school.name,
         school.code,
         school.contactEmail,
@@ -44,9 +55,9 @@ const ActiveSchools = ({
         school.address
       ]
         .filter(Boolean)
-        .some((value) => String(value).toLowerCase().includes(needle))
-    );
-  }, [schools, query]);
+        .some((value) => String(value).toLowerCase().includes(needle));
+    });
+  }, [schools, query, statusFilter, statusOverrides]);
 
   const resolveCampuses = (school) => {
     if (!school) return [];
@@ -59,11 +70,11 @@ const ActiveSchools = ({
     return [];
   };
 
-  const getSchoolStatus = (school) => {
+  function getSchoolStatus(school) {
     if (!school) return 'active';
     const key = String(school._id || school.id || '');
     return statusOverrides[key] || school.status || 'active';
-  };
+  }
 
   const handleStatusChange = async (school, nextStatus) => {
     if (!school) return;
@@ -101,12 +112,48 @@ const ActiveSchools = ({
     }
   };
 
+  const handleResetSchoolAdminPassword = async (admin) => {
+    if (!admin?._id) return;
+    const confirmed = window.confirm(`Reset password for ${admin.username || 'this school admin'}?`);
+    if (!confirmed) return;
+    const token = localStorage.getItem('token');
+    if (!token) return;
+
+    setResettingAdminId(String(admin._id));
+    try {
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/admin/auth/school-admins/${admin._id}/reset-password`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          authorization: `Bearer ${token}`,
+        },
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data?.error || 'Unable to reset password');
+      }
+
+      const message = `Username: ${data?.username || admin.username || 'N/A'}\nNew Password: ${data?.password || 'N/A'}`;
+      window.alert(`Password reset successful.\n\n${message}`);
+      try {
+        await navigator.clipboard.writeText(message);
+      } catch {
+        // ignore clipboard errors
+      }
+      await fetchSchoolAdmins?.();
+    } catch (err) {
+      window.alert(err.message || 'Unable to reset password');
+    } finally {
+      setResettingAdminId(null);
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6">
         <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <div>
-            <p className="text-xs uppercase text-slate-400">Active schools</p>
+            <p className="text-xs uppercase text-slate-400">Schools</p>
             <h2 className="text-2xl font-semibold text-slate-800">Registered institutions</h2>
           </div>
           <button
@@ -118,15 +165,26 @@ const ActiveSchools = ({
           </button>
         </div>
 
-        <div className="mt-6 flex items-center gap-2 border border-slate-200 rounded-xl px-3 py-2 bg-slate-50">
-          <Search size={16} className="text-slate-400" />
-          <input
-            type="text"
-            className="bg-transparent flex-1 text-sm focus:outline-none"
-            placeholder="Search by name, code, email, phone, or address"
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-          />
+        <div className="mt-6 grid gap-3 md:grid-cols-[1fr_auto]">
+          <div className="flex items-center gap-2 border border-slate-200 rounded-xl px-3 py-2 bg-slate-50">
+            <Search size={16} className="text-slate-400" />
+            <input
+              type="text"
+              className="bg-transparent flex-1 text-sm focus:outline-none"
+              placeholder="Search by name, code, email, phone, or address"
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+            />
+          </div>
+          <select
+            value={statusFilter}
+            onChange={(event) => setStatusFilter(event.target.value)}
+            className="h-[42px] rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-amber-300"
+          >
+            <option value="all">All statuses</option>
+            <option value="active">Active</option>
+            <option value="inactive">Inactive</option>
+          </select>
         </div>
       </div>
 
@@ -144,7 +202,7 @@ const ActiveSchools = ({
 
       {loading && (
         <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-8 text-center text-slate-500">
-          Loading active schools…
+          Loading schools…
         </div>
       )}
 
@@ -214,7 +272,7 @@ const ActiveSchools = ({
                 {filteredSchools.length === 0 && (
                   <tr>
                     <td colSpan="7" className="px-4 py-8 text-center text-slate-500">
-                      No active schools found.
+                      No schools found.
                     </td>
                   </tr>
                 )}
@@ -286,6 +344,15 @@ const ActiveSchools = ({
                         <p className="text-xs text-slate-600"><span className="font-semibold">Email:</span> {admin.email || '—'}</p>
                         <p className="text-xs text-slate-600"><span className="font-semibold">Status:</span> {admin.status || '—'}</p>
                         <p className="text-xs text-slate-600"><span className="font-semibold">Role:</span> {admin.role || '—'}</p>
+                        <div className="pt-2">
+                          <button
+                            className="text-xs font-semibold px-3 py-1 rounded-lg border border-amber-300 bg-amber-50 text-amber-700 hover:bg-amber-100 disabled:opacity-60"
+                            disabled={resettingAdminId === String(admin._id)}
+                            onClick={() => handleResetSchoolAdminPassword(admin)}
+                          >
+                            {resettingAdminId === String(admin._id) ? 'Resetting...' : 'Reset Password'}
+                          </button>
+                        </div>
                       </div>
                     ))}
                   </div>

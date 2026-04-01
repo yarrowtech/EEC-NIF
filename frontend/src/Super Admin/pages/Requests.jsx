@@ -28,6 +28,7 @@ const Requests = ({
 
   const filteredRequests = useMemo(() => {
     return requests.filter((request) => {
+      if (request.status === 'approved') return false;
       const matchesSearch =
         request.schoolName.toLowerCase().includes(searchTerm.toLowerCase()) ||
         request.contactPerson.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -127,16 +128,6 @@ const Requests = ({
               onClick={() => setStatusFilter('review')}
             >
               Need info
-            </button>
-            <button
-              className={`px-4 py-2 rounded-lg text-sm font-medium border ${
-                statusFilter === 'approved'
-                  ? 'bg-emerald-500 text-white border-emerald-500'
-                  : 'border-slate-200 text-slate-600'
-              }`}
-              onClick={() => setStatusFilter('approved')}
-            >
-              Approved
             </button>
           </div>
         </div>

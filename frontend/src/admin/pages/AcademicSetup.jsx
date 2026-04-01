@@ -1036,15 +1036,15 @@ const AcademicSetup = ({ setShowAdminHeader }) => {
                 <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
                   <div>
                     <label className="mb-1 block text-xs font-medium text-gray-600">Class Name</label>
-                    <input type="text" value={classForm.name} onChange={(e) => setClassForm((p) => ({ ...p, name: e.target.value }))}
+                    <input type="number" value={classForm.name} onChange={(e) => setClassForm((p) => ({ ...p, name: e.target.value }))}
                       className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-amber-400 focus:outline-none focus:ring-2 focus:ring-amber-100"
-                      placeholder="Grade 10" required />
+                      placeholder="E.g. 10" required />
                   </div>
                   <div>
                     <label className="mb-1 block text-xs font-medium text-gray-600">Academic Year</label>
                     <select value={classForm.academicYearId} onChange={(e) => setClassForm((p) => ({ ...p, academicYearId: e.target.value }))}
                       className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-amber-400 focus:outline-none focus:ring-2 focus:ring-amber-100">
-                      <option value="">Optional</option>
+                      <option value="">Select Year</option>
                       {years.map((y) => <option key={y._id} value={y._id}>{y.name}</option>)}
                     </select>
                   </div>
@@ -1214,17 +1214,17 @@ const AcademicSetup = ({ setShowAdminHeader }) => {
                       className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-amber-400 focus:outline-none focus:ring-2 focus:ring-amber-100"
                       placeholder="Mathematics" required />
                   </div>
-                  <div>
+                  {/* <div>
                     <label className="mb-1 block text-xs font-medium text-gray-600">Subject Code</label>
                     <input type="text" value={subjectForm.code} onChange={(e) => setSubjectForm((p) => ({ ...p, code: e.target.value }))}
                       className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-amber-400 focus:outline-none focus:ring-2 focus:ring-amber-100"
                       placeholder="MATH101" />
-                  </div>
+                  </div> */}
                   <div>
                     <label className="mb-1 block text-xs font-medium text-gray-600">Class</label>
                     <select value={subjectForm.classId} onChange={(e) => setSubjectForm((p) => ({ ...p, classId: e.target.value }))}
                       className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-amber-400 focus:outline-none focus:ring-2 focus:ring-amber-100">
-                      <option value="">Optional</option>
+                      <option value="">Select Class</option>
                       {classes.map((c) => <option key={c._id} value={c._id}>{c.name}</option>)}
                     </select>
                   </div>
@@ -1255,7 +1255,7 @@ const AcademicSetup = ({ setShowAdminHeader }) => {
                           onChange={() => handleSelectAll("subjects", paginatedSubjects)} className="h-4 w-4 rounded border-gray-300 text-amber-500" />
                       </th>
                       <SortableHeader label="Name" field="name" sortConfig={subjectSort} onSort={toggleSort(setSubjectSort)} />
-                      <SortableHeader label="Code" field="code" sortConfig={subjectSort} onSort={toggleSort(setSubjectSort)} />
+                      {/* <SortableHeader label="Code" field="code" sortConfig={subjectSort} onSort={toggleSort(setSubjectSort)} /> */}
                       <th className="bg-gray-50 px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Class</th>
                       <th className="bg-gray-50 px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-gray-500">Actions</th>
                     </tr>
@@ -1268,7 +1268,7 @@ const AcademicSetup = ({ setShowAdminHeader }) => {
                             onChange={() => handleSelectItem("subjects", sub._id)} className="h-4 w-4 rounded border-gray-300 text-amber-500" />
                         </td>
                         <td className="px-4 py-3 text-sm font-medium text-gray-900">{sub.name}</td>
-                        <td className="px-4 py-3 text-sm text-gray-500">{sub.code || "—"}</td>
+                        {/* <td className="px-4 py-3 text-sm text-gray-500">{sub.code || "—"}</td> */}
                         <td className="px-4 py-3 text-sm text-gray-500">{classes.find((c) => c._id === sub.classId)?.name || "—"}</td>
                         <td className="px-4 py-3 text-right">
                           <div className="flex items-center justify-end gap-1">
@@ -1490,14 +1490,14 @@ const AcademicSetup = ({ setShowAdminHeader }) => {
           <div className="space-y-4">
             <div>
               <label className="mb-1 block text-xs font-medium text-gray-600">Class Name</label>
-              <input type="text" value={editingClass?.name || ""} onChange={(e) => setEditingClass((p) => ({ ...p, name: e.target.value }))}
+              <input type="number" value={editingClass?.name || ""} onChange={(e) => setEditingClass((p) => ({ ...p, name: e.target.value }))}
                 className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-amber-400 focus:outline-none focus:ring-2 focus:ring-amber-100" required />
             </div>
             <div>
               <label className="mb-1 block text-xs font-medium text-gray-600">Academic Year</label>
               <select value={editingClass?.academicYearId || ""} onChange={(e) => setEditingClass((p) => ({ ...p, academicYearId: e.target.value }))}
                 className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-amber-400 focus:outline-none focus:ring-2 focus:ring-amber-100">
-                <option value="">Optional</option>
+                <option value="">Select year</option>
                 {years.map((y) => <option key={y._id} value={y._id}>{y.name}</option>)}
               </select>
             </div>
@@ -1536,12 +1536,12 @@ const AcademicSetup = ({ setShowAdminHeader }) => {
               <input type="text" value={editingSubject?.name || ""} onChange={(e) => setEditingSubject((p) => ({ ...p, name: e.target.value }))}
                 className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-amber-400 focus:outline-none focus:ring-2 focus:ring-amber-100" required />
             </div>
-            <div>
+            {/* <div>
               <label className="mb-1 block text-xs font-medium text-gray-600">Subject Code</label>
               <input type="text" value={editingSubject?.code || ""} onChange={(e) => setEditingSubject((p) => ({ ...p, code: e.target.value }))}
                 className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-amber-400 focus:outline-none focus:ring-2 focus:ring-amber-100"
                 placeholder="MATH101" />
-            </div>
+            </div> */}
             <div>
               <label className="mb-1 block text-xs font-medium text-gray-600">Class</label>
               <select value={editingSubject?.classId || ""} onChange={(e) => setEditingSubject((p) => ({ ...p, classId: e.target.value }))}

@@ -25,6 +25,9 @@ const rateLimit = ({
   onLimit,
   useForwardedFor = true,
   keyGenerator,
+  skipSuccessfulRequests = false,
+  skipFailedRequests = false,
+  requestWasSuccessful = (_req, res) => res.statusCode < 400,
 } = {}) => {
   return (req, res, next) => {
     const key = getKey(req, { useForwardedFor, keyGenerator });
@@ -60,6 +63,39 @@ const rateLimit = ({
       }
       res.setHeader('Retry-After', Math.ceil(windowMs / 1000));
       return res.status(429).json({ error: 'Too many requests, please try again later.' });
+    }
+
+    if (skipSuccessfulRequests || skipFailedRequests) {
+      let done = false;
+      const maybeDecrement = () => {
+        if (done) return;
+        done = true;
+
+        let successful = false;
+        try {
+          successful = Boolean(requestWasSuccessful(req, res));
+        } catch (_err) {
+          successful = res.statusCode < 400;
+        }
+
+        const shouldDecrement =
+          (skipSuccessfulRequests && successful) ||
+          (skipFailedRequests && !successful);
+
+        if (!shouldDecrement) return;
+
+        const latest = buckets.get(key);
+        if (!latest) return;
+        latest.count = Math.max(0, latest.count - 1);
+        if (latest.count === 0) {
+          buckets.delete(key);
+          return;
+        }
+        buckets.set(key, latest);
+      };
+
+      res.on('finish', maybeDecrement);
+      res.on('close', maybeDecrement);
     }
 
     return next();

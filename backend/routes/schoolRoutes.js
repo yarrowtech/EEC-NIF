@@ -61,8 +61,6 @@ router.get('/', adminAuth, async (req, res) => {
     const filter = {};
     if (!req.isSuperAdmin) {
       filter._id = req.schoolId;
-    } else if (req.schoolId) {
-      filter._id = req.schoolId;
     }
     const schools = await School.find(filter).sort({ createdAt: -1 }).lean();
     res.json(schools);
@@ -99,6 +97,22 @@ router.get('/registrations/pending', adminAuth, ensureSuperAdmin, async (req, re
       reason: err.message,
       adminId: req.admin?.id || req.admin?._id,
     });
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Get unapproved registrations (super admin only) - must be before /:id
+router.get('/registrations/unapproved', adminAuth, ensureSuperAdmin, async (req, res) => {
+  // #swagger.tags = ['School Registration']
+  try {
+    const schools = await School.find({
+      registrationStatus: { $ne: 'approved' }
+    })
+      .sort({ submittedAt: -1 })
+      .lean();
+
+    res.json(schools);
+  } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });

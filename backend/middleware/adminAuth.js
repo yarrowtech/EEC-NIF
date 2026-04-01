@@ -52,9 +52,12 @@ const adminAuth = (req, res, next) => {
       });
       return res.status(403).json({ error: 'Access denied' });
     }
-    const tokenSchoolId = decoded.schoolId || null;
-    const tokenCampusId = decoded.campusId || null;
-    const isSuperAdmin = !tokenSchoolId;
+    const role = String(decoded.role || '').toLowerCase();
+    const hasRole = typeof decoded.role === 'string' && decoded.role.trim().length > 0;
+    // Backward compatibility for older tokens that did not include `role`.
+    const isSuperAdmin = role === 'super_admin' || (!hasRole && !decoded.schoolId);
+    const tokenSchoolId = isSuperAdmin ? null : (decoded.schoolId || null);
+    const tokenCampusId = isSuperAdmin ? null : (decoded.campusId || null);
     const effectiveSchoolId = tokenSchoolId || (isSuperAdmin ? extractSchoolId(req) : null);
     const effectiveCampusId = tokenCampusId || (isSuperAdmin ? extractCampusId(req) : null);
     // Backward compatibility: older admin records may not have campusId.

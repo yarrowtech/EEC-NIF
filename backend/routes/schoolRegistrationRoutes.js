@@ -102,6 +102,10 @@ router.post(
     windowMs: SCHOOL_REG_WINDOW_MS,
     max: SCHOOL_REG_MAX_REQUESTS,
     useForwardedFor: false,
+    skipFailedRequests: true,
+    requestWasSuccessful: (_req, res) => (
+      res.statusCode < 500 && res.statusCode !== 400
+    ),
     onLimit: ({ req, windowMs, max, currentCount }) => {
       logSchoolRegistrationEvent(req, {
         action: 'school_registration.rate_limited',
