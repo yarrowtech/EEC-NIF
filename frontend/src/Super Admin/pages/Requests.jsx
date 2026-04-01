@@ -12,13 +12,19 @@ const Requests = ({
   requests,
   onRequestAction,
   loading = false,
+  bulkDeleteLoading = false,
   error = null,
   onRefresh,
+  onDeleteAllPendingRequests,
   schoolCredentials = {},
   onGenerateSchoolCredentials
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
+  const [activeAction, setActiveAction] = useState(null);
+  const [showBulkDeleteConfirm, setShowBulkDeleteConfirm] = useState(false);
+  const [bulkDeleteConfirmText, setBulkDeleteConfirmText] = useState('');
+  const [actionError, setActionError] = useState(null);
 
   const filteredRequests = useMemo(() => {
     return requests.filter((request) => {
@@ -31,12 +37,32 @@ const Requests = ({
     });
   }, [requests, searchTerm, statusFilter]);
 
-  const updateStatus = (requestId, status) => {
+  const updateStatus = async (requestId, status) => {
     const note =
       status === 'review'
         ? window.prompt('Add a note for the school (optional)')
         : undefined;
-    onRequestAction(requestId, status, note);
+    try {
+      setActionError(null);
+      setActiveAction(`${requestId}:${status}`);
+      await onRequestAction(requestId, status, note);
+    } catch (requestError) {
+      setActionError(requestError?.message || 'Unable to update this request');
+    } finally {
+      setActiveAction(null);
+    }
+  };
+
+  const handleBulkDelete = async () => {
+    if (!onDeleteAllPendingRequests) return;
+    try {
+      setActionError(null);
+      await onDeleteAllPendingRequests(bulkDeleteConfirmText);
+      setBulkDeleteConfirmText('');
+      setShowBulkDeleteConfirm(false);
+    } catch (requestError) {
+      setActionError(requestError?.message || 'Unable to delete pending requests');
+    }
   };
 
   const resolveCampuses = (request) => {
@@ -130,12 +156,57 @@ const Requests = ({
             <Filter size={16} />
             Advanced filters
           </button>
+          <button
+            className="flex items-center gap-2 px-4 py-2 rounded-xl border border-rose-300 bg-rose-50 text-sm text-rose-700 disabled:opacity-60 disabled:cursor-not-allowed"
+            onClick={() => setShowBulkDeleteConfirm((prev) => !prev)}
+            disabled={loading || bulkDeleteLoading || requests.length === 0}
+          >
+            {bulkDeleteLoading ? <Loader2 size={16} className="animate-spin" /> : <XCircle size={16} />}
+            Delete all pending ({requests.length})
+          </button>
         </div>
+
+        {showBulkDeleteConfirm && (
+          <div className="mt-4 rounded-xl border border-rose-200 bg-rose-50 p-4 space-y-3">
+            <p className="text-sm text-rose-800 font-medium">
+              This permanently deletes all pending registration requests from the database.
+            </p>
+            <p className="text-xs text-rose-700">
+              Type <span className="font-semibold">DELETE</span> to confirm.
+            </p>
+            <div className="flex flex-col gap-2 md:flex-row md:items-center">
+              <input
+                type="text"
+                value={bulkDeleteConfirmText}
+                onChange={(event) => setBulkDeleteConfirmText(event.target.value)}
+                className="w-full md:w-64 rounded-lg border border-rose-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-rose-300"
+                placeholder="Type DELETE"
+              />
+              <button
+                className="px-4 py-2 rounded-lg bg-rose-600 text-white text-sm disabled:opacity-60 disabled:cursor-not-allowed"
+                onClick={handleBulkDelete}
+                disabled={bulkDeleteLoading || bulkDeleteConfirmText.trim().toUpperCase() !== 'DELETE'}
+              >
+                {bulkDeleteLoading ? 'Deleting...' : 'Confirm delete all'}
+              </button>
+              <button
+                className="px-4 py-2 rounded-lg border border-slate-300 text-slate-700 text-sm"
+                onClick={() => {
+                  setShowBulkDeleteConfirm(false);
+                  setBulkDeleteConfirmText('');
+                }}
+                disabled={bulkDeleteLoading}
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
-      {error && (
+      {(error || actionError) && (
         <div className="bg-rose-50 border border-rose-200 text-rose-700 text-sm rounded-xl p-4 flex items-center justify-between">
-          <span>{error}</span>
+          <span>{actionError || error}</span>
           {onRefresh && (
             <button
               onClick={onRefresh}
@@ -263,25 +334,28 @@ const Requests = ({
 
             <div className="mt-4 flex flex-col gap-2 sm:flex-row">
               <button
-                className="flex items-center justify-center gap-2 px-4 py-2 rounded-lg border border-slate-200 text-slate-600 text-sm"
+                className="flex items-center justify-center gap-2 px-4 py-2 rounded-lg border border-slate-200 text-slate-600 text-sm disabled:opacity-60 disabled:cursor-not-allowed"
                 onClick={() => updateStatus(request.id, 'review')}
+                disabled={Boolean(activeAction)}
               >
                 <RefreshCw size={14} />
-                Request updates
+                {activeAction === `${request.id}:review` ? 'Updating...' : 'Request updates'}
               </button>
               <button
-                className="flex items-center justify-center gap-2 px-4 py-2 rounded-lg border border-rose-200 text-rose-600 text-sm"
+                className="flex items-center justify-center gap-2 px-4 py-2 rounded-lg border border-rose-200 text-rose-600 text-sm disabled:opacity-60 disabled:cursor-not-allowed"
                 onClick={() => updateStatus(request.id, 'rejected')}
+                disabled={Boolean(activeAction)}
               >
                 <XCircle size={14} />
-                Reject
+                {activeAction === `${request.id}:rejected` ? 'Rejecting...' : 'Reject'}
               </button>
               <button
-                className="flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-emerald-600 text-white text-sm"
+                className="flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-emerald-600 text-white text-sm disabled:opacity-60 disabled:cursor-not-allowed"
                 onClick={() => updateStatus(request.id, 'approved')}
+                disabled={Boolean(activeAction)}
               >
                 <CheckCircle size={14} />
-                Approve and activate
+                {activeAction === `${request.id}:approved` ? 'Approving...' : 'Approve and activate'}
               </button>
             </div>
           </div>

@@ -144,6 +144,51 @@ router.put('/registrations/approve-all', adminAuth, ensureSuperAdmin, async (req
   }
 });
 
+// Delete all pending registrations (super admin only) - destructive operation
+router.delete('/registrations/pending', adminAuth, ensureSuperAdmin, async (req, res) => {
+  // #swagger.tags = ['School Registration']
+  try {
+    const confirmation = String(req.query?.confirm || '').trim().toUpperCase();
+    if (confirmation !== 'DELETE') {
+      return res.status(400).json({
+        error: 'Confirmation required. Pass query param confirm=DELETE to proceed.'
+      });
+    }
+
+    const pendingCount = await School.countDocuments({ registrationStatus: 'pending' });
+    if (pendingCount === 0) {
+      return res.json({ message: 'No pending registrations to delete', deleted: 0 });
+    }
+
+    const result = await School.deleteMany({ registrationStatus: 'pending' });
+    const deleted = result.deletedCount ?? result.n ?? 0;
+
+    logBusinessEvent(req, {
+      action: 'school_registration.pending_bulk_delete',
+      outcome: 'success',
+      entity: 'school_registration',
+      statusCode: 200,
+      deletedCount: deleted,
+      adminId: req.admin?.id || req.admin?._id,
+    });
+
+    res.json({
+      message: 'Deleted pending registrations',
+      deleted,
+    });
+  } catch (err) {
+    logBusinessEvent(req, {
+      action: 'school_registration.pending_bulk_delete',
+      outcome: 'failure',
+      entity: 'school_registration',
+      statusCode: 500,
+      reason: err.message,
+      adminId: req.admin?.id || req.admin?._id,
+    });
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // Get single registration details (super admin only) - must be before /:id
 router.get('/registrations/:id', adminAuth, ensureSuperAdmin, async (req, res) => {
   // #swagger.tags = ['School Registration']

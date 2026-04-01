@@ -91,6 +91,7 @@ const SuperAdminApp = () => {
   const [requests, setRequests] = useState(initialSchoolRequests);
   const [requestLoading, setRequestLoading] = useState(false);
   const [requestError, setRequestError] = useState(null);
+  const [requestBulkDeleteLoading, setRequestBulkDeleteLoading] = useState(false);
   const [activeSchools, setActiveSchools] = useState([]);
   const [activeSchoolsLoading, setActiveSchoolsLoading] = useState(false);
   const [activeSchoolsError, setActiveSchoolsError] = useState(null);
@@ -730,21 +731,71 @@ const SuperAdminApp = () => {
     return entry;
   };
 
-  const handleRequestUpdate = async (requestId, status, note) => {
-    setRequests((prev) =>
-      prev.map((request) =>
-        request.id === requestId
-          ? {
-              ...request,
-              status,
-              notes: note ?? request.notes,
-              updatedAt: new Date().toISOString()
-            }
-          : request
-      )
-    );
+  const handleDeleteAllPendingRequests = useCallback(async (confirmText) => {
     const token = localStorage.getItem('token');
     if (!token || !API_BASE) return;
+    if (String(confirmText || '').trim().toUpperCase() !== 'DELETE') {
+      throw new Error('Type DELETE to confirm this action.');
+    }
+
+    setRequestBulkDeleteLoading(true);
+    setRequestError(null);
+    try {
+      const response = await fetch(`${API_BASE}/api/schools/registrations/pending?confirm=DELETE`, {
+        method: 'DELETE',
+        headers: {
+          Authorization: `Bearer ${token}`
+        }
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(data?.error || 'Unable to delete pending requests');
+      }
+      setRequests([]);
+      setSchoolCredentials((prev) => {
+        if (!prev || typeof prev !== 'object') return {};
+        const next = { ...prev };
+        requests.forEach((request) => {
+          delete next[request.id];
+        });
+        return next;
+      });
+      await fetchRequests();
+      return data;
+    } catch (error) {
+      console.error('Failed to delete pending requests', error);
+      setRequestError(error.message || 'Unable to delete pending requests');
+      throw error;
+    } finally {
+      setRequestBulkDeleteLoading(false);
+    }
+  }, [fetchRequests, requests]);
+
+  const handleRequestUpdate = async (requestId, status, note) => {
+    const selectedRequest = requests.find((item) => item.id === requestId);
+    if (!selectedRequest) return;
+
+    setRequestError(null);
+
+    if (status === 'review') {
+      setRequests((prev) =>
+        prev.map((request) =>
+          request.id === requestId
+            ? {
+                ...request,
+                status,
+                notes: note ?? request.notes,
+                updatedAt: new Date().toISOString()
+              }
+            : request
+        )
+      );
+      return;
+    }
+
+    const token = localStorage.getItem('token');
+    if (!token || !API_BASE) return;
+
     if (status === 'approved' || status === 'rejected') {
       try {
         const endpoint =
@@ -767,15 +818,17 @@ const SuperAdminApp = () => {
           const data = await response.json().catch(() => ({}));
           throw new Error(data?.error || 'Unable to update registration');
         }
+
+        setRequests((prev) => prev.filter((request) => request.id !== requestId));
       } catch (error) {
         console.error('Failed to update registration', error);
         setRequestError(error.message || 'Unable to update registration');
+        throw error;
       }
     }
+
     if (status === 'approved') {
-      const request = requests.find((item) => item.id === requestId);
-      if (!request) return;
-      const campusList = resolveRequestCampuses(request);
+      const campusList = resolveRequestCampuses(selectedRequest);
       const credentialBucket = schoolCredentials[requestId] || {};
       const campusCredentials =
         credentialBucket.campuses && typeof credentialBucket.campuses === 'object'
@@ -800,7 +853,7 @@ const SuperAdminApp = () => {
             campusId: existingCredential.campusId || campus?.id || campus?._id || campus?.campusId
           });
           try {
-            await createSchoolAdminAccount(request, existingCredential.code, existingCredential.password, 'active', campus);
+            await createSchoolAdminAccount(selectedRequest, existingCredential.code, existingCredential.password, 'active', campus);
             continue;
           } catch (error) {
             console.error('Failed to create school admin', error);
@@ -808,7 +861,7 @@ const SuperAdminApp = () => {
           }
         }
 
-        const generated = await handleSchoolCredentialGenerate(request, campus, i, 'active');
+        const generated = await handleSchoolCredentialGenerate(selectedRequest, campus, i, 'active');
         if (generated) {
           approvalCredentials.push(generated);
         }
@@ -825,9 +878,9 @@ const SuperAdminApp = () => {
                 Authorization: `Bearer ${token}`
               },
               body: JSON.stringify({
-                schoolId: request.schoolId || request.id,
-                schoolName: request.schoolName || request.name,
-                contactEmail: request.contactEmail || request.officialEmail,
+                schoolId: selectedRequest.schoolId || selectedRequest.id,
+                schoolName: selectedRequest.schoolName || selectedRequest.name,
+                contactEmail: selectedRequest.contactEmail || selectedRequest.officialEmail,
                 campuses: approvalCredentials.map((entry) => ({
                   campusName: entry.campusName,
                   campusType: entry.campusType,
@@ -1085,8 +1138,10 @@ const SuperAdminApp = () => {
             requests={requests}
             onRequestAction={handleRequestUpdate}
             loading={requestLoading}
+            bulkDeleteLoading={requestBulkDeleteLoading}
             error={requestError}
             onRefresh={fetchRequests}
+            onDeleteAllPendingRequests={handleDeleteAllPendingRequests}
             schoolCredentials={schoolCredentials}
             onGenerateSchoolCredentials={handleSchoolCredentialGenerate}
           />
