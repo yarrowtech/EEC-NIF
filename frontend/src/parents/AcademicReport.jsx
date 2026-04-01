@@ -1,18 +1,38 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Award, BookOpen, Calendar, Download, TrendingUp, AlertCircle } from 'lucide-react';
+import { 
+  Award, 
+  BookOpen, 
+  Calendar, 
+  TrendingUp, 
+  AlertCircle, 
+  User, 
+  ChevronRight,
+  Filter,
+  Printer,
+  FileText,
+  BarChart3,
+  CheckCircle2,
+  XCircle,
+  Loader2
+} from 'lucide-react';
+import toast from 'react-hot-toast';
 import { formatStudentDisplay } from '../utils/studentDisplay';
+import { downloadSingleReportCardPdf } from '../utils/reportCardPdf';
 
 const API_BASE_URL = (import.meta.env.VITE_API_URL || 'http://localhost:5000').replace(/\/$/, '');
 
 const AcademicReport = () => {
-  const [childrenReports, setChildrenReports] = useState([]);
-  const [selectedChildId, setSelectedChildId] = useState('');
+  const [reportCards, setReportCards] = useState([]);
+  const [template, setTemplate] = useState(null);
+  const [selectedStudentId, setSelectedStudentId] = useState('');
+  const [viewMode, setViewMode] = useState('detailed');
   const [filterType, setFilterType] = useState('all');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [isExporting, setIsExporting] = useState(false);
 
   useEffect(() => {
-    const loadAcademicReport = async () => {
+    const fetchRealData = async () => {
       const token = localStorage.getItem('token');
       if (!token) {
         setError('Please login to view academic reports.');
@@ -23,25 +43,23 @@ const AcademicReport = () => {
       setLoading(true);
       setError('');
       try {
-        const res = await fetch(`${API_BASE_URL}/api/parent/auth/academics`, {
+        const res = await fetch(`${API_BASE_URL}/api/reports/report-cards/parent`, {
           headers: {
-            'Content-Type': 'application/json',
             Authorization: `Bearer ${token}`,
           },
         });
         const data = await res.json();
         if (!res.ok) {
-          throw new Error(data?.error || 'Unable to load academic report');
+          throw new Error(data?.error || 'Unable to load real academic report');
         }
 
-        const children = Array.isArray(data.children) ? data.children : [];
-        setChildrenReports(children);
-        setSelectedChildId((prev) => {
-          if (prev && children.some((child) => String(child.studentId) === String(prev))) {
-            return prev;
-          }
-          return children.length > 0 ? String(children[0].studentId) : '';
-        });
+        const cards = Array.isArray(data.reportCards) ? data.reportCards : [];
+        setReportCards(cards);
+        setTemplate(data.template);
+
+        if (cards.length > 0) {
+          setSelectedStudentId(String(cards[0].studentId));
+        }
       } catch (err) {
         setError(err.message || 'Unable to load academic report');
       } finally {
@@ -49,187 +67,365 @@ const AcademicReport = () => {
       }
     };
 
-    loadAcademicReport();
+    fetchRealData();
   }, []);
 
-  const selectedChild = useMemo(
-    () => childrenReports.find((child) => String(child.studentId) === String(selectedChildId)) || childrenReports[0] || null,
-    [childrenReports, selectedChildId]
+  const selectedReport = useMemo(
+    () => reportCards.find((card) => String(card.studentId) === String(selectedStudentId)) || null,
+    [reportCards, selectedStudentId]
   );
 
-  const filteredRecords = useMemo(() => {
-    if (!selectedChild) return [];
-    if (filterType === 'all') return selectedChild.records || [];
-    return (selectedChild.records || []).filter((record) => record.category === filterType);
-  }, [selectedChild, filterType]);
+  const filteredExams = useMemo(() => {
+    if (!selectedReport) return [];
+    // Report cards primarily deal with Exams/Assessments
+    return (selectedReport.exams || []).filter(exam => {
+      if (filterType === 'all') return true;
+      // If we had more categories in the report card data, we would filter here
+      return true; 
+    });
+  }, [selectedReport, filterType]);
 
-  const summary = selectedChild?.summary || {
-    averagePercentage: null,
-    examCount: 0,
-    assignmentCount: 0,
-    bestSubject: '',
-    lastUpdated: null,
+  const handleExport = async () => {
+    if (!selectedReport) {
+      toast.error('No report data to export');
+      return;
+    }
+
+    setIsExporting(true);
+    try {
+      const success = await downloadSingleReportCardPdf({
+        template,
+        reportCard: selectedReport,
+        fileName: `Academic_Report_${selectedReport.studentName.replace(/\s+/g, '_')}.pdf`
+      });
+      if (success) {
+        toast.success('Report card downloaded successfully');
+      } else {
+        toast.error('Failed to generate report card');
+      }
+    } catch (err) {
+      console.error('Export error:', err);
+      toast.error('Error generating PDF');
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
+  const gradeBadgeClass = (grade = '') => {
+    const g = String(grade).toUpperCase();
+    if (g.startsWith('A')) return 'bg-emerald-100 text-emerald-700 border-emerald-200';
+    if (g.startsWith('B')) return 'bg-blue-100 text-blue-700 border-blue-200';
+    if (g.startsWith('C')) return 'bg-amber-100 text-amber-700 border-amber-200';
+    if (g.startsWith('D')) return 'bg-orange-100 text-orange-700 border-orange-200';
+    return 'bg-rose-100 text-rose-700 border-rose-200';
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 p-4 sm:p-6 space-y-6">
-      <section className="bg-white border border-gray-200 rounded-xl p-5 shadow-sm">
-        <div className="flex flex-col gap-2">
-          <h1 className="text-2xl font-semibold text-gray-900">Academic Report</h1>
-          <p className="text-sm text-gray-600">
-            Published exam and assignment results for your children. Data refreshes automatically when teachers publish grades.
-          </p>
-          {summary.lastUpdated && (
-            <p className="text-xs text-gray-500">
-              Last updated: {new Date(summary.lastUpdated).toLocaleString()}
+    <div className="min-h-screen bg-slate-50/50 p-4 sm:p-6 lg:p-8 space-y-8 max-w-7xl mx-auto">
+      {/* Header Section */}
+      <header className="relative overflow-hidden bg-white border border-slate-200 rounded-3xl p-6 sm:p-8 shadow-sm group transition-all hover:shadow-md">
+        <div className="absolute top-0 right-0 w-64 h-64 bg-amber-50 rounded-full -mr-32 -mt-32 transition-transform group-hover:scale-110 duration-700" />
+        <div className="relative flex flex-col sm:flex-row sm:items-center sm:justify-between gap-6">
+          <div className="space-y-2">
+            <div className="inline-flex items-center space-x-2 bg-amber-100 text-amber-700 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider">
+              <BarChart3 size={14} />
+              <span>Real-time Academic Data</span>
+            </div>
+            <h1 className="text-3xl font-extrabold text-slate-900 tracking-tight">Academic Performance</h1>
+            <p className="text-slate-600 max-w-2xl text-sm sm:text-base leading-relaxed">
+              Consolidated official report card data including subject totals, attendance, and assessment history.
+            </p>
+          </div>
+          
+          <button
+            onClick={handleExport}
+            disabled={!selectedReport || loading || isExporting}
+            className="flex items-center justify-center space-x-2 bg-slate-900 text-white px-6 py-3 rounded-2xl font-semibold hover:bg-slate-800 transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-slate-200"
+          >
+            {isExporting ? <Loader2 size={18} className="animate-spin" /> : <Printer size={18} />}
+            <span>{isExporting ? 'Generating PDF...' : 'Export Snapshot'}</span>
+          </button>
+        </div>
+      </header>
+
+      {/* Control Panel */}
+      <section className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm space-y-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="space-y-2">
+            <label className="text-xs font-bold text-slate-500 uppercase tracking-widest flex items-center gap-2">
+              <User size={14} />
+              Select Child
+            </label>
+            <div className="relative group">
+              <select
+                value={selectedStudentId}
+                onChange={(e) => setSelectedStudentId(e.target.value)}
+                className="w-full appearance-none bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-medium focus:ring-4 focus:ring-amber-500/10 focus:border-amber-500 outline-none transition-all cursor-pointer group-hover:bg-white"
+              >
+                {reportCards.length === 0 && <option value="">No linked children</option>}
+                {reportCards.map((card) => (
+                  <option key={card.studentId} value={card.studentId}>
+                    {formatStudentDisplay({
+                      studentName: card.studentName,
+                      username: card.username,
+                      studentCode: card.studentCode,
+                      roll: card.roll,
+                      grade: card.grade,
+                      section: card.section
+                    })}
+                  </option>
+                ))}
+              </select>
+              <ChevronRight className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 rotate-90 pointer-events-none" size={18} />
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-xs font-bold text-slate-500 uppercase tracking-widest flex items-center gap-2">
+              <Filter size={14} />
+              Report View
+            </label>
+            <div className="flex gap-2 p-1 bg-slate-50 rounded-xl border border-slate-200">
+              {['detailed', 'summary'].map((view) => (
+                <button
+                  key={view}
+                  onClick={() => setViewMode(view)}
+                  className={`flex-1 px-4 py-2 rounded-lg text-sm font-semibold capitalize transition-all ${
+                    viewMode === view 
+                      ? 'bg-white text-slate-900 shadow-sm border border-slate-200' 
+                      : 'text-slate-500 hover:text-slate-700'
+                  }`}
+                >
+                  {view}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {error && (
+          <div className="flex items-center gap-3 text-sm text-rose-700 bg-rose-50 border border-rose-100 rounded-xl p-4 animate-in fade-in slide-in-from-top-1">
+            <AlertCircle className="w-5 h-5 flex-shrink-0" />
+            <p className="font-medium">{error}</p>
+          </div>
+        )}
+      </section>
+
+      {/* Stats Cards */}
+      <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
+        {[
+          { 
+            label: 'Overall Average', 
+            value: selectedReport ? `${selectedReport.totals.percentage}%` : '—', 
+            icon: TrendingUp, 
+            color: 'bg-emerald-50 text-emerald-600',
+            trend: 'Grand Total Average'
+          },
+          { 
+            label: 'Total Marks', 
+            value: selectedReport ? `${selectedReport.totals.obtainedMarks} / ${selectedReport.totals.totalMarks}` : '—', 
+            icon: Award, 
+            color: 'bg-amber-50 text-amber-600',
+            trend: 'Combined score'
+          },
+          { 
+            label: 'Academic Grade', 
+            value: selectedReport ? selectedReport.totals.grade : '—', 
+            icon: BookOpen, 
+            color: 'bg-blue-50 text-blue-600',
+            trend: 'Performance Level'
+          },
+          { 
+            label: 'Assessments', 
+            value: selectedReport ? selectedReport.exams.length : '0', 
+            icon: FileText, 
+            color: 'bg-purple-50 text-purple-600',
+            trend: 'Total exam records'
+          },
+        ].map((stat, i) => (
+          <div key={i} className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm flex flex-col justify-between hover:shadow-md transition-shadow group">
+            <div className="flex justify-between items-start mb-4">
+              <div className={`p-3 rounded-xl ${stat.color} transition-transform group-hover:scale-110`}>
+                <stat.icon size={20} />
+              </div>
+            </div>
+            <div>
+              <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">{stat.label}</p>
+              <h2 className="text-2xl font-bold text-slate-900">{stat.value}</h2>
+              <p className="text-[10px] font-medium text-slate-500 mt-2">{stat.trend}</p>
+            </div>
+          </div>
+        ))}
+      </section>
+
+      {/* Subject Wise Performance */}
+      <section className="bg-white border border-slate-200 rounded-3xl shadow-sm overflow-hidden flex flex-col">
+        <div className="px-6 py-5 border-b border-slate-100 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 bg-slate-900 rounded-lg flex items-center justify-center text-white">
+              <BarChart3 size={16} />
+            </div>
+            <h2 className="text-lg font-bold text-slate-900">Subject Performance</h2>
+          </div>
+        </div>
+        
+        <div className="p-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {selectedReport?.subjects.map((subject, idx) => (
+            <div key={idx} className="border border-slate-100 rounded-2xl p-4 bg-slate-50/50 hover:bg-white hover:shadow-sm transition-all group">
+              <div className="flex justify-between items-start mb-3">
+                <span className="font-bold text-slate-800">{subject.name}</span>
+                <span className={`px-2 py-0.5 rounded-lg text-[10px] font-black border ${gradeBadgeClass(subject.grade)}`}>
+                  {subject.grade}
+                </span>
+              </div>
+              <div className="space-y-2">
+                <div className="flex justify-between text-xs font-bold text-slate-500 uppercase tracking-tighter">
+                  <span>Score: {subject.obtainedMarks} / {subject.totalMarks}</span>
+                  <span>{subject.percentage}%</span>
+                </div>
+                <div className="w-full h-1.5 bg-slate-200 rounded-full overflow-hidden">
+                  <div 
+                    className={`h-full rounded-full transition-all duration-1000 ${
+                      subject.percentage >= 80 ? 'bg-emerald-500' : 
+                      subject.percentage >= 60 ? 'bg-amber-500' : 'bg-rose-500'
+                    }`}
+                    style={{ width: `${subject.percentage}%` }}
+                  />
+                </div>
+              </div>
+            </div>
+          ))}
+          {(!selectedReport || selectedReport.subjects.length === 0) && !loading && (
+            <p className="col-span-full text-center text-slate-400 py-8 text-sm font-medium italic">
+              No subject data available for this report.
             </p>
           )}
         </div>
       </section>
 
-      <section className="bg-white border border-gray-200 rounded-xl p-5 shadow-sm space-y-4">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div>
-            <label className="text-sm font-medium text-gray-600 mb-1 block">Select Child</label>
-            <select
-              value={selectedChildId}
-              onChange={(e) => setSelectedChildId(e.target.value)}
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-amber-500 focus:border-transparent"
-            >
-              {childrenReports.length === 0 && <option value="">No linked children</option>}
-              {childrenReports.map((child) => (
-                <option key={child.studentId} value={child.studentId}>
-                  {formatStudentDisplay({
-                    studentName: child.studentName,
-                    studentId: child.studentId,
-                    roll: child.roll,
-                    section: child.section,
-                  })}
-                </option>
-              ))}
-            </select>
+      {/* Assessment History */}
+      {viewMode === 'detailed' && (
+        <section className="bg-white border border-slate-200 rounded-3xl shadow-sm overflow-hidden flex flex-col min-h-[400px]">
+          <div className="px-6 py-5 border-b border-slate-100 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 bg-slate-900 rounded-lg flex items-center justify-center text-white">
+                <FileText size={16} />
+              </div>
+              <h2 className="text-lg font-bold text-slate-900">Assessment History</h2>
+            </div>
+            {selectedReport?.generatedAt && (
+              <div className="flex items-center gap-2 text-xs font-medium text-slate-500 bg-slate-50 px-3 py-1.5 rounded-full">
+                <Calendar size={12} />
+                <span>Generated {new Date(selectedReport.generatedAt).toLocaleDateString()}</span>
+              </div>
+            )}
           </div>
-          <div>
-            <label className="text-sm font-medium text-gray-600 mb-1 block">Filter Entries</label>
-            <select
-              value={filterType}
-              onChange={(e) => setFilterType(e.target.value)}
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-amber-500 focus:border-transparent"
-            >
-              <option value="all">All records</option>
-              <option value="exam">Exams</option>
-              <option value="assignment">Assignments</option>
-            </select>
-          </div>
-          <div className="flex items-end">
-            <button
-              type="button"
-              className="inline-flex items-center justify-center w-full border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-700 hover:bg-gray-50"
-              onClick={() => window.print()}
-              disabled={!filteredRecords.length}
-            >
-              <Download className="w-4 h-4 mr-2" />
-              Export snapshot
-            </button>
-          </div>
-        </div>
-        {error && (
-          <div className="flex items-center gap-2 text-sm text-red-700 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
-            <AlertCircle className="w-4 h-4" />
-            {error}
-          </div>
-        )}
-      </section>
 
-      <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="bg-white border border-gray-200 rounded-lg p-4">
-          <p className="text-xs uppercase tracking-wide text-gray-500 mb-1">Average Score</p>
-          <div className="flex items-baseline gap-2">
-            <span className="text-2xl font-semibold text-gray-900">
-              {summary.averagePercentage === null ? '—' : `${summary.averagePercentage}%`}
-            </span>
-            <TrendingUp className="w-4 h-4 text-emerald-500" />
-          </div>
-        </div>
-        <div className="bg-white border border-gray-200 rounded-lg p-4">
-          <p className="text-xs uppercase tracking-wide text-gray-500 mb-1">Exams</p>
-          <div className="flex items-center gap-2">
-            <span className="text-2xl font-semibold text-gray-900">{summary.examCount}</span>
-            <Award className="w-4 h-4 text-amber-500" />
-          </div>
-        </div>
-        <div className="bg-white border border-gray-200 rounded-lg p-4">
-          <p className="text-xs uppercase tracking-wide text-gray-500 mb-1">Assignments</p>
-          <div className="flex items-center gap-2">
-            <span className="text-2xl font-semibold text-gray-900">{summary.assignmentCount}</span>
-            <BookOpen className="w-4 h-4 text-blue-500" />
-          </div>
-        </div>
-        <div className="bg-white border border-gray-200 rounded-lg p-4">
-          <p className="text-xs uppercase tracking-wide text-gray-500 mb-1">Strongest Subject</p>
-          <span className="text-lg font-semibold text-gray-900">
-            {summary.bestSubject || '—'}
-          </span>
-        </div>
-      </section>
-
-      <section className="bg-white border border-gray-200 rounded-xl shadow-sm">
-        {loading ? (
-          <div className="p-6 text-sm text-gray-500">Loading academic report...</div>
-        ) : !selectedChild ? (
-          <div className="p-6 text-sm text-gray-500">No linked children found.</div>
-        ) : filteredRecords.length === 0 ? (
-          <div className="p-6 text-sm text-gray-500">
-            No {filterType === 'all' ? '' : filterType} records available yet.
-          </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="min-w-full text-sm">
-              <thead className="bg-gray-50 text-gray-600">
-                <tr>
-                  <th className="text-left font-medium px-4 py-3">Assessment</th>
-                  <th className="text-left font-medium px-4 py-3">Subject</th>
-                  <th className="text-left font-medium px-4 py-3">Score</th>
-                  <th className="text-left font-medium px-4 py-3">Grade</th>
-                  <th className="text-left font-medium px-4 py-3">Status</th>
-                  <th className="text-left font-medium px-4 py-3">Date</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100 text-gray-800">
-                {filteredRecords.map((record) => (
-                  <tr key={record.id}>
-                    <td className="px-4 py-3">
-                      <p className="font-medium text-gray-900">{record.examName}</p>
-                      <p className="text-xs text-gray-500 capitalize">{record.category}</p>
-                    </td>
-                    <td className="px-4 py-3">{record.subject || '—'}</td>
-                    <td className="px-4 py-3">
-                      {record.obtainedMarks}/{record.totalMarks} ({record.percentage}%)
-                    </td>
-                    <td className="px-4 py-3">{record.grade || '—'}</td>
-                    <td className="px-4 py-3 capitalize">
-                      <span
-                        className={`inline-flex items-center rounded-full px-2 py-1 text-xs font-medium ${
-                          record.status === 'pass'
-                            ? 'bg-emerald-50 text-emerald-700'
-                            : record.status === 'fail'
-                            ? 'bg-red-50 text-red-700'
-                            : 'bg-gray-100 text-gray-600'
-                        }`}
-                      >
-                        {record.status || 'pending'}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3">
-                      {record.date ? new Date(record.date).toLocaleDateString() : '—'}
-                    </td>
+          {loading ? (
+            <div className="flex-1 flex flex-col items-center justify-center p-12 space-y-4">
+              <Loader2 className="w-10 h-10 text-amber-500 animate-spin" />
+              <p className="text-sm font-medium text-slate-500 tracking-wide">Syncing academic records...</p>
+            </div>
+          ) : !selectedReport ? (
+            <div className="flex-1 flex flex-col items-center justify-center p-12 text-center space-y-4">
+              <div className="p-4 bg-slate-50 rounded-full">
+                <User className="w-12 h-12 text-slate-300" />
+              </div>
+              <div>
+                <h3 className="text-lg font-semibold text-slate-900">No report available</h3>
+                <p className="text-sm text-slate-500">Could not retrieve academic records for this student.</p>
+              </div>
+            </div>
+          ) : selectedReport.exams.length === 0 ? (
+            <div className="flex-1 flex flex-col items-center justify-center p-12 text-center space-y-4">
+              <div className="p-4 bg-slate-50 rounded-full text-slate-300">
+                <FileText size={48} />
+              </div>
+              <div>
+                <h3 className="text-lg font-semibold text-slate-900">No Exams Recorded</h3>
+                <p className="text-sm text-slate-500 max-w-xs mx-auto">
+                  Official exam results have not been published for this academic cycle.
+                </p>
+              </div>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse">
+                <thead>
+                  <tr className="bg-slate-50/80 border-b border-slate-100">
+                    <th className="px-6 py-4 text-[11px] font-bold text-slate-500 uppercase tracking-widest">Assessment</th>
+                    <th className="px-6 py-4 text-[11px] font-bold text-slate-500 uppercase tracking-widest">Subject</th>
+                    <th className="px-6 py-4 text-[11px] font-bold text-slate-500 uppercase tracking-widest text-center">Term</th>
+                    <th className="px-6 py-4 text-[11px] font-bold text-slate-500 uppercase tracking-widest">Marks</th>
+                    <th className="px-6 py-4 text-[11px] font-bold text-slate-500 uppercase tracking-widest">Result</th>
+                    <th className="px-6 py-4 text-[11px] font-bold text-slate-500 uppercase tracking-widest text-right">Outcome</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </section>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {selectedReport.exams.map((exam, idx) => (
+                    <tr key={idx} className="hover:bg-slate-50/50 transition-colors group">
+                      <td className="px-6 py-5">
+                        <div className="font-bold text-slate-900">{exam.examName}</div>
+                        <div className="text-[10px] font-medium text-slate-400 mt-1 uppercase tracking-wider">
+                          {exam.date ? new Date(exam.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'TBA'}
+                        </div>
+                      </td>
+                      <td className="px-6 py-5">
+                        <div className="text-sm font-semibold text-slate-700">{exam.subject}</div>
+                      </td>
+                      <td className="px-6 py-5 text-center">
+                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-indigo-50 text-indigo-700 border border-indigo-100">
+                          {exam.term || 'General'}
+                        </span>
+                      </td>
+                      <td className="px-6 py-5">
+                        <div className="text-sm font-bold text-slate-900">
+                          {exam.obtainedMarks} <span className="text-slate-400">/ {exam.totalMarks}</span>
+                        </div>
+                      </td>
+                      <td className="px-6 py-5">
+                        <div className="flex items-center gap-2">
+                          <div className="flex-1 min-w-[60px] h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                            <div 
+                              className={`h-full rounded-full ${
+                                exam.percentage >= 80 ? 'bg-emerald-500' : 
+                                exam.percentage >= 60 ? 'bg-amber-500' : 'bg-rose-500'
+                              }`}
+                              style={{ width: `${exam.percentage}%` }}
+                            />
+                          </div>
+                          <span className="text-xs font-bold text-slate-700">{exam.percentage}%</span>
+                        </div>
+                      </td>
+                      <td className="px-6 py-5 text-right">
+                        <div className="flex items-center justify-end gap-1.5">
+                          {exam.status === 'pass' || exam.percentage >= 40 ? (
+                            <div className="flex items-center gap-1.5 text-emerald-600 font-bold text-xs uppercase tracking-wider">
+                              <CheckCircle2 size={14} />
+                              <span>Passed</span>
+                            </div>
+                          ) : (
+                            <div className="flex items-center gap-1.5 text-rose-600 font-bold text-xs uppercase tracking-wider">
+                              <XCircle size={14} />
+                              <span>Failed</span>
+                            </div>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </section>
+      )}
+
+      {/*<footer className="text-center pb-8">
+        <p className="text-xs font-medium text-slate-400">
+          Electronic Educare • Official Academic Performance Report Card
+        </p>
+      </footer> */}
     </div>
   );
 };

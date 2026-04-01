@@ -69,6 +69,8 @@ const formatObservation = (observation) => ({
   id: observation._id,
   studentId: observation.studentId,
   studentName: observation.studentName,
+  studentCode: observation.studentCode || '',
+  username: observation.username || '',
   className: observation.className,
   section: observation.section,
   recordedAt: observation.recordedAt,
@@ -132,6 +134,8 @@ router.post('/teacher', authTeacher, async (req, res) => {
       teacherId: req.user?.id,
       studentId: student._id,
       studentName: student.name || '',
+      studentCode: student.studentCode || '',
+      username: student.username || '',
       className: student.grade || '',
       section: student.section || '',
       recordedAt,
@@ -225,6 +229,8 @@ router.post('/parent', authParent, async (req, res) => {
       parentName: parent.name || '',
       studentId: student._id,
       studentName: student.name || '',
+      studentCode: student.studentCode || '',
+      username: student.username || '',
       className: student.grade || '',
       section: student.section || '',
       recordedAt,
@@ -274,7 +280,7 @@ router.get('/parent', authParent, async (req, res) => {
       }
     }
 
-    const childDocs = await StudentUser.find(childFilter).select('name grade section').lean();
+    const childDocs = await StudentUser.find(childFilter).select('name grade section studentCode username').lean();
     const childIds = childDocs.map((child) => child._id);
     if (!childIds.length) {
       return res.json({
@@ -315,6 +321,8 @@ router.get('/parent', authParent, async (req, res) => {
       return {
         studentId: id,
         studentName: child.name || 'Student',
+        studentCode: child.studentCode || '',
+        username: child.username || '',
         grade: child.grade || '',
         section: child.section || '',
         totalEntries: childObservations.length,

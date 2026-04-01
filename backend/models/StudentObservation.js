@@ -8,6 +8,8 @@ const observationSchema = new mongoose.Schema(
     parentId: { type: mongoose.Schema.Types.ObjectId, ref: 'ParentUser', default: null },
     studentId: { type: mongoose.Schema.Types.ObjectId, ref: 'StudentUser', required: true },
     studentName: { type: String, default: '' },
+    studentCode: { type: String, default: '' },
+    username: { type: String, default: '' },
     className: { type: String, default: '' },
     section: { type: String, default: '' },
     recordedAt: { type: Date, default: Date.now },

@@ -257,6 +257,8 @@ const buildReportCards = async ({
     return {
       studentId: student._id,
       studentName: student.name || 'Student',
+      studentCode: student.studentCode || '',
+      username: student.username || '',
       admissionNumber: student.admissionNumber || '',
       roll: student.roll || '',
       grade: student.grade || '',
@@ -421,7 +423,7 @@ router.post('/report-cards/bulk', adminAuth, async (req, res) => {
     if (academicYearName) studentFilter.academicYear = academicYearName;
 
     const students = await StudentUser.find(studentFilter)
-      .select('name roll grade section academicYear admissionNumber')
+      .select('name roll grade section academicYear admissionNumber username studentCode')
       .sort({ roll: 1, name: 1 })
       .lean();
 
@@ -472,7 +474,7 @@ router.get('/report-cards/me', authStudent, async (req, res) => {
       schoolId,
       ...(campusId ? { campusId } : {}),
     })
-      .select('name roll grade section academicYear admissionNumber')
+      .select('name roll grade section academicYear admissionNumber username studentCode')
       .lean();
 
     if (!student) return res.status(404).json({ error: 'Student not found' });
@@ -520,7 +522,7 @@ router.get('/report-cards/parent', authParent, async (req, res) => {
         ...scopeFilter,
         _id: { $in: parent.childrenIds },
       })
-        .select('name roll grade section academicYear admissionNumber')
+        .select('name roll grade section academicYear admissionNumber username studentCode')
         .sort({ roll: 1, name: 1 })
         .lean();
     } else if (Array.isArray(parent.children) && parent.children.length > 0) {
@@ -530,7 +532,7 @@ router.get('/report-cards/parent', authParent, async (req, res) => {
           ...scopeFilter,
           name: { $in: childNames },
         })
-          .select('name roll grade section academicYear admissionNumber')
+          .select('name roll grade section academicYear admissionNumber username studentCode')
           .sort({ roll: 1, name: 1 })
           .lean();
       }
