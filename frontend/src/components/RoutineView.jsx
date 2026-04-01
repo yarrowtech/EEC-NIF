@@ -726,16 +726,16 @@ const RoutineView = () => {
       </div>
 
       <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-4">
-        <div className="flex flex-wrap items-center justify-between gap-3 mb-5">
+        {/*<div className="flex flex-wrap items-center justify-between gap-3 mb-5">
           <div className="inline-flex rounded-xl border border-slate-200 p-1 bg-slate-50">
-            <button
+            {/*<button
               onClick={() => setViewMode('daily')}
               className={`px-3 py-1.5 rounded-lg text-sm font-semibold transition ${
                 viewMode === 'daily' ? 'bg-indigo-600 text-white' : 'text-slate-600 hover:bg-slate-200'
               }`}
             >
               Daily
-            </button>
+            </button> 
             <button
               onClick={() => setViewMode('weekly')}
               className={`px-3 py-1.5 rounded-lg text-sm font-semibold transition ${
@@ -743,12 +743,12 @@ const RoutineView = () => {
               }`}
             >
               Weekly
-            </button>
+            </button> 
           </div>
           <p className="hidden sm:block text-xs text-slate-500">Switch between daily and weekly routine</p>
-        </div>
+        </div> */}
 
-        <div className="flex overflow-x-auto gap-2 mb-5 pb-1 -mx-4 px-4 sm:mx-0 sm:px-0 sm:flex-wrap sm:overflow-visible">
+       {/* <div className="flex overflow-x-auto gap-2 mb-5 pb-1 -mx-4 px-4 sm:mx-0 sm:px-0 sm:flex-wrap sm:overflow-visible">
           {dayOrder.map((day) => (
             <button
               key={day}
@@ -768,7 +768,7 @@ const RoutineView = () => {
               ) : null}
             </button>
           ))}
-        </div>
+        </div> */}
 
         {totalSessions === 0 ? (
           <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-8 text-center">
