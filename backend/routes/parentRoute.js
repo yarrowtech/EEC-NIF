@@ -480,7 +480,7 @@ router.get('/routine', authParent, async (req, res) => {
         ...studentFilter,
         _id: { $in: parent.childrenIds },
       })
-        .select('name grade section')
+        .select('name grade section studentCode roll admissionNumber')
         .lean();
     }
 
@@ -491,7 +491,7 @@ router.get('/routine', authParent, async (req, res) => {
           ...studentFilter,
           name: { $in: validNames },
         })
-          .select('name grade section')
+          .select('name grade section studentCode roll admissionNumber')
           .lean();
       }
     }
@@ -514,6 +514,10 @@ router.get('/routine', authParent, async (req, res) => {
       childRoutines.push({
         studentId: student._id,
         studentName: student.name || 'Student',
+        studentCode: student.studentCode || '',
+        username: student.username || '',
+        roll: student.roll || null,
+        admissionNumber: student.admissionNumber || '',
         grade: student.grade || '',
         section: student.section || '',
         className: routine.className || '',
@@ -570,7 +574,7 @@ router.get('/academics', authParent, async (req, res) => {
         ...studentFilter,
         _id: { $in: parent.childrenIds },
       })
-        .select('name grade section schoolId campusId')
+        .select('name grade section studentCode roll admissionNumber username schoolId campusId')
         .lean();
     }
 
@@ -581,7 +585,7 @@ router.get('/academics', authParent, async (req, res) => {
           ...studentFilter,
           name: { $in: validNames },
         })
-          .select('name grade section schoolId campusId')
+          .select('name grade section studentCode roll admissionNumber username schoolId campusId')
           .lean();
       }
     }
@@ -704,6 +708,10 @@ router.get('/academics', authParent, async (req, res) => {
       childrenReports.push({
         studentId: student._id,
         studentName: student.name || 'Student',
+        studentCode: student.studentCode || '',
+        username: student.username || '',
+        roll: student.roll || null,
+        admissionNumber: student.admissionNumber || '',
         grade: student.grade || '',
         section: student.section || '',
         summary: {

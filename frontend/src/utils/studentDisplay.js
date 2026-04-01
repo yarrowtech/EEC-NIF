@@ -19,14 +19,14 @@ export const getStudentName = (student = {}) =>
 
 export const getStudentUniqueId = (student = {}) =>
   pickFirst(
+    student.username,
+    student.studentCode,
     student.roll,
     student.rollNo,
     student.rollNumber,
-    student.studentCode,
     student.admissionNo,
     student.admissionNumber,
     normalizeIdValue(student.studentId),
-    student.username,
     student._id,
     student.id
   );
