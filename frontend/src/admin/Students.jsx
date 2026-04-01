@@ -2375,6 +2375,21 @@ const Students = ({ setShowAdminHeader, setShowAdminBreadcrumb }) => {
     return null;
   };
 
+  const normalizeClassLikeValue = (value) => {
+    const raw = String(value || "").trim();
+    if (!raw) return "";
+
+    // Examples:
+    // "Class 5" -> "5"
+    // "class-10" -> "10"
+    // "5" -> "5"
+    const classMatch = raw.match(/^class[\s\-_:]*([a-z0-9]+)$/i);
+    if (classMatch?.[1]) return classMatch[1].toUpperCase();
+    return raw;
+  };
+
+  const isNumericClassLabel = (value) => /^\d{1,2}$/.test(String(value || "").trim());
+
   const parseFileToRows = async (file) => {
     const fileName = file.name.toLowerCase();
 
@@ -2395,6 +2410,74 @@ const Students = ({ setShowAdminHeader, setShowAdminBreadcrumb }) => {
     }
 
     throw new Error("Unsupported file format. Please use .csv, .xlsx, or .xls files.");
+  };
+
+  const downloadStudentDemoTemplate = () => {
+    const rows = [
+      {
+        name: "Aarav Sharma",
+        mobile: "9876543210",
+        gender: "male",
+        batchCode: "2026-27",
+        admissionDate: "2026-04-01",
+        roll: "12",
+        section: "A",
+        course: "Science",
+        email: "aarav.sharma@example.com",
+        dob: "2010-05-14",
+        address: "Kolkata",
+        pincode: "700001",
+        guardianName: "Rajesh Sharma",
+        guardianPhone: "9876500000",
+        serialNo: "1001",
+        formNo: "F-2026-011",
+        enrollmentNo: "ENR-2026-011",
+        guardianEmail: "rajesh.sharma@example.com",
+        status: "Active",
+        grade: "10",
+        courseId: "SCI-10",
+        duration: "12 Months",
+        bloodGroup: "O+",
+        permanentAddress: "Kolkata",
+        nationality: "Indian",
+        religion: "Hindu",
+        category: "General",
+      },
+      {
+        name: "Ananya Das",
+        mobile: "9123456780",
+        gender: "female",
+        batchCode: "2026-27",
+        admissionDate: "2026-04-01",
+        roll: "13",
+        section: "A",
+        course: "Science",
+        email: "ananya.das@example.com",
+        dob: "2010-08-22",
+        address: "Howrah",
+        pincode: "711101",
+        guardianName: "Sanjay Das",
+        guardianPhone: "9123400000",
+        serialNo: "1002",
+        formNo: "F-2026-012",
+        enrollmentNo: "ENR-2026-012",
+        guardianEmail: "sanjay.das@example.com",
+        status: "Active",
+        grade: "10",
+        courseId: "SCI-10",
+        duration: "12 Months",
+        bloodGroup: "A+",
+        permanentAddress: "Howrah",
+        nationality: "Indian",
+        religion: "Hindu",
+        category: "General",
+      },
+    ];
+
+    const worksheet = XLSX.utils.json_to_sheet(rows);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Students");
+    XLSX.writeFile(workbook, "student_bulk_upload_template.xlsx");
   };
 
   const handleBulkFilePicked = async (file) => {
@@ -2475,6 +2558,20 @@ const Students = ({ setShowAdminHeader, setShowAdminBreadcrumb }) => {
         // Allow "grade" or "courseId" to fill course if course is missing
         if (!student.course && student.grade) student.course = student.grade;
         if (!student.course && student.courseId) student.course = student.courseId;
+
+        student.course = normalizeClassLikeValue(student.course);
+        student.grade = normalizeClassLikeValue(student.grade || "");
+        if (!student.grade) {
+          student.grade = student.course;
+        } else {
+          const upperGrade = String(student.grade).toUpperCase();
+          const upperSection = String(student.section || "").trim().toUpperCase();
+          const looksLikeSection = /^[A-Z]$/.test(upperGrade);
+          const matchesSection = upperSection && upperGrade === upperSection;
+          if ((looksLikeSection || matchesSection) && isNumericClassLabel(student.course)) {
+            student.grade = student.course;
+          }
+        }
 
         // Check required fields (let backend handle validation)
         if (!student.name || !student.mobile || !student.gender ||
@@ -2653,6 +2750,13 @@ const Students = ({ setShowAdminHeader, setShowAdminBreadcrumb }) => {
           </div>
           <div className="flex flex-wrap gap-2 w-full sm:w-auto justify-stretch sm:justify-start">
             <button
+              onClick={downloadStudentDemoTemplate}
+              className="border border-gray-200 bg-white text-gray-700 px-3 py-2 rounded-lg hover:bg-gray-50 flex items-center gap-2 text-sm flex-1 sm:flex-none justify-center transition"
+            >
+              <FileDown size={15} />
+              Demo Excel
+            </button>
+            <button
               onClick={() => fileInputRef.current?.click()}
               disabled={isImporting}
               className="border border-gray-200 bg-white text-gray-700 px-3 py-2 rounded-lg hover:bg-gray-50 disabled:opacity-60 flex items-center gap-2 text-sm flex-1 sm:flex-none justify-center transition"
@@ -2812,9 +2916,9 @@ const Students = ({ setShowAdminHeader, setShowAdminBreadcrumb }) => {
                       <th className="border-b border-gray-200 px-2 py-2.5 text-left text-xs font-semibold uppercase tracking-wider text-gray-500 w-[12%]">
                         Academic
                       </th>
-                      <th className="border-b border-gray-200 px-2 py-2.5 text-left text-xs font-semibold uppercase tracking-wider text-gray-500 w-[15%]">
+                      {/* <th className="border-b border-gray-200 px-2 py-2.5 text-left text-xs font-semibold uppercase tracking-wider text-gray-500 w-[15%]">
                         Course
-                      </th>
+                      </th> */}
                       <th className="border-b border-gray-200 px-2 py-2.5 text-left text-xs font-semibold uppercase tracking-wider text-gray-500 w-[12%]">
                         Contact
                       </th>
@@ -2900,12 +3004,12 @@ const Students = ({ setShowAdminHeader, setShowAdminBreadcrumb }) => {
                           </td>
 
                           {/* Course Info */}
-                          <td className="border-b border-gray-100 px-2 py-2.5">
+                          {/* <td className="border-b border-gray-100 px-2 py-2.5">
                             <div className="text-xs text-gray-600">
                               <div className="font-medium truncate" title={student.grade}>{student.grade}</div>
                               <div className="text-gray-500 truncate" title={student.course}>{student.course}</div>
                             </div>
-                          </td>
+                          </td> */}
 
                           {/* Contact */}
                           <td className="border-b border-gray-100 px-2 py-2.5 text-xs text-gray-600">
@@ -5222,9 +5326,9 @@ const Students = ({ setShowAdminHeader, setShowAdminBreadcrumb }) => {
         )}
 
         {showArchiveModal && (
-          <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
-            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[80vh] overflow-hidden border border-gray-200">
-              <div className="px-6 py-4 border-b flex items-center justify-between">
+          <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4 overflow-y-auto">
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl h-[80vh] max-h-[80vh] overflow-hidden border border-gray-200 flex flex-col">
+              <div className="px-6 py-4 border-b flex items-center justify-between flex-shrink-0">
                 <h3 className="text-xl font-semibold text-gray-900">Archived Students</h3>
                 <div className="flex items-center gap-2">
                   {selectedArchivedStudentIds.length > 0 && (
@@ -5247,7 +5351,7 @@ const Students = ({ setShowAdminHeader, setShowAdminBreadcrumb }) => {
                   </button>
                 </div>
               </div>
-              <div className="overflow-auto">
+              <div className="flex-1 min-h-0 overflow-y-auto">
                 <table className="w-full text-sm">
                   <thead className="bg-gray-50 text-xs uppercase text-gray-500">
                     <tr>
@@ -5329,7 +5433,7 @@ const Students = ({ setShowAdminHeader, setShowAdminBreadcrumb }) => {
                   </tbody>
                 </table>
               </div>
-              <div className="px-6 py-4 border-t flex justify-end">
+              <div className="px-6 py-4 border-t flex justify-end flex-shrink-0">
                 <button
                   onClick={() => setShowArchiveModal(false)}
                   className="px-4 py-2 text-sm rounded-lg border border-gray-300 hover:bg-gray-50 text-black"

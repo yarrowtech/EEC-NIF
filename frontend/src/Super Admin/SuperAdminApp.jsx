@@ -268,13 +268,13 @@ const SuperAdminApp = () => {
     setRequestLoading(true);
     setRequestError(null);
     try {
-      const response = await fetch(`${API_BASE}/api/schools/registrations/pending`, {
+      const response = await fetch(`${API_BASE}/api/schools/registrations/unapproved`, {
         headers: {
           Authorization: `Bearer ${token}`
         }
       });
       if (!response.ok) {
-        throw new Error('Unable to load school registrations');
+        throw new Error('Unable to load unapproved school registrations');
       }
       const data = await response.json();
       const normalized = Array.isArray(data) ? data.map(normalizeRegistration) : [];

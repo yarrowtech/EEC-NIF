@@ -102,18 +102,15 @@ const getDefaultSlots = () => {
 
 const buildScheduleForDay = (existingSchedule = []) => {
   if (Array.isArray(existingSchedule) && existingSchedule.length > 0) {
-    const sorted = [...existingSchedule].sort((a, b) => {
-      const aStart = parseTimeRange(a.time).start || '';
-      const bStart = parseTimeRange(b.time).start || '';
-      return aStart.localeCompare(bStart);
-    });
-    return sorted.map((entry) => {
+    const normalizeEntry = (entry) => {
       const parsed = parseTimeRange(entry.time);
       const isBreak = entry.subject === 'Break' || entry.isBreak;
+      const startTime = entry.startTime || parsed.start || '';
+      const endTime = entry.endTime || parsed.end || '';
       return {
-        time: entry.time || formatTimeRange(parsed.start, parsed.end),
-        startTime: entry.startTime || parsed.start || '',
-        endTime: entry.endTime || parsed.end || '',
+        time: entry.time || formatTimeRange(startTime, endTime),
+        startTime,
+        endTime,
         isBreak,
         subject: isBreak ? 'Break' : (entry.subject || ''),
         teacher: isBreak ? '-' : (entry.teacher || ''),
@@ -121,6 +118,22 @@ const buildScheduleForDay = (existingSchedule = []) => {
         teacherId: entry.teacherId || null,
         room: entry.room || '',
       };
+    };
+
+    const normalizedExisting = existingSchedule.map(normalizeEntry);
+    const existingByRangeKey = new Map(
+      normalizedExisting.map((entry) => [`${entry.startTime}-${entry.endTime}`, entry])
+    );
+
+    // Preserve saved periods exactly, but ensure break rows exist.
+    const missingBreakSlots = getDefaultSlots().filter(
+      (slot) => slot.isBreak && !existingByRangeKey.has(`${slot.startTime}-${slot.endTime}`)
+    );
+
+    return [...normalizedExisting, ...missingBreakSlots].sort((a, b) => {
+      const aStart = a.startTime || parseTimeRange(a.time).start || '';
+      const bStart = b.startTime || parseTimeRange(b.time).start || '';
+      return aStart.localeCompare(bStart);
     });
   }
 
@@ -142,6 +155,47 @@ const buildScheduleForDay = (existingSchedule = []) => {
 };
 
 const isBreakSlot = (time) => DEFAULT_BREAK_TIMES.includes(time);
+
+const normalizeDayLabel = (value = '') => {
+  const raw = String(value || '').trim().toLowerCase();
+  const aliases = {
+    mon: 'Monday',
+    monday: 'Monday',
+    tue: 'Tuesday',
+    tues: 'Tuesday',
+    tuesday: 'Tuesday',
+    wed: 'Wednesday',
+    wednesday: 'Wednesday',
+    thu: 'Thursday',
+    thur: 'Thursday',
+    thurs: 'Thursday',
+    thursday: 'Thursday',
+    fri: 'Friday',
+    friday: 'Friday',
+    sat: 'Saturday',
+    saturday: 'Saturday',
+    sun: 'Sunday',
+    sunday: 'Sunday',
+  };
+  return aliases[raw] || String(value || '').trim();
+};
+
+const normalizeScopeValue = (value = '') => String(value || '').trim().toLowerCase();
+
+const routineMatchesScope = (routine, className, sectionName) => (
+  normalizeScopeValue(routine?.class) === normalizeScopeValue(className) &&
+  normalizeScopeValue(routine?.section) === normalizeScopeValue(sectionName)
+);
+
+const pruneEmptySlots = (schedule = []) =>
+  (Array.isArray(schedule) ? schedule : []).filter(
+    (slot) =>
+      slot?.isBreak ||
+      (
+        String(slot?.subject || '').trim() &&
+        String(slot?.teacher || '').trim()
+      )
+  );
 
 const Routines = ({setShowAdminHeader}) => {
   // Data state
@@ -185,17 +239,16 @@ const Routines = ({setShowAdminHeader}) => {
 
   const copyableRoutines = useMemo(() => {
     return routines
-      .filter((routine) => !editingRoutine || routine.id !== editingRoutine.id)
       .sort((a, b) => {
-        const aMatch = a.class === form.class && a.section === form.section ? 1 : 0;
-        const bMatch = b.class === form.class && b.section === form.section ? 1 : 0;
+        const aMatch = routineMatchesScope(a, form.class, form.section) ? 1 : 0;
+        const bMatch = routineMatchesScope(b, form.class, form.section) ? 1 : 0;
         return bMatch - aMatch;
       })
       .map((routine) => ({
         id: String(routine.id),
-        label: `Class ${routine.class}-${routine.section} • ${routine.day}`
+        label: `Class ${routine.class}-${routine.section} • ${normalizeDayLabel(routine.day)}`
       }));
-  }, [routines, form.class, form.section, editingRoutine]);
+  }, [routines, form.class, form.section]);
 
   const scheduleStats = useMemo(() => {
     const total = form.schedule.filter((slot) => !slot.isBreak).length;
@@ -359,7 +412,11 @@ const Routines = ({setShowAdminHeader}) => {
     sections.find(s => s.name === selectedSection && getId(s.classId) === classDoc?._id);
 
   const getRoutineForDay = (day) =>
-    routines.find(r => r.class === selectedClass && r.section === selectedSection && r.day === day);
+    routines.find(
+      (r) =>
+        routineMatchesScope(r, selectedClass, selectedSection) &&
+        normalizeDayLabel(r.day) === normalizeDayLabel(day)
+    );
 
   const getBaseCell = (day, time) => {
     const routine = getRoutineForDay(day);
@@ -642,10 +699,10 @@ const Routines = ({setShowAdminHeader}) => {
     if (!selectedCopyRoutine) return;
     const routine = routines.find((r) => String(r.id) === String(selectedCopyRoutine));
     if (!routine) return;
-    const schedule = buildScheduleForDay(routine.schedule);
+    const schedule = pruneEmptySlots(buildScheduleForDay(routine.schedule));
     setForm((prev) => ({ ...prev, schedule }));
     setSelectedCopyRoutine('');
-    showSuccessToast(`Copied ${routine.day} routine`);
+    showSuccessToast(`Copied ${normalizeDayLabel(routine.day)} routine`);
   };
 
   const handleResetSchedule = () => {
@@ -927,16 +984,15 @@ const Routines = ({setShowAdminHeader}) => {
 
     const existingRoutine = routines.find(
       (routine) =>
-        routine.class === targetClass &&
-        routine.section === targetSection &&
-        routine.day === day
+        routineMatchesScope(routine, targetClass, targetSection) &&
+        normalizeDayLabel(routine.day) === normalizeDayLabel(day)
     );
 
     setForm({
       class: targetClass,
       section: targetSection,
       day,
-      schedule: buildScheduleForDay(existingRoutine?.schedule || []),
+      schedule: pruneEmptySlots(buildScheduleForDay(existingRoutine?.schedule || [])),
     });
     setEditingRoutine(existingRoutine || null);
     setShowAdvancedModalTools(false);
@@ -1101,9 +1157,8 @@ const Routines = ({setShowAdminHeader}) => {
             {DAYS.map((day) => {
               const dayRoutine = routines.find(
                 (routine) =>
-                  routine.class === selectedClass &&
-                  routine.section === selectedSection &&
-                  routine.day === day
+                  routineMatchesScope(routine, selectedClass, selectedSection) &&
+                  normalizeDayLabel(routine.day) === normalizeDayLabel(day)
               );
               const assignedSlots = dayRoutine
                 ? dayRoutine.schedule.filter((slot) => slot.subject !== 'Break').length
@@ -1272,7 +1327,7 @@ const Routines = ({setShowAdminHeader}) => {
                       }`}>
                         <div className="text-sm">{day.substring(0, 3)}</div>
                         <div className="text-xs opacity-75 mt-1">
-                          {routines.find(r => r.class === selectedClass && r.section === selectedSection && r.day === day)?.schedule.length || 0} periods
+                          {routines.find((r) => routineMatchesScope(r, selectedClass, selectedSection) && normalizeDayLabel(r.day) === normalizeDayLabel(day))?.schedule.length || 0} periods
                         </div>
                       </div>
                     );
@@ -1365,7 +1420,7 @@ const Routines = ({setShowAdminHeader}) => {
               <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
                 <div className="text-center p-4 bg-blue-50 rounded-lg">
                   <div className="text-2xl font-bold text-blue-600">
-                    {routines.filter(r => r.class === selectedClass && r.section === selectedSection)
+                    {routines.filter((r) => routineMatchesScope(r, selectedClass, selectedSection))
                       .reduce((total, r) => total + r.schedule.filter(p => p.subject !== 'Break').length, 0)}
                   </div>
                   <div className="text-sm text-blue-800">Total Periods</div>
@@ -1373,7 +1428,7 @@ const Routines = ({setShowAdminHeader}) => {
                 
                 <div className="text-center p-4 bg-green-50 rounded-lg">
                   <div className="text-2xl font-bold text-green-600">
-                    {new Set(routines.filter(r => r.class === selectedClass && r.section === selectedSection)
+                    {new Set(routines.filter((r) => routineMatchesScope(r, selectedClass, selectedSection))
                       .flatMap(r => r.schedule.filter(p => p.subject !== 'Break').map(p => p.subject))).size}
                   </div>
                   <div className="text-sm text-green-800">Subjects</div>
@@ -1381,7 +1436,7 @@ const Routines = ({setShowAdminHeader}) => {
                 
                 <div className="text-center p-4 bg-purple-50 rounded-lg">
                   <div className="text-2xl font-bold text-purple-600">
-                    {new Set(routines.filter(r => r.class === selectedClass && r.section === selectedSection)
+                    {new Set(routines.filter((r) => routineMatchesScope(r, selectedClass, selectedSection))
                       .flatMap(r => r.schedule.filter(p => p.subject !== 'Break').map(p => p.teacher))).size}
                   </div>
                   <div className="text-sm text-purple-800">Teachers</div>
@@ -1389,14 +1444,14 @@ const Routines = ({setShowAdminHeader}) => {
                 
                 <div className="text-center p-4 bg-orange-50 rounded-lg">
                   <div className="text-2xl font-bold text-orange-600">
-                    {routines.filter(r => r.class === selectedClass && r.section === selectedSection).length}
+                    {routines.filter((r) => routineMatchesScope(r, selectedClass, selectedSection)).length}
                   </div>
                   <div className="text-sm text-orange-800">Days</div>
                 </div>
                 
                 <div className="text-center p-4 bg-gray-50 rounded-lg">
                   <div className="text-2xl font-bold text-gray-600">
-                    {routines.filter(r => r.class === selectedClass && r.section === selectedSection)
+                    {routines.filter((r) => routineMatchesScope(r, selectedClass, selectedSection))
                       .reduce((total, r) => total + r.schedule.filter(p => p.subject === 'Break').length, 0)}
                   </div>
                   <div className="text-sm text-gray-800">Breaks</div>
@@ -1404,9 +1459,9 @@ const Routines = ({setShowAdminHeader}) => {
                 
                 <div className="text-center p-4 bg-pink-50 rounded-lg">
                   <div className="text-2xl font-bold text-pink-600">
-                    {Math.round((routines.filter(r => r.class === selectedClass && r.section === selectedSection)
+                    {Math.round((routines.filter((r) => routineMatchesScope(r, selectedClass, selectedSection))
                       .reduce((total, r) => total + r.schedule.filter(p => p.subject !== 'Break').length, 0) / 
-                      (routines.filter(r => r.class === selectedClass && r.section === selectedSection).length * TIMES.length)) * 100) || 0}%
+                      (routines.filter((r) => routineMatchesScope(r, selectedClass, selectedSection)).length * TIMES.length)) * 100) || 0}%
                   </div>
                   <div className="text-sm text-pink-800">Utilization</div>
                 </div>

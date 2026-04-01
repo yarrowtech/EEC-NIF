@@ -83,6 +83,16 @@ const getNextParentSequenceByPrefix = async ({ schoolId, campusId, prefix }) => 
   return maxSequence + 1;
 };
 
+const normalizeClassLikeValue = (value) => {
+  const raw = String(value || '').trim();
+  if (!raw) return '';
+  const classMatch = raw.match(/^class[\s\-_:]*([a-z0-9]+)$/i);
+  if (classMatch?.[1]) return classMatch[1].toUpperCase();
+  return raw;
+};
+
+const isNumericClassLabel = (value) => /^\d{1,2}$/.test(String(value || '').trim());
+
 router.post('/students/bulk', adminAuth, async (req, res) => {
   // #swagger.tags = ['Students']
   try {
@@ -127,6 +137,19 @@ router.post('/students/bulk', adminAuth, async (req, res) => {
         sequenceByPrefix.set(prefix, nextSequence + 1);
 
         const password = generatePassword();
+        const normalizedCourse = normalizeClassLikeValue(row.course || row.grade || '');
+        let normalizedGrade = normalizeClassLikeValue(row.grade || '');
+        const normalizedSection = String(row.section || '').trim().toUpperCase();
+        if (!normalizedGrade) {
+          normalizedGrade = normalizedCourse;
+        } else {
+          const upperGrade = String(normalizedGrade).toUpperCase();
+          const looksLikeSection = /^[A-Z]$/.test(upperGrade);
+          const matchesSection = normalizedSection && upperGrade === normalizedSection;
+          if ((looksLikeSection || matchesSection) && isNumericClassLabel(normalizedCourse)) {
+            normalizedGrade = normalizedCourse;
+          }
+        }
 
         const payload = {
           username,
@@ -138,7 +161,7 @@ router.post('/students/bulk', adminAuth, async (req, res) => {
           campusName: req.isSuperAdmin ? req.body?.campusName : req.admin?.campusName,
           campusType: req.isSuperAdmin ? req.body?.campusType : req.admin?.campusType,
           name: row.name || 'Student',
-          grade: row.grade || row.course || '',
+          grade: normalizedGrade,
           section: row.section || '',
           roll: row.roll ? Number(row.roll) : undefined,
           gender: String(row.gender || 'male').toLowerCase(),
@@ -147,7 +170,7 @@ router.post('/students/bulk', adminAuth, async (req, res) => {
           admissionNumber: row.admissionNumber || row.formNo || '',
           academicYear: row.academicYear || row.batchCode || '',
           batchCode: row.batchCode || '',
-          course: row.course || '',
+          course: normalizedCourse,
           courseId: row.courseId || '',
           duration: row.duration || '',
           formNo: row.formNo || '',
@@ -288,19 +311,30 @@ router.put('/students/:id/archive', adminAuth, async (req, res) => {
     const filter = { _id: id, schoolId };
     if (campusId) filter.campusId = campusId;
 
-    const updated = await StudentUser.findOneAndUpdate(
-      filter,
-      { $set: { isArchived: true, archivedAt: new Date() } },
-      { new: true }
-    ).lean();
-
-    if (!updated) {
-      return res.status(404).json({ error: 'Student not found' });
+    const existing = await StudentUser.findOne(filter);
+    if (!existing) {
+      return res.status(404).json({ error: 'Student not found', message: 'Student not found' });
     }
 
-    res.json({ ok: true, student: updated });
+    if (!existing.isArchived) {
+      existing.archivedPlacement = {
+        grade: existing.grade || '',
+        section: existing.section || '',
+        roll: Number.isFinite(Number(existing.roll)) ? Number(existing.roll) : null,
+        previousStatus: existing.status || 'Active',
+      };
+      existing.isArchived = true;
+      existing.archivedAt = new Date();
+      existing.grade = '';
+      existing.section = '';
+      existing.roll = undefined;
+      existing.status = 'Archived';
+      await existing.save();
+    }
+
+    res.json({ ok: true, student: existing.toObject() });
   } catch (err) {
-    res.status(500).json({ error: err.message || 'Unable to archive student' });
+    res.status(500).json({ error: err.message || 'Unable to archive student', message: err.message || 'Unable to archive student' });
   }
 });
 
@@ -319,19 +353,48 @@ router.patch('/students/:id/unarchive', adminAuth, async (req, res) => {
     const filter = { _id: id, schoolId };
     if (campusId) filter.campusId = campusId;
 
-    const updated = await StudentUser.findOneAndUpdate(
-      filter,
-      { $set: { isArchived: false, archivedAt: null } },
-      { new: true }
-    ).lean();
-
-    if (!updated) {
-      return res.status(404).json({ error: 'Student not found' });
+    const existing = await StudentUser.findOne(filter);
+    if (!existing) {
+      return res.status(404).json({ error: 'Student not found', message: 'Student not found' });
     }
 
-    res.json({ ok: true, student: updated });
+    const archivedPlacement = existing.archivedPlacement || {};
+    const restoreGrade = String(archivedPlacement.grade || '').trim();
+    const restoreSection = String(archivedPlacement.section || '').trim();
+    const hasRestoreRoll = archivedPlacement.roll !== null && archivedPlacement.roll !== undefined && archivedPlacement.roll !== '';
+    const restoreRoll = hasRestoreRoll ? Number(archivedPlacement.roll) : null;
+
+    if (restoreGrade && restoreSection && Number.isFinite(restoreRoll)) {
+      const conflictFilter = {
+        _id: { $ne: existing._id },
+        schoolId,
+        grade: restoreGrade,
+        section: restoreSection,
+        roll: restoreRoll,
+        isArchived: { $ne: true },
+      };
+      if (campusId) conflictFilter.campusId = campusId;
+      const conflictStudent = await StudentUser.findOne(conflictFilter).select('name').lean();
+      if (conflictStudent) {
+        return res.status(409).json({
+          error: `Seat already occupied in ${restoreGrade}-${restoreSection} (roll ${restoreRoll})`,
+          message: `Cannot restore: roll ${restoreRoll} in class ${restoreGrade} section ${restoreSection} is already assigned to ${conflictStudent.name || 'another student'}.`,
+        });
+      }
+    }
+
+    existing.isArchived = false;
+    existing.archivedAt = null;
+    existing.grade = restoreGrade;
+    existing.section = restoreSection;
+    existing.roll = Number.isFinite(restoreRoll) ? restoreRoll : undefined;
+    existing.status = archivedPlacement.previousStatus || 'Active';
+    existing.archivedPlacement = undefined;
+    await existing.save();
+
+    res.json({ ok: true, student: existing.toObject() });
   } catch (err) {
-    res.status(500).json({ error: err.message || 'Unable to restore student' });
+    res.status(500).json({ error: err.message || 'Unable to restore student', message: err.message || 'Unable to restore student' });
   }
 });
 

@@ -38,8 +38,13 @@ const STEPS = [
 
 const schoolTypes        = ['Public', 'Private', 'Charter', 'International'];
 const boards             = ['CBSE', 'ICSE', 'IB', 'IGCSE', 'State Board', 'NIOS', 'Other'];
-const academicStructures = ['Year', 'Semester', 'Trimester', 'Quarter',];
-const userRanges         = ['Less than 100', '100 – 500', '500 – 1,000', 'More than 1,000'];
+const academicStructures = ['Semester', 'Trimester', 'Quarter'];
+const userRanges = [
+  { label: 'Less than 100', value: '<100' },
+  { label: '100 - 500', value: '100-500' },
+  { label: '500 - 1,000', value: '500-1000' },
+  { label: 'More than 1,000', value: '1000+' },
+];
 const campusTypes        = ['Main', 'Branch'];
 
 /* ─── Reusable field error ─── */
@@ -124,6 +129,33 @@ const SchoolRegistrationForm = () => {
   const [isUploadingDocs, setIsUploadingDocs]   = useState(false);
   const [logoPreview, setLogoPreview]   = useState(null);
   const [docsPreview, setDocsPreview]   = useState([]);
+
+  const normalizeServerErrors = (serverErrors = {}) => {
+    const next = { ...serverErrors };
+    Object.keys(serverErrors).forEach((key) => {
+      // Backend uses campus_{idx}_phone while UI expects campus_{idx}_contactPhone
+      const phoneKeyMatch = key.match(/^campus_(\d+)_phone$/);
+      if (phoneKeyMatch) {
+        const aliasKey = `campus_${phoneKeyMatch[1]}_contactPhone`;
+        next[aliasKey] = serverErrors[key];
+      }
+    });
+    return next;
+  };
+
+  const getStepForErrors = (serverErrors = {}) => {
+    const keys = Object.keys(serverErrors || {});
+    const step4Fields = new Set(['logo', 'verificationDocs']);
+    const step3Fields = new Set(['websiteURL', 'estimatedUsers']);
+    const step2Fields = new Set(['contactPersonName', 'contactPhone', 'officialEmail', 'address']);
+    const step1Fields = new Set(['name', 'campuses', 'schoolType', 'board', 'boardOther', 'academicYearStructure']);
+
+    if (keys.some((key) => step4Fields.has(key))) return 4;
+    if (keys.some((key) => step3Fields.has(key))) return 3;
+    if (keys.some((key) => step2Fields.has(key))) return 2;
+    if (keys.some((key) => step1Fields.has(key) || key.startsWith('campus_'))) return 1;
+    return 1;
+  };
 
   /* ── campus helpers ── */
   const addCampus = () =>
@@ -351,7 +383,12 @@ const SchoolRegistrationForm = () => {
           }
           return;
         }
-        if (data.errors) { setErrors(data.errors); setCurrentStep(1); toast.error('Please fix the errors and try again'); }
+        if (data.errors) {
+          const normalizedErrors = normalizeServerErrors(data.errors);
+          setErrors(normalizedErrors);
+          setCurrentStep(getStepForErrors(normalizedErrors));
+          toast.error('Please fix the highlighted fields and try again');
+        }
         else throw new Error(data.error || 'Registration failed');
         return;
       }
@@ -639,7 +676,9 @@ const SchoolRegistrationForm = () => {
               <Label required>Estimated Number of Users</Label>
               <select name="estimatedUsers" value={formData.estimatedUsers} onChange={handleInputChange} className={selectCls('estimatedUsers')}>
                 <option value="">Select a range</option>
-                {userRanges.map(r => <option key={r} value={r}>{r}</option>)}
+                {userRanges.map((r) => (
+                  <option key={r.value} value={r.value}>{r.label}</option>
+                ))}
               </select>
               <FieldError msg={errors.estimatedUsers} />
             </div>

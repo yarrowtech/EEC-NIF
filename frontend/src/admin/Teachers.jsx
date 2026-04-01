@@ -877,7 +877,7 @@ const Teachers = ({setShowAdminHeader}) => {
     return `Teach@${randomPart}${seed % 10}a`;
   };
 
-  const normalizeBulkTeacherRow = (row = {}, idx = 0) => {
+  const normalizeBulkTeacherRow = (row = {}) => {
     const read = (keys = []) => {
       for (const key of keys) {
         if (Object.prototype.hasOwnProperty.call(row, key) && row[key] !== undefined && row[key] !== null) {
@@ -886,11 +886,20 @@ const Teachers = ({setShowAdminHeader}) => {
       }
       return '';
     };
+    const normalizeGender = (value) => {
+      const normalized = String(value || '').trim().toLowerCase();
+      if (!normalized) return '';
+      if (normalized === 'male' || normalized === 'm') return 'male';
+      if (normalized === 'female' || normalized === 'f') return 'female';
+      if (normalized === 'other' || normalized === 'o') return 'other';
+      return normalized;
+    };
+
     return {
       name: read(['name', 'Name', 'teacherName', 'Teacher Name']),
       email: read(['email', 'Email']),
       mobile: read(['mobile', 'Mobile', 'phone', 'Phone']),
-      gender: read(['gender', 'Gender']),
+      gender: normalizeGender(read(['gender', 'Gender'])),
       qualification: read(['qualification', 'Qualification']),
       subject: read(['subject', 'Subject']),
       department: read(['department', 'Department']),
@@ -936,7 +945,7 @@ const Teachers = ({setShowAdminHeader}) => {
       const worksheet = workbook.Sheets[firstSheet];
       const rawRows = XLSX.utils.sheet_to_json(worksheet, { defval: '' });
       const normalizedRows = rawRows
-        .map((row, idx) => normalizeBulkTeacherRow(row, idx))
+        .map((row) => normalizeBulkTeacherRow(row))
         .filter((row) => row.name || row.email || row.mobile);
 
       if (!normalizedRows.length) {

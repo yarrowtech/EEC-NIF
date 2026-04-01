@@ -226,10 +226,6 @@ const AdminSettings = ({ setShowAdminHeader }) => {
       toast.error(passwordError);
       return;
     }
-    if (adminForm.newPassword && !adminForm.currentPassword) {
-      toast.error('Current password is required to set a new password');
-      return;
-    }
     const token = localStorage.getItem('token');
     if (!token) {
       toast.error('Authentication token missing');

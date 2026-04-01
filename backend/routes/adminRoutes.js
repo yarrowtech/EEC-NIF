@@ -8,6 +8,7 @@ const School = require('../models/School');
 const adminAuth = require('../middleware/adminAuth');
 const rateLimit = require('../middleware/rateLimit');
 const { isStrongPassword, passwordPolicyMessage } = require('../utils/passwordPolicy');
+const { generatePassword } = require('../utils/generator');
 const { sendSchoolApprovalEmail } = require('../utils/mailer');
 const { logAuthEvent } = require('../utils/authEventLogger');
 const { logSecurityEvent } = require('../utils/securityEventLogger');
@@ -185,6 +186,7 @@ router.post('/login', rateLimit({ windowMs: 60 * 1000, max: 10 }), async (req, r
       {
         id: admin._id,
         type: 'admin',
+        role: admin.role || 'admin',
         username: admin.username,
         schoolId: admin.schoolId || null,
         campusId: admin.campusId || null,
@@ -376,9 +378,6 @@ router.put('/settings', adminAuth, async (req, res) => {
     const nextAvatar = typeof adminPayload.avatar === 'string' ? adminPayload.avatar.trim() : undefined;
     const nextCampusName = typeof adminPayload.campusName === 'string' ? adminPayload.campusName.trim() : undefined;
     const nextCampusType = typeof adminPayload.campusType === 'string' ? adminPayload.campusType.trim() : undefined;
-    const currentPassword = typeof adminPayload.currentPassword === 'string'
-      ? adminPayload.currentPassword
-      : (typeof req.body?.currentPassword === 'string' ? req.body.currentPassword : '');
     const newPassword = typeof adminPayload.newPassword === 'string'
       ? adminPayload.newPassword
       : (typeof req.body?.newPassword === 'string' ? req.body.newPassword : '');
@@ -401,13 +400,6 @@ router.put('/settings', adminAuth, async (req, res) => {
     if (nextCampusType !== undefined) admin.campusType = nextCampusType || null;
 
     if (newPassword) {
-      if (!currentPassword) {
-        return res.status(400).json({ error: 'Current password is required to set a new password' });
-      }
-      const validCurrentPassword = await bcrypt.compare(currentPassword, admin.password);
-      if (!validCurrentPassword) {
-        return res.status(401).json({ error: 'Current password is incorrect' });
-      }
       if (!isStrongPassword(newPassword)) {
         return res.status(400).json({ error: passwordPolicyMessage });
       }
@@ -551,6 +543,39 @@ router.get('/school-admins', adminAuth, ensureSuperAdmin, async (req, res) => {
     res.json(admins);
   } catch (err) {
     res.status(500).json({ error: err.message });
+  }
+});
+
+// Reset school admin password (super admin only)
+router.post('/school-admins/:id/reset-password', adminAuth, ensureSuperAdmin, async (req, res) => {
+  // #swagger.tags = ['Admin Auth']
+  try {
+    const { id } = req.params;
+    if (!id || !mongoose.isValidObjectId(id)) {
+      return res.status(400).json({ error: 'Valid admin id is required' });
+    }
+
+    const admin = await Admin.findOne({ _id: id, role: 'admin', schoolId: { $ne: null } });
+    if (!admin) {
+      return res.status(404).json({ error: 'School admin not found' });
+    }
+
+    const password = generatePassword();
+    admin.password = password;
+    // Allow direct login with the reset password (do not trigger first-login reset flow).
+    admin.lastLoginAt = new Date();
+    await admin.save();
+
+    return res.json({
+      message: 'School admin password reset successfully',
+      adminId: admin._id,
+      username: admin.username,
+      name: admin.name || '',
+      schoolId: admin.schoolId || null,
+      password,
+    });
+  } catch (err) {
+    return res.status(500).json({ error: err.message || 'Unable to reset school admin password' });
   }
 });
 

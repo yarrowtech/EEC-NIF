@@ -14,6 +14,15 @@ const { sendTeacherCredentialsEmail } = require('../utils/mailer');
 const authTeacher = require('../middleware/authTeacher');
 const { logAuthEvent } = require('../utils/authEventLogger');
 
+const normalizeGender = (value) => {
+  const normalized = String(value || '').trim().toLowerCase();
+  if (!normalized) return '';
+  if (normalized === 'male' || normalized === 'm') return 'male';
+  if (normalized === 'female' || normalized === 'f') return 'female';
+  if (normalized === 'other' || normalized === 'o') return 'other';
+  return normalized;
+};
+
 // Register Teacher
 router.post('/register', adminAuth, async (req, res) => {
   // #swagger.tags = ['Teachers']
@@ -59,7 +68,7 @@ router.post('/register', adminAuth, async (req, res) => {
       campusType: req.isSuperAdmin ? req.body?.campusType : req.admin?.campusType,
       employeeCode,
       name,
-      gender,
+      gender: normalizeGender(gender),
       mobile,
       email,
       subject,

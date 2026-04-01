@@ -84,6 +84,15 @@ const resolveAdmissionYear = (value) => {
   return parsed.getFullYear();
 };
 
+const normalizeGender = (value) => {
+  const normalized = String(value || '').trim().toLowerCase();
+  if (!normalized) return '';
+  if (normalized === 'male' || normalized === 'm') return 'male';
+  if (normalized === 'female' || normalized === 'f') return 'female';
+  if (normalized === 'other' || normalized === 'o') return 'other';
+  return normalized;
+};
+
 const resolveCampusValue = (req, payloadCampusId) => {
   if (req.campusId) {
     return {
@@ -293,7 +302,12 @@ router.post('/bulk-create-users', adminAuth, async (req, res) => {
 
   for (let i = 0; i < users.length; i += 1) {
     const user = users[i] || {};
-    if (!user.password || (!user.username && role !== 'teacher')) {
+    const providedPassword =
+      typeof user.password === 'string' ? user.password.trim() : '';
+    const resolvedPassword =
+      role === 'teacher' && !providedPassword ? generatePassword() : providedPassword;
+
+    if (!resolvedPassword || (!user.username && role !== 'teacher')) {
       results.failed += 1;
       results.errors.push({ index: i, error: 'username and password are required' });
       continue;
@@ -306,13 +320,15 @@ router.post('/bulk-create-users', adminAuth, async (req, res) => {
 
     try {
       const { isStrongPassword, passwordPolicyMessage } = require('../utils/passwordPolicy');
-      if (!isStrongPassword(user.password)) {
+      if (!isStrongPassword(resolvedPassword)) {
         results.failed += 1;
         results.errors.push({ index: i, error: passwordPolicyMessage });
         continue;
       }
       const payload = {
         ...user,
+        password: resolvedPassword,
+        gender: normalizeGender(user.gender),
         schoolId: resolvedSchoolId,
         campusId: campusContext.campusId,
         campusName: campusContext.campusName,
@@ -341,6 +357,7 @@ router.post('/bulk-create-users', adminAuth, async (req, res) => {
         );
         teacherSequenceState.nextSequence += 1;
         payload.username = payload.employeeCode;
+        payload.initialPassword = resolvedPassword;
       }
       if (role === 'staff' && employeeSequenceState) {
         payload.employeeCode = buildEmployeeCode(
@@ -410,7 +427,12 @@ router.post('/bulk-import-csv', adminAuth, async (req, res) => {
 
   for (let i = 0; i < rows.length; i += 1) {
     const row = rows[i] || {};
-    if (!row.password || (!row.username && role !== 'teacher')) {
+    const providedPassword =
+      typeof row.password === 'string' ? row.password.trim() : '';
+    const resolvedPassword =
+      role === 'teacher' && !providedPassword ? generatePassword() : providedPassword;
+
+    if (!resolvedPassword || (!row.username && role !== 'teacher')) {
       results.failed += 1;
       results.errors.push({ index: i, error: 'username and password are required' });
       continue;
@@ -422,13 +444,15 @@ router.post('/bulk-import-csv', adminAuth, async (req, res) => {
     }
     try {
       const { isStrongPassword, passwordPolicyMessage } = require('../utils/passwordPolicy');
-      if (!isStrongPassword(row.password)) {
+      if (!isStrongPassword(resolvedPassword)) {
         results.failed += 1;
         results.errors.push({ index: i, error: passwordPolicyMessage });
         continue;
       }
       const payload = {
         ...row,
+        password: resolvedPassword,
+        gender: normalizeGender(row.gender),
         schoolId: resolvedSchoolId,
         campusId: campusContext.campusId,
         campusName: campusContext.campusName,
@@ -457,6 +481,7 @@ router.post('/bulk-import-csv', adminAuth, async (req, res) => {
         );
         teacherSequenceState.nextSequence += 1;
         payload.username = payload.employeeCode;
+        payload.initialPassword = resolvedPassword;
       }
       if (role === 'staff' && employeeSequenceState) {
         payload.employeeCode = buildEmployeeCode(
