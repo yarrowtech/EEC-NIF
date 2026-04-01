@@ -344,10 +344,17 @@ const TeacherTimetable = ({ setShowAdminHeader }) => {
       });
 
       const drawSummaryHeader = () => {
-        pdf.setFillColor(224, 231, 255); pdf.setDrawColor(147, 197, 253);
-        pdf.setTextColor(30, 58, 138); pdf.setFont(undefined, 'bold'); pdf.setFontSize(8);
+        pdf.setDrawColor(203, 213, 225);
+        pdf.setTextColor(17, 24, 39);
+        pdf.setFont(undefined, 'bold');
+        pdf.setFontSize(8);
         let x = margin;
-        summaryCols.forEach((col) => { pdf.rect(x, y, col.width, 8, 'FD'); pdf.text(col.label, x + 2, y + 5.2); x += col.width; });
+        summaryCols.forEach((col) => {
+          pdf.setFillColor(241, 245, 249);
+          pdf.rect(x, y, col.width, 8, 'FD');
+          pdf.text(col.label, x + 2, y + 5.2);
+          x += col.width;
+        });
         y += 8;
       };
       const openSummaryPage = () => {
