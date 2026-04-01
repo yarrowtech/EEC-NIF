@@ -64,7 +64,7 @@ const resolveParentStudents = async ({ parent, schoolId, campusId }) => {
       ...filter,
       _id: { $in: parent.childrenIds },
     })
-      .select('name grade section')
+      .select('name grade section studentCode roll admissionNumber username')
       .lean();
   }
 
@@ -77,7 +77,7 @@ const resolveParentStudents = async ({ parent, schoolId, campusId }) => {
     ...filter,
     name: { $in: names },
   })
-    .select('name grade section')
+    .select('name grade section studentCode roll admissionNumber username')
     .lean();
 };
 
@@ -1440,6 +1440,10 @@ router.get('/parent/children', authParent, async (req, res) => {
     const linkedStudents = students.map((student) => ({
       id: student._id,
       name: student.name || 'Student',
+      studentCode: student.studentCode || '',
+      username: student.username || '',
+      roll: student.roll || null,
+      admissionNumber: student.admissionNumber || '',
       grade: student.grade || '',
       section: student.section || '',
       linked: true,
