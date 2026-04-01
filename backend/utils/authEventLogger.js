@@ -1,5 +1,6 @@
 const { logger } = require('./logger');
-const { getClientIp } = require('./request');
+const { getRequestNetworkContext } = require('./request');
+const { logSecurityEvent } = require('./securityEventLogger');
 
 const asString = (value) => {
   if (value === undefined || value === null) return undefined;
@@ -35,6 +36,7 @@ const logAuthEvent = (req, payload = {}) => {
   }
 
   const level = outcome === 'failure' ? 'warn' : 'info';
+  const net = getRequestNetworkContext(req);
 
   logger.log({
     level,
@@ -50,11 +52,31 @@ const logAuthEvent = (req, payload = {}) => {
     reason: asString(reason),
     statusCode,
     requestId: req?.requestId || undefined,
+    traceId: req?.traceId || undefined,
     method: req?.method,
     path: req?.originalUrl,
-    ip: getClientIp(req),
+    ip: net.clientIp,
+    remoteIp: net.remoteIp,
+    ipSource: net.source,
+    forwardedForChain: net.forwardedChain,
+    forwardedForCount: net.forwardedCount,
     ...extra,
   });
+
+  if (outcome === 'failure' && String(action).toLowerCase().includes('login')) {
+    logSecurityEvent(req, {
+      action: 'security.auth_failure_detected',
+      outcome: 'observed',
+      severity: 'medium',
+      attack_type: 'bruteforce_or_auth_abuse',
+      riskScore: 65,
+      reason: asString(reason) || 'Failed login attempt',
+      statusCode,
+      authAction: action,
+      authUserType: userType,
+      identifier: asString(identifier),
+    });
+  }
 };
 
 module.exports = { logAuthEvent };

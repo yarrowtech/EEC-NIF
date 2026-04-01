@@ -1,0 +1,234 @@
+{
+  "generatedAt": "2026-03-31T12:39:14.421Z",
+  "baseUrl": "http://localhost:5000",
+  "matrix": [
+    {
+      "endpoint": "GET /api/schools/registrations/pending",
+      "noAuth": {
+        "status": 401,
+        "requestId": "20a9fe68-0a45-43e0-8956-644047f89015",
+        "traceId": "4226e8bb-3db7-4b9b-b7fe-6ad1a549c052",
+        "body": {
+          "error": "Unauthorized"
+        }
+      },
+      "invalidToken": {
+        "status": 401,
+        "requestId": "e00e3133-34f9-48df-abe3-0ebc8cd3e226",
+        "traceId": "15467f0e-45e1-4576-8288-329a1b5df6e9",
+        "body": {
+          "error": "Invalid token"
+        }
+      }
+    },
+    {
+      "endpoint": "PUT /api/schools/registrations/507f1f77bcf86cd799439011/approve",
+      "noAuth": {
+        "status": 401,
+        "requestId": "cb0a070b-f3bd-4734-9911-7113fe3521ae",
+        "traceId": "1a04c375-a18d-40c5-b379-f951ffe32436",
+        "body": {
+          "error": "Unauthorized"
+        }
+      },
+      "invalidToken": {
+        "status": 401,
+        "requestId": "5ccec7b0-db6f-4c4b-b0a4-9fff6c99ec35",
+        "traceId": "5e0671df-a852-4784-bf92-98c2cf37fcb7",
+        "body": {
+          "error": "Invalid token"
+        }
+      }
+    },
+    {
+      "endpoint": "PUT /api/schools/registrations/507f1f77bcf86cd799439011/reject",
+      "noAuth": {
+        "status": 401,
+        "requestId": "5e19e338-ebb6-4123-9912-b66695bec944",
+        "traceId": "34ce7951-c39f-400c-afbf-e05a60ad5258",
+        "body": {
+          "error": "Unauthorized"
+        }
+      },
+      "invalidToken": {
+        "status": 401,
+        "requestId": "12b994ca-c3f3-4603-9791-10671f794809",
+        "traceId": "f575a24a-3a07-4161-bd08-b16657cef242",
+        "body": {
+          "error": "Invalid token"
+        }
+      }
+    },
+    {
+      "endpoint": "GET /api/support/requests",
+      "noAuth": {
+        "status": 401,
+        "requestId": "defc8037-b1f9-43f8-9e5c-02c3241ce54d",
+        "traceId": "46cd5090-5279-4415-af88-34a5c2d3ef32",
+        "body": {
+          "error": "Unauthorized"
+        }
+      },
+      "invalidToken": {
+        "status": 401,
+        "requestId": "ca5638f7-49ff-4ee1-820b-ab7434209725",
+        "traceId": "5ac8584e-a489-46e0-90bd-55485ad03999",
+        "body": {
+          "error": "Invalid token"
+        }
+      }
+    },
+    {
+      "endpoint": "GET /api/support/requests?supportType=feedback",
+      "noAuth": {
+        "status": 401,
+        "requestId": "724705ef-0c03-46b9-b9db-b59bafe7112d",
+        "traceId": "b2b96a11-3a24-4dff-98d6-6e848e82b1b3",
+        "body": {
+          "error": "Unauthorized"
+        }
+      },
+      "invalidToken": {
+        "status": 401,
+        "requestId": "cfdfc3e1-c6bc-402c-979d-53f6d96d5f83",
+        "traceId": "1ca3b8eb-85e6-45dd-a97a-833c490853a8",
+        "body": {
+          "error": "Invalid token"
+        }
+      }
+    },
+    {
+      "endpoint": "GET /api/support/requests?supportType=complaint",
+      "noAuth": {
+        "status": 401,
+        "requestId": "448a93e0-058e-4280-96a8-1346d150e9cd",
+        "traceId": "5bdd1eb7-0dff-4358-88d8-660e2e0e8e06",
+        "body": {
+          "error": "Unauthorized"
+        }
+      },
+      "invalidToken": {
+        "status": 401,
+        "requestId": "80b59b4b-9042-4fb5-b545-240d8ff7956a",
+        "traceId": "48a8c031-6e92-4138-adf3-947729f6a57f",
+        "body": {
+          "error": "Invalid token"
+        }
+      }
+    },
+    {
+      "endpoint": "GET /api/support/requests?type=feedback",
+      "noAuth": {
+        "status": 401,
+        "requestId": "82de4589-5efc-42a0-a44f-24f5e4fede52",
+        "traceId": "d93d50c5-53ac-4de0-aa5d-64a8eb1d797a",
+        "body": {
+          "error": "Unauthorized"
+        }
+      },
+      "invalidToken": {
+        "status": 401,
+        "requestId": "bb42d0f4-343c-4122-abd5-cead0bc42bf0",
+        "traceId": "e2e84de4-a1c1-49c7-8c0b-9651acc72cc5",
+        "body": {
+          "error": "Invalid token"
+        }
+      }
+    },
+    {
+      "endpoint": "GET /api/support/requests?type=complaint",
+      "noAuth": {
+        "status": 401,
+        "requestId": "ba764ecd-359d-4f8e-8f30-2f6c13035ea3",
+        "traceId": "9032fde3-eb0e-45a4-854f-f2cc088597c1",
+        "body": {
+          "error": "Unauthorized"
+        }
+      },
+      "invalidToken": {
+        "status": 401,
+        "requestId": "7a6d472b-f067-442a-8a96-4fbe9d46ff92",
+        "traceId": "2fd17758-a878-43b1-b746-117b3216c77a",
+        "body": {
+          "error": "Invalid token"
+        }
+      }
+    },
+    {
+      "endpoint": "PATCH /api/support/requests/507f1f77bcf86cd799439011",
+      "noAuth": {
+        "status": 401,
+        "requestId": "1a834d17-52d3-4385-ae92-88e3bb345c41",
+        "traceId": "0c539434-4837-43ec-9b7f-21ccf4729c49",
+        "body": {
+          "error": "Unauthorized"
+        }
+      },
+      "invalidToken": {
+        "status": 401,
+        "requestId": "c7733986-4d0a-43e5-b7de-146dd4d55510",
+        "traceId": "c96d1c57-bf73-4e10-8e24-cddbf57203d7",
+        "body": {
+          "error": "Invalid token"
+        }
+      }
+    },
+    {
+      "endpoint": "GET /api/issues",
+      "noAuth": {
+        "status": 401,
+        "requestId": "3c8f4190-e3c1-4bcf-ace6-8abf0d260ea7",
+        "traceId": "a610aa80-5ab2-4013-b6c2-82fa61bef7bd",
+        "body": {
+          "error": "Unauthorized"
+        }
+      },
+      "invalidToken": {
+        "status": 401,
+        "requestId": "cb81f538-8a49-49ec-9e99-077223d1b5a3",
+        "traceId": "55436830-6e3c-48d5-b760-4531ac0126df",
+        "body": {
+          "error": "Invalid token"
+        }
+      }
+    },
+    {
+      "endpoint": "PATCH /api/issues/507f1f77bcf86cd799439011",
+      "noAuth": {
+        "status": 401,
+        "requestId": "b84705ac-5734-4a77-8fe6-960394056336",
+        "traceId": "5dd08b6d-9f07-45cf-ab6c-3f64a4edc635",
+        "body": {
+          "error": "Unauthorized"
+        }
+      },
+      "invalidToken": {
+        "status": 401,
+        "requestId": "9684fce5-cb1e-4138-bf3d-671b3994bcdf",
+        "traceId": "bf97ed14-4077-475e-b5b0-a34d5f2eadcc",
+        "body": {
+          "error": "Invalid token"
+        }
+      }
+    },
+    {
+      "endpoint": "POST /api/admin/auth/profile",
+      "noAuth": {
+        "status": 401,
+        "requestId": "90999a3c-c0f7-40b0-aa72-b1b83c43b641",
+        "traceId": "5d559aa9-3537-40cf-9118-4feb1fa201b1",
+        "body": {
+          "error": "Unauthorized"
+        }
+      },
+      "invalidToken": {
+        "status": 401,
+        "requestId": "0a21ea6a-e1b1-492c-a7bf-5ea59985cb94",
+        "traceId": "7b1b884c-1b04-4e90-853b-b3cbe11f38aa",
+        "body": {
+          "error": "Invalid token"
+        }
+      }
+    }
+  ]
+}

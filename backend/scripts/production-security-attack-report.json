@@ -1,0 +1,2461 @@
+{
+  "generatedAt": "2026-03-31T13:04:47.772Z",
+  "baseUrl": "http://localhost:5000",
+  "objective": "production-grade security testing and observability validation",
+  "attackMatrix": [
+    {
+      "scenario": "distributed_bruteforce_low_and_slow",
+      "summary": {
+        "totalCalls": 15,
+        "byStatus": {
+          "401": 10,
+          "429": 5
+        },
+        "missingRequestIdCount": 0,
+        "missingTraceIdCount": 0
+      }
+    },
+    {
+      "scenario": "token_replay_multi_source",
+      "summary": {
+        "totalCalls": 3,
+        "byStatus": {
+          "401": 3
+        },
+        "missingRequestIdCount": 0,
+        "missingTraceIdCount": 0
+      }
+    },
+    {
+      "scenario": "api_flood_parallel_burst",
+      "summary": {
+        "totalCalls": 20,
+        "byStatus": {
+          "201": 3,
+          "429": 17
+        },
+        "missingRequestIdCount": 0,
+        "missingTraceIdCount": 0
+      }
+    },
+    {
+      "scenario": "rate_limit_bypass_xff_spoofing",
+      "summary": {
+        "totalCalls": 12,
+        "byStatus": {
+          "429": 12
+        },
+        "missingRequestIdCount": 0,
+        "missingTraceIdCount": 0
+      }
+    },
+    {
+      "scenario": "injection_polymorphic_payloads",
+      "summary": {
+        "totalCalls": 4,
+        "byStatus": {
+          "429": 4
+        },
+        "missingRequestIdCount": 0,
+        "missingTraceIdCount": 0
+      }
+    },
+    {
+      "scenario": "malformed_json_without_request_id",
+      "summary": {
+        "totalCalls": 6,
+        "byStatus": {
+          "400": 6
+        },
+        "missingRequestIdCount": 0,
+        "missingTraceIdCount": 0
+      }
+    },
+    {
+      "scenario": "stealth_distributed_auth_drip",
+      "summary": {
+        "totalCalls": 18,
+        "byStatus": {
+          "429": 18
+        },
+        "missingRequestIdCount": 0,
+        "missingTraceIdCount": 0
+      }
+    }
+  ],
+  "scenarios": [
+    {
+      "name": "distributed_bruteforce_low_and_slow",
+      "calls": [
+        {
+          "attackLabel": "distributed_bruteforce",
+          "method": "POST",
+          "path": "/api/admin/auth/login",
+          "requestHeaders": {
+            "x-forwarded-for": "203.0.113.24",
+            "user-agent": "slow-brute/0"
+          },
+          "requestBody": {
+            "username": "admin",
+            "password": "Invalid-0-1774962275229"
+          },
+          "status": 401,
+          "responseBody": {
+            "error": "Invalid credentials"
+          },
+          "responseRequestId": "f3bd9167-4753-4710-ada5-e891c6d69394",
+          "responseTraceId": "270e4084-9550-425c-9b03-bf9cc95d2974"
+        },
+        {
+          "attackLabel": "distributed_bruteforce",
+          "method": "POST",
+          "path": "/api/admin/auth/login",
+          "requestHeaders": {
+            "x-forwarded-for": "203.0.113.21",
+            "user-agent": "slow-brute/1"
+          },
+          "requestBody": {
+            "username": "admin",
+            "password": "Invalid-1-1774962275229"
+          },
+          "status": 401,
+          "responseBody": {
+            "error": "Invalid credentials"
+          },
+          "responseRequestId": "2af3b1e5-c60b-4503-adde-07851349f17d",
+          "responseTraceId": "fa992645-0541-46cf-95bf-4ebca4a2f380"
+        },
+        {
+          "attackLabel": "distributed_bruteforce",
+          "method": "POST",
+          "path": "/api/admin/auth/login",
+          "requestHeaders": {
+            "x-forwarded-for": "203.0.113.21",
+            "user-agent": "slow-brute/2"
+          },
+          "requestBody": {
+            "username": "admin",
+            "password": "Invalid-2-1774962275229"
+          },
+          "status": 401,
+          "responseBody": {
+            "error": "Invalid credentials"
+          },
+          "responseRequestId": "7cc8f934-16e1-4d5d-a2de-7bdae99ce1ae",
+          "responseTraceId": "aca057d5-aced-4f10-93db-a8a62a3576a7"
+        },
+        {
+          "attackLabel": "distributed_bruteforce",
+          "method": "POST",
+          "path": "/api/admin/auth/login",
+          "requestHeaders": {
+            "x-forwarded-for": "203.0.113.23",
+            "user-agent": "slow-brute/0"
+          },
+          "requestBody": {
+            "username": "admin",
+            "password": "Invalid-3-1774962275229"
+          },
+          "status": 401,
+          "responseBody": {
+            "error": "Invalid credentials"
+          },
+          "responseRequestId": "2c1e3361-bdcb-4ad8-8033-50be566a01fd",
+          "responseTraceId": "c25b2b51-acda-4953-b92e-efb5e85d2c8f"
+        },
+        {
+          "attackLabel": "distributed_bruteforce",
+          "method": "POST",
+          "path": "/api/admin/auth/login",
+          "requestHeaders": {
+            "x-forwarded-for": "203.0.113.23",
+            "user-agent": "slow-brute/1"
+          },
+          "requestBody": {
+            "username": "admin",
+            "password": "Invalid-4-1774962275229"
+          },
+          "status": 401,
+          "responseBody": {
+            "error": "Invalid credentials"
+          },
+          "responseRequestId": "431e833c-7f82-43ab-aca9-ab327cc3a511",
+          "responseTraceId": "c3af98ea-35b0-42d4-82ca-a3676cc5da3a"
+        },
+        {
+          "attackLabel": "distributed_bruteforce",
+          "method": "POST",
+          "path": "/api/admin/auth/login",
+          "requestHeaders": {
+            "x-forwarded-for": "203.0.113.23",
+            "user-agent": "slow-brute/2"
+          },
+          "requestBody": {
+            "username": "admin",
+            "password": "Invalid-5-1774962275229"
+          },
+          "status": 401,
+          "responseBody": {
+            "error": "Invalid credentials"
+          },
+          "responseRequestId": "0b60ce19-510c-49aa-9c8d-f7c3d92e8794",
+          "responseTraceId": "e3ecddb3-ae82-4de6-91f3-e065d4b50193"
+        },
+        {
+          "attackLabel": "distributed_bruteforce",
+          "method": "POST",
+          "path": "/api/admin/auth/login",
+          "requestHeaders": {
+            "x-forwarded-for": "203.0.113.22",
+            "user-agent": "slow-brute/0"
+          },
+          "requestBody": {
+            "username": "admin",
+            "password": "Invalid-6-1774962275229"
+          },
+          "status": 401,
+          "responseBody": {
+            "error": "Invalid credentials"
+          },
+          "responseRequestId": "d219d9aa-103f-4f6c-8e48-3ae9c2fd614c",
+          "responseTraceId": "cbd27806-ee04-47a3-a7d3-aff18e030e3b"
+        },
+        {
+          "attackLabel": "distributed_bruteforce",
+          "method": "POST",
+          "path": "/api/admin/auth/login",
+          "requestHeaders": {
+            "x-forwarded-for": "203.0.113.23",
+            "user-agent": "slow-brute/1"
+          },
+          "requestBody": {
+            "username": "admin",
+            "password": "Invalid-7-1774962275229"
+          },
+          "status": 401,
+          "responseBody": {
+            "error": "Invalid credentials"
+          },
+          "responseRequestId": "681fe167-92f3-4839-b00a-52db8023ad9c",
+          "responseTraceId": "5ec19998-dd93-4885-bb1e-a9f6302c10d8"
+        },
+        {
+          "attackLabel": "distributed_bruteforce",
+          "method": "POST",
+          "path": "/api/admin/auth/login",
+          "requestHeaders": {
+            "x-forwarded-for": "203.0.113.20",
+            "user-agent": "slow-brute/2"
+          },
+          "requestBody": {
+            "username": "admin",
+            "password": "Invalid-8-1774962275229"
+          },
+          "status": 401,
+          "responseBody": {
+            "error": "Invalid credentials"
+          },
+          "responseRequestId": "4c46e1da-0c4d-43d9-96df-622def091aea",
+          "responseTraceId": "d58bfcca-146b-4afa-a62f-b35dfe021ece"
+        },
+        {
+          "attackLabel": "distributed_bruteforce",
+          "method": "POST",
+          "path": "/api/admin/auth/login",
+          "requestHeaders": {
+            "x-forwarded-for": "203.0.113.20",
+            "user-agent": "slow-brute/0"
+          },
+          "requestBody": {
+            "username": "admin",
+            "password": "Invalid-9-1774962275229"
+          },
+          "status": 401,
+          "responseBody": {
+            "error": "Invalid credentials"
+          },
+          "responseRequestId": "e05e7857-b8a0-4e0a-b071-c68db3475c2a",
+          "responseTraceId": "36f77758-a4d8-45d2-98d1-8b357cf79b09"
+        },
+        {
+          "attackLabel": "distributed_bruteforce",
+          "method": "POST",
+          "path": "/api/admin/auth/login",
+          "requestHeaders": {
+            "x-forwarded-for": "203.0.113.23",
+            "user-agent": "slow-brute/1"
+          },
+          "requestBody": {
+            "username": "admin",
+            "password": "Invalid-10-1774962275229"
+          },
+          "status": 429,
+          "responseBody": {
+            "error": "Too many requests, please try again later."
+          },
+          "responseRequestId": "06ecc1dd-dfd5-4667-bb63-3b6f5eede1bc",
+          "responseTraceId": "e7471e02-0da0-42cb-9a07-f5c3b904a3e0"
+        },
+        {
+          "attackLabel": "distributed_bruteforce",
+          "method": "POST",
+          "path": "/api/admin/auth/login",
+          "requestHeaders": {
+            "x-forwarded-for": "203.0.113.20",
+            "user-agent": "slow-brute/2"
+          },
+          "requestBody": {
+            "username": "admin",
+            "password": "Invalid-11-1774962275229"
+          },
+          "status": 429,
+          "responseBody": {
+            "error": "Too many requests, please try again later."
+          },
+          "responseRequestId": "49b29166-8a4d-4c83-bc13-3145c29a451b",
+          "responseTraceId": "e6847292-ba66-4aa8-9dd9-4d8d5d65c838"
+        },
+        {
+          "attackLabel": "distributed_bruteforce",
+          "method": "POST",
+          "path": "/api/admin/auth/login",
+          "requestHeaders": {
+            "x-forwarded-for": "203.0.113.20",
+            "user-agent": "slow-brute/0"
+          },
+          "requestBody": {
+            "username": "admin",
+            "password": "Invalid-12-1774962275229"
+          },
+          "status": 429,
+          "responseBody": {
+            "error": "Too many requests, please try again later."
+          },
+          "responseRequestId": "5de6bfcb-2dc0-4d94-81ed-cd40227772b3",
+          "responseTraceId": "62c9f1a9-2562-47e2-a07e-08a30f251086"
+        },
+        {
+          "attackLabel": "distributed_bruteforce",
+          "method": "POST",
+          "path": "/api/admin/auth/login",
+          "requestHeaders": {
+            "x-forwarded-for": "203.0.113.24",
+            "user-agent": "slow-brute/1"
+          },
+          "requestBody": {
+            "username": "admin",
+            "password": "Invalid-13-1774962275229"
+          },
+          "status": 429,
+          "responseBody": {
+            "error": "Too many requests, please try again later."
+          },
+          "responseRequestId": "ec89bad1-6487-4539-861e-6c4a8db7299f",
+          "responseTraceId": "78b4622a-6dbb-4f39-9751-d9094a5f31d1"
+        },
+        {
+          "attackLabel": "distributed_bruteforce",
+          "method": "POST",
+          "path": "/api/admin/auth/login",
+          "requestHeaders": {
+            "x-forwarded-for": "203.0.113.20",
+            "user-agent": "slow-brute/2"
+          },
+          "requestBody": {
+            "username": "admin",
+            "password": "Invalid-14-1774962275229"
+          },
+          "status": 429,
+          "responseBody": {
+            "error": "Too many requests, please try again later."
+          },
+          "responseRequestId": "b2d793b5-1904-40c2-80b1-6e0963349119",
+          "responseTraceId": "96cda825-dbde-4c4b-b8ea-9a8910ed9e94"
+        }
+      ],
+      "summary": {
+        "totalCalls": 15,
+        "byStatus": {
+          "401": 10,
+          "429": 5
+        },
+        "missingRequestIdCount": 0,
+        "missingTraceIdCount": 0
+      }
+    },
+    {
+      "name": "token_replay_multi_source",
+      "calls": [
+        {
+          "attackLabel": "token_replay_multisource",
+          "method": "GET",
+          "path": "/api/super-admin/overview",
+          "requestHeaders": {
+            "authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJhdHRhY2tlci11c2VyLTEiLCJqdGkiOiJyZXBsYXktMTc3NDk2MjI3NTIyOSIsImlhdCI6MTc3NDk2MjI3OX0.deadbeef",
+            "x-forwarded-for": "198.51.100.90",
+            "user-agent": "token-replay/0"
+          },
+          "status": 401,
+          "responseBody": {
+            "error": "Invalid token"
+          },
+          "responseRequestId": "dc3c0f27-413c-425a-bb4a-647b16b04185",
+          "responseTraceId": "ab9058b8-6a9f-4db8-ba96-34a29c020b36"
+        },
+        {
+          "attackLabel": "token_replay_multisource",
+          "method": "GET",
+          "path": "/api/super-admin/overview",
+          "requestHeaders": {
+            "authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJhdHRhY2tlci11c2VyLTEiLCJqdGkiOiJyZXBsYXktMTc3NDk2MjI3NTIyOSIsImlhdCI6MTc3NDk2MjI3OX0.deadbeef",
+            "x-forwarded-for": "198.51.100.91",
+            "user-agent": "token-replay/1"
+          },
+          "status": 401,
+          "responseBody": {
+            "error": "Invalid token"
+          },
+          "responseRequestId": "cce422ab-9371-4dbf-8413-06660e1be614",
+          "responseTraceId": "bba1064b-8489-4621-ab45-28325cb38e78"
+        },
+        {
+          "attackLabel": "token_replay_multisource",
+          "method": "GET",
+          "path": "/api/super-admin/overview",
+          "requestHeaders": {
+            "authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJhdHRhY2tlci11c2VyLTEiLCJqdGkiOiJyZXBsYXktMTc3NDk2MjI3NTIyOSIsImlhdCI6MTc3NDk2MjI3OX0.deadbeef",
+            "x-forwarded-for": "198.51.100.92",
+            "user-agent": "token-replay/2"
+          },
+          "status": 401,
+          "responseBody": {
+            "error": "Invalid token"
+          },
+          "responseRequestId": "fca006af-35f8-468f-a793-82891c6dd0a6",
+          "responseTraceId": "8106653a-2696-4e40-9b55-e47ebd96f2bd"
+        }
+      ],
+      "summary": {
+        "totalCalls": 3,
+        "byStatus": {
+          "401": 3
+        },
+        "missingRequestIdCount": 0,
+        "missingTraceIdCount": 0
+      }
+    },
+    {
+      "name": "api_flood_parallel_burst",
+      "calls": [
+        {
+          "attackLabel": "api_flood_burst",
+          "method": "POST",
+          "path": "/api/school-registration?flood=burst-3",
+          "requestHeaders": {
+            "x-forwarded-for": "198.51.100.200",
+            "user-agent": "burst-flood/3"
+          },
+          "requestBody": {
+            "name": "Security Suite School flood-1774962275229-3",
+            "campuses": [
+              {
+                "name": "Main Campus flood-1774962275229-3",
+                "address": "123 Main Campus Road, Kolkata, WB 700001",
+                "campusType": "Main",
+                "contactPerson": "Security Tester",
+                "contactPhone": "+919876543210"
+              }
+            ],
+            "officialEmail": "sec-suite-flood-1774962275229-3@example.org",
+            "contactPersonName": "Security Test User",
+            "contactPhone": "+919876543211",
+            "address": "123 Main School Address, Kolkata, West Bengal 700001",
+            "schoolType": "Private",
+            "board": "CBSE",
+            "boardOther": "",
+            "academicYearStructure": "Semester",
+            "estimatedUsers": "100-500",
+            "websiteURL": "https://sec-suite.example.org",
+            "logo": {
+              "secure_url": "https://example.org/logo.png"
+            },
+            "verificationDocs": [
+              {
+                "secure_url": "https://example.org/doc.pdf"
+              }
+            ]
+          },
+          "status": 429,
+          "responseBody": {
+            "error": "Too many requests, please try again later."
+          },
+          "responseRequestId": "523bd7a1-02f9-4af3-a647-d57bea2f56d0",
+          "responseTraceId": "421b9b65-054c-4a00-96e0-a2751958f2bc"
+        },
+        {
+          "attackLabel": "api_flood_burst",
+          "method": "POST",
+          "path": "/api/school-registration?flood=burst-4",
+          "requestHeaders": {
+            "x-forwarded-for": "198.51.100.200",
+            "user-agent": "burst-flood/0"
+          },
+          "requestBody": {
+            "name": "Security Suite School flood-1774962275229-4",
+            "campuses": [
+              {
+                "name": "Main Campus flood-1774962275229-4",
+                "address": "123 Main Campus Road, Kolkata, WB 700001",
+                "campusType": "Main",
+                "contactPerson": "Security Tester",
+                "contactPhone": "+919876543210"
+              }
+            ],
+            "officialEmail": "sec-suite-flood-1774962275229-4@example.org",
+            "contactPersonName": "Security Test User",
+            "contactPhone": "+919876543211",
+            "address": "123 Main School Address, Kolkata, West Bengal 700001",
+            "schoolType": "Private",
+            "board": "CBSE",
+            "boardOther": "",
+            "academicYearStructure": "Semester",
+            "estimatedUsers": "100-500",
+            "websiteURL": "https://sec-suite.example.org",
+            "logo": {
+              "secure_url": "https://example.org/logo.png"
+            },
+            "verificationDocs": [
+              {
+                "secure_url": "https://example.org/doc.pdf"
+              }
+            ]
+          },
+          "status": 429,
+          "responseBody": {
+            "error": "Too many requests, please try again later."
+          },
+          "responseRequestId": "759361c2-ee08-4035-81e5-1da48742e39a",
+          "responseTraceId": "e4787b89-52fc-45bc-9fe2-886b4a415888"
+        },
+        {
+          "attackLabel": "api_flood_burst",
+          "method": "POST",
+          "path": "/api/school-registration?flood=burst-5",
+          "requestHeaders": {
+            "x-forwarded-for": "198.51.100.200",
+            "user-agent": "burst-flood/1"
+          },
+          "requestBody": {
+            "name": "Security Suite School flood-1774962275229-5",
+            "campuses": [
+              {
+                "name": "Main Campus flood-1774962275229-5",
+                "address": "123 Main Campus Road, Kolkata, WB 700001",
+                "campusType": "Main",
+                "contactPerson": "Security Tester",
+                "contactPhone": "+919876543210"
+              }
+            ],
+            "officialEmail": "sec-suite-flood-1774962275229-5@example.org",
+            "contactPersonName": "Security Test User",
+            "contactPhone": "+919876543211",
+            "address": "123 Main School Address, Kolkata, West Bengal 700001",
+            "schoolType": "Private",
+            "board": "CBSE",
+            "boardOther": "",
+            "academicYearStructure": "Semester",
+            "estimatedUsers": "100-500",
+            "websiteURL": "https://sec-suite.example.org",
+            "logo": {
+              "secure_url": "https://example.org/logo.png"
+            },
+            "verificationDocs": [
+              {
+                "secure_url": "https://example.org/doc.pdf"
+              }
+            ]
+          },
+          "status": 429,
+          "responseBody": {
+            "error": "Too many requests, please try again later."
+          },
+          "responseRequestId": "0a5754c4-7421-45b4-b5b6-90e58cbbbb99",
+          "responseTraceId": "cb201c29-6422-439a-83af-b5bda7a197ff"
+        },
+        {
+          "attackLabel": "api_flood_burst",
+          "method": "POST",
+          "path": "/api/school-registration?flood=burst-6",
+          "requestHeaders": {
+            "x-forwarded-for": "198.51.100.200",
+            "user-agent": "burst-flood/2"
+          },
+          "requestBody": {
+            "name": "Security Suite School flood-1774962275229-6",
+            "campuses": [
+              {
+                "name": "Main Campus flood-1774962275229-6",
+                "address": "123 Main Campus Road, Kolkata, WB 700001",
+                "campusType": "Main",
+                "contactPerson": "Security Tester",
+                "contactPhone": "+919876543210"
+              }
+            ],
+            "officialEmail": "sec-suite-flood-1774962275229-6@example.org",
+            "contactPersonName": "Security Test User",
+            "contactPhone": "+919876543211",
+            "address": "123 Main School Address, Kolkata, West Bengal 700001",
+            "schoolType": "Private",
+            "board": "CBSE",
+            "boardOther": "",
+            "academicYearStructure": "Semester",
+            "estimatedUsers": "100-500",
+            "websiteURL": "https://sec-suite.example.org",
+            "logo": {
+              "secure_url": "https://example.org/logo.png"
+            },
+            "verificationDocs": [
+              {
+                "secure_url": "https://example.org/doc.pdf"
+              }
+            ]
+          },
+          "status": 429,
+          "responseBody": {
+            "error": "Too many requests, please try again later."
+          },
+          "responseRequestId": "36e36874-aa56-42e0-89cc-875a64ef6caa",
+          "responseTraceId": "4d37e78b-528f-41a8-a8a4-f2018b3e031c"
+        },
+        {
+          "attackLabel": "api_flood_burst",
+          "method": "POST",
+          "path": "/api/school-registration?flood=burst-7",
+          "requestHeaders": {
+            "x-forwarded-for": "198.51.100.200",
+            "user-agent": "burst-flood/3"
+          },
+          "requestBody": {
+            "name": "Security Suite School flood-1774962275229-7",
+            "campuses": [
+              {
+                "name": "Main Campus flood-1774962275229-7",
+                "address": "123 Main Campus Road, Kolkata, WB 700001",
+                "campusType": "Main",
+                "contactPerson": "Security Tester",
+                "contactPhone": "+919876543210"
+              }
+            ],
+            "officialEmail": "sec-suite-flood-1774962275229-7@example.org",
+            "contactPersonName": "Security Test User",
+            "contactPhone": "+919876543211",
+            "address": "123 Main School Address, Kolkata, West Bengal 700001",
+            "schoolType": "Private",
+            "board": "CBSE",
+            "boardOther": "",
+            "academicYearStructure": "Semester",
+            "estimatedUsers": "100-500",
+            "websiteURL": "https://sec-suite.example.org",
+            "logo": {
+              "secure_url": "https://example.org/logo.png"
+            },
+            "verificationDocs": [
+              {
+                "secure_url": "https://example.org/doc.pdf"
+              }
+            ]
+          },
+          "status": 429,
+          "responseBody": {
+            "error": "Too many requests, please try again later."
+          },
+          "responseRequestId": "e1375ce1-bc7b-4b08-8ab3-738cfebd5ac3",
+          "responseTraceId": "978287ea-e1f7-4d50-9f4a-79386dc65567"
+        },
+        {
+          "attackLabel": "api_flood_burst",
+          "method": "POST",
+          "path": "/api/school-registration?flood=burst-8",
+          "requestHeaders": {
+            "x-forwarded-for": "198.51.100.200",
+            "user-agent": "burst-flood/0"
+          },
+          "requestBody": {
+            "name": "Security Suite School flood-1774962275229-8",
+            "campuses": [
+              {
+                "name": "Main Campus flood-1774962275229-8",
+                "address": "123 Main Campus Road, Kolkata, WB 700001",
+                "campusType": "Main",
+                "contactPerson": "Security Tester",
+                "contactPhone": "+919876543210"
+              }
+            ],
+            "officialEmail": "sec-suite-flood-1774962275229-8@example.org",
+            "contactPersonName": "Security Test User",
+            "contactPhone": "+919876543211",
+            "address": "123 Main School Address, Kolkata, West Bengal 700001",
+            "schoolType": "Private",
+            "board": "CBSE",
+            "boardOther": "",
+            "academicYearStructure": "Semester",
+            "estimatedUsers": "100-500",
+            "websiteURL": "https://sec-suite.example.org",
+            "logo": {
+              "secure_url": "https://example.org/logo.png"
+            },
+            "verificationDocs": [
+              {
+                "secure_url": "https://example.org/doc.pdf"
+              }
+            ]
+          },
+          "status": 429,
+          "responseBody": {
+            "error": "Too many requests, please try again later."
+          },
+          "responseRequestId": "4725cc68-7abe-46ee-a163-b65386df3080",
+          "responseTraceId": "3aa255df-06ca-4580-8d89-877d33500b2a"
+        },
+        {
+          "attackLabel": "api_flood_burst",
+          "method": "POST",
+          "path": "/api/school-registration?flood=burst-9",
+          "requestHeaders": {
+            "x-forwarded-for": "198.51.100.200",
+            "user-agent": "burst-flood/1"
+          },
+          "requestBody": {
+            "name": "Security Suite School flood-1774962275229-9",
+            "campuses": [
+              {
+                "name": "Main Campus flood-1774962275229-9",
+                "address": "123 Main Campus Road, Kolkata, WB 700001",
+                "campusType": "Main",
+                "contactPerson": "Security Tester",
+                "contactPhone": "+919876543210"
+              }
+            ],
+            "officialEmail": "sec-suite-flood-1774962275229-9@example.org",
+            "contactPersonName": "Security Test User",
+            "contactPhone": "+919876543211",
+            "address": "123 Main School Address, Kolkata, West Bengal 700001",
+            "schoolType": "Private",
+            "board": "CBSE",
+            "boardOther": "",
+            "academicYearStructure": "Semester",
+            "estimatedUsers": "100-500",
+            "websiteURL": "https://sec-suite.example.org",
+            "logo": {
+              "secure_url": "https://example.org/logo.png"
+            },
+            "verificationDocs": [
+              {
+                "secure_url": "https://example.org/doc.pdf"
+              }
+            ]
+          },
+          "status": 429,
+          "responseBody": {
+            "error": "Too many requests, please try again later."
+          },
+          "responseRequestId": "d30baa86-471b-4a5b-9c8f-3fb1b37e3106",
+          "responseTraceId": "eb217366-0b86-40bc-857d-63767456c392"
+        },
+        {
+          "attackLabel": "api_flood_burst",
+          "method": "POST",
+          "path": "/api/school-registration?flood=burst-10",
+          "requestHeaders": {
+            "x-forwarded-for": "198.51.100.200",
+            "user-agent": "burst-flood/2"
+          },
+          "requestBody": {
+            "name": "Security Suite School flood-1774962275229-10",
+            "campuses": [
+              {
+                "name": "Main Campus flood-1774962275229-10",
+                "address": "123 Main Campus Road, Kolkata, WB 700001",
+                "campusType": "Main",
+                "contactPerson": "Security Tester",
+                "contactPhone": "+919876543210"
+              }
+            ],
+            "officialEmail": "sec-suite-flood-1774962275229-10@example.org",
+            "contactPersonName": "Security Test User",
+            "contactPhone": "+919876543211",
+            "address": "123 Main School Address, Kolkata, West Bengal 700001",
+            "schoolType": "Private",
+            "board": "CBSE",
+            "boardOther": "",
+            "academicYearStructure": "Semester",
+            "estimatedUsers": "100-500",
+            "websiteURL": "https://sec-suite.example.org",
+            "logo": {
+              "secure_url": "https://example.org/logo.png"
+            },
+            "verificationDocs": [
+              {
+                "secure_url": "https://example.org/doc.pdf"
+              }
+            ]
+          },
+          "status": 429,
+          "responseBody": {
+            "error": "Too many requests, please try again later."
+          },
+          "responseRequestId": "2e87f177-0d10-4bb9-bbc4-8c9d568e8c36",
+          "responseTraceId": "6e511888-bd07-46a6-95ec-f9b06bbf88ea"
+        },
+        {
+          "attackLabel": "api_flood_burst",
+          "method": "POST",
+          "path": "/api/school-registration?flood=burst-11",
+          "requestHeaders": {
+            "x-forwarded-for": "198.51.100.200",
+            "user-agent": "burst-flood/3"
+          },
+          "requestBody": {
+            "name": "Security Suite School flood-1774962275229-11",
+            "campuses": [
+              {
+                "name": "Main Campus flood-1774962275229-11",
+                "address": "123 Main Campus Road, Kolkata, WB 700001",
+                "campusType": "Main",
+                "contactPerson": "Security Tester",
+                "contactPhone": "+919876543210"
+              }
+            ],
+            "officialEmail": "sec-suite-flood-1774962275229-11@example.org",
+            "contactPersonName": "Security Test User",
+            "contactPhone": "+919876543211",
+            "address": "123 Main School Address, Kolkata, West Bengal 700001",
+            "schoolType": "Private",
+            "board": "CBSE",
+            "boardOther": "",
+            "academicYearStructure": "Semester",
+            "estimatedUsers": "100-500",
+            "websiteURL": "https://sec-suite.example.org",
+            "logo": {
+              "secure_url": "https://example.org/logo.png"
+            },
+            "verificationDocs": [
+              {
+                "secure_url": "https://example.org/doc.pdf"
+              }
+            ]
+          },
+          "status": 429,
+          "responseBody": {
+            "error": "Too many requests, please try again later."
+          },
+          "responseRequestId": "d0b963cf-b0f1-4145-8468-2d487d73707b",
+          "responseTraceId": "bf9c477e-c730-47ea-a6aa-8ee5a54088ef"
+        },
+        {
+          "attackLabel": "api_flood_burst",
+          "method": "POST",
+          "path": "/api/school-registration?flood=burst-12",
+          "requestHeaders": {
+            "x-forwarded-for": "198.51.100.200",
+            "user-agent": "burst-flood/0"
+          },
+          "requestBody": {
+            "name": "Security Suite School flood-1774962275229-12",
+            "campuses": [
+              {
+                "name": "Main Campus flood-1774962275229-12",
+                "address": "123 Main Campus Road, Kolkata, WB 700001",
+                "campusType": "Main",
+                "contactPerson": "Security Tester",
+                "contactPhone": "+919876543210"
+              }
+            ],
+            "officialEmail": "sec-suite-flood-1774962275229-12@example.org",
+            "contactPersonName": "Security Test User",
+            "contactPhone": "+919876543211",
+            "address": "123 Main School Address, Kolkata, West Bengal 700001",
+            "schoolType": "Private",
+            "board": "CBSE",
+            "boardOther": "",
+            "academicYearStructure": "Semester",
+            "estimatedUsers": "100-500",
+            "websiteURL": "https://sec-suite.example.org",
+            "logo": {
+              "secure_url": "https://example.org/logo.png"
+            },
+            "verificationDocs": [
+              {
+                "secure_url": "https://example.org/doc.pdf"
+              }
+            ]
+          },
+          "status": 429,
+          "responseBody": {
+            "error": "Too many requests, please try again later."
+          },
+          "responseRequestId": "1a2e145a-db0d-4dbd-8647-62213e540541",
+          "responseTraceId": "a1332189-c70f-4205-a5ec-d1cf5557983e"
+        },
+        {
+          "attackLabel": "api_flood_burst",
+          "method": "POST",
+          "path": "/api/school-registration?flood=burst-13",
+          "requestHeaders": {
+            "x-forwarded-for": "198.51.100.200",
+            "user-agent": "burst-flood/1"
+          },
+          "requestBody": {
+            "name": "Security Suite School flood-1774962275229-13",
+            "campuses": [
+              {
+                "name": "Main Campus flood-1774962275229-13",
+                "address": "123 Main Campus Road, Kolkata, WB 700001",
+                "campusType": "Main",
+                "contactPerson": "Security Tester",
+                "contactPhone": "+919876543210"
+              }
+            ],
+            "officialEmail": "sec-suite-flood-1774962275229-13@example.org",
+            "contactPersonName": "Security Test User",
+            "contactPhone": "+919876543211",
+            "address": "123 Main School Address, Kolkata, West Bengal 700001",
+            "schoolType": "Private",
+            "board": "CBSE",
+            "boardOther": "",
+            "academicYearStructure": "Semester",
+            "estimatedUsers": "100-500",
+            "websiteURL": "https://sec-suite.example.org",
+            "logo": {
+              "secure_url": "https://example.org/logo.png"
+            },
+            "verificationDocs": [
+              {
+                "secure_url": "https://example.org/doc.pdf"
+              }
+            ]
+          },
+          "status": 429,
+          "responseBody": {
+            "error": "Too many requests, please try again later."
+          },
+          "responseRequestId": "9c11de4f-67e1-4ecf-98dc-ae3ef4793ad7",
+          "responseTraceId": "9e9e4457-09cb-49c7-84d3-960356ef3d36"
+        },
+        {
+          "attackLabel": "api_flood_burst",
+          "method": "POST",
+          "path": "/api/school-registration?flood=burst-14",
+          "requestHeaders": {
+            "x-forwarded-for": "198.51.100.200",
+            "user-agent": "burst-flood/2"
+          },
+          "requestBody": {
+            "name": "Security Suite School flood-1774962275229-14",
+            "campuses": [
+              {
+                "name": "Main Campus flood-1774962275229-14",
+                "address": "123 Main Campus Road, Kolkata, WB 700001",
+                "campusType": "Main",
+                "contactPerson": "Security Tester",
+                "contactPhone": "+919876543210"
+              }
+            ],
+            "officialEmail": "sec-suite-flood-1774962275229-14@example.org",
+            "contactPersonName": "Security Test User",
+            "contactPhone": "+919876543211",
+            "address": "123 Main School Address, Kolkata, West Bengal 700001",
+            "schoolType": "Private",
+            "board": "CBSE",
+            "boardOther": "",
+            "academicYearStructure": "Semester",
+            "estimatedUsers": "100-500",
+            "websiteURL": "https://sec-suite.example.org",
+            "logo": {
+              "secure_url": "https://example.org/logo.png"
+            },
+            "verificationDocs": [
+              {
+                "secure_url": "https://example.org/doc.pdf"
+              }
+            ]
+          },
+          "status": 429,
+          "responseBody": {
+            "error": "Too many requests, please try again later."
+          },
+          "responseRequestId": "fadbdac4-f0ce-4c02-8591-74b8b1544320",
+          "responseTraceId": "b1ad7268-f220-4541-ab70-33234ed2d73f"
+        },
+        {
+          "attackLabel": "api_flood_burst",
+          "method": "POST",
+          "path": "/api/school-registration?flood=burst-15",
+          "requestHeaders": {
+            "x-forwarded-for": "198.51.100.200",
+            "user-agent": "burst-flood/3"
+          },
+          "requestBody": {
+            "name": "Security Suite School flood-1774962275229-15",
+            "campuses": [
+              {
+                "name": "Main Campus flood-1774962275229-15",
+                "address": "123 Main Campus Road, Kolkata, WB 700001",
+                "campusType": "Main",
+                "contactPerson": "Security Tester",
+                "contactPhone": "+919876543210"
+              }
+            ],
+            "officialEmail": "sec-suite-flood-1774962275229-15@example.org",
+            "contactPersonName": "Security Test User",
+            "contactPhone": "+919876543211",
+            "address": "123 Main School Address, Kolkata, West Bengal 700001",
+            "schoolType": "Private",
+            "board": "CBSE",
+            "boardOther": "",
+            "academicYearStructure": "Semester",
+            "estimatedUsers": "100-500",
+            "websiteURL": "https://sec-suite.example.org",
+            "logo": {
+              "secure_url": "https://example.org/logo.png"
+            },
+            "verificationDocs": [
+              {
+                "secure_url": "https://example.org/doc.pdf"
+              }
+            ]
+          },
+          "status": 429,
+          "responseBody": {
+            "error": "Too many requests, please try again later."
+          },
+          "responseRequestId": "c665a291-dfc5-47a2-a642-4f042eab2dc2",
+          "responseTraceId": "75040620-79a9-4e2e-b50e-013b96e1aae4"
+        },
+        {
+          "attackLabel": "api_flood_burst",
+          "method": "POST",
+          "path": "/api/school-registration?flood=burst-16",
+          "requestHeaders": {
+            "x-forwarded-for": "198.51.100.200",
+            "user-agent": "burst-flood/0"
+          },
+          "requestBody": {
+            "name": "Security Suite School flood-1774962275229-16",
+            "campuses": [
+              {
+                "name": "Main Campus flood-1774962275229-16",
+                "address": "123 Main Campus Road, Kolkata, WB 700001",
+                "campusType": "Main",
+                "contactPerson": "Security Tester",
+                "contactPhone": "+919876543210"
+              }
+            ],
+            "officialEmail": "sec-suite-flood-1774962275229-16@example.org",
+            "contactPersonName": "Security Test User",
+            "contactPhone": "+919876543211",
+            "address": "123 Main School Address, Kolkata, West Bengal 700001",
+            "schoolType": "Private",
+            "board": "CBSE",
+            "boardOther": "",
+            "academicYearStructure": "Semester",
+            "estimatedUsers": "100-500",
+            "websiteURL": "https://sec-suite.example.org",
+            "logo": {
+              "secure_url": "https://example.org/logo.png"
+            },
+            "verificationDocs": [
+              {
+                "secure_url": "https://example.org/doc.pdf"
+              }
+            ]
+          },
+          "status": 429,
+          "responseBody": {
+            "error": "Too many requests, please try again later."
+          },
+          "responseRequestId": "ce2ea84f-9a01-4280-ba97-d179e31d2613",
+          "responseTraceId": "326a15a2-a7c0-492b-b106-25e6953ff212"
+        },
+        {
+          "attackLabel": "api_flood_burst",
+          "method": "POST",
+          "path": "/api/school-registration?flood=burst-17",
+          "requestHeaders": {
+            "x-forwarded-for": "198.51.100.200",
+            "user-agent": "burst-flood/1"
+          },
+          "requestBody": {
+            "name": "Security Suite School flood-1774962275229-17",
+            "campuses": [
+              {
+                "name": "Main Campus flood-1774962275229-17",
+                "address": "123 Main Campus Road, Kolkata, WB 700001",
+                "campusType": "Main",
+                "contactPerson": "Security Tester",
+                "contactPhone": "+919876543210"
+              }
+            ],
+            "officialEmail": "sec-suite-flood-1774962275229-17@example.org",
+            "contactPersonName": "Security Test User",
+            "contactPhone": "+919876543211",
+            "address": "123 Main School Address, Kolkata, West Bengal 700001",
+            "schoolType": "Private",
+            "board": "CBSE",
+            "boardOther": "",
+            "academicYearStructure": "Semester",
+            "estimatedUsers": "100-500",
+            "websiteURL": "https://sec-suite.example.org",
+            "logo": {
+              "secure_url": "https://example.org/logo.png"
+            },
+            "verificationDocs": [
+              {
+                "secure_url": "https://example.org/doc.pdf"
+              }
+            ]
+          },
+          "status": 429,
+          "responseBody": {
+            "error": "Too many requests, please try again later."
+          },
+          "responseRequestId": "d6b296df-e2a7-4296-9dd1-b995ded9cc1f",
+          "responseTraceId": "9a1e12c7-6d0f-4baf-a53f-6c48381ac6f4"
+        },
+        {
+          "attackLabel": "api_flood_burst",
+          "method": "POST",
+          "path": "/api/school-registration?flood=burst-18",
+          "requestHeaders": {
+            "x-forwarded-for": "198.51.100.200",
+            "user-agent": "burst-flood/2"
+          },
+          "requestBody": {
+            "name": "Security Suite School flood-1774962275229-18",
+            "campuses": [
+              {
+                "name": "Main Campus flood-1774962275229-18",
+                "address": "123 Main Campus Road, Kolkata, WB 700001",
+                "campusType": "Main",
+                "contactPerson": "Security Tester",
+                "contactPhone": "+919876543210"
+              }
+            ],
+            "officialEmail": "sec-suite-flood-1774962275229-18@example.org",
+            "contactPersonName": "Security Test User",
+            "contactPhone": "+919876543211",
+            "address": "123 Main School Address, Kolkata, West Bengal 700001",
+            "schoolType": "Private",
+            "board": "CBSE",
+            "boardOther": "",
+            "academicYearStructure": "Semester",
+            "estimatedUsers": "100-500",
+            "websiteURL": "https://sec-suite.example.org",
+            "logo": {
+              "secure_url": "https://example.org/logo.png"
+            },
+            "verificationDocs": [
+              {
+                "secure_url": "https://example.org/doc.pdf"
+              }
+            ]
+          },
+          "status": 429,
+          "responseBody": {
+            "error": "Too many requests, please try again later."
+          },
+          "responseRequestId": "075d0f54-0df6-4f04-985b-f6e1b908e211",
+          "responseTraceId": "a002ea4e-e391-473c-af9f-abb974c4a275"
+        },
+        {
+          "attackLabel": "api_flood_burst",
+          "method": "POST",
+          "path": "/api/school-registration?flood=burst-19",
+          "requestHeaders": {
+            "x-forwarded-for": "198.51.100.200",
+            "user-agent": "burst-flood/3"
+          },
+          "requestBody": {
+            "name": "Security Suite School flood-1774962275229-19",
+            "campuses": [
+              {
+                "name": "Main Campus flood-1774962275229-19",
+                "address": "123 Main Campus Road, Kolkata, WB 700001",
+                "campusType": "Main",
+                "contactPerson": "Security Tester",
+                "contactPhone": "+919876543210"
+              }
+            ],
+            "officialEmail": "sec-suite-flood-1774962275229-19@example.org",
+            "contactPersonName": "Security Test User",
+            "contactPhone": "+919876543211",
+            "address": "123 Main School Address, Kolkata, West Bengal 700001",
+            "schoolType": "Private",
+            "board": "CBSE",
+            "boardOther": "",
+            "academicYearStructure": "Semester",
+            "estimatedUsers": "100-500",
+            "websiteURL": "https://sec-suite.example.org",
+            "logo": {
+              "secure_url": "https://example.org/logo.png"
+            },
+            "verificationDocs": [
+              {
+                "secure_url": "https://example.org/doc.pdf"
+              }
+            ]
+          },
+          "status": 429,
+          "responseBody": {
+            "error": "Too many requests, please try again later."
+          },
+          "responseRequestId": "883436f3-6870-47a8-9c3b-542305bfc8f8",
+          "responseTraceId": "8f27567d-2b7f-42cf-918e-72f39564c288"
+        },
+        {
+          "attackLabel": "api_flood_burst",
+          "method": "POST",
+          "path": "/api/school-registration?flood=burst-0",
+          "requestHeaders": {
+            "x-forwarded-for": "198.51.100.200",
+            "user-agent": "burst-flood/0"
+          },
+          "requestBody": {
+            "name": "Security Suite School flood-1774962275229-0",
+            "campuses": [
+              {
+                "name": "Main Campus flood-1774962275229-0",
+                "address": "123 Main Campus Road, Kolkata, WB 700001",
+                "campusType": "Main",
+                "contactPerson": "Security Tester",
+                "contactPhone": "+919876543210"
+              }
+            ],
+            "officialEmail": "sec-suite-flood-1774962275229-0@example.org",
+            "contactPersonName": "Security Test User",
+            "contactPhone": "+919876543211",
+            "address": "123 Main School Address, Kolkata, West Bengal 700001",
+            "schoolType": "Private",
+            "board": "CBSE",
+            "boardOther": "",
+            "academicYearStructure": "Semester",
+            "estimatedUsers": "100-500",
+            "websiteURL": "https://sec-suite.example.org",
+            "logo": {
+              "secure_url": "https://example.org/logo.png"
+            },
+            "verificationDocs": [
+              {
+                "secure_url": "https://example.org/doc.pdf"
+              }
+            ]
+          },
+          "status": 201,
+          "responseBody": {
+            "message": "Registration submitted successfully",
+            "school": {
+              "id": "69cbc6674bdec1d0c452ce53",
+              "name": "Security Suite School flood-1774962275229-0",
+              "campusCount": 1,
+              "code": "SEC7593",
+              "registrationStatus": "pending",
+              "submittedAt": "2026-03-31T13:04:39.403Z"
+            }
+          },
+          "responseRequestId": "3e1b9234-9243-4065-b1b1-e641dbe7e8e8",
+          "responseTraceId": "0c7af978-ee27-48b3-a970-c7547bb59b51"
+        },
+        {
+          "attackLabel": "api_flood_burst",
+          "method": "POST",
+          "path": "/api/school-registration?flood=burst-2",
+          "requestHeaders": {
+            "x-forwarded-for": "198.51.100.200",
+            "user-agent": "burst-flood/2"
+          },
+          "requestBody": {
+            "name": "Security Suite School flood-1774962275229-2",
+            "campuses": [
+              {
+                "name": "Main Campus flood-1774962275229-2",
+                "address": "123 Main Campus Road, Kolkata, WB 700001",
+                "campusType": "Main",
+                "contactPerson": "Security Tester",
+                "contactPhone": "+919876543210"
+              }
+            ],
+            "officialEmail": "sec-suite-flood-1774962275229-2@example.org",
+            "contactPersonName": "Security Test User",
+            "contactPhone": "+919876543211",
+            "address": "123 Main School Address, Kolkata, West Bengal 700001",
+            "schoolType": "Private",
+            "board": "CBSE",
+            "boardOther": "",
+            "academicYearStructure": "Semester",
+            "estimatedUsers": "100-500",
+            "websiteURL": "https://sec-suite.example.org",
+            "logo": {
+              "secure_url": "https://example.org/logo.png"
+            },
+            "verificationDocs": [
+              {
+                "secure_url": "https://example.org/doc.pdf"
+              }
+            ]
+          },
+          "status": 201,
+          "responseBody": {
+            "message": "Registration submitted successfully",
+            "school": {
+              "id": "69cbc6674bdec1d0c452ce57",
+              "name": "Security Suite School flood-1774962275229-2",
+              "campusCount": 1,
+              "code": "SEC6157",
+              "registrationStatus": "pending",
+              "submittedAt": "2026-03-31T13:04:39.413Z"
+            }
+          },
+          "responseRequestId": "8dd2e80c-8ef9-4e7a-a058-8a639a9fadc5",
+          "responseTraceId": "c68a0d0d-ec83-4407-9b62-615947db3af4"
+        },
+        {
+          "attackLabel": "api_flood_burst",
+          "method": "POST",
+          "path": "/api/school-registration?flood=burst-1",
+          "requestHeaders": {
+            "x-forwarded-for": "198.51.100.200",
+            "user-agent": "burst-flood/1"
+          },
+          "requestBody": {
+            "name": "Security Suite School flood-1774962275229-1",
+            "campuses": [
+              {
+                "name": "Main Campus flood-1774962275229-1",
+                "address": "123 Main Campus Road, Kolkata, WB 700001",
+                "campusType": "Main",
+                "contactPerson": "Security Tester",
+                "contactPhone": "+919876543210"
+              }
+            ],
+            "officialEmail": "sec-suite-flood-1774962275229-1@example.org",
+            "contactPersonName": "Security Test User",
+            "contactPhone": "+919876543211",
+            "address": "123 Main School Address, Kolkata, West Bengal 700001",
+            "schoolType": "Private",
+            "board": "CBSE",
+            "boardOther": "",
+            "academicYearStructure": "Semester",
+            "estimatedUsers": "100-500",
+            "websiteURL": "https://sec-suite.example.org",
+            "logo": {
+              "secure_url": "https://example.org/logo.png"
+            },
+            "verificationDocs": [
+              {
+                "secure_url": "https://example.org/doc.pdf"
+              }
+            ]
+          },
+          "status": 201,
+          "responseBody": {
+            "message": "Registration submitted successfully",
+            "school": {
+              "id": "69cbc6674bdec1d0c452ce5b",
+              "name": "Security Suite School flood-1774962275229-1",
+              "campusCount": 1,
+              "code": "SEC7543",
+              "registrationStatus": "pending",
+              "submittedAt": "2026-03-31T13:04:39.416Z"
+            }
+          },
+          "responseRequestId": "3156c8b1-2bdb-418c-8f7e-9acc6754dd52",
+          "responseTraceId": "58eff78c-2e7d-4ac7-8346-e2f14b5cff7e"
+        }
+      ],
+      "summary": {
+        "totalCalls": 20,
+        "byStatus": {
+          "201": 3,
+          "429": 17
+        },
+        "missingRequestIdCount": 0,
+        "missingTraceIdCount": 0
+      }
+    },
+    {
+      "name": "rate_limit_bypass_xff_spoofing",
+      "calls": [
+        {
+          "attackLabel": "xff_rate_limit_bypass",
+          "method": "POST",
+          "path": "/api/admin/auth/login?xff-rotate=0",
+          "requestHeaders": {
+            "x-forwarded-for": "10.0.0.0, 198.51.100.100",
+            "user-agent": "xff-spoof-bypass/0"
+          },
+          "requestBody": {
+            "username": "admin",
+            "password": "Spoofed-0"
+          },
+          "status": 429,
+          "responseBody": {
+            "error": "Too many requests, please try again later."
+          },
+          "responseRequestId": "b4bac762-939b-478d-b7b7-7a6f07fc9c2d",
+          "responseTraceId": "bc6530d4-0b7a-489e-9739-17e2b1e1056c"
+        },
+        {
+          "attackLabel": "xff_rate_limit_bypass",
+          "method": "POST",
+          "path": "/api/admin/auth/login?xff-rotate=1",
+          "requestHeaders": {
+            "x-forwarded-for": "10.0.0.1, 198.51.100.101",
+            "user-agent": "xff-spoof-bypass/1"
+          },
+          "requestBody": {
+            "username": "admin",
+            "password": "Spoofed-1"
+          },
+          "status": 429,
+          "responseBody": {
+            "error": "Too many requests, please try again later."
+          },
+          "responseRequestId": "50b61b0b-2513-4e93-8337-94f777879026",
+          "responseTraceId": "8a68e1e6-412e-4f63-931d-9fcd71a7923a"
+        },
+        {
+          "attackLabel": "xff_rate_limit_bypass",
+          "method": "POST",
+          "path": "/api/admin/auth/login?xff-rotate=2",
+          "requestHeaders": {
+            "x-forwarded-for": "10.0.0.2, 198.51.100.102",
+            "user-agent": "xff-spoof-bypass/0"
+          },
+          "requestBody": {
+            "username": "admin",
+            "password": "Spoofed-2"
+          },
+          "status": 429,
+          "responseBody": {
+            "error": "Too many requests, please try again later."
+          },
+          "responseRequestId": "b8e1ef1f-71fb-40fa-be66-c64eddd45ae5",
+          "responseTraceId": "afb1517c-7e1c-4548-87c3-16d264225990"
+        },
+        {
+          "attackLabel": "xff_rate_limit_bypass",
+          "method": "POST",
+          "path": "/api/admin/auth/login?xff-rotate=3",
+          "requestHeaders": {
+            "x-forwarded-for": "10.0.0.3, 198.51.100.103",
+            "user-agent": "xff-spoof-bypass/1"
+          },
+          "requestBody": {
+            "username": "admin",
+            "password": "Spoofed-3"
+          },
+          "status": 429,
+          "responseBody": {
+            "error": "Too many requests, please try again later."
+          },
+          "responseRequestId": "0f3503ff-49eb-4ab6-9ca0-1f2b5d59dd46",
+          "responseTraceId": "b60aa6e2-22b5-4031-b715-3487162f3c04"
+        },
+        {
+          "attackLabel": "xff_rate_limit_bypass",
+          "method": "POST",
+          "path": "/api/admin/auth/login?xff-rotate=4",
+          "requestHeaders": {
+            "x-forwarded-for": "10.0.0.4, 198.51.100.104",
+            "user-agent": "xff-spoof-bypass/0"
+          },
+          "requestBody": {
+            "username": "admin",
+            "password": "Spoofed-4"
+          },
+          "status": 429,
+          "responseBody": {
+            "error": "Too many requests, please try again later."
+          },
+          "responseRequestId": "b4d0ec59-90b9-42c1-9dcc-2596f60892d8",
+          "responseTraceId": "77a216d1-04fb-4cfd-9efa-6c1b7a3aebdf"
+        },
+        {
+          "attackLabel": "xff_rate_limit_bypass",
+          "method": "POST",
+          "path": "/api/admin/auth/login?xff-rotate=5",
+          "requestHeaders": {
+            "x-forwarded-for": "10.0.0.5, 198.51.100.105",
+            "user-agent": "xff-spoof-bypass/1"
+          },
+          "requestBody": {
+            "username": "admin",
+            "password": "Spoofed-5"
+          },
+          "status": 429,
+          "responseBody": {
+            "error": "Too many requests, please try again later."
+          },
+          "responseRequestId": "a2646fef-e11a-4f3b-a415-f1035021a653",
+          "responseTraceId": "7ae37e5e-7851-43aa-ad93-aa836e8f9cdc"
+        },
+        {
+          "attackLabel": "xff_rate_limit_bypass",
+          "method": "POST",
+          "path": "/api/admin/auth/login?xff-rotate=6",
+          "requestHeaders": {
+            "x-forwarded-for": "10.0.0.6, 198.51.100.106",
+            "user-agent": "xff-spoof-bypass/0"
+          },
+          "requestBody": {
+            "username": "admin",
+            "password": "Spoofed-6"
+          },
+          "status": 429,
+          "responseBody": {
+            "error": "Too many requests, please try again later."
+          },
+          "responseRequestId": "1e3b8a24-9c64-4a96-a7e6-35458972c063",
+          "responseTraceId": "d9a6e4b6-090a-4131-ad27-e28724733513"
+        },
+        {
+          "attackLabel": "xff_rate_limit_bypass",
+          "method": "POST",
+          "path": "/api/admin/auth/login?xff-rotate=7",
+          "requestHeaders": {
+            "x-forwarded-for": "10.0.0.7, 198.51.100.107",
+            "user-agent": "xff-spoof-bypass/1"
+          },
+          "requestBody": {
+            "username": "admin",
+            "password": "Spoofed-7"
+          },
+          "status": 429,
+          "responseBody": {
+            "error": "Too many requests, please try again later."
+          },
+          "responseRequestId": "54d237fe-0673-4df7-88ee-9dd2a89cd159",
+          "responseTraceId": "9b5dd6db-d5b9-44f6-aee4-f4ffdcb8402b"
+        },
+        {
+          "attackLabel": "xff_rate_limit_bypass",
+          "method": "POST",
+          "path": "/api/admin/auth/login?xff-rotate=8",
+          "requestHeaders": {
+            "x-forwarded-for": "10.0.0.8, 198.51.100.108",
+            "user-agent": "xff-spoof-bypass/0"
+          },
+          "requestBody": {
+            "username": "admin",
+            "password": "Spoofed-8"
+          },
+          "status": 429,
+          "responseBody": {
+            "error": "Too many requests, please try again later."
+          },
+          "responseRequestId": "9d3f2298-30f2-4ea9-b9b9-6bd195fe7de7",
+          "responseTraceId": "62471043-07d7-4fdf-b33a-94799bd8b5ff"
+        },
+        {
+          "attackLabel": "xff_rate_limit_bypass",
+          "method": "POST",
+          "path": "/api/admin/auth/login?xff-rotate=9",
+          "requestHeaders": {
+            "x-forwarded-for": "10.0.0.9, 198.51.100.109",
+            "user-agent": "xff-spoof-bypass/1"
+          },
+          "requestBody": {
+            "username": "admin",
+            "password": "Spoofed-9"
+          },
+          "status": 429,
+          "responseBody": {
+            "error": "Too many requests, please try again later."
+          },
+          "responseRequestId": "cf81f746-8580-45d7-8977-60b2c78c9707",
+          "responseTraceId": "1297dd64-8450-4d4e-92a9-79a46e23e513"
+        },
+        {
+          "attackLabel": "xff_rate_limit_bypass",
+          "method": "POST",
+          "path": "/api/admin/auth/login?xff-rotate=10",
+          "requestHeaders": {
+            "x-forwarded-for": "10.0.0.10, 198.51.100.110",
+            "user-agent": "xff-spoof-bypass/0"
+          },
+          "requestBody": {
+            "username": "admin",
+            "password": "Spoofed-10"
+          },
+          "status": 429,
+          "responseBody": {
+            "error": "Too many requests, please try again later."
+          },
+          "responseRequestId": "b3634ec8-d4c3-4cd1-b7b2-46b8b9d60f1b",
+          "responseTraceId": "063d8cc4-1a5d-4e32-ba8f-fd221b31ecfd"
+        },
+        {
+          "attackLabel": "xff_rate_limit_bypass",
+          "method": "POST",
+          "path": "/api/admin/auth/login?xff-rotate=11",
+          "requestHeaders": {
+            "x-forwarded-for": "10.0.0.11, 198.51.100.111",
+            "user-agent": "xff-spoof-bypass/1"
+          },
+          "requestBody": {
+            "username": "admin",
+            "password": "Spoofed-11"
+          },
+          "status": 429,
+          "responseBody": {
+            "error": "Too many requests, please try again later."
+          },
+          "responseRequestId": "d7aaa74a-a560-4d59-b44c-ac059fb9a652",
+          "responseTraceId": "50e15a01-5a8b-4de8-9c52-9317260fa29c"
+        }
+      ],
+      "summary": {
+        "totalCalls": 12,
+        "byStatus": {
+          "429": 12
+        },
+        "missingRequestIdCount": 0,
+        "missingTraceIdCount": 0
+      }
+    },
+    {
+      "name": "injection_polymorphic_payloads",
+      "calls": [
+        {
+          "attackLabel": "polymorphic_injection",
+          "method": "POST",
+          "path": "/api/school-registration",
+          "requestHeaders": {
+            "x-forwarded-for": "203.0.113.150",
+            "user-agent": "poly-injector/0"
+          },
+          "requestBody": {
+            "name": "<img src=x onerror=alert(1)>",
+            "campuses": [
+              {
+                "name": "Main Campus xss-1774962275229",
+                "address": "123 Main Campus Road, Kolkata, WB 700001",
+                "campusType": "Main",
+                "contactPerson": "Security Tester",
+                "contactPhone": "+919876543210"
+              }
+            ],
+            "officialEmail": "sec-suite-xss-1774962275229@example.org",
+            "contactPersonName": "Security Test User",
+            "contactPhone": "+919876543211",
+            "address": "123 Main School Address, Kolkata, West Bengal 700001",
+            "schoolType": "Private",
+            "board": "CBSE",
+            "boardOther": "",
+            "academicYearStructure": "Semester",
+            "estimatedUsers": "100-500",
+            "websiteURL": "https://sec-suite.example.org",
+            "logo": {
+              "secure_url": "https://example.org/logo.png"
+            },
+            "verificationDocs": [
+              {
+                "secure_url": "https://example.org/doc.pdf"
+              }
+            ]
+          },
+          "status": 429,
+          "responseBody": {
+            "error": "Too many requests, please try again later."
+          },
+          "responseRequestId": "3c2ed684-f3b1-4174-a8ce-558e23496eca",
+          "responseTraceId": "620703c4-47ea-44f9-ae32-ed1d51f0ebf5"
+        },
+        {
+          "attackLabel": "polymorphic_injection",
+          "method": "POST",
+          "path": "/api/school-registration",
+          "requestHeaders": {
+            "x-forwarded-for": "203.0.113.151",
+            "user-agent": "poly-injector/1"
+          },
+          "requestBody": {
+            "name": "Security Suite School nosql-1774962275229",
+            "campuses": [
+              {
+                "name": "Main Campus nosql-1774962275229",
+                "address": "123 Main Campus Road, Kolkata, WB 700001",
+                "campusType": "Main",
+                "contactPerson": "Security Tester",
+                "contactPhone": "+919876543210"
+              }
+            ],
+            "officialEmail": {
+              "$gt": ""
+            },
+            "contactPersonName": "Security Test User",
+            "contactPhone": "+919876543211",
+            "address": "123 Main School Address, Kolkata, West Bengal 700001",
+            "schoolType": "Private",
+            "board": "CBSE",
+            "boardOther": "",
+            "academicYearStructure": "Semester",
+            "estimatedUsers": "100-500",
+            "websiteURL": "https://sec-suite.example.org",
+            "logo": {
+              "secure_url": "https://example.org/logo.png"
+            },
+            "verificationDocs": [
+              {
+                "secure_url": "https://example.org/doc.pdf"
+              }
+            ]
+          },
+          "status": 429,
+          "responseBody": {
+            "error": "Too many requests, please try again later."
+          },
+          "responseRequestId": "ca82a70d-92f7-45da-a8cd-e18a8db6be74",
+          "responseTraceId": "c75f43b3-ccc6-4147-a642-09297a835de0"
+        },
+        {
+          "attackLabel": "polymorphic_injection",
+          "method": "POST",
+          "path": "/api/school-registration",
+          "requestHeaders": {
+            "x-forwarded-for": "203.0.113.152",
+            "user-agent": "poly-injector/2"
+          },
+          "requestBody": {
+            "name": "Security Suite School sqli-1774962275229",
+            "campuses": [
+              {
+                "name": "Main Campus sqli-1774962275229",
+                "address": "123 Main Campus Road, Kolkata, WB 700001",
+                "campusType": "Main",
+                "contactPerson": "Security Tester",
+                "contactPhone": "+919876543210"
+              }
+            ],
+            "officialEmail": "sec-suite-sqli-1774962275229@example.org",
+            "contactPersonName": "' OR '1'='1",
+            "contactPhone": "+919876543211",
+            "address": "123 Main School Address, Kolkata, West Bengal 700001",
+            "schoolType": "Private",
+            "board": "CBSE",
+            "boardOther": "",
+            "academicYearStructure": "Semester",
+            "estimatedUsers": "100-500",
+            "websiteURL": "https://sec-suite.example.org",
+            "logo": {
+              "secure_url": "https://example.org/logo.png"
+            },
+            "verificationDocs": [
+              {
+                "secure_url": "https://example.org/doc.pdf"
+              }
+            ]
+          },
+          "status": 429,
+          "responseBody": {
+            "error": "Too many requests, please try again later."
+          },
+          "responseRequestId": "9b207f7c-acef-4388-aaaf-31a659d53474",
+          "responseTraceId": "5ec8076f-d051-4c04-a5fc-ba022127dc32"
+        },
+        {
+          "attackLabel": "polymorphic_injection",
+          "method": "POST",
+          "path": "/api/school-registration",
+          "requestHeaders": {
+            "x-forwarded-for": "203.0.113.153",
+            "user-agent": "poly-injector/3"
+          },
+          "requestBody": {
+            "name": "Security Suite School proto-1774962275229",
+            "campuses": [
+              {
+                "name": "Main Campus proto-1774962275229",
+                "address": "123 Main Campus Road, Kolkata, WB 700001",
+                "campusType": "Main",
+                "contactPerson": "Security Tester",
+                "contactPhone": "+919876543210"
+              }
+            ],
+            "officialEmail": "sec-suite-proto-1774962275229@example.org",
+            "contactPersonName": "Security Test User",
+            "contactPhone": "+919876543211",
+            "address": "123 Main School Address, Kolkata, West Bengal 700001",
+            "schoolType": "Private",
+            "board": "CBSE",
+            "boardOther": "",
+            "academicYearStructure": "Semester",
+            "estimatedUsers": "100-500",
+            "websiteURL": "https://sec-suite.example.org",
+            "logo": {
+              "secure_url": "https://example.org/logo.png"
+            },
+            "verificationDocs": [
+              {
+                "secure_url": "https://example.org/doc.pdf"
+              }
+            ]
+          },
+          "status": 429,
+          "responseBody": {
+            "error": "Too many requests, please try again later."
+          },
+          "responseRequestId": "54c48b46-6e55-416d-9029-2d99671b2915",
+          "responseTraceId": "299f39fe-f2a6-4bd4-a4d7-11b0c965dc94"
+        }
+      ],
+      "summary": {
+        "totalCalls": 4,
+        "byStatus": {
+          "429": 4
+        },
+        "missingRequestIdCount": 0,
+        "missingTraceIdCount": 0
+      }
+    },
+    {
+      "name": "malformed_json_without_request_id",
+      "calls": [
+        {
+          "attackLabel": "malformed_json_missing_request_id",
+          "method": "POST",
+          "path": "/api/school-registration",
+          "requestHeaders": {
+            "x-forwarded-for": "203.0.113.200",
+            "user-agent": "malformed-json/0"
+          },
+          "requestBody": "{\"name\":\"broken\",",
+          "status": 400,
+          "responseBody": {
+            "message": "Malformed JSON payload"
+          },
+          "responseRequestId": "9b905053-e300-409a-a366-d111ba15eb53",
+          "responseTraceId": "52ac7608-a75b-4752-b462-191e90959921"
+        },
+        {
+          "attackLabel": "malformed_json_missing_request_id",
+          "method": "POST",
+          "path": "/api/school-registration",
+          "requestHeaders": {
+            "x-forwarded-for": "203.0.113.201",
+            "user-agent": "malformed-json/1"
+          },
+          "requestBody": "{\"name\":\"broken\",",
+          "status": 400,
+          "responseBody": {
+            "message": "Malformed JSON payload"
+          },
+          "responseRequestId": "7f42954f-8957-4c2e-9ebe-a2f11ee05271",
+          "responseTraceId": "b0b44450-f362-4793-82b1-4b595fed748d"
+        },
+        {
+          "attackLabel": "malformed_json_missing_request_id",
+          "method": "POST",
+          "path": "/api/school-registration",
+          "requestHeaders": {
+            "x-forwarded-for": "203.0.113.202",
+            "user-agent": "malformed-json/2"
+          },
+          "requestBody": "{\"name\":\"broken\",",
+          "status": 400,
+          "responseBody": {
+            "message": "Malformed JSON payload"
+          },
+          "responseRequestId": "a4a4eb83-d33c-497d-b202-7267044c0027",
+          "responseTraceId": "f68f8e34-adea-4235-a35b-13b563f85c22"
+        },
+        {
+          "attackLabel": "malformed_json_missing_request_id",
+          "method": "POST",
+          "path": "/api/school-registration",
+          "requestHeaders": {
+            "x-forwarded-for": "203.0.113.203",
+            "user-agent": "malformed-json/3"
+          },
+          "requestBody": "{\"name\":\"broken\",",
+          "status": 400,
+          "responseBody": {
+            "message": "Malformed JSON payload"
+          },
+          "responseRequestId": "950fcd39-aaee-49bf-a38e-a2d16c08dd0c",
+          "responseTraceId": "5e1838f2-d9fd-46b5-b76f-063612da193d"
+        },
+        {
+          "attackLabel": "malformed_json_missing_request_id",
+          "method": "POST",
+          "path": "/api/school-registration",
+          "requestHeaders": {
+            "x-forwarded-for": "203.0.113.204",
+            "user-agent": "malformed-json/4"
+          },
+          "requestBody": "{\"name\":\"broken\",",
+          "status": 400,
+          "responseBody": {
+            "message": "Malformed JSON payload"
+          },
+          "responseRequestId": "6a5eac85-9b4d-4fa0-8e4d-50965489ef1e",
+          "responseTraceId": "c4fcc031-6686-46d8-b837-78874882caa1"
+        },
+        {
+          "attackLabel": "malformed_json_missing_request_id",
+          "method": "POST",
+          "path": "/api/school-registration",
+          "requestHeaders": {
+            "x-forwarded-for": "203.0.113.205",
+            "user-agent": "malformed-json/5"
+          },
+          "requestBody": "{\"name\":\"broken\",",
+          "status": 400,
+          "responseBody": {
+            "message": "Malformed JSON payload"
+          },
+          "responseRequestId": "14ec19fc-ae48-460a-8725-b9613ca6f7fb",
+          "responseTraceId": "aee17d83-5e84-4856-9e45-4e6db88c61c2"
+        }
+      ],
+      "summary": {
+        "totalCalls": 6,
+        "byStatus": {
+          "400": 6
+        },
+        "missingRequestIdCount": 0,
+        "missingTraceIdCount": 0
+      }
+    },
+    {
+      "name": "stealth_distributed_auth_drip",
+      "calls": [
+        {
+          "attackLabel": "stealth_distributed_drip",
+          "method": "POST",
+          "path": "/api/admin/auth/login",
+          "requestHeaders": {
+            "x-forwarded-for": "198.18.0.6",
+            "user-agent": "stealth-distributed/1.0"
+          },
+          "requestBody": {
+            "username": "super-admin",
+            "password": "drip-0"
+          },
+          "status": 429,
+          "responseBody": {
+            "error": "Too many requests, please try again later."
+          },
+          "responseRequestId": "726f5163-8584-4077-b749-708f50bb6d46",
+          "responseTraceId": "e6757595-8474-4493-8577-59e53b536027"
+        },
+        {
+          "attackLabel": "stealth_distributed_drip",
+          "method": "POST",
+          "path": "/api/admin/auth/login",
+          "requestHeaders": {
+            "x-forwarded-for": "198.18.0.3",
+            "user-agent": "stealth-distributed/1.0"
+          },
+          "requestBody": {
+            "username": "super-admin",
+            "password": "drip-1"
+          },
+          "status": 429,
+          "responseBody": {
+            "error": "Too many requests, please try again later."
+          },
+          "responseRequestId": "45f85263-9d17-4f0a-996f-f11d8292a46f",
+          "responseTraceId": "5943b17a-1a7a-4286-875f-9187893b42d7"
+        },
+        {
+          "attackLabel": "stealth_distributed_drip",
+          "method": "POST",
+          "path": "/api/admin/auth/login",
+          "requestHeaders": {
+            "x-forwarded-for": "198.18.0.2",
+            "user-agent": "stealth-distributed/1.0"
+          },
+          "requestBody": {
+            "username": "super-admin",
+            "password": "drip-2"
+          },
+          "status": 429,
+          "responseBody": {
+            "error": "Too many requests, please try again later."
+          },
+          "responseRequestId": "22b02ed6-3ac0-45b6-bbef-96c11045ca6c",
+          "responseTraceId": "cb352709-fb6a-4d74-a377-7e96bef18e11"
+        },
+        {
+          "attackLabel": "stealth_distributed_drip",
+          "method": "POST",
+          "path": "/api/admin/auth/login",
+          "requestHeaders": {
+            "x-forwarded-for": "198.18.0.2",
+            "user-agent": "stealth-distributed/1.0"
+          },
+          "requestBody": {
+            "username": "super-admin",
+            "password": "drip-3"
+          },
+          "status": 429,
+          "responseBody": {
+            "error": "Too many requests, please try again later."
+          },
+          "responseRequestId": "7cdfc65d-0979-4bfc-9a32-b27de141c20d",
+          "responseTraceId": "f4120a21-7ec3-4ef5-bee1-b5da14d7c048"
+        },
+        {
+          "attackLabel": "stealth_distributed_drip",
+          "method": "POST",
+          "path": "/api/admin/auth/login",
+          "requestHeaders": {
+            "x-forwarded-for": "198.18.0.3",
+            "user-agent": "stealth-distributed/1.0"
+          },
+          "requestBody": {
+            "username": "super-admin",
+            "password": "drip-4"
+          },
+          "status": 429,
+          "responseBody": {
+            "error": "Too many requests, please try again later."
+          },
+          "responseRequestId": "fbabc679-66ee-4e49-a529-263a5512c238",
+          "responseTraceId": "d145e045-4d7e-4a2b-9aa7-f7e5fd0a303b"
+        },
+        {
+          "attackLabel": "stealth_distributed_drip",
+          "method": "POST",
+          "path": "/api/admin/auth/login",
+          "requestHeaders": {
+            "x-forwarded-for": "198.18.0.3",
+            "user-agent": "stealth-distributed/1.0"
+          },
+          "requestBody": {
+            "username": "super-admin",
+            "password": "drip-5"
+          },
+          "status": 429,
+          "responseBody": {
+            "error": "Too many requests, please try again later."
+          },
+          "responseRequestId": "3c4829c0-0c99-4d21-9fbc-2d986bbade02",
+          "responseTraceId": "db66e41b-ca91-4c3b-b456-d9b6321f2d7b"
+        },
+        {
+          "attackLabel": "stealth_distributed_drip",
+          "method": "POST",
+          "path": "/api/admin/auth/login",
+          "requestHeaders": {
+            "x-forwarded-for": "198.18.0.2",
+            "user-agent": "stealth-distributed/1.0"
+          },
+          "requestBody": {
+            "username": "super-admin",
+            "password": "drip-6"
+          },
+          "status": 429,
+          "responseBody": {
+            "error": "Too many requests, please try again later."
+          },
+          "responseRequestId": "df2ea2c3-de9b-4f19-9ac7-5eeb71c52528",
+          "responseTraceId": "f6f0cea8-909b-4845-87a1-569d711426a4"
+        },
+        {
+          "attackLabel": "stealth_distributed_drip",
+          "method": "POST",
+          "path": "/api/admin/auth/login",
+          "requestHeaders": {
+            "x-forwarded-for": "198.18.0.5",
+            "user-agent": "stealth-distributed/1.0"
+          },
+          "requestBody": {
+            "username": "super-admin",
+            "password": "drip-7"
+          },
+          "status": 429,
+          "responseBody": {
+            "error": "Too many requests, please try again later."
+          },
+          "responseRequestId": "d3b44889-cab9-41ec-8082-94d16bd23f9e",
+          "responseTraceId": "afbe58a1-bc8d-4db2-b069-4964e6f0907e"
+        },
+        {
+          "attackLabel": "stealth_distributed_drip",
+          "method": "POST",
+          "path": "/api/admin/auth/login",
+          "requestHeaders": {
+            "x-forwarded-for": "198.18.0.6",
+            "user-agent": "stealth-distributed/1.0"
+          },
+          "requestBody": {
+            "username": "super-admin",
+            "password": "drip-8"
+          },
+          "status": 429,
+          "responseBody": {
+            "error": "Too many requests, please try again later."
+          },
+          "responseRequestId": "b8c5be0a-9980-4b63-b594-6a597e9bf149",
+          "responseTraceId": "a74862dc-8976-4172-9be5-b3d5afebb38e"
+        },
+        {
+          "attackLabel": "stealth_distributed_drip",
+          "method": "POST",
+          "path": "/api/admin/auth/login",
+          "requestHeaders": {
+            "x-forwarded-for": "198.18.0.2",
+            "user-agent": "stealth-distributed/1.0"
+          },
+          "requestBody": {
+            "username": "super-admin",
+            "password": "drip-9"
+          },
+          "status": 429,
+          "responseBody": {
+            "error": "Too many requests, please try again later."
+          },
+          "responseRequestId": "9992bc70-1694-44dc-8795-847f41649911",
+          "responseTraceId": "abb43bc3-0024-4566-b4b0-421c087c6336"
+        },
+        {
+          "attackLabel": "stealth_distributed_drip",
+          "method": "POST",
+          "path": "/api/admin/auth/login",
+          "requestHeaders": {
+            "x-forwarded-for": "198.18.0.1",
+            "user-agent": "stealth-distributed/1.0"
+          },
+          "requestBody": {
+            "username": "super-admin",
+            "password": "drip-10"
+          },
+          "status": 429,
+          "responseBody": {
+            "error": "Too many requests, please try again later."
+          },
+          "responseRequestId": "df1043a8-47cc-43b3-a932-2d3cca52e3c6",
+          "responseTraceId": "05f43677-f67b-4f65-aa08-84fa988d29f1"
+        },
+        {
+          "attackLabel": "stealth_distributed_drip",
+          "method": "POST",
+          "path": "/api/admin/auth/login",
+          "requestHeaders": {
+            "x-forwarded-for": "198.18.0.2",
+            "user-agent": "stealth-distributed/1.0"
+          },
+          "requestBody": {
+            "username": "super-admin",
+            "password": "drip-11"
+          },
+          "status": 429,
+          "responseBody": {
+            "error": "Too many requests, please try again later."
+          },
+          "responseRequestId": "fc11122f-5725-4857-b664-7b86621368d5",
+          "responseTraceId": "0849f4e9-4e57-44fa-b2c3-b49cca069e95"
+        },
+        {
+          "attackLabel": "stealth_distributed_drip",
+          "method": "POST",
+          "path": "/api/admin/auth/login",
+          "requestHeaders": {
+            "x-forwarded-for": "198.18.0.3",
+            "user-agent": "stealth-distributed/1.0"
+          },
+          "requestBody": {
+            "username": "super-admin",
+            "password": "drip-12"
+          },
+          "status": 429,
+          "responseBody": {
+            "error": "Too many requests, please try again later."
+          },
+          "responseRequestId": "974a633c-542b-44ef-93f4-c84731c7cc18",
+          "responseTraceId": "f515230e-e166-470d-ad0e-9b0509c649a4"
+        },
+        {
+          "attackLabel": "stealth_distributed_drip",
+          "method": "POST",
+          "path": "/api/admin/auth/login",
+          "requestHeaders": {
+            "x-forwarded-for": "198.18.0.5",
+            "user-agent": "stealth-distributed/1.0"
+          },
+          "requestBody": {
+            "username": "super-admin",
+            "password": "drip-13"
+          },
+          "status": 429,
+          "responseBody": {
+            "error": "Too many requests, please try again later."
+          },
+          "responseRequestId": "cd2219ec-dbe9-4447-877a-26af7f510ef8",
+          "responseTraceId": "329685db-6d42-4ad3-a910-426aaf6f4e33"
+        },
+        {
+          "attackLabel": "stealth_distributed_drip",
+          "method": "POST",
+          "path": "/api/admin/auth/login",
+          "requestHeaders": {
+            "x-forwarded-for": "198.18.0.6",
+            "user-agent": "stealth-distributed/1.0"
+          },
+          "requestBody": {
+            "username": "super-admin",
+            "password": "drip-14"
+          },
+          "status": 429,
+          "responseBody": {
+            "error": "Too many requests, please try again later."
+          },
+          "responseRequestId": "ef869bff-45a6-4a7d-a7d4-aa3fd0635444",
+          "responseTraceId": "51069607-f467-4491-85fd-89f437ec017b"
+        },
+        {
+          "attackLabel": "stealth_distributed_drip",
+          "method": "POST",
+          "path": "/api/admin/auth/login",
+          "requestHeaders": {
+            "x-forwarded-for": "198.18.0.3",
+            "user-agent": "stealth-distributed/1.0"
+          },
+          "requestBody": {
+            "username": "super-admin",
+            "password": "drip-15"
+          },
+          "status": 429,
+          "responseBody": {
+            "error": "Too many requests, please try again later."
+          },
+          "responseRequestId": "9652a83d-011e-4d86-ae9c-c9f98416716d",
+          "responseTraceId": "baad68f2-0825-43e5-bd3e-1ef34fe9d1a0"
+        },
+        {
+          "attackLabel": "stealth_distributed_drip",
+          "method": "POST",
+          "path": "/api/admin/auth/login",
+          "requestHeaders": {
+            "x-forwarded-for": "198.18.0.2",
+            "user-agent": "stealth-distributed/1.0"
+          },
+          "requestBody": {
+            "username": "super-admin",
+            "password": "drip-16"
+          },
+          "status": 429,
+          "responseBody": {
+            "error": "Too many requests, please try again later."
+          },
+          "responseRequestId": "1b6a84ae-218f-4b3d-a629-e7428af2adde",
+          "responseTraceId": "ef71ecd1-43ca-4cd4-b33e-aa9f9730bb3b"
+        },
+        {
+          "attackLabel": "stealth_distributed_drip",
+          "method": "POST",
+          "path": "/api/admin/auth/login",
+          "requestHeaders": {
+            "x-forwarded-for": "198.18.0.5",
+            "user-agent": "stealth-distributed/1.0"
+          },
+          "requestBody": {
+            "username": "super-admin",
+            "password": "drip-17"
+          },
+          "status": 429,
+          "responseBody": {
+            "error": "Too many requests, please try again later."
+          },
+          "responseRequestId": "93fbd9a0-830b-49bd-a232-017c8440b8bc",
+          "responseTraceId": "f23ad2ed-3d97-47f7-81ee-f7baa4764843"
+        }
+      ],
+      "summary": {
+        "totalCalls": 18,
+        "byStatus": {
+          "429": 18
+        },
+        "missingRequestIdCount": 0,
+        "missingTraceIdCount": 0
+      }
+    }
+  ],
+  "aggregate": {
+    "totalCalls": 78,
+    "byStatus": {
+      "201": 3,
+      "400": 6,
+      "401": 13,
+      "429": 56
+    },
+    "missingRequestIdCount": 0,
+    "missingTraceIdCount": 0
+  },
+  "correlation": {
+    "requestIds": [
+      "f3bd9167-4753-4710-ada5-e891c6d69394",
+      "2af3b1e5-c60b-4503-adde-07851349f17d",
+      "7cc8f934-16e1-4d5d-a2de-7bdae99ce1ae",
+      "2c1e3361-bdcb-4ad8-8033-50be566a01fd",
+      "431e833c-7f82-43ab-aca9-ab327cc3a511",
+      "0b60ce19-510c-49aa-9c8d-f7c3d92e8794",
+      "d219d9aa-103f-4f6c-8e48-3ae9c2fd614c",
+      "681fe167-92f3-4839-b00a-52db8023ad9c",
+      "4c46e1da-0c4d-43d9-96df-622def091aea",
+      "e05e7857-b8a0-4e0a-b071-c68db3475c2a",
+      "06ecc1dd-dfd5-4667-bb63-3b6f5eede1bc",
+      "49b29166-8a4d-4c83-bc13-3145c29a451b",
+      "5de6bfcb-2dc0-4d94-81ed-cd40227772b3",
+      "ec89bad1-6487-4539-861e-6c4a8db7299f",
+      "b2d793b5-1904-40c2-80b1-6e0963349119",
+      "dc3c0f27-413c-425a-bb4a-647b16b04185",
+      "cce422ab-9371-4dbf-8413-06660e1be614",
+      "fca006af-35f8-468f-a793-82891c6dd0a6",
+      "523bd7a1-02f9-4af3-a647-d57bea2f56d0",
+      "759361c2-ee08-4035-81e5-1da48742e39a",
+      "0a5754c4-7421-45b4-b5b6-90e58cbbbb99",
+      "36e36874-aa56-42e0-89cc-875a64ef6caa",
+      "e1375ce1-bc7b-4b08-8ab3-738cfebd5ac3",
+      "4725cc68-7abe-46ee-a163-b65386df3080",
+      "d30baa86-471b-4a5b-9c8f-3fb1b37e3106",
+      "2e87f177-0d10-4bb9-bbc4-8c9d568e8c36",
+      "d0b963cf-b0f1-4145-8468-2d487d73707b",
+      "1a2e145a-db0d-4dbd-8647-62213e540541",
+      "9c11de4f-67e1-4ecf-98dc-ae3ef4793ad7",
+      "fadbdac4-f0ce-4c02-8591-74b8b1544320",
+      "c665a291-dfc5-47a2-a642-4f042eab2dc2",
+      "ce2ea84f-9a01-4280-ba97-d179e31d2613",
+      "d6b296df-e2a7-4296-9dd1-b995ded9cc1f",
+      "075d0f54-0df6-4f04-985b-f6e1b908e211",
+      "883436f3-6870-47a8-9c3b-542305bfc8f8",
+      "3e1b9234-9243-4065-b1b1-e641dbe7e8e8",
+      "8dd2e80c-8ef9-4e7a-a058-8a639a9fadc5",
+      "3156c8b1-2bdb-418c-8f7e-9acc6754dd52",
+      "b4bac762-939b-478d-b7b7-7a6f07fc9c2d",
+      "50b61b0b-2513-4e93-8337-94f777879026",
+      "b8e1ef1f-71fb-40fa-be66-c64eddd45ae5",
+      "0f3503ff-49eb-4ab6-9ca0-1f2b5d59dd46",
+      "b4d0ec59-90b9-42c1-9dcc-2596f60892d8",
+      "a2646fef-e11a-4f3b-a415-f1035021a653",
+      "1e3b8a24-9c64-4a96-a7e6-35458972c063",
+      "54d237fe-0673-4df7-88ee-9dd2a89cd159",
+      "9d3f2298-30f2-4ea9-b9b9-6bd195fe7de7",
+      "cf81f746-8580-45d7-8977-60b2c78c9707",
+      "b3634ec8-d4c3-4cd1-b7b2-46b8b9d60f1b",
+      "d7aaa74a-a560-4d59-b44c-ac059fb9a652",
+      "3c2ed684-f3b1-4174-a8ce-558e23496eca",
+      "ca82a70d-92f7-45da-a8cd-e18a8db6be74",
+      "9b207f7c-acef-4388-aaaf-31a659d53474",
+      "54c48b46-6e55-416d-9029-2d99671b2915",
+      "9b905053-e300-409a-a366-d111ba15eb53",
+      "7f42954f-8957-4c2e-9ebe-a2f11ee05271",
+      "a4a4eb83-d33c-497d-b202-7267044c0027",
+      "950fcd39-aaee-49bf-a38e-a2d16c08dd0c",
+      "6a5eac85-9b4d-4fa0-8e4d-50965489ef1e",
+      "14ec19fc-ae48-460a-8725-b9613ca6f7fb",
+      "726f5163-8584-4077-b749-708f50bb6d46",
+      "45f85263-9d17-4f0a-996f-f11d8292a46f",
+      "22b02ed6-3ac0-45b6-bbef-96c11045ca6c",
+      "7cdfc65d-0979-4bfc-9a32-b27de141c20d",
+      "fbabc679-66ee-4e49-a529-263a5512c238",
+      "3c4829c0-0c99-4d21-9fbc-2d986bbade02",
+      "df2ea2c3-de9b-4f19-9ac7-5eeb71c52528",
+      "d3b44889-cab9-41ec-8082-94d16bd23f9e",
+      "b8c5be0a-9980-4b63-b594-6a597e9bf149",
+      "9992bc70-1694-44dc-8795-847f41649911",
+      "df1043a8-47cc-43b3-a932-2d3cca52e3c6",
+      "fc11122f-5725-4857-b664-7b86621368d5",
+      "974a633c-542b-44ef-93f4-c84731c7cc18",
+      "cd2219ec-dbe9-4447-877a-26af7f510ef8",
+      "ef869bff-45a6-4a7d-a7d4-aa3fd0635444",
+      "9652a83d-011e-4d86-ae9c-c9f98416716d",
+      "1b6a84ae-218f-4b3d-a629-e7428af2adde",
+      "93fbd9a0-830b-49bd-a232-017c8440b8bc"
+    ],
+    "traceIds": [
+      "270e4084-9550-425c-9b03-bf9cc95d2974",
+      "fa992645-0541-46cf-95bf-4ebca4a2f380",
+      "aca057d5-aced-4f10-93db-a8a62a3576a7",
+      "c25b2b51-acda-4953-b92e-efb5e85d2c8f",
+      "c3af98ea-35b0-42d4-82ca-a3676cc5da3a",
+      "e3ecddb3-ae82-4de6-91f3-e065d4b50193",
+      "cbd27806-ee04-47a3-a7d3-aff18e030e3b",
+      "5ec19998-dd93-4885-bb1e-a9f6302c10d8",
+      "d58bfcca-146b-4afa-a62f-b35dfe021ece",
+      "36f77758-a4d8-45d2-98d1-8b357cf79b09",
+      "e7471e02-0da0-42cb-9a07-f5c3b904a3e0",
+      "e6847292-ba66-4aa8-9dd9-4d8d5d65c838",
+      "62c9f1a9-2562-47e2-a07e-08a30f251086",
+      "78b4622a-6dbb-4f39-9751-d9094a5f31d1",
+      "96cda825-dbde-4c4b-b8ea-9a8910ed9e94",
+      "ab9058b8-6a9f-4db8-ba96-34a29c020b36",
+      "bba1064b-8489-4621-ab45-28325cb38e78",
+      "8106653a-2696-4e40-9b55-e47ebd96f2bd",
+      "421b9b65-054c-4a00-96e0-a2751958f2bc",
+      "e4787b89-52fc-45bc-9fe2-886b4a415888",
+      "cb201c29-6422-439a-83af-b5bda7a197ff",
+      "4d37e78b-528f-41a8-a8a4-f2018b3e031c",
+      "978287ea-e1f7-4d50-9f4a-79386dc65567",
+      "3aa255df-06ca-4580-8d89-877d33500b2a",
+      "eb217366-0b86-40bc-857d-63767456c392",
+      "6e511888-bd07-46a6-95ec-f9b06bbf88ea",
+      "bf9c477e-c730-47ea-a6aa-8ee5a54088ef",
+      "a1332189-c70f-4205-a5ec-d1cf5557983e",
+      "9e9e4457-09cb-49c7-84d3-960356ef3d36",
+      "b1ad7268-f220-4541-ab70-33234ed2d73f",
+      "75040620-79a9-4e2e-b50e-013b96e1aae4",
+      "326a15a2-a7c0-492b-b106-25e6953ff212",
+      "9a1e12c7-6d0f-4baf-a53f-6c48381ac6f4",
+      "a002ea4e-e391-473c-af9f-abb974c4a275",
+      "8f27567d-2b7f-42cf-918e-72f39564c288",
+      "0c7af978-ee27-48b3-a970-c7547bb59b51",
+      "c68a0d0d-ec83-4407-9b62-615947db3af4",
+      "58eff78c-2e7d-4ac7-8346-e2f14b5cff7e",
+      "bc6530d4-0b7a-489e-9739-17e2b1e1056c",
+      "8a68e1e6-412e-4f63-931d-9fcd71a7923a",
+      "afb1517c-7e1c-4548-87c3-16d264225990",
+      "b60aa6e2-22b5-4031-b715-3487162f3c04",
+      "77a216d1-04fb-4cfd-9efa-6c1b7a3aebdf",
+      "7ae37e5e-7851-43aa-ad93-aa836e8f9cdc",
+      "d9a6e4b6-090a-4131-ad27-e28724733513",
+      "9b5dd6db-d5b9-44f6-aee4-f4ffdcb8402b",
+      "62471043-07d7-4fdf-b33a-94799bd8b5ff",
+      "1297dd64-8450-4d4e-92a9-79a46e23e513",
+      "063d8cc4-1a5d-4e32-ba8f-fd221b31ecfd",
+      "50e15a01-5a8b-4de8-9c52-9317260fa29c",
+      "620703c4-47ea-44f9-ae32-ed1d51f0ebf5",
+      "c75f43b3-ccc6-4147-a642-09297a835de0",
+      "5ec8076f-d051-4c04-a5fc-ba022127dc32",
+      "299f39fe-f2a6-4bd4-a4d7-11b0c965dc94",
+      "52ac7608-a75b-4752-b462-191e90959921",
+      "b0b44450-f362-4793-82b1-4b595fed748d",
+      "f68f8e34-adea-4235-a35b-13b563f85c22",
+      "5e1838f2-d9fd-46b5-b76f-063612da193d",
+      "c4fcc031-6686-46d8-b837-78874882caa1",
+      "aee17d83-5e84-4856-9e45-4e6db88c61c2",
+      "e6757595-8474-4493-8577-59e53b536027",
+      "5943b17a-1a7a-4286-875f-9187893b42d7",
+      "cb352709-fb6a-4d74-a377-7e96bef18e11",
+      "f4120a21-7ec3-4ef5-bee1-b5da14d7c048",
+      "d145e045-4d7e-4a2b-9aa7-f7e5fd0a303b",
+      "db66e41b-ca91-4c3b-b456-d9b6321f2d7b",
+      "f6f0cea8-909b-4845-87a1-569d711426a4",
+      "afbe58a1-bc8d-4db2-b069-4964e6f0907e",
+      "a74862dc-8976-4172-9be5-b3d5afebb38e",
+      "abb43bc3-0024-4566-b4b0-421c087c6336",
+      "05f43677-f67b-4f65-aa08-84fa988d29f1",
+      "0849f4e9-4e57-44fa-b2c3-b49cca069e95",
+      "f515230e-e166-470d-ad0e-9b0509c649a4",
+      "329685db-6d42-4ad3-a910-426aaf6f4e33",
+      "51069607-f467-4491-85fd-89f437ec017b",
+      "baad68f2-0825-43e5-bd3e-1ef34fe9d1a0",
+      "ef71ecd1-43ca-4cd4-b33e-aa9f9730bb3b",
+      "f23ad2ed-3d97-47f7-81ee-f7baa4764843"
+    ],
+    "missingRequestIdCount": 0,
+    "missingTraceIdCount": 0
+  }
+}

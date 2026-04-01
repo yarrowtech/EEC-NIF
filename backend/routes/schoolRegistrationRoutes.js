@@ -5,6 +5,7 @@ const rateLimit = require('../middleware/rateLimit');
 const { sendWebhook, WEBHOOK_EVENTS } = require('../utils/webhookSender');
 const { logger } = require('../utils/logger');
 const { logSecurityEvent } = require('../utils/securityEventLogger');
+const { getRequestNetworkContext } = require('../utils/request');
 
 const router = express.Router();
 
@@ -37,14 +38,6 @@ const asString = (value) => {
   return String(value);
 };
 
-const getClientIp = (req) => {
-  const forwarded = req?.headers?.['x-forwarded-for'];
-  if (typeof forwarded === 'string' && forwarded.trim()) {
-    return forwarded.split(',')[0].trim();
-  }
-  return req?.ip || req?.socket?.remoteAddress || undefined;
-};
-
 const maskEmail = (email) => {
   const normalized = String(email || '').trim().toLowerCase();
   if (!normalized || !normalized.includes('@')) return undefined;
@@ -68,6 +61,7 @@ const logSchoolRegistrationEvent = (req, payload = {}) => {
     level,
     ...extra
   } = payload;
+  const net = getRequestNetworkContext(req);
 
   logger.log({
     level: level || (outcome === 'failure' ? 'warn' : 'info'),
@@ -82,7 +76,11 @@ const logSchoolRegistrationEvent = (req, payload = {}) => {
     traceId: req?.traceId || undefined,
     method: req?.method,
     path: req?.originalUrl,
-    ip: getClientIp(req),
+    ip: net.clientIp,
+    remoteIp: net.remoteIp,
+    ipSource: net.source,
+    forwardedForChain: net.forwardedChain,
+    forwardedForCount: net.forwardedCount,
     ...extra,
   });
 };

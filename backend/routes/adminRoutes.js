@@ -10,9 +10,21 @@ const rateLimit = require('../middleware/rateLimit');
 const { isStrongPassword, passwordPolicyMessage } = require('../utils/passwordPolicy');
 const { sendSchoolApprovalEmail } = require('../utils/mailer');
 const { logAuthEvent } = require('../utils/authEventLogger');
+const { logSecurityEvent } = require('../utils/securityEventLogger');
+const { logBusinessEvent } = require('../utils/businessEventLogger');
 
 const ensureSuperAdmin = (req, res, next) => {
   if (!req.isSuperAdmin) {
+    logSecurityEvent(req, {
+      action: 'security.rbac_violation',
+      outcome: 'blocked',
+      severity: 'high',
+      attack_type: 'rbac_violation',
+      riskScore: 82,
+      reason: 'Super admin role required for admin-auth route',
+      statusCode: 403,
+      requiredRole: 'super_admin',
+    });
     return res.status(403).json({ error: 'Super admin access required' });
   }
   return next();
@@ -305,8 +317,25 @@ router.post("/profile", adminAuth, async (req, res) => {
       if (!student) {
         return res.status(404).json({ error: 'Student not found' });
       }
+      logBusinessEvent(req, {
+        action: 'admin_profile.fetch',
+        outcome: 'success',
+        entity: 'admin',
+        entityId: student._id,
+        statusCode: 200,
+        adminId: req.admin?.id || req.admin?._id,
+        role: student.role,
+      });
       res.json(student);
     } catch (err) {
+      logBusinessEvent(req, {
+        action: 'admin_profile.fetch',
+        outcome: 'failure',
+        entity: 'admin',
+        entityId: req.admin?.id || req.admin?._id,
+        statusCode: 500,
+        reason: err.message,
+      });
       res.status(500).json({ error: 'Server error' });
     }
 })

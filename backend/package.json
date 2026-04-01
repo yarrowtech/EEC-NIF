@@ -7,6 +7,7 @@
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",
     "swagger:gen": "node swagger.js",
+    "security:suite": "node scripts/productionSecurityAttackSuite.js",
     "start": "node index.js",
     "dev": "nodemon index.js"
   },

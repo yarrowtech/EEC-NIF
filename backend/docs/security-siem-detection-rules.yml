@@ -1,0 +1,134 @@
+version: 1
+title: EEC Backend Security Detection Pack
+log_source:
+  app: backend
+  logger: pino
+required_fields:
+  - event
+  - action
+  - outcome
+  - requestId
+  - traceId
+  - ip
+  - userAgent
+rules:
+  - id: eec-sec-001
+    name: Distributed Brute Force Login
+    severity: high
+    detect:
+      event: auth_event
+      action: login
+      outcome: failure
+    aggregate:
+      group_by:
+        - identifier
+      distinct_count:
+        field: ip
+        gte: 5
+      count_gte: 12
+      window: 10m
+    response:
+      - notify_soc
+      - create_incident
+
+  - id: eec-sec-002
+    name: Token Replay Suspected
+    severity: critical
+    detect:
+      event: security_event
+      action: security.token_replay_suspected
+      outcome: observed
+    aggregate:
+      group_by:
+        - tokenHash
+      count_gte: 2
+      window: 5m
+    response:
+      - notify_soc
+      - invalidate_active_sessions
+
+  - id: eec-sec-003
+    name: Rate Limit Trigger Flood
+    severity: medium
+    detect:
+      event: security_event
+      action: security.rate_limit_triggered
+      outcome: blocked
+    aggregate:
+      group_by:
+        - ip
+        - path
+      count_gte: 10
+      window: 5m
+    response:
+      - notify_soc
+
+  - id: eec-sec-004
+    name: XFF Spoofing and Header Manipulation
+    severity: high
+    detect:
+      event: security_event
+      action: security.header_forwarding_suspicious
+    aggregate:
+      group_by:
+        - ip
+      count_gte: 3
+      window: 10m
+    enrich:
+      require_any_user_agent_keywords:
+        - scanner
+        - sqlmap
+        - bot
+    response:
+      - notify_soc
+      - add_waf_challenge
+
+  - id: eec-sec-005
+    name: Malformed JSON Probe
+    severity: medium
+    detect:
+      event: security_event
+      action: security.malformed_json_payload
+      outcome: blocked
+    aggregate:
+      group_by:
+        - ip
+      count_gte: 5
+      window: 5m
+    response:
+      - notify_soc
+
+  - id: eec-sec-006
+    name: Injection Payload Blocking
+    severity: high
+    detect:
+      event: security_event
+      action: security.injection_payload_blocked
+      outcome: blocked
+    aggregate:
+      group_by:
+        - ip
+      count_gte: 3
+      window: 5m
+    response:
+      - notify_soc
+      - add_waf_block
+
+  - id: eec-sec-007
+    name: Stealth Distributed Auth Drip
+    severity: high
+    detect:
+      event: auth_event
+      action: login
+      outcome: failure
+    aggregate:
+      group_by:
+        - path
+      distinct_count:
+        field: ip
+        gte: 20
+      count_gte: 40
+      window: 20m
+    response:
+      - notify_soc
+      - trigger_bot_mitigation

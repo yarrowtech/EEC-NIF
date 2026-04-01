@@ -17,7 +17,7 @@ const isValidPhone = (phone) => {
 };
 
 const isValidEmail = (email) => {
-  return /^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$/.test(email.trim());
+  return /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(email.trim());
 };
 
 const isValidURL = (url) => {
@@ -61,12 +61,12 @@ const Label = ({ children, required, optional }) => (
 );
 
 /* ─── Input wrapper with icon ─── */
-const InputWithIcon = ({ icon: Icon, error, children }) => (
+const InputWithIcon = ({ icon, error, children }) => (
   <div className="relative">
-    <Icon
-      className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none"
-      size={17}
-    />
+    {React.createElement(icon, {
+      className: 'absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none',
+      size: 17,
+    })}
     {React.cloneElement(children, {
       className: `${children.props.className || ''} w-full pl-10 pr-4 py-2.5 border rounded-xl text-sm transition focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-transparent ${
         error
@@ -78,9 +78,12 @@ const InputWithIcon = ({ icon: Icon, error, children }) => (
 );
 
 /* ─── Textarea wrapper with icon ─── */
-const TextareaWithIcon = ({ icon: Icon, error, children }) => (
+const TextareaWithIcon = ({ icon, error, children }) => (
   <div className="relative">
-    <Icon className="absolute left-3 top-3 text-gray-400 pointer-events-none" size={17} />
+    {React.createElement(icon, {
+      className: 'absolute left-3 top-3 text-gray-400 pointer-events-none',
+      size: 17,
+    })}
     {React.cloneElement(children, {
       className: `${children.props.className || ''} w-full pl-10 pr-4 py-2.5 border rounded-xl text-sm transition focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-transparent ${
         error

@@ -2,11 +2,23 @@ const express = require('express');
 const mongoose = require('mongoose');
 const School = require('../models/School');
 const adminAuth = require('../middleware/adminAuth');
+const { logSecurityEvent } = require('../utils/securityEventLogger');
+const { logBusinessEvent } = require('../utils/businessEventLogger');
 
 const router = express.Router();
 
 const ensureSuperAdmin = (req, res, next) => {
   if (!req.isSuperAdmin) {
+    logSecurityEvent(req, {
+      action: 'security.rbac_violation',
+      outcome: 'blocked',
+      severity: 'high',
+      attack_type: 'rbac_violation',
+      riskScore: 82,
+      reason: 'Super admin role required for school route',
+      statusCode: 403,
+      requiredRole: 'super_admin',
+    });
     return res.status(403).json({ error: 'Super admin access required' });
   }
    return next();
@@ -69,8 +81,24 @@ router.get('/registrations/pending', adminAuth, ensureSuperAdmin, async (req, re
     .sort({ submittedAt: -1 })
     .lean();
 
+    logBusinessEvent(req, {
+      action: 'school_registration.pending_fetch',
+      outcome: 'success',
+      entity: 'school_registration',
+      statusCode: 200,
+      resultCount: schools.length,
+      adminId: req.admin?.id || req.admin?._id,
+    });
     res.json(schools);
   } catch (err) {
+    logBusinessEvent(req, {
+      action: 'school_registration.pending_fetch',
+      outcome: 'failure',
+      entity: 'school_registration',
+      statusCode: 500,
+      reason: err.message,
+      adminId: req.admin?.id || req.admin?._id,
+    });
     res.status(500).json({ error: err.message });
   }
 });
@@ -165,12 +193,31 @@ router.put('/registrations/:id/approve', adminAuth, ensureSuperAdmin, async (req
     school.adminNotes = adminNotes || undefined;
 
     await school.save();
+    logBusinessEvent(req, {
+      action: 'school_registration.approve',
+      outcome: 'success',
+      entity: 'school',
+      entityId: school._id,
+      statusCode: 200,
+      schoolId: school._id,
+      adminId: req.admin?.id || req.admin?._id,
+      transition: 'pending_to_approved_active',
+    });
 
     res.json({
       message: 'School registration approved successfully',
       school
     });
   } catch (err) {
+    logBusinessEvent(req, {
+      action: 'school_registration.approve',
+      outcome: 'failure',
+      entity: 'school',
+      entityId: req.params?.id,
+      statusCode: 500,
+      reason: err.message,
+      adminId: req.admin?.id || req.admin?._id,
+    });
     res.status(500).json({ error: err.message });
   }
 });
@@ -208,12 +255,31 @@ router.put('/registrations/:id/reject', adminAuth, ensureSuperAdmin, async (req,
     school.rejectionReason = rejectionReason.trim();
 
     await school.save();
+    logBusinessEvent(req, {
+      action: 'school_registration.reject',
+      outcome: 'success',
+      entity: 'school',
+      entityId: school._id,
+      statusCode: 200,
+      schoolId: school._id,
+      adminId: req.admin?.id || req.admin?._id,
+      transition: 'pending_to_rejected_inactive',
+    });
 
     res.json({
       message: 'School registration rejected',
       school
     });
   } catch (err) {
+    logBusinessEvent(req, {
+      action: 'school_registration.reject',
+      outcome: 'failure',
+      entity: 'school',
+      entityId: req.params?.id,
+      statusCode: 500,
+      reason: err.message,
+      adminId: req.admin?.id || req.admin?._id,
+    });
     res.status(500).json({ error: err.message });
   }
 });

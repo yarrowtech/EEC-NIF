@@ -3,11 +3,23 @@ const mongoose = require('mongoose');
 const adminAuth = require('../middleware/adminAuth');
 const Issue = require('../models/Issue');
 const Admin = require('../models/Admin');
+const { logSecurityEvent } = require('../utils/securityEventLogger');
+const { logBusinessEvent } = require('../utils/businessEventLogger');
 
 const router = express.Router();
 
 const ensureSuperAdmin = (req, res, next) => {
   if (!req.isSuperAdmin) {
+    logSecurityEvent(req, {
+      action: 'security.rbac_violation',
+      outcome: 'blocked',
+      severity: 'high',
+      attack_type: 'rbac_violation',
+      riskScore: 82,
+      reason: 'Super admin role required for issue route',
+      statusCode: 403,
+      requiredRole: 'super_admin',
+    });
     return res.status(403).json({ error: 'Super admin access required' });
   }
   return next();
@@ -51,6 +63,17 @@ router.get('/', adminAuth, ensureSuperAdmin, async (req, res) => {
     }
 
     const results = await query.lean();
+    logBusinessEvent(req, {
+      action: 'issue.fetch',
+      outcome: 'success',
+      entity: 'issue',
+      statusCode: 200,
+      resultCount: results.length,
+      statusFilter: status,
+      severityFilter: severity,
+      schoolIdFilter: schoolId,
+      adminId: req.admin?.id || req.admin?._id,
+    });
     res.json(results.map(sanitizeIssue));
   } catch (err) {
     console.error('Failed to fetch issues', err);
@@ -124,6 +147,7 @@ router.patch('/:id', adminAuth, ensureSuperAdmin, async (req, res) => {
 
     const { status, severity, owner, description, resolutionNotes } = req.body || {};
 
+    const previousStatus = issue.status;
     if (status) {
       issue.status = status;
     }
@@ -152,8 +176,29 @@ router.patch('/:id', adminAuth, ensureSuperAdmin, async (req, res) => {
     }
 
     await issue.save();
+    logBusinessEvent(req, {
+      action: 'issue.update',
+      outcome: 'success',
+      entity: 'issue',
+      entityId: issue._id,
+      statusCode: 200,
+      previousStatus,
+      nextStatus: issue.status,
+      owner: issue.owner,
+      severity: issue.severity,
+      adminId: req.admin?.id || req.admin?._id,
+    });
     res.json(sanitizeIssue(issue));
   } catch (err) {
+    logBusinessEvent(req, {
+      action: 'issue.update',
+      outcome: 'failure',
+      entity: 'issue',
+      entityId: req.params?.id,
+      statusCode: 500,
+      reason: err.message,
+      adminId: req.admin?.id || req.admin?._id,
+    });
     console.error('Failed to update issue', err);
     res.status(500).json({ error: err.message || 'Unable to update issue' });
   }

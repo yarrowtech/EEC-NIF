@@ -12,6 +12,9 @@ const SENSITIVE_KEYS = new Set([
 
 const sanitizeValue = (value, depth = 0) => {
   if (depth > 3) return '[truncated]';
+  if (typeof value === 'string') {
+    return value.length > 500 ? `${value.slice(0, 500)}...[truncated]` : value;
+  }
   if (Array.isArray(value)) {
     return value.slice(0, 20).map((item) => sanitizeValue(item, depth + 1));
   }

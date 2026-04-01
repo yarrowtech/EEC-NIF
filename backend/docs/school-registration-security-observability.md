@@ -7,7 +7,9 @@
 - `action`: threat or business action (`school_registration.submit_attempt`, `security.rate_limit_triggered`)
 - `outcome`: `success`, `failure`, `blocked`, `observed`
 - `severity`: `low`, `medium`, `high`, `critical` (for `security_event`)
-- `ip`, `userAgent`, `method`, `path`, `statusCode`
+- `ip`, `remoteIp`, `ipSource`, `forwardedForChain`, `forwardedForCount`
+- `userAgent`, `method`, `path`, `statusCode`
+- `tokenHash`, `tokenId`, `tokenSubject` for replay telemetry events
 
 ## SIEM Detection Rules
 1. `Distributed Brute Force`
@@ -31,9 +33,14 @@
 - Severity: `medium`
 
 5. `Malformed JSON Probe`
-- Condition: `msg=\"ERR:\"` and `err.type=SyntaxError` and request path under `/api/school-registration`
+- Condition: `event=security_event` and `action=security.malformed_json_payload`
 - Threshold: `>= 5` events per IP in `5m`
 - Severity: `medium`
+
+6. `Token Replay Suspected`
+- Condition: `event=security_event` and `action=security.token_replay_suspected`
+- Threshold: `>= 2` events per `tokenHash` in `5m`
+- Severity: `critical`
 
 ## Alert Conditions (Pager/Slack)
 1. `critical`: `Distributed Brute Force` OR `Registration Payload Injection` triggered.
@@ -52,7 +59,9 @@
 
 ## Hardening Checklist
 1. Keep request/trace IDs generated before body parsing middleware.
-2. Prefer trusted proxy chain parsing at ingress, avoid direct client trust of `x-forwarded-for`.
-3. Keep rate limits keyed by multiple dimensions (`ip`, `path`, optional account fingerprint).
-4. Maintain redaction in logs for credentials and sensitive fields.
-5. Ship logs to SIEM with immutable retention and alert routing.
+2. Set `TRUST_PROXY` to a known proxy depth or CIDR list in production.
+3. Prefer trusted proxy chain parsing at ingress, avoid direct client trust of `x-forwarded-for`.
+4. Keep rate limits keyed by multiple dimensions (`ip`, `path`, optional account fingerprint).
+5. Maintain redaction in logs for credentials and sensitive fields.
+6. Ship logs to SIEM with immutable retention and alert routing.
+7. Run attack regression with `npm run security:suite` after auth/rate-limit changes.

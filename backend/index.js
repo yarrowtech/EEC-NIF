@@ -17,7 +17,9 @@ try {
   swaggerUi = null;
 }
 const requestLogger = require('./middleware/requestLogger');
+const tokenReplayTelemetry = require('./middleware/tokenReplayTelemetry');
 const adminActionLogger = require('./middleware/adminActionLogger');
+const { logSecurityEvent } = require('./utils/securityEventLogger');
 let swaggerDocument;
 
 dotenv.config({ path: path.join(__dirname, '.env') });
@@ -218,6 +220,12 @@ const seedPrincipal = async () => {
 };
 
 const app = express();
+const TRUST_PROXY = process.env.TRUST_PROXY;
+if (TRUST_PROXY && TRUST_PROXY.trim().length > 0) {
+  if (TRUST_PROXY === 'true') app.set('trust proxy', true);
+  else if (TRUST_PROXY === 'false') app.set('trust proxy', false);
+  else app.set('trust proxy', TRUST_PROXY);
+}
 
 const allowedOrigins = process.env.CORS_ORIGINS
   ? process.env.CORS_ORIGINS.split(',').map((o) => o.trim()).filter(Boolean)
@@ -237,6 +245,7 @@ app.use(
   })
 );
 app.use(requestLogger);
+app.use(tokenReplayTelemetry);
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
@@ -333,7 +342,7 @@ app.use('/api/observations', studentObservationRouter);
 
 
 
-app.use('/api/schools', schoolRoutes);
+app.use('/api/schools', adminActionLogger, schoolRoutes);
 app.use('/api/school-registration', schoolRegistrationRoutes);
 app.use('/api/academic', academicRoutes);
 app.use('/api/fees', feeRoutes);
@@ -342,8 +351,8 @@ app.use('/api/timetable', timetableRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/audit-logs', auditLogRoutes);
 app.use('/api/super-admin', adminActionLogger, superAdminRoutes);
-app.use('/api/support', supportRoutes);
-app.use('/api/issues', issueRoutes);
+app.use('/api/support', adminActionLogger, supportRoutes);
+app.use('/api/issues', adminActionLogger, issueRoutes);
 app.use('/api/teacher-allocations', teacherAllocationRoutes);
 app.use('/api/practice', practiceRoutes);
 app.use('/api/excuse-letters', excuseLetterRoutes);
@@ -355,8 +364,29 @@ app.use('/api/chat', chatRoutes);
 app.use("/api/uploads", uploadRoutes);
 
 
-app.use((err, _req, res, _next) => {
-  console.error("ERR:", err);
+app.use((err, req, res, _next) => {
+  const isMalformedJson = err instanceof SyntaxError && err?.status === 400 && 'body' in err;
+  if (isMalformedJson) {
+    logSecurityEvent(req, {
+      action: 'security.malformed_json_payload',
+      outcome: 'blocked',
+      severity: 'medium',
+      statusCode: 400,
+      reason: err.message || 'Malformed JSON payload',
+      parserType: 'express.json',
+    });
+    return res.status(400).json({ message: 'Malformed JSON payload' });
+  }
+
+  logger.error({
+    event: 'http_error',
+    requestId: req?.requestId || undefined,
+    traceId: req?.traceId || undefined,
+    method: req?.method,
+    path: req?.originalUrl,
+    statusCode: err?.status || 500,
+    err,
+  }, 'Unhandled API error');
   res.status(err.status || 500).json({ message: err.message || "Server error" });
 });
 

@@ -1,7 +1,7 @@
 const { randomUUID } = require('crypto');
 const { logger } = require('../utils/logger');
 const { logSecurityEvent } = require('../utils/securityEventLogger');
-const { getClientIp } = require('../utils/request');
+const { getRequestNetworkContext } = require('../utils/request');
 
 const resolveActor = (req) => {
   if (req?.user?.id) {
@@ -36,16 +36,17 @@ const isLoggedPath = (req) => {
   return (
     url.startsWith('/api/admin') ||
     url.startsWith('/api/super-admin') ||
-    url.startsWith('/api/school-registration')
+    url.startsWith('/api/school-registration') ||
+    url.startsWith('/api/schools') ||
+    url.startsWith('/api/support') ||
+    url.startsWith('/api/issues')
   );
 };
 
 const isSuspiciousForwarding = (req) => {
-  const forwarded = req?.headers?.['x-forwarded-for'];
-  if (typeof forwarded !== 'string' || !forwarded.trim()) return false;
-  const parts = forwarded.split(',').map((p) => p.trim()).filter(Boolean);
-  if (parts.length > 1) return true;
-  const candidate = parts[0] || '';
+  const net = getRequestNetworkContext(req);
+  if (net.spoofSignal) return true;
+  const candidate = String(net.forwardedChain?.[0] || '');
   return candidate === '127.0.0.1' || candidate === '::1';
 };
 
@@ -62,6 +63,7 @@ const requestLogger = (req, res, next) => {
 
   req.requestId = requestId;
   req.traceId = traceId;
+  req.log = logger.child({ requestId, traceId });
   res.setHeader('x-request-id', requestId);
   res.setHeader('x-trace-id', traceId);
 
@@ -69,13 +71,18 @@ const requestLogger = (req, res, next) => {
     return next();
   }
 
+  const net = getRequestNetworkContext(req);
   logger.info('HTTP request started', {
     event: 'http_request_start',
     requestId,
     traceId,
     method: req.method,
     path: req.originalUrl,
-    ip: getClientIp(req),
+    ip: net.clientIp,
+    remoteIp: net.remoteIp,
+    ipSource: net.source,
+    forwardedForChain: net.forwardedChain,
+    forwardedForCount: net.forwardedCount,
     userAgent: req.get('user-agent') || '',
   });
 
@@ -86,11 +93,14 @@ const requestLogger = (req, res, next) => {
       severity: 'medium',
       reason: 'Suspicious x-forwarded-for header pattern',
       forwardedFor: req.headers['x-forwarded-for'],
+      remoteIp: net.remoteIp,
+      ipSource: net.source,
     });
   }
 
   res.on('finish', () => {
     const actor = resolveActor(req);
+    const finishedNet = getRequestNetworkContext(req);
     logger.info('HTTP request completed', {
       event: 'http_request_complete',
       requestId,
@@ -99,7 +109,12 @@ const requestLogger = (req, res, next) => {
       path: req.originalUrl,
       statusCode: res.statusCode,
       durationMs: Date.now() - start,
-      ip: getClientIp(req),
+      ip: finishedNet.clientIp,
+      remoteIp: finishedNet.remoteIp,
+      ipSource: finishedNet.source,
+      forwardedForChain: finishedNet.forwardedChain,
+      forwardedForCount: finishedNet.forwardedCount,
+      userAgent: req.get('user-agent') || '',
       ...actor,
     });
   });

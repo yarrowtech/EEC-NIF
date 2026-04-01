@@ -1,4 +1,6 @@
 const jwt = require('jsonwebtoken');
+const { logAuthEvent } = require('../utils/authEventLogger');
+const { logSecurityEvent } = require('../utils/securityEventLogger');
 
 const extractSchoolId = (req) => {
   const headerId = req.headers['x-school-id'] || req.headers['x-schoolid'];
@@ -17,12 +19,37 @@ const extractCampusId = (req) => {
 const adminAuth = (req, res, next) => {
   const authHeader = req.headers.authorization;
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    logAuthEvent(req, {
+      action: 'auth.middleware_validate',
+      outcome: 'failure',
+      userType: 'admin',
+      reason: 'Missing or invalid authorization header',
+      statusCode: 401,
+    });
     return res.status(401).json({ error: 'Unauthorized' });
   }
   const token = authHeader.split(' ')[1];
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     if (decoded.type !== 'admin') {
+      logAuthEvent(req, {
+        action: 'auth.middleware_validate',
+        outcome: 'failure',
+        userType: decoded.type || 'unknown',
+        identifier: decoded.username || decoded.id,
+        reason: 'Token type mismatch',
+        statusCode: 403,
+      });
+      logSecurityEvent(req, {
+        action: 'security.rbac_violation',
+        outcome: 'blocked',
+        severity: 'high',
+        attack_type: 'rbac_violation',
+        riskScore: 80,
+        reason: 'Non-admin token used on admin-protected route',
+        statusCode: 403,
+        tokenType: decoded.type,
+      });
       return res.status(403).json({ error: 'Access denied' });
     }
     const tokenSchoolId = decoded.schoolId || null;
@@ -37,8 +64,25 @@ const adminAuth = (req, res, next) => {
     req.isSuperAdmin = isSuperAdmin;
     req.schoolId = effectiveSchoolId;
     req.campusId = effectiveCampusId;
+    logAuthEvent(req, {
+      action: 'auth.middleware_validate',
+      outcome: 'success',
+      userType: isSuperAdmin ? 'super_admin' : 'admin',
+      identifier: decoded.username || decoded.id,
+      userId: decoded.id,
+      schoolId: effectiveSchoolId,
+      campusId: effectiveCampusId,
+      statusCode: 200,
+    });
     next();
   } catch (err) {
+    logAuthEvent(req, {
+      action: 'auth.middleware_validate',
+      outcome: 'failure',
+      userType: 'admin',
+      reason: err.message || 'Invalid token',
+      statusCode: 401,
+    });
     res.status(401).json({ error: 'Invalid token' });
   }
 };

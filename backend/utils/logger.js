@@ -40,6 +40,20 @@ const pinoLogger = pino(
     level: LOG_LEVEL,
     base: { service: 'backend' },
     timestamp: pino.stdTimeFunctions.isoTime,
+    redact: {
+      paths: [
+        'headers.authorization',
+        'authorization',
+        'token',
+        '*.token',
+        '*.password',
+        'password',
+        'req.headers.authorization',
+        'requestBody.password',
+        'body.password',
+      ],
+      remove: true,
+    },
   },
   pino.multistream(streams)
 );

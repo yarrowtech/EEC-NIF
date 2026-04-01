@@ -10,6 +10,8 @@ const StudentUser = require('../models/StudentUser');
 const Principal = require('../models/Principal');
 const SupportSetting = require('../models/SupportSetting');
 const { isStrongPassword, passwordPolicyMessage } = require('../utils/passwordPolicy');
+const { logSecurityEvent } = require('../utils/securityEventLogger');
+const { logBusinessEvent } = require('../utils/businessEventLogger');
 
 const router = express.Router();
 
@@ -26,6 +28,16 @@ const SCHOOL_ADMIN_ONLY_SUPPORT_TYPES = ['complaint', 'feedback'];
 
 const ensureSuperAdmin = (req, res, next) => {
   if (!req.isSuperAdmin) {
+    logSecurityEvent(req, {
+      action: 'security.rbac_violation',
+      outcome: 'blocked',
+      severity: 'high',
+      attack_type: 'rbac_violation',
+      riskScore: 82,
+      reason: 'Super admin role required for support route',
+      statusCode: 403,
+      requiredRole: 'super_admin',
+    });
     return res.status(403).json({ error: 'Super admin access required' });
   }
   return next();
@@ -311,6 +323,17 @@ router.get('/requests', adminAuth, async (req, res) => {
       query.limit(parsedLimit);
     }
     const results = await query.lean();
+    logBusinessEvent(req, {
+      action: 'support_requests.fetch',
+      outcome: 'success',
+      entity: 'support_request',
+      statusCode: 200,
+      resultCount: results.length,
+      supportType,
+      statusFilter: status,
+      schoolIdFilter: schoolId,
+      adminId: req.admin?.id || req.admin?._id,
+    });
     res.json(results.map(sanitizeSupportRequest));
   } catch (err) {
     console.error('Failed to fetch support requests', err);
@@ -331,6 +354,19 @@ router.get('/requests/:id', adminAuth, async (req, res) => {
     }
 
     if (!req.isSuperAdmin && (!req.admin.schoolId || request.schoolId?.toString() !== req.admin.schoolId)) {
+      logSecurityEvent(req, {
+        action: 'security.idor_attempt_detected',
+        outcome: 'blocked',
+        severity: 'high',
+        attack_type: 'idor_attempt',
+        riskScore: 85,
+        reason: 'Cross-school support request access denied',
+        statusCode: 403,
+        entity: 'support_request',
+        entityId: id,
+        actorSchoolId: req.admin?.schoolId,
+        targetSchoolId: request.schoolId?.toString(),
+      });
       return res.status(403).json({ error: 'Access denied' });
     }
 
@@ -412,8 +448,31 @@ router.patch('/requests/:id', adminAuth, ensureSuperAdmin, async (req, res) => {
     }
 
     await request.save();
+    logBusinessEvent(req, {
+      action: 'support_request.update',
+      outcome: 'success',
+      entity: 'support_request',
+      entityId: request._id,
+      statusCode: 200,
+      supportType: request.supportType,
+      previousStatus: request.auditTrail?.length > 1
+        ? request.auditTrail[request.auditTrail.length - 2]?.status
+        : undefined,
+      nextStatus: request.status,
+      owner: request.owner,
+      adminId: req.admin?.id || req.admin?._id,
+    });
     res.json(sanitizeSupportRequest(request));
   } catch (err) {
+    logBusinessEvent(req, {
+      action: 'support_request.update',
+      outcome: 'failure',
+      entity: 'support_request',
+      entityId: req.params?.id,
+      statusCode: 500,
+      reason: err.message,
+      adminId: req.admin?.id || req.admin?._id,
+    });
     console.error('Failed to update support request', err);
     res.status(500).json({ error: err.message || 'Unable to update support request' });
   }
