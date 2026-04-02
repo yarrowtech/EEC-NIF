@@ -33,7 +33,27 @@ const EMPTY_FORM = {
   title: '', classId: '', sectionId: '', subjectId: '',
   buildingId: '', floorId: '', roomId: '',
   term: 'Term 1', date: '', time: '', duration: '', marks: '100',
-  instructor: '', venue: '', status: 'Scheduled',
+  primaryInstructor: '', secondaryInstructor: '', venue: '', status: 'Scheduled',
+};
+
+/* ── overlap logic ── */
+const timeToMins = (t) => {
+  if (!t) return 0;
+  const [h, m] = String(t).split(':').map(Number);
+  return (h || 0) * 60 + (m || 0);
+};
+
+const hasOverlap = (formDate, formTime, formDur, exam) => {
+  if (!formDate || !formTime || !formDur) return false;
+  if (!exam.date || !exam.time || !exam.duration) return false;
+  const fd = String(formDate).slice(0, 10);
+  const ed = String(exam.date).slice(0, 10);
+  if (fd !== ed) return false;
+  const fStart = timeToMins(formTime);
+  const fEnd = fStart + Number(formDur);
+  const eStart = timeToMins(exam.time);
+  const eEnd = eStart + Number(exam.duration);
+  return fStart < eEnd && fEnd > eStart;
 };
 
 /* ── tiny helpers ── */
@@ -66,6 +86,7 @@ const ExaminationManagement = ({ setShowAdminHeader }) => {
   const [buildings, setBuildings]   = useState([]);
   const [floors, setFloors]         = useState([]);
   const [rooms, setRooms]           = useState([]);
+  const [teachers, setTeachers]     = useState([]);
   const [showForm, setShowForm]     = useState(false);
   const [editingExamId, setEditingExamId] = useState(null);
   const [form, setForm]             = useState(EMPTY_FORM);
@@ -105,15 +126,17 @@ const ExaminationManagement = ({ setShowAdminHeader }) => {
         fetch(`${API_BASE}/api/academic/buildings`, { headers: h }),
         fetch(`${API_BASE}/api/academic/floors`, { headers: h }),
         fetch(`${API_BASE}/api/academic/rooms`, { headers: h }),
+        fetch(`${API_BASE}/api/admin/users/get-teachers`, { headers: h }),
       ]);
       const parse = async (r) => r.status === 'fulfilled' ? (await r.value.json().catch(() => [])) : [];
-      const [c, s, sub, b, f, rm] = await Promise.all(results.map(parse));
+      const [c, s, sub, b, f, rm, tch] = await Promise.all(results.map(parse));
       setClasses(Array.isArray(c) ? c : []);
       setSections(Array.isArray(s) ? s : []);
       setSubjects(Array.isArray(sub) ? sub : []);
       setBuildings(Array.isArray(b) ? b : []);
       setFloors(Array.isArray(f) ? f : []);
       setRooms(Array.isArray(rm) ? rm : []);
+      setTeachers(Array.isArray(tch) ? tch : []);
     } catch { /* silent */ }
   };
 
@@ -141,20 +164,50 @@ const ExaminationManagement = ({ setShowAdminHeader }) => {
     floors.filter(f => form.buildingId ? String(f.buildingId?._id||f.buildingId) === String(form.buildingId) : true),
     [floors, form.buildingId]);
 
-  const filteredRooms = useMemo(() =>
-    rooms.filter(r => {
+  const filteredRooms = useMemo(() => {
+    const occupiedRoomIds = new Set();
+    if (form.date && form.time && form.duration) {
+      exams.forEach(ex => {
+        if (editingExamId && ex._id === editingExamId) return;
+        if (hasOverlap(form.date, form.time, form.duration, ex)) {
+          if (ex.roomId) {
+            const rid = typeof ex.roomId === 'object' ? ex.roomId._id : ex.roomId;
+            occupiedRoomIds.add(String(rid));
+          }
+        }
+      });
+    }
+
+    return rooms.filter(r => {
+      if (occupiedRoomIds.has(String(r._id))) return false;
       const fid = String(r.floorId?._id||r.floorId||'');
       const bid = String(r.floorId?.buildingId?._id||r.floorId?.buildingId||'');
       if (form.floorId) return fid === String(form.floorId);
       if (form.buildingId) return bid === String(form.buildingId);
       return true;
-    }),
-    [rooms, form.floorId, form.buildingId]);
+    });
+  }, [rooms, form.floorId, form.buildingId, form.date, form.time, form.duration, exams, editingExamId]);
+
+  const filteredTeachers = useMemo(() => {
+    const occupiedTeacherNames = new Set();
+    if (form.date && form.time && form.duration) {
+      exams.forEach(ex => {
+        if (editingExamId && ex._id === editingExamId) return;
+        if (hasOverlap(form.date, form.time, form.duration, ex)) {
+          if (ex.instructor) {
+            ex.instructor.split(',').forEach(t => occupiedTeacherNames.add(t.trim()));
+          }
+        }
+      });
+    }
+    return teachers.filter(t => !occupiedTeacherNames.has(t.name));
+  }, [teachers, form.date, form.time, form.duration, exams, editingExamId]);
 
   /* ── form open/close ── */
   const openCreate = () => { setEditingExamId(null); setForm(EMPTY_FORM); setShowForm(true); };
   const openEdit = (exam) => {
     setEditingExamId(exam._id);
+    const instructors = (exam.instructor || '').split(',').map(s => s.trim());
     setForm({
       title: exam.title || '', classId: exam.classId?._id||exam.classId||'',
       sectionId: exam.sectionId?._id||exam.sectionId||'', subjectId: exam.subjectId?._id||exam.subjectId||'',
@@ -162,7 +215,7 @@ const ExaminationManagement = ({ setShowAdminHeader }) => {
       roomId: exam.roomId?._id||exam.roomId||'', term: exam.term||'Term 1',
       date: exam.date ? String(exam.date).slice(0,10) : '', time: exam.time||'',
       duration: exam.duration??'', marks: exam.marks??'100',
-      instructor: exam.instructor||'', venue: exam.venue||'', status: exam.status||'Scheduled',
+      primaryInstructor: instructors[0] || '', secondaryInstructor: instructors[1] || '', venue: exam.venue||'', status: exam.status||'Scheduled',
     });
     setShowForm(true);
   };
@@ -172,7 +225,10 @@ const ExaminationManagement = ({ setShowAdminHeader }) => {
   const handleSave = async (e) => {
     e.preventDefault(); setSaving(true);
     try {
-      const payload = { ...form, duration: form.duration==='' ? undefined : Number(form.duration), marks: form.marks==='' ? undefined : Number(form.marks) };
+      const instructorStr = [form.primaryInstructor, form.secondaryInstructor].filter(Boolean).join(', ');
+      const payload = { ...form, duration: form.duration==='' ? undefined : Number(form.duration), marks: form.marks==='' ? undefined : Number(form.marks), instructor: instructorStr };
+      delete payload.primaryInstructor;
+      delete payload.secondaryInstructor;
       if (!payload.title?.trim()) throw new Error('Exam title is required');
       if (!payload.classId) throw new Error('Class is required');
       if (!payload.sectionId) throw new Error('Section is required');
@@ -490,11 +546,23 @@ const ExaminationManagement = ({ setShowAdminHeader }) => {
                 {/* Section: Extra */}
                 <div>
                   <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-3">Additional</p>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <Field label="Instructor / Invigilator">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <Field label="Primary Invigilator">
                       <div className="relative">
                         <User size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
-                        <input value={form.instructor} onChange={e => setForm(p => ({...p, instructor: e.target.value}))} className={`${inp} pl-8`} placeholder="Instructor name" />
+                        <select value={form.primaryInstructor} onChange={e => setForm(p => ({...p, primaryInstructor: e.target.value}))} className={`${inp} pl-8`}>
+                          <option value="">Select Primary</option>
+                          {filteredTeachers.map(t => <option key={t._id} value={t.name} disabled={t.name === form.secondaryInstructor}>{t.name}</option>)}
+                        </select>
+                      </div>
+                    </Field>
+                    <Field label="Secondary Invigilator">
+                      <div className="relative">
+                        <User size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                        <select value={form.secondaryInstructor} onChange={e => setForm(p => ({...p, secondaryInstructor: e.target.value}))} className={`${inp} pl-8`}>
+                          <option value="">Select Secondary</option>
+                          {filteredTeachers.map(t => <option key={t._id} value={t.name} disabled={t.name === form.primaryInstructor}>{t.name}</option>)}
+                        </select>
                       </div>
                     </Field>
                     <Field label="Status">
