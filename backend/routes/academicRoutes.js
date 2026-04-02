@@ -9,6 +9,11 @@ const Subject = require('../models/Subject');
 const FeeStructure = require('../models/FeeStructure');
 const FeeInvoice = require('../models/FeeInvoice');
 const StudentUser = require('../models/StudentUser');
+const Building = require('../models/Building');
+const Floor = require('../models/Floor');
+const Room = require('../models/Room');
+const Timetable = require('../models/Timetable');
+const Exam = require('../models/Exam');
 
 const router = express.Router();
 
@@ -39,6 +44,8 @@ const buildCampusFilter = (schoolId, campusId) => {
   }
   return filter;
 };
+
+const normalizeKey = (value) => String(value || '').trim().toLowerCase();
 
 const generateInvoicesForAcademicYear = async ({ schoolId, campusId, academicYearId }) => {
   const classFilter = buildCampusFilter(schoolId, campusId);
@@ -687,6 +694,470 @@ router.delete('/subjects/:id', adminAuth, async (req, res) => {
 
     await Subject.findByIdAndDelete(id);
     res.json({ ok: true, message: 'Subject deleted successfully' });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+// Buildings
+router.post('/buildings', adminAuth, async (req, res) => {
+  // #swagger.tags = ['Academics']
+  try {
+    const schoolId = resolveSchoolId(req, res);
+    if (!schoolId) return;
+    const campusId = resolveCampusId(req);
+    const { name, code, order } = req.body || {};
+    if (!name || !String(name).trim()) {
+      return res.status(400).json({ error: 'Building name is required' });
+    }
+    if (!code || !String(code).trim()) {
+      return res.status(400).json({ error: 'Building code is required' });
+    }
+
+    const created = await Building.create({
+      schoolId,
+      campusId: campusId || null,
+      name: String(name).trim(),
+      code: String(code).trim().toUpperCase(),
+      key: normalizeKey(name),
+      order: Number.isFinite(Number(order)) ? Number(order) : 0,
+    });
+    res.status(201).json(created);
+  } catch (err) {
+    if (err?.code === 11000) {
+      return res.status(409).json({ error: 'Building name/code already exists' });
+    }
+    res.status(400).json({ error: err.message });
+  }
+});
+
+router.get('/buildings', adminAuth, async (req, res) => {
+  // #swagger.tags = ['Academics']
+  try {
+    const schoolId = resolveSchoolId(req, res);
+    if (!schoolId) return;
+    const campusId = resolveCampusScope(req);
+    const items = await Building.find(buildCampusFilter(schoolId, campusId))
+      .sort({ order: 1, name: 1 })
+      .lean();
+    res.json(items);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.delete('/buildings/:id', adminAuth, async (req, res) => {
+  // #swagger.tags = ['Academics']
+  try {
+    const { id } = req.params;
+    if (!mongoose.isValidObjectId(id)) {
+      return res.status(400).json({ error: 'Invalid building ID' });
+    }
+    const schoolId = resolveSchoolId(req, res);
+    if (!schoolId) return;
+    const campusId = resolveCampusId(req);
+
+    const existing = await Building.findOne(buildCampusFilter(schoolId, campusId))
+      .where({ _id: id })
+      .lean();
+    if (!existing) {
+      return res.status(404).json({ error: 'Building not found' });
+    }
+
+    const floors = await Floor.find({ schoolId, ...(campusId ? { campusId } : {}), buildingId: id })
+      .select('_id')
+      .lean();
+    const floorIds = floors.map((f) => f._id);
+    const linkedRoomIds = floorIds.length > 0
+      ? await Room.find({ schoolId, ...(campusId ? { campusId } : {}), floorId: { $in: floorIds } })
+          .select('_id')
+          .lean()
+      : [];
+    const roomIds = linkedRoomIds.map((room) => room._id);
+
+    if (roomIds.length > 0) {
+      const [usedInExam, usedInTimetable] = await Promise.all([
+        Exam.findOne({ schoolId, ...(campusId ? { campusId } : {}), roomId: { $in: roomIds } })
+          .select('_id')
+          .lean(),
+        Timetable.findOne({
+          schoolId,
+          ...(campusId ? { campusId } : {}),
+          'entries.roomId': { $in: roomIds },
+        })
+          .select('_id')
+          .lean(),
+      ]);
+      if (usedInExam || usedInTimetable) {
+        return res.status(409).json({ error: 'Cannot delete building: one or more rooms are in use' });
+      }
+    }
+
+    await Promise.all([
+      Room.deleteMany({ schoolId, ...(campusId ? { campusId } : {}), buildingId: id }),
+      Floor.deleteMany({ schoolId, ...(campusId ? { campusId } : {}), buildingId: id }),
+      Building.findByIdAndDelete(id),
+    ]);
+    res.json({ ok: true, message: 'Building deleted successfully' });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+// Floors
+router.post('/floors', adminAuth, async (req, res) => {
+  // #swagger.tags = ['Academics']
+  try {
+    const schoolId = resolveSchoolId(req, res);
+    if (!schoolId) return;
+    const campusId = resolveCampusId(req);
+    const { buildingId, name, floorCode, order } = req.body || {};
+    if (!buildingId || !mongoose.isValidObjectId(buildingId)) {
+      return res.status(400).json({ error: 'Valid buildingId is required' });
+    }
+    if (!name || !String(name).trim()) {
+      return res.status(400).json({ error: 'Floor name is required' });
+    }
+    if (!floorCode || !String(floorCode).trim()) {
+      return res.status(400).json({ error: 'Floor code is required' });
+    }
+
+    const building = await Building.findOne(buildCampusFilter(schoolId, campusId))
+      .where({ _id: buildingId })
+      .lean();
+    if (!building) {
+      return res.status(404).json({ error: 'Building not found' });
+    }
+
+    const created = await Floor.create({
+      schoolId,
+      campusId: campusId || null,
+      buildingId,
+      name: String(name).trim(),
+      key: normalizeKey(name),
+      floorCode: String(floorCode).trim().toUpperCase(),
+      codeKey: normalizeKey(floorCode),
+      order: Number.isFinite(Number(order)) ? Number(order) : 0,
+    });
+    const payload = await Floor.findById(created._id)
+      .populate('buildingId', 'name code order isActive')
+      .lean();
+    res.status(201).json(payload);
+  } catch (err) {
+    if (err?.code === 11000) {
+      return res.status(409).json({ error: 'Floor name/code already exists in this building' });
+    }
+    res.status(400).json({ error: err.message });
+  }
+});
+
+router.get('/floors', adminAuth, async (req, res) => {
+  // #swagger.tags = ['Academics']
+  try {
+    const schoolId = resolveSchoolId(req, res);
+    if (!schoolId) return;
+    const campusId = resolveCampusScope(req);
+    const filter = buildCampusFilter(schoolId, campusId);
+    if (req.query.buildingId && mongoose.isValidObjectId(req.query.buildingId)) {
+      filter.buildingId = req.query.buildingId;
+    }
+    const items = await Floor.find(filter)
+      .populate('buildingId', 'name code order isActive')
+      .sort({ order: 1, name: 1 })
+      .lean();
+    res.json(items);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.put('/floors/:id', adminAuth, async (req, res) => {
+  // #swagger.tags = ['Academics']
+  try {
+    const { id } = req.params;
+    if (!mongoose.isValidObjectId(id)) {
+      return res.status(400).json({ error: 'Invalid floor ID' });
+    }
+    const schoolId = resolveSchoolId(req, res);
+    if (!schoolId) return;
+    const campusId = resolveCampusId(req);
+    const { buildingId, name, floorCode, order, isActive } = req.body || {};
+
+    const existing = await Floor.findOne(buildCampusFilter(schoolId, campusId))
+      .where({ _id: id })
+      .lean();
+    if (!existing) {
+      return res.status(404).json({ error: 'Floor not found' });
+    }
+
+    const nextBuildingId = buildingId || existing.buildingId;
+    if (!mongoose.isValidObjectId(nextBuildingId)) {
+      return res.status(400).json({ error: 'Valid buildingId is required' });
+    }
+    const building = await Building.findOne(buildCampusFilter(schoolId, campusId))
+      .where({ _id: nextBuildingId })
+      .lean();
+    if (!building) {
+      return res.status(404).json({ error: 'Building not found' });
+    }
+
+    const nextName = name === undefined ? existing.name : String(name).trim();
+    const nextFloorCode = floorCode === undefined ? existing.floorCode : String(floorCode).trim().toUpperCase();
+    if (!nextName) {
+      return res.status(400).json({ error: 'Floor name is required' });
+    }
+    if (!nextFloorCode) {
+      return res.status(400).json({ error: 'Floor code is required' });
+    }
+
+    const updated = await Floor.findByIdAndUpdate(
+      id,
+      {
+        buildingId: nextBuildingId,
+        name: nextName,
+        key: normalizeKey(nextName),
+        floorCode: nextFloorCode,
+        codeKey: normalizeKey(nextFloorCode),
+        order: Number.isFinite(Number(order)) ? Number(order) : (existing.order || 0),
+        ...(isActive === undefined ? {} : { isActive: Boolean(isActive) }),
+      },
+      { new: true, runValidators: true }
+    )
+      .populate('buildingId', 'name code order isActive')
+      .lean();
+    res.json(updated);
+  } catch (err) {
+    if (err?.code === 11000) {
+      return res.status(409).json({ error: 'Floor name/code already exists in this building' });
+    }
+    res.status(400).json({ error: err.message });
+  }
+});
+
+router.delete('/floors/:id', adminAuth, async (req, res) => {
+  // #swagger.tags = ['Academics']
+  try {
+    const { id } = req.params;
+    if (!mongoose.isValidObjectId(id)) {
+      return res.status(400).json({ error: 'Invalid floor ID' });
+    }
+    const schoolId = resolveSchoolId(req, res);
+    if (!schoolId) return;
+    const campusId = resolveCampusId(req);
+
+    const existing = await Floor.findOne(buildCampusFilter(schoolId, campusId))
+      .where({ _id: id })
+      .lean();
+    if (!existing) {
+      return res.status(404).json({ error: 'Floor not found' });
+    }
+
+    const linkedRoomIds = await Room.find(buildCampusFilter(schoolId, campusId))
+      .where({ floorId: id })
+      .select('_id')
+      .lean();
+
+    if (linkedRoomIds.length > 0) {
+      const roomIds = linkedRoomIds.map((room) => room._id);
+      const [usedInExam, usedInTimetable] = await Promise.all([
+        Exam.findOne({ schoolId, ...(campusId ? { campusId } : {}), roomId: { $in: roomIds } })
+          .select('_id')
+          .lean(),
+        Timetable.findOne({
+          schoolId,
+          ...(campusId ? { campusId } : {}),
+          'entries.roomId': { $in: roomIds },
+        })
+          .select('_id')
+          .lean(),
+      ]);
+      if (usedInExam || usedInTimetable) {
+        return res.status(409).json({ error: 'Cannot delete floor: one or more rooms are in use' });
+      }
+    }
+
+    await Promise.all([
+      Room.deleteMany({ schoolId, ...(campusId ? { campusId } : {}), floorId: id }),
+      Floor.findByIdAndDelete(id),
+    ]);
+    res.json({ ok: true, message: 'Floor deleted successfully' });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+// Rooms
+router.post('/rooms', adminAuth, async (req, res) => {
+  // #swagger.tags = ['Academics']
+  try {
+    const schoolId = resolveSchoolId(req, res);
+    if (!schoolId) return;
+    const campusId = resolveCampusId(req);
+    const { floorId, roomNumber, label } = req.body || {};
+    if (!floorId || !mongoose.isValidObjectId(floorId)) {
+      return res.status(400).json({ error: 'Valid floorId is required' });
+    }
+    if (!roomNumber || !String(roomNumber).trim()) {
+      return res.status(400).json({ error: 'Room number is required' });
+    }
+
+    const floor = await Floor.findOne(buildCampusFilter(schoolId, campusId))
+      .where({ _id: floorId })
+      .lean();
+    if (!floor) {
+      return res.status(404).json({ error: 'Floor not found' });
+    }
+
+    const created = await Room.create({
+      schoolId,
+      campusId: campusId || null,
+      buildingId: floor.buildingId,
+      floorId,
+      roomNumber: String(roomNumber).trim(),
+      roomKey: normalizeKey(roomNumber),
+      label: label ? String(label).trim() : '',
+    });
+
+    const payload = await Room.findById(created._id)
+      .populate({
+        path: 'floorId',
+        select: 'name floorCode order isActive buildingId',
+        populate: { path: 'buildingId', select: 'name code' },
+      })
+      .lean();
+    res.status(201).json(payload);
+  } catch (err) {
+    if (err?.code === 11000) {
+      return res.status(409).json({ error: 'Room already exists on this floor' });
+    }
+    res.status(400).json({ error: err.message });
+  }
+});
+
+router.get('/rooms', adminAuth, async (req, res) => {
+  // #swagger.tags = ['Academics']
+  try {
+    const schoolId = resolveSchoolId(req, res);
+    if (!schoolId) return;
+    const campusId = resolveCampusScope(req);
+    const filter = buildCampusFilter(schoolId, campusId);
+    if (req.query.floorId && mongoose.isValidObjectId(req.query.floorId)) {
+      filter.floorId = req.query.floorId;
+    }
+    if (req.query.buildingId && mongoose.isValidObjectId(req.query.buildingId)) {
+      filter.buildingId = req.query.buildingId;
+    }
+
+    const items = await Room.find(filter)
+      .populate({
+        path: 'floorId',
+        select: 'name floorCode order isActive buildingId',
+        populate: { path: 'buildingId', select: 'name code' },
+      })
+      .sort({ roomNumber: 1 })
+      .lean();
+    res.json(items);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.put('/rooms/:id', adminAuth, async (req, res) => {
+  // #swagger.tags = ['Academics']
+  try {
+    const { id } = req.params;
+    if (!mongoose.isValidObjectId(id)) {
+      return res.status(400).json({ error: 'Invalid room ID' });
+    }
+    const schoolId = resolveSchoolId(req, res);
+    if (!schoolId) return;
+    const campusId = resolveCampusId(req);
+    const { floorId, roomNumber, label, isActive } = req.body || {};
+
+    const existing = await Room.findOne(buildCampusFilter(schoolId, campusId))
+      .where({ _id: id })
+      .lean();
+    if (!existing) {
+      return res.status(404).json({ error: 'Room not found' });
+    }
+
+    const nextFloorId = floorId || existing.floorId;
+    if (!mongoose.isValidObjectId(nextFloorId)) {
+      return res.status(400).json({ error: 'Valid floorId is required' });
+    }
+    const floor = await Floor.findOne(buildCampusFilter(schoolId, campusId))
+      .where({ _id: nextFloorId })
+      .lean();
+    if (!floor) {
+      return res.status(404).json({ error: 'Floor not found' });
+    }
+
+    const nextRoomNumber = roomNumber === undefined ? existing.roomNumber : String(roomNumber).trim();
+    if (!nextRoomNumber) {
+      return res.status(400).json({ error: 'Room number is required' });
+    }
+
+    const updated = await Room.findByIdAndUpdate(
+      id,
+      {
+        floorId: nextFloorId,
+        buildingId: floor.buildingId,
+        roomNumber: nextRoomNumber,
+        roomKey: normalizeKey(nextRoomNumber),
+        ...(label === undefined ? {} : { label: String(label || '').trim() }),
+        ...(isActive === undefined ? {} : { isActive: Boolean(isActive) }),
+      },
+      { new: true, runValidators: true }
+    )
+      .populate({
+        path: 'floorId',
+        select: 'name floorCode order isActive buildingId',
+        populate: { path: 'buildingId', select: 'name code' },
+      })
+      .lean();
+
+    res.json(updated);
+  } catch (err) {
+    if (err?.code === 11000) {
+      return res.status(409).json({ error: 'Room already exists on this floor' });
+    }
+    res.status(400).json({ error: err.message });
+  }
+});
+
+router.delete('/rooms/:id', adminAuth, async (req, res) => {
+  // #swagger.tags = ['Academics']
+  try {
+    const { id } = req.params;
+    if (!mongoose.isValidObjectId(id)) {
+      return res.status(400).json({ error: 'Invalid room ID' });
+    }
+    const schoolId = resolveSchoolId(req, res);
+    if (!schoolId) return;
+    const campusId = resolveCampusId(req);
+
+    const existing = await Room.findOne(buildCampusFilter(schoolId, campusId))
+      .where({ _id: id })
+      .lean();
+    if (!existing) {
+      return res.status(404).json({ error: 'Room not found' });
+    }
+
+    const [usedInExam, usedInTimetable] = await Promise.all([
+      Exam.findOne({ schoolId, ...(campusId ? { campusId } : {}), roomId: id }).select('_id').lean(),
+      Timetable.findOne({
+        schoolId,
+        ...(campusId ? { campusId } : {}),
+        'entries.roomId': id,
+      }).select('_id').lean(),
+    ]);
+
+    if (usedInExam || usedInTimetable) {
+      return res.status(409).json({ error: 'Cannot delete room: room is in use in exam/routine' });
+    }
+
+    await Room.findByIdAndDelete(id);
+    res.json({ ok: true, message: 'Room deleted successfully' });
   } catch (err) {
     res.status(400).json({ error: err.message });
   }

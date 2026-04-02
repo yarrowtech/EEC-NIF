@@ -6,6 +6,7 @@ const ClassModel = require('../models/Class');
 const Section = require('../models/Section');
 const Subject = require('../models/Subject');
 const TeacherUser = require('../models/TeacherUser');
+const Room = require('../models/Room');
 const {
   DEFAULT_DAYS,
   DEFAULT_PERIODS,
@@ -113,6 +114,41 @@ const ensureTeachersExist = async (schoolId, campusId, entries) => {
     .lean();
   return teachers.length === teacherIds.length;
 };
+
+const ensureRoomsExist = async (schoolId, campusId, entries) => {
+  const roomIds = [...new Set(extractIds(entries, 'roomId'))];
+  if (roomIds.length === 0) return new Map();
+  const rooms = await Room.find({
+    _id: { $in: roomIds },
+    ...buildCampusFilter(schoolId, campusId),
+  })
+    .select('_id roomNumber')
+    .lean();
+  if (rooms.length !== roomIds.length) {
+    return null;
+  }
+  const byId = new Map();
+  rooms.forEach((room) => {
+    byId.set(String(room._id), room);
+  });
+  return byId;
+};
+
+const normalizeEntriesWithRooms = (entries, roomMap) =>
+  (Array.isArray(entries) ? entries : []).map((entry) => {
+    if (!entry?.roomId) {
+      return entry;
+    }
+    const roomDoc = roomMap?.get(String(entry.roomId));
+    if (!roomDoc) {
+      return entry;
+    }
+    return {
+      ...entry,
+      roomId: roomDoc._id,
+      room: roomDoc.roomNumber || entry.room || '',
+    };
+  });
 
 const normalizeSubjectPlan = ({
   subjects,
@@ -226,6 +262,11 @@ router.post('/', adminAuth, async (req, res) => {
     if (!(await ensureTeachersExist(schoolId, campusId, entries))) {
       return res.status(400).json({ error: 'Invalid teacher selection' });
     }
+    const roomMap = await ensureRoomsExist(schoolId, campusId, entries);
+    if (roomMap === null) {
+      return res.status(400).json({ error: 'Invalid room selection' });
+    }
+    const normalizedEntries = normalizeEntriesWithRooms(entries, roomMap);
 
     const payload = {
       schoolId,
@@ -233,7 +274,7 @@ router.post('/', adminAuth, async (req, res) => {
       classId,
       sectionId: resolveSectionId(sectionId) || undefined,
       academicYearId: academicYearId || undefined,
-      entries: Array.isArray(entries) ? entries : [],
+      entries: normalizedEntries,
     };
 
     const updated = await Timetable.findOneAndUpdate(
@@ -290,9 +331,13 @@ router.post('/day', adminAuth, async (req, res) => {
     if (!(await ensureTeachersExist(schoolId, campusId, entries))) {
       return res.status(400).json({ error: 'Invalid teacher selection' });
     }
+    const roomMap = await ensureRoomsExist(schoolId, campusId, entries);
+    if (roomMap === null) {
+      return res.status(400).json({ error: 'Invalid room selection' });
+    }
 
     const normalizedSectionId = resolveSectionId(sectionId);
-    const dayEntries = entries.map((entry) => ({
+    const dayEntries = normalizeEntriesWithRooms(entries, roomMap).map((entry) => ({
       ...entry,
       dayOfWeek: normalizedDay,
     }));
@@ -421,6 +466,11 @@ router.get('/all', adminAuth, async (req, res) => {
       .populate('sectionId', 'name')
       .populate('entries.subjectId', 'name')
       .populate('entries.teacherId', 'name')
+      .populate({
+        path: 'entries.roomId',
+        select: 'roomNumber floorId',
+        populate: { path: 'floorId', select: 'name floorCode buildingId', populate: { path: 'buildingId', select: 'name code' } },
+      })
       .lean();
 
     res.json(timetables);
@@ -451,6 +501,11 @@ router.get('/teacher/:teacherId', adminAuth, async (req, res) => {
       .populate('sectionId', 'name')
       .populate('entries.subjectId', 'name')
       .populate('entries.teacherId', 'name')
+      .populate({
+        path: 'entries.roomId',
+        select: 'roomNumber floorId',
+        populate: { path: 'floorId', select: 'name floorCode buildingId', populate: { path: 'buildingId', select: 'name code' } },
+      })
       .lean();
 
     res.json(timetables);
@@ -523,6 +578,11 @@ router.post('/validate-conflicts', adminAuth, async (req, res) => {
     if (!(await ensureTeachersExist(schoolId, campusId, entries))) {
       return res.status(400).json({ error: 'Invalid teacher selection' });
     }
+    const roomMap = await ensureRoomsExist(schoolId, campusId, entries);
+    if (roomMap === null) {
+      return res.status(400).json({ error: 'Invalid room selection' });
+    }
+    const normalizedEntries = normalizeEntriesWithRooms(entries, roomMap);
 
     // Helper function to check if two time ranges overlap
     const timesOverlap = (start1, end1, start2, end2) => {
@@ -544,7 +604,7 @@ router.post('/validate-conflicts', adminAuth, async (req, res) => {
     const conflicts = [];
 
     // Check each entry for conflicts
-    entries.forEach((entry, index) => {
+    normalizedEntries.forEach((entry, index) => {
       if (!entry.teacherId || !entry.dayOfWeek || !entry.startTime || !entry.endTime) {
         return;
       }
@@ -571,15 +631,16 @@ router.post('/validate-conflicts', adminAuth, async (req, res) => {
           }
 
           // Room conflict check
-          if (entry.room &&
-              existingEntry.room &&
-              existingEntry.room === entry.room &&
+          if ((entry.roomId || entry.room) &&
+              (existingEntry.roomId || existingEntry.room) &&
+              String(existingEntry.roomId || existingEntry.room) === String(entry.roomId || entry.room) &&
               existingEntry.dayOfWeek === entry.dayOfWeek &&
               timesOverlap(entry.startTime, entry.endTime, existingEntry.startTime, existingEntry.endTime)) {
             conflicts.push({
               type: 'room',
               entryIndex: index,
-              room: entry.room,
+              room: entry.room || existingEntry.room || '',
+              roomId: entry.roomId || null,
               day: entry.dayOfWeek,
               time: `${entry.startTime} - ${entry.endTime}`,
               conflictingClass: tt.classId.name,

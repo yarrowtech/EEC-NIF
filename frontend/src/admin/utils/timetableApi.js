@@ -178,6 +178,48 @@ export const timetableApi = {
 
 // Academic Data API (for dropdowns)
 export const academicApi = {
+  // Get all buildings
+  getBuildings: async () => {
+    try {
+      const res = await fetch(`${API_BASE}/academic/buildings`, {
+        headers: createHeaders()
+      });
+      return handleResponse(res);
+    } catch (error) {
+      console.error('Error fetching buildings:', error);
+      throw error;
+    }
+  },
+
+  // Create building
+  createBuilding: async (payload) => {
+    try {
+      const res = await fetch(`${API_BASE}/academic/buildings`, {
+        method: 'POST',
+        headers: createHeaders(true),
+        body: JSON.stringify(payload || {})
+      });
+      return handleResponse(res);
+    } catch (error) {
+      console.error('Error creating building:', error);
+      throw error;
+    }
+  },
+
+  // Delete building
+  deleteBuilding: async (buildingId) => {
+    try {
+      const res = await fetch(`${API_BASE}/academic/buildings/${buildingId}`, {
+        method: 'DELETE',
+        headers: createHeaders()
+      });
+      return handleResponse(res);
+    } catch (error) {
+      console.error('Error deleting building:', error);
+      throw error;
+    }
+  },
+
   // Get all classes
   getClasses: async () => {
     try {
@@ -215,6 +257,92 @@ export const academicApi = {
       return handleResponse(res);
     } catch (error) {
       console.error('Error fetching subjects:', error);
+      throw error;
+    }
+  },
+
+  // Get all floors
+  getFloors: async (buildingId) => {
+    try {
+      const params = buildingId ? `?buildingId=${encodeURIComponent(buildingId)}` : '';
+      const res = await fetch(`${API_BASE}/academic/floors${params}`, {
+        headers: createHeaders()
+      });
+      return handleResponse(res);
+    } catch (error) {
+      console.error('Error fetching floors:', error);
+      throw error;
+    }
+  },
+
+  // Get all rooms (optional floor filter)
+  getRooms: async (floorId) => {
+    try {
+      const params = floorId ? `?floorId=${encodeURIComponent(floorId)}` : '';
+      const res = await fetch(`${API_BASE}/academic/rooms${params}`, {
+        headers: createHeaders()
+      });
+      return handleResponse(res);
+    } catch (error) {
+      console.error('Error fetching rooms:', error);
+      throw error;
+    }
+  },
+
+  // Create floor
+  createFloor: async (payload) => {
+    try {
+      const res = await fetch(`${API_BASE}/academic/floors`, {
+        method: 'POST',
+        headers: createHeaders(true),
+        body: JSON.stringify(payload || {})
+      });
+      return handleResponse(res);
+    } catch (error) {
+      console.error('Error creating floor:', error);
+      throw error;
+    }
+  },
+
+  // Delete floor
+  deleteFloor: async (floorId) => {
+    try {
+      const res = await fetch(`${API_BASE}/academic/floors/${floorId}`, {
+        method: 'DELETE',
+        headers: createHeaders()
+      });
+      return handleResponse(res);
+    } catch (error) {
+      console.error('Error deleting floor:', error);
+      throw error;
+    }
+  },
+
+  // Create room
+  createRoom: async (payload) => {
+    try {
+      const res = await fetch(`${API_BASE}/academic/rooms`, {
+        method: 'POST',
+        headers: createHeaders(true),
+        body: JSON.stringify(payload || {})
+      });
+      return handleResponse(res);
+    } catch (error) {
+      console.error('Error creating room:', error);
+      throw error;
+    }
+  },
+
+  // Delete room
+  deleteRoom: async (roomId) => {
+    try {
+      const res = await fetch(`${API_BASE}/academic/rooms/${roomId}`, {
+        method: 'DELETE',
+        headers: createHeaders()
+      });
+      return handleResponse(res);
+    } catch (error) {
+      console.error('Error deleting room:', error);
       throw error;
     }
   },
@@ -287,6 +415,7 @@ export const transformTimetablesToRoutines = (timetables) => {
         subjectId: entry.subjectId?._id || entry.subjectId || null,
         teacher: entry.teacherId?.name || '-',
         teacherId: entry.teacherId?._id || entry.teacherId || null,
+        roomId: entry.roomId?._id || entry.roomId || null,
         room: entry.room || '',
         period: entry.period
       });
@@ -337,6 +466,7 @@ export const transformRoutineToTimetable = (routine, classes, sections, subjects
         period: period.period || (index + 1),
         subjectId: subject?._id,
         teacherId: teacher?._id,
+        roomId: period.roomId || null,
         startTime: convertTo24Hour(startTime),
         endTime: convertTo24Hour(endTime),
         room: period.room || ''

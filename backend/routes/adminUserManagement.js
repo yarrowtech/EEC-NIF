@@ -535,7 +535,19 @@ router.get("/get-parents", adminAuth, async (req, res) => {
         select: 'name grade section performance address pinCode',
       })
       .lean();
-    res.status(200).json(parents);
+    const withResolvedAddress = parents.map((parent) => {
+      const children = Array.isArray(parent.childrenIds) ? parent.childrenIds : [];
+      const studentAddress =
+        children.find((child) => String(child?.address || '').trim())?.address ||
+        (Array.isArray(parent.childrenDetails)
+          ? parent.childrenDetails.find((child) => String(child?.address || '').trim())?.address
+          : '');
+      return {
+        ...parent,
+        address: String(parent.address || '').trim() || String(studentAddress || '').trim() || '',
+      };
+    });
+    res.status(200).json(withResolvedAddress);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

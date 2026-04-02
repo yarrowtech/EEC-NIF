@@ -8,6 +8,7 @@ const entrySchema = new mongoose.Schema(
     teacherId: { type: mongoose.Schema.Types.ObjectId, ref: 'TeacherUser' },
     startTime: { type: String, trim: true },
     endTime: { type: String, trim: true },
+    roomId: { type: mongoose.Schema.Types.ObjectId, ref: 'Room' },
     room: { type: String, trim: true },
   },
   { _id: false }

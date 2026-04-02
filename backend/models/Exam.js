@@ -28,6 +28,7 @@ const examSchema = new mongoose.Schema({
     marks: Number,
     noOfStudents: Number,
     status: String,
+    roomId: { type: mongoose.Schema.Types.ObjectId, ref: 'Room' },
     classId: { type: mongoose.Schema.Types.ObjectId, ref: 'Class' },
     sectionId: { type: mongoose.Schema.Types.ObjectId, ref: 'Section' },
     subjectId: { type: mongoose.Schema.Types.ObjectId, ref: 'Subject' },

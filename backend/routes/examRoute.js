@@ -14,6 +14,7 @@ const Section = require('../models/Section');
 const Subject = require('../models/Subject');
 const TeacherAllocation = require('../models/TeacherAllocation');
 const Timetable = require('../models/Timetable');
+const Room = require('../models/Room');
 const adminAuth = require('../middleware/adminAuth');
 const teacherAuth = require('../middleware/authTeacher');
 const NotificationService = require('../utils/notificationService');
@@ -180,6 +181,28 @@ const parseResultStatus = (value) => {
   return null;
 };
 
+const resolveExamRoom = async ({ schoolId, campusId, roomId }) => {
+  if (!roomId) return { roomDoc: null };
+  if (!mongoose.isValidObjectId(roomId)) {
+    return { error: 'Invalid roomId' };
+  }
+  const roomDoc = await Room.findOne({
+    _id: roomId,
+    schoolId,
+    ...(campusId ? { campusId } : {}),
+  })
+    .populate({
+      path: 'floorId',
+      select: 'name floorCode buildingId',
+      populate: { path: 'buildingId', select: 'name code' },
+    })
+    .lean();
+  if (!roomDoc) {
+    return { error: 'Room not found' };
+  }
+  return { roomDoc };
+};
+
 const resolveResultScore = ({ marks, status, examMaxMarks, requireMarks = true }) => {
   const normalizedStatus = parseResultStatus(status);
   if (!normalizedStatus) {
@@ -225,6 +248,11 @@ router.get("/fetch", adminAuth, async (req, res) => {
           .populate('classId', 'name')
           .populate('sectionId', 'name classId')
           .populate('subjectId', 'name code classId')
+          .populate({
+            path: 'roomId',
+            select: 'roomNumber floorId',
+            populate: { path: 'floorId', select: 'name floorCode buildingId', populate: { path: 'buildingId', select: 'name code' } },
+          })
           .sort({ date: -1, createdAt: -1 })
           .lean();
         res.status(200).json(exams);
@@ -250,6 +278,7 @@ router.post("/add", adminAuth, async (req, res) => {
             classId,
             sectionId,
             subjectId,
+            roomId,
             published
         } = req.body || {};
         const schoolId = resolveSchoolId(req, res);
@@ -259,6 +288,13 @@ router.post("/add", adminAuth, async (req, res) => {
         if (academicContext.error) {
           return res.status(400).json({ error: academicContext.error });
         }
+        const roomResult = await resolveExamRoom({ schoolId, campusId, roomId });
+        if (roomResult.error) {
+          return res.status(400).json({ error: roomResult.error });
+        }
+        const roomVenue = roomResult.roomDoc
+          ? `${roomResult.roomDoc.floorId?.buildingId?.name || 'Building'} / ${roomResult.roomDoc.floorId?.name || 'Floor'} / ${roomResult.roomDoc.roomNumber}`
+          : '';
         const { classDoc, sectionDoc, subjectDoc } = academicContext;
         const computedStudentCount = await resolveExamStudentCount({
           schoolId,
@@ -272,7 +308,7 @@ router.post("/add", adminAuth, async (req, res) => {
             subject: subjectDoc.name,
             term: term || 'Term 1',
             instructor,
-            venue,
+            venue: roomVenue || venue,
             date,
             time,
             duration,
@@ -285,6 +321,7 @@ router.post("/add", adminAuth, async (req, res) => {
             classId: classDoc._id,
             sectionId: sectionDoc._id,
             subjectId: subjectDoc._id,
+            roomId: roomResult.roomDoc?._id || undefined,
             grade: classDoc.name || '',
             section: sectionDoc.name || '',
             published: Boolean(published),
@@ -337,6 +374,7 @@ router.put("/:id", adminAuth, async (req, res) => {
       classId,
       sectionId,
       subjectId,
+      roomId,
       published
     } = req.body || {};
 
@@ -344,6 +382,13 @@ router.put("/:id", adminAuth, async (req, res) => {
     if (!existingExam) {
       return res.status(404).json({ error: 'Exam not found' });
     }
+    const roomResult = await resolveExamRoom({ schoolId, campusId, roomId });
+    if (roomResult.error) {
+      return res.status(400).json({ error: roomResult.error });
+    }
+    const roomVenue = roomResult.roomDoc
+      ? `${roomResult.roomDoc.floorId?.buildingId?.name || 'Building'} / ${roomResult.roomDoc.floorId?.name || 'Floor'} / ${roomResult.roomDoc.roomNumber}`
+      : '';
 
     let academicUpdates = {};
     let nextClassDoc = null;
@@ -392,13 +437,14 @@ router.put("/:id", adminAuth, async (req, res) => {
       ...(title !== undefined ? { title } : {}),
       ...(term !== undefined ? { term } : {}),
       ...(instructor !== undefined ? { instructor } : {}),
-      ...(venue !== undefined ? { venue } : {}),
+      ...((venue !== undefined || roomId !== undefined) ? { venue: roomVenue || venue || '' } : {}),
       ...(date !== undefined ? { date } : {}),
       ...(time !== undefined ? { time } : {}),
       ...(duration !== undefined ? { duration } : {}),
       ...(marks !== undefined ? { marks } : {}),
       ...(resolvedNoOfStudents !== undefined ? { noOfStudents: Number(resolvedNoOfStudents) } : {}),
       ...(status !== undefined ? { status } : {}),
+      ...(roomId !== undefined ? { roomId: roomResult.roomDoc?._id || null } : {}),
       ...(published !== undefined ? { published: Boolean(published), publishedAt: published ? new Date() : null } : {}),
       ...academicUpdates,
     };
@@ -596,6 +642,11 @@ router.get("/fetch/manage", adminAuth, async (req, res) => {
       .populate('classId', 'name')
       .populate('sectionId', 'name classId')
       .populate('subjectId', 'name code classId')
+      .populate({
+        path: 'roomId',
+        select: 'roomNumber floorId',
+        populate: { path: 'floorId', select: 'name floorCode buildingId', populate: { path: 'buildingId', select: 'name code' } },
+      })
       .sort({ date: -1, createdAt: -1 })
       .lean();
     res.status(200).json(exams);
@@ -613,10 +664,15 @@ router.get("/results/exam-options", adminOrTeacherAuth, async (req, res) => {
     const campusId = req.campusId || null;
 
     let exams = await Exam.find({ schoolId, ...(campusId ? { campusId } : {}) })
-      .select('title subject term date time marks grade section status classId sectionId subjectId')
+      .select('title subject term date time marks grade section status classId sectionId subjectId roomId venue')
       .populate('classId', 'name')
       .populate('sectionId', 'name classId')
       .populate('subjectId', 'name code classId')
+      .populate({
+        path: 'roomId',
+        select: 'roomNumber floorId',
+        populate: { path: 'floorId', select: 'name floorCode buildingId', populate: { path: 'buildingId', select: 'name code' } },
+      })
       .sort({ date: -1, createdAt: -1 })
       .lean();
 

@@ -1,15 +1,25 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import jsPDF from 'jspdf';
-import { Plus, Edit2, Trash2, Clock, Calendar, LayoutGrid, ChevronLeft, ChevronRight, Grid, User, Loader2, AlertCircle, Sparkles } from 'lucide-react';
-import { timetableApi, academicApi, transformTimetablesToRoutines, convertTo24Hour, convertTo12Hour } from './utils/timetableApi';
+import {
+  Plus, Edit2, Trash2, Clock, Calendar, ChevronLeft, ChevronRight,
+  Grid, Loader2, AlertCircle, Sparkles, Download, BookOpen,
+  Users, CheckCircle2, XCircle, X, Save, Copy, RotateCcw,
+  ChevronDown, Layers, ArrowRight
+} from 'lucide-react';
+import {
+  timetableApi, academicApi, transformTimetablesToRoutines,
+  convertTo24Hour, convertTo12Hour
+} from './utils/timetableApi';
 
-// Weekly builder for static routines
+/* ─────────────────────── constants ─────────────────────── */
 const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+const DAY_SHORT = { Monday: 'Mon', Tuesday: 'Tue', Wednesday: 'Wed', Thursday: 'Thu', Friday: 'Fri', Saturday: 'Sat' };
+
 const TIMES = [
   '8:00 AM - 8:45 AM',
   '8:45 AM - 9:30 AM',
   '9:30 AM - 10:15 AM',
-  '10:15 AM - 10:45 AM', // Break
+  '10:15 AM - 10:45 AM',
   '10:45 AM - 11:30 AM',
   '11:30 AM - 12:15 PM',
 ];
@@ -17,1879 +27,937 @@ const DEFAULT_BREAK_TIMES = ['10:15 AM - 10:45 AM'];
 const DEFAULT_START_TIME = '08:00';
 const DEFAULT_PERIOD_MINUTES = 45;
 
-const SUBJECTS = {
-  X: ['Mathematics', 'Physics', 'Chemistry', 'Biology', 'English', 'Computer'],
-  IX: ['Mathematics', 'English', 'Science', 'Social Science', 'Hindi', 'Computer'],
-  XI: ['Mathematics', 'Physics', 'Chemistry', 'Biology', 'English', 'Computer'],
-};
-
-const TEACHERS = {
-  Mathematics: 'Dr. Rakesh Sharma',
-  Physics: 'Prof. Priya Verma',
-  Chemistry: 'Mr. Arjun Singh',
-  Biology: 'Dr. Kavita Rao',
-  English: 'Ms. Anjali Mehra',
-  'Social Science': 'Mr. Suresh Patel',
-  Science: 'Dr. Kavita Rao',
-  Hindi: 'Mr. Rohan Gupta',
-  Computer: 'Ms. Nidhi Kapoor',
-};
-
 const ROUTINE_TEMPLATES = [
-  {
-    id: 'balanced',
-    name: 'Balanced Day',
-    description: 'Blends core academics and language periods',
-    pattern: ['Mathematics', 'English', 'Science', 'Social Science', 'Computer', 'Hindi']
-  },
-  {
-    id: 'stem',
-    name: 'STEM Focus',
-    description: 'Math + science heavy schedule with labs',
-    pattern: ['Mathematics', 'Physics', 'Chemistry', 'Biology', 'Computer', 'Mathematics']
-  },
-  {
-    id: 'revision',
-    name: 'Revision & Guidance',
-    description: 'Light concepts with revision touchpoints',
-    pattern: ['English', 'Mathematics', 'Science', 'Social Science', 'Computer', 'English']
-  }
+  { id: 'balanced', name: 'Balanced', pattern: ['Mathematics', 'English', 'Science', 'Social Science', 'Computer', 'Hindi'] },
+  { id: 'stem',     name: 'STEM',     pattern: ['Mathematics', 'Physics', 'Chemistry', 'Biology', 'Computer', 'Mathematics'] },
+  { id: 'revision', name: 'Revision', pattern: ['English', 'Mathematics', 'Science', 'Social Science', 'Computer', 'English'] },
 ];
 
-const getId = (value) => (value && typeof value === 'object' ? value._id : value);
+const TEACHERS = {
+  Mathematics: 'Dr. Rakesh Sharma', Physics: 'Prof. Priya Verma', Chemistry: 'Mr. Arjun Singh',
+  Biology: 'Dr. Kavita Rao', English: 'Ms. Anjali Mehra', 'Social Science': 'Mr. Suresh Patel',
+  Science: 'Dr. Kavita Rao', Hindi: 'Mr. Rohan Gupta', Computer: 'Ms. Nidhi Kapoor',
+};
+
+/* ─────────────────────── helpers ─────────────────────── */
+const getId = (v) => (v && typeof v === 'object' ? v._id : v);
 
 const addMinutesToTime = (time24, minutes) => {
   if (!time24) return '';
-  const [hours, mins] = time24.split(':').map((part) => parseInt(part, 10));
-  if (Number.isNaN(hours) || Number.isNaN(mins)) return '';
-  const total = hours * 60 + mins + minutes;
-  const normalized = ((total % (24 * 60)) + (24 * 60)) % (24 * 60);
-  const nextHours = Math.floor(normalized / 60);
-  const nextMins = normalized % 60;
-  return `${nextHours.toString().padStart(2, '0')}:${nextMins.toString().padStart(2, '0')}`;
+  const [h, m] = time24.split(':').map(Number);
+  if (isNaN(h) || isNaN(m)) return '';
+  const t = ((h * 60 + m + minutes) % 1440 + 1440) % 1440;
+  return `${String(Math.floor(t / 60)).padStart(2, '0')}:${String(t % 60).padStart(2, '0')}`;
 };
 
 const parseTimeRange = (range) => {
   if (!range || typeof range !== 'string') return { start: '', end: '' };
-  const [startLabel, endLabel] = range.split('-').map((part) => part.trim());
-  return {
-    start: startLabel ? convertTo24Hour(startLabel) : '',
-    end: endLabel ? convertTo24Hour(endLabel) : '',
-  };
+  const [s, e] = range.split('-').map(p => p.trim());
+  return { start: s ? convertTo24Hour(s) : '', end: e ? convertTo24Hour(e) : '' };
 };
 
-const formatTimeRange = (start24, end24) => {
-  if (!start24 || !end24) return '';
-  return `${convertTo12Hour(start24)} - ${convertTo12Hour(end24)}`;
-};
-
-const getDefaultSlots = () => {
-  return TIMES.map((time) => {
-    const parsed = parseTimeRange(time);
-    return {
-      time,
-      startTime: parsed.start || '',
-      endTime: parsed.end || '',
-      isBreak: DEFAULT_BREAK_TIMES.includes(time),
-      subject: DEFAULT_BREAK_TIMES.includes(time) ? 'Break' : '',
-      teacher: DEFAULT_BREAK_TIMES.includes(time) ? '-' : '',
-      subjectId: null,
-      teacherId: null,
-      room: '',
-    };
-  });
-};
-
-const buildScheduleForDay = (existingSchedule = []) => {
-  if (Array.isArray(existingSchedule) && existingSchedule.length > 0) {
-    const normalizeEntry = (entry) => {
-      const parsed = parseTimeRange(entry.time);
-      const isBreak = entry.subject === 'Break' || entry.isBreak;
-      const startTime = entry.startTime || parsed.start || '';
-      const endTime = entry.endTime || parsed.end || '';
-      return {
-        time: entry.time || formatTimeRange(startTime, endTime),
-        startTime,
-        endTime,
-        isBreak,
-        subject: isBreak ? 'Break' : (entry.subject || ''),
-        teacher: isBreak ? '-' : (entry.teacher || ''),
-        subjectId: entry.subjectId || null,
-        teacherId: entry.teacherId || null,
-        room: entry.room || '',
-      };
-    };
-
-    const normalizedExisting = existingSchedule.map(normalizeEntry);
-    const existingByRangeKey = new Map(
-      normalizedExisting.map((entry) => [`${entry.startTime}-${entry.endTime}`, entry])
-    );
-
-    // Preserve saved periods exactly, but ensure break rows exist.
-    const missingBreakSlots = getDefaultSlots().filter(
-      (slot) => slot.isBreak && !existingByRangeKey.has(`${slot.startTime}-${slot.endTime}`)
-    );
-
-    return [...normalizedExisting, ...missingBreakSlots].sort((a, b) => {
-      const aStart = a.startTime || parseTimeRange(a.time).start || '';
-      const bStart = b.startTime || parseTimeRange(b.time).start || '';
-      return aStart.localeCompare(bStart);
-    });
-  }
-
-  const defaultSlots = getDefaultSlots();
-  if (defaultSlots.length > 0) return defaultSlots;
-  // fallback if TIMES empty
-  const start = DEFAULT_START_TIME;
-  return [{
-    time: formatTimeRange(start, addMinutesToTime(start, DEFAULT_PERIOD_MINUTES)),
-    startTime: start,
-    endTime: addMinutesToTime(start, DEFAULT_PERIOD_MINUTES),
-    isBreak: false,
-    subject: '',
-    teacher: '',
-    subjectId: null,
-    teacherId: null,
-    room: '',
-  }];
-};
+const formatTimeRange = (s24, e24) => (!s24 || !e24) ? '' : `${convertTo12Hour(s24)} - ${convertTo12Hour(e24)}`;
 
 const isBreakSlot = (time) => DEFAULT_BREAK_TIMES.includes(time);
 
-const normalizeDayLabel = (value = '') => {
-  const raw = String(value || '').trim().toLowerCase();
-  const aliases = {
-    mon: 'Monday',
-    monday: 'Monday',
-    tue: 'Tuesday',
-    tues: 'Tuesday',
-    tuesday: 'Tuesday',
-    wed: 'Wednesday',
-    wednesday: 'Wednesday',
-    thu: 'Thursday',
-    thur: 'Thursday',
-    thurs: 'Thursday',
-    thursday: 'Thursday',
-    fri: 'Friday',
-    friday: 'Friday',
-    sat: 'Saturday',
-    saturday: 'Saturday',
-    sun: 'Sunday',
-    sunday: 'Sunday',
-  };
-  return aliases[raw] || String(value || '').trim();
+const normalizeDayLabel = (v = '') => {
+  const raw = String(v).trim().toLowerCase();
+  const map = { mon:'Monday',monday:'Monday',tue:'Tuesday',tues:'Tuesday',tuesday:'Tuesday',wed:'Wednesday',wednesday:'Wednesday',thu:'Thursday',thur:'Thursday',thurs:'Thursday',thursday:'Thursday',fri:'Friday',friday:'Friday',sat:'Saturday',saturday:'Saturday',sun:'Sunday',sunday:'Sunday' };
+  return map[raw] || String(v).trim();
 };
 
-const normalizeScopeValue = (value = '') => String(value || '').trim().toLowerCase();
+const normalizeScopeValue = (v = '') => String(v).trim().toLowerCase();
+const routineMatchesScope = (r, cls, sec) =>
+  normalizeScopeValue(r?.class) === normalizeScopeValue(cls) &&
+  normalizeScopeValue(r?.section) === normalizeScopeValue(sec);
 
-const routineMatchesScope = (routine, className, sectionName) => (
-  normalizeScopeValue(routine?.class) === normalizeScopeValue(className) &&
-  normalizeScopeValue(routine?.section) === normalizeScopeValue(sectionName)
-);
+const getDefaultSlots = () =>
+  TIMES.map(time => {
+    const p = parseTimeRange(time);
+    return { time, startTime: p.start, endTime: p.end, isBreak: DEFAULT_BREAK_TIMES.includes(time), subject: DEFAULT_BREAK_TIMES.includes(time) ? 'Break' : '', teacher: DEFAULT_BREAK_TIMES.includes(time) ? '-' : '', subjectId: null, teacherId: null, roomId: null, room: '' };
+  });
+
+const buildScheduleForDay = (existing = []) => {
+  if (Array.isArray(existing) && existing.length > 0) {
+    const norm = existing.map(e => {
+      const p = parseTimeRange(e.time); const isBreak = e.subject === 'Break' || e.isBreak;
+      const st = e.startTime || p.start || ''; const et = e.endTime || p.end || '';
+      return { time: e.time || formatTimeRange(st, et), startTime: st, endTime: et, isBreak, subject: isBreak ? 'Break' : (e.subject||''), teacher: isBreak ? '-' : (e.teacher||''), subjectId: e.subjectId||null, teacherId: e.teacherId||null, roomId: e.roomId||null, room: e.room||'' };
+    });
+    const byKey = new Map(norm.map(e => [`${e.startTime}-${e.endTime}`, e]));
+    const missing = getDefaultSlots().filter(s => s.isBreak && !byKey.has(`${s.startTime}-${s.endTime}`));
+    return [...norm, ...missing].sort((a,b) => (a.startTime||'').localeCompare(b.startTime||''));
+  }
+  return getDefaultSlots();
+};
 
 const pruneEmptySlots = (schedule = []) =>
-  (Array.isArray(schedule) ? schedule : []).filter(
-    (slot) =>
-      slot?.isBreak ||
-      (
-        String(slot?.subject || '').trim() &&
-        String(slot?.teacher || '').trim()
-      )
+  schedule.filter(s => s?.isBreak || (String(s?.subject||'').trim() && String(s?.teacher||'').trim()));
+
+/* ─────────────────────── sub-components ─────────────────────── */
+
+const Toast = ({ show, message, type }) => {
+  if (!show) return null;
+  return (
+    <div className={`fixed top-5 right-5 z-[100] flex items-center gap-3 px-5 py-3 rounded-2xl shadow-xl text-sm font-medium transition-all ${type === 'success' ? 'bg-emerald-600 text-white' : 'bg-red-600 text-white'}`}>
+      {type === 'success' ? <CheckCircle2 size={16} /> : <XCircle size={16} />}
+      {message}
+    </div>
   );
+};
 
-const Routines = ({setShowAdminHeader}) => {
-  // Data state
-  const [routines, setRoutines] = useState([]);
-  const [classes, setClasses] = useState([]);
-  const [sections, setSections] = useState([]);
-  const [subjects, setSubjects] = useState([]);
-  const [teachers, setTeachers] = useState([]);
+const DayCard = ({ day, routine, onEdit, isSelected, onClick }) => {
+  const periods = routine?.schedule?.filter(s => !s.isBreak && s.subject) || [];
+  const hasData = periods.length > 0;
+  return (
+    <div
+      onClick={onClick}
+      className={`relative rounded-2xl border-2 cursor-pointer transition-all duration-200 overflow-hidden group ${isSelected ? 'border-indigo-500 shadow-lg shadow-indigo-100' : 'border-gray-100 hover:border-indigo-200 hover:shadow-md'} bg-white`}
+    >
+      {/* color strip */}
+      <div className={`h-1.5 w-full ${hasData ? 'bg-gradient-to-r from-indigo-400 to-violet-400' : 'bg-gray-100'}`} />
 
-  // UI state
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-  const [saving, setSaving] = useState(false);
-  const [draftSaving, setDraftSaving] = useState(false);
+      <div className="p-4">
+        <div className="flex items-center justify-between mb-3">
+          <div>
+            <p className="font-bold text-gray-900 text-sm">{day}</p>
+            <p className="text-xs text-gray-400">{periods.length} period{periods.length !== 1 ? 's' : ''}</p>
+          </div>
+          {hasData && (
+            <span className="flex h-7 w-7 items-center justify-center rounded-full bg-indigo-50">
+              <CheckCircle2 size={14} className="text-indigo-500" />
+            </span>
+          )}
+        </div>
+
+        {hasData ? (
+          <div className="space-y-1 mb-3">
+            {periods.slice(0, 3).map((p, i) => (
+              <div key={i} className="flex items-center gap-1.5 text-xs">
+                <div className="h-1.5 w-1.5 rounded-full bg-indigo-300 shrink-0" />
+                <span className="truncate text-gray-600">{p.subject}</span>
+              </div>
+            ))}
+            {periods.length > 3 && <p className="text-xs text-gray-400 pl-3">+{periods.length - 3} more</p>}
+          </div>
+        ) : (
+          <p className="text-xs text-gray-400 mb-3 italic">No schedule yet</p>
+        )}
+
+        <button
+          onClick={(e) => { e.stopPropagation(); onEdit(); }}
+          className={`w-full py-1.5 rounded-xl text-xs font-semibold transition-colors ${hasData ? 'bg-indigo-50 text-indigo-700 hover:bg-indigo-100' : 'bg-gray-50 text-gray-600 hover:bg-gray-100'}`}
+        >
+          {hasData ? '✎ Edit' : '+ Add'}
+        </button>
+      </div>
+    </div>
+  );
+};
+
+/* ─────────────────────── main component ─────────────────────── */
+const Routines = ({ setShowAdminHeader }) => {
+  /* data */
+  const [routines, setRoutines]   = useState([]);
+  const [classes, setClasses]     = useState([]);
+  const [sections, setSections]   = useState([]);
+  const [subjects, setSubjects]   = useState([]);
+  const [teachers, setTeachers]   = useState([]);
+  const [floors, setFloors]       = useState([]);
+  const [rooms, setRooms]         = useState([]);
+
+  /* ui */
+  const [loading, setLoading]     = useState(true);
+  const [error, setError]         = useState(null);
+  const [saving, setSaving]       = useState(false);
   const [generating, setGenerating] = useState(false);
   const [generateMessage, setGenerateMessage] = useState('');
+  const [toast, setToast]         = useState({ show: false, message: '', type: 'success' });
 
-  // Toast state
-  const [toast, setToast] = useState({ show: false, message: '', type: 'success' });
-
-  // Conflict state
-  const [conflicts, setConflicts] = useState([]);
-  const [showConflictModal, setShowConflictModal] = useState(false);
-  const [selectedClass, setSelectedClass] = useState('');
+  /* filters */
+  const [selectedClass, setSelectedClass]     = useState('');
   const [selectedSection, setSelectedSection] = useState('');
-  const [selectedDay, setSelectedDay] = useState('Monday');
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [editingRoutine, setEditingRoutine] = useState(null); // routine or null
-  const [form, setForm] = useState({
-    class: '',
-    section: '',
-    day: 'Monday',
-    schedule: [], // [{time, subject, teacher, isBreak}]
-  });
-  const [blockDraft, setBlockDraft] = useState({ subject: '', teacher: '', room: '' });
-  const [paletteBlocks, setPaletteBlocks] = useState([]);
-  const [weeklyDraft, setWeeklyDraft] = useState({});
+  const [selectedDay, setSelectedDay]         = useState('Monday');
+
+  /* modal */
+  const [isModalOpen, setIsModalOpen]       = useState(false);
+  const [editingRoutine, setEditingRoutine] = useState(null);
+  const [form, setForm]                     = useState({ class: '', section: '', day: 'Monday', schedule: [] });
+  const [showAdvanced, setShowAdvanced]     = useState(false);
   const [selectedCopyRoutine, setSelectedCopyRoutine] = useState('');
-  const [showAdvancedBoard, setShowAdvancedBoard] = useState(false);
-  const [showAdvancedModalTools, setShowAdvancedModalTools] = useState(false);
 
-  const copyableRoutines = useMemo(() => {
-    return routines
-      .sort((a, b) => {
-        const aMatch = routineMatchesScope(a, form.class, form.section) ? 1 : 0;
-        const bMatch = routineMatchesScope(b, form.class, form.section) ? 1 : 0;
-        return bMatch - aMatch;
-      })
-      .map((routine) => ({
-        id: String(routine.id),
-        label: `Class ${routine.class}-${routine.section} • ${normalizeDayLabel(routine.day)}`
-      }));
-  }, [routines, form.class, form.section]);
+  /* conflicts */
+  const [conflicts, setConflicts]               = useState([]);
+  const [showConflictModal, setShowConflictModal] = useState(false);
 
-  const scheduleStats = useMemo(() => {
-    const total = form.schedule.filter((slot) => !slot.isBreak).length;
-    const filled = form.schedule.filter(
-      (slot) => !slot.isBreak && slot.subject && slot.teacher
-    ).length;
-    return {
-      total,
-      filled,
-      pending: total > filled ? total - filled : 0
-    };
-  }, [form.schedule]);
-
-  const selectedClassDoc = useMemo(
-    () => classes.find((cls) => String(cls.name) === String(form.class)),
-    [classes, form.class]
-  );
-
-  const classFilteredSubjects = useMemo(() => {
-    if (!selectedClassDoc?._id) return subjects;
-    return subjects.filter((subject) => String(subject.classId) === String(selectedClassDoc._id));
-  }, [subjects, selectedClassDoc]);
-
-  // Toast notification helpers
-  const showSuccessToast = (message) => {
-    setToast({ show: true, message, type: 'success' });
-    setTimeout(() => setToast({ show: false, message: '', type: 'success' }), 3000);
+  /* ── toast ── */
+  const showToast = (message, type = 'success') => {
+    setToast({ show: true, message, type });
+    setTimeout(() => setToast({ show: false, message: '', type }), 3500);
   };
 
-  const showErrorToast = (message) => {
-    setToast({ show: true, message, type: 'error' });
-    setTimeout(() => setToast({ show: false, message: '', type: 'error' }), 5000);
-  };
-
-  // Load initial data from API
+  /* ── load ── */
   const loadInitialData = async () => {
     try {
-      setLoading(true);
-      setError(null);
-
-      // Fetch data one by one to identify which endpoint fails
-      console.log('Fetching timetables...');
-      const timetablesData = await timetableApi.getAll().catch(err => {
-        console.error('Timetables API failed:', err);
-        return [];
-      });
-
-      console.log('Fetching classes...');
-      const classesData = await academicApi.getClasses().catch(err => {
-        console.error('Classes API failed:', err);
-        return [];
-      });
-
-      console.log('Fetching sections...');
-      const sectionsData = await academicApi.getSections().catch(err => {
-        console.error('Sections API failed:', err);
-        return [];
-      });
-
-      console.log('Fetching subjects...');
-      const subjectsData = await academicApi.getSubjects().catch(err => {
-        console.error('Subjects API failed:', err);
-        return [];
-      });
-
-      console.log('Fetching teachers...');
-      const teachersData = await academicApi.getTeachers().catch(err => {
-        console.error('Teachers API failed:', err);
-        return [];
-      });
-
-      console.log('Data fetched:', {
-        timetables: timetablesData,
-        classes: classesData,
-        sections: sectionsData,
-        subjects: subjectsData,
-        teachers: teachersData
-      });
-
-      // Transform timetables to routine format
-      const transformed = transformTimetablesToRoutines(timetablesData);
-      console.log('Transformed routines:', transformed);
-
-      setRoutines(transformed);
-      setClasses(classesData);
-      setSections(sectionsData);
-      setSubjects(subjectsData);
-      setTeachers(teachersData);
-
-      console.log('State updated with data');
-
-      // If no timetables exist, show info message
-      if (transformed.length === 0) {
-        console.log('No routines found in database');
-      }
-    } catch (err) {
-      console.error('Error loading data:', err);
-      setError(err.message || 'Failed to load routines');
-      showErrorToast(err.message || 'Failed to load routines');
-    } finally {
-      setLoading(false);
-    }
+      setLoading(true); setError(null);
+      const [ttData, clsData, secData, subData, tchData, flData, rmData] = await Promise.allSettled([
+        timetableApi.getAll(), academicApi.getClasses(), academicApi.getSections(),
+        academicApi.getSubjects(), academicApi.getTeachers(), academicApi.getFloors(), academicApi.getRooms(),
+      ]);
+      const safe = (r, fallback = []) => r.status === 'fulfilled' ? (Array.isArray(r.value) ? r.value : fallback) : fallback;
+      setRoutines(transformTimetablesToRoutines(safe(ttData)));
+      setClasses(safe(clsData)); setSections(safe(secData)); setSubjects(safe(subData));
+      setTeachers(safe(tchData)); setFloors(safe(flData)); setRooms(safe(rmData));
+    } catch (err) { setError(err.message || 'Failed to load'); showToast(err.message || 'Failed to load', 'error'); }
+    finally { setLoading(false); }
   };
 
-  // making the admin header invisible
-  useEffect(() => {
-    setShowAdminHeader(false);
-  }, []);
+  useEffect(() => { setShowAdminHeader?.(false); }, []);
+  useEffect(() => { loadInitialData(); }, []);
+  useEffect(() => { if (!isModalOpen) { setSelectedCopyRoutine(''); setShowAdvanced(false); } }, [isModalOpen]);
 
-  // Load data on mount
-  useEffect(() => {
-    loadInitialData();
-  }, []);
+  /* ── derived ── */
+  const selectedClassDoc = useMemo(() => classes.find(c => String(c.name) === String(form.class)), [classes, form.class]);
 
-  useEffect(() => {
-    if (!isModalOpen) {
-      setSelectedCopyRoutine('');
-      setShowAdvancedModalTools(false);
-    }
-  }, [isModalOpen]);
+  const classFilteredSubjects = useMemo(() =>
+    selectedClassDoc?._id ? subjects.filter(s => String(s.classId) === String(selectedClassDoc._id)) : subjects,
+    [subjects, selectedClassDoc]
+  );
 
+  const roomsById = useMemo(() => { const m = new Map(); rooms.forEach(r => r?._id && m.set(String(r._id), r)); return m; }, [rooms]);
+
+  const roomOptions = useMemo(() =>
+    rooms.map(r => ({
+      id: r._id,
+      label: `${r.floorId?.buildingId?.name || 'Bldg'} / ${r.floorId?.name || 'Floor'} (${r.floorId?.floorCode || '-'}) / ${r.roomNumber}`,
+      roomNumber: r.roomNumber || '',
+    })).sort((a, b) => a.label.localeCompare(b.label)),
+    [rooms]
+  );
+
+  const copyableRoutines = useMemo(() =>
+    routines.map(r => ({ id: String(r.id), label: `Class ${r.class}-${r.section} • ${normalizeDayLabel(r.day)}` })),
+    [routines]
+  );
+
+  const filteredSections = useMemo(() => {
+    if (!selectedClass) return sections;
+    const cls = classes.find(c => c.name === selectedClass);
+    return cls ? sections.filter(s => getId(s.classId) === cls._id) : sections;
+  }, [sections, classes, selectedClass]);
+
+  const getRoutineForDay = (day, cls = selectedClass, sec = selectedSection) =>
+    routines.find(r => routineMatchesScope(r, cls, sec) && normalizeDayLabel(r.day) === normalizeDayLabel(day));
+
+  /* ── auto generate ── */
   const handleAutoGenerate = async () => {
-    if (!selectedClass) {
-      const ok = window.confirm('Generate routines for all classes? This will overwrite existing timetables.');
-      if (!ok) return;
-    }
-
+    if (!window.confirm('Generate routines? This will overwrite existing timetables.')) return;
     try {
       setGenerating(true);
-      setGenerateMessage('');
-      const classDoc = getClassDoc();
-      const sectionDoc = classDoc ? getSectionDoc(classDoc) : null;
-      const payload = {
-        overwriteExisting: true,
-      };
-      if (classDoc?._id) payload.classId = classDoc._id;
-      if (sectionDoc?._id) payload.sectionId = sectionDoc._id;
-
-      const result = await timetableApi.autoGenerate(payload);
+      const result = await timetableApi.autoGenerate({ overwriteExisting: true });
       const total = result?.totalGenerated || 0;
-      const failed = result?.totalErrors || 0;
-      const firstError = result?.errors?.[0];
-      const errorLabel = firstError
-        ? ` First error: ${firstError.className || firstError.classId}${firstError.sectionName ? `-${firstError.sectionName}` : ''} — ${firstError.error}`
-        : '';
-      const message = `Generated ${total} timetable${total !== 1 ? 's' : ''}.${failed ? ` ${failed} failed.` : ''}${errorLabel}`;
-      setGenerateMessage(message);
-      showSuccessToast(message);
+      const msg = `Generated ${total} timetable${total !== 1 ? 's' : ''}.`;
+      setGenerateMessage(msg); showToast(msg);
       await loadInitialData();
-    } catch (err) {
-      const message = err.message || 'Auto-generation failed.';
-      setGenerateMessage(message);
-      showErrorToast(message);
-    } finally {
-      setGenerating(false);
-    }
+    } catch (err) { showToast(err.message || 'Auto-generation failed.', 'error'); }
+    finally { setGenerating(false); }
   };
 
-  const getClassDoc = () => classes.find(c => c.name === selectedClass);
-  const getSectionDoc = (classDoc) =>
-    sections.find(s => s.name === selectedSection && getId(s.classId) === classDoc?._id);
-
-  const getRoutineForDay = (day) =>
-    routines.find(
-      (r) =>
-        routineMatchesScope(r, selectedClass, selectedSection) &&
-        normalizeDayLabel(r.day) === normalizeDayLabel(day)
-    );
-
-  const getBaseCell = (day, time) => {
-    const routine = getRoutineForDay(day);
-    return routine?.schedule.find(p => p.time === time) || null;
+  /* ── open editor ── */
+  const openRoutineEditor = ({ day = 'Monday', className, sectionName } = {}) => {
+    const cls = className || selectedClass || (classes[0]?.name || '');
+    const clsDoc = classes.find(c => c.name === cls);
+    const avail = sections.filter(s => !clsDoc || getId(s.classId) === clsDoc._id);
+    const sec = sectionName || selectedSection || (avail[0]?.name || '');
+    const existing = routines.find(r => routineMatchesScope(r, cls, sec) && normalizeDayLabel(r.day) === normalizeDayLabel(day));
+    setForm({ class: cls, section: sec, day, schedule: buildScheduleForDay(existing?.schedule || []) });
+    setEditingRoutine(existing || null);
+    setIsModalOpen(true);
   };
 
-  const getCellBlock = (day, time) => {
-    const draft = weeklyDraft[day]?.[time];
-    if (draft === null) return null;
-    if (draft) return draft;
-    const base = getBaseCell(day, time);
-    if (!base || base.subject === 'Break') return null;
-    return {
-      subject: base.subject,
-      teacher: base.teacher,
-      subjectId: base.subjectId || null,
-      teacherId: base.teacherId || null,
-      room: base.room || '',
-    };
-  };
+  /* ── helpers inside form ── */
+  const getClassDoc = () => classes.find(c => c.name === form.class);
+  const getSectionDoc = (cd) => sections.find(s => s.name === form.section && getId(s.classId) === cd?._id);
 
-  const buildDayScheduleMap = (day, overrides = {}) => {
-    const scheduleMap = {};
-    const routine = getRoutineForDay(day);
-    routine?.schedule.forEach((p) => {
-      if (p.subject === 'Break') return;
-      scheduleMap[p.time] = {
-        subject: p.subject,
-        teacher: p.teacher,
-        subjectId: p.subjectId || null,
-        teacherId: p.teacherId || null,
-        room: p.room || '',
-      };
-    });
-    const draftForDay = { ...(weeklyDraft[day] || {}), ...overrides };
-    Object.keys(draftForDay).forEach((time) => {
-      if (draftForDay[time] === null) {
-        delete scheduleMap[time];
-      } else if (draftForDay[time]) {
-        scheduleMap[time] = draftForDay[time];
-      }
-    });
-    return scheduleMap;
-  };
-
-  const buildEntriesFromScheduleMap = (day, scheduleMap) => {
-    const classDoc = getClassDoc();
-    return TIMES.map((time, index) => {
-      if (isBreakSlot(time)) return null;
-      const slot = scheduleMap[time];
-      if (!slot) return null;
-      const [startTime, endTime] = time.split(' - ').map(t => t.trim());
-      const subject = slot.subjectId
-        ? subjects.find(s => String(s._id) === String(slot.subjectId))
-        : subjects.find(
-            (s) =>
-              s.name === slot.subject &&
-              (!classDoc || String(s.classId) === String(classDoc._id))
-          );
-      const teacher = slot.teacherId
-        ? teachers.find(t => String(t._id) === String(slot.teacherId))
-        : teachers.find(t => t.name === slot.teacher);
-      return {
-        dayOfWeek: day,
-        period: index + 1,
-        subjectId: subject?._id || slot.subjectId || null,
-        teacherId: teacher?._id || slot.teacherId || null,
-        startTime: convertTo24Hour(startTime),
-        endTime: convertTo24Hour(endTime),
-        room: slot.room || ''
-      };
-    }).filter(Boolean);
-  };
-
-  const validateDayConflicts = async (day, scheduleMap) => {
-    const classDoc = getClassDoc();
-    const sectionDoc = getSectionDoc(classDoc);
-    if (!classDoc) {
-      showErrorToast('Select class and section first');
-      return false;
-    }
-    const entries = buildEntriesFromScheduleMap(day, scheduleMap);
-    if (entries.length === 0) {
-      showErrorToast('Please add at least one class period');
-      return false;
-    }
-    if (entries.some((entry) => !entry.subjectId || !entry.teacherId)) {
-      showErrorToast('Invalid subject or teacher selection');
-      return false;
-    }
-    const routine = getRoutineForDay(day);
-    const conflictResult = await timetableApi.validateConflicts({
-      classId: classDoc._id,
-      sectionId: sectionDoc?._id || null,
-      entries,
-      excludeTimetableId: routine?.timetableId
-    });
-    if (conflictResult.hasConflicts) {
-      setConflicts(conflictResult.conflicts);
-      setShowConflictModal(true);
-      return false;
-    }
-    return true;
-  };
-
-  const handleDropOnCell = async (day, time, payload) => {
-    if (!selectedClass || !selectedSection) {
-      showErrorToast('Select class and section first');
-      return;
-    }
-    if (isBreakSlot(time)) {
-      showErrorToast('Break slots are locked');
-      return;
-    }
-
-    let block = null;
-    let source = null;
-    if (payload.type === 'palette') {
-      block = payload.block;
-    } else if (payload.type === 'cell') {
-      source = payload;
-      block = getCellBlock(payload.day, payload.time);
-    }
-
-    if (!block || !block.subject || !block.teacher) {
-      showErrorToast('Select subject and teacher first');
-      return;
-    }
-
-    if (source && source.day === day && source.time === time) {
-      return;
-    }
-
-    const overrides = { [time]: block };
-    if (source) {
-      overrides[source.time] = null;
-    }
-    const scheduleMap = buildDayScheduleMap(day, overrides);
-    const ok = await validateDayConflicts(day, scheduleMap);
-    if (!ok) return;
-
-    setWeeklyDraft((prev) => ({
-      ...prev,
-      [day]: {
-        ...(prev[day] || {}),
-        ...overrides,
-      },
-    }));
-  };
-
-  const handleDragStart = (event, payload) => {
-    event.dataTransfer.setData('application/json', JSON.stringify(payload));
-    event.dataTransfer.setData('text/plain', JSON.stringify(payload));
-    event.dataTransfer.effectAllowed = 'move';
-  };
-
-  const handleClearCell = (day, time) => {
-    if (isBreakSlot(time)) return;
-    setWeeklyDraft((prev) => ({
-      ...prev,
-      [day]: {
-        ...(prev[day] || {}),
-        [time]: null,
-      },
-    }));
-  };
-
-  const handleSaveDay = async (day, options = {}) => {
-    const { silent = false } = options;
-    const classDoc = getClassDoc();
-    const sectionDoc = getSectionDoc(classDoc);
-    if (!classDoc) {
-      if (!silent) showErrorToast('Select class and section first');
-      return;
-    }
-
-    const scheduleMap = buildDayScheduleMap(day);
-    const entries = buildEntriesFromScheduleMap(day, scheduleMap);
-    if (entries.length === 0) {
-      if (!silent) showErrorToast('Please add at least one class period');
-      return;
-    }
-
-    const ok = await validateDayConflicts(day, scheduleMap);
-    if (!ok) return;
-
-    if (!silent) setDraftSaving(true);
-    try {
-      await timetableApi.saveDay({
-        classId: classDoc._id,
-        sectionId: sectionDoc?._id || null,
-        dayOfWeek: day,
-        entries,
-      });
-      setWeeklyDraft((prev) => {
-        const next = { ...prev };
-        delete next[day];
-        return next;
-      });
-      if (!silent) showSuccessToast(`Saved ${day} routine`);
-      await loadInitialData();
-    } catch (err) {
-      if (!silent) showErrorToast(err.message || 'Failed to save routine');
-    } finally {
-      if (!silent) setDraftSaving(false);
-    }
-  };
-
-  const handleSaveWeek = async () => {
-    if (!selectedClass || !selectedSection) {
-      showErrorToast('Select class and section first');
-      return;
-    }
-    const daysToSave = Object.keys(weeklyDraft);
-    if (daysToSave.length === 0) {
-      showErrorToast('No changes to save');
-      return;
-    }
-    setDraftSaving(true);
-    try {
-      for (const day of daysToSave) {
-        await handleSaveDay(day, { silent: true });
-      }
-      showSuccessToast('Saved weekly routine');
-      await loadInitialData();
-    } finally {
-      setDraftSaving(false);
-    }
-  };
-
-  const handleAddBlock = () => {
-    if (!blockDraft.subject || !blockDraft.teacher) {
-      showErrorToast('Select subject and teacher first');
-      return;
-    }
-    const subject = subjects.find((s) => s.name === blockDraft.subject);
-    const teacher = teachers.find((t) => t.name === blockDraft.teacher);
-    const nextBlock = {
-      id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-      subject: blockDraft.subject,
-      teacher: blockDraft.teacher,
-      subjectId: subject?._id || null,
-      teacherId: teacher?._id || null,
-      room: blockDraft.room || '',
-    };
-    setPaletteBlocks((prev) => [...prev, nextBlock]);
-    setBlockDraft({ subject: '', teacher: '', room: '' });
-  };
-
-  const handleRemoveBlock = (id) => {
-    setPaletteBlocks((prev) => prev.filter((block) => block.id !== id));
-  };
-
-  const handleApplyTemplate = (templateId) => {
-    const template = ROUTINE_TEMPLATES.find((entry) => entry.id === templateId);
-    if (!template) return;
-    setForm((prev) => {
-      const nextSchedule = prev.schedule.map((slot, index) => {
-        if (slot.isBreak) {
-          return { ...slot, subject: 'Break', teacher: '-', room: '' };
-        }
-        const subject = template.pattern[index % template.pattern.length] || slot.subject;
-        if (!subject) return slot;
-        const teacherSuggestion =
-          slot.subject === subject && slot.teacher
-            ? slot.teacher
-            : TEACHERS[subject] || slot.teacher || '';
-        return {
-          ...slot,
-          subject,
-          teacher: teacherSuggestion,
-        };
-      });
-      return { ...prev, schedule: nextSchedule };
-    });
-    showSuccessToast(`Applied ${template.name} template`);
-  };
-
-  const handleCopyFromExistingRoutine = () => {
-    if (!selectedCopyRoutine) return;
-    const routine = routines.find((r) => String(r.id) === String(selectedCopyRoutine));
-    if (!routine) return;
-    const schedule = pruneEmptySlots(buildScheduleForDay(routine.schedule));
-    setForm((prev) => ({ ...prev, schedule }));
-    setSelectedCopyRoutine('');
-    showSuccessToast(`Copied ${normalizeDayLabel(routine.day)} routine`);
-  };
-
-  const handleResetSchedule = () => {
-    setForm((prev) => ({
-      ...prev,
-      schedule: buildScheduleForDay()
-    }));
-  };
-
-  const handleClearSubjects = () => {
-    setForm((prev) => ({
-      ...prev,
-      schedule: prev.schedule.map((slot) =>
-        slot.isBreak
-          ? { ...slot, subject: 'Break', teacher: '-', room: '' }
-          : { ...slot, subject: '', teacher: '', room: '' }
-      )
-    }));
-  };
-
-  const handleAutoAssignRooms = () => {
-    setForm((prev) => ({
-      ...prev,
-      schedule: prev.schedule.map((slot, index) =>
-        slot.isBreak
-          ? { ...slot, room: '' }
-          : { ...slot, room: slot.room || `Room ${200 + (index + 1)}` }
-      )
-    }));
-    showSuccessToast('Rooms auto-assigned to available periods');
-  };
-
-  const updateRowTimeField = (index, field, value) => {
-    setForm((prev) => {
+  const updateRowTimeField = (idx, field, value) => {
+    setForm(prev => {
       const schedule = [...prev.schedule];
-      const current = schedule[index];
-      if (!current) return prev;
-      const parsed = parseTimeRange(current.time);
-      const nextStart = field === 'start' ? value : (current.startTime || parsed.start || '');
-      const nextEnd = field === 'end' ? value : (current.endTime || parsed.end || '');
-      const timeLabel = nextStart && nextEnd ? formatTimeRange(nextStart, nextEnd) : current.time;
-      schedule[index] = {
-        ...current,
-        startTime: nextStart,
-        endTime: nextEnd,
-        time: timeLabel
-      };
+      const cur = schedule[idx]; if (!cur) return prev;
+      const p = parseTimeRange(cur.time);
+      const ns = field === 'start' ? value : (cur.startTime || p.start || '');
+      const ne = field === 'end'   ? value : (cur.endTime   || p.end   || '');
+      schedule[idx] = { ...cur, startTime: ns, endTime: ne, time: (ns && ne) ? formatTimeRange(ns, ne) : cur.time };
       return { ...prev, schedule };
     });
   };
 
   const handleAddTimeSlot = () => {
-    setForm((prev) => {
-      const lastSlot = prev.schedule[prev.schedule.length - 1];
-      const parsedLast = lastSlot ? (lastSlot.endTime || parseTimeRange(lastSlot.time).end) : '';
-      const start = parsedLast || DEFAULT_START_TIME;
-      const end = addMinutesToTime(start, DEFAULT_PERIOD_MINUTES);
-      const nextSlot = {
-        time: formatTimeRange(start, end),
-        startTime: start,
-        endTime: end,
-        isBreak: false,
-        subject: '',
-        teacher: '',
-        subjectId: null,
-        teacherId: null,
-        room: '',
-      };
-      return { ...prev, schedule: [...prev.schedule, nextSlot] };
+    setForm(prev => {
+      const last = prev.schedule[prev.schedule.length - 1];
+      const st = last?.endTime || DEFAULT_START_TIME;
+      const et = addMinutesToTime(st, DEFAULT_PERIOD_MINUTES);
+      return { ...prev, schedule: [...prev.schedule, { time: formatTimeRange(st, et), startTime: st, endTime: et, isBreak: false, subject: '', teacher: '', subjectId: null, teacherId: null, roomId: null, room: '' }] };
     });
   };
 
-  const handleRemoveTimeSlot = (index) => {
-    setForm((prev) => {
-      if (prev.schedule.length <= 1) return prev;
-      const next = prev.schedule.filter((_, idx) => idx !== index);
-      return { ...prev, schedule: next };
-    });
+  const handleRemoveTimeSlot = (idx) => {
+    setForm(prev => prev.schedule.length <= 1 ? prev : { ...prev, schedule: prev.schedule.filter((_, i) => i !== idx) });
   };
 
-  // Save/Update handler
+  const handleApplyTemplate = (templateId) => {
+    const t = ROUTINE_TEMPLATES.find(x => x.id === templateId); if (!t) return;
+    setForm(prev => ({
+      ...prev,
+      schedule: prev.schedule.map((slot, idx) =>
+        slot.isBreak ? { ...slot, subject: 'Break', teacher: '-', roomId: null, room: '' }
+          : { ...slot, subject: t.pattern[idx % t.pattern.length] || slot.subject, teacher: TEACHERS[t.pattern[idx % t.pattern.length]] || slot.teacher }
+      )
+    }));
+    showToast(`Applied "${t.name}" template`);
+  };
+
+  const handleCopyFromExistingRoutine = () => {
+    const r = routines.find(x => String(x.id) === String(selectedCopyRoutine)); if (!r) return;
+    setForm(prev => ({ ...prev, schedule: buildScheduleForDay(r.schedule) }));
+    setSelectedCopyRoutine(''); showToast('Schedule copied');
+  };
+
+  const handleResetSchedule = () => setForm(prev => ({ ...prev, schedule: buildScheduleForDay() }));
+  const handleClearSubjects = () => setForm(prev => ({
+    ...prev,
+    schedule: prev.schedule.map(s => s.isBreak ? { ...s, subject: 'Break', teacher: '-', roomId: null, room: '' } : { ...s, subject: '', teacher: '', roomId: null, room: '' })
+  }));
+
+  /* ── save ── */
   const handleSave = async () => {
     try {
-      setSaving(true);
-      setConflicts([]);
+      setSaving(true); setConflicts([]);
+      const classDoc = getClassDoc();
+      const sectionDoc = getSectionDoc(classDoc);
+      if (!classDoc) { showToast('Select a class', 'error'); return; }
+      const incomplete = form.schedule.filter(p => !p.isBreak && (!p.subject || !p.teacher));
+      if (incomplete.length) { showToast('Fill subject and teacher for all periods', 'error'); return; }
+      const timingIssues = form.schedule.filter(p => !p.isBreak && (!p.startTime || !p.endTime || p.startTime >= p.endTime));
+      if (timingIssues.length) { showToast('Fix period timings', 'error'); return; }
 
-      // Find class and section IDs
-      const classDoc = classes.find(c => c.name === form.class);
-      const sectionDoc = sections.find(s => s.name === form.section && getId(s.classId) === classDoc?._id);
-
-      if (!classDoc) {
-        showErrorToast('Selected class not found');
-        return;
-      }
-
-      // Transform form data to timetable format
-      const incompleteRows = form.schedule.filter(
-        (period) => !period.isBreak && (!period.subject || !period.teacher)
-      );
-      if (incompleteRows.length > 0) {
-        showErrorToast('Please select subject and teacher for all class periods');
-        return;
-      }
-
-      const timingIssues = form.schedule.filter(
-        (period) =>
-          !period.isBreak &&
-          (!period.startTime || !period.endTime || period.startTime >= period.endTime)
-      );
-      if (timingIssues.length > 0) {
-        showErrorToast('Please set valid start and end times for each period');
-        return;
-      }
-
-      const entries = form.schedule
-        .filter(period => !period.isBreak)
-        .filter(period => period.subject && (period.startTime || period.time))
-        .map((period, index) => {
-          const parsed = parseTimeRange(period.time);
-          const startTime = period.startTime || parsed.start;
-          const endTime = period.endTime || parsed.end;
-          const subject = subjects.find(
-            (s) =>
-              s.name === period.subject &&
-              (!classDoc || String(s.classId) === String(classDoc._id))
-          );
-          const teacher = teachers.find(t => t.name === period.teacher);
-
-          return {
-            dayOfWeek: form.day,
-            period: index + 1,
-            subjectId: subject?._id || null,
-            teacherId: teacher?._id || null,
-            startTime,
-            endTime,
-            room: period.room || ''
-          };
-        });
-
-      if (entries.length === 0) {
-        showErrorToast('Please add at least one class period before saving');
-        return;
-      }
-
-      const timetableData = {
-        classId: classDoc._id,
-        sectionId: sectionDoc?._id || null,
-        dayOfWeek: form.day,
-        entries
-      };
-
-      // Validate conflicts
-      const conflictResult = await timetableApi.validateConflicts({
-        ...timetableData,
-        excludeTimetableId: editingRoutine?.timetableId
+      const entries = form.schedule.filter(p => !p.isBreak && p.subject).map((p, idx) => {
+        const parsed = parseTimeRange(p.time);
+        const subject = subjects.find(s => s.name === p.subject && (!classDoc || String(s.classId) === String(classDoc._id)));
+        const teacher = teachers.find(t => t.name === p.teacher);
+        const roomDoc = p.roomId ? roomsById.get(String(p.roomId)) : null;
+        return { dayOfWeek: form.day, period: idx + 1, subjectId: subject?._id || null, teacherId: teacher?._id || null, roomId: roomDoc?._id || p.roomId || null, startTime: p.startTime || parsed.start, endTime: p.endTime || parsed.end, room: roomDoc?.roomNumber || p.room || '' };
       });
+      if (!entries.length) { showToast('Add at least one period', 'error'); return; }
 
-      if (conflictResult.hasConflicts) {
-        setConflicts(conflictResult.conflicts);
-        setShowConflictModal(true);
-        setSaving(false);
-        return;
-      }
+      const conflictResult = await timetableApi.validateConflicts({ classId: classDoc._id, sectionId: sectionDoc?._id || null, dayOfWeek: form.day, entries, excludeTimetableId: editingRoutine?.timetableId });
+      if (conflictResult.hasConflicts) { setConflicts(conflictResult.conflicts); setShowConflictModal(true); setSaving(false); return; }
 
-      // Save timetable
-      await timetableApi.saveDay(timetableData);
-
-      showSuccessToast('Routine saved successfully!');
-      setIsModalOpen(false);
-      setEditingRoutine(null);
-
-      // Reload data
+      await timetableApi.saveDay({ classId: classDoc._id, sectionId: sectionDoc?._id || null, dayOfWeek: form.day, entries });
+      showToast('Routine saved successfully!'); setIsModalOpen(false); setEditingRoutine(null);
       await loadInitialData();
-    } catch (err) {
-      console.error('Error saving routine:', err);
-      showErrorToast(err.message || 'Failed to save routine');
-    } finally {
-      setSaving(false);
-    }
+    } catch (err) { showToast(err.message || 'Failed to save', 'error'); }
+    finally { setSaving(false); }
   };
 
-  // Build weekly grid for selected class/section
+  /* ── export ── */
   const weeklyGrid = useMemo(() => {
     if (!selectedClass || !selectedSection) return null;
-    // Map entries by day for quick lookup
     const byDay = new Map();
-    routines.forEach((r) => {
-      if (r.class === selectedClass && r.section === selectedSection) {
-        byDay.set(r.day, r);
-      }
-    });
+    routines.forEach(r => { if (routineMatchesScope(r, selectedClass, selectedSection)) byDay.set(r.day, r); });
     const headers = ['Time', ...DAYS];
-    const rows = TIMES.map((time) => {
-      const cells = DAYS.map((day) => {
-        const entry = byDay.get(day);
-        const period = entry?.schedule.find((p) => p.time === time);
-        if (!period) return '';
-        if (period.subject === 'Break') return 'Break';
-        return `${period.subject} — ${period.teacher}`;
-      });
+    const rows = TIMES.map(time => {
+      const cells = DAYS.map(day => { const e = byDay.get(day); const p = e?.schedule.find(x => x.time === time); return p ? (p.subject === 'Break' ? 'Break' : `${p.subject} — ${p.teacher}`) : ''; });
       return [time, ...cells];
     });
     return { headers, rows };
-  }, [selectedClass, selectedSection]);
+  }, [selectedClass, selectedSection, routines]);
 
   const exportCSV = () => {
     if (!weeklyGrid) return;
-    const lines = [weeklyGrid.headers.join(',')];
-    weeklyGrid.rows.forEach((r) => {
-      const escaped = r.map((c) => {
-        const s = String(c || '');
-        return s.includes(',') || s.includes('\n') ? '"' + s.replace(/"/g, '""') + '"' : s;
-      });
-      lines.push(escaped.join(','));
-    });
+    const lines = [weeklyGrid.headers.join(','), ...weeklyGrid.rows.map(r => r.map(c => { const s = String(c||''); return s.includes(',') ? `"${s.replace(/"/g,'""')}"` : s; }).join(','))];
     const blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `routine_${selectedClass}_${selectedSection}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
+    const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = `routine_${selectedClass}_${selectedSection}.csv`; a.click(); URL.revokeObjectURL(url);
   };
 
   const exportPDF = () => {
-    if (!weeklyGrid) return;
-    const doc = new jsPDF({ orientation: 'landscape', unit: 'pt', format: 'a4' });
+    if (!Array.isArray(routines) || routines.length === 0) {
+      showToast('No routines available to export', 'error');
+      return;
+    }
+
+    const dayIndex = new Map(DAYS.map((d, i) => [d, i]));
+    const sortedRoutines = [...routines].sort((a, b) => {
+      const classCmp = String(a.class || '').localeCompare(String(b.class || ''), undefined, { numeric: true, sensitivity: 'base' });
+      if (classCmp !== 0) return classCmp;
+      const secCmp = String(a.section || '').localeCompare(String(b.section || ''), undefined, { numeric: true, sensitivity: 'base' });
+      if (secCmp !== 0) return secCmp;
+      const dayCmp = (dayIndex.get(normalizeDayLabel(a.day)) ?? 99) - (dayIndex.get(normalizeDayLabel(b.day)) ?? 99);
+      return dayCmp;
+    });
+
+    const doc = new jsPDF({ orientation: 'portrait', unit: 'pt', format: 'a4' });
+    const pageW = doc.internal.pageSize.getWidth();
+    const pageH = doc.internal.pageSize.getHeight();
     const margin = 36;
-    const startY = margin + 20;
-    doc.setFontSize(14);
-    doc.text(`Class ${selectedClass} - Section ${selectedSection} | Weekly Routine`, margin, margin);
-    // Compute column widths
-    const pageWidth = doc.internal.pageSize.getWidth();
-    const tableWidth = pageWidth - margin * 2;
-    const colCount = weeklyGrid.headers.length;
-    const colWidth = tableWidth / colCount;
-    const rowHeight = 28;
-    let y = startY;
-    // Header row
-    doc.setFillColor(243, 244, 246); // gray-100
-    doc.rect(margin, y, tableWidth, rowHeight, 'F');
-    doc.setFontSize(10);
-    weeklyGrid.headers.forEach((h, i) => {
-      const x = margin + i * colWidth + 6;
-      doc.text(String(h), x, y + 18);
-    });
-    y += rowHeight;
-    // Rows
+    const tableW = pageW - margin * 2;
+    const cols = [
+      { key: 'time', label: 'Time', w: 118 },
+      { key: 'subject', label: 'Subject', w: 150 },
+      { key: 'teacher', label: 'Teacher', w: 148 },
+      { key: 'room', label: 'Room', w: tableW - (118 + 150 + 148) },
+    ];
+
+    let y = margin;
+
+    const ensureSpace = (h) => {
+      if (y + h <= pageH - margin) return;
+      doc.addPage();
+      y = margin;
+    };
+
+    doc.setFontSize(15);
+    doc.setFont(undefined, 'bold');
+    doc.text('All Class Routines', margin, y);
+    y += 16;
     doc.setFontSize(9);
-    weeklyGrid.rows.forEach((row) => {
-      // cell backgrounds alternating
-      doc.setDrawColor(229, 231, 235); // gray-200
-      row.forEach((cell, i) => {
-        const x = margin + i * colWidth;
-        doc.rect(x, y, colWidth, rowHeight);
-        const text = String(cell || '');
-        const lines = doc.splitTextToSize(text, colWidth - 10);
-        doc.text(lines, x + 6, y + 18);
+    doc.setFont(undefined, 'normal');
+    doc.setTextColor(100);
+    doc.text(`Generated: ${new Date().toLocaleString()}`, margin, y);
+    doc.setTextColor(20);
+    y += 18;
+
+    sortedRoutines.forEach((routine, idx) => {
+      const schedule = Array.isArray(routine.schedule)
+        ? [...routine.schedule].sort((a, b) => {
+            const aKey = (a.startTime || parseTimeRange(a.time).start || '');
+            const bKey = (b.startTime || parseTimeRange(b.time).start || '');
+            return aKey.localeCompare(bKey);
+          })
+        : [];
+
+      const title = `Class ${routine.class || '-'} - Section ${routine.section || '-'} - ${normalizeDayLabel(routine.day || '')}`;
+      ensureSpace(24);
+      doc.setFillColor(245, 247, 255);
+      doc.rect(margin, y, tableW, 20, 'F');
+      doc.setFontSize(10);
+      doc.setFont(undefined, 'bold');
+      doc.text(title, margin + 8, y + 14);
+      y += 20;
+
+      ensureSpace(22);
+      doc.setFillColor(248, 250, 252);
+      doc.rect(margin, y, tableW, 18, 'F');
+      doc.setFontSize(8);
+      doc.setFont(undefined, 'bold');
+      let x = margin;
+      cols.forEach((c) => {
+        doc.text(c.label, x + 6, y + 12);
+        x += c.w;
       });
-      y += rowHeight;
-      if (y + rowHeight > doc.internal.pageSize.getHeight() - margin) {
-        doc.addPage();
-        y = margin;
-      }
+      y += 18;
+
+      doc.setFont(undefined, 'normal');
+      schedule.forEach((row) => {
+        ensureSpace(18);
+        let cx = margin;
+        const values = {
+          time: row.time || `${convertTo12Hour(row.startTime || '')} - ${convertTo12Hour(row.endTime || '')}`.trim(),
+          subject: row.isBreak ? 'Break' : (row.subject || '-'),
+          teacher: row.isBreak ? '-' : (row.teacher || '-'),
+          room: row.isBreak ? '-' : (row.room || '-'),
+        };
+        cols.forEach((c) => {
+          doc.setDrawColor(230);
+          doc.rect(cx, y, c.w, 18);
+          const text = doc.splitTextToSize(String(values[c.key] || '-'), c.w - 10)[0] || '-';
+          doc.text(text, cx + 6, y + 12);
+          cx += c.w;
+        });
+        y += 18;
+      });
+
+      if (idx < sortedRoutines.length - 1) y += 10;
     });
-    doc.save(`routine_${selectedClass}_${selectedSection}.pdf`);
+
+    doc.save(`all_routines_${new Date().toISOString().slice(0, 10)}.pdf`);
   };
 
-  const openRoutineEditor = ({ className, sectionName, day = 'Monday' } = {}) => {
-    const targetClass = className || selectedClass || (classes.length > 0 ? classes[0].name : '');
-    const classDoc = classes.find((c) => c.name === targetClass);
-    const availableSections = sections.filter(
-      (s) => !classDoc || getId(s.classId) === classDoc._id
+  /* ════════════════════ RENDER ════════════════════ */
+  if (loading) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-screen bg-slate-50">
+        <div className="h-10 w-10 rounded-full border-4 border-indigo-200 border-t-indigo-600 animate-spin mb-4" />
+        <p className="text-slate-500 text-sm">Loading routines…</p>
+      </div>
     );
-    const targetSection =
-      sectionName ||
-      selectedSection ||
-      (availableSections.length > 0 ? availableSections[0].name : '');
+  }
 
-    const existingRoutine = routines.find(
-      (routine) =>
-        routineMatchesScope(routine, targetClass, targetSection) &&
-        normalizeDayLabel(routine.day) === normalizeDayLabel(day)
+  if (error) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-screen bg-slate-50 gap-4">
+        <AlertCircle size={40} className="text-red-400" />
+        <p className="text-slate-700 font-medium">{error}</p>
+        <button onClick={loadInitialData} className="px-5 py-2 rounded-xl bg-indigo-600 text-white text-sm hover:bg-indigo-700">Retry</button>
+      </div>
     );
-
-    setForm({
-      class: targetClass,
-      section: targetSection,
-      day,
-      schedule: pruneEmptySlots(buildScheduleForDay(existingRoutine?.schedule || [])),
-    });
-    setEditingRoutine(existingRoutine || null);
-    setShowAdvancedModalTools(false);
-    setIsModalOpen(true);
-  };
+  }
 
   return (
-    <div className="min-h-screen bg-gray-50 p-6">
-      {/* Toast Notification */}
-      {toast.show && (
-        <div className={`fixed top-4 right-4 z-50 px-6 py-3 rounded-lg shadow-lg flex items-center space-x-2 ${
-          toast.type === 'success' ? 'bg-green-500 text-white' : 'bg-red-500 text-white'
-        }`}>
-          {toast.type === 'success' ? (
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-            </svg>
-          ) : (
-            <AlertCircle size={20} />
-          )}
-          <span>{toast.message}</span>
-        </div>
-      )}
+    <div className="min-h-screen bg-slate-50">
+      <Toast {...toast} />
 
-      {/* Loading State */}
-      {loading && (
-        <div className="flex flex-col items-center justify-center h-64">
-          <Loader2 className="animate-spin text-indigo-500 mb-4" size={48} />
-          <p className="text-gray-600">Loading routines...</p>
-        </div>
-      )}
-
-      {/* Error State */}
-      {!loading && error && (
-        <div className="bg-red-50 border border-red-200 rounded-lg p-6">
-          <div className="flex items-center space-x-3 mb-3">
-            <AlertCircle className="text-red-500" size={24} />
-            <h3 className="text-lg font-semibold text-red-800">Error Loading Routines</h3>
-          </div>
-          <p className="text-red-700 mb-4">{error}</p>
-          <button
-            onClick={loadInitialData}
-            className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg transition-colors"
-          >
-            Retry
-          </button>
-        </div>
-      )}
-
-      {/* Main Content - Only show if not loading and no error */}
-      {!loading && !error && (
-        <>
-          {/* Header inspired by RoutineView */}
-          <div className="bg-white rounded-xl shadow-sm border border-purple-400 p-6 mb-6">
-        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
-          <div className="flex items-center space-x-3">
-            <div className="p-3 bg-indigo-100 rounded-lg">
-              <Calendar className="text-indigo-600 w-6 h-6" />
+      {/* ──────── HEADER ──────── */}
+      <div className="sticky top-0 z-30 bg-white border-b border-slate-200 shadow-sm">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <div className="h-10 w-10 rounded-xl bg-indigo-600 flex items-center justify-center shadow-md">
+              <Calendar size={18} className="text-white" />
             </div>
             <div>
-              <h1 className="text-2xl font-bold text-gray-900">Class Routines</h1>
-              <p className="text-gray-600">Manage weekly schedules across classes and sections</p>
+              <h1 className="text-lg font-bold text-slate-900 leading-tight">Class Routines</h1>
+              <p className="text-xs text-slate-500">Manage weekly timetables</p>
             </div>
           </div>
-          <div className="flex items-center space-x-3">
-            <button
-              onClick={exportCSV}
-              disabled={!weeklyGrid}
-              className={`px-4 py-2 border rounded-lg transition-colors ${
-                weeklyGrid ? 'border-purple-400 text-gray-700 hover:bg-gray-50' : 'border-gray-300 text-gray-400 cursor-not-allowed'
-              }`}
-            >
-              CSV
+          <div className="flex items-center gap-2 flex-wrap">
+            {/* <button onClick={exportCSV} disabled={!weeklyGrid}
+              className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-slate-200 text-sm text-slate-600 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
+              <Download size={14} /> CSV
+            </button> */}
+            <button onClick={exportPDF} disabled={routines.length === 0}
+              className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-slate-200 text-sm text-slate-600 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
+              <Download size={14} /> PDF
             </button>
-            <button
-              onClick={exportPDF}
-              disabled={!weeklyGrid}
-              className={`px-4 py-2 border rounded-lg transition-colors ${
-                weeklyGrid ? 'border-purple-400 text-gray-700 hover:bg-gray-50' : 'border-gray-300 text-gray-400 cursor-not-allowed'
-              }`}
-            >
-              PDF
-            </button>
-            <button
-              onClick={() => openRoutineEditor({ day: selectedDay })}
-              className="bg-indigo-500 hover:bg-indigo-600 text-white px-4 py-2 rounded-lg flex items-center space-x-2"
-            >
-              <Plus size={16} />
-              <span>Open Day Editor</span>
-            </button>
-            <button
-              onClick={handleAutoGenerate}
-              disabled={generating}
-              className="border border-indigo-200 bg-white text-indigo-700 hover:bg-indigo-50 px-4 py-2 rounded-lg flex items-center space-x-2 disabled:opacity-60 disabled:cursor-not-allowed"
-            >
-              <Sparkles size={16} />
-              <span>{generating ? 'Generating...' : 'Auto Generate'}</span>
+            {/* <button onClick={handleAutoGenerate} disabled={generating}
+              className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-indigo-200 bg-indigo-50 text-sm text-indigo-700 hover:bg-indigo-100 disabled:opacity-60 transition-colors">
+              <Sparkles size={14} /> {generating ? 'Generating…' : 'Auto Generate'}
+            </button> */}
+            <button onClick={() => openRoutineEditor({ day: selectedDay || 'Monday' })}
+              className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-indigo-600 text-white text-sm font-semibold hover:bg-indigo-700 shadow-md shadow-indigo-200 transition-colors">
+              <Plus size={14} /> New Routine
             </button>
           </div>
         </div>
-        {generateMessage && (
-          <div className="mt-4 rounded-lg border border-purple-100 bg-purple-50 px-4 py-2 text-sm text-purple-700">
-            {generateMessage}
-          </div>
-        )}
       </div>
 
-      {/* Enhanced Controls */}
-      <div className="bg-white rounded-xl shadow-sm border border-purple-400 p-6 mb-6">
-        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
-          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6 space-y-6">
 
-            {/* Class and Section Filters */}
-            <div className="flex items-center space-x-3">
-              <select
-                className="border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                value={selectedClass}
-                onChange={(e) => setSelectedClass(e.target.value)}
-              >
-                <option value="">All Classes</option>
-                {classes.map((cls) => (
-                  <option key={cls._id} value={cls.name}>{cls.name}</option>
-                ))}
-              </select>
-
-              <select
-                className="border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                value={selectedSection}
-                onChange={(e) => setSelectedSection(e.target.value)}
-              >
-                <option value="">All Sections</option>
-                    {sections
-                      .filter(s => {
-                        if (!selectedClass) return true;
-                        const classDoc = classes.find(c => c.name === selectedClass);
-                        return classDoc && getId(s.classId) === classDoc._id;
-                      })
-                  .map((sec) => (
-                    <option key={sec._id} value={sec.name}>{sec.name}</option>
-                  ))}
-              </select>
-            </div>
-            
-            <div className="flex bg-white rounded-lg shadow-sm border border-purple-400 p-1">
-              <span className="px-3 py-2 rounded-md text-sm font-medium bg-indigo-500 text-white inline-flex items-center">
-                <Grid size={16} className="inline mr-1" />
-                Weekly
+        {/* ──────── FILTERS ──────── */}
+        <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm">
+          <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">Filter by Class & Section</p>
+          <div className="flex flex-wrap gap-3 items-center">
+            <select value={selectedClass} onChange={e => { setSelectedClass(e.target.value); setSelectedSection(''); }}
+              className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm text-slate-700 focus:outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 min-w-[140px]">
+              <option value="">All Classes</option>
+              {classes.map(c => <option key={c._id} value={c.name}>{c.name}</option>)}
+            </select>
+            <ChevronRight size={14} className="text-slate-300" />
+            <select value={selectedSection} onChange={e => setSelectedSection(e.target.value)}
+              className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm text-slate-700 focus:outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 min-w-[140px]">
+              <option value="">All Sections</option>
+              {filteredSections.map(s => <option key={s._id} value={s.name}>{s.name}</option>)}
+            </select>
+            {selectedClass && selectedSection && (
+              <span className="ml-auto text-xs bg-indigo-50 text-indigo-700 px-3 py-1.5 rounded-xl font-semibold border border-indigo-100">
+                Class {selectedClass} — {selectedSection}
               </span>
-            </div>
+            )}
           </div>
+          {generateMessage && (
+            <div className="mt-3 flex items-center gap-2 text-xs text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-xl px-4 py-2.5">
+              <CheckCircle2 size={13} /> {generateMessage}
+            </div>
+          )}
         </div>
-      </div>
 
-      {(selectedClass && selectedSection) && (
-        <div className="bg-white rounded-xl shadow-sm border border-purple-400 p-6 mb-6">
-          <h2 className="text-lg font-semibold text-gray-900">Quick Routine Builder</h2>
-          <p className="text-sm text-gray-600 mt-1">
-            1) Pick class & section 2) Select day 3) Click edit and save.
-          </p>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 mt-5">
-            {DAYS.map((day) => {
-              const dayRoutine = routines.find(
-                (routine) =>
-                  routineMatchesScope(routine, selectedClass, selectedSection) &&
-                  normalizeDayLabel(routine.day) === normalizeDayLabel(day)
-              );
-              const assignedSlots = dayRoutine
-                ? dayRoutine.schedule.filter((slot) => slot.subject !== 'Break').length
-                : 0;
-              return (
-                <div key={day} className="rounded-lg border border-gray-200 p-4 bg-gray-50">
-                  <div className="flex items-center justify-between">
-                    <p className="font-semibold text-gray-900">{day}</p>
-                    <span className="text-xs text-gray-500">{assignedSlots} periods</span>
-                  </div>
-                  <button
-                    onClick={() => openRoutineEditor({ day })}
-                    className="mt-3 w-full px-3 py-2 text-sm rounded-lg bg-indigo-500 hover:bg-indigo-600 text-white"
-                  >
-                    {dayRoutine ? 'Edit Day' : 'Add Day Routine'}
-                  </button>
-                </div>
-              );
-            })}
-          </div>
-
-          <button
-            type="button"
-            onClick={() => setShowAdvancedBoard((prev) => !prev)}
-            className="mt-5 text-sm text-indigo-700 hover:text-indigo-800 font-medium"
-          >
-            {showAdvancedBoard ? 'Hide advanced weekly board' : 'Show advanced weekly board'}
-          </button>
-        </div>
-      )}
-
-        {/* Enhanced Weekly Grid inspired by RoutineView */}
-        {weeklyGrid && showAdvancedBoard && (
-          <div className="bg-white rounded-xl shadow-sm border border-purple-400 overflow-hidden mb-6">
-            <div className="p-6 border-b border-gray-100">
-              <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
-                <div>
-                  <h2 className="text-xl font-semibold text-gray-900">
-                    Class {selectedClass} - Section {selectedSection} Weekly Overview
-                  </h2>
-                  <p className="text-sm text-gray-500 mt-1">
-                    Advanced mode: drag blocks into cells. Break slots are locked.
-                  </p>
-                </div>
-                <div className="flex items-center gap-3">
-                  <div className="text-xs text-gray-500">
-                    Draft days: {Object.keys(weeklyDraft).length}
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <select
-                      value={selectedDay}
-                      onChange={(e) => setSelectedDay(e.target.value)}
-                      className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                    >
-                      {DAYS.map((day) => (
-                        <option key={day} value={day}>{day}</option>
-                      ))}
-                    </select>
-                    <button
-                      onClick={() => handleSaveDay(selectedDay)}
-                      disabled={draftSaving}
-                      className="px-3 py-2 rounded-lg border border-gray-300 text-sm hover:bg-gray-50 disabled:opacity-50"
-                    >
-                      Save Day
-                    </button>
-                    <button
-                      onClick={handleSaveWeek}
-                      disabled={draftSaving}
-                      className="px-3 py-2 rounded-lg bg-indigo-500 text-white text-sm hover:bg-indigo-600 disabled:opacity-50"
-                    >
-                      Save Week
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div className="p-6 border-b border-gray-100 bg-gray-50">
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <div className="bg-white rounded-lg border border-gray-200 p-4">
-                  <h3 className="text-sm font-semibold text-gray-900 mb-3">Period Builder</h3>
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                    <select
-                      value={blockDraft.subject}
-                      onChange={(e) => setBlockDraft((prev) => ({ ...prev, subject: e.target.value }))}
-                      className="border border-gray-300 rounded-lg px-3 py-2 text-sm"
-                    >
-                      <option value="">Select Subject</option>
-                      {classFilteredSubjects.map((subject) => (
-                        <option key={subject._id} value={subject.name}>{subject.name}</option>
-                      ))}
-                    </select>
-                    <select
-                      value={blockDraft.teacher}
-                      onChange={(e) => setBlockDraft((prev) => ({ ...prev, teacher: e.target.value }))}
-                      className="border border-gray-300 rounded-lg px-3 py-2 text-sm"
-                    >
-                      <option value="">Select Teacher</option>
-                      {teachers.map((teacher) => (
-                        <option key={teacher._id} value={teacher.name}>{teacher.name}</option>
-                      ))}
-                    </select>
-                    <input
-                      value={blockDraft.room}
-                      onChange={(e) => setBlockDraft((prev) => ({ ...prev, room: e.target.value }))}
-                      placeholder="Room (optional)"
-                      className="border border-gray-300 rounded-lg px-3 py-2 text-sm"
-                    />
-                  </div>
-                  <div className="flex items-center gap-2 mt-4">
-                    <button
-                      onClick={handleAddBlock}
-                      className="px-3 py-2 bg-indigo-500 text-white rounded-lg text-sm hover:bg-indigo-600"
-                    >
-                      Add Block
-                    </button>
-                    <button
-                      onClick={() => setPaletteBlocks([])}
-                      className="px-3 py-2 border border-gray-300 rounded-lg text-sm hover:bg-gray-50"
-                    >
-                      Clear Palette
-                    </button>
-                  </div>
-                </div>
-
-                <div className="bg-white rounded-lg border border-gray-200 p-4">
-                  <h3 className="text-sm font-semibold text-gray-900 mb-3">Drag Blocks</h3>
-                  {paletteBlocks.length === 0 ? (
-                    <div className="text-sm text-gray-500">No blocks yet. Add one from the builder.</div>
-                  ) : (
-                    <div className="flex flex-wrap gap-2">
-                      {paletteBlocks.map((block) => (
-                        <div
-                          key={block.id}
-                          draggable
-                          onDragStart={(e) => handleDragStart(e, { type: 'palette', block })}
-                          className="px-3 py-2 rounded-lg bg-indigo-50 border border-indigo-200 text-xs cursor-move"
-                        >
-                          <div className="font-medium text-indigo-800 truncate">{block.subject}</div>
-                          <div className="text-indigo-600 truncate">{block.teacher}</div>
-                          {block.room && <div className="text-indigo-500 truncate">{block.room}</div>}
-                          <button
-                            onClick={() => handleRemoveBlock(block.id)}
-                            className="mt-2 text-[10px] text-red-500 hover:text-red-600"
-                          >
-                            Remove
-                          </button>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
-            
-            <div className="overflow-x-auto">
-              <div className="min-w-[800px]">
-                {/* Header */}
-                <div className="grid grid-cols-7 border-b border-purple-100">
-                  <div className="p-3 bg-gray-50 font-medium text-gray-700 text-center border-r border-gray-200">Time</div>
-                  {DAYS.map((day) => {
-                    const isToday = new Date().toLocaleDateString('en-US', { weekday: 'long' }) === day;
-                    return (
-                      <div key={day} className={`p-3 font-medium text-center border-r border-gray-200 last:border-r-0 ${
-                        isToday ? 'bg-indigo-50 text-indigo-700' : 'bg-gray-50 text-gray-700'
-                      }`}>
-                        <div className="text-sm">{day.substring(0, 3)}</div>
-                        <div className="text-xs opacity-75 mt-1">
-                          {routines.find((r) => routineMatchesScope(r, selectedClass, selectedSection) && normalizeDayLabel(r.day) === normalizeDayLabel(day))?.schedule.length || 0} periods
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-                
-                {/* Time slots with enhanced styling */}
-                <div className="relative">
-                  {TIMES.map((time) => (
-                    <div key={time} className="grid grid-cols-7 border-b border-purple-100 min-h-20">
-                      <div className="p-3 bg-gray-50 text-sm text-gray-600 text-center border-r border-gray-200 flex items-center justify-center">
-                        <div>
-                          <Clock className="w-4 h-4 mx-auto mb-1 text-gray-500" />
-                          <div className="text-xs">{time}</div>
-                        </div>
-                      </div>
-                      {DAYS.map((day) => {
-                        const basePeriod = getBaseCell(day, time);
-                        const block = getCellBlock(day, time);
-                        const isBreak = basePeriod?.subject === 'Break' || isBreakSlot(time);
-                        
-                        return (
-                          <div
-                            key={day}
-                            className="relative p-2 border-r border-gray-100 last:border-r-0"
-                            onDragOver={(e) => e.preventDefault()}
-                            onDrop={(e) => {
-                              e.preventDefault();
-                              const raw =
-                                e.dataTransfer.getData('application/json') ||
-                                e.dataTransfer.getData('text/plain') ||
-                                '{}';
-                              let payload = {};
-                              try {
-                                payload = JSON.parse(raw);
-                              } catch {
-                                payload = {};
-                              }
-                              handleDropOnCell(day, time, payload);
-                            }}
-                          >
-                            {isBreak ? (
-                              <div className="h-full p-3 rounded-lg bg-gray-200 text-gray-700 text-xs flex items-center justify-center border border-gray-300">
-                                Break
-                              </div>
-                            ) : block ? (
-                              <div
-                                className="h-full p-3 rounded-lg text-white text-xs overflow-hidden bg-indigo-500 cursor-move"
-                                draggable
-                                onDragStart={(e) => handleDragStart(e, { type: 'cell', day, time })}
-                              >
-                                <div className="flex items-start justify-between gap-2">
-                                  <div className="min-w-0">
-                                    <div className="font-medium truncate">{block.subject}</div>
-                                    <div className="text-xs opacity-90 truncate mt-1">{block.teacher}</div>
-                                    {block.room && <div className="text-[10px] opacity-80 truncate">{block.room}</div>}
-                                  </div>
-                                  <button
-                                    onClick={() => handleClearCell(day, time)}
-                                    className="text-white/80 hover:text-white text-xs"
-                                    title="Clear"
-                                  >
-                                    x
-                                  </button>
-                                </div>
-                              </div>
-                            ) : (
-                              <div className="h-full border border-dashed border-gray-200 rounded-lg flex items-center justify-center text-gray-400 hover:border-indigo-300 hover:bg-indigo-50 transition-colors cursor-pointer">
-                                <Plus className="w-4 h-4" />
-                              </div>
-                            )}
-                          </div>
-                        );
-                      })}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Weekly Statistics */}
-        {selectedClass && selectedSection && showAdvancedBoard && (
-          <div className="bg-white rounded-xl shadow-sm border border-purple-400 mb-6">
-            <div className="p-6 border-b border-gray-100">
-              <h2 className="text-xl font-semibold text-gray-900">Weekly Statistics</h2>
-            </div>
-            <div className="p-6">
-              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
-                <div className="text-center p-4 bg-blue-50 rounded-lg">
-                  <div className="text-2xl font-bold text-blue-600">
-                    {routines.filter((r) => routineMatchesScope(r, selectedClass, selectedSection))
-                      .reduce((total, r) => total + r.schedule.filter(p => p.subject !== 'Break').length, 0)}
-                  </div>
-                  <div className="text-sm text-blue-800">Total Periods</div>
-                </div>
-                
-                <div className="text-center p-4 bg-green-50 rounded-lg">
-                  <div className="text-2xl font-bold text-green-600">
-                    {new Set(routines.filter((r) => routineMatchesScope(r, selectedClass, selectedSection))
-                      .flatMap(r => r.schedule.filter(p => p.subject !== 'Break').map(p => p.subject))).size}
-                  </div>
-                  <div className="text-sm text-green-800">Subjects</div>
-                </div>
-                
-                <div className="text-center p-4 bg-purple-50 rounded-lg">
-                  <div className="text-2xl font-bold text-purple-600">
-                    {new Set(routines.filter((r) => routineMatchesScope(r, selectedClass, selectedSection))
-                      .flatMap(r => r.schedule.filter(p => p.subject !== 'Break').map(p => p.teacher))).size}
-                  </div>
-                  <div className="text-sm text-purple-800">Teachers</div>
-                </div>
-                
-                <div className="text-center p-4 bg-orange-50 rounded-lg">
-                  <div className="text-2xl font-bold text-orange-600">
-                    {routines.filter((r) => routineMatchesScope(r, selectedClass, selectedSection)).length}
-                  </div>
-                  <div className="text-sm text-orange-800">Days</div>
-                </div>
-                
-                <div className="text-center p-4 bg-gray-50 rounded-lg">
-                  <div className="text-2xl font-bold text-gray-600">
-                    {routines.filter((r) => routineMatchesScope(r, selectedClass, selectedSection))
-                      .reduce((total, r) => total + r.schedule.filter(p => p.subject === 'Break').length, 0)}
-                  </div>
-                  <div className="text-sm text-gray-800">Breaks</div>
-                </div>
-                
-                <div className="text-center p-4 bg-pink-50 rounded-lg">
-                  <div className="text-2xl font-bold text-pink-600">
-                    {Math.round((routines.filter((r) => routineMatchesScope(r, selectedClass, selectedSection))
-                      .reduce((total, r) => total + r.schedule.filter(p => p.subject !== 'Break').length, 0) / 
-                      (routines.filter((r) => routineMatchesScope(r, selectedClass, selectedSection)).length * TIMES.length)) * 100) || 0}%
-                  </div>
-                  <div className="text-sm text-pink-800">Utilization</div>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* No Data State */}
+        {/* ──────── EMPTY STATE ──────── */}
         {routines.length === 0 && (
-          <div className="bg-white rounded-xl shadow-sm border border-purple-400 p-12">
-            <div className="text-center">
-              <div className="w-16 h-16 bg-purple-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                <Calendar className="text-purple-500" size={24} />
+          <div className="bg-white rounded-2xl border border-slate-200 p-16 text-center shadow-sm">
+            <div className="h-16 w-16 bg-indigo-50 rounded-2xl flex items-center justify-center mx-auto mb-4">
+              <Calendar size={28} className="text-indigo-400" />
+            </div>
+            <h3 className="text-base font-semibold text-slate-800 mb-1">No routines yet</h3>
+            <p className="text-sm text-slate-400 mb-6">Create your first class timetable to get started.</p>
+            <button onClick={() => openRoutineEditor({ day: 'Monday' })}
+              className="inline-flex items-center gap-2 px-6 py-3 rounded-2xl bg-indigo-600 text-white text-sm font-semibold hover:bg-indigo-700 shadow-md shadow-indigo-200">
+              <Plus size={16} /> Create First Routine
+            </button>
+          </div>
+        )}
+
+        {/* ──────── SELECT PROMPT ──────── */}
+        {routines.length > 0 && (!selectedClass || !selectedSection) && (
+          <div className="bg-white rounded-2xl border border-slate-200 p-12 text-center shadow-sm">
+            <div className="h-14 w-14 bg-slate-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
+              <Users size={24} className="text-slate-400" />
+            </div>
+            <h3 className="text-base font-semibold text-slate-800 mb-1">Select Class & Section</h3>
+            <p className="text-sm text-slate-400">Choose from the filters above to view the weekly schedule.</p>
+          </div>
+        )}
+
+        {/* ──────── WEEKLY DAY CARDS ──────── */}
+        {selectedClass && selectedSection && (
+          <div>
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h2 className="text-base font-bold text-slate-800">Weekly Overview</h2>
+                <p className="text-xs text-slate-400 mt-0.5">Click a day to preview, or use the edit button</p>
               </div>
-              <h3 className="text-lg font-medium text-gray-900 mb-2">
-                No routines created yet
-              </h3>
-              <p className="text-gray-500 mb-6">
-                Get started by creating your first class routine. You can add schedules for different classes, sections, and days.
-              </p>
-              <button
-                onClick={() => openRoutineEditor({ day: 'Monday' })}
-                className="bg-indigo-500 hover:bg-indigo-600 text-white px-6 py-3 rounded-lg inline-flex items-center space-x-2"
-              >
-                <Plus size={20} />
-                <span>Create First Routine</span>
+              <button onClick={() => openRoutineEditor({ day: selectedDay })}
+                className="flex items-center gap-1.5 text-xs font-semibold text-indigo-600 hover:text-indigo-700">
+                <Plus size={13} /> Add / Edit Day
               </button>
             </div>
-          </div>
-        )}
-
-        {/* Weekly View - No Selection State */}
-        {routines.length > 0 && (!selectedClass || !selectedSection) && (
-          <div className="bg-white rounded-xl shadow-sm border border-purple-400 p-12">
-            <div className="text-center">
-              <div className="w-16 h-16 bg-purple-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                <Calendar className="text-purple-500" size={24} />
-              </div>
-              <h3 className="text-lg font-medium text-gray-900 mb-2">
-                Select Class and Section
-              </h3>
-              <p className="text-gray-500">
-                Please select both class and section from the filters above to view the weekly schedule
-              </p>
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+              {DAYS.map(day => (
+                <DayCard
+                  key={day}
+                  day={day}
+                  routine={getRoutineForDay(day)}
+                  isSelected={selectedDay === day}
+                  onClick={() => setSelectedDay(day)}
+                  onEdit={() => openRoutineEditor({ day })}
+                />
+              ))}
             </div>
           </div>
         )}
 
-        {isModalOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-            <div className="absolute inset-0 bg-black/50" onClick={() => setIsModalOpen(false)} />
-            <div className="relative bg-white w-full max-w-4xl rounded-xl shadow-lg border border-purple-400 max-h-[90vh] overflow-hidden flex flex-col">
-              <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
-                <h3 className="text-xl font-semibold text-gray-900">
-                  {editingRoutine ? 'Edit Routine' : 'Add Routine'}
-                </h3>
-                <button 
-                  className="text-gray-500 hover:text-gray-700 p-2 hover:bg-gray-100 rounded-lg transition-colors" 
-                  onClick={() => setIsModalOpen(false)}
-                >
-                  x
+        {/* ──────── DAY DETAIL VIEW ──────── */}
+        {selectedClass && selectedSection && (() => {
+          const routine = getRoutineForDay(selectedDay);
+          const periods = routine?.schedule || [];
+          if (!routine) return null;
+          return (
+            <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+              <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100">
+                <div className="flex items-center gap-2">
+                  <Clock size={15} className="text-indigo-400" />
+                  <h2 className="text-sm font-bold text-slate-800">{selectedDay} Schedule</h2>
+                  <span className="text-xs bg-slate-100 text-slate-500 px-2 py-0.5 rounded-lg font-medium">
+                    {periods.filter(p => !p.isBreak && p.subject).length} periods
+                  </span>
+                </div>
+                <button onClick={() => openRoutineEditor({ day: selectedDay })}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-indigo-50 text-indigo-700 text-xs font-semibold hover:bg-indigo-100 transition-colors">
+                  <Edit2 size={12} /> Edit {selectedDay}
                 </button>
               </div>
-              
-              <div className="flex-1 overflow-y-auto px-6 py-4 space-y-6">
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Class</label>
-                    <select
-                      value={form.class}
-                      onChange={(e) => {
-                        const cls = e.target.value;
-                        setForm((f) => ({ ...f, class: cls }));
-                      }}
-                      className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                    >
-                      <option value="">Select Class</option>
-                      {classes.map((cls) => (
-                        <option key={cls._id} value={cls.name}>{cls.name}</option>
-                      ))}
-                    </select>
+              <div className="divide-y divide-slate-50">
+                {periods.map((p, i) => (
+                  <div key={i} className={`flex items-center gap-4 px-5 py-3.5 ${p.isBreak ? 'bg-slate-50/80' : ''}`}>
+                    <div className="w-36 shrink-0">
+                      <p className="text-xs font-mono text-slate-500">{p.time || '—'}</p>
+                    </div>
+                    {p.isBreak ? (
+                      <span className="text-xs font-semibold text-slate-400 italic">Break</span>
+                    ) : (
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div className="h-8 w-8 rounded-xl bg-indigo-100 flex items-center justify-center shrink-0">
+                          <BookOpen size={13} className="text-indigo-600" />
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-sm font-semibold text-slate-800 truncate">{p.subject}</p>
+                          <p className="text-xs text-slate-400 truncate">{p.teacher}{p.room ? ` · ${p.room}` : ''}</p>
+                        </div>
+                      </div>
+                    )}
                   </div>
-                  
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Section</label>
-                    <select
-                      value={form.section}
-                      onChange={(e) => setForm((f) => ({ ...f, section: e.target.value }))}
-                      className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                    >
-                      <option value="">Select Section</option>
-                      {sections
-                        .filter(s => {
-                          const classDoc = classes.find(c => c.name === form.class);
-                          return !classDoc || getId(s.classId) === classDoc._id;
-                        })
-                        .map((s) => (
-                          <option key={s._id} value={s.name}>{s.name}</option>
-                        ))}
-                    </select>
-                  </div>
-                  
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Day</label>
-                    <select 
-                      value={form.day} 
-                      onChange={(e) => setForm((f) => ({ ...f, day: e.target.value }))} 
-                      className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                    >
-                      {DAYS.map((d) => (
-                        <option key={d} value={d}>{d}</option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
+                ))}
+              </div>
+            </div>
+          );
+        })()}
 
-              <div className="bg-indigo-50 border border-dashed border-indigo-200 rounded-2xl p-4 space-y-4">
-                <div className="flex flex-wrap gap-2 items-center justify-between">
-                  <div className="flex flex-wrap gap-2">
-                    <button
-                      type="button"
-                      onClick={handleAutoAssignRooms}
-                      className="px-3 py-2 rounded-lg border border-indigo-200 text-indigo-700 text-sm font-medium hover:bg-indigo-50 transition-colors"
-                    >
-                      Auto assign rooms
-                    </button>
-                    <button
-                      type="button"
-                      onClick={handleClearSubjects}
-                      className="px-3 py-2 rounded-lg border border-amber-200 text-amber-700 text-sm font-medium hover:bg-amber-50 transition-colors"
-                    >
-                      Clear subjects
-                    </button>
-                    <button
-                      type="button"
-                      onClick={handleResetSchedule}
-                      className="px-3 py-2 rounded-lg border border-gray-200 text-gray-700 text-sm font-medium hover:bg-gray-50 transition-colors"
-                    >
-                      Reset day
-                    </button>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => setShowAdvancedModalTools((prev) => !prev)}
-                    className="text-sm text-indigo-700 hover:text-indigo-800 font-medium"
-                  >
-                    {showAdvancedModalTools ? 'Hide advanced tools' : 'Show advanced tools'}
+        {/* ──────── ALL ROUTINES TABLE (when no class/section selected) ──────── */}
+        {routines.length > 0 && selectedClass && selectedSection && (
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+            <div className="px-5 py-4 border-b border-slate-100">
+              <h2 className="text-sm font-bold text-slate-800">All Days Summary</h2>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="bg-slate-50 border-b border-slate-100">
+                    <th className="px-5 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide">Day</th>
+                    <th className="px-5 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide">Periods</th>
+                    <th className="px-5 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide">Subjects</th>
+                    <th className="px-5 py-3 text-right text-xs font-semibold text-slate-500 uppercase tracking-wide">Action</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-50">
+                  {DAYS.map(day => {
+                    const r = getRoutineForDay(day);
+                    const periods = r?.schedule?.filter(p => !p.isBreak && p.subject) || [];
+                    return (
+                      <tr key={day} className="hover:bg-slate-50/80 transition-colors group">
+                        <td className="px-5 py-3.5">
+                          <div className="flex items-center gap-2">
+                            <div className={`h-2 w-2 rounded-full ${periods.length > 0 ? 'bg-indigo-400' : 'bg-slate-200'}`} />
+                            <span className="font-semibold text-slate-800">{day}</span>
+                          </div>
+                        </td>
+                        <td className="px-5 py-3.5 text-slate-500">{periods.length > 0 ? `${periods.length} periods` : <span className="italic text-slate-300">Not set</span>}</td>
+                        <td className="px-5 py-3.5">
+                          <div className="flex flex-wrap gap-1">
+                            {periods.slice(0, 4).map((p, i) => (
+                              <span key={i} className="text-[11px] bg-indigo-50 text-indigo-600 px-2 py-0.5 rounded-md font-medium">{p.subject}</span>
+                            ))}
+                            {periods.length > 4 && <span className="text-[11px] text-slate-400">+{periods.length - 4}</span>}
+                          </div>
+                        </td>
+                        <td className="px-5 py-3.5 text-right">
+                          <button onClick={() => openRoutineEditor({ day })}
+                            className="opacity-0 group-hover:opacity-100 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-indigo-50 text-indigo-700 hover:bg-indigo-100 transition-all">
+                            <Edit2 size={11} /> {periods.length > 0 ? 'Edit' : 'Add'}
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* ══════════════════ EDIT MODAL ══════════════════ */}
+      {isModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
+          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setIsModalOpen(false)} />
+          <div className="relative bg-white w-full sm:max-w-3xl rounded-t-3xl sm:rounded-2xl shadow-2xl max-h-[94vh] flex flex-col overflow-hidden border border-slate-200">
+
+            {/* modal header */}
+            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-white/95">
+              <div className="flex items-center gap-3">
+                <div className="h-9 w-9 rounded-xl bg-indigo-600 flex items-center justify-center shadow-sm">
+                  <Calendar size={16} className="text-white" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-slate-900 text-base leading-tight">{editingRoutine ? 'Edit Routine' : 'Create Routine'}</h3>
+                  {form.class && form.section && <p className="text-xs text-slate-400">Class {form.class} – {form.section} · {form.day}</p>}
+                </div>
+              </div>
+              <button onClick={() => setIsModalOpen(false)} className="h-8 w-8 flex items-center justify-center rounded-xl text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors">
+                <X size={16} />
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto px-6 py-5 space-y-5">
+
+              {/* Step 1: Class / Section / Day */}
+              <div className="rounded-2xl bg-slate-50 border border-slate-100 p-4">
+                <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">Step 1 — Select Class, Section & Day</p>
+                <div className="grid grid-cols-3 gap-3">
+                  {[
+                    { label: 'Class', value: form.class, onChange: v => setForm(f => ({...f, class: v, section: ''})),
+                      options: classes.map(c => ({ val: c.name, label: c.name })), placeholder: 'Class' },
+                    { label: 'Section', value: form.section, onChange: v => setForm(f => ({...f, section: v})),
+                      options: sections.filter(s => { const cd = classes.find(c => c.name === form.class); return !cd || getId(s.classId) === cd._id; }).map(s => ({ val: s.name, label: s.name })), placeholder: 'Section' },
+                    { label: 'Day', value: form.day, onChange: v => setForm(f => ({...f, day: v})),
+                      options: DAYS.map(d => ({ val: d, label: d })), placeholder: 'Day' },
+                  ].map(({ label, value, onChange, options, placeholder }) => (
+                    <div key={label}>
+                      <label className="block text-xs font-medium text-slate-500 mb-1">{label}</label>
+                      <select value={value} onChange={e => onChange(e.target.value)}
+                        className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-800 focus:outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100">
+                        <option value="">{placeholder}</option>
+                        {options.map(o => <option key={o.val} value={o.val}>{o.label}</option>)}
+                      </select>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Step 2: Quick tools */}
+              <div className="rounded-2xl bg-indigo-50/60 border border-indigo-100 p-4">
+                <div className="flex items-center justify-between mb-3">
+                  <p className="text-xs font-semibold text-indigo-700 uppercase tracking-wider">Step 2 — Quick Tools</p>
+                  <button type="button" onClick={() => setShowAdvanced(p => !p)}
+                    className="text-xs text-indigo-600 font-medium flex items-center gap-1 hover:text-indigo-800">
+                    {showAdvanced ? 'Hide' : 'Show'} advanced <ChevronDown size={12} className={`transition-transform ${showAdvanced ? 'rotate-180' : ''}`} />
                   </button>
                 </div>
-
-                <div className="text-xs text-gray-600">
-                  Day progress: <span className="font-semibold text-gray-900">{scheduleStats.filled}/{scheduleStats.total || 0}</span>
-                  {scheduleStats.pending > 0 ? ` (${scheduleStats.pending} pending)` : ' (all set)'}
+                <div className="flex flex-wrap gap-2">
+                  {ROUTINE_TEMPLATES.map(t => (
+                    <button key={t.id} type="button" onClick={() => handleApplyTemplate(t.id)}
+                      className="px-3 py-1.5 rounded-xl bg-white border border-indigo-200 text-xs font-semibold text-indigo-700 hover:bg-indigo-100 transition-colors shadow-sm">
+                      ⚡ {t.name}
+                    </button>
+                  ))}
+                  <button type="button" onClick={handleClearSubjects}
+                    className="px-3 py-1.5 rounded-xl bg-white border border-amber-200 text-xs font-semibold text-amber-700 hover:bg-amber-50 transition-colors shadow-sm">
+                    Clear
+                  </button>
+                  <button type="button" onClick={handleResetSchedule}
+                    className="px-3 py-1.5 rounded-xl bg-white border border-slate-200 text-xs font-semibold text-slate-600 hover:bg-slate-50 transition-colors shadow-sm">
+                    Reset
+                  </button>
                 </div>
-
-                {showAdvancedModalTools && (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="bg-white border border-indigo-100 rounded-xl p-3">
-                      <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Quick templates</p>
-                      <p className="text-[11px] text-gray-500 mt-1">Apply a ready routine pattern</p>
-                      <div className="flex flex-wrap gap-2 mt-3">
-                        {ROUTINE_TEMPLATES.map((template) => (
-                          <button
-                            key={template.id}
-                            type="button"
-                            onClick={() => handleApplyTemplate(template.id)}
-                            className="px-3 py-2 rounded-xl bg-indigo-50 text-sm font-medium text-indigo-700 hover:bg-indigo-100 transition-colors border border-indigo-100"
-                            title={template.description}
-                          >
-                            {template.name}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-
-                    <div className="bg-white border border-indigo-100 rounded-xl p-3">
-                      <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Copy from existing routine</p>
-                      <div className="mt-2 flex gap-2">
-                        <select
-                          value={selectedCopyRoutine}
-                          onChange={(e) => setSelectedCopyRoutine(e.target.value)}
-                          className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                        >
-                          <option value="">Choose routine</option>
-                          {copyableRoutines.map((routine) => (
-                            <option key={routine.id} value={routine.id}>{routine.label}</option>
-                          ))}
-                        </select>
-                        <button
-                          type="button"
-                          onClick={handleCopyFromExistingRoutine}
-                          disabled={!selectedCopyRoutine}
-                          className="px-3 py-2 rounded-lg bg-indigo-600 text-white text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
-                        >
-                          Copy
-                        </button>
-                      </div>
-                    </div>
+                {showAdvanced && (
+                  <div className="mt-3 pt-3 border-t border-indigo-100 flex gap-2">
+                    <select value={selectedCopyRoutine} onChange={e => setSelectedCopyRoutine(e.target.value)}
+                      className="flex-1 rounded-xl border border-indigo-200 bg-white px-3 py-2 text-xs text-slate-700 focus:outline-none">
+                      <option value="">Copy from existing routine…</option>
+                      {copyableRoutines.map(r => <option key={r.id} value={r.id}>{r.label}</option>)}
+                    </select>
+                    <button type="button" onClick={handleCopyFromExistingRoutine} disabled={!selectedCopyRoutine}
+                      className="px-3 py-2 rounded-xl bg-indigo-600 text-white text-xs font-semibold disabled:opacity-50 flex items-center gap-1">
+                      <Copy size={12} /> Copy
+                    </button>
                   </div>
                 )}
               </div>
 
-              <div className="overflow-x-auto">
-                <table className="min-w-full border border-gray-200 rounded-lg overflow-hidden">
-                  <thead className="bg-gray-50">
-                    <tr>
-                      <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">Timing</th>
-                      <th className="px-4 py-3 text-center text-sm font-medium text-gray-700">Break</th>
-                      <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">Subject</th>
-                      <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">Teacher</th>
-                      <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">Room</th>
-                      <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {form.schedule.map((row, idx) => (
-                      <tr key={`${row.time || 'slot'}-${idx}`} className="even:bg-white odd:bg-gray-50 border-b border-gray-100">
-                        <td className="px-4 py-3 text-sm text-gray-800">
-                          <div className="flex items-center justify-between gap-2">
-                            <span className="font-semibold text-gray-900">
-                              {row.time || 'Set time'}
-                            </span>
-                            {row.isBreak && (
-                              <span className="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-600">
-                                Break slot
-                              </span>
-                            )}
-                          </div>
-                          <div className="mt-2 grid grid-cols-2 gap-2">
-                            <label className="text-xs text-gray-500 flex flex-col gap-1">
-                              <span>Start</span>
-                              <input
-                                type="time"
-                                value={row.startTime || parseTimeRange(row.time).start || ''}
-                                onChange={(e) => updateRowTimeField(idx, 'start', e.target.value)}
-                                className="w-full border border-gray-300 rounded-lg px-2 py-1 text-sm"
-                              />
-                            </label>
-                            <label className="text-xs text-gray-500 flex flex-col gap-1">
-                              <span>End</span>
-                              <input
-                                type="time"
-                                value={row.endTime || parseTimeRange(row.time).end || ''}
-                                onChange={(e) => updateRowTimeField(idx, 'end', e.target.value)}
-                                className="w-full border border-gray-300 rounded-lg px-2 py-1 text-sm"
-                              />
-                            </label>
-                          </div>
-                        </td>
-                        <td className="px-4 py-3 text-center">
-                          <input
-                            type="checkbox"
-                            checked={row.isBreak}
-                            onChange={(e) => {
-                              const isBreak = e.target.checked;
-                              const next = [...form.schedule];
-                              next[idx] = isBreak
-                                ? { ...row, isBreak: true, subject: 'Break', teacher: '-', room: '' }
-                                : { ...row, isBreak: false, subject: '', teacher: '', room: '' };
-                              setForm((f) => ({ ...f, schedule: next }));
-                            }}
-                            className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
-                          />
-                        </td>
-                        <td className="px-4 py-3">
-                          {row.isBreak ? (
-                            <span className="text-gray-500 italic">Break</span>
-                          ) : (
-                            <select
-                              value={row.subject}
-                              onChange={(e) => {
-                                const subj = e.target.value;
-                                const next = [...form.schedule];
-                                next[idx] = { ...row, subject: subj };
-                                setForm((f) => ({ ...f, schedule: next }));
-                              }}
-                              className="w-full border border-gray-300 rounded-lg px-2 py-1 text-sm"
-                            >
-                              <option value="">Select Subject</option>
-                              {classFilteredSubjects.map((s) => (
-                                <option key={s._id} value={s.name}>{s.name}</option>
-                              ))}
-                            </select>
-                          )}
-                        </td>
-                        <td className="px-4 py-3">
-                          {row.isBreak ? (
-                            <span className="text-gray-500 italic">-</span>
-                          ) : (
-                            <select
-                              value={row.teacher}
-                              onChange={(e) => {
-                                const next = [...form.schedule];
-                                next[idx] = { ...row, teacher: e.target.value };
-                                setForm((f) => ({ ...f, schedule: next }));
-                              }}
-                              className="w-full border border-gray-300 rounded-lg px-2 py-1 text-sm"
-                            >
-                              <option value="">Select Teacher</option>
-                              {teachers.map((t) => (
-                                <option key={t._id} value={t.name}>{t.name}</option>
-                              ))}
-                            </select>
-                          )}
-                        </td>
-                        <td className="px-4 py-3">
-                          {row.isBreak ? (
-                            <span className="text-gray-500 italic">-</span>
-                          ) : (
-                            <input
-                              type="text"
-                              value={row.room || ''}
-                              onChange={(e) => {
-                                const next = [...form.schedule];
-                                next[idx] = { ...row, room: e.target.value };
-                                setForm((f) => ({ ...f, schedule: next }));
-                              }}
-                              placeholder="Room 204 / Lab"
-                              className="w-full border border-gray-300 rounded-lg px-2 py-1 text-sm"
-                            />
-                          )}
-                        </td>
-                        <td className="px-4 py-3 text-right">
-                          <button
-                            type="button"
-                            onClick={() => handleRemoveTimeSlot(idx)}
-                            className="p-2 rounded-lg text-gray-500 hover:text-red-600 hover:bg-red-50 transition-colors disabled:opacity-50"
-                            disabled={form.schedule.length <= 1}
-                            title="Remove slot"
-                          >
-                            <Trash2 size={16} />
-                          </button>
-                        </td>
-                      </tr>
+              {/* Step 3: Schedule table */}
+              <div>
+                <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">Step 3 — Configure Periods</p>
+                <div className="rounded-2xl border border-slate-200 overflow-hidden">
+                  <div className="grid grid-cols-[1fr_auto_1.5fr_1.5fr_1.2fr_auto] gap-0 bg-slate-50 border-b border-slate-200">
+                    {['Timing', 'Break', 'Subject', 'Teacher', 'Room', ''].map((h, i) => (
+                      <div key={i} className="px-3 py-2.5 text-[11px] font-semibold text-slate-500 uppercase tracking-wide">{h}</div>
                     ))}
-                  </tbody>
-                </table>
-              </div>
-
-              <div className="flex items-center justify-between flex-wrap gap-3">
-                <button
-                  type="button"
-                  onClick={handleAddTimeSlot}
-                  className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-dashed border-indigo-300 text-indigo-700 text-sm font-medium hover:bg-indigo-50 transition-colors"
-                >
-                  <Plus size={16} />
-                  Add time slot
+                  </div>
+                  <div className="divide-y divide-slate-50">
+                    {form.schedule.map((row, idx) => (
+                      <div key={`${row.time}-${idx}`} className={`grid grid-cols-[1fr_auto_1.5fr_1.5fr_1.2fr_auto] gap-0 items-start ${row.isBreak ? 'bg-slate-50/80' : 'bg-white hover:bg-indigo-50/30'} transition-colors`}>
+                        {/* timing */}
+                        <div className="px-3 py-3">
+                          <p className="text-[11px] font-mono text-slate-500 mb-1.5 truncate">{row.time || '–'}</p>
+                          <div className="grid grid-cols-2 gap-1">
+                            <input type="time" value={row.startTime || parseTimeRange(row.time).start || ''}
+                              onChange={e => updateRowTimeField(idx, 'start', e.target.value)}
+                              className="w-full rounded-lg border border-slate-200 px-1.5 py-1 text-[11px] text-slate-700 bg-slate-50 focus:outline-none focus:border-indigo-300" />
+                            <input type="time" value={row.endTime || parseTimeRange(row.time).end || ''}
+                              onChange={e => updateRowTimeField(idx, 'end', e.target.value)}
+                              className="w-full rounded-lg border border-slate-200 px-1.5 py-1 text-[11px] text-slate-700 bg-slate-50 focus:outline-none focus:border-indigo-300" />
+                          </div>
+                        </div>
+                        {/* break checkbox */}
+                        <div className="px-3 py-3 flex items-center justify-center pt-5">
+                          <input type="checkbox" checked={row.isBreak}
+                            onChange={e => {
+                              const ib = e.target.checked;
+                              const next = [...form.schedule];
+                              next[idx] = ib ? {...row, isBreak: true, subject: 'Break', teacher: '-', roomId: null, room: ''} : {...row, isBreak: false, subject: '', teacher: '', roomId: null, room: ''};
+                              setForm(f => ({...f, schedule: next}));
+                            }}
+                            className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 h-4 w-4 cursor-pointer" />
+                        </div>
+                        {/* subject */}
+                        <div className="px-2 py-3 pt-5">
+                          {row.isBreak ? <span className="text-xs text-slate-400 italic">Break</span> : (
+                            <select value={row.subject}
+                              onChange={e => { const next = [...form.schedule]; next[idx] = {...row, subject: e.target.value}; setForm(f => ({...f, schedule: next})); }}
+                              className="w-full rounded-xl border border-slate-200 bg-slate-50 px-2 py-1.5 text-xs text-slate-700 focus:outline-none focus:border-indigo-300">
+                              <option value="">Subject</option>
+                              {classFilteredSubjects.map(s => <option key={s._id} value={s.name}>{s.name}</option>)}
+                            </select>
+                          )}
+                        </div>
+                        {/* teacher */}
+                        <div className="px-2 py-3 pt-5">
+                          {row.isBreak ? <span className="text-xs text-slate-400 italic">—</span> : (
+                            <select value={row.teacher}
+                              onChange={e => { const next = [...form.schedule]; next[idx] = {...row, teacher: e.target.value}; setForm(f => ({...f, schedule: next})); }}
+                              className="w-full rounded-xl border border-slate-200 bg-slate-50 px-2 py-1.5 text-xs text-slate-700 focus:outline-none focus:border-indigo-300">
+                              <option value="">Teacher</option>
+                              {teachers.map(t => <option key={t._id} value={t.name}>{t.name}</option>)}
+                            </select>
+                          )}
+                        </div>
+                        {/* room */}
+                        <div className="px-2 py-3 pt-5 space-y-1">
+                          {row.isBreak ? <span className="text-xs text-slate-400 italic">—</span> : (
+                            <>
+                              <select value={row.roomId || ''}
+                                onChange={e => { const rid = e.target.value; const opt = roomOptions.find(o => String(o.id) === String(rid)); const next = [...form.schedule]; next[idx] = {...row, roomId: rid||null, room: opt?.roomNumber||row.room||''}; setForm(f => ({...f, schedule: next})); }}
+                                className="w-full rounded-xl border border-slate-200 bg-slate-50 px-2 py-1.5 text-xs text-slate-700 focus:outline-none focus:border-indigo-300">
+                                <option value="">Room</option>
+                                {roomOptions.map(o => <option key={o.id} value={o.id}>{o.label}</option>)}
+                              </select>
+                              <input type="text" value={row.room||''} placeholder="Custom room"
+                                onChange={e => { const next = [...form.schedule]; next[idx] = {...row, roomId: null, room: e.target.value}; setForm(f => ({...f, schedule: next})); }}
+                                className="w-full rounded-xl border border-slate-200 bg-slate-50 px-2 py-1.5 text-xs text-slate-700 focus:outline-none focus:border-indigo-300" />
+                            </>
+                          )}
+                        </div>
+                        {/* remove */}
+                        <div className="px-2 py-3 pt-5 flex items-start justify-center">
+                          <button type="button" onClick={() => handleRemoveTimeSlot(idx)} disabled={form.schedule.length <= 1}
+                            className="h-7 w-7 flex items-center justify-center rounded-lg text-slate-300 hover:text-red-500 hover:bg-red-50 disabled:opacity-30 transition-colors">
+                            <Trash2 size={13} />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                <button type="button" onClick={handleAddTimeSlot}
+                  className="mt-3 flex items-center gap-2 px-4 py-2 rounded-xl border border-dashed border-indigo-300 text-indigo-600 text-xs font-semibold hover:bg-indigo-50 transition-colors">
+                  <Plus size={13} /> Add Period
                 </button>
-                <p className="text-xs text-gray-500">
-                  Customize start/end times or add extra periods to match your school timetable.
-                </p>
               </div>
+            </div>
 
+            {/* modal footer */}
+            <div className="flex items-center justify-between gap-3 px-6 py-4 border-t border-slate-100 bg-white/95">
+              <div className="text-xs text-slate-400">
+                {form.schedule.filter(s => !s.isBreak && s.subject).length} of {form.schedule.filter(s => !s.isBreak).length} periods filled
               </div>
-
-              <div className="flex items-center justify-end space-x-3 border-t border-gray-100 px-6 py-4">
-                <button 
-                  className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors" 
-                  onClick={() => setIsModalOpen(false)}
-                >
+              <div className="flex items-center gap-2">
+                <button onClick={() => setIsModalOpen(false)}
+                  className="px-4 py-2 rounded-xl border border-slate-200 text-sm text-slate-600 hover:bg-slate-50 transition-colors">
                   Cancel
                 </button>
-                <button
-                  className="px-4 py-2 bg-indigo-500 hover:bg-indigo-600 text-white rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2"
-                  onClick={handleSave}
-                  disabled={saving}
-                >
-                  {saving && <Loader2 className="animate-spin" size={16} />}
-                  <span>{saving ? 'Saving...' : 'Save Routine'}</span>
+                <button onClick={handleSave} disabled={saving}
+                  className="flex items-center gap-2 px-5 py-2 rounded-xl bg-indigo-600 text-white text-sm font-semibold hover:bg-indigo-700 disabled:opacity-60 shadow-md shadow-indigo-200 transition-colors">
+                  {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
+                  {saving ? 'Saving…' : 'Save Routine'}
                 </button>
               </div>
             </div>
           </div>
-        )}
+        </div>
+      )}
 
-        {/* Conflict Modal */}
-        {showConflictModal && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-            <div className="absolute inset-0 bg-black/50" onClick={() => setShowConflictModal(false)} />
-            <div className="relative bg-white w-full max-w-2xl rounded-xl shadow-lg border border-red-400 p-6">
-              <div className="flex items-center justify-between mb-6">
-                <div className="flex items-center space-x-3">
-                  <div className="p-2 bg-red-100 rounded-lg">
-                    <AlertCircle className="text-red-600" size={24} />
-                  </div>
-                  <h3 className="text-xl font-semibold text-gray-900">Schedule Conflicts Detected</h3>
+      {/* ══════════════════ CONFLICT MODAL ══════════════════ */}
+      {showConflictModal && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setShowConflictModal(false)} />
+          <div className="relative bg-white w-full max-w-lg rounded-2xl shadow-2xl border border-red-100 overflow-hidden">
+            <div className="flex items-center gap-3 px-5 py-4 border-b border-red-50 bg-red-50/80">
+              <div className="h-9 w-9 rounded-xl bg-red-100 flex items-center justify-center shrink-0">
+                <AlertCircle size={16} className="text-red-600" />
+              </div>
+              <div className="flex-1">
+                <h3 className="font-bold text-slate-900 text-sm">Schedule Conflicts</h3>
+                <p className="text-xs text-slate-400">Please resolve before saving</p>
+              </div>
+              <button onClick={() => setShowConflictModal(false)} className="h-7 w-7 flex items-center justify-center rounded-lg text-slate-400 hover:text-slate-600 hover:bg-white transition-colors">
+                <X size={14} />
+              </button>
+            </div>
+            <div className="px-5 py-4 space-y-2 max-h-72 overflow-y-auto">
+              {conflicts.map((c, i) => (
+                <div key={i} className="flex items-start gap-2 rounded-xl bg-red-50 border border-red-100 px-3 py-2.5 text-sm text-red-700">
+                  <XCircle size={14} className="shrink-0 mt-0.5 text-red-400" />
+                  {c.message}
                 </div>
-                <button
-                  className="text-gray-500 hover:text-gray-700 p-2 hover:bg-gray-100 rounded-lg transition-colors"
-                  onClick={() => setShowConflictModal(false)}
-                >
-                  x
-                </button>
-              </div>
-
-              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-4">
-                <p className="text-yellow-800 mb-3">
-                  The following conflicts were found. Please resolve them before saving:
-                </p>
-                <ul className="space-y-2">
-                  {conflicts.map((conflict, index) => (
-                    <li key={index} className="flex items-start space-x-2 text-sm">
-                      <span className="text-yellow-600 mt-0.5">•</span>
-                      <span className="text-yellow-900">{conflict.message}</span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-
-              <div className="flex items-center justify-end space-x-3">
-                <button
-                  className="px-4 py-2 bg-gray-500 hover:bg-gray-600 text-white rounded-lg transition-colors"
-                  onClick={() => {
-                    setShowConflictModal(false);
-                    setConflicts([]);
-                  }}
-                >
-                  Close
-                </button>
-              </div>
+              ))}
+            </div>
+            <div className="px-5 py-4 border-t border-slate-100 flex justify-end">
+              <button onClick={() => { setShowConflictModal(false); setConflicts([]); }}
+                className="px-5 py-2 rounded-xl bg-slate-700 text-white text-sm font-semibold hover:bg-slate-800 transition-colors">
+                Close & Fix
+              </button>
             </div>
           </div>
-        )}
-        </>
+        </div>
       )}
     </div>
   );
 };
 
-export default Routines; 
+export default Routines;

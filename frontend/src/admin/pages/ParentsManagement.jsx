@@ -156,6 +156,9 @@ const ParentsManagement = ({ setShowAdminHeader }) => {
                 pinCode: '',
               }));
 
+        const firstStudentAddress =
+          mappedChildrenDetails.find((child) => String(child?.address || '').trim())?.address || '';
+
         return {
           id: parent._id || parent.id || idx,
           name: parent.name || 'Unnamed Parent',
@@ -166,7 +169,7 @@ const ParentsManagement = ({ setShowAdminHeader }) => {
           children,
           grades,
           occupation: parent.occupation || '—',
-          address: parent.address || '—',
+          address: String(parent.address || '').trim() || firstStudentAddress || '—',
           joinDate: parent.createdAt ? new Date(parent.createdAt).toISOString().slice(0, 10) : '—',
           emergencyContact: parent.emergencyContact || parent.mobile || '—',
           relationship: parent.relationship || 'Parent',
@@ -344,7 +347,7 @@ const ParentsManagement = ({ setShowAdminHeader }) => {
           </div>
 
           {/* Stats */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mt-6">
+          <div className="grid grid-cols-2 sm:grid-cols-2 gap-4 mt-6">
             <div className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm hover:shadow-md transition-shadow">
               <div className="flex items-center justify-between">
                 <div>
@@ -367,7 +370,7 @@ const ParentsManagement = ({ setShowAdminHeader }) => {
                 </div>
               </div>
             </div>
-            <div className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm hover:shadow-md transition-shadow">
+            {/* <div className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm hover:shadow-md transition-shadow">
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Engagement</p>
@@ -388,7 +391,7 @@ const ParentsManagement = ({ setShowAdminHeader }) => {
                   <Calendar size={20} className="text-amber-500" />
                 </div>
               </div>
-            </div>
+            </div> */}
           </div>
 
           {submitStatus && (
@@ -444,7 +447,7 @@ const ParentsManagement = ({ setShowAdminHeader }) => {
               <option value="Mother">Mothers</option>
               <option value="Guardian">Guardians</option>
             </select>
-            <select
+            {/* <select
               className="sm:w-44 border border-gray-200 rounded-xl px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:border-transparent bg-white shadow-sm text-sm text-gray-700"
               value={filterEngagement}
               onChange={(e) => handleFilterEngagement(e.target.value)}
@@ -453,8 +456,8 @@ const ParentsManagement = ({ setShowAdminHeader }) => {
               <option value="high">High (90%+)</option>
               <option value="medium">Medium (70-89%)</option>
               <option value="low">Low (Below 70%)</option>
-            </select>
-            <select
+            </select> */}
+            {/* <select
               className="sm:w-48 border border-gray-200 rounded-xl px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:border-transparent bg-white shadow-sm text-sm text-gray-700"
               value={filterCommunication}
               onChange={(e) => handleFilterCommunication(e.target.value)}
@@ -463,7 +466,7 @@ const ParentsManagement = ({ setShowAdminHeader }) => {
               <option value="recent">Recent Contact</option>
               <option value="pending">Pending Response</option>
               <option value="overdue">Overdue Contact</option>
-            </select>
+            </select> */}
           </div>
         </div>
 
@@ -476,7 +479,7 @@ const ParentsManagement = ({ setShowAdminHeader }) => {
                   <th className="px-6 py-3.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Parent</th>
                   <th className="px-6 py-3.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Contact</th>
                   <th className="px-6 py-3.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Children & Grades</th>
-                  <th className="px-6 py-3.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Engagement</th>
+                  {/* <th className="px-6 py-3.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Engagement</th> */}
                   <th className="px-6 py-3.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Communication</th>
                   <th className="px-6 py-3.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Actions</th>
                 </tr>
@@ -593,7 +596,7 @@ const ParentsManagement = ({ setShowAdminHeader }) => {
                       </td>
 
                       {/* Engagement */}
-                      <td className="px-6 py-4">
+                      {/* <td className="px-6 py-4">
                         <div className="space-y-2">
                           <div className="flex items-center gap-2">
                             <Target size={14} className="text-emerald-600" />
@@ -602,7 +605,7 @@ const ParentsManagement = ({ setShowAdminHeader }) => {
                           </div>
                           <div className="text-xs text-gray-600">{parent.engagementMetrics.totalInteractions} interactions</div>
                         </div>
-                      </td>
+                      </td> */}
 
                       {/* Communication */}
                       <td className="px-6 py-4">

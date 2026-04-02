@@ -120,6 +120,11 @@ export const ADMIN_MENU_ITEMS = [
     path: '/admin/routine'
   },
   {
+    icon: Building2,
+    label: 'Floor & Rooms',
+    path: '/admin/floor-rooms'
+  },
+  {
     icon: ClipboardList,
     label: 'Lesson Plan',
     path: '/admin/lesson-plans'

@@ -9,6 +9,7 @@ import Wellbeing from './pages/Wellbeing';
 import SchoolsManagement from './pages/SchoolsManagement';
 import SchoolAdminsManagement from './pages/SchoolAdminsManagement';
 import Routines from './Routines';
+import FloorRoomManagement from './pages/FloorRoomManagement';
 import LessonPlanPage from './pages/LessonPlan';
 import TeacherTimetable from './pages/TeacherTimetable';
 import ExaminationManagement from './pages/ExaminationManagement';
@@ -132,6 +133,7 @@ const AdminApp = () => {
       'Promotion & Leave',
       'Parents',
       'Routines',
+      'Floor & Rooms',
       'Lesson Plan',
       'Exam Management',
       'Result Management',
@@ -211,6 +213,7 @@ const AdminApp = () => {
         <Route path="wellbeing" element={<Wellbeing setShowAdminHeader={setShowAdminHeader} />} />
         <Route path="routine" element={<Routines setShowAdminHeader={setShowAdminHeader} />} />
         <Route path="routines" element={<Routines setShowAdminHeader={setShowAdminHeader} />} />
+        <Route path="floor-rooms" element={<FloorRoomManagement setShowAdminHeader={setShowAdminHeader} />} />
         <Route path="parents" element={<ParentsManagement setShowAdminHeader={setShowAdminHeader} />} />
         <Route path="academics" element={<AcademicSetup setShowAdminHeader={setShowAdminHeader} />} />
         <Route path="subjects" element={<SubjectManagement setShowAdminHeader={setShowAdminHeader} />} />
