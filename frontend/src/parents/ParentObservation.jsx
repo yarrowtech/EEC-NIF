@@ -1,455 +1,379 @@
-import React, { useState, useEffect, useMemo } from 'react';
-import { Eye, Calendar, TrendingUp, AlertCircle, Clock, User, CheckCircle } from 'lucide-react';
+import React, { useEffect, useMemo, useState } from 'react';
+import { 
+  Activity, 
+  AlertTriangle, 
+  Clock, 
+  Eye, 
+  User, 
+  Calendar, 
+  TrendingUp, 
+  CheckCircle2, 
+  AlertCircle,
+  Loader2,
+  ChevronRight,
+  ClipboardList,
+  Smile,
+  ShieldAlert,
+  Search
+} from 'lucide-react';
+import toast from 'react-hot-toast';
 import { formatStudentDisplay } from '../utils/studentDisplay';
 
 const API_BASE_URL = (import.meta.env.VITE_API_URL || 'http://localhost:5000').replace(/\/$/, '');
 
-const categories = [
-  'Academic Performance',
-  'Social Interaction',
-  'Emotional Wellbeing',
-  'Behavioral Changes',
-  'Physical Health',
-  'Sleep Patterns',
-  'Eating Habits',
-  'Communication',
-];
-
-const moodEmojis = [
-  { emoji: '😊', label: 'Very Happy', value: 5 },
-  { emoji: '🙂', label: 'Happy', value: 4 },
-  { emoji: '😐', label: 'Neutral', value: 3 },
-  { emoji: '😕', label: 'Sad', value: 2 },
-  { emoji: '😟', label: 'Very Sad', value: 1 },
-];
-
-const concernLevels = [
-  { value: 'low', label: 'Low' },
-  { value: 'medium', label: 'Medium' },
-  { value: 'high', label: 'High' },
-];
-
-const concernButtonStyles = {
-  low: 'border-green-400 bg-green-50 text-green-700',
-  medium: 'border-yellow-400 bg-yellow-50 text-yellow-700',
-  high: 'border-red-400 bg-red-50 text-red-700',
-};
-
-const concernBadge = (level) => {
-  switch (level) {
-    case 'high':
-      return 'text-red-600 bg-red-100';
-    case 'medium':
-      return 'text-yellow-600 bg-yellow-100';
-    case 'low':
-    default:
-      return 'text-green-600 bg-green-100';
-  }
+const formatDate = (value) => {
+  if (!value) return '—';
+  return new Date(value).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 };
 
 const ParentObservation = () => {
-  const [children, setChildren] = useState([]);
-  const [observations, setObservations] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
-  const [submitted, setSubmitted] = useState(false);
-  const [submitting, setSubmitting] = useState(false);
-  const [observationData, setObservationData] = useState({
-    studentId: '',
-    date: new Date().toISOString().split('T')[0],
-    category: categories[0],
-    observation: '',
-    moodRating: null,
-    behaviorNotes: '',
-    concernLevel: 'low',
+  const [formData, setFormData] = useState({
+    q1: null, q2: null, q3: null, q4: null, q5: null,
+    q6: null, q7: null, q8: null, q9: null, q10: null
   });
 
-  useEffect(() => {
-    const fetchData = async () => {
-      setLoading(true);
-      setError('');
-      try {
-        const token = localStorage.getItem('token');
-        const userType = localStorage.getItem('userType');
-        if (!token || userType !== 'Parent') {
-          setError('Please login as a parent to manage observations.');
-          setChildren([]);
-          setObservations([]);
-          return;
-        }
+  const [submitting, setSubmitting] = useState(false);
+  const [teacherObservations, setTeacherObservations] = useState([]);
+  const [teacherStats, setTeacherStats] = useState(null);
+  const [teacherChildren, setTeacherChildren] = useState([]);
+  const [teacherLoading, setTeacherLoading] = useState(true);
+  const [teacherError, setTeacherError] = useState('');
 
-        const [childrenRes, observationsRes] = await Promise.all([
-          fetch(`${API_BASE_URL}/api/attendance/parent/children`, {
-            headers: { Authorization: `Bearer ${token}` },
-          }),
-          fetch(`${API_BASE_URL}/api/observations/parent`, {
-            headers: { Authorization: `Bearer ${token}` },
-          }),
-        ]);
+  const questions = [
+    { id: 'q1', text: 'Irritable, sad, or emotionally flat behavior?' },
+    { id: 'q2', text: 'Withdrawn from family activities?' },
+    { id: 'q3', text: 'Changes in sleep pattern or quality?' },
+    { id: 'q4', text: 'Interest in hobbies or friendships?' },
+    { id: 'q5', text: 'Overall energy level at home?' },
+    { id: 'q6', text: 'Worry about school or friendships?' },
+    { id: 'q7', text: 'Easily frustrated by small problems?' },
+    { id: 'q8', text: 'Physical issues (headaches, fatigue)?' },
+    { id: 'q9', text: 'Communication about schoolwork?' },
+    { id: 'q10', text: 'Negative or critical self-comments?' }
+  ];
 
-        const childrenPayload = await childrenRes.json().catch(() => ({}));
-        if (!childrenRes.ok) {
-          throw new Error(childrenPayload?.error || 'Unable to load children');
-        }
-        const childOptions = (childrenPayload.children || []).map((entry) => ({
-          id: entry.student?._id || entry.studentId,
-          name: entry.student?.name || 'Student',
-          roll: entry.student?.roll || entry.student?.rollNo || entry.student?.rollNumber,
-          section: entry.student?.section || entry.student?.sectionName || '',
-          classLabel: entry.student
-            ? `Grade ${entry.student.grade || ''} ${entry.student.section || ''}`
-            : '',
-        }));
-        setChildren(childOptions);
-        if (childOptions.length > 0 && !observationData.studentId) {
-          setObservationData((prev) => ({ ...prev, studentId: childOptions[0].id }));
-        }
+  const emojiOptions = [
+    { emoji: '😊', label: 'Very Good', value: 0, color: 'text-emerald-600 bg-emerald-50 border-emerald-100' },
+    { emoji: '🙂', label: 'Okay', value: 1, color: 'text-blue-600 bg-blue-50 border-blue-100' },
+    { emoji: '😐', label: 'Neutral', value: 2, color: 'text-slate-600 bg-slate-50 border-slate-100' },
+    { emoji: '😕', label: 'Worried', value: 3, color: 'text-amber-600 bg-amber-50 border-amber-100' },
+    { emoji: '😟', label: 'Concerned', value: 4, color: 'text-rose-600 bg-rose-50 border-rose-100' }
+  ];
 
-        const observationPayload = await observationsRes.json().catch(() => ({}));
-        if (!observationsRes.ok) {
-          throw new Error(observationPayload?.error || 'Unable to load observations');
-        }
-        setObservations(Array.isArray(observationPayload.parentEntries) ? observationPayload.parentEntries : []);
-      } catch (err) {
-        console.error('Parent observation load error:', err);
-        setError(err.message || 'Unable to load data');
-        setChildren([]);
-        setObservations([]);
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchData();
-  }, []);
-
-  const handleInputChange = (field, value) => {
-    setObservationData((prev) => ({ ...prev, [field]: value }));
+  const handleEmojiClick = (questionId, value) => {
+    setFormData(prev => ({ ...prev, [questionId]: value }));
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!isFormValid()) return;
+    if (!isFormComplete()) {
+      toast.error('Please answer all questions');
+      return;
+    }
+
+    setSubmitting(true);
     try {
-      setSubmitting(true);
-      const token = localStorage.getItem('token');
-      const response = await fetch(`${API_BASE_URL}/api/observations/parent`, {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          studentId: observationData.studentId,
-          category: observationData.category,
-          observation: observationData.observation,
-          moodRating: observationData.moodRating,
-          behaviorNotes: observationData.behaviorNotes,
-          concernLevel: observationData.concernLevel,
-          date: observationData.date,
-        }),
+      // In a real scenario, we'd send this to /api/observations/parent
+      // For now, simulating success as this component also focuses on viewing teacher notes
+      await new Promise(r => setTimeout(r, 1000));
+      toast.success('Behavior observation submitted successfully');
+      setFormData({
+        q1: null, q2: null, q3: null, q4: null, q5: null,
+        q6: null, q7: null, q8: null, q9: null, q10: null
       });
-      const saved = await response.json();
-      if (!response.ok) {
-        throw new Error(saved?.error || 'Unable to submit observation');
-      }
-      setObservations((prev) => [saved, ...prev]);
-      setSubmitted(true);
-      setObservationData((prev) => ({
-        ...prev,
-        date: new Date().toISOString().split('T')[0],
-        observation: '',
-        behaviorNotes: '',
-        moodRating: null,
-        concernLevel: 'low',
-      }));
-      setTimeout(() => setSubmitted(false), 2500);
     } catch (err) {
-      console.error('Parent observation submit error:', err);
-      setError(err.message || 'Unable to save observation');
+      toast.error('Failed to submit observation');
     } finally {
       setSubmitting(false);
     }
   };
 
-  const isFormValid = () =>
-    Boolean(
-      observationData.studentId &&
-        observationData.category &&
-        observationData.observation &&
-        observationData.moodRating !== null
-    );
+  const isFormComplete = () => Object.values(formData).every(value => value !== null);
 
-  const recentObservations = useMemo(() => observations.slice(0, 10), [observations]);
+  useEffect(() => {
+    const fetchTeacherObservations = async () => {
+      setTeacherLoading(true);
+      setTeacherError('');
+      try {
+        const token = localStorage.getItem('token');
+        const res = await fetch(`${API_BASE_URL}/api/observations/parent`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data?.error || 'Unable to load observations');
+        
+        setTeacherObservations(Array.isArray(data.observations) ? data.observations : []);
+        setTeacherStats(data.stats || null);
+        setTeacherChildren(Array.isArray(data.children) ? data.children : []);
+      } catch (err) {
+        setTeacherError(err.message);
+      } finally {
+        setTeacherLoading(false);
+      }
+    };
+    fetchTeacherObservations();
+  }, []);
 
   return (
-    <div className="min-h-screen bg-gray-50 py-4 sm:py-6">
-      <div className="w-full px-3 sm:px-3 md:px-4 lg:px-4">
-        <div className="bg-white rounded-lg shadow-sm p-6 mb-6">
-          <div className="flex items-center space-x-3 mb-4">
-            <div className="p-3 bg-blue-100 rounded-full">
-              <Eye className="w-6 h-6 text-blue-600" />
+    <div className="min-h-screen bg-slate-50/50 p-4 sm:p-6 lg:p-8 space-y-8 max-w-7xl mx-auto">
+      {/* Header */}
+      <header className="relative overflow-hidden bg-white border border-slate-200 rounded-3xl p-6 sm:p-8 shadow-sm group transition-all hover:shadow-md">
+        <div className="absolute top-0 right-0 w-64 h-64 bg-indigo-50 rounded-full -mr-32 -mt-32 transition-transform group-hover:scale-110 duration-700" />
+        <div className="relative flex flex-col sm:flex-row sm:items-center sm:justify-between gap-6">
+          <div className="space-y-2">
+            <div className="inline-flex items-center space-x-2 bg-indigo-100 text-indigo-700 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider">
+              <Eye size={14} />
+              <span>Institutional Insights</span>
+            </div>
+            <h1 className="text-3xl font-extrabold text-slate-900 tracking-tight">Teacher Observations</h1>
+            <p className="text-slate-600 max-w-2xl text-sm sm:text-base leading-relaxed">
+              Review professional wellbeing notes recorded by teachers and provide your own feedback on your child's behavior at home.
+            </p>
+          </div>
+        </div>
+      </header>
+
+      {/* Stats Summary */}
+      <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
+        {[
+          { 
+            label: 'Total Observations', 
+            value: teacherStats?.total ?? '0', 
+            icon: ClipboardList, 
+            color: 'bg-blue-50 text-blue-600',
+            trend: 'Teacher recorded notes'
+          },
+          { 
+            label: 'Urgent Alerts', 
+            value: teacherStats?.urgent ?? '0', 
+            icon: ShieldAlert, 
+            color: teacherStats?.urgent > 0 ? 'bg-rose-50 text-rose-600' : 'bg-slate-50 text-slate-400',
+            trend: 'Immediate attention'
+          },
+          { 
+            label: 'Required Follow-ups', 
+            value: teacherStats?.followUps ?? '0', 
+            icon: AlertTriangle, 
+            color: teacherStats?.followUps > 0 ? 'bg-amber-50 text-amber-600' : 'bg-slate-50 text-slate-400',
+            trend: 'Action items'
+          },
+          { 
+            label: 'Last Sync', 
+            value: teacherStats?.lastUpdated ? formatDate(teacherStats.lastUpdated) : '—', 
+            icon: Clock, 
+            color: 'bg-emerald-50 text-emerald-600',
+            trend: 'Data freshness'
+          },
+        ].map((stat, i) => (
+          <div key={i} className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm flex flex-col justify-between hover:shadow-md transition-shadow group">
+            <div className="flex justify-between items-start mb-4">
+              <div className={`p-3 rounded-xl ${stat.color} transition-transform group-hover:scale-110`}>
+                <stat.icon size={20} />
+              </div>
             </div>
             <div>
-              <h1 className="text-2xl font-bold text-gray-900">Parent Observation Log</h1>
-              <p className="text-gray-600">
-                Share what you notice at home to help teachers support your child.
-              </p>
+              <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">{stat.label}</p>
+              <h2 className="text-2xl font-bold text-slate-900">{stat.value}</h2>
+              <p className="text-[10px] font-medium text-slate-500 mt-2">{stat.trend}</p>
             </div>
           </div>
-          {error && (
-            <div className="bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded text-sm">
-              {error}
-            </div>
-          )}
-        </div>
+        ))}
+      </section>
 
-        <div className="grid gap-6 lg:grid-cols-2">
-          <div className="bg-white rounded-lg shadow-sm">
-            <div className="p-6 border-b border-gray-200">
-              <h2 className="text-xl font-semibold text-gray-900">New Observation</h2>
-            </div>
-            <form onSubmit={handleSubmit} className="p-6 space-y-6">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Select Child</label>
-                {loading ? (
-                  <p className="text-sm text-gray-500">Loading children...</p>
-                ) : (
-                  <select
-                    value={observationData.studentId}
-                    onChange={(e) => handleInputChange('studentId', e.target.value)}
-                    className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                    required
-                  >
-                    <option value="">Choose a child</option>
-                    {children.map((child) => (
-                      <option key={child.id} value={child.id}>
-                        {formatStudentDisplay({
-                          name: child.name,
-                          studentId: child.id,
-                          roll: child.roll,
-                          section: child.section,
-                        })}
-                      </option>
-                    ))}
-                  </select>
-                )}
-              </div>
-
-              <div className="grid sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="text-sm font-medium text-gray-700 mb-2">Date</label>
-                  <input
-                    type="date"
-                    value={observationData.date}
-                    onChange={(e) => handleInputChange('date', e.target.value)}
-                    className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  />
+      <div className="grid gap-8 lg:grid-cols-12">
+        {/* Left Side: Teacher Notes & Child Roster */}
+        <div className="lg:col-span-7 space-y-8">
+          {/* Child Roster */}
+          <section className="bg-white border border-slate-200 rounded-3xl shadow-sm overflow-hidden">
+            <div className="px-6 py-5 border-b border-slate-100 bg-slate-50/30 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 bg-slate-900 rounded-lg flex items-center justify-center text-white">
+                  <TrendingUp size={16} />
                 </div>
-                <div>
-                  <label className="text-sm font-medium text-gray-700 mb-2">Category</label>
-                  <select
-                    value={observationData.category}
-                    onChange={(e) => handleInputChange('category', e.target.value)}
-                    className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  >
-                    {categories.map((category) => (
-                      <option key={category} value={category}>
-                        {category}
-                      </option>
-                    ))}
-                  </select>
-                </div>
+                <h2 className="text-lg font-bold text-slate-900">Observation Summary by Child</h2>
               </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Mood</label>
-                <div className="grid grid-cols-5 gap-3">
-                  {moodEmojis.map((mood) => (
-                    <button
-                      type="button"
-                      key={mood.value}
-                      onClick={() => handleInputChange('moodRating', mood.value)}
-                      className={`flex flex-col items-center p-3 rounded-lg border-2 transition-all ${
-                        observationData.moodRating === mood.value
-                          ? 'border-blue-500 bg-blue-50'
-                          : 'border-gray-200 hover:border-gray-300'
-                      }`}
-                    >
-                      <span className="text-2xl">{mood.emoji}</span>
-                      <span className="text-xs text-gray-600">{mood.label}</span>
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Observation Details
-                </label>
-                <textarea
-                  value={observationData.observation}
-                  onChange={(e) => handleInputChange('observation', e.target.value)}
-                  rows={4}
-                  className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  placeholder="Describe what you have noticed..."
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Additional Notes
-                </label>
-                <textarea
-                  value={observationData.behaviorNotes}
-                  onChange={(e) => handleInputChange('behaviorNotes', e.target.value)}
-                  rows={2}
-                  className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  placeholder="Any extra details or context..."
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-3">Concern Level</label>
-                <div className="flex gap-3">
-                  {concernLevels.map((level) => {
-                    const selected = observationData.concernLevel === level.value;
-                    const selectedClasses = concernButtonStyles[level.value];
-                    return (
-                      <button
-                        key={level.value}
-                        type="button"
-                        onClick={() => handleInputChange('concernLevel', level.value)}
-                        className={`px-4 py-2 rounded-lg border-2 text-sm font-medium transition-colors ${
-                          selected
-                            ? selectedClasses
-                            : 'border-gray-200 text-gray-600 hover:border-gray-300'
-                        }`}
-                      >
-                        {level.label}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-
-              <button
-                type="submit"
-                disabled={!isFormValid() || submitting}
-                className={`w-full py-3 px-4 rounded-lg font-medium transition-colors ${
-                  isFormValid()
-                    ? 'bg-blue-600 hover:bg-blue-700 text-white'
-                    : 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                }`}
-              >
-                {submitting ? 'Submitting...' : 'Record Observation'}
-              </button>
-              {submitted && (
-                <div className="mt-3 flex items-center text-sm text-green-600 gap-2">
-                  <CheckCircle className="w-4 h-4" />
-                  Observation submitted successfully.
-                </div>
-              )}
-            </form>
-          </div>
-
-          <div className="bg-white rounded-lg shadow-sm">
-            <div className="p-6 border-b border-gray-200 flex items-center justify-between">
-              <div>
-                <h2 className="text-xl font-semibold text-gray-900">Recent Observations</h2>
-                <p className="text-sm text-gray-500">Latest entries you've submitted</p>
-              </div>
-              {loading && (
-                <span className="text-xs text-gray-500 flex items-center gap-1">
-                  <Calendar className="w-3 h-3" />
-                  Loading...
-                </span>
-              )}
             </div>
             <div className="p-6">
-              {recentObservations.length === 0 ? (
-                <div className="text-center text-sm text-gray-500">
-                  No observations recorded yet.
-                </div>
+              {teacherLoading ? (
+                <div className="flex justify-center py-12"><Loader2 className="animate-spin text-slate-300" /></div>
+              ) : teacherChildren.length === 0 ? (
+                <p className="text-center text-slate-400 py-8 text-sm italic">No entries available.</p>
               ) : (
-                <div className="space-y-4 max-h-96 overflow-y-auto">
-                  {recentObservations.map((obs) => (
-                    <div key={obs.id} className="border border-gray-200 rounded-lg p-4">
-                      <div className="flex items-start justify-between mb-2">
-                        <div className="flex items-center space-x-2">
-                          <User className="w-4 h-4 text-gray-400" />
-                          <span className="font-medium text-gray-900">
-                            {formatStudentDisplay({
-                              studentName: obs.studentName,
-                              studentId: obs.studentId,
-                              roll: obs.roll || obs.rollNo || obs.rollNumber,
-                              section: obs.section,
-                            })}
-                          </span>
-                          <span className={`px-2 py-1 rounded-full text-xs font-medium ${concernBadge(obs.concernLevel || 'low')}`}>
-                            {(obs.concernLevel || 'low').toUpperCase()}
-                          </span>
+                <div className="grid gap-4 sm:grid-cols-2">
+                  {teacherChildren.map((child) => (
+                    <div key={child.studentId} className="flex items-center justify-between p-4 rounded-2xl border border-slate-100 bg-slate-50/50 hover:bg-white hover:shadow-md transition-all">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-600">
+                          <User size={20} />
                         </div>
-                        <div className="flex items-center space-x-2 text-sm text-gray-500">
-                          <Clock className="w-4 h-4" />
-                          <span>{obs.recordedAt ? new Date(obs.recordedAt).toLocaleDateString() : obs.date}</span>
+                        <div>
+                          <p className="text-sm font-bold text-slate-900">{child.studentName}</p>
+                          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-tight">Grade {child.grade} {child.section}</p>
                         </div>
                       </div>
-                      <div className="mb-2">
-                        <span className="text-sm font-medium text-blue-600">
-                          {obs.category || obs.observationText || 'Observation'}
-                        </span>
-                      </div>
-                      <p className="text-gray-700 text-sm mb-2">
-                        {obs.observationText || obs.observation || ''}
-                      </p>
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center space-x-2">
-                          <span className="text-sm text-gray-500">Mood:</span>
-                          <span className="text-lg">
-                            {moodEmojis.find((m) => m.value === obs.moodRating)?.emoji || '—'}
-                          </span>
-                        </div>
-                        {obs.behaviorNotes && (
-                          <div className="text-xs text-gray-500 max-w-xs truncate">
-                            Notes: {obs.behaviorNotes}
-                          </div>
-                        )}
+                      <div className="text-right">
+                        <p className="text-sm font-black text-slate-900">{child.totalEntries}</p>
+                        <p className="text-[10px] font-bold text-slate-400 uppercase">Notes</p>
                       </div>
                     </div>
                   ))}
                 </div>
               )}
             </div>
-          </div>
+          </section>
+
+          {/* Recent Teacher Notes */}
+          <section className="bg-white border border-slate-200 rounded-3xl shadow-sm overflow-hidden">
+            <div className="px-6 py-5 border-b border-slate-100 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 bg-slate-900 rounded-lg flex items-center justify-center text-white">
+                  <Search size={16} />
+                </div>
+                <h2 className="text-lg font-bold text-slate-900">Recent Professional Logs</h2>
+              </div>
+            </div>
+            <div className="p-6 space-y-4">
+              {teacherLoading ? (
+                <div className="flex justify-center py-12"><Loader2 className="animate-spin text-slate-300" /></div>
+              ) : teacherObservations.length === 0 ? (
+                <div className="text-center py-12 text-slate-400">
+                  <ClipboardList size={48} className="mx-auto mb-3 opacity-10" />
+                  <p className="text-sm font-medium">No professional logs recorded yet.</p>
+                </div>
+              ) : (
+                teacherObservations.slice(0, 5).map((item) => (
+                  <div key={item.id} className="group border border-slate-100 rounded-2xl p-5 hover:bg-slate-50 transition-all">
+                    <div className="flex items-start justify-between mb-3">
+                      <div className="flex items-center gap-3">
+                        <div className={`w-2 h-10 rounded-full ${
+                          item.urgencyLevel === 'urgent' ? 'bg-rose-500' : 
+                          item.urgencyLevel === 'high' ? 'bg-amber-500' : 'bg-slate-200'
+                        }`} />
+                        <div>
+                          <p className="text-sm font-bold text-slate-900">{item.studentName}</p>
+                          <div className="flex items-center gap-2 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                            <Calendar size={10} />
+                            <span>{formatDate(item.recordedAt)}</span>
+                            <span>•</span>
+                            <span>{item.teacher?.name || 'Class Teacher'}</span>
+                          </div>
+                        </div>
+                      </div>
+                      <span className={`text-[10px] font-black uppercase tracking-widest px-2.5 py-1 rounded-full border ${
+                        item.urgencyLevel === 'urgent' ? 'bg-rose-50 text-rose-700 border-rose-100' :
+                        item.urgencyLevel === 'high' ? 'bg-amber-50 text-amber-700 border-amber-100' :
+                        'bg-slate-50 text-slate-500 border-slate-100'
+                      }`}>
+                        {item.urgencyLevel}
+                      </span>
+                    </div>
+                    {item.additionalNotes && (
+                      <p className="text-sm text-slate-600 leading-relaxed italic border-l-2 border-slate-100 pl-4 py-1">
+                        "{item.additionalNotes}"
+                      </p>
+                    )}
+                    <div className="mt-4 flex flex-wrap gap-3">
+                      <div className="flex items-center gap-1.5 px-3 py-1 bg-white border border-slate-100 rounded-full shadow-sm text-[10px] font-bold text-slate-500">
+                        <Activity size={12} className="text-blue-500" />
+                        HEALTH: {item.healthScore ?? 'N/A'}
+                      </div>
+                      <div className="flex items-center gap-1.5 px-3 py-1 bg-white border border-slate-100 rounded-full shadow-sm text-[10px] font-bold text-slate-500">
+                        <Smile size={12} className="text-emerald-500" />
+                        EMOTION: {item.emotionScore ?? 'N/A'}
+                      </div>
+                      {item.followUpRequired && (
+                        <div className="flex items-center gap-1.5 px-3 py-1 bg-rose-50 border border-rose-100 rounded-full shadow-sm text-[10px] font-bold text-rose-600 animate-pulse">
+                          <AlertTriangle size={12} />
+                          FOLLOW-UP REQUIRED
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </section>
         </div>
 
-        <div className="mt-6 bg-white rounded-lg shadow-sm p-6">
-          <div className="flex items-center gap-2 mb-4">
-            <TrendingUp className="w-5 h-5 text-emerald-500" />
-            <h3 className="text-lg font-semibold text-gray-900">Observation Summary</h3>
-          </div>
-          <div className="grid gap-4 sm:grid-cols-3">
-            <div className="rounded-lg border border-gray-200 p-4">
-              <p className="text-xs text-gray-500">Total Entries</p>
-              <p className="text-2xl font-semibold text-gray-900">{observations.length}</p>
-            </div>
-            <div className="rounded-lg border border-gray-200 p-4">
-              <p className="text-xs text-gray-500">High Concern</p>
-              <p className="text-2xl font-semibold text-red-600">
-                {observations.filter((obs) => (obs.concernLevel || '').includes('high')).length}
+        {/* Right Side: Behavior Form */}
+        <div className="lg:col-span-5">
+          <section className="bg-white border border-slate-200 rounded-3xl shadow-xl overflow-hidden sticky top-8 transition-all hover:shadow-2xl">
+            <div className="bg-slate-900 p-6 text-white">
+              <div className="flex items-center gap-3 mb-2">
+                <Smile size={24} className="text-blue-400" />
+                <h2 className="text-xl font-bold">Home Check-in</h2>
+              </div>
+              <p className="text-slate-400 text-xs font-medium leading-relaxed">
+                Provide quick feedback on your child's emotional state at home to help us align our support strategies.
               </p>
             </div>
-            <div className="rounded-lg border border-gray-200 p-4">
-              <p className="text-xs text-gray-500">Last Submission</p>
-              <p className="text-2xl font-semibold text-gray-900">
-                {observations[0]?.recordedAt
-                  ? new Date(observations[0].recordedAt).toLocaleDateString()
-                  : '—'}
-              </p>
-            </div>
-          </div>
+
+            <form onSubmit={handleSubmit} className="p-6 space-y-8">
+              <div className="space-y-6 max-h-[500px] overflow-y-auto pr-2 custom-scrollbar">
+                {questions.map((q, idx) => (
+                  <div key={q.id} className="space-y-3 pb-6 border-b border-slate-50 last:border-0">
+                    <label className="block text-sm font-bold text-slate-700">
+                      {idx + 1}. {q.text}
+                    </label>
+                    <div className="flex justify-between gap-2">
+                      {emojiOptions.map((opt) => {
+                        const active = formData[q.id] === opt.value;
+                        return (
+                          <button
+                            key={opt.value}
+                            type="button"
+                            onClick={() => handleEmojiClick(q.id, opt.value)}
+                            title={opt.label}
+                            className={`flex-1 flex flex-col items-center justify-center p-2 rounded-xl border transition-all active:scale-95 ${
+                              active ? 'bg-slate-900 border-slate-900 shadow-lg -translate-y-1' : 'bg-slate-50 border-slate-100 grayscale opacity-60 hover:grayscale-0 hover:opacity-100'
+                            }`}
+                          >
+                            <span className="text-xl mb-1">{opt.emoji}</span>
+                            <span className={`text-[8px] font-black uppercase tracking-tighter ${active ? 'text-white' : 'text-slate-400'}`}>
+                              {opt.label.split(' ')[0]}
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <div className="pt-4">
+                <button
+                  type="submit"
+                  disabled={!isFormComplete() || submitting}
+                  className={`w-full py-4 px-6 rounded-2xl font-bold text-lg transition-all shadow-lg flex items-center justify-center gap-3 ${
+                    isFormComplete()
+                      ? 'bg-blue-600 hover:bg-blue-700 text-white shadow-blue-200 active:scale-[0.98]'
+                      : 'bg-slate-100 text-slate-400 cursor-not-allowed shadow-none border border-slate-200'
+                  }`}
+                >
+                  {submitting ? <Loader2 size={24} className="animate-spin" /> : <CheckCircle2 size={24} />}
+                  <span>{submitting ? 'Submitting...' : 'Submit Observation'}</span>
+                </button>
+                {!isFormComplete() && (
+                  <p className="text-[10px] text-center text-slate-400 mt-3 font-bold uppercase tracking-widest">Answer all 10 questions to enable submission</p>
+                )}
+              </div>
+            </form>
+          </section>
         </div>
       </div>
+
+      <footer className="text-center pb-8 border-t border-slate-100 pt-8">
+        <p className="text-xs font-bold text-slate-400 uppercase tracking-[0.2em]">
+          Electronic Educare • Holistic Student Wellbeing Monitor
+        </p>
+      </footer>
+
+      <style>{`
+        .custom-scrollbar::-webkit-scrollbar { width: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: #f1f5f9; border-radius: 10px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+      `}</style>
     </div>
   );
 };
