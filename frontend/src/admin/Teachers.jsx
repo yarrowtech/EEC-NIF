@@ -151,6 +151,7 @@ const Teachers = ({setShowAdminHeader}) => {
   const [makePrincipalConfirmTeacher, setMakePrincipalConfirmTeacher] = useState(null);
   const [bulkUploading, setBulkUploading] = useState(false);
   const bulkFileInputRef = useRef(null);
+  const [departments, setDepartments] = useState([]);
 
   const principalIdentitySet = useMemo(() => {
     return new Set(
@@ -390,6 +391,31 @@ const Teachers = ({setShowAdminHeader}) => {
     writeTeachersCache(normalized);
   };
 
+  const fetchDepartments = async () => {
+    try {
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/departments`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          authorization: `Bearer ${localStorage.getItem('token')}`
+        }
+      });
+      const data = await res.json().catch(() => []);
+      if (!res.ok) throw new Error(data?.error || 'Failed to fetch departments');
+      const normalized = (Array.isArray(data) ? data : [])
+        .map((item) => ({
+          id: String(item?._id || item?.id || item?.name || ''),
+          name: String(item?.name || '').trim()
+        }))
+        .filter((item) => item.name)
+        .sort((a, b) => a.name.localeCompare(b.name));
+      setDepartments(normalized);
+    } catch (err) {
+      console.error('Error fetching departments:', err);
+      setDepartments([]);
+    }
+  };
+
   // Reset pagination when filters change
   useEffect(() => {
     setCurrentPage(1);
@@ -495,6 +521,9 @@ const Teachers = ({setShowAdminHeader}) => {
     setShowAdminHeader(false);
     fetchTeachers({ useCache: true }).catch(err => {
       console.error("Error fetching teachers:", err);
+    });
+    fetchDepartments().catch(err => {
+      console.error("Error fetching departments:", err);
     });
   }, [setShowAdminHeader]);
 
@@ -1774,15 +1803,26 @@ const Teachers = ({setShowAdminHeader}) => {
                         <label className="block text-xs font-semibold text-gray-600 mb-1.5">Department</label>
                         <div className="relative">
                           <Building2 size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
-                          <input
-                            type="text"
+                          <select
                             name="department"
                             value={newTeacher.department}
                             onChange={handleAddTeacherChange}
                             onBlur={handleFormBlur}
-                            placeholder="e.g., Science"
                             className={`${fieldClass('department')} pl-9`}
-                          />
+                          >
+                            <option value="">Select department</option>
+                            {departments.map((department) => (
+                              <option key={department.id} value={department.name}>
+                                {department.name}
+                              </option>
+                            ))}
+                            {newTeacher.department &&
+                              !departments.some((department) => department.name === newTeacher.department) && (
+                                <option value={newTeacher.department}>
+                                  {newTeacher.department}
+                                </option>
+                              )}
+                          </select>
                         </div>
                       </div>
 

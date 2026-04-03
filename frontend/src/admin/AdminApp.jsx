@@ -31,6 +31,7 @@ import AdminSettings from './pages/AdminSettings';
 import StudentPromotion from './pages/StudentPromotion';
 import ReportCardManagement from './pages/ReportCardManagement';
 import HolidayList from './pages/HolidayList';
+import DepartmentManagement from './pages/DepartmentManagement';
 import { useState, useEffect, useMemo } from 'react';
 import { ADMIN_MENU_ITEMS } from './adminConstants';
 import { ensureAdminFetchScope, syncScopeFromProfile } from './utils/adminScope';
@@ -125,6 +126,7 @@ const AdminApp = () => {
       'Dashboard',
       'Analytics',
       'Academic Setup',
+      'Departments',
       // 'Subjects',
       'Teachers',
       'Students',
@@ -216,6 +218,7 @@ const AdminApp = () => {
         <Route path="floor-rooms" element={<FloorRoomManagement setShowAdminHeader={setShowAdminHeader} />} />
         <Route path="parents" element={<ParentsManagement setShowAdminHeader={setShowAdminHeader} />} />
         <Route path="academics" element={<AcademicSetup setShowAdminHeader={setShowAdminHeader} />} />
+        <Route path="departments" element={<DepartmentManagement setShowAdminHeader={setShowAdminHeader} />} />
         <Route path="subjects" element={<SubjectManagement setShowAdminHeader={setShowAdminHeader} />} />
         <Route path="attendance" element={<AttendanceManagement setShowAdminHeader={setShowAdminHeader} />} />
         <Route path="examination" element={<ExaminationManagement setShowAdminHeader={setShowAdminHeader} />} />

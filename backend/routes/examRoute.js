@@ -1,9 +1,10 @@
 const express = require('express');
 const multer = require('multer');
-const csv = require('csv-parser');
+const xlsx = require('xlsx');
 const fs = require('fs');
 const mongoose = require('mongoose');
 const Exam = require('../models/Exam');
+const ExamGroup = require('../models/ExamGroup');
 const ExamResult = require('../models/ExamResult');
 const StudentUser = require('../models/StudentUser');
 const TeacherUser = require('../models/TeacherUser');
@@ -21,6 +22,7 @@ const NotificationService = require('../utils/notificationService');
 
 // Configure multer for CSV upload
 const upload = multer({ dest: 'uploads/' });
+const EXAM_GROUP_STATUS_OPTIONS = new Set(['Scheduled', 'Completed']);
 
 const resolveSchoolId = (req, res) => {
     const schoolId = req.schoolId || req.admin?.schoolId || null;
@@ -236,6 +238,168 @@ const resolveResultScore = ({ marks, status, examMaxMarks, requireMarks = true }
 
 const router = express.Router();
 
+/* ══════════════════════════════════════════════════════════
+   EXAM GROUPS  (parent level)
+══════════════════════════════════════════════════════════ */
+
+// GET /groups — all groups with their subject exams embedded
+router.get('/groups', adminAuth, async (req, res) => {
+  try {
+    const schoolId = resolveSchoolId(req, res);
+    if (!schoolId) return;
+    const campusId = resolveCampusId(req);
+    const filter = { schoolId, ...(campusId ? { campusId } : {}) };
+
+    const [groups, exams] = await Promise.all([
+      ExamGroup.find(filter)
+        .populate('classId', 'name')
+        .populate('sectionId', 'name')
+        .sort({ createdAt: -1 })
+        .lean(),
+      Exam.find({ ...filter, groupId: { $exists: true, $ne: null } })
+        .populate('subjectId', 'name code')
+        .populate('classId', 'name')
+        .populate('sectionId', 'name')
+        .populate({
+          path: 'roomId',
+          select: 'roomNumber floorId',
+          populate: { path: 'floorId', select: 'name floorCode buildingId', populate: { path: 'buildingId', select: 'name code' } },
+        })
+        .sort({ date: 1 })
+        .lean(),
+    ]);
+
+    const examsByGroup = new Map();
+    exams.forEach(e => {
+      const gid = String(e.groupId);
+      if (!examsByGroup.has(gid)) examsByGroup.set(gid, []);
+      examsByGroup.get(gid).push(e);
+    });
+
+    res.json(groups.map(g => ({ ...g, subjects: examsByGroup.get(String(g._id)) || [] })));
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /groups — create group
+router.post('/groups', adminAuth, async (req, res) => {
+  try {
+    const schoolId = resolveSchoolId(req, res);
+    if (!schoolId) return;
+    const campusId = resolveCampusId(req);
+    const { title, term, classId, sectionId, status, startDate, endDate } = req.body || {};
+    const normalizedGroupStatus = status ? String(status).trim() : 'Scheduled';
+
+    if (!title?.trim()) return res.status(400).json({ error: 'Exam group title is required' });
+    if (!EXAM_GROUP_STATUS_OPTIONS.has(normalizedGroupStatus)) {
+      return res.status(400).json({ error: 'Group status must be Scheduled or Completed' });
+    }
+
+    let classDoc = null, sectionDoc = null;
+    if (classId && mongoose.isValidObjectId(classId)) {
+      classDoc = await ClassModel.findOne({ _id: classId, schoolId }).lean();
+      if (!classDoc) return res.status(400).json({ error: 'Class not found' });
+    }
+    if (sectionId && mongoose.isValidObjectId(sectionId)) {
+      sectionDoc = await Section.findOne({ _id: sectionId, schoolId }).lean();
+      if (!sectionDoc) return res.status(400).json({ error: 'Section not found' });
+    }
+
+    const group = await ExamGroup.create({
+      schoolId,
+      campusId: campusId || null,
+      title: title.trim(),
+      term: term || 'Term 1',
+      classId:  classDoc?._id  || null,
+      sectionId: sectionDoc?._id || null,
+      grade:   classDoc?.name  || '',
+      section: sectionDoc?.name || '',
+      status: normalizedGroupStatus,
+      startDate: startDate || '',
+      endDate:   endDate   || '',
+    });
+
+    const populated = await ExamGroup.findById(group._id)
+      .populate('classId', 'name')
+      .populate('sectionId', 'name')
+      .lean();
+
+    res.status(201).json({ message: 'Exam group created', group: { ...populated, subjects: [] } });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+// PUT /groups/:groupId — update group
+router.put('/groups/:groupId', adminAuth, async (req, res) => {
+  try {
+    const { groupId } = req.params;
+    if (!mongoose.isValidObjectId(groupId)) return res.status(400).json({ error: 'Invalid group ID' });
+    const schoolId = resolveSchoolId(req, res);
+    if (!schoolId) return;
+    const campusId = resolveCampusId(req);
+    const { title, term, classId, sectionId, status, startDate, endDate } = req.body || {};
+
+    const updates = {};
+    if (title !== undefined) updates.title = title.trim();
+    if (term !== undefined) updates.term = term;
+    if (status !== undefined) {
+      const normalizedGroupStatus = String(status).trim();
+      if (!EXAM_GROUP_STATUS_OPTIONS.has(normalizedGroupStatus)) {
+        return res.status(400).json({ error: 'Group status must be Scheduled or Completed' });
+      }
+      updates.status = normalizedGroupStatus;
+    }
+    if (startDate !== undefined) updates.startDate = startDate;
+    if (endDate !== undefined) updates.endDate = endDate;
+
+    if (classId !== undefined) {
+      const classDoc = classId && mongoose.isValidObjectId(classId)
+        ? await ClassModel.findOne({ _id: classId, schoolId }).lean() : null;
+      updates.classId = classDoc?._id || null;
+      updates.grade   = classDoc?.name || '';
+    }
+    if (sectionId !== undefined) {
+      const sectionDoc = sectionId && mongoose.isValidObjectId(sectionId)
+        ? await Section.findOne({ _id: sectionId, schoolId }).lean() : null;
+      updates.sectionId = sectionDoc?._id || null;
+      updates.section   = sectionDoc?.name || '';
+    }
+
+    const group = await ExamGroup.findOneAndUpdate(
+      { _id: groupId, schoolId, ...(campusId ? { campusId } : {}) },
+      updates,
+      { new: true, runValidators: true }
+    ).populate('classId', 'name').populate('sectionId', 'name').lean();
+
+    if (!group) return res.status(404).json({ error: 'Exam group not found' });
+    res.json({ message: 'Exam group updated', group });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+// DELETE /groups/:groupId — delete group + all its subject exams
+router.delete('/groups/:groupId', adminAuth, async (req, res) => {
+  try {
+    const { groupId } = req.params;
+    if (!mongoose.isValidObjectId(groupId)) return res.status(400).json({ error: 'Invalid group ID' });
+    const schoolId = resolveSchoolId(req, res);
+    if (!schoolId) return;
+    const campusId = resolveCampusId(req);
+
+    const group = await ExamGroup.findOneAndDelete({ _id: groupId, schoolId, ...(campusId ? { campusId } : {}) });
+    if (!group) return res.status(404).json({ error: 'Exam group not found' });
+
+    await Exam.deleteMany({ groupId, schoolId });
+    res.json({ message: 'Exam group and all its subject exams deleted' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/* ══════════════════════════════════════════════════════════ */
 
 router.get("/fetch", adminAuth, async (req, res) => {
   // #swagger.tags = ['Exams']
@@ -279,7 +443,8 @@ router.post("/add", adminAuth, async (req, res) => {
             sectionId,
             subjectId,
             roomId,
-            published
+            published,
+            groupId,
         } = req.body || {};
         const schoolId = resolveSchoolId(req, res);
         if (!schoolId) return;
@@ -324,6 +489,7 @@ router.post("/add", adminAuth, async (req, res) => {
             roomId: roomResult.roomDoc?._id || undefined,
             grade: classDoc.name || '',
             section: sectionDoc.name || '',
+            groupId: groupId && mongoose.isValidObjectId(groupId) ? groupId : null,
             published: Boolean(published),
             publishedAt: published ? new Date() : null,
         });
@@ -790,7 +956,7 @@ router.get("/results/admin", adminAuth, async (req, res) => {
         select: 'name grade section roll studentCode schoolId',
         populate: { path: 'schoolId', select: 'name code' },
       })
-      .populate('examId', 'title subject date term grade section classId sectionId subjectId')
+      .populate('examId', 'title subject date term grade section classId sectionId subjectId status')
       .sort({ createdAt: -1 })
       .lean();
 
@@ -833,112 +999,122 @@ router.get("/results/me", require('../middleware/authStudent'), async (req, res)
 
 // Bulk upload results via CSV
 router.post("/results/bulk-upload", adminAuth, upload.single('file'), async (req, res) => {
-  // #swagger.tags = ['Exams']
     const filePath = req.file?.path;
 
     try {
         const schoolId = resolveSchoolId(req, res);
         if (!schoolId) return;
         const campusId = resolveCampusId(req);
-
+        
         if (!filePath) {
-            return res.status(400).json({ error: 'CSV file is required' });
+            return res.status(400).json({ error: 'Excel file is required' });
         }
 
-        const results = [];
+        const workbook = xlsx.readFile(filePath);
         const errors = [];
-
-        // Read and parse CSV
-        await new Promise((resolve, reject) => {
-            fs.createReadStream(filePath)
-                .pipe(csv())
-                .on('data', (row) => {
-                    results.push(row);
-                })
-                .on('end', resolve)
-                .on('error', reject);
-        });
-
         let successCount = 0;
         let errorCount = 0;
 
-        // Process each row
-        for (let i = 0; i < results.length; i++) {
-            const row = results[i];
-            try {
-                const { examId, studentId, marks, grade, remarks, status } = row;
+        for (const sheetName of workbook.SheetNames) {
+            if (sheetName === 'ExamsData') continue; // Skip the data sheet
 
-                if (!examId || !studentId) {
-                    errors.push(`Row ${i + 2}: Missing required fields (examId, studentId)`);
-                    errorCount++;
-                    continue;
-                }
+            const sheetData = xlsx.utils.sheet_to_json(workbook.Sheets[sheetName]);
 
-                // Verify exam exists
-                const exam = await Exam.findOne({ _id: examId, schoolId, ...(campusId ? { campusId } : {}) }).lean();
-                if (!exam) {
-                    errors.push(`Row ${i + 2}: Exam not found`);
-                    errorCount++;
-                    continue;
-                }
+            for (let i = 0; i < sheetData.length; i++) {
+                const row = sheetData[i];
+                try {
+                    const { studentId, examId, marks, remarks, status } = row;
 
-                // Verify student exists
-                const student = await StudentUser.findOne({ _id: studentId, schoolId, ...(campusId ? { campusId } : {}) }).lean();
-                if (!student) {
-                    errors.push(`Row ${i + 2}: Student not found`);
-                    errorCount++;
-                    continue;
-                }
-                if (!studentMatchesExamScope(student, exam)) {
-                    errors.push(`Row ${i + 2}: Student does not belong to exam class/section`);
-                    errorCount++;
-                    continue;
-                }
-                if (campusId && student.campusId && String(student.campusId) !== String(campusId)) {
-                    errors.push(`Row ${i + 2}: Student does not belong to this campus`);
-                    errorCount++;
-                    continue;
-                }
+                    if (!examId || !studentId) {
+                        errors.push(`Sheet "${sheetName}", Row ${i + 2}: Missing examId or studentId`);
+                        errorCount++;
+                        continue;
+                    }
 
-                const normalizedStatus = parseResultStatus(status);
-                if (!normalizedStatus) {
-                    errors.push(`Row ${i + 2}: Invalid status`);
-                    errorCount++;
-                    continue;
-                }
-                const scoreResult = resolveResultScore({
-                    marks,
-                    status: normalizedStatus,
-                    examMaxMarks: exam?.marks,
-                    requireMarks: normalizedStatus !== 'absent',
-                });
-                if (scoreResult.error) {
-                    errors.push(`Row ${i + 2}: ${scoreResult.error}`);
-                    errorCount++;
-                    continue;
-                }
+                    const exam = await Exam.findById(examId).lean();
+                    if (!exam || String(exam.schoolId) !== String(schoolId)) {
+                        errors.push(`Sheet "${sheetName}", Row ${i + 2}: Exam not found`);
+                        errorCount++;
+                        continue;
+                    }
 
-                // Upsert result
-                await ExamResult.findOneAndUpdate(
-                    { examId, studentId, schoolId, ...(campusId ? { campusId } : {}) },
-                    {
+                    const student = await StudentUser.findById(studentId).lean();
+                    if (!student || String(student.schoolId) !== String(schoolId)) {
+                        errors.push(`Sheet "${sheetName}", Row ${i + 2}: Student not found`);
+                        errorCount++;
+                        continue;
+                    }
+
+                    if (!studentMatchesExamScope(student, exam)) {
+                        errors.push(`Sheet "${sheetName}", Row ${i + 2}: Student ${student.name} not in exam's class/section.`);
+                        errorCount++;
+                        continue;
+                    }
+
+                    const normalizedStatus = parseResultStatus(status);
+                    if (!normalizedStatus) {
+                        errors.push(`Sheet "${sheetName}", Row ${i + 2}: Invalid status value.`);
+                        errorCount++;
+                        continue;
+                    }
+
+                    const scoreResult = resolveResultScore({
+                        marks,
+                        status: normalizedStatus,
+                        examMaxMarks: exam.marks,
+                        requireMarks: normalizedStatus !== 'absent',
+                    });
+
+                    if (scoreResult.error) {
+                        errors.push(`Sheet "${sheetName}", Row ${i + 2}: ${scoreResult.error}`);
+                        errorCount++;
+                        continue;
+                    }
+
+                    // Auto-calculate grade on backend
+                    let calculatedGrade = row.grade || '';
+                    if (exam.marks && scoreResult.score !== undefined) {
+                        const percentage = (Number(scoreResult.score) / Number(exam.marks)) * 100;
+                        if (percentage >= 90) calculatedGrade = 'A+';
+                        else if (percentage >= 80) calculatedGrade = 'A';
+                        else if (percentage >= 70) calculatedGrade = 'B';
+                        else if (percentage >= 60) calculatedGrade = 'C';
+                        else if (percentage >= 50) calculatedGrade = 'D';
+                        else calculatedGrade = 'F';
+                    }
+
+                    // Auto-calculate pass/fail status based on marks (50% passing threshold)
+                    if (exam.marks && scoreResult.score !== undefined && scoreResult.status !== 'absent') {
+                        const percentage = (Number(scoreResult.score) / Number(exam.marks)) * 100;
+                        scoreResult.status = percentage >= 50 ? 'pass' : 'fail';
+                    }
+
+                    // Auto-generate remarks based on final status
+                    const finalRemarks = scoreResult.status === 'pass' ? 'Promoted'
+                        : scoreResult.status === 'fail' ? 'Not Promoted'
+                        : '';
+
+                    await ExamResult.findOneAndUpdate(
+                        { examId, studentId, schoolId, ...(campusId ? { campusId } : {}) },
+                        {
                         schoolId,
                         campusId: campusId || null,
                         examId,
                         studentId,
                         marks: scoreResult.score,
-                        grade: grade || '',
-                        remarks: remarks || '',
+                        grade: calculatedGrade,
+                        remarks: finalRemarks,
                         status: scoreResult.status,
                         createdBy: req.admin?.id || null,
-                    },
-                    { new: true, upsert: true, runValidators: true }
-                );
+                        },
+                        { new: true, upsert: true, runValidators: true }
+                    );
 
-                successCount++;
-            } catch (err) {
-                errors.push(`Row ${i + 2}: ${err.message}`);
-                errorCount++;
+                    successCount++;
+                } catch (err) {
+                    errors.push(`Sheet "${sheetName}", Row ${i + 2}: ${err.message}`);
+                    errorCount++;
+                }
             }
         }
 
@@ -956,7 +1132,75 @@ router.post("/results/bulk-upload", adminAuth, upload.single('file'), async (req
         if (filePath && fs.existsSync(filePath)) {
             fs.unlinkSync(filePath);
         }
-        console.error('Bulk upload error:', err);
+        console.error('Bulk result upload error:', err);
+        res.status(500).json({ error: 'An unexpected error occurred during file processing.' });
+    }
+});
+
+// Bulk publish/unpublish results by IDs (must be before /:id to avoid route conflict)
+router.put("/results/bulk-publish", adminAuth, async (req, res) => {
+  // #swagger.tags = ['Exams']
+    try {
+        const { resultIds } = req.body;
+        const published = Boolean(req.body?.published);
+
+        if (!Array.isArray(resultIds) || resultIds.length === 0) {
+            return res.status(400).json({ error: 'resultIds array is required' });
+        }
+
+        const schoolId = resolveSchoolId(req, res);
+        if (!schoolId) return;
+        const campusId = resolveCampusId(req);
+
+        const filter = {
+            _id: { $in: resultIds },
+            schoolId,
+            ...(campusId ? { campusId } : {})
+        };
+
+        const scopedResults = await ExamResult.find(filter)
+          .select('_id examId')
+          .populate('examId', 'status')
+          .lean();
+
+        if (!scopedResults.length) {
+          return res.status(404).json({ error: 'No matching results found' });
+        }
+
+        let scopedIds = scopedResults.map((result) => result._id);
+        let skippedCount = 0;
+        if (published) {
+          scopedIds = scopedResults
+            .filter((result) => String(result?.examId?.status || '').toLowerCase() === 'completed')
+            .map((result) => result._id);
+          skippedCount = scopedResults.length - scopedIds.length;
+          if (!scopedIds.length) {
+            return res.status(400).json({ error: 'Only completed exam results can be published' });
+          }
+        }
+
+        const updateData = {
+            published,
+            publishedAt: published ? new Date() : null
+        };
+
+        const updateResult = await ExamResult.updateMany(
+          {
+            _id: { $in: scopedIds },
+            schoolId,
+            ...(campusId ? { campusId } : {})
+          },
+          updateData
+        );
+
+        res.status(200).json({
+            success: true,
+            message: `${updateResult.modifiedCount} result(s) ${published ? 'published' : 'unpublished'} successfully${published && skippedCount ? ` (${skippedCount} skipped: exam not completed)` : ''}`,
+            modifiedCount: updateResult.modifiedCount,
+            skippedCount
+        });
+    } catch (err) {
+        console.error('Bulk publish/unpublish results error:', err);
         res.status(500).json({ error: err.message });
     }
 });
@@ -1034,6 +1278,10 @@ router.put("/results/:id", adminOrTeacherAuth, async (req, res) => {
       ...(published !== undefined ? { published: Boolean(published), publishedAt: published ? new Date() : null } : {}),
       createdBy: req.user?.id || req.admin?.id || current.createdBy || null,
     };
+
+    if (published === true && String(exam?.status || '').toLowerCase() !== 'completed') {
+      return res.status(400).json({ error: 'Only completed exam results can be published' });
+    }
 
     const duplicate = await ExamResult.findOne({
       _id: { $ne: id },
@@ -1207,7 +1455,7 @@ router.put("/results/:id/publish", adminAuth, async (req, res) => {
   // #swagger.tags = ['Exams']
     try {
         const { id } = req.params;
-        const { published } = req.body;
+        const published = Boolean(req.body?.published);
 
         const schoolId = resolveSchoolId(req, res);
         if (!schoolId) return;
@@ -1219,10 +1467,13 @@ router.put("/results/:id/publish", adminAuth, async (req, res) => {
             ...(campusId ? { campusId } : {})
         };
 
-        const result = await ExamResult.findOne(filter);
+        const result = await ExamResult.findOne(filter).populate('examId', 'status');
 
         if (!result) {
             return res.status(404).json({ error: 'Result not found' });
+        }
+        if (published && String(result?.examId?.status || '').toLowerCase() !== 'completed') {
+            return res.status(400).json({ error: 'Only completed exam results can be published' });
         }
 
         result.published = published;
@@ -1236,44 +1487,6 @@ router.put("/results/:id/publish", adminAuth, async (req, res) => {
         });
     } catch (err) {
         console.error('Publish/unpublish result error:', err);
-        res.status(500).json({ error: err.message });
-    }
-});
-
-// Bulk publish/unpublish results by IDs
-router.put("/results/bulk-publish", adminAuth, async (req, res) => {
-  // #swagger.tags = ['Exams']
-    try {
-        const { resultIds, published } = req.body;
-
-        if (!Array.isArray(resultIds) || resultIds.length === 0) {
-            return res.status(400).json({ error: 'resultIds array is required' });
-        }
-
-        const schoolId = resolveSchoolId(req, res);
-        if (!schoolId) return;
-        const campusId = resolveCampusId(req);
-
-        const filter = {
-            _id: { $in: resultIds },
-            schoolId,
-            ...(campusId ? { campusId } : {})
-        };
-
-        const updateData = {
-            published,
-            publishedAt: published ? new Date() : null
-        };
-
-        const updateResult = await ExamResult.updateMany(filter, updateData);
-
-        res.status(200).json({
-            success: true,
-            message: `${updateResult.modifiedCount} result(s) ${published ? 'published' : 'unpublished'} successfully`,
-            modifiedCount: updateResult.modifiedCount
-        });
-    } catch (err) {
-        console.error('Bulk publish/unpublish results error:', err);
         res.status(500).json({ error: err.message });
     }
 });

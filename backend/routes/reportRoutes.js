@@ -14,6 +14,10 @@ const Section = require('../models/Section');
 const AcademicYear = require('../models/AcademicYear');
 const School = require('../models/School');
 const ReportCardTemplate = require('../models/ReportCardTemplate');
+const Exam = require('../models/Exam');
+const ExamGroup = require('../models/ExamGroup');
+const TeacherAllocation = require('../models/TeacherAllocation');
+const Principal = require('../models/Principal');
 
 const router = express.Router();
 
@@ -85,14 +89,35 @@ const resolveTemplate = async ({ schoolId, campusId }) => {
     template = await ReportCardTemplate.findOne({ schoolId, campusId: null }).lean();
   }
 
-  const school = await School.findById(schoolId).select('name logo').lean();
+  const school = await School.findById(schoolId)
+    .select('name logo address contactPhone contactEmail officialEmail campuses')
+    .lean();
+  const campusAddress =
+    (Array.isArray(school?.campuses) &&
+      (school.campuses.find((campus) => String(campus?._id || '') === String(campusId || ''))?.address ||
+        school.campuses.find((campus) => String(campus?.campusType || '').toLowerCase() === 'main')?.address ||
+        school.campuses.find((campus) => String(campus?.address || '').trim())?.address)) ||
+    '';
+  const campusContactPhone =
+    (Array.isArray(school?.campuses) &&
+      (school.campuses.find((campus) => String(campus?._id || '') === String(campusId || ''))?.contactPhone ||
+        school.campuses.find((campus) => String(campus?.contactPhone || '').trim())?.contactPhone)) ||
+    '';
   const schoolName = template?.schoolNameOverride || school?.name || '';
+  const schoolAddressLine = template?.schoolAddressLine || school?.address || campusAddress || '';
+  const schoolContactLine =
+    template?.schoolContactLine ||
+    [school?.contactPhone, campusContactPhone, school?.contactEmail, school?.officialEmail]
+      .filter(Boolean)
+      .join(' | ');
   const logoUrl = template?.logoUrlOverride || school?.logo?.secure_url || school?.logo?.url || '';
 
   return {
     ...REPORT_CARD_DEFAULTS,
     ...(template || {}),
     schoolName,
+    schoolAddressLine,
+    schoolContactLine,
     logoUrl,
   };
 };
@@ -164,6 +189,7 @@ const buildReportCards = async ({
   academicYearName,
   yearDoc,
   includeUnpublished,
+  examIds,
 }) => {
   if (!students.length) return [];
   const studentIds = students.map((student) => student._id);
@@ -171,6 +197,7 @@ const buildReportCards = async ({
     schoolId,
     ...(campusId ? { campusId } : {}),
     studentId: { $in: studentIds },
+    ...(Array.isArray(examIds) ? { examId: { $in: examIds } } : {}),
     ...(includeUnpublished ? {} : { published: true }),
   })
     .populate('examId', 'title subject term date marks grade section classId sectionId')
@@ -207,7 +234,6 @@ const buildReportCards = async ({
       if (yearDoc && !withinAcademicYear(exam.date, yearDoc)) {
         return;
       }
-
       const subjectName = String(exam.subject || 'Subject').trim() || 'Subject';
       const obtained = Number(result.marks || 0);
       const maxMarks = Number(exam.marks || 0);
@@ -232,6 +258,7 @@ const buildReportCards = async ({
         obtainedMarks: obtained,
         totalMarks: maxMarks,
         percentage: Math.round(percentage),
+        grade: String(result.grade || '').trim() || computeGrade(percentage),
         status: result.status || 'pass',
         remarks: result.remarks || '',
       });
@@ -269,6 +296,7 @@ const buildReportCards = async ({
         totalMarks,
         percentage: Math.round(overallPercentage * 100) / 100,
         grade: computeGrade(overallPercentage),
+        promoted: totalMarks > 0 ? overallPercentage >= 50 : null,
       },
       subjects,
       exams: examItems.sort((a, b) => {
@@ -391,6 +419,55 @@ router.put('/report-cards/template', adminAuth, async (req, res) => {
   }
 });
 
+router.get('/report-cards/signatories', adminAuth, async (req, res) => {
+  try {
+    const schoolId = resolveSchoolId(req, res);
+    if (!schoolId) return;
+    const campusId = resolveCampusId(req);
+    const { classId, sectionId } = req.query || {};
+
+    const scope = await resolveClassAndSection({ schoolId, campusId, classId, sectionId });
+    if (scope.error) return res.status(400).json({ error: scope.error });
+
+    let classTeacherName = '';
+    if (scope.classDoc?._id && scope.sectionDoc?._id) {
+      const allocation = await TeacherAllocation.findOne({
+        schoolId,
+        ...(campusId ? { campusId } : {}),
+        classId: scope.classDoc._id,
+        sectionId: scope.sectionDoc._id,
+        isClassTeacher: true,
+      })
+        .populate('teacherId', 'name')
+        .lean();
+      classTeacherName = String(allocation?.teacherId?.name || '').trim();
+    }
+
+    const principalFilter = campusId
+      ? {
+          schoolId,
+          $or: [{ campusId }, { campusId: null }, { campusId: { $exists: false } }],
+        }
+      : { schoolId };
+
+    const principal = await Principal.findOne(principalFilter)
+      .sort({ updatedAt: -1, createdAt: -1 })
+      .select('name')
+      .lean();
+
+    const principalName = String(principal?.name || '').trim();
+
+    return res.json({
+      classTeacherName,
+      principalName,
+      className: scope.classDoc?.name || '',
+      sectionName: scope.sectionDoc?.name || '',
+    });
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
 router.post('/report-cards/bulk', adminAuth, async (req, res) => {
   try {
     const schoolId = resolveSchoolId(req, res);
@@ -403,6 +480,7 @@ router.post('/report-cards/bulk', adminAuth, async (req, res) => {
       academicYearId,
       academicYear,
       includeUnpublished = false,
+      examGroupId,
     } = req.body || {};
 
     const [scope, yearResult] = await Promise.all([
@@ -416,6 +494,37 @@ router.post('/report-cards/bulk', adminAuth, async (req, res) => {
     const className = scope.classDoc?.name || '';
     const sectionName = scope.sectionDoc?.name || '';
     const academicYearName = yearResult.academicYearName || '';
+    let selectedExamGroup = null;
+    let selectedExamIds = null;
+    if (examGroupId) {
+      if (!mongoose.isValidObjectId(examGroupId)) {
+        return res.status(400).json({ error: 'Invalid examGroupId' });
+      }
+      selectedExamGroup = await ExamGroup.findOne({
+        _id: examGroupId,
+        schoolId,
+        ...(campusId ? { campusId } : {}),
+      })
+        .select('_id title term classId sectionId')
+        .lean();
+      if (!selectedExamGroup) {
+        return res.status(404).json({ error: 'Exam group not found' });
+      }
+      if (scope.classDoc && String(selectedExamGroup.classId || '') !== String(scope.classDoc._id || '')) {
+        return res.status(400).json({ error: 'Selected exam group does not belong to selected class' });
+      }
+      if (scope.sectionDoc && String(selectedExamGroup.sectionId || '') !== String(scope.sectionDoc._id || '')) {
+        return res.status(400).json({ error: 'Selected exam group does not belong to selected section' });
+      }
+      const groupedExams = await Exam.find({
+        schoolId,
+        ...(campusId ? { campusId } : {}),
+        groupId: selectedExamGroup._id,
+      })
+        .select('_id')
+        .lean();
+      selectedExamIds = groupedExams.map((exam) => exam._id);
+    }
 
     const studentFilter = buildStudentScopeFilter({ schoolId, campusId });
     if (className) studentFilter.grade = className;
@@ -438,6 +547,7 @@ router.post('/report-cards/bulk', adminAuth, async (req, res) => {
         academicYearName,
         yearDoc: yearResult.yearDoc,
         includeUnpublished: Boolean(includeUnpublished),
+        examIds: selectedExamIds,
       }),
     ]);
 
@@ -446,6 +556,8 @@ router.post('/report-cards/bulk', adminAuth, async (req, res) => {
       filters: {
         classId: classId || '',
         sectionId: sectionId || '',
+        examGroupId: selectedExamGroup?._id || '',
+        examGroupTitle: selectedExamGroup?.title || '',
         className,
         sectionName,
         academicYearId: academicYearId || '',
@@ -468,6 +580,7 @@ router.get('/report-cards/me', authStudent, async (req, res) => {
     const schoolId = resolveSchoolId(req, res);
     if (!schoolId) return;
     const campusId = resolveCampusId(req);
+    const { examGroupId } = req.query || {};
 
     const student = await StudentUser.findOne({
       _id: req.user.id,
@@ -479,23 +592,101 @@ router.get('/report-cards/me', authStudent, async (req, res) => {
 
     if (!student) return res.status(404).json({ error: 'Student not found' });
 
+    const className = String(student.grade || '').trim();
+    const sectionName = String(student.section || '').trim();
+    const classDoc = className
+      ? await ClassModel.findOne({
+          schoolId,
+          ...(campusId ? { campusId } : {}),
+          name: className,
+        })
+          .select('_id name')
+          .lean()
+      : null;
+    const sectionDoc = classDoc?._id && sectionName
+      ? await Section.findOne({
+          schoolId,
+          ...(campusId ? { campusId } : {}),
+          classId: classDoc._id,
+          name: sectionName,
+        })
+          .select('_id name')
+          .lean()
+      : null;
+
+    const groupFilter = {
+      schoolId,
+      ...(campusId ? { campusId } : {}),
+      status: 'Completed',
+      ...(classDoc?._id ? { classId: classDoc._id } : {}),
+      ...(sectionDoc?._id ? { sectionId: sectionDoc._id } : {}),
+    };
+
+    const completedExamGroups = await ExamGroup.find(groupFilter)
+      .select('_id title term status startDate endDate classId sectionId')
+      .sort({ startDate: -1, createdAt: -1 })
+      .lean();
+
+    let selectedExamGroup = null;
+    if (examGroupId) {
+      if (!mongoose.isValidObjectId(examGroupId)) {
+        return res.status(400).json({ error: 'Invalid examGroupId' });
+      }
+      selectedExamGroup = completedExamGroups.find((group) => String(group._id) === String(examGroupId)) || null;
+      if (!selectedExamGroup) {
+        return res.status(404).json({ error: 'Selected exam group is not available for this student' });
+      }
+    } else {
+      selectedExamGroup = completedExamGroups[0] || null;
+    }
+
+    let selectedExamIds = null;
+    if (selectedExamGroup?._id) {
+      const groupedExams = await Exam.find({
+        schoolId,
+        ...(campusId ? { campusId } : {}),
+        groupId: selectedExamGroup._id,
+      })
+        .select('_id')
+        .lean();
+      selectedExamIds = groupedExams.map((exam) => exam._id);
+    }
+
     const [template, cards] = await Promise.all([
       resolveTemplate({ schoolId, campusId }),
       buildReportCards({
         schoolId,
         campusId,
         students: [student],
-        className: student.grade || '',
-        sectionName: student.section || '',
+        className: className || '',
+        sectionName: sectionName || '',
         academicYearName: student.academicYear || '',
         yearDoc: null,
         includeUnpublished: false,
+        examIds: selectedExamIds,
       }),
     ]);
 
+    const reportCard = cards[0]
+      ? {
+          ...cards[0],
+          term: selectedExamGroup?.title || cards[0].term || '',
+        }
+      : null;
+
     res.json({
       template,
-      reportCard: cards[0] || null,
+      reportCard,
+      examGroups: completedExamGroups.map((group) => ({
+        _id: group._id,
+        title: group.title || '',
+        term: group.term || '',
+        status: group.status || '',
+        startDate: group.startDate || null,
+        endDate: group.endDate || null,
+      })),
+      selectedExamGroupId: selectedExamGroup?._id || '',
+      selectedExamGroupTitle: selectedExamGroup?.title || '',
     });
   } catch (err) {
     res.status(500).json({ error: err.message });

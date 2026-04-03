@@ -34,6 +34,7 @@ const examSchema = new mongoose.Schema({
     subjectId: { type: mongoose.Schema.Types.ObjectId, ref: 'Subject' },
     grade: String,
     section: String,
+    groupId: { type: mongoose.Schema.Types.ObjectId, ref: 'ExamGroup', default: null, index: true },
     published: { type: Boolean, default: false },
     publishedAt: { type: Date }
 })

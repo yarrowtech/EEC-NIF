@@ -67,24 +67,86 @@ const drawPageStructure = (doc, template, r, g, b) => {
   doc.rect(7, 7, pageWidth - 14, 35, 'F');
 };
 
+const drawWatermark = (doc, template) => {
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const pageHeight = doc.internal.pageSize.getHeight();
+  const watermark = (toText(template.schoolName) || toText(template.watermarkText) || 'SCHOOL').toUpperCase();
+
+  try {
+    doc.saveGraphicsState();
+    doc.setTextColor(148, 163, 184);
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(16);
+    if (typeof doc.GState === 'function') {
+      doc.setGState(new doc.GState({ opacity: 0.1 }));
+    }
+
+    const textWidth = doc.getTextWidth(watermark);
+    const stepX = Math.max(textWidth + 28, 110);
+    const stepY = 46;
+    for (let y = 24; y < pageHeight + 30; y += stepY) {
+      for (let x = -20; x < pageWidth + stepX; x += stepX) {
+        doc.text(watermark, x, y, { angle: 30 });
+      }
+    }
+
+    doc.restoreGraphicsState();
+  } catch {
+    // Fallback for environments without advanced graphics state support.
+    doc.setTextColor(188, 198, 212);
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(16);
+    const textWidth = doc.getTextWidth(watermark);
+    const stepX = Math.max(textWidth + 28, 110);
+    const stepY = 46;
+    for (let y = 24; y < pageHeight + 30; y += stepY) {
+      for (let x = -20; x < pageWidth + stepX; x += stepX) {
+        doc.text(watermark, x, y, { angle: 30 });
+      }
+    }
+  }
+};
+
 const drawHeader = (doc, template, reportCard, logoDataUrl, r, g, b) => {
   const pageWidth = doc.internal.pageSize.getWidth();
+  const headerCenterX = pageWidth / 2;
   
   // School Info
   doc.setTextColor(255, 255, 255);
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(16);
-  doc.text(toText(template.schoolName).toUpperCase(), pageWidth / 2, 18, { align: 'center' });
+  doc.text(toText(template.schoolName).toUpperCase(), headerCenterX, 17.5, { align: 'center' });
   
   doc.setFont('helvetica', 'normal');
-  doc.setFontSize(8);
-  doc.text(toText(template.schoolAddressLine), pageWidth / 2, 24, { align: 'center' });
-  doc.text(toText(template.schoolContactLine), pageWidth / 2, 28, { align: 'center' });
+  doc.setFontSize(8.5);
+  const addressLine = toText(template.schoolAddressLine) || 'Address not available';
+  const contactLine = toText(template.schoolContactLine);
+  const maxHeaderTextWidth = pageWidth - 56;
+  const addressLines = doc.splitTextToSize(addressLine, maxHeaderTextWidth).slice(0, 2);
+  let metaY = 23.5;
+  addressLines.forEach((line) => {
+    doc.text(line, headerCenterX, metaY, { align: 'center' });
+    metaY += 3.6;
+  });
+  if (contactLine) {
+    const contactLines = doc.splitTextToSize(contactLine, maxHeaderTextWidth).slice(0, 1);
+    contactLines.forEach((line) => {
+      doc.text(line, headerCenterX, metaY, { align: 'center' });
+      metaY += 3.6;
+    });
+  }
 
   // Report Title
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(12);
-  doc.text(toText(template.title), pageWidth / 2, 36, { align: 'center' });
+  doc.setFontSize(11.5);
+  doc.text(toText(template.title), headerCenterX, 33.5, { align: 'center' });
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(8.5);
+  const selectedExamName = toText(reportCard.term);
+  if (selectedExamName) {
+    doc.text(`Examination: ${selectedExamName}`, headerCenterX, 37.5, { align: 'center' });
+  }
 
   // Logo
   if (logoDataUrl) {
@@ -103,13 +165,13 @@ const drawHeader = (doc, template, reportCard, logoDataUrl, r, g, b) => {
 
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(9);
-  doc.text('STUDENT INFORMATION', 14, 54);
+  doc.text('STUDENT INFORMATION', pageWidth / 2, 54, { align: 'center' });
   doc.setLineWidth(0.1);
-  doc.line(14, 55, 55, 55);
+  doc.line((pageWidth / 2) - 21, 55, (pageWidth / 2) + 21, 55);
 
   doc.setFontSize(10);
   doc.text(`Name: ${toText(reportCard.studentName).toUpperCase()}`, 14, 62);
-  doc.text(`ID / Roll: ${toText(reportCard.roll || reportCard.studentCode || '-')}`, 14, 68);
+  doc.text(`Roll: ${toText(reportCard.roll || reportCard.studentCode || '-')}`, 14, 68);
   
   doc.text(`Class: ${toText(reportCard.grade || '-')}`, 100, 62);
   doc.text(`Section: ${toText(reportCard.section || '-')}`, 100, 68);
@@ -135,6 +197,39 @@ const drawTable = (doc, headers, data, startY, widths, title, accentColor) => {
   const margin = 10;
   let currentY = startY;
   const [r, g, b] = accentColor;
+  const totalWidth = widths.reduce((a, n) => a + n, 0);
+  const rowHeight = 8;
+
+  const drawVerticalGridLines = (y, height) => {
+    let x = margin;
+    widths.forEach((w, idx) => {
+      if (idx > 0) {
+        doc.line(x, y, x, y + height);
+      }
+      x += w;
+    });
+  };
+
+  const drawHeader = () => {
+    doc.setFillColor(r, g, b);
+    doc.rect(margin, currentY, totalWidth, 8, 'F');
+    doc.setDrawColor(191, 203, 218);
+    doc.setLineWidth(0.25);
+    doc.rect(margin, currentY, totalWidth, 8);
+    drawVerticalGridLines(currentY, 8);
+
+    doc.setTextColor(255, 255, 255);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(8);
+    let x = margin;
+    headers.forEach((h, i) => {
+      doc.text(h, x + 2, currentY + 5.5);
+      x += widths[i];
+    });
+    currentY += 8;
+    doc.setTextColor(30, 41, 59);
+    doc.setFont('helvetica', 'normal');
+  };
 
   // Table Title
   doc.setFont('helvetica', 'bold');
@@ -143,43 +238,56 @@ const drawTable = (doc, headers, data, startY, widths, title, accentColor) => {
   doc.text(title.toUpperCase(), margin, currentY);
   currentY += 4;
 
-  // Header row
-  doc.setFillColor(r, g, b);
-  doc.rect(margin, currentY, widths.reduce((a, b) => a + b, 0), 8, 'F');
-  
-  doc.setTextColor(255, 255, 255);
-  doc.setFontSize(8);
-  let currentX = margin;
-  headers.forEach((h, i) => {
-    doc.text(h, currentX + 2, currentY + 5.5);
-    currentX += widths[i];
-  });
-  
-  currentY += 8;
-  doc.setTextColor(30, 41, 59);
-  doc.setFont('helvetica', 'normal');
+  drawHeader();
 
-  data.forEach((row, rowIndex) => {
+  data.forEach((rowItem, rowIndex) => {
+    const row = Array.isArray(rowItem) ? rowItem : rowItem?.cells || [];
+    const rowType = Array.isArray(rowItem) ? 'normal' : rowItem?.type || 'normal';
     // Page break check
     if (currentY > 260) {
       doc.addPage();
       currentY = 20;
-      // Re-draw header background? Maybe just continue
+      drawHeader();
     }
 
-    if (rowIndex % 2 === 0) {
+    if (rowType === 'total') {
+      doc.setFillColor(226, 232, 240);
+      doc.rect(margin, currentY, totalWidth, rowHeight, 'F');
+    } else if (rowType === 'remark') {
+      doc.setFillColor(240, 253, 244);
+      doc.rect(margin, currentY, totalWidth, rowHeight, 'F');
+    } else if (rowIndex % 2 === 0) {
       doc.setFillColor(241, 245, 249);
-      doc.rect(margin, currentY, widths.reduce((a, b) => a + b, 0), 7, 'F');
+      doc.rect(margin, currentY, totalWidth, rowHeight, 'F');
+    } else {
+      doc.setFillColor(255, 255, 255);
+      doc.rect(margin, currentY, totalWidth, rowHeight, 'F');
     }
 
-    currentX = margin;
-    row.forEach((cell, cellIndex) => {
-      const text = toText(cell);
-      const clipped = doc.splitTextToSize(text, widths[cellIndex] - 3)[0];
-      doc.text(clipped, currentX + 2, currentY + 5);
-      currentX += widths[cellIndex];
-    });
-    currentY += 7;
+    doc.setDrawColor(191, 203, 218);
+    doc.setLineWidth(0.25);
+    doc.rect(margin, currentY, totalWidth, rowHeight);
+
+    if (rowType === 'remark') {
+      const xAfterSubject = margin + widths[0];
+      const mergedWidth = widths[1] + widths[2] + widths[3] + widths[4];
+      doc.line(xAfterSubject, currentY, xAfterSubject, currentY + rowHeight);
+
+      doc.setFont('helvetica', 'bold');
+      doc.text(toText(row[0]), margin + 2, currentY + 5.4);
+      doc.text(toText(row[1]), xAfterSubject + (mergedWidth / 2), currentY + 5.4, { align: 'center' });
+    } else {
+      drawVerticalGridLines(currentY, rowHeight);
+      let currentX = margin;
+      doc.setFont(rowType === 'total' ? 'helvetica' : 'helvetica', rowType === 'total' ? 'bold' : 'normal');
+      row.forEach((cell, cellIndex) => {
+        const text = toText(cell);
+        const clipped = doc.splitTextToSize(text, widths[cellIndex] - 3)[0];
+        doc.text(clipped, currentX + 2, currentY + 5.4);
+        currentX += widths[cellIndex];
+      });
+    }
+    currentY += rowHeight;
   });
 
   return currentY + 5;
@@ -190,47 +298,41 @@ const renderReportCardPage = (doc, template, reportCard, logoDataUrl) => {
   const [r, g, b] = parseHexColor(mergedTemplate.accentColor);
   
   drawPageStructure(doc, mergedTemplate, r, g, b);
+  drawWatermark(doc, mergedTemplate);
   drawHeader(doc, mergedTemplate, reportCard, logoDataUrl, r, g, b);
 
   // Consolidated Summary
   const subjectsHeaders = ['SUBJECT', 'OBTAINED', 'TOTAL MARKS', 'PERCENTAGE', 'GRADE'];
   const subjectsWidths = [80, 30, 30, 25, 25];
-  const subjectsData = (reportCard.subjects || []).map(s => [
+  const baseSubjectRows = (reportCard.subjects || []).map(s => [
     s.name,
     s.obtainedMarks,
     s.totalMarks,
     `${s.percentage}%`,
     s.grade
   ]);
+  const totals = reportCard.totals || {};
+  const remarkLabel = totals.promoted === true ? 'PROMOTED' : totals.promoted === false ? 'NOT PROMOTED' : 'PENDING';
+  const subjectsData = [
+    ...baseSubjectRows,
+    {
+      type: 'total',
+      cells: [
+        'TOTAL',
+        `${totals.obtainedMarks || 0}`,
+        `${totals.totalMarks || 0}`,
+        `${totals.percentage || 0}%`,
+        `${totals.grade || '-'}`,
+      ],
+    },
+    {
+      type: 'remark',
+      cells: ['REMARK', remarkLabel, '', '', ''],
+    },
+  ];
 
   let y = 85;
   y = drawTable(doc, subjectsHeaders, subjectsData, y, subjectsWidths, 'Subject-wise Performance', [r, g, b]);
-
-  // Overall Totals
-  const totals = reportCard.totals || {};
-  doc.setFillColor(r, g, b);
-  doc.rect(10, y, doc.internal.pageSize.getWidth() - 20, 10, 'F');
-  doc.setTextColor(255, 255, 255);
-  doc.setFont('helvetica', 'bold');
-  doc.text(`OVERALL PERFORMANCE:    MARKS: ${totals.obtainedMarks}/${totals.totalMarks}    |    PERCENTAGE: ${totals.percentage}%    |    GRADE: ${totals.grade}`, 14, y + 6.5);
-  
-  y += 18;
-
-  // Detailed Assessment Table
-  const examHeaders = ['ASSESSMENT', 'SUBJECT', 'TERM', 'DATE', 'MARKS', 'GRADE'];
-  const examWidths = [50, 45, 30, 25, 20, 20];
-  const examData = (reportCard.exams || []).map(e => [
-    e.examName,
-    e.subject,
-    e.term || 'General',
-    e.date ? new Date(e.date).toLocaleDateString() : '-',
-    `${e.obtainedMarks}/${e.totalMarks}`,
-    e.grade || '-'
-  ]);
-
-  if (examData.length > 0) {
-    y = drawTable(doc, examHeaders, examData, y, examWidths, 'Detailed Assessment History', [r, g, b]);
-  }
 
   // Footer & Legend
   const pageHeight = doc.internal.pageSize.getHeight();
@@ -246,12 +348,23 @@ const renderReportCardPage = (doc, template, reportCard, logoDataUrl) => {
   doc.setTextColor(100, 116, 139);
   doc.text(toText(mergedTemplate.footerNote), 10, pageHeight - 15);
   
+  const leftX = 10;
+  const rightX = doc.internal.pageSize.getWidth() - 60;
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(9);
+  doc.setTextColor(30, 41, 59);
+  doc.text(toText(mergedTemplate.signatureLabel), leftX, pageHeight - 29);
+  doc.text(toText(mergedTemplate.principalLabel), rightX, pageHeight - 29);
+
   doc.setFont('helvetica', 'bold');
-  doc.text('__________________________', 10, pageHeight - 25);
-  doc.text(toText(mergedTemplate.signatureLabel), 10, pageHeight - 21);
-  
-  doc.text('__________________________', doc.internal.pageSize.getWidth() - 60, pageHeight - 25);
-  doc.text(toText(mergedTemplate.principalLabel), doc.internal.pageSize.getWidth() - 60, pageHeight - 21);
+  doc.text('__________________________', leftX, pageHeight - 25);
+  doc.text('__________________________', rightX, pageHeight - 25);
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(8);
+  doc.text('Class Teacher', leftX, pageHeight - 21);
+  doc.text('Principal', rightX, pageHeight - 21);
 };
 
 export const downloadSingleReportCardPdf = async ({ template, reportCard, fileName }) => {

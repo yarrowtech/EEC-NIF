@@ -59,6 +59,13 @@ const notificationSchema = new mongoose.Schema(
       readAt: { type: Date, default: Date.now }
     }],
 
+    // View tracking
+    views: { type: Number, default: 0 },
+    viewedBy: [{
+      userId: { type: mongoose.Schema.Types.ObjectId, required: true },
+      viewedAt: { type: Date, default: Date.now }
+    }],
+
     // Dismiss tracking
     dismissedBy: [{
       userId: { type: mongoose.Schema.Types.ObjectId, required: true },

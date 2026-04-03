@@ -54,6 +54,20 @@ const resolveClassNames = async ({ schoolId, campusId, classId, sectionId }) => 
   return { className, sectionName };
 };
 
+const markNotificationsViewed = async ({ notificationIds = [], userId }) => {
+  if (!userId || !Array.isArray(notificationIds) || notificationIds.length === 0) return;
+  await Notification.updateMany(
+    {
+      _id: { $in: notificationIds },
+      'viewedBy.userId': { $ne: userId },
+    },
+    {
+      $inc: { views: 1 },
+      $push: { viewedBy: { userId, viewedAt: new Date() } },
+    }
+  );
+};
+
 // Admin creates a notification
 router.post('/', adminAuth, async (req, res) => {
   // #swagger.tags = ['Notifications']
@@ -473,6 +487,19 @@ router.get('/user', authAnyUser, async (req, res) => {
       .sort({ createdAt: -1 })
       .lean();
 
+    const unseenViewIds = items
+      .filter((item) => !(item.viewedBy || []).some((v) => String(v.userId) === String(userId)))
+      .map((item) => item._id);
+    if (unseenViewIds.length) {
+      await markNotificationsViewed({ notificationIds: unseenViewIds, userId });
+      const seenSet = new Set(unseenViewIds.map((id) => String(id)));
+      items.forEach((item) => {
+        if (seenSet.has(String(item._id))) {
+          item.views = Number(item.views || 0) + 1;
+        }
+      });
+    }
+
     // Add isRead flag for each notification
     const itemsWithReadStatus = items.map(item => ({
       ...item,
@@ -501,12 +528,20 @@ router.patch('/user/:id/read', authAnyUser, async (req, res) => {
       return res.status(404).json({ error: 'Notification not found' });
     }
 
+    const viewedBy = Array.isArray(notification.viewedBy) ? notification.viewedBy : [];
+    const readBy = Array.isArray(notification.readBy) ? notification.readBy : [];
+    const alreadyViewed = viewedBy.some(v => v.userId.toString() === userId);
+    if (!alreadyViewed) {
+      notification.viewedBy.push({ userId, viewedAt: new Date() });
+      notification.views = Number(notification.views || 0) + 1;
+    }
+
     // Check if already read by this user
-    const alreadyRead = notification.readBy.some(r => r.userId.toString() === userId);
+    const alreadyRead = readBy.some(r => r.userId.toString() === userId);
     if (!alreadyRead) {
       notification.readBy.push({ userId, readAt: new Date() });
-      await notification.save();
     }
+    if (!alreadyRead || !alreadyViewed) await notification.save();
 
     res.json({ success: true, notification });
   } catch (err) {
@@ -530,7 +565,8 @@ router.patch('/user/:id/dismiss', authAnyUser, async (req, res) => {
       return res.status(404).json({ error: 'Notification not found' });
     }
 
-    const alreadyDismissed = notification.dismissedBy.some(d => d.userId.toString() === userId);
+    const dismissedBy = Array.isArray(notification.dismissedBy) ? notification.dismissedBy : [];
+    const alreadyDismissed = dismissedBy.some(d => d.userId.toString() === userId);
     if (!alreadyDismissed) {
       notification.dismissedBy.push({ userId, dismissedAt: new Date() });
       await notification.save();

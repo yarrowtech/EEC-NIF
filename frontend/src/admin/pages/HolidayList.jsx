@@ -1,6 +1,7 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import { CalendarDays, CalendarX, Edit2, Loader2, Plus, Trash2, X } from 'lucide-react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { CalendarDays, CalendarX, Download, Edit2, Loader2, Plus, Trash2, Upload, X } from 'lucide-react';
 import toast from 'react-hot-toast';
+import * as XLSX from 'xlsx';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 
@@ -33,6 +34,24 @@ const toDateInputValue = (value) => {
   return `${y}-${m}-${d}`;
 };
 
+const normalizeImportedDate = (value) => {
+  if (value === undefined || value === null || value === '') return '';
+  if (typeof value === 'number') {
+    const parsed = XLSX.SSF.parse_date_code(value);
+    if (!parsed) return '';
+    const y = String(parsed.y).padStart(4, '0');
+    const m = String(parsed.m).padStart(2, '0');
+    const d = String(parsed.d).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+  }
+  const txt = String(value).trim();
+  if (!txt) return '';
+  if (/^\d{4}-\d{2}-\d{2}$/.test(txt)) return txt;
+  const parsed = new Date(txt);
+  if (Number.isNaN(parsed.getTime())) return '';
+  return toDateInputValue(parsed);
+};
+
 const PALETTE = [
   'bg-amber-100 text-amber-800',
   'bg-orange-100 text-orange-800',
@@ -48,8 +67,10 @@ const HolidayList = ({ setShowAdminHeader }) => {
   const [holidays, setHolidays] = useState([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [bulkUploading, setBulkUploading] = useState(false);
   const [deletingId, setDeletingId] = useState('');
   const [editingId, setEditingId] = useState('');
+  const bulkInputRef = useRef(null);
   const [form, setForm] = useState({
     name: '',
     startDate: toDateInputValue(),
@@ -158,6 +179,100 @@ const HolidayList = ({ setShowAdminHeader }) => {
     }
   };
 
+  const handleDownloadDemoTemplate = () => {
+    const rows = [
+      ['name', 'startDate', 'endDate'],
+      ['Pongal Holiday', '2026-01-14', '2026-01-16'],
+      ['Republic Day', '2026-01-26', '2026-01-26'],
+      ['Summer Break', '2026-05-10', '2026-05-20'],
+    ];
+    const ws = XLSX.utils.aoa_to_sheet(rows);
+    ws['!cols'] = [{ wch: 30 }, { wch: 14 }, { wch: 14 }];
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Holidays');
+    XLSX.writeFile(wb, 'holiday_bulk_upload_template.xlsx');
+    toast.success('Demo template downloaded');
+  };
+
+  const handleBulkUploadClick = () => {
+    bulkInputRef.current?.click();
+  };
+
+  const handleBulkUploadFile = async (event) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file) return;
+
+    const fileName = String(file.name || '').toLowerCase();
+    if (!fileName.endsWith('.xlsx') && !fileName.endsWith('.xls') && !fileName.endsWith('.csv')) {
+      toast.error('Please upload an Excel/CSV file');
+      return;
+    }
+
+    setBulkUploading(true);
+    try {
+      const buffer = await file.arrayBuffer();
+      const wb = XLSX.read(buffer, { type: 'array' });
+      const firstSheet = wb.SheetNames?.[0];
+      if (!firstSheet) throw new Error('No worksheet found in file');
+      const ws = wb.Sheets[firstSheet];
+      const raw = XLSX.utils.sheet_to_json(ws, { defval: '' });
+      if (!Array.isArray(raw) || raw.length === 0) {
+        throw new Error('No rows found in upload file');
+      }
+
+      const payloadRows = raw.map((row, idx) => {
+        const name = String(
+          row.name || row.Name || row.holiday || row.Holiday || row['holiday name'] || row['Holiday Name'] || ''
+        ).trim();
+        const startDate = normalizeImportedDate(row.startDate || row['Start Date'] || row.start || row.date || row.Date);
+        const endDate = normalizeImportedDate(row.endDate || row['End Date'] || row.end || row.startDate || row['Start Date'] || row.date || row.Date);
+        return { idx, name, startDate, endDate };
+      });
+
+      const validRows = payloadRows.filter((row) => row.name && row.startDate && row.endDate);
+      if (!validRows.length) {
+        throw new Error('No valid rows found. Required columns: name, startDate, endDate');
+      }
+
+      let successCount = 0;
+      const failed = [];
+      for (const row of validRows) {
+        try {
+          const res = await fetch(`${API_BASE}/api/holidays`, {
+            method: 'POST',
+            headers: authHeaders,
+            body: JSON.stringify({
+              name: row.name,
+              startDate: row.startDate,
+              endDate: row.endDate,
+            }),
+          });
+          const data = await res.json().catch(() => ({}));
+          if (!res.ok) {
+            failed.push(`Row ${row.idx + 2}: ${data?.error || 'Failed to save'}`);
+            continue;
+          }
+          successCount += 1;
+        } catch (err) {
+          failed.push(`Row ${row.idx + 2}: ${err.message || 'Failed to save'}`);
+        }
+      }
+
+      if (successCount > 0) {
+        toast.success(`${successCount} holiday${successCount > 1 ? 's' : ''} uploaded`);
+      }
+      if (failed.length) {
+        toast.error(`${failed.length} row(s) failed`);
+      }
+      await loadHolidays();
+    } catch (err) {
+      toast.error(err.message || 'Bulk upload failed');
+    } finally {
+      setBulkUploading(false);
+    }
+  };
+
   const totalDays = holidays.reduce((acc, h) => {
     const s = new Date(h.startDate || h.date);
     const e = new Date(h.endDate || h.startDate || h.date);
@@ -179,6 +294,30 @@ const HolidayList = ({ setShowAdminHeader }) => {
           </div>
         </div>
         <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={handleDownloadDemoTemplate}
+            className="inline-flex items-center gap-1.5 rounded-2xl border border-gray-200 bg-white px-3.5 py-2 text-xs font-semibold text-gray-600 hover:bg-gray-50 transition-all"
+          >
+            <Download className="w-3.5 h-3.5" />
+            Download Demo Excel
+          </button>
+          <button
+            type="button"
+            onClick={handleBulkUploadClick}
+            disabled={bulkUploading}
+            className="inline-flex items-center gap-1.5 rounded-2xl border border-amber-200 bg-amber-50 px-3.5 py-2 text-xs font-semibold text-amber-700 hover:bg-amber-100 transition-all disabled:opacity-60"
+          >
+            {bulkUploading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Upload className="w-3.5 h-3.5" />}
+            {bulkUploading ? 'Uploading...' : 'Bulk Upload'}
+          </button>
+          <input
+            ref={bulkInputRef}
+            type="file"
+            accept=".xlsx,.xls,.csv"
+            onChange={handleBulkUploadFile}
+            className="hidden"
+          />
           <div className="bg-white border border-gray-100 rounded-2xl px-4 py-2 shadow-sm text-center">
             <div className="text-lg font-black text-amber-600 leading-none">{holidays.length}</div>
             <div className="text-[11px] text-gray-400 mt-0.5">Holidays</div>

@@ -110,6 +110,11 @@ export const ADMIN_MENU_ITEMS = [
     path: '/admin/academics'
   },
   {
+    icon: Building2,
+    label: 'Departments',
+    path: '/admin/departments'
+  },
+  {
     icon: Calendar,
     label: 'Subjects',
     path: '/admin/subjects'

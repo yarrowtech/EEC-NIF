@@ -9,6 +9,7 @@ import toast from 'react-hot-toast';
 import Swal from 'sweetalert2';
 import { getStoredAdminScope } from '../utils/adminScope';
 import { formatStudentDisplay } from '../../utils/studentDisplay';
+import * as XLSX from 'xlsx';
 
 const API_BASE = import.meta.env.VITE_API_URL;
 
@@ -31,6 +32,11 @@ const TERM_STYLE = {
   'Final':    'bg-rose-50 text-rose-700 border-rose-100',
   'Annual':   'bg-red-50 text-red-700 border-red-100',
   'Half Yearly':'bg-amber-50 text-amber-700 border-amber-100',
+};
+
+const EXAM_STATUS_STYLE = {
+  completed: 'bg-emerald-50 text-emerald-700 border-emerald-100',
+  scheduled: 'bg-amber-50 text-amber-700 border-amber-100',
 };
 
 const inp = 'w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-800 focus:border-indigo-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-100 transition placeholder:text-slate-400';
@@ -91,12 +97,14 @@ const Result = ({ setShowAdminHeader }) => {
 
   const [results, setResults]   = useState([]);
   const [exams, setExams]       = useState([]);
+  const [examGroups, setExamGroups] = useState([]);
   const [students, setStudents] = useState([]);
   const [classes, setClasses]   = useState([]);
   const [sections, setSections] = useState([]);
 
   const [loading, setLoading]           = useState(true);
   const [loadingExams, setLoadingExams] = useState(false);
+  const [loadingExamGroups, setLoadingExamGroups] = useState(false);
   const [loadingStudents, setLoadingStudents] = useState(false);
 
   const [searchTerm, setSearchTerm]     = useState('');
@@ -113,7 +121,12 @@ const Result = ({ setShowAdminHeader }) => {
   const [resultForm, setResultForm]       = useState(emptyR);
   const [editResultForm, setEditResultForm] = useState(emptyR);
   const [editingResultId, setEditingResultId] = useState(null);
-  const [csvFile, setCSVFile]             = useState(null);
+  const [bulkFile, setBulkFile]             = useState(null);
+  const [bulkExamId, setBulkExamId]         = useState('');
+  const [expandedExams, setExpandedExams]   = useState(new Set());
+  const [examTabState, setExamTabState]     = useState({});   // { [examId]: { cls: 'all', sec: 'all' } }
+  const [selectedCompletedExamGroupId, setSelectedCompletedExamGroupId] = useState('');
+  const [updatingSelectedExamPublish, setUpdatingSelectedExamPublish] = useState(false);
 
   /* ── fetch ── */
   const fetchResults = async () => {
@@ -147,6 +160,24 @@ const Result = ({ setShowAdminHeader }) => {
     finally { setLoadingExams(false); }
   };
 
+  const fetchExamGroups = async () => {
+    setLoadingExamGroups(true);
+    try {
+      const r = await fetch(`${API_BASE}/api/exam/groups`, { headers: authH() });
+      if (r.ok) {
+        const d = await r.json();
+        setExamGroups(Array.isArray(d) ? d : []);
+      } else {
+        setExamGroups([]);
+      }
+    } catch {
+      toast.error('Error fetching exam groups');
+      setExamGroups([]);
+    } finally {
+      setLoadingExamGroups(false);
+    }
+  };
+
   const normalizeClass = (v = '') => { const s = String(v).trim(); const n = s.match(/\d+/); return n ? n[0] : s.replace(/^class\s+/i,'').trim().toLowerCase(); };
   const normSec = (v = '') => String(v).trim().toLowerCase();
 
@@ -175,21 +206,8 @@ const Result = ({ setShowAdminHeader }) => {
     finally { setLoadingStudents(false); }
   };
 
-  useEffect(() => { fetchResults(); fetchClassesAndSections(); fetchExams(); }, []);
+  useEffect(() => { fetchResults(); fetchClassesAndSections(); fetchExams(); fetchExamGroups(); }, []);
   useEffect(() => { if (selectedClass) fetchStudentsByClass(); }, [selectedClass, selectedSection]);
-
-  /* ── publish ── */
-  const handlePublishResults = async () => {
-    if (!selectedClass) { toast.error('Select a class first'); return; }
-    const r = await Swal.fire({ title: 'Publish Results?', html: `Publish results for <strong>Class ${selectedClass}${selectedSection ? ' – ' + selectedSection : ''}</strong>?`, icon: 'question', showCancelButton: true, confirmButtonColor: '#4f46e5', confirmButtonText: 'Publish' });
-    if (!r.isConfirmed) return;
-    try {
-      const res = await fetch(`${API_BASE}/api/exam/results/publish`, { method: 'POST', headers: authH(), body: JSON.stringify({ grade: selectedClass, section: selectedSection || undefined }) });
-      if (!res.ok) throw new Error();
-      const d = await res.json();
-      Swal.fire({ title: 'Published!', html: `Results published. <strong>${d.studentsNotified || 0}</strong> students notified.`, icon: 'success' });
-    } catch { Swal.fire('Error', 'Failed to publish results.', 'error'); }
-  };
 
   const handleTogglePublish = async (id, val) => {
     try {
@@ -199,6 +217,65 @@ const Result = ({ setShowAdminHeader }) => {
       toast.success(d.message || `Result ${val ? 'published' : 'unpublished'}`);
       fetchResults();
     } catch { toast.error('Failed to update publish status'); }
+  };
+
+  const handlePublishExam = async (examId, publish) => {
+    const examResults = results.filter(r => (r.examId?._id || String(r.examId)) === examId);
+    const resultIds = examResults.map(r => r._id);
+    if (!resultIds.length) return;
+    const label = publish ? 'Publish' : 'Unpublish';
+    const c = await Swal.fire({ title: `${label} All Results?`, html: `${label} all <strong>${examResults.length}</strong> results for this exam?`, icon: 'question', showCancelButton: true, confirmButtonColor: publish ? '#059669' : '#d97706', confirmButtonText: label });
+    if (!c.isConfirmed) return;
+    try {
+      const r = await fetch(`${API_BASE}/api/exam/results/bulk-publish`, { method: 'PUT', headers: authH(), body: JSON.stringify({ resultIds, published: publish }) });
+      if (!r.ok) throw new Error();
+      const d = await r.json();
+      toast.success(d.message || `Results ${publish ? 'published' : 'unpublished'}`);
+      fetchResults();
+    } catch { toast.error('Failed to update publish status'); }
+  };
+
+  const handleSelectedCompletedExamPublish = async (publish) => {
+    if (!selectedCompletedExamGroupId) {
+      toast.error('Select a completed main exam first');
+      return;
+    }
+    const selectedGroup = examGroups.find((group) => String(group?._id) === String(selectedCompletedExamGroupId));
+    const groupExamIds = new Set((selectedGroup?.subjects || []).map((subjectExam) => String(subjectExam?._id || '')));
+    if (!groupExamIds.size) {
+      toast.error('No subject exams found under selected main exam');
+      return;
+    }
+    const examResults = results.filter(r => groupExamIds.has(String(r.examId?._id || r.examId)));
+    if (!examResults.length) {
+      toast.error('No result entries found for the selected main exam');
+      return;
+    }
+    const resultIds = examResults.map(r => r._id).filter(Boolean);
+    if (!resultIds.length) {
+      toast.error('No valid result entries found for the selected exam');
+      return;
+    }
+    setUpdatingSelectedExamPublish(true);
+    try {
+      const r = await fetch(`${API_BASE}/api/exam/results/bulk-publish`, {
+        method: 'PUT',
+        headers: authH(),
+        body: JSON.stringify({ resultIds, published: publish })
+      });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(d?.error || 'Failed to update exam visibility');
+      toast.success(d?.message || `Selected exam results ${publish ? 'published' : 'unpublished'}`);
+      await fetchResults();
+    } catch (err) {
+      toast.error(err.message || 'Failed to update exam visibility');
+    } finally {
+      setUpdatingSelectedExamPublish(false);
+    }
+  };
+
+  const toggleExamExpand = (examId) => {
+    setExpandedExams(prev => { const s = new Set(prev); s.has(examId) ? s.delete(examId) : s.add(examId); return s; });
   };
 
   /* ── add result ── */
@@ -254,20 +331,118 @@ const Result = ({ setShowAdminHeader }) => {
   /* ── bulk upload ── */
   const handleBulkUpload = async (e) => {
     e.preventDefault();
-    if (!csvFile) { toast.error('Select a CSV file'); return; }
-    const fd = new FormData(); fd.append('file', csvFile);
+    if (!bulkFile) { toast.error('Select an Excel file'); return; }
+    const fd = new FormData(); fd.append('file', bulkFile);
     try {
       const r = await fetch(`${API_BASE}/api/exam/results/bulk-upload`, { method: 'POST', headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }, body: fd });
-      if (!r.ok) throw new Error();
       const d = await r.json();
-      Swal.fire({ title: 'Upload Complete!', html: `<strong>${d.count || 0}</strong> results uploaded.${d.errors?.length ? `<p class="text-xs text-red-500 mt-2">${d.errors.slice(0,3).join('<br/>')}</p>` : ''}`, icon: d.errors?.length ? 'warning' : 'success' });
-      setShowBulkUpload(false); setCSVFile(null); fetchResults();
-    } catch { toast.error('Failed to upload CSV'); }
+      if (!r.ok) throw new Error(d.error || 'Upload failed');
+      Swal.fire({ title: 'Upload Complete!', html: `<strong>${d.count || 0}</strong> results uploaded.${d.errors?.length ? `<br/><div class="text-xs text-red-500 mt-2 text-left">${d.errors.slice(0,5).join('<br/>')}</div>` : ''}`, icon: d.errors?.length ? 'warning' : 'success' });
+      setShowBulkUpload(false); setBulkFile(null); fetchResults();
+    } catch (err) { toast.error(err.message || 'Failed to upload file'); }
   };
 
-  const downloadCSVTemplate = () => {
-    const blob = new Blob(['examId,studentId,marks,grade,remarks,status\n'], { type: 'text/csv' });
-    const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = 'results_template.csv'; a.click(); URL.revokeObjectURL(url);
+  const downloadExcelTemplate = async () => {
+    if (!bulkExamId) {
+      toast.error('Please select an exam first to generate its template.');
+      return;
+    }
+    toast.loading('Generating template...');
+    try {
+      const [studentsRes, examsRes] = await Promise.all([
+        fetch(`${API_BASE}/api/admin/users/get-students`, { headers: authH() }),
+        fetch(`${API_BASE}/api/exam/fetch`, { headers: authH() })
+      ]);
+      if (!studentsRes.ok || !examsRes.ok) throw new Error('Failed to fetch data for template.');
+
+      const allStudents = await studentsRes.json();
+      const allExams = await examsRes.json();
+
+      const selectedBulkExam = allExams.find(ex => ex._id === bulkExamId);
+      let validStudents = allStudents;
+      
+      if (selectedBulkExam) {
+        const examClass = (selectedBulkExam.classId?.name || selectedBulkExam.grade || '').trim().toLowerCase();
+        const examSection = (selectedBulkExam.sectionId?.name || selectedBulkExam.section || '').trim().toLowerCase();
+        
+        validStudents = allStudents.filter(s => {
+           const studentClass = (s.grade || s.class || '').trim().toLowerCase();
+           const studentSection = (s.section || '').trim().toLowerCase();
+           const matchClass = !examClass || studentClass === examClass;
+           const matchSection = !examSection || studentSection === examSection;
+           return matchClass && matchSection;
+        });
+      }
+
+      const wb = XLSX.utils.book_new();
+
+      // Hidden sheet with exam data for VLOOKUP
+      const examsDataForSheet = [['Exam ID', 'Max Marks']];
+      allExams.forEach(exam => {
+        if (exam._id && exam.marks) {
+          examsDataForSheet.push([exam._id, exam.marks]);
+        }
+      });
+      const ws_exams = XLSX.utils.aoa_to_sheet(examsDataForSheet);
+      XLSX.utils.book_append_sheet(wb, ws_exams, 'ExamsData');
+      if (!wb.Workbook) wb.Workbook = {};
+      if (!wb.Workbook.Sheets) wb.Workbook.Sheets = [];
+      const examSheetIndex = wb.SheetNames.indexOf('ExamsData');
+      if (examSheetIndex > -1) {
+        if (!wb.Workbook.Sheets[examSheetIndex]) wb.Workbook.Sheets[examSheetIndex] = {};
+        wb.Workbook.Sheets[examSheetIndex].Hidden = 1;
+      }
+
+      // Group students by class and section
+      const studentsByGroup = validStudents.reduce((acc, student) => {
+        const className = student.grade || student.class || 'Uncategorized';
+        const sectionName = student.section || 'A';
+        const key = `${className}-${sectionName}`;
+        if (!acc[key]) acc[key] = [];
+        acc[key].push(student);
+        return acc;
+      }, {});
+
+      // Create a sheet for each group
+      for (const groupKey in studentsByGroup) {
+        const studentsInGroup = studentsByGroup[groupKey];
+        const safeSheetName = groupKey.replace(/[^a-zA-Z0-9-]/g, '_').slice(0, 31);
+
+        const sheetData = studentsInGroup.map((s, index) => {
+          const rowNum = index + 2;
+          const gradeFormula = `IF(ISBLANK(I${rowNum}), "", IF(ISERROR(VLOOKUP(G${rowNum},ExamsData!A:B,2,FALSE)), "N/A", IF(VLOOKUP(G${rowNum},ExamsData!A:B,2,FALSE)>0, IF((I${rowNum}/VLOOKUP(G${rowNum},ExamsData!A:B,2,FALSE))>=0.9, "A+", IF((I${rowNum}/VLOOKUP(G${rowNum},ExamsData!A:B,2,FALSE))>=0.8, "A", IF((I${rowNum}/VLOOKUP(G${rowNum},ExamsData!A:B,2,FALSE))>=0.7, "B", IF((I${rowNum}/VLOOKUP(G${rowNum},ExamsData!A:B,2,FALSE))>=0.6, "C", IF((I${rowNum}/VLOOKUP(G${rowNum},ExamsData!A:B,2,FALSE))>=0.5, "D", "F"))))), "N/A")))`;
+          const statusFormula = `IF(ISBLANK(I${rowNum}),"absent",IF(ISERROR(VLOOKUP(G${rowNum},ExamsData!A:B,2,FALSE)),"pass",IF(I${rowNum}>=(VLOOKUP(G${rowNum},ExamsData!A:B,2,FALSE)*0.5),"pass","fail")))`;
+          const remarksFormula = `IF(L${rowNum}="pass","Promoted",IF(L${rowNum}="fail","Not Promoted",""))`;
+
+          return {
+            studentId: s._id,
+            session: s.academicYear || s.session || '',
+            roll: s.roll || '',
+            class: s.grade || s.class || '',
+            section: s.section || '',
+            name: s.name,
+            examId: selectedBulkExam ? selectedBulkExam._id : '',
+            subject: selectedBulkExam ? selectedBulkExam.subject : '',
+            marks: '',
+            grade: { f: gradeFormula },
+            remarks: { f: remarksFormula },
+            status: { f: statusFormula }
+          };
+        });
+
+        const ws = XLSX.utils.json_to_sheet(sheetData, {
+          header: ['studentId', 'session', 'roll', 'class', 'section', 'name', 'examId', 'subject', 'marks', 'grade', 'remarks', 'status']
+        });
+        XLSX.utils.book_append_sheet(wb, ws, safeSheetName);
+      }
+
+      XLSX.writeFile(wb, 'results_upload_template.xlsx');
+      toast.dismiss();
+      toast.success('Template downloaded!');
+    } catch (err) {
+      toast.dismiss();
+      toast.error(err.message || 'Could not generate template.');
+    }
   };
 
   const exportToCSV = () => {
@@ -281,6 +456,13 @@ const Result = ({ setShowAdminHeader }) => {
 
   /* ── computed ── */
   const uniqueSubjects = [...new Set(results.map(r => r.examId?.subject).filter(Boolean))];
+  const completedExamGroupOptions = (Array.isArray(examGroups) ? examGroups : [])
+    .filter(group => String(group?.status || '').toLowerCase() === 'completed')
+    .sort((a, b) => {
+      const d1 = a?.startDate ? new Date(a.startDate).getTime() : (a?.createdAt ? new Date(a.createdAt).getTime() : 0);
+      const d2 = b?.startDate ? new Date(b.startDate).getTime() : (b?.createdAt ? new Date(b.createdAt).getTime() : 0);
+      return d2 - d1;
+    });
 
   const filteredResults = results.filter(r => {
     const name = (r.studentId?.name||'').toLowerCase();
@@ -300,6 +482,33 @@ const Result = ({ setShowAdminHeader }) => {
   };
 
   const passRate = stats.total > 0 ? Math.round((stats.pass / stats.total) * 100) : 0;
+  const examById = new Map((Array.isArray(exams) ? exams : []).map((exam) => [String(exam._id), exam]));
+  const selectedCompletedExamGroup = completedExamGroupOptions.find(group => String(group._id) === String(selectedCompletedExamGroupId)) || null;
+  const selectedCompletedExamGroupExamIds = new Set((selectedCompletedExamGroup?.subjects || []).map(subjectExam => String(subjectExam?._id || '')));
+  const selectedCompletedExamResults = selectedCompletedExamGroupExamIds.size
+    ? results.filter(r => selectedCompletedExamGroupExamIds.has(String(r.examId?._id || r.examId)))
+    : [];
+  const selectedCompletedExamPublishedCount = selectedCompletedExamResults.filter(r => Boolean(r.published)).length;
+  const selectedCompletedExamResultCount = selectedCompletedExamResults.length;
+  const selectedCompletedExamPublished = selectedCompletedExamPublishedCount > 0;
+
+  useEffect(() => {
+    if (!completedExamGroupOptions.length) {
+      if (selectedCompletedExamGroupId) setSelectedCompletedExamGroupId('');
+      return;
+    }
+    const exists = completedExamGroupOptions.some(group => String(group._id) === String(selectedCompletedExamGroupId));
+    if (!selectedCompletedExamGroupId || !exists) {
+      setSelectedCompletedExamGroupId(String(completedExamGroupOptions[0]._id));
+    }
+  }, [completedExamGroupOptions, selectedCompletedExamGroupId]);
+
+  const resultsByExam = filteredResults.reduce((acc, r) => {
+    const eid = r.examId?._id || String(r.examId) || 'unknown';
+    if (!acc[eid]) acc[eid] = { exam: r.examId, results: [] };
+    acc[eid].results.push(r);
+    return acc;
+  }, {});
 
   /* ── result form fields (reusable) ── */
   const renderResultFields = (form, setForm) => {
@@ -412,7 +621,7 @@ const Result = ({ setShowAdminHeader }) => {
             </div>
           </div>
           <div className="flex items-center gap-2 flex-wrap">
-            <button onClick={() => { fetchResults(); fetchExams(); }}
+            <button onClick={() => { fetchResults(); fetchExams(); fetchExamGroups(); }}
               className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-slate-200 text-xs text-slate-600 hover:bg-slate-50 transition-colors">
               <RefreshCw size={13} /> Refresh
             </button>
@@ -427,10 +636,6 @@ const Result = ({ setShowAdminHeader }) => {
             <button onClick={exportToCSV}
               className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-slate-200 text-xs text-slate-600 hover:bg-slate-50 transition-colors">
               <FileDown size={13} /> Export
-            </button>
-            <button onClick={handlePublishResults} disabled={!selectedClass}
-              className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold transition-colors ${selectedClass ? 'bg-emerald-600 text-white hover:bg-emerald-700 shadow-md shadow-emerald-200' : 'bg-slate-100 text-slate-400 cursor-not-allowed'}`}>
-              <Send size={13} /> Publish
             </button>
             <button onClick={async () => { await Promise.all([fetchExams(), fetchStudentsByClass(true)]); setShowAddResult(true); }}
               className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-indigo-600 text-white text-xs font-semibold hover:bg-indigo-700 shadow-md shadow-indigo-200 transition-colors">
@@ -455,6 +660,53 @@ const Result = ({ setShowAdminHeader }) => {
             <p className="text-2xl font-bold text-indigo-600">{passRate}%</p>
             <div className="mt-2 h-1.5 rounded-full bg-indigo-100 overflow-hidden">
               <div className="h-full bg-indigo-500 rounded-full transition-all" style={{ width: `${passRate}%` }} />
+            </div>
+          </div>
+        </div>
+
+        {/* ── Publish Control by Completed Main Exam ── */}
+        <div className="bg-white rounded-2xl border border-slate-200 p-4 shadow-sm">
+          <div className="flex flex-col lg:flex-row lg:items-center gap-3 lg:gap-5">
+            <div className="w-full lg:max-w-sm">
+              <label className="mb-1.5 block text-xs font-semibold text-slate-500 uppercase tracking-wide">
+                Select Completed Main Exam
+              </label>
+              <select
+                value={selectedCompletedExamGroupId}
+                onChange={e => setSelectedCompletedExamGroupId(e.target.value)}
+                className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-700 focus:border-indigo-400 focus:outline-none min-w-[220px] w-full"
+                disabled={loadingExamGroups || !completedExamGroupOptions.length}
+              >
+                {!completedExamGroupOptions.length && <option value="">No completed main exams</option>}
+                {completedExamGroupOptions.map(group => (
+                  <option key={group._id} value={group._id}>
+                    {group.title} {group.term ? `(${group.term})` : ''}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4">
+              <label className={`inline-flex items-center gap-2 rounded-xl border px-3 py-2 ${
+                selectedCompletedExamPublished ? 'bg-emerald-50 border-emerald-200' : 'bg-amber-50 border-amber-200'
+              } ${(!selectedCompletedExamGroupId || updatingSelectedExamPublish || !selectedCompletedExamResultCount) ? 'opacity-60' : ''}`}>
+                <input
+                  type="checkbox"
+                  className="h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
+                  checked={selectedCompletedExamPublished}
+                  disabled={!selectedCompletedExamGroupId || updatingSelectedExamPublish || !selectedCompletedExamResultCount}
+                  onChange={(e) => handleSelectedCompletedExamPublish(Boolean(e.target.checked))}
+                />
+                <span className={`text-sm font-semibold ${selectedCompletedExamPublished ? 'text-emerald-700' : 'text-amber-700'}`}>
+                  {selectedCompletedExamPublished ? 'Published to Students' : 'Unpublished'}
+                </span>
+              </label>
+
+              <div className="text-xs text-slate-500">
+                {selectedCompletedExamGroup
+                  ? `${selectedCompletedExamPublishedCount}/${selectedCompletedExamResultCount} subject results visible to students`
+                  : 'Select a completed main exam to control student visibility'}
+              </div>
             </div>
           </div>
         </div>
@@ -489,90 +741,214 @@ const Result = ({ setShowAdminHeader }) => {
           </div>
         </div>
 
-        {/* ── Results Table ── */}
-        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-          {loading ? (
-            <div className="flex flex-col items-center justify-center py-16 gap-3">
-              <Loader2 size={28} className="animate-spin text-indigo-400" />
-              <p className="text-sm text-slate-400">Loading results…</p>
+        {/* ── Results by Exam ── */}
+        {loading ? (
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-sm flex flex-col items-center justify-center py-16 gap-3">
+            <Loader2 size={28} className="animate-spin text-indigo-400" />
+            <p className="text-sm text-slate-400">Loading results…</p>
+          </div>
+        ) : Object.keys(resultsByExam).length === 0 ? (
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-sm flex flex-col items-center justify-center py-16 gap-3">
+            <div className="h-14 w-14 rounded-2xl bg-slate-100 flex items-center justify-center">
+              <FileSpreadsheet size={22} className="text-slate-400" />
             </div>
-          ) : filteredResults.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-16 gap-3">
-              <div className="h-14 w-14 rounded-2xl bg-slate-100 flex items-center justify-center">
-                <FileSpreadsheet size={22} className="text-slate-400" />
-              </div>
-              <p className="text-sm font-semibold text-slate-500">No results found</p>
-              <p className="text-xs text-slate-400">Try adjusting filters or add a new result</p>
-              <button onClick={async () => { await Promise.all([fetchExams(), fetchStudentsByClass(true)]); setShowAddResult(true); }}
-                className="mt-1 flex items-center gap-1.5 text-xs font-semibold text-indigo-600 hover:text-indigo-700">
-                <Plus size={13} /> Add Result
-              </button>
-            </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="bg-slate-50 border-b border-slate-100">
-                    {['Student', 'Exam / Subject', 'Marks', 'Grade', 'Status', 'Visibility', ''].map((h, i) => (
-                      <th key={i} className="px-4 py-3 text-left text-[11px] font-bold text-slate-400 uppercase tracking-wider whitespace-nowrap">{h}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-50">
-                  {filteredResults.map((result, i) => {
-                    const statusKey = result.status?.toLowerCase();
-                    const statusStyle = STATUS_STYLE[statusKey] || 'bg-blue-50 text-blue-700 border border-blue-100';
-                    return (
-                      <tr key={result._id || i} className="hover:bg-indigo-50/20 transition-colors group">
-                        <td className="px-4 py-3.5">
-                          <p className="font-semibold text-slate-800">{result.studentId?.name || 'N/A'}</p>
-                          <p className="text-xs text-slate-400 mt-0.5">Roll {result.studentId?.roll || '—'} · Class {result.studentId?.grade || '—'} {result.studentId?.section || ''}</p>
-                        </td>
-                        <td className="px-4 py-3.5">
-                          <p className="font-medium text-slate-700">{result.examId?.title || 'N/A'}</p>
-                          <p className="text-xs text-slate-400 mt-0.5">{result.examId?.subject || '—'}</p>
-                        </td>
-                        <td className="px-4 py-3.5">
-                          <div className="flex items-center gap-1">
-                            <Award size={13} className="text-amber-400" />
-                            <span className="font-bold text-slate-800">{result.marks ?? '—'}</span>
-                          </div>
-                        </td>
-                        <td className="px-4 py-3.5">
-                          <span className="font-semibold text-slate-700 text-base">{result.grade || '—'}</span>
-                        </td>
-                        <td className="px-4 py-3.5">
-                          <span className={`inline-flex rounded-lg px-2.5 py-1 text-[11px] font-bold capitalize ${statusStyle}`}>
-                            {result.status || '—'}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3.5">
-                          <button onClick={() => handleTogglePublish(result._id, !result.published)}
-                            className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-semibold transition-colors ${result.published ? 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100' : 'bg-amber-50 text-amber-700 hover:bg-amber-100'}`}>
-                            {result.published ? <Eye size={11} /> : <EyeOff size={11} />}
-                            {result.published ? 'Published' : 'Draft'}
-                          </button>
-                        </td>
-                        <td className="px-4 py-3.5">
-                          <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                            <button onClick={() => openEditResult(result)}
-                              className="h-7 w-7 flex items-center justify-center rounded-lg text-indigo-400 hover:bg-indigo-50 hover:text-indigo-600 transition-colors">
-                              <Edit2 size={13} />
+            <p className="text-sm font-semibold text-slate-500">No results found</p>
+            <p className="text-xs text-slate-400">Try adjusting filters or add a new result</p>
+            <button onClick={async () => { await Promise.all([fetchExams(), fetchStudentsByClass(true)]); setShowAddResult(true); }}
+              className="mt-1 flex items-center gap-1.5 text-xs font-semibold text-indigo-600 hover:text-indigo-700">
+              <Plus size={13} /> Add Result
+            </button>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {Object.entries(resultsByExam).map(([examId, { exam, results: examResults }]) => {
+              const isExpanded = expandedExams.has(examId);
+              const passCount      = examResults.filter(r => r.status?.toLowerCase() === 'pass').length;
+              const failCount      = examResults.filter(r => r.status?.toLowerCase() === 'fail').length;
+              const publishedCount = examResults.filter(r => r.published).length;
+              const allPublished   = publishedCount === examResults.length && examResults.length > 0;
+              const termStyle      = TERM_STYLE[exam?.term] || 'bg-slate-50 text-slate-600 border-slate-100';
+              const fullExam       = examById.get(String(examId)) || {};
+              const examStatusRaw  = String(fullExam?.status || exam?.status || '').trim();
+              const examStatusKey  = examStatusRaw.toLowerCase();
+              const examIsCompleted = examStatusKey === 'completed';
+              const examStatusStyle = EXAM_STATUS_STYLE[examStatusKey] || 'bg-slate-50 text-slate-600 border-slate-100';
+              const canUnpublishAll = allPublished;
+              const canPublishAll = examIsCompleted && !allPublished;
+              const publishAllDisabled = !canPublishAll && !canUnpublishAll;
+
+              // per-exam tab state
+              const tabCls  = examTabState[examId]?.cls  || 'all';
+              const tabSec  = examTabState[examId]?.sec  || 'all';
+              const setTab  = (patch) => setExamTabState(prev => ({ ...prev, [examId]: { cls: 'all', sec: 'all', ...prev[examId], ...patch } }));
+
+              const examClasses  = [...new Set(examResults.map(r => r.studentId?.grade).filter(Boolean))].sort();
+              const examSections = [...new Set(
+                examResults
+                  .filter(r => tabCls === 'all' || r.studentId?.grade === tabCls)
+                  .map(r => r.studentId?.section).filter(Boolean)
+              )].sort();
+              const visibleResults = examResults.filter(r => {
+                const mc = tabCls === 'all' || r.studentId?.grade === tabCls;
+                const ms = tabSec === 'all' || r.studentId?.section === tabSec;
+                return mc && ms;
+              });
+              return (
+                <div key={examId} className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+                  {/* ── Exam header ── */}
+                  <div className="px-5 py-4">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                      <div className="flex flex-col gap-1">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          {exam?.term && <span className={`inline-flex rounded-lg px-2 py-0.5 text-[10px] font-bold border ${termStyle}`}>{exam.term}</span>}
+                          {!!examStatusRaw && (
+                            <span className={`inline-flex rounded-lg px-2 py-0.5 text-[10px] font-bold border capitalize ${examStatusStyle}`}>
+                              {examStatusKey}
+                            </span>
+                          )}
+                          <h3 className="font-bold text-slate-800">{exam?.title || 'Unknown Exam'}</h3>
+                        </div>
+                        <div className="flex items-center gap-2 text-xs text-slate-400 flex-wrap">
+                          <span>{exam?.subject || '—'}</span>
+                          {(exam?.classId?.name || exam?.grade) && <><span>·</span><span>Class {exam?.classId?.name || exam?.grade}</span></>}
+                          {(exam?.sectionId?.name || exam?.section) && <><span>·</span><span>Section {exam?.sectionId?.name || exam?.section}</span></>}
+                          {exam?.marks && <><span>·</span><span>Max: {exam.marks}</span></>}
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-slate-50 text-slate-600 text-xs font-semibold border border-slate-200">
+                          <FileSpreadsheet size={11} /> {examResults.length}
+                        </span>
+                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-50 text-emerald-700 text-xs font-semibold border border-emerald-100">
+                          <CheckCircle size={11} /> {passCount} Pass
+                        </span>
+                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-red-50 text-red-600 text-xs font-semibold border border-red-100">
+                          <XCircle size={11} /> {failCount} Fail
+                        </span>
+                        <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold border ${publishedCount > 0 ? 'bg-indigo-50 text-indigo-700 border-indigo-100' : 'bg-amber-50 text-amber-700 border-amber-100'}`}>
+                          {publishedCount > 0 ? <Eye size={11} /> : <EyeOff size={11} />}
+                          {publishedCount}/{examResults.length} Published
+                        </span>
+                        <button
+                          onClick={() => handlePublishExam(examId, !allPublished)}
+                          disabled={publishAllDisabled}
+                          title={!examIsCompleted && !allPublished ? 'Only completed exams can be published' : ''}
+                          className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold shadow-sm transition-colors ${
+                            allPublished
+                              ? 'bg-amber-500 text-white hover:bg-amber-600'
+                              : 'bg-emerald-600 text-white hover:bg-emerald-700 shadow-emerald-200'
+                          } ${publishAllDisabled ? 'opacity-50 cursor-not-allowed hover:bg-inherit' : ''}`}
+                        >
+                          <Send size={11} /> {allPublished ? 'Unpublish All' : 'Publish Completed'}
+                        </button>
+                        <button onClick={() => toggleExamExpand(examId)}
+                          className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl border border-slate-200 text-xs text-slate-600 hover:bg-slate-50 transition-colors">
+                          <ChevronRight size={13} className={`transition-transform duration-200 ${isExpanded ? 'rotate-90' : ''}`} />
+                          {isExpanded ? 'Hide' : 'View'} Students
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                  {/* ── Expanded student rows ── */}
+                  {isExpanded && (
+                    <div className="border-t border-slate-100">
+                      {/* Class tabs */}
+                      {examClasses.length > 1 && (
+                        <div className="flex items-center gap-1.5 px-5 py-3 border-b border-slate-100 flex-wrap bg-slate-50/60">
+                          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wide mr-1">Class</span>
+                          {['all', ...examClasses].map(cls => (
+                            <button key={cls} onClick={() => setTab({ cls, sec: 'all' })}
+                              className={`px-3 py-1 rounded-lg text-xs font-semibold transition-colors ${tabCls === cls ? 'bg-indigo-600 text-white shadow-sm' : 'bg-white text-slate-600 border border-slate-200 hover:bg-indigo-50 hover:text-indigo-700'}`}>
+                              {cls === 'all' ? 'All Classes' : `Class ${cls}`}
                             </button>
-                            <button onClick={() => handleDeleteResult(result)}
-                              className="h-7 w-7 flex items-center justify-center rounded-lg text-red-400 hover:bg-red-50 hover:text-red-600 transition-colors">
-                              <Trash2 size={13} />
+                          ))}
+                        </div>
+                      )}
+                      {/* Section tabs */}
+                      {examSections.length > 1 && (
+                        <div className="flex items-center gap-1.5 px-5 py-3 border-b border-slate-100 flex-wrap bg-slate-50/40">
+                          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wide mr-1">Section</span>
+                          {['all', ...examSections].map(sec => (
+                            <button key={sec} onClick={() => setTab({ sec })}
+                              className={`px-3 py-1 rounded-lg text-xs font-semibold transition-colors ${tabSec === sec ? 'bg-violet-600 text-white shadow-sm' : 'bg-white text-slate-600 border border-slate-200 hover:bg-violet-50 hover:text-violet-700'}`}>
+                              {sec === 'all' ? 'All Sections' : `Section ${sec}`}
                             </button>
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
+                          ))}
+                        </div>
+                      )}
+                      <div className="overflow-x-auto">
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className="bg-slate-50">
+                            {['Student', 'Marks', 'Grade', 'Status', 'Remarks', 'Visibility', ''].map((h, i) => (
+                              <th key={i} className="px-4 py-3 text-left text-[11px] font-bold text-slate-400 uppercase tracking-wider whitespace-nowrap">{h}</th>
+                            ))}
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-50">
+                          {visibleResults.map((result, i) => {
+                            const statusKey   = result.status?.toLowerCase();
+                            const statusStyle = STATUS_STYLE[statusKey] || 'bg-blue-50 text-blue-700 border border-blue-100';
+                            return (
+                              <tr key={result._id || i} className="hover:bg-indigo-50/20 transition-colors group">
+                                <td className="px-4 py-3">
+                                  <p className="font-semibold text-slate-800">{result.studentId?.name || 'N/A'}</p>
+                                  <p className="text-xs text-slate-400 mt-0.5">Roll {result.studentId?.roll || '—'} · {result.studentId?.grade || '—'} {result.studentId?.section || ''}</p>
+                                </td>
+                                <td className="px-4 py-3">
+                                  <div className="flex items-center gap-1">
+                                    <Award size={12} className="text-amber-400" />
+                                    <span className="font-bold text-slate-800">{result.marks ?? '—'}</span>
+                                    {exam?.marks && <span className="text-slate-400 text-xs">/{exam.marks}</span>}
+                                  </div>
+                                </td>
+                                <td className="px-4 py-3">
+                                  <span className="font-semibold text-slate-700">{result.grade || '—'}</span>
+                                </td>
+                                <td className="px-4 py-3">
+                                  <span className={`inline-flex rounded-lg px-2.5 py-1 text-[11px] font-bold capitalize ${statusStyle}`}>{result.status || '—'}</span>
+                                </td>
+                                <td className="px-4 py-3">
+                                  <span className="text-xs text-slate-500">{result.remarks || '—'}</span>
+                                </td>
+                                <td className="px-4 py-3">
+                                  <button
+                                    onClick={() => handleTogglePublish(result._id, !result.published)}
+                                    disabled={!examIsCompleted && !result.published}
+                                    title={!examIsCompleted && !result.published ? 'Only completed exams can be published' : ''}
+                                    className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-semibold transition-colors ${
+                                      result.published ? 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100' : 'bg-amber-50 text-amber-700 hover:bg-amber-100'
+                                    } ${!examIsCompleted && !result.published ? 'opacity-50 cursor-not-allowed hover:bg-amber-50' : ''}`}
+                                  >
+                                    {result.published ? <Eye size={11} /> : <EyeOff size={11} />}
+                                    {result.published ? 'Published' : 'Unpublished'}
+                                  </button>
+                                </td>
+                                <td className="px-4 py-3">
+                                  <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                    <button onClick={() => openEditResult(result)}
+                                      className="h-7 w-7 flex items-center justify-center rounded-lg text-indigo-400 hover:bg-indigo-50 hover:text-indigo-600 transition-colors">
+                                      <Edit2 size={13} />
+                                    </button>
+                                    <button onClick={() => handleDeleteResult(result)}
+                                      className="h-7 w-7 flex items-center justify-center rounded-lg text-red-400 hover:bg-red-50 hover:text-red-600 transition-colors">
+                                      <Trash2 size={13} />
+                                    </button>
+                                  </div>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       {/* ═══ ADD RESULT MODAL ═══ */}
@@ -598,19 +974,27 @@ const Result = ({ setShowAdminHeader }) => {
       </Modal>
 
       {/* ═══ BULK UPLOAD MODAL ═══ */}
-      <Modal show={showBulkUpload} onClose={() => setShowBulkUpload(false)} title="Bulk Upload Results" subtitle="Upload a CSV file to add multiple results" icon={FileUp} iconColor="bg-violet-600" maxWidth="sm:max-w-lg">
-        <form onSubmit={handleBulkUpload} className="space-y-4">
+      <Modal show={showBulkUpload} onClose={() => { setShowBulkUpload(false); setBulkExamId(''); setBulkFile(null); }} title="Bulk Upload Results" subtitle="Select an exam, download the template, fill it, and upload." icon={FileUp} iconColor="bg-violet-600" maxWidth="sm:max-w-lg">
+        <form onSubmit={handleBulkUpload} className="space-y-4" encType="multipart/form-data">
+          <Field label="Select Completed Exam (For Template)">
+            <select value={bulkExamId} onChange={e => setBulkExamId(e.target.value)} className={inp}>
+              <option value="">Choose a completed exam...</option>
+              {exams.filter(ex => ex.status?.toLowerCase() === 'completed').map(ex => (
+                <option key={ex._id} value={ex._id}>{ex.title} – {ex.subject} ({ex.term})</option>
+              ))}
+            </select>
+          </Field>
           <div className="rounded-2xl border-2 border-dashed border-slate-200 bg-slate-50 p-8 text-center">
             <FileUp size={28} className="mx-auto text-slate-300 mb-3" />
-            <p className="text-sm font-medium text-slate-600 mb-1">Select your CSV file</p>
-            <p className="text-xs text-slate-400 mb-4">Columns: examId, studentId, marks, grade, remarks, status</p>
-            <input type="file" accept=".csv" onChange={e => setCSVFile(e.target.files[0])} required
+            <p className="text-sm font-medium text-slate-600 mb-1">Select your filled Excel file</p>
+            <p className="text-xs text-slate-400 mb-4">Columns: studentId, examId, subject, marks, remarks, status</p>
+            <input type="file" accept=".xlsx, .xls" onChange={e => setBulkFile(e.target.files[0])} required
               className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 file:mr-3 file:rounded-lg file:border-0 file:bg-indigo-50 file:px-3 file:py-1 file:text-xs file:font-semibold file:text-indigo-700 hover:file:bg-indigo-100" />
-            {csvFile && <p className="mt-2 text-xs text-emerald-600 font-medium">✓ {csvFile.name}</p>}
+            {bulkFile && <p className="mt-2 text-xs text-emerald-600 font-medium">✓ {bulkFile.name}</p>}
           </div>
-          <button type="button" onClick={downloadCSVTemplate}
+          <button type="button" onClick={downloadExcelTemplate}
             className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl border border-slate-200 text-sm text-slate-600 hover:bg-slate-50 transition-colors">
-            <FileDown size={14} /> Download CSV Template
+            <FileDown size={14} /> Download Excel Template
           </button>
           <div className="flex justify-end gap-2.5 pt-1">
             <button type="button" onClick={() => setShowBulkUpload(false)} className="px-4 py-2 rounded-xl border border-slate-200 text-sm text-slate-600 hover:bg-slate-50">Cancel</button>
