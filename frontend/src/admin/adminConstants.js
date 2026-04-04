@@ -111,11 +111,6 @@ export const ADMIN_MENU_ITEMS = [
   },
   {
     icon: Calendar,
-    label: 'Subjects',
-    path: '/admin/subjects'
-  },
-  {
-    icon: Calendar,
     label: 'Routines',
     path: '/admin/routine'
   },

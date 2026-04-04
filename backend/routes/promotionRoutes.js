@@ -3,6 +3,7 @@ const router = express.Router();
 const mongoose = require('mongoose');
 const adminAuth = require('../middleware/adminAuth');
 const StudentUser = require('../models/StudentUser');
+const ExamResult = require('../models/ExamResult');
 const PromotionHistory = require('../models/PromotionHistory');
 const AuditLog = require('../models/AuditLog');
 const { syncAllocationGroupThreads, syncTimetableGroupThreads } = require('../utils/chatGroupProvisioning');
@@ -21,6 +22,63 @@ const resolveSchoolId = (req, res) => {
 };
 
 const resolveCampusId = (req) => req.campusId || null;
+
+const buildPromotionStudentFilter = ({
+  schoolId,
+  campusId,
+  fromClass,
+  fromSection,
+  fromAcademicYear,
+}) => {
+  const filter = {
+    schoolId,
+    isArchived: { $ne: true },
+    grade: fromClass,
+    status: { $nin: ['Leaving', 'Left', 'Expelled'] },
+  };
+  if (campusId) filter.campusId = campusId;
+  if (fromSection) filter.section = fromSection;
+  if (fromAcademicYear) filter.academicYear = fromAcademicYear;
+  return filter;
+};
+
+const toSafePercentage = (value, fallback = 50) => {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return fallback;
+  return Math.max(0, Math.min(100, n));
+};
+
+const computeResultSummaryByStudent = async ({ schoolId, campusId, studentIds }) => {
+  const ids = (Array.isArray(studentIds) ? studentIds : []).filter((id) => mongoose.isValidObjectId(id));
+  if (ids.length === 0) return new Map();
+
+  const results = await ExamResult.find({
+    schoolId,
+    ...(campusId ? { campusId } : {}),
+    studentId: { $in: ids },
+    published: true,
+  })
+    .populate('examId', 'marks')
+    .lean();
+
+  const byStudent = new Map();
+  results.forEach((result) => {
+    const studentId = String(result?.studentId || '');
+    if (!studentId) return;
+    const totalMarks = Number(result?.examId?.marks || 0);
+    const obtainedMarks = Number(result?.marks || 0);
+    if (!Number.isFinite(totalMarks) || totalMarks <= 0) return;
+    if (!byStudent.has(studentId)) {
+      byStudent.set(studentId, { totalMarks: 0, obtainedMarks: 0, resultCount: 0 });
+    }
+    const current = byStudent.get(studentId);
+    current.totalMarks += totalMarks;
+    current.obtainedMarks += Number.isFinite(obtainedMarks) ? obtainedMarks : 0;
+    current.resultCount += 1;
+  });
+
+  return byStudent;
+};
 
 const writeAuditLog = async ({
   schoolId,
@@ -61,18 +119,13 @@ router.post('/preview', adminAuth, async (req, res) => {
       return res.status(400).json({ error: 'fromClass is required' });
     }
 
-    const filter = {
+    const filter = buildPromotionStudentFilter({
       schoolId,
-      isArchived: { $ne: true },
-      grade: fromClass,
-    };
-
-    // Exclude students already marked as leaving/left
-    filter.status = { $nin: ['Leaving', 'Left', 'Expelled'] };
-
-    if (campusId) filter.campusId = campusId;
-    if (fromSection) filter.section = fromSection;
-    if (fromAcademicYear) filter.academicYear = fromAcademicYear;
+      campusId,
+      fromClass,
+      fromSection,
+      fromAcademicYear,
+    });
 
     const students = await StudentUser.find(filter)
       .select('_id name grade section roll academicYear studentCode status email mobile')
@@ -86,6 +139,88 @@ router.post('/preview', adminAuth, async (req, res) => {
 });
 
 // ─────────────────────────────────────────────────────────────
+// POST /api/promotion/preview-marks
+// Returns students with aggregated marks and eligibility by threshold
+// Body: { fromClass, fromSection?, fromAcademicYear?, minPercentage? }
+// ─────────────────────────────────────────────────────────────
+router.post('/preview-marks', adminAuth, async (req, res) => {
+  try {
+    const schoolId = resolveSchoolId(req, res);
+    if (!schoolId) return;
+    const campusId = resolveCampusId(req);
+
+    const { fromClass, fromSection, fromAcademicYear, minPercentage = 50 } = req.body || {};
+    if (!fromClass) {
+      return res.status(400).json({ error: 'fromClass is required' });
+    }
+
+    const threshold = toSafePercentage(minPercentage, 50);
+    const filter = buildPromotionStudentFilter({
+      schoolId,
+      campusId,
+      fromClass,
+      fromSection,
+      fromAcademicYear,
+    });
+
+    const students = await StudentUser.find(filter)
+      .select('_id name grade section roll academicYear studentCode status email mobile')
+      .sort({ section: 1, roll: 1, name: 1 })
+      .lean();
+
+    const summaryByStudent = await computeResultSummaryByStudent({
+      schoolId,
+      campusId,
+      studentIds: students.map((student) => student._id),
+    });
+
+    const withMarks = students.map((student) => {
+      const summary = summaryByStudent.get(String(student._id)) || {
+        totalMarks: 0,
+        obtainedMarks: 0,
+        resultCount: 0,
+      };
+      const percentage =
+        Number(summary.totalMarks) > 0
+          ? Math.round((Number(summary.obtainedMarks) / Number(summary.totalMarks)) * 10000) / 100
+          : 0;
+      const eligible = Number(summary.totalMarks) > 0 && percentage >= threshold;
+      return {
+        ...student,
+        marksSummary: {
+          obtainedMarks: Number(summary.obtainedMarks) || 0,
+          totalMarks: Number(summary.totalMarks) || 0,
+          resultCount: Number(summary.resultCount) || 0,
+          percentage,
+          eligible,
+        },
+      };
+    });
+
+    const ranked = [...withMarks].sort((a, b) => {
+      const diff = Number(b?.marksSummary?.percentage || 0) - Number(a?.marksSummary?.percentage || 0);
+      if (diff !== 0) return diff;
+      return String(a?.name || '').localeCompare(String(b?.name || ''));
+    });
+
+    const eligibleIds = ranked
+      .filter((student) => student?.marksSummary?.eligible)
+      .map((student) => student._id);
+
+    res.json({
+      students: ranked,
+      eligibleIds,
+      minPercentage: threshold,
+      count: ranked.length,
+      eligibleCount: eligibleIds.length,
+      ineligibleCount: ranked.length - eligibleIds.length,
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message || 'Failed to preview marks-based promotion' });
+  }
+});
+
+// ─────────────────────────────────────────────────────────────
 // POST /api/promotion/execute
 // Executes the promotion — updates grade/section on selected students
 // Body: {
@@ -94,7 +229,7 @@ router.post('/preview', adminAuth, async (req, res) => {
 //   toSection?: 'A',
 //   toAcademicYear?: '2025-26',
 //   fromClass, fromSection?, fromAcademicYear?,
-//   type: 'bulk' | 'manual',
+//   type: 'bulk' | 'manual' | 'marks',
 //   notes?: ''
 // }
 // ─────────────────────────────────────────────────────────────
@@ -114,6 +249,7 @@ router.post('/execute', adminAuth, async (req, res) => {
       fromAcademicYear,
       type = 'manual',
       notes = '',
+      marksConfig = {},
     } = req.body;
 
     if (!studentIds || !Array.isArray(studentIds) || studentIds.length === 0) {
@@ -144,6 +280,37 @@ router.post('/execute', adminAuth, async (req, res) => {
       return res.status(400).json({ error: 'No eligible students found for promotion' });
     }
     const eligibleIds = eligibleStudents.map((s) => s._id);
+    let finalPromoteIds = eligibleIds;
+    let marksThreshold = null;
+    let marksIneligibleCount = 0;
+    const marksSummaryByStudent = new Map();
+
+    if (type === 'marks') {
+      marksThreshold = toSafePercentage(marksConfig?.minPercentage, 50);
+      const summaryByStudent = await computeResultSummaryByStudent({
+        schoolId,
+        campusId,
+        studentIds: eligibleIds,
+      });
+      eligibleIds.forEach((id) => {
+        const summary = summaryByStudent.get(String(id)) || { totalMarks: 0, obtainedMarks: 0, resultCount: 0 };
+        const percentage =
+          Number(summary.totalMarks) > 0
+            ? (Number(summary.obtainedMarks) / Number(summary.totalMarks)) * 100
+            : 0;
+        const passed = Number(summary.totalMarks) > 0 && percentage >= marksThreshold;
+        marksSummaryByStudent.set(String(id), {
+          ...summary,
+          percentage,
+          passed,
+        });
+      });
+      finalPromoteIds = eligibleIds.filter((id) => marksSummaryByStudent.get(String(id))?.passed);
+      marksIneligibleCount = eligibleIds.length - finalPromoteIds.length;
+      if (finalPromoteIds.length === 0) {
+        return res.status(400).json({ error: 'No students meet the marks criteria for promotion' });
+      }
+    }
 
     // Build the update payload
     const updateFields = { grade: toClass };
@@ -151,9 +318,67 @@ router.post('/execute', adminAuth, async (req, res) => {
     if (toAcademicYear) updateFields.academicYear = toAcademicYear;
 
     const updateResult = await StudentUser.updateMany(
-      { _id: { $in: eligibleIds }, schoolId },
+      { _id: { $in: finalPromoteIds }, schoolId },
       { $set: updateFields }
     );
+
+    if (type === 'marks' && updateResult.modifiedCount > 0) {
+      const promotedStudents = await StudentUser.find({
+        _id: { $in: finalPromoteIds },
+        schoolId,
+      })
+        .select('_id name section academicYear')
+        .lean();
+
+      const grouped = new Map();
+      promotedStudents.forEach((student) => {
+        const sectionKey = String(student?.section || '');
+        const yearKey = String(student?.academicYear || '');
+        const key = `${sectionKey}__${yearKey}`;
+        if (!grouped.has(key)) {
+          grouped.set(key, { section: sectionKey, academicYear: yearKey, students: [] });
+        }
+        grouped.get(key).students.push(student);
+      });
+
+      for (const group of grouped.values()) {
+        const baseFilter = {
+          schoolId,
+          grade: toClass,
+          section: group.section,
+          isArchived: { $ne: true },
+          status: { $nin: ['Leaving', 'Left', 'Expelled'] },
+          _id: { $nin: group.students.map((student) => student._id) },
+        };
+        if (campusId) baseFilter.campusId = campusId;
+        if (group.academicYear) {
+          baseFilter.academicYear = group.academicYear;
+        } else if (toAcademicYear) {
+          baseFilter.academicYear = toAcademicYear;
+        }
+
+        const existing = await StudentUser.find(baseFilter).select('roll').lean();
+        const maxExistingRoll = existing.reduce((max, student) => {
+          const roll = Number(student?.roll);
+          if (!Number.isFinite(roll)) return max;
+          return Math.max(max, roll);
+        }, 0);
+
+        const ranked = [...group.students].sort((a, b) => {
+          const pa = Number(marksSummaryByStudent.get(String(a._id))?.percentage || 0);
+          const pb = Number(marksSummaryByStudent.get(String(b._id))?.percentage || 0);
+          if (pb !== pa) return pb - pa;
+          return String(a?.name || '').localeCompare(String(b?.name || ''));
+        });
+
+        for (let i = 0; i < ranked.length; i += 1) {
+          await StudentUser.updateOne(
+            { _id: ranked[i]._id, schoolId },
+            { $set: { roll: maxExistingRoll + i + 1 } }
+          );
+        }
+      }
+    }
 
     try {
       await syncTimetableGroupThreads({ schoolId, campusId: campusId || null });
@@ -172,20 +397,22 @@ router.post('/execute', adminAuth, async (req, res) => {
       toSection: toSection || null,
       fromAcademicYear: fromAcademicYear || null,
       toAcademicYear: toAcademicYear || null,
-      studentIds: eligibleIds,
+      studentIds: finalPromoteIds,
       studentCount: updateResult.modifiedCount,
       type,
       promotedBy: req.admin?._id || null,
       notes,
     });
 
-    const skippedCount = validIds.length - eligibleIds.length;
+    const skippedCount = validIds.length - finalPromoteIds.length;
 
     res.json({
       success: true,
       promoted: updateResult.modifiedCount,
-      matched: eligibleIds.length,
+      matched: finalPromoteIds.length,
       skipped: skippedCount,
+      marksIneligible: marksIneligibleCount,
+      marksThreshold,
       historyId: history._id,
       message: `${updateResult.modifiedCount} student(s) promoted to ${toClass}${toSection ? ' - ' + toSection : ''}`,
     });
@@ -204,10 +431,12 @@ router.post('/execute', adminAuth, async (req, res) => {
         fromAcademicYear: fromAcademicYear || null,
         toAcademicYear: toAcademicYear || null,
         requestedCount: validIds.length,
-        matchedCount: eligibleIds.length,
+        matchedCount: finalPromoteIds.length,
         promotedCount: updateResult.modifiedCount,
         skippedCount,
         type,
+        marksThreshold,
+        marksIneligibleCount,
       },
     });
   } catch (err) {

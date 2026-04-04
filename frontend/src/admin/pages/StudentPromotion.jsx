@@ -76,6 +76,7 @@ const StudentPromotion = ({ setShowAdminHeader }) => {
   const [promoting, setPromoting] = useState(false);
 
   const [promotionMode, setPromotionMode] = useState("bulk");
+  const [minPromotionPercentage, setMinPromotionPercentage] = useState(50);
   const [promotionSearch, setPromotionSearch] = useState("");
   const [notes, setNotes] = useState("");
 
@@ -226,7 +227,15 @@ const StudentPromotion = ({ setShowAdminHeader }) => {
       if (fromSection) body.fromSection = fromSection;
       if (fromAcademicYear) body.fromAcademicYear = fromAcademicYear;
 
-      const res = await fetch(`${API_BASE}/api/promotion/preview`, {
+      const endpoint =
+        promotionMode === "marks"
+          ? `${API_BASE}/api/promotion/preview-marks`
+          : `${API_BASE}/api/promotion/preview`;
+      if (promotionMode === "marks") {
+        body.minPercentage = Number(minPromotionPercentage || 50);
+      }
+
+      const res = await fetch(endpoint, {
         method: "POST",
         headers: authHeader(),
         body: JSON.stringify(body),
@@ -244,6 +253,17 @@ const StudentPromotion = ({ setShowAdminHeader }) => {
           });
         } else if (promotionMode === "bulk") {
           setSelectedStudentIds(students.map((s) => s._id));
+        } else if (promotionMode === "marks") {
+          const eligibleIds = Array.isArray(data.eligibleIds) ? data.eligibleIds : [];
+          setSelectedStudentIds(eligibleIds);
+          if (eligibleIds.length === 0) {
+            Swal.fire({
+              icon: "info",
+              title: "No Eligible Students",
+              text: `No students meet the pass criteria (${minPromotionPercentage}%).`,
+              confirmButtonColor: "#6366f1",
+            });
+          }
         }
       } else {
         Swal.fire({ icon: "error", title: "Error", text: data.error || "Failed to load students.", confirmButtonColor: "#6366f1" });
@@ -274,7 +294,8 @@ const StudentPromotion = ({ setShowAdminHeader }) => {
       html: `Promote <strong>${selectedStudentIds.length}</strong> student(s)<br/>
              From: <strong>${fromClassName}${fromSection ? " – " + fromSection : ""}</strong><br/>
              To: <strong>${toClassName}${toSection ? " – " + toSection : ""}</strong>
-             ${toAcademicYear ? `<br/>Academic Year: <strong>${toAcademicYear}</strong>` : ""}`,
+             ${toAcademicYear ? `<br/>Academic Year: <strong>${toAcademicYear}</strong>` : ""}
+             ${promotionMode === "marks" ? `<br/>Pass Criteria: <strong>${minPromotionPercentage}% and above</strong><br/>Roll numbers will be reassigned by marks rank.` : ""}`,
       showCancelButton: true,
       confirmButtonText: "Yes, Promote",
       confirmButtonColor: "#6366f1",
@@ -296,6 +317,10 @@ const StudentPromotion = ({ setShowAdminHeader }) => {
           fromSection: fromSection || undefined,
           fromAcademicYear: fromAcademicYear || undefined,
           type: promotionMode,
+          marksConfig:
+            promotionMode === "marks"
+              ? { minPercentage: Number(minPromotionPercentage || 50) }
+              : undefined,
           notes,
         }),
       });
@@ -311,6 +336,7 @@ const StudentPromotion = ({ setShowAdminHeader }) => {
         setToClassId("");
         setToClassName("");
         setToSection("");
+        setMinPromotionPercentage(50);
         setNotes("");
         fetchMeta();
         if (showHistory) fetchHistory();
@@ -663,7 +689,41 @@ const StudentPromotion = ({ setShowAdminHeader }) => {
                   Select specific students to promote
                 </div>
               </button>
+              <button
+                onClick={() => {
+                  setPromotionMode("marks");
+                  setSelectedStudentIds([]);
+                }}
+                className={`flex-1 border rounded-lg p-3 text-left transition-all ${
+                  promotionMode === "marks"
+                    ? "border-indigo-500 bg-indigo-50"
+                    : "border-gray-200 hover:border-gray-300"
+                }`}
+              >
+                <div className="font-medium text-sm text-gray-800">Marks Based</div>
+                <div className="text-xs text-gray-500 mt-0.5">
+                  Promote only passing students and update roll by rank
+                </div>
+              </button>
             </div>
+            {promotionMode === "marks" && (
+              <div className="mt-4">
+                <label className="block text-xs text-gray-600 mb-1">
+                  Minimum Pass Percentage
+                </label>
+                <input
+                  type="number"
+                  min="0"
+                  max="100"
+                  value={minPromotionPercentage}
+                  onChange={(e) => setMinPromotionPercentage(Math.max(0, Math.min(100, Number(e.target.value || 0))))}
+                  className="w-40 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300"
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  Uses published exam results. Rolls for promoted students are reassigned by marks rank.
+                </p>
+              </div>
+            )}
           </div>
 
           {/* Promotion form */}
@@ -858,7 +918,9 @@ const StudentPromotion = ({ setShowAdminHeader }) => {
                 {promoting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4" />}
                 {promotionMode === "bulk"
                   ? `Promote All (${selectedStudentIds.length})`
-                  : `Promote Selected (${selectedStudentIds.length})`}
+                  : promotionMode === "marks"
+                    ? `Promote Eligible (${selectedStudentIds.length})`
+                    : `Promote Selected (${selectedStudentIds.length})`}
               </button>
               <button
                 onClick={toggleHistory}
@@ -885,6 +947,11 @@ const StudentPromotion = ({ setShowAdminHeader }) => {
                       {selectedStudentIds.length} selected — click rows to toggle
                     </p>
                   )}
+                  {promotionMode === "marks" && (
+                    <p className="text-xs text-gray-500 mt-0.5">
+                      {selectedStudentIds.length} eligible at {minPromotionPercentage}% and above
+                    </p>
+                  )}
                 </div>
                 <div className="relative">
                   <Search className="absolute left-2.5 top-2.5 w-3.5 h-3.5 text-gray-400" />
@@ -906,7 +973,7 @@ const StudentPromotion = ({ setShowAdminHeader }) => {
                           type="checkbox"
                           checked={allPreviewSelected}
                           onChange={toggleSelectAll}
-                          disabled={promotionMode === "bulk"}
+                          disabled={promotionMode !== "manual"}
                           className="rounded border-gray-300"
                         />
                       </th>
@@ -917,6 +984,12 @@ const StudentPromotion = ({ setShowAdminHeader }) => {
                       <th className="px-4 py-3 text-left">Section</th>
                       <th className="px-4 py-3 text-left">Roll</th>
                       <th className="px-4 py-3 text-left">Acad. Year</th>
+                      {promotionMode === "marks" && (
+                        <>
+                          <th className="px-4 py-3 text-left">%</th>
+                          <th className="px-4 py-3 text-left">Eligibility</th>
+                        </>
+                      )}
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100">
@@ -942,7 +1015,7 @@ const StudentPromotion = ({ setShowAdminHeader }) => {
                               type="checkbox"
                               checked={isSelected}
                               readOnly
-                              disabled={promotionMode === "bulk"}
+                              disabled={promotionMode !== "manual"}
                               className="rounded border-gray-300"
                             />
                           </td>
@@ -953,12 +1026,30 @@ const StudentPromotion = ({ setShowAdminHeader }) => {
                           <td className="px-4 py-3 text-gray-600">{s.section || "—"}</td>
                           <td className="px-4 py-3 text-gray-600">{s.roll || "—"}</td>
                           <td className="px-4 py-3 text-gray-500">{s.academicYear || "—"}</td>
+                          {promotionMode === "marks" && (
+                            <>
+                              <td className="px-4 py-3 text-gray-700 font-medium">
+                                {Number(s?.marksSummary?.percentage || 0).toFixed(2)}
+                              </td>
+                              <td className="px-4 py-3">
+                                <span
+                                  className={`px-2 py-0.5 rounded-full text-xs font-medium ${
+                                    s?.marksSummary?.eligible
+                                      ? "bg-emerald-100 text-emerald-700"
+                                      : "bg-red-100 text-red-700"
+                                  }`}
+                                >
+                                  {s?.marksSummary?.eligible ? "Eligible" : "Ineligible"}
+                                </span>
+                              </td>
+                            </>
+                          )}
                         </tr>
                       );
                     })}
                     {filteredPreview.length === 0 && (
                       <tr>
-                        <td colSpan={8} className="px-4 py-8 text-center text-gray-400 text-sm">
+                        <td colSpan={promotionMode === "marks" ? 10 : 8} className="px-4 py-8 text-center text-gray-400 text-sm">
                           No students match your search.
                         </td>
                       </tr>
@@ -1025,9 +1116,11 @@ const StudentPromotion = ({ setShowAdminHeader }) => {
                             <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
                               h.type === "bulk"
                                 ? "bg-purple-100 text-purple-700"
-                                : "bg-orange-100 text-orange-700"
+                                : h.type === "marks"
+                                  ? "bg-emerald-100 text-emerald-700"
+                                  : "bg-orange-100 text-orange-700"
                             }`}>
-                              {h.type === "bulk" ? "Bulk" : "Manual"}
+                              {h.type === "bulk" ? "Bulk" : h.type === "marks" ? "Marks" : "Manual"}
                             </span>
                           </td>
                           <td className="px-4 py-3 text-gray-500">{h.toAcademicYear || "—"}</td>

@@ -12,7 +12,7 @@ const promotionHistorySchema = new mongoose.Schema(
     toAcademicYear: { type: String, default: null },
     studentIds: [{ type: mongoose.Schema.Types.ObjectId, ref: 'StudentUser' }],
     studentCount: { type: Number, default: 0 },
-    type: { type: String, enum: ['bulk', 'manual'], default: 'manual' },
+    type: { type: String, enum: ['bulk', 'manual', 'marks'], default: 'manual' },
     promotedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'Admin', default: null },
     notes: { type: String, default: '' },
   },
