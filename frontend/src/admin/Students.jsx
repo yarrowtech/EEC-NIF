@@ -53,6 +53,7 @@ const Students = ({ setShowAdminHeader, setShowAdminBreadcrumb }) => {
 
   const [studentData, setStudentData] = useState([]);
   const [studentsLoading, setStudentsLoading] = useState(false);
+  const [tableRefreshing, setTableRefreshing] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [showAddForm, setShowAddForm] = useState(false);
   const [showWellbeingModal, setShowWellbeingModal] = useState(false);
@@ -514,6 +515,7 @@ const Students = ({ setShowAdminHeader, setShowAdminBreadcrumb }) => {
 
   const refreshStudents = async ({ useCache = false, showLoader = false } = {}) => {
     if (showLoader) setStudentsLoading(true);
+    let servedFromCache = false;
     if (useCache) {
       try {
         const cachedRaw = sessionStorage.getItem(getStudentsCacheKey());
@@ -522,8 +524,8 @@ const Students = ({ setShowAdminHeader, setShowAdminBreadcrumb }) => {
           if (Array.isArray(cached?.students)) {
             setStudentData(cached.students);
             setParentDirectory(Array.isArray(cached?.parents) ? cached.parents : []);
+            servedFromCache = true;
             if (showLoader) setStudentsLoading(false);
-            return;
           }
         }
       } catch (err) {
@@ -671,7 +673,19 @@ const Students = ({ setShowAdminHeader, setShowAdminBreadcrumb }) => {
       console.warn("Unable to cache students data", err);
     }
     } finally {
-      if (showLoader) setStudentsLoading(false);
+      if (showLoader && !servedFromCache) setStudentsLoading(false);
+    }
+  };
+
+  const handleRefreshTableData = async () => {
+    if (tableRefreshing) return;
+    setTableRefreshing(true);
+    try {
+      await refreshStudents({ useCache: false, showLoader: false });
+    } catch (err) {
+      console.error("Failed to refresh students table data:", err);
+    } finally {
+      setTableRefreshing(false);
     }
   };
 
@@ -2757,6 +2771,15 @@ const Students = ({ setShowAdminHeader, setShowAdminBreadcrumb }) => {
               Demo Excel
             </button>
             <button
+              onClick={handleRefreshTableData}
+              disabled={tableRefreshing}
+              className="border border-gray-200 bg-white text-gray-700 px-3 py-2 rounded-lg hover:bg-gray-50 disabled:opacity-60 flex items-center gap-2 text-sm flex-1 sm:flex-none justify-center transition"
+              title="Refresh students table data"
+            >
+              {tableRefreshing ? <Loader2 size={15} className="animate-spin" /> : <RotateCcw size={15} />}
+              {tableRefreshing ? "Refreshing..." : "Refresh"}
+            </button>
+            <button
               onClick={() => fileInputRef.current?.click()}
               disabled={isImporting}
               className="border border-gray-200 bg-white text-gray-700 px-3 py-2 rounded-lg hover:bg-gray-50 disabled:opacity-60 flex items-center gap-2 text-sm flex-1 sm:flex-none justify-center transition"
@@ -2896,7 +2919,13 @@ const Students = ({ setShowAdminHeader, setShowAdminBreadcrumb }) => {
 
           {/* Students Table */}
           <>
-            <div className="flex-1 overflow-y-auto rounded-xl border border-gray-200 bg-white shadow-sm">
+            <div className="relative flex-1 overflow-y-auto rounded-xl border border-gray-200 bg-white shadow-sm">
+              {tableRefreshing && (
+                <div className="sticky top-0 z-20 flex items-center justify-center gap-2 bg-amber-50/95 border-b border-amber-200 px-3 py-1.5 text-xs font-medium text-amber-700">
+                  <Loader2 size={13} className="animate-spin" />
+                  Refreshing table data...
+                </div>
+              )}
               <table className="w-full border-collapse table-fixed">
                   <thead className="sticky top-0 z-10">
                     <tr className="bg-gray-50">
@@ -2930,7 +2959,7 @@ const Students = ({ setShowAdminHeader, setShowAdminBreadcrumb }) => {
                       </th>
                     </tr>
                   </thead>
-                  <tbody>
+                  <tbody className={tableRefreshing ? "opacity-70 animate-pulse" : ""}>
                     {paginatedStudents.map((student) => {
                       const studentKey = student._id || student.id;
                       const admissionYear = student.admissionDate

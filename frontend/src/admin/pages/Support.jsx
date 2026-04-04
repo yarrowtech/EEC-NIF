@@ -9,10 +9,8 @@ import {
   Loader2,
   Mail,
   MessageCircle,
-  NotebookPen,
   RefreshCcw,
   Send,
-  TrendingUp,
   Phone,
   ShieldCheck,
   KeyRound,
@@ -69,11 +67,6 @@ const Support = ({ setShowAdminHeader }) => {
     onCall24x7: true
   });
 
-  const openTicketCount = useMemo(
-    () => recentRequests.filter((r) => r.status !== 'resolved').length,
-    [recentRequests]
-  );
-
   const supportPhoneHref = useMemo(() => {
     const digits = String(supportSettings.phoneNumber || '').replace(/[^\d+]/g, '');
     return digits ? `tel:${digits}` : 'tel:+919042056789';
@@ -83,34 +76,6 @@ const Support = ({ setShowAdminHeader }) => {
     const email = String(supportSettings.email || '').trim();
     return email ? `mailto:${email}` : 'mailto:support@eecschools.com';
   }, [supportSettings.email]);
-
-  const supportHighlights = useMemo(() => [
-    { icon: Clock, label: 'Avg. Response', value: '42 min', helper: 'Last 30 days', iconBg: 'bg-blue-100', iconColor: 'text-blue-600', valueBg: 'text-blue-600' },
-    { icon: TrendingUp, label: 'Resolution Rate', value: '97%', helper: '+3% vs last week', iconBg: 'bg-emerald-100', iconColor: 'text-emerald-600', valueBg: 'text-emerald-600' },
-    { icon: Ticket, label: 'Open Tickets', value: openTicketCount, helper: 'Awaiting action', iconBg: 'bg-amber-100', iconColor: 'text-amber-600', valueBg: 'text-amber-600' },
-    { icon: WifiOff, label: 'Offline Queue', value: queuedRequests.length, helper: 'Auto-sync on reconnect', iconBg: 'bg-slate-100', iconColor: 'text-slate-500', valueBg: 'text-slate-700' },
-  ], [openTicketCount, queuedRequests.length]);
-
-  const supportPlaybook = useMemo(() => [
-    {
-      title: 'Share context up front',
-      description: 'Attach ticket IDs, affected modules, and screenshots to eliminate back-and-forths.',
-      checklist: ['Mention the latest action taken', 'Include grade/campus info when relevant'],
-      color: 'from-blue-500 to-indigo-500'
-    },
-    {
-      title: 'Prefer portal requests',
-      description: 'Support routing is automatic here — skip manual triage that happens over calls.',
-      checklist: ['Use the urgency dropdown honestly', 'Tag the right topic so SMEs jump in faster'],
-      color: 'from-amber-500 to-orange-500'
-    },
-    {
-      title: 'Track the follow-up rhythm',
-      description: 'Tickets update every 4 hours. Add a note only if the situation has changed.',
-      checklist: ['Check "Recent requests" before calling', 'Escalate only if SLA is breached'],
-      color: 'from-emerald-500 to-teal-500'
-    }
-  ], []);
 
   useEffect(() => { setShowAdminHeader(true); }, [setShowAdminHeader]);
 
@@ -325,24 +290,6 @@ const Support = ({ setShowAdminHeader }) => {
               : <><span className="font-bold text-white">{supportSettings.availableDays}</span>&nbsp;·&nbsp;<span className="font-bold text-white">{supportSettings.availableTime}</span></>
             }
           </div>
-        </div>
-      </div>
-
-      {/* ── Floating Stat Cards ────────────────────────────────────────────── */}
-      <div className="max-w-6xl mx-auto px-6 -mt-6 relative z-10">
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          {supportHighlights.map((item) => (
-            <div key={item.label} className="bg-white rounded-2xl shadow-md border border-gray-100 p-4 flex items-center gap-4">
-              <div className={`p-3 rounded-xl ${item.iconBg} shrink-0`}>
-                <item.icon className={`h-5 w-5 ${item.iconColor}`} />
-              </div>
-              <div>
-                <p className={`text-2xl font-extrabold ${item.valueBg} leading-none`}>{item.value}</p>
-                <p className="text-xs font-semibold text-gray-700 mt-1">{item.label}</p>
-                <p className="text-xs text-gray-400 mt-0.5">{item.helper}</p>
-              </div>
-            </div>
-          ))}
         </div>
       </div>
 
@@ -711,43 +658,8 @@ const Support = ({ setShowAdminHeader }) => {
           )}
         </section>
 
-        {/* ── Bottom: Playbook + Urgent ──────────────────────────────────────── */}
-        <div className="grid gap-5 lg:grid-cols-5">
-
-          {/* Support Playbook */}
-          <section className="lg:col-span-3 bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
-            <div className="px-6 py-4 border-b border-gray-100 flex items-center gap-3">
-              <div className="p-2.5 rounded-xl bg-gray-100">
-                <NotebookPen className="h-5 w-5 text-gray-600" />
-              </div>
-              <div>
-                <p className="text-xs font-bold text-gray-400 uppercase tracking-widest">Best practices</p>
-                <h2 className="text-sm font-bold text-gray-900">Support Playbook</h2>
-              </div>
-            </div>
-            <div className="p-6 grid gap-4 sm:grid-cols-3">
-              {supportPlaybook.map((tip, i) => (
-                <div key={tip.title} className="rounded-2xl border border-gray-100 bg-gray-50 p-4 hover:shadow-sm transition">
-                  <div className={`w-8 h-8 rounded-xl bg-linear-to-br ${tip.color} flex items-center justify-center text-white text-sm font-extrabold mb-3`}>
-                    {i + 1}
-                  </div>
-                  <p className="text-sm font-bold text-gray-800 leading-snug">{tip.title}</p>
-                  <p className="text-xs text-gray-500 mt-1.5 leading-relaxed">{tip.description}</p>
-                  <ul className="mt-3 space-y-1.5">
-                    {tip.checklist.map((item) => (
-                      <li key={item} className="flex items-start gap-1.5 text-xs text-gray-600">
-                        <CheckCircle className="h-3.5 w-3.5 text-emerald-500 mt-0.5 shrink-0" />
-                        <span>{item}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              ))}
-            </div>
-          </section>
-
-          {/* Urgent Help */}
-          <section className="lg:col-span-2 rounded-2xl bg-linear-to-br from-gray-900 to-gray-800 text-white overflow-hidden flex flex-col shadow-sm">
+        {/* Urgent Help */}
+        <section className="rounded-2xl bg-linear-to-br from-gray-900 to-gray-800 text-white overflow-hidden flex flex-col shadow-sm">
             <div className="p-6 flex-1">
               <div className="flex items-center gap-2 mb-4">
                 <div className="p-2 rounded-xl bg-amber-500/20">
@@ -789,9 +701,7 @@ const Support = ({ setShowAdminHeader }) => {
                 <ArrowRight className="h-4 w-4" />
               </a>
             </div>
-          </section>
-
-        </div>
+        </section>
       </div>
     </div>
   );

@@ -10,9 +10,13 @@ import {
   Eye,
   IndianRupee,
   Loader2,
-  PlusCircle,
+  RefreshCw,
   Search,
   Users,
+  X,
+  Wallet,
+  ListFilter,
+  FileText,
 } from 'lucide-react';
 
 const API_BASE = (import.meta.env.VITE_API_URL || 'http://localhost:5000').replace(/\/$/, '');
@@ -301,6 +305,32 @@ const FeesCollection = ({ setShowAdminHeader }) => {
     };
   }, [bulkForm.classId, bulkForm.section, classNameById, students]);
 
+  const activeAcademicYear = useMemo(
+    () =>
+      (filterOptions.academicYears || []).find((year) => Boolean(year?.isActive)) || null,
+    [filterOptions.academicYears]
+  );
+
+  const matchedBulkStructure = useMemo(() => {
+    if (!bulkForm.classId) return null;
+    const activeYearId = activeAcademicYear?.id ? String(activeAcademicYear.id) : '';
+    const filtered = (structures || []).filter((structure) => {
+      if (String(structure?.classId || '') !== String(bulkForm.classId)) return false;
+      if (structure?.isActive === false) return false;
+      if (!activeYearId) return true;
+      return String(structure?.academicYearId || '') === activeYearId;
+    });
+    if (!filtered.length) return null;
+    return filtered[0];
+  }, [bulkForm.classId, structures, activeAcademicYear]);
+
+  const bulkAssignDisabledReason = useMemo(() => {
+    if (!bulkForm.classId) return 'Select a class first.';
+    if (!matchedBulkStructure) return 'No active-year fee structure found for this class.';
+    if (bulkTargetSummary.studentCount === 0) return 'No students found for selected class/section.';
+    return '';
+  }, [bulkForm.classId, matchedBulkStructure, bulkTargetSummary.studentCount]);
+
   const handleViewDetails = (record) => {
     if (!record?.invoiceId) return;
     navigate(`/admin/fees/student-details?invoice=${record.invoiceId}`, {
@@ -541,490 +571,422 @@ const FeesCollection = ({ setShowAdminHeader }) => {
     doc.save(`fees-report-${currentDate.replace(/\//g, '-')}.pdf`);
   };
 
-  const summaryCards = [
-    { label: 'Total Students', value: summary.totalStudents, icon: Users },
-    { label: 'Total Fees', value: formatCurrency(summary.totalDue), icon: IndianRupee },
-    { label: 'Collected', value: formatCurrency(summary.totalCollected), icon: CheckCircle2 },
-    { label: 'Pending', value: formatCurrency(summary.totalPending), icon: AlertCircle },
+  const selectCls = 'w-full rounded-xl border border-gray-200 bg-gray-50 px-3.5 py-2.5 text-sm text-gray-900 outline-none transition-all focus:border-indigo-400 focus:bg-white focus:ring-4 focus:ring-indigo-50';
+  const inputCls = 'w-full rounded-xl border border-gray-200 bg-gray-50 px-3.5 py-2.5 text-sm text-gray-900 placeholder-gray-300 outline-none transition-all focus:border-indigo-400 focus:bg-white focus:ring-4 focus:ring-indigo-50';
+
+  const STATUS_STYLE = {
+    paid:    { bg: 'bg-emerald-50 text-emerald-700 border-emerald-200',    dot: 'bg-emerald-500' },
+    partial: { bg: 'bg-amber-50 text-amber-700 border-amber-200',          dot: 'bg-amber-500'   },
+    due:     { bg: 'bg-red-50 text-red-700 border-red-200',                dot: 'bg-red-500'     },
+  };
+  const statusStyle = (s) => STATUS_STYLE[s] || STATUS_STYLE.due;
+
+  const CARD_CONFIG = [
+    { label: 'Total Students', value: summary.totalStudents, icon: Users,        bg: 'bg-indigo-50',  ic: 'text-indigo-500'  },
+    { label: 'Total Fees',     value: formatCurrency(summary.totalDue),       icon: IndianRupee,  bg: 'bg-violet-50',  ic: 'text-violet-500'  },
+    { label: 'Collected',      value: formatCurrency(summary.totalCollected),  icon: CheckCircle2, bg: 'bg-emerald-50', ic: 'text-emerald-500' },
+    { label: 'Pending',        value: formatCurrency(summary.totalPending),    icon: AlertCircle,  bg: 'bg-red-50',     ic: 'text-red-500'     },
   ];
 
-  const getStatusChip = (status) => {
-    switch (status) {
-      case 'paid':
-        return 'bg-green-100 text-green-700';
-      case 'partial':
-        return 'bg-yellow-100 text-yellow-700';
-      case 'due':
-      default:
-        return 'bg-red-100 text-red-700';
-    }
-  };
-
   return (
-    <div className="min-h-screen bg-slate-50">
-      <div className="px-6 py-8 lg:px-10 space-y-6">
-          <div className="bg-gradient-to-r from-amber-500 via-orange-500 to-yellow-400 rounded-3xl p-6 text-white shadow-lg">
-            <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.3em] text-white/70">
-                  Fees Operations
-                </p>
-                <h1 className="text-3xl font-semibold mt-2">Fees Collection</h1>
-                <p className="text-sm text-white/80 mt-2">
-                  Track invoices, collect payments, and manage fee structures.
-              </p>
-            </div>
-            <div className="flex items-center gap-2">
-              <button
-                onClick={exportReport}
-                className="inline-flex items-center gap-2 px-4 py-2 bg-white text-slate-900 rounded-xl text-sm font-semibold hover:bg-slate-100"
-              >
-                <Download size={16} />
-                Export Report
-              </button>
-              <button
-                onClick={fetchRecords}
-                disabled={loading}
-                className="inline-flex items-center gap-2 px-4 py-2 bg-slate-900 text-white rounded-xl text-sm font-semibold hover:bg-slate-800 disabled:opacity-50"
-              >
-                {loading && <Loader2 className="w-4 h-4 animate-spin" />}
-                Refresh
-              </button>
-            </div>
+    <div className="min-h-screen bg-gray-50 p-4 sm:p-6 space-y-5">
+
+      {/* ── Page header ── */}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-2xl bg-indigo-500 flex items-center justify-center shadow-md shadow-indigo-200">
+            <Wallet className="w-5 h-5 text-white" />
+          </div>
+          <div>
+            <h1 className="text-xl font-black text-gray-900 leading-tight">Fees Collection</h1>
+            <p className="text-xs text-gray-400 mt-0.5">Track invoices, collect payments, and manage fee structures</p>
           </div>
         </div>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={exportReport}
+            className="inline-flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-xs font-semibold text-gray-700 hover:bg-gray-50 transition-all shadow-sm"
+          >
+            <Download className="w-3.5 h-3.5" />
+            Export PDF
+          </button>
+          <button
+            onClick={fetchRecords}
+            disabled={loading}
+            className="inline-flex items-center gap-2 rounded-xl border border-indigo-200 bg-indigo-50 px-4 py-2.5 text-xs font-semibold text-indigo-600 hover:bg-indigo-100 transition-all disabled:opacity-50"
+          >
+            {loading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
+            Refresh
+          </button>
+        </div>
+      </div>
 
-        <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 space-y-4">
-          <div className="flex flex-wrap items-center justify-between gap-3">
+      {/* ── Summary cards ── */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        {CARD_CONFIG.map((card) => (
+          <div key={card.label} className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm flex items-center justify-between gap-3">
             <div>
-              <h2 className="text-lg font-semibold text-slate-900">Filters</h2>
-              <p className="text-sm text-slate-500">Narrow down invoices by class, section, status, or search.</p>
+              <p className="text-xs text-gray-500 font-medium">{card.label}</p>
+              <p className="text-lg font-black text-gray-900 mt-1">{card.value}</p>
             </div>
-            <label className="inline-flex items-center gap-2 text-sm text-slate-600">
-              <input
-                type="checkbox"
-                checked={filters.overdue}
-                onChange={(e) => setFilters((prev) => ({ ...prev, overdue: e.target.checked }))}
-              />
-              Show overdue only
-            </label>
+            <div className={`w-10 h-10 rounded-2xl ${card.bg} flex items-center justify-center shrink-0`}>
+              <card.icon className={`w-5 h-5 ${card.ic}`} />
+            </div>
           </div>
-          <div className="flex flex-wrap gap-4">
-            <div className="flex-1 min-w-[180px]">
-              <label className="block text-sm font-medium text-slate-700 mb-2">Class</label>
-              <select
-                value={filters.classId}
-                onChange={(e) => setFilters((prev) => ({ ...prev, classId: e.target.value }))}
-                className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent"
-              >
-                <option value="">All</option>
-                {classOptions.map((cls) => (
-                  <option key={cls.id} value={cls.id}>
-                    {cls.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div className="flex-1 min-w-[180px]">
-              <label className="block text-sm font-medium text-slate-700 mb-2">Section</label>
-              <select
-                value={filters.section}
-                onChange={(e) => setFilters((prev) => ({ ...prev, section: e.target.value }))}
-                className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent"
-              >
-                <option value="">All</option>
-                {filteredSections.map((sec) => (
-                  <option key={sec.id} value={sec.name}>
-                    {sec.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div className="flex-1 min-w-[180px]">
-              <label className="block text-sm font-medium text-slate-700 mb-2">Status</label>
-              <select
-                value={filters.status}
-                onChange={(e) => setFilters((prev) => ({ ...prev, status: e.target.value }))}
-                className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent"
-              >
-                <option value="">All</option>
-                <option value="due">Due</option>
-                <option value="partial">Partial</option>
-                <option value="paid">Paid</option>
-              </select>
-            </div>
-            <div className="flex-1 min-w-[180px]">
-              <label className="block text-sm font-medium text-slate-700 mb-2">Search</label>
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-                <input
-                  value={filters.search}
-                  onChange={(e) => setFilters((prev) => ({ ...prev, search: e.target.value }))}
-                  className="w-full pl-10 pr-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent"
-                  placeholder="Student name / admission no / student id"
-                />
-              </div>
-            </div>
+        ))}
+      </div>
+
+      {/* ── Notices ── */}
+      {fetchError && (
+        <div className="flex items-center gap-2.5 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          <AlertCircle className="w-4 h-4 shrink-0" />
+          {fetchError}
+        </div>
+      )}
+      {actionNotice.text && (
+        <div className={`flex items-center gap-2.5 rounded-2xl border px-4 py-3 text-sm ${
+          actionNotice.type === 'success'
+            ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
+            : 'border-red-200 bg-red-50 text-red-700'
+        }`}>
+          {actionNotice.type === 'success'
+            ? <CheckCircle2 className="w-4 h-4 shrink-0" />
+            : <AlertCircle className="w-4 h-4 shrink-0" />}
+          {actionNotice.text}
+        </div>
+      )}
+
+      {/* ── Bulk assign section ── */}
+      <div className="rounded-3xl border border-gray-100 bg-white p-6 shadow-sm space-y-5">
+        <div className="flex items-center gap-3">
+          <div className="w-8 h-8 rounded-xl bg-emerald-50 flex items-center justify-center">
+            <FileText className="w-4 h-4 text-emerald-600" />
+          </div>
+          <div>
+            <h2 className="text-sm font-bold text-gray-900">Assign Fee Structure to Class</h2>
+            <p className="text-xs text-gray-400 mt-0.5">Auto-generate invoices for all students in a class using the active fee structure</p>
           </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          {summaryCards.map((card) => (
-            <div
-              key={card.label}
-              className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 flex items-center justify-between"
-            >
-              <div>
-                <p className="text-sm text-slate-500">{card.label}</p>
-                <p className="text-xl font-semibold text-slate-900 mt-1">{card.value}</p>
-              </div>
-              <card.icon className="w-8 h-8 text-amber-500" />
+        {/* Step pills */}
+        <div className="grid grid-cols-3 gap-2">
+          {['Select Class / Section', 'Verify Active Structure', 'Click Assign'].map((step, i) => (
+            <div key={step} className="flex items-center gap-2 rounded-xl border border-gray-100 bg-gray-50 px-3 py-2">
+              <span className="w-5 h-5 rounded-full bg-indigo-100 text-indigo-600 text-[10px] font-bold flex items-center justify-center shrink-0">{i + 1}</span>
+              <span className="text-xs text-gray-600 font-medium">{step}</span>
             </div>
           ))}
         </div>
 
-        <div className="bg-white rounded-2xl shadow-sm border border-emerald-200 p-6">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <h2 className="text-lg font-semibold text-slate-900">Bulk Invoice Generator</h2>
-              <p className="text-sm text-slate-500">
-                Create invoices for every student in a class using the active academic-year structure.
-              </p>
-            </div>
-          </div>
-          <div className="mt-4 grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-2">Class</label>
-              <select
-                value={bulkForm.classId}
-                onChange={(e) =>
-                  setBulkForm((prev) => ({
-                    ...prev,
-                    classId: e.target.value,
-                    section: '',
-                  }))
-                }
-                className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
-              >
-                <option value="">Select class</option>
-                {classOptions.map((cls) => (
-                  <option key={cls.id} value={cls.id}>
-                    {cls.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-2">Section (optional)</label>
-              <select
-                value={bulkForm.section}
-                onChange={(e) => setBulkForm((prev) => ({ ...prev, section: e.target.value }))}
-                className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
-              >
-                <option value="">All</option>
-                {bulkSections.map((sec) => (
-                  <option key={sec.id} value={sec.name}>
-                    {sec.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-2">Invoice Title (optional)</label>
-              <input
-                value={bulkForm.title}
-                onChange={(e) => setBulkForm((prev) => ({ ...prev, title: e.target.value }))}
-                className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
-                placeholder="Annual Fee Invoice"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-2">Due Date (optional)</label>
-              <input
-                type="date"
-                value={bulkForm.dueDate}
-                onChange={(e) => setBulkForm((prev) => ({ ...prev, dueDate: e.target.value }))}
-                className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
-              />
-            </div>
-          </div>
-          <div className="mt-4 flex flex-wrap items-center gap-3">
-            <div className="text-sm text-slate-600">
-              Target: {bulkTargetSummary.className || 'No class selected'}
-              {bulkTargetSummary.sectionName ? ` - ${bulkTargetSummary.sectionName}` : ''} | Students: {bulkTargetSummary.studentCount}
-            </div>
-            <button
-              onClick={handleBulkGenerate}
-              disabled={bulkLoading}
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-emerald-600 text-white text-sm font-semibold hover:bg-emerald-700 disabled:opacity-50"
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="space-y-1.5">
+            <label className="block text-[11px] font-semibold text-gray-500 uppercase tracking-wider">Class</label>
+            <select
+              value={bulkForm.classId}
+              onChange={(e) => setBulkForm((prev) => ({ ...prev, classId: e.target.value, section: '' }))}
+              className={selectCls}
             >
-              {bulkLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
-              Generate Invoices
-            </button>
-            {bulkStatus.text && (
-              <span
-                className={`text-sm ${
-                  bulkStatus.type === 'success' ? 'text-emerald-700' : 'text-red-600'
-                }`}
-              >
-                {bulkStatus.text}
-              </span>
-            )}
+              <option value="">Select class</option>
+              {classOptions.map((cls) => (
+                <option key={cls.id} value={cls.id}>{cls.name}</option>
+              ))}
+            </select>
+          </div>
+          <div className="space-y-1.5">
+            <label className="block text-[11px] font-semibold text-gray-500 uppercase tracking-wider">Section <span className="normal-case font-normal text-gray-400">(optional)</span></label>
+            <select
+              value={bulkForm.section}
+              onChange={(e) => setBulkForm((prev) => ({ ...prev, section: e.target.value }))}
+              className={selectCls}
+            >
+              <option value="">All Sections</option>
+              {bulkSections.map((sec) => (
+                <option key={sec.id} value={sec.name}>{sec.name}</option>
+              ))}
+            </select>
+          </div>
+          <div className="space-y-1.5">
+            <label className="block text-[11px] font-semibold text-gray-500 uppercase tracking-wider">Due Date <span className="normal-case font-normal text-gray-400">(optional)</span></label>
+            <input
+              type="date"
+              value={bulkForm.dueDate}
+              onChange={(e) => setBulkForm((prev) => ({ ...prev, dueDate: e.target.value }))}
+              className={inputCls}
+            />
+          </div>
+          <div className="space-y-1.5">
+            <label className="block text-[11px] font-semibold text-gray-500 uppercase tracking-wider">Invoice Title <span className="normal-case font-normal text-gray-400">(optional)</span></label>
+            <input
+              value={bulkForm.title}
+              onChange={(e) => setBulkForm((prev) => ({ ...prev, title: e.target.value }))}
+              className={inputCls}
+              placeholder="e.g. Annual Fee Invoice"
+            />
           </div>
         </div>
 
-        {fetchError && (
-          <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">
-            {fetchError}
+        {/* Status row */}
+        <div className="flex flex-wrap items-center gap-3">
+          <div className={`flex-1 min-w-[180px] rounded-xl border px-4 py-2.5 text-xs font-medium ${
+            matchedBulkStructure
+              ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
+              : 'border-gray-200 bg-gray-50 text-gray-400'
+          }`}>
+            <span className="font-semibold">Structure: </span>
+            {matchedBulkStructure
+              ? `${matchedBulkStructure.name || 'Structure'} · ₹${Number(matchedBulkStructure.totalAmount || 0).toLocaleString('en-IN')}`
+              : (bulkForm.classId ? 'No active structure found for this class' : 'Select a class to see matched structure')}
           </div>
-        )}
-        {actionNotice.text && (
-          <div
-            className={`border px-4 py-3 rounded-lg ${
-              actionNotice.type === 'success'
-                ? 'bg-emerald-50 border-emerald-200 text-emerald-700'
-                : 'bg-red-50 border-red-200 text-red-700'
-            }`}
+          <div className="rounded-xl border border-gray-200 bg-gray-50 px-4 py-2.5 text-xs text-gray-600">
+            <span className="font-semibold">Academic Year: </span>
+            {activeAcademicYear?.name || 'Not configured'}
+          </div>
+          <div className="rounded-xl border border-indigo-100 bg-indigo-50 px-4 py-2.5 text-xs text-indigo-700">
+            <span className="font-semibold">Target: </span>
+            {bulkTargetSummary.className || 'No class'}{bulkTargetSummary.sectionName ? ` · ${bulkTargetSummary.sectionName}` : ''} · <span className="font-bold">{bulkTargetSummary.studentCount} students</span>
+          </div>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-3 pt-1 border-t border-gray-50">
+          <button
+            onClick={handleBulkGenerate}
+            disabled={bulkLoading || Boolean(bulkAssignDisabledReason)}
+            className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-5 py-2.5 text-sm font-bold text-white shadow-sm hover:bg-emerald-700 transition-all disabled:opacity-50"
           >
-            {actionNotice.text}
-          </div>
-        )}
-
-        <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
-          <div className="flex items-center justify-between gap-4">
-            <div>
-              <h2 className="text-lg font-semibold text-slate-900">Fee Invoices</h2>
-              <p className="text-sm text-slate-500">Manage fee invoices and dues.</p>
-            </div>
-            <button
-              onClick={() => setShowInvoiceForm((prev) => !prev)}
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-amber-500 text-white text-sm font-semibold hover:bg-amber-600"
-            >
-              <PlusCircle size={16} />
-              Create Invoice
-            </button>
-          </div>
-
-          {showInvoiceForm && (
-            <div className="mt-4 grid gap-4 md:grid-cols-2 lg:grid-cols-5 border border-amber-200 rounded-2xl p-5 bg-amber-50/60">
-              <div className="lg:col-span-2">
-                <label className="block text-sm font-medium text-slate-700 mb-2">Student</label>
-                <select
-                  value={invoiceForm.studentId}
-                  onChange={(e) => setInvoiceForm((prev) => ({ ...prev, studentId: e.target.value }))}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
-                >
-                  <option value="">Select student</option>
-                  {students.map((student) => (
-                    <option key={student._id} value={student._id}>
-                      {formatStudentDisplay(student)}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div className="lg:col-span-2">
-                <label className="block text-sm font-medium text-slate-700 mb-2">Fee Structure (optional)</label>
-                <select
-                  value={invoiceForm.feeStructureId}
-                  onChange={(e) => setInvoiceForm((prev) => ({ ...prev, feeStructureId: e.target.value }))}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
-                >
-                  <option value="">Select structure</option>
-                  {structures.map((structure) => (
-                    <option key={structure._id} value={structure._id}>
-                      {structure.name} {structure.className ? `- ${structure.className}` : ''}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-2">Total Amount</label>
-                <input
-                  type="number"
-                  min="0"
-                  value={invoiceForm.totalAmount}
-                  onChange={(e) => setInvoiceForm((prev) => ({ ...prev, totalAmount: e.target.value }))}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
-                  placeholder="Amount"
-                  disabled={Boolean(invoiceForm.feeStructureId)}
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-2">Title</label>
-                <input
-                  type="text"
-                  value={invoiceForm.title}
-                  onChange={(e) => setInvoiceForm((prev) => ({ ...prev, title: e.target.value }))}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
-                  placeholder="Invoice title"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-2">Due Date</label>
-                <input
-                  type="date"
-                  value={invoiceForm.dueDate}
-                  onChange={(e) => setInvoiceForm((prev) => ({ ...prev, dueDate: e.target.value }))}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
-                />
-              </div>
-              <div className="lg:col-span-5">
-                <button
-                  onClick={handleInvoiceCreate}
-                  disabled={creatingInvoice}
-                  className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-slate-900 text-white text-sm font-semibold hover:bg-slate-800 disabled:opacity-50"
-                >
-                  {creatingInvoice ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
-                  Create Invoice
-                </button>
-              </div>
-            </div>
+            {bulkLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
+            Assign to Class Students
+          </button>
+          {bulkAssignDisabledReason && (
+            <span className="text-xs text-red-500 font-medium">{bulkAssignDisabledReason}</span>
           )}
-        </div>
-
-        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead className="bg-slate-50 text-xs uppercase text-slate-500">
-                <tr>
-                  <th className="px-4 py-3 text-left">Student</th>
-                  <th className="px-4 py-3 text-left">Admission No</th>
-                  <th className="px-4 py-3 text-left">Class</th>
-                  <th className="px-4 py-3 text-left">Section</th>
-                  <th className="px-4 py-3 text-right">Total Fee</th>
-                  <th className="px-4 py-3 text-right">Paid</th>
-                  <th className="px-4 py-3 text-right">Outstanding</th>
-                  <th className="px-4 py-3 text-center">Status</th>
-                  <th className="px-4 py-3 text-center">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {loading && (
-                  <tr>
-                    <td colSpan={9} className="px-4 py-8 text-center text-slate-500">
-                      <Loader2 className="w-5 h-5 animate-spin inline mr-2" />
-                      Loading fee invoices...
-                    </td>
-                  </tr>
-                )}
-
-                {!loading && records.length === 0 && (
-                  <tr>
-                    <td colSpan={9} className="px-4 py-8 text-center text-slate-400">
-                      No fee invoices found for the selected filters.
-                    </td>
-                  </tr>
-                )}
-
-                {!loading &&
-                  records.map((record) => (
-                    <tr key={record.invoiceId} className="hover:bg-slate-50">
-                      <td className="px-4 py-3 text-slate-900 font-medium">{record.studentName}</td>
-                      <td className="px-4 py-3 text-slate-600">{record.admissionNumber || '-'}</td>
-                      <td className="px-4 py-3 text-slate-600">{record.className || '-'}</td>
-                      <td className="px-4 py-3 text-slate-600">{record.section || '-'}</td>
-                      <td className="px-4 py-3 text-right text-slate-900">
-                        {formatCurrency(record.totalAmount)}
-                      </td>
-                      <td className="px-4 py-3 text-right text-slate-600">
-                        {formatCurrency(record.paidAmount)}
-                      </td>
-                      <td className="px-4 py-3 text-right text-red-600 font-semibold">
-                        {formatCurrency(record.balanceAmount)}
-                      </td>
-                      <td className="px-4 py-3 text-center">
-                        <span
-                          className={`inline-flex px-3 py-1 rounded-full text-xs font-medium ${getStatusChip(
-                            record.status
-                          )}`}
-                        >
-                          {record.status?.toUpperCase?.() || ''}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3 text-center">
-                        <div className="inline-flex items-center gap-2">
-                          <button
-                            onClick={() => handleViewDetails(record)}
-                            className="inline-flex items-center gap-1 px-3 py-1 text-xs font-medium rounded border border-slate-200 hover:bg-slate-100 text-slate-800"
-                          >
-                            <Eye size={12} />
-                            Details
-                          </button>
-                          {Number(record.balanceAmount || 0) > 0 && (
-                            <button
-                              onClick={() => handleOpenOnlinePayment(record)}
-                              className="inline-flex items-center gap-1 px-3 py-1 text-xs font-medium rounded bg-amber-500 text-white hover:bg-amber-600"
-                            >
-                              <CreditCard size={12} />
-                              Pay Online
-                            </button>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-              </tbody>
-            </table>
-          </div>
+          {bulkStatus.text && (
+            <span className={`text-xs font-semibold ${bulkStatus.type === 'success' ? 'text-emerald-700' : 'text-red-600'}`}>
+              {bulkStatus.text}
+            </span>
+          )}
         </div>
       </div>
 
+      {/* ── Filters + Invoice list ── */}
+      <div className="rounded-3xl border border-gray-100 bg-white shadow-sm overflow-hidden">
+        {/* Filter bar */}
+        <div className="px-6 py-4 border-b border-gray-50 space-y-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-2">
+              <ListFilter className="w-4 h-4 text-gray-400" />
+              <span className="text-sm font-bold text-gray-800">Filters</span>
+              {!loading && (
+                <span className="text-xs font-semibold bg-indigo-50 text-indigo-700 border border-indigo-100 px-2 py-0.5 rounded-full">
+                  {records.length} invoices
+                </span>
+              )}
+            </div>
+            <label className="inline-flex items-center gap-2 text-xs font-semibold text-red-600 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={filters.overdue}
+                onChange={(e) => setFilters((prev) => ({ ...prev, overdue: e.target.checked }))}
+                className="h-3.5 w-3.5 rounded border-gray-300 text-red-500 focus:ring-red-400"
+              />
+              Overdue only
+            </label>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+            <select value={filters.classId} onChange={(e) => setFilters((prev) => ({ ...prev, classId: e.target.value }))} className={selectCls}>
+              <option value="">All Classes</option>
+              {classOptions.map((cls) => <option key={cls.id} value={cls.id}>{cls.name}</option>)}
+            </select>
+            <select value={filters.section} onChange={(e) => setFilters((prev) => ({ ...prev, section: e.target.value }))} className={selectCls}>
+              <option value="">All Sections</option>
+              {filteredSections.map((sec) => <option key={sec.id} value={sec.name}>{sec.name}</option>)}
+            </select>
+            <select value={filters.status} onChange={(e) => setFilters((prev) => ({ ...prev, status: e.target.value }))} className={selectCls}>
+              <option value="">All Statuses</option>
+              <option value="due">Due</option>
+              <option value="partial">Partial</option>
+              <option value="paid">Paid</option>
+            </select>
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
+              <input
+                value={filters.search}
+                onChange={(e) => setFilters((prev) => ({ ...prev, search: e.target.value }))}
+                className={`${inputCls} pl-9`}
+                placeholder="Name / adm. no / ID"
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* Table */}
+        <div className="overflow-x-auto">
+          <table className="min-w-full">
+            <thead>
+              <tr className="bg-gray-50/80 border-b border-gray-100">
+                <th className="px-5 py-3 text-left text-[11px] font-bold text-gray-400 uppercase tracking-wider">Student</th>
+                <th className="px-5 py-3 text-left text-[11px] font-bold text-gray-400 uppercase tracking-wider">Adm. No</th>
+                <th className="px-5 py-3 text-left text-[11px] font-bold text-gray-400 uppercase tracking-wider">Class</th>
+                <th className="px-5 py-3 text-left text-[11px] font-bold text-gray-400 uppercase tracking-wider">Sec</th>
+                <th className="px-5 py-3 text-right text-[11px] font-bold text-gray-400 uppercase tracking-wider">Total Fee</th>
+                <th className="px-5 py-3 text-right text-[11px] font-bold text-gray-400 uppercase tracking-wider">Paid</th>
+                <th className="px-5 py-3 text-right text-[11px] font-bold text-gray-400 uppercase tracking-wider">Outstanding</th>
+                <th className="px-5 py-3 text-center text-[11px] font-bold text-gray-400 uppercase tracking-wider">Status</th>
+                <th className="px-5 py-3 text-right text-[11px] font-bold text-gray-400 uppercase tracking-wider">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-50">
+              {loading && (
+                <tr>
+                  <td colSpan={9} className="px-5 py-16 text-center">
+                    <div className="flex flex-col items-center gap-3">
+                      <div className="w-10 h-10 rounded-2xl bg-indigo-50 flex items-center justify-center">
+                        <Loader2 className="w-5 h-5 text-indigo-500 animate-spin" />
+                      </div>
+                      <p className="text-sm text-gray-400">Loading fee invoices…</p>
+                    </div>
+                  </td>
+                </tr>
+              )}
+              {!loading && records.length === 0 && (
+                <tr>
+                  <td colSpan={9} className="px-5 py-16 text-center">
+                    <div className="flex flex-col items-center gap-3">
+                      <div className="w-14 h-14 rounded-3xl bg-gray-50 border border-gray-100 flex items-center justify-center">
+                        <FileText className="w-7 h-7 text-gray-200" />
+                      </div>
+                      <p className="text-sm font-semibold text-gray-500">No invoices found</p>
+                      <p className="text-xs text-gray-400">Try adjusting the filters above.</p>
+                    </div>
+                  </td>
+                </tr>
+              )}
+              {!loading && records.map((record) => {
+                const ss = statusStyle(record.status);
+                const initials = (record.studentName || 'S').split(' ').map(w => w[0]).slice(0,2).join('').toUpperCase();
+                return (
+                  <tr key={record.invoiceId} className="hover:bg-gray-50/60 transition-colors">
+                    <td className="px-5 py-3.5">
+                      <div className="flex items-center gap-2.5">
+                        <div className="w-8 h-8 rounded-xl bg-indigo-100 text-indigo-600 text-xs font-bold flex items-center justify-center shrink-0">
+                          {initials}
+                        </div>
+                        <span className="text-sm font-semibold text-gray-800">{record.studentName || '—'}</span>
+                      </div>
+                    </td>
+                    <td className="px-5 py-3.5 text-sm text-gray-500">{record.admissionNumber || '—'}</td>
+                    <td className="px-5 py-3.5 text-sm text-gray-600">{record.className || '—'}</td>
+                    <td className="px-5 py-3.5 text-sm text-gray-600">{record.section || '—'}</td>
+                    <td className="px-5 py-3.5 text-right text-sm font-semibold text-gray-800">{formatCurrency(record.totalAmount)}</td>
+                    <td className="px-5 py-3.5 text-right text-sm text-emerald-600 font-medium">{formatCurrency(record.paidAmount)}</td>
+                    <td className="px-5 py-3.5 text-right text-sm font-bold text-red-500">
+                      {Number(record.balanceAmount || 0) > 0 ? formatCurrency(record.balanceAmount) : <span className="text-gray-300">—</span>}
+                    </td>
+                    <td className="px-5 py-3.5 text-center">
+                      <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-semibold ${ss.bg}`}>
+                        <span className={`w-1.5 h-1.5 rounded-full ${ss.dot}`} />
+                        {(record.status || 'due').toUpperCase()}
+                      </span>
+                    </td>
+                    <td className="px-5 py-3.5 text-right">
+                      <div className="inline-flex items-center gap-2">
+                        <button
+                          onClick={() => handleViewDetails(record)}
+                          className="inline-flex items-center gap-1.5 rounded-xl border border-gray-200 bg-white px-3 py-1.5 text-xs font-semibold text-gray-700 hover:bg-gray-50 transition-all"
+                        >
+                          <Eye className="h-3 w-3" />
+                          Details
+                        </button>
+                        {Number(record.balanceAmount || 0) > 0 && (
+                          <button
+                            onClick={() => handleOpenOnlinePayment(record)}
+                            className="inline-flex items-center gap-1.5 rounded-xl border border-indigo-200 bg-indigo-50 px-3 py-1.5 text-xs font-semibold text-indigo-600 hover:bg-indigo-100 transition-all"
+                          >
+                            <CreditCard className="h-3 w-3" />
+                            Pay
+                          </button>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* ── Online Payment Modal ── */}
       {onlinePaymentModal.open && (
-        <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4">
-          <div className="w-full max-w-lg rounded-2xl bg-white border border-slate-200 shadow-2xl">
-            <div className="p-6 border-b border-slate-100">
-              <h3 className="text-lg font-semibold text-slate-900">Collect Online Payment</h3>
-              <p className="text-sm text-slate-500 mt-1">
-                {onlinePaymentModal.record?.studentName || 'Student'} ·{' '}
-                {onlinePaymentModal.record?.className || 'Class'}{' '}
-                {onlinePaymentModal.record?.section ? `(${onlinePaymentModal.record.section})` : ''}
-              </p>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={handleCloseOnlinePayment} />
+          <div className="relative w-full max-w-md rounded-3xl bg-white shadow-2xl overflow-hidden">
+            <div className="flex items-center justify-between px-6 py-5 border-b border-gray-100">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-xl bg-indigo-50 flex items-center justify-center">
+                  <CreditCard className="w-4.5 h-4.5 text-indigo-600" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-gray-900">Collect Online Payment</h3>
+                  <p className="text-xs text-gray-400 mt-0.5">
+                    {onlinePaymentModal.record?.studentName || 'Student'} · {onlinePaymentModal.record?.className || ''}{onlinePaymentModal.record?.section ? ` (${onlinePaymentModal.record.section})` : ''}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={handleCloseOnlinePayment}
+                disabled={onlinePaymentLoading}
+                className="w-8 h-8 rounded-xl flex items-center justify-center text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-all disabled:opacity-50"
+              >
+                <X className="w-4 h-4" />
+              </button>
             </div>
             <div className="p-6 space-y-4">
-              <div className="rounded-lg bg-amber-50 border border-amber-200 px-3 py-2 text-sm text-amber-700">
-                Outstanding: {formatCurrency(onlinePaymentModal.record?.balanceAmount || 0)}
+              <div className="flex items-center justify-between rounded-xl border border-amber-200 bg-amber-50 px-4 py-3">
+                <span className="text-xs font-semibold text-amber-700">Outstanding Balance</span>
+                <span className="text-sm font-black text-amber-800">{formatCurrency(onlinePaymentModal.record?.balanceAmount || 0)}</span>
               </div>
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-2">Amount</label>
+              <div className="space-y-1.5">
+                <label className="block text-[11px] font-semibold text-gray-500 uppercase tracking-wider">Payment Amount</label>
                 <input
                   type="number"
                   min="0"
                   step="1"
                   value={onlinePaymentModal.amount}
-                  onChange={(e) =>
-                    setOnlinePaymentModal((prev) => ({ ...prev, amount: e.target.value }))
-                  }
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
+                  onChange={(e) => setOnlinePaymentModal((prev) => ({ ...prev, amount: e.target.value }))}
+                  className={inputCls}
+                  placeholder="Enter amount"
                 />
               </div>
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-2">Notes (optional)</label>
+              <div className="space-y-1.5">
+                <label className="block text-[11px] font-semibold text-gray-500 uppercase tracking-wider">Notes <span className="normal-case font-normal text-gray-400">(optional)</span></label>
                 <input
                   type="text"
                   value={onlinePaymentModal.notes}
-                  onChange={(e) =>
-                    setOnlinePaymentModal((prev) => ({ ...prev, notes: e.target.value }))
-                  }
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
+                  onChange={(e) => setOnlinePaymentModal((prev) => ({ ...prev, notes: e.target.value }))}
+                  className={inputCls}
                   placeholder="Reference note"
                 />
               </div>
             </div>
-            <div className="px-6 py-4 border-t border-slate-100 flex items-center justify-end gap-3">
+            <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-gray-100">
               <button
+                type="button"
                 onClick={handleCloseOnlinePayment}
                 disabled={onlinePaymentLoading}
-                className="px-4 py-2 rounded-lg text-sm font-medium border border-slate-200 text-slate-700 hover:bg-slate-50 disabled:opacity-60"
+                className="rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm font-semibold text-gray-600 hover:bg-gray-50 transition-all disabled:opacity-60"
               >
                 Cancel
               </button>
               <button
+                type="button"
                 onClick={handleStartOnlinePayment}
                 disabled={onlinePaymentLoading}
-                className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-60"
+                className="inline-flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-bold text-white shadow-md transition-all disabled:opacity-60"
+                style={{ background: 'linear-gradient(135deg,#4f46e5 0%,#6366f1 60%,#818cf8 100%)' }}
               >
-                {onlinePaymentLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <CreditCard size={16} />}
-                Proceed to Razorpay
+                {onlinePaymentLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <CreditCard className="w-4 h-4" />}
+                {onlinePaymentLoading ? 'Processing…' : 'Proceed to Razorpay'}
               </button>
             </div>
           </div>
