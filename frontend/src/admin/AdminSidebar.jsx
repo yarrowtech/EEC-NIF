@@ -11,7 +11,8 @@ const AdminSidebar = ({
   adminUser
 }) => {
   const [expandedMenus, setExpandedMenus] = useState({});
-  const footerLogoSrc = adminUser?.schoolLogo || '';
+  const brandLogoSrc = adminUser?.schoolLogo || adminUser?.avatar || '';
+  const footerLogoSrc = adminUser?.schoolLogo || adminUser?.avatar || '';
   const footerInitial = adminUser?.name?.charAt(0) || 'A';
 
   const toggleSubmenu = (menuLabel) => {
@@ -36,9 +37,9 @@ const AdminSidebar = ({
           <div className="flex items-center">
             <div className="flex items-center space-x-3">
               <div className={`${collapsed ? 'w-8 h-8' : 'w-12 h-12'} bg-gradient-to-br from-blue-900 to-yellow-500 rounded-lg flex items-center justify-center shadow-md transition-all duration-300 overflow-hidden`}>
-                {adminUser?.avatar ? (
+                {brandLogoSrc ? (
                   <img
-                    src={adminUser.avatar}
+                    src={brandLogoSrc}
                     alt={adminUser?.name || 'School logo'}
                     className="w-full h-full object-cover"
                   />

@@ -59,6 +59,28 @@ const AdminApp = () => {
   const [showAdminHeader, setShowAdminHeader] = useState(true);
   const [showAdminBreadcrumb, setShowAdminBreadcrumb] = useState(true);
 
+  const handleSettingsUpdated = ({ admin, school } = {}) => {
+    setAdminProfile((prev) => {
+      const next = { ...(prev || {}) };
+      if (admin && typeof admin === 'object') {
+        next.name = admin.name ?? next.name;
+        next.email = admin.email ?? next.email;
+        next.avatar = admin.avatar ?? next.avatar;
+        next.campusName = admin.campusName ?? next.campusName;
+        next.campusType = admin.campusType ?? next.campusType;
+      }
+      if (school && typeof school === 'object') {
+        next.schoolName = school.name ?? next.schoolName;
+        const nextLogo = resolveLogoUrl(school.logo);
+        if (nextLogo) next.schoolLogo = nextLogo;
+        if (!nextLogo && Object.prototype.hasOwnProperty.call(school, 'logo')) {
+          next.schoolLogo = '';
+        }
+      }
+      return next;
+    });
+  };
+
   useEffect(() => {
     const fetchProfile = async () => {
       const token = localStorage.getItem('token');
@@ -233,7 +255,15 @@ const AdminApp = () => {
         <Route path="notices" element={<NoticeManagement setShowAdminHeader={setShowAdminHeader} />} />
         <Route path="holidays" element={<HolidayList setShowAdminHeader={setShowAdminHeader} />} />
         <Route path="school-registrations" element={<SchoolRegistrations setShowAdminHeader={setShowAdminHeader} />} />
-        <Route path="settings" element={<AdminSettings setShowAdminHeader={setShowAdminHeader} />} />
+        <Route
+          path="settings"
+          element={
+            <AdminSettings
+              setShowAdminHeader={setShowAdminHeader}
+              onSettingsUpdated={handleSettingsUpdated}
+            />
+          }
+        />
         <Route path="promotion" element={<StudentPromotion setShowAdminHeader={setShowAdminHeader} />} />
       </Routes>
     </AdminLayout>

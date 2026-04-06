@@ -104,7 +104,7 @@ const PasswordField = ({ label, value, onChange, placeholder }) => {
   );
 };
 
-const AdminSettings = ({ setShowAdminHeader }) => {
+const AdminSettings = ({ setShowAdminHeader, onSettingsUpdated }) => {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [isSuperAdmin, setIsSuperAdmin] = useState(false);
@@ -143,8 +143,20 @@ const AdminSettings = ({ setShowAdminHeader }) => {
         body: formData,
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data?.error || 'Upload failed');
-      onSuccess(data?.secure_url || data?.url || '');
+      if (!res.ok) throw new Error(data?.error || data?.message || 'Upload failed');
+
+      const uploadedUrl =
+        data?.files?.[0]?.secure_url ||
+        data?.files?.[0]?.url ||
+        data?.secure_url ||
+        data?.url ||
+        '';
+
+      if (!uploadedUrl) {
+        throw new Error('Upload failed: URL missing in server response');
+      }
+
+      onSuccess(uploadedUrl);
       toast.success('Image uploaded successfully');
     } catch (err) {
       toast.error(err.message || 'Image upload failed');
@@ -271,6 +283,7 @@ const AdminSettings = ({ setShowAdminHeader }) => {
       const data = await res.json();
       if (!res.ok) throw new Error(data?.error || 'Unable to update settings');
       setAdminForm((prev) => ({ ...prev, currentPassword: '', newPassword: '', confirmPassword: '' }));
+      onSettingsUpdated?.({ admin: data?.admin, school: data?.school });
       toast.success('Settings updated successfully');
     } catch (err) {
       toast.error(err.message || 'Unable to update settings');
@@ -339,9 +352,15 @@ const AdminSettings = ({ setShowAdminHeader }) => {
                   className="hidden"
                   onChange={(e) => {
                     handleImageUpload(e.target.files?.[0], {
-                      folder: 'admin-avatars',
+                      folder: isSuperAdmin ? 'admin-avatars' : 'school-logos',
                       setUploading: setUploadingAvatar,
-                      onSuccess: (url) => setAdminForm((p) => ({ ...p, avatar: url })),
+                      onSuccess: (url) => {
+                        setAdminForm((p) => ({ ...p, avatar: url }));
+                        if (!isSuperAdmin) {
+                          setSchoolForm((p) => ({ ...p, logo: url }));
+                          onSettingsUpdated?.({ school: { logo: { secure_url: url } } });
+                        }
+                      },
                     });
                     e.target.value = '';
                   }}
@@ -363,7 +382,13 @@ const AdminSettings = ({ setShowAdminHeader }) => {
                 {adminForm.avatar && (
                   <button
                     type="button"
-                    onClick={() => setAdminForm((p) => ({ ...p, avatar: '' }))}
+                    onClick={() => {
+                      setAdminForm((p) => ({ ...p, avatar: '' }));
+                      if (!isSuperAdmin) {
+                        setSchoolForm((p) => ({ ...p, logo: '' }));
+                        onSettingsUpdated?.({ school: { logo: '' } });
+                      }
+                    }}
                     className="absolute -top-1 -right-1 bg-red-500 hover:bg-red-600 text-white rounded-full p-1 shadow-md opacity-0 group-hover:opacity-100 transition-all"
                   >
                     <X size={12} />
@@ -463,7 +488,10 @@ const AdminSettings = ({ setShowAdminHeader }) => {
                     handleImageUpload(e.target.files?.[0], {
                       folder: 'school-logos',
                       setUploading: setUploadingLogo,
-                      onSuccess: (url) => setSchoolForm((p) => ({ ...p, logo: url })),
+                      onSuccess: (url) => {
+                        setSchoolForm((p) => ({ ...p, logo: url }));
+                        onSettingsUpdated?.({ school: { logo: { secure_url: url } } });
+                      },
                     });
                     e.target.value = '';
                   }}
@@ -475,7 +503,10 @@ const AdminSettings = ({ setShowAdminHeader }) => {
                       <img src={schoolForm.logo} alt="School Logo" className="w-28 h-28 rounded-2xl object-contain border border-gray-200 bg-gray-50 p-2" />
                       <button
                         type="button"
-                        onClick={() => setSchoolForm((p) => ({ ...p, logo: '' }))}
+                        onClick={() => {
+                          setSchoolForm((p) => ({ ...p, logo: '' }));
+                          onSettingsUpdated?.({ school: { logo: '' } });
+                        }}
                         className="absolute -top-2 -right-2 bg-red-500 hover:bg-red-600 text-white rounded-full p-1 shadow-md opacity-0 group-hover:opacity-100 transition-all"
                       >
                         <X size={12} />

@@ -26,7 +26,7 @@ const AdminHeader = ({ adminUser }) => {
   const navigate = useNavigate();
   const [now, setNow] = useState(new Date());
   const isSuperAdmin = String(adminUser?.role || '').toLowerCase() === 'super admin';
-  const schoolLogoSrc = adminUser?.schoolLogo || '';
+  const schoolLogoSrc = adminUser?.schoolLogo || adminUser?.avatar || '';
   const schoolName = adminUser?.schoolName || '';
   const profileInitial = adminUser?.name?.charAt(0) || 'A';
 
