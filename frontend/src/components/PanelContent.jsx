@@ -10,3 +10,5 @@ const PanelContent = ({ active }) => {
       return <div>🔍 Select a section</div>;
   }
 };
+
+export default PanelContent;
