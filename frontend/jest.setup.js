@@ -14,10 +14,18 @@ const localStorageMock = {
 };
 global.localStorage = localStorageMock;
 
-// Reset localStorage mock before each test
+// Mock window.scrollTo (not implemented in JSDOM)
+window.scrollTo = jest.fn();
+
+// Mock window.dispatchEvent
+window.dispatchEvent = jest.fn();
+
+// Reset mocks before each test
 beforeEach(() => {
   localStorageMock.getItem.mockClear();
   localStorageMock.setItem.mockClear();
   localStorageMock.removeItem.mockClear();
   localStorageMock.clear.mockClear();
+  window.scrollTo.mockClear();
+  window.dispatchEvent.mockClear();
 });
