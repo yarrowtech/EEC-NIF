@@ -10,12 +10,11 @@ const AdminLayout = ({
   onToggleSidebar,
   adminUser,
   menuItems,
-  showAdminHeader,
 }) => {
   const [mobileOpen, setMobileOpen] = useState(false);
 
   return (
-    <div className="flex w-full h-screen bg-gray-50 overflow-hidden">
+    <div className="flex w-full h-screen bg-gray-50  overflow-hidden">
       <AdminSidebar
         activeMenuItem={activeMenuItem}
         onMenuItemClick={onMenuItemClick}
@@ -27,15 +26,13 @@ const AdminLayout = ({
         onMobileClose={() => setMobileOpen(false)}
       />
 
-      <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
-        {showAdminHeader && (
-          <AdminHeader
-            adminUser={adminUser}
-            onOpenMobileSidebar={() => setMobileOpen(true)}
-          />
-        )}
+      <div className="flex-1 flex flex-col min-w-0 overflow-hidden bg-gray-50 ">
+        <AdminHeader
+          adminUser={adminUser}
+          onOpenMobileSidebar={() => setMobileOpen(true)}
+        />
 
-        <main className="flex-1 overflow-auto">
+        <main className="flex-1 overflow-auto bg-gray-50 ">
           {children}
         </main>
       </div>
