@@ -3,6 +3,7 @@ const mongoose = require('mongoose');
 const School = require('../models/School');
 const rateLimit = require('../middleware/rateLimit');
 const { sendWebhook, WEBHOOK_EVENTS } = require('../utils/webhookSender');
+const { sendSchoolRegistrationConfirmationEmail } = require('../utils/mailer');
 const { logger } = require('../utils/logger');
 const { logSecurityEvent } = require('../utils/securityEventLogger');
 const { getRequestNetworkContext } = require('../utils/request');
@@ -341,6 +342,24 @@ router.post(
         submittedAt: new Date(),
         status: 'inactive' // Inactive until approved
       });
+
+      try {
+        await sendSchoolRegistrationConfirmationEmail({
+          to: school.officialEmail,
+          schoolName: school.name,
+          schoolCode: school.code,
+          submittedAt: school.submittedAt
+        });
+      } catch (emailErr) {
+        logSchoolRegistrationEvent(req, {
+          action: 'school_registration.confirmation_email_failed',
+          outcome: 'failure',
+          level: 'warn',
+          schoolId: asString(school._id),
+          officialEmailMasked: maskEmail(school.officialEmail),
+          reason: emailErr?.message || 'Unknown email error',
+        });
+      }
 
       // Send webhook to Super Admin Portal
       sendWebhook(WEBHOOK_EVENTS.SCHOOL_REGISTERED, {
