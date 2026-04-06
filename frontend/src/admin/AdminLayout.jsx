@@ -1,28 +1,19 @@
-import React from 'react';
-import { ChevronRight, Menu } from 'lucide-react';
+import { useState } from 'react';
 import AdminHeader from './AdminHeader';
 import AdminSidebar from './AdminSidebar';
 
-const AdminLayout = ({ 
-  children, 
-  activeMenuItem, 
+const AdminLayout = ({
+  children,
+  activeMenuItem,
   onMenuItemClick,
   sidebarCollapsed,
   onToggleSidebar,
   adminUser,
   menuItems,
-  breadcrumbs = [],
   showAdminHeader,
-  showBreadcrumb = true
 }) => {
-  const defaultBreadcrumbs = [
-    { label: 'Admin', path: '/admin' },
-    { label: 'Dashboard', path: '/admin/dashboard' },
-    { label: activeMenuItem, current: true }
-  ];
+  const [mobileOpen, setMobileOpen] = useState(false);
 
-  const currentBreadcrumbs = breadcrumbs.length > 0 ? breadcrumbs : defaultBreadcrumbs;
-  
   return (
     <div className="flex w-full h-screen bg-gray-50 overflow-hidden">
       <AdminSidebar
@@ -32,20 +23,18 @@ const AdminLayout = ({
         onToggleSidebar={onToggleSidebar}
         menuItems={menuItems}
         adminUser={adminUser}
+        mobileOpen={mobileOpen}
+        onMobileClose={() => setMobileOpen(false)}
       />
 
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
-        {showAdminHeader && <AdminHeader
-          adminUser={adminUser}
-        />}
-        
-        {/* Breadcrumb */}
-        {showBreadcrumb && (
-          <div className="px-4 lg:px-8 bg-white border-b">
-          </div>
+        {showAdminHeader && (
+          <AdminHeader
+            adminUser={adminUser}
+            onOpenMobileSidebar={() => setMobileOpen(true)}
+          />
         )}
 
-        {/* Main Content */}
         <main className="flex-1 overflow-auto">
           {children}
         </main>

@@ -1,186 +1,241 @@
 import React, { useState } from 'react';
-import { ChevronRight, ChevronLeft, ChevronDown } from 'lucide-react';
+import { ChevronRight, ChevronLeft, ChevronDown, LogOut, X } from 'lucide-react';
 import { ADMIN_MENU_ITEMS } from './adminConstants';
-import { NavLink } from 'react-router-dom';
+import { NavLink, useNavigate } from 'react-router-dom';
+import { AUTH_NOTICE, logoutAndRedirect } from '../utils/authSession';
 
-const AdminSidebar = ({ 
-  onMenuItemClick, 
-  collapsed = false, 
+const AdminSidebar = ({
+  onMenuItemClick,
+  collapsed = false,
   onToggleSidebar,
   menuItems = ADMIN_MENU_ITEMS,
-  adminUser
+  adminUser,
+  mobileOpen = false,
+  onMobileClose,
 }) => {
   const [expandedMenus, setExpandedMenus] = useState({});
-  const brandLogoSrc = adminUser?.schoolLogo || adminUser?.avatar || '';
-  const footerLogoSrc = adminUser?.schoolLogo || adminUser?.avatar || '';
-  const footerInitial = adminUser?.name?.charAt(0) || 'A';
+  const navigate = useNavigate();
 
-  const toggleSubmenu = (menuLabel) => {
-    if (collapsed) return; // Don't expand submenus when sidebar is collapsed
-    setExpandedMenus(prev => ({
-      ...prev,
-      [menuLabel]: !prev[menuLabel]
-    }));
+  const brandLogoSrc = adminUser?.schoolLogo || adminUser?.avatar || '';
+  const schoolName   = adminUser?.schoolName || adminUser?.name || 'School Admin';
+  const campusLabel  = adminUser?.campusName
+    ? `${adminUser.campusName}${adminUser.campusType ? ` · ${adminUser.campusType}` : ''}`
+    : adminUser?.campusType || '';
+  const footerInitial = (adminUser?.name || 'A').charAt(0).toUpperCase();
+  const footerName    = adminUser?.name || 'Admin User';
+  const footerRole    = adminUser?.role || 'Administrator';
+
+  const toggleSubmenu = (label) => {
+    if (collapsed) return;
+    setExpandedMenus((prev) => ({ ...prev, [label]: !prev[label] }));
+  };
+
+  const handleLogout = () => {
+    logoutAndRedirect({ navigate, notice: AUTH_NOTICE.LOGGED_OUT });
   };
 
   return (
     <>
-      <div className={`
-        ${collapsed ? "w-20" : "w-72"}
-        bg-white border-r border-gray-200
-        flex flex-col h-full shadow-lg flex-shrink-0
-        transition-all duration-300 ease-in-out
-      `}
-      style={{ willChange: 'width' }}>
-        {/* Logo */}
-        <div className={`${collapsed ? 'p-4' : 'p-4'} border-b border-gray-200 relative`}>
-          <div className="flex items-center">
-            <div className="flex items-center space-x-3">
-              <div className={`${collapsed ? 'w-8 h-8' : 'w-12 h-12'} bg-gradient-to-br from-blue-900 to-yellow-500 rounded-lg flex items-center justify-center shadow-md transition-all duration-300 overflow-hidden`}>
-                {brandLogoSrc ? (
-                  <img
-                    src={brandLogoSrc}
-                    alt={adminUser?.name || 'School logo'}
-                    className="w-full h-full object-cover"
-                  />
-                ) : (
-                  <span className="text-white text-xl font-bold">EEC</span>
-                )}
-              </div>
-              {!collapsed && <div className="flex flex-col opacity-100 transition-opacity duration-300">
-                <span className="text-xl font-bold text-gray-800">
-                  {adminUser?.name || 'Electronic Educare'}
-                </span>
-                <span className="text-xs text-gray-500">
-                  {adminUser?.campusName
-                    ? `${adminUser.campusName}${adminUser.campusType ? ` - ${adminUser.campusType}` : ''}`
-                    : adminUser?.campusType || ''}
-                </span>
-              </div>}
-            </div>
-            <button
-              onClick={onToggleSidebar}
-              className={`absolute ${collapsed ? 'top-2 right-[-7px]' : 'top-4 right-[-5px]'} p-4 bg-transparent rounded-lg text-gray-500 hover:text-gray-700 transition-colors duration-200`}
-              aria-label={collapsed ? 'Open sidebar' : 'Collapse sidebar'}
-              title={collapsed ? 'Open sidebar' : 'Collapse sidebar'}
-            >
-              {collapsed && <ChevronRight size={16} className="transition-transform duration-200" />}
-              {!collapsed && <ChevronLeft size={16} className="transition-transform duration-200" />}
-            </button>
+      {/* Mobile backdrop */}
+      {mobileOpen && (
+        <div
+          className="fixed inset-0 z-40 bg-black/40 backdrop-blur-sm lg:hidden"
+          onClick={onMobileClose}
+        />
+      )}
+
+      {/* Sidebar panel */}
+      <div
+        className={`
+          fixed lg:static inset-y-0 left-0 z-50 lg:z-auto
+          flex flex-col h-screen bg-white border-r border-gray-100 shadow-lg
+          transition-all duration-300 ease-in-out
+          ${collapsed ? 'w-[72px]' : 'w-64'}
+          ${mobileOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
+        `}
+      >
+        {/* ── Brand header ── */}
+        <div className="flex items-center gap-3 px-4 py-4 border-b border-gray-100 relative">
+          {/* Logo */}
+          <div className={`
+            shrink-0 rounded-xl overflow-hidden flex items-center justify-center
+            bg-linear-to-br from-yellow-500 to-amber-700 shadow-md shadow-indigo-200
+            transition-all duration-300
+            ${collapsed ? 'w-9 h-9' : 'w-10 h-10'}
+          `}>
+            {brandLogoSrc ? (
+              <img src={brandLogoSrc} alt={schoolName} className="w-full h-full object-cover" />
+            ) : (
+              <span className="text-white font-black text-sm">
+                {schoolName.slice(0, 2).toUpperCase()}
+              </span>
+            )}
           </div>
+
+          {/* School name + campus */}
+          {!collapsed && (
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-bold text-gray-900 truncate leading-tight">{schoolName}</p>
+              {campusLabel && (
+                <p className="text-[11px] text-indigo-500 font-medium truncate mt-0.5">{campusLabel}</p>
+              )}
+            </div>
+          )}
+
+          {/* Desktop collapse toggle */}
+          <button
+            onClick={onToggleSidebar}
+            className="hidden lg:flex w-7 h-7 shrink-0 items-center justify-center rounded-lg text-gray-400 hover:text-yellow-600 hover:bg-yellow-50 transition-all"
+            aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+          >
+            {collapsed ? <ChevronRight size={15} /> : <ChevronLeft size={15} />}
+          </button>
+
+          {/* Mobile close button */}
+          <button
+            onClick={onMobileClose}
+            className="lg:hidden w-7 h-7 shrink-0 flex items-center justify-center rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-all"
+            aria-label="Close menu"
+          >
+            <X size={15} />
+          </button>
         </div>
 
-        {/* Menu Items */}
-        <nav className="flex-1 px-4 py-4 overflow-y-auto sidebar-scroll">
-          {menuItems.map((item, index) => {
+        {/* ── Navigation ── */}
+        <nav className="flex-1 overflow-y-auto overflow-x-hidden py-3 px-2 space-y-0.5">
+          {menuItems.map((item, idx) => {
             const Icon = item.icon;
             const isExpanded = expandedMenus[item.label];
-            
+
             return (
-              <div key={index} className="mb-1">
-                {/* Main Menu Item */}
+              <div key={idx}>
                 {item.hasSubmenu ? (
-                  <button
-                    onClick={() => toggleSubmenu(item.label)}
-                    className={`
-                      w-full flex items-center space-x-3 px-3 py-3 rounded-lg
-                      group transition-all duration-200 ease-out
-                      text-gray-600 hover:bg-gradient-to-r hover:from-blue-50 hover:to-yellow-50
-                      hover:text-gray-900 hover:shadow-sm
-                    `}
-                  >
-                    <Icon size={20} className="flex-shrink-0 transition-colors duration-200 group-hover:text-blue-600" />
-                    {!collapsed && <span className="font-medium flex-1 text-left opacity-100 transition-opacity duration-200">{item.label}</span>}
-                    {!collapsed && (
-                      isExpanded ? (
-                        <ChevronDown size={16} className="text-gray-400 group-hover:text-blue-600 transition-colors duration-200" />
-                      ) : (
-                        <ChevronRight size={16} className="text-gray-400 group-hover:text-blue-600 transition-colors duration-200" />
-                      )
+                  <>
+                    <button
+                      onClick={() => toggleSubmenu(item.label)}
+                      title={collapsed ? item.label : undefined}
+                      className={`
+                        w-full flex items-center gap-3 px-3 py-2.5 rounded-xl
+                        text-gray-500 hover:text-gray-900 hover:bg-gray-50
+                        transition-all duration-150 group
+                        ${collapsed ? 'justify-center' : ''}
+                        ${isExpanded && !collapsed ? 'text-gray-900 bg-gray-50' : ''}
+                      `}
+                    >
+                      <Icon
+                        size={18}
+                        className={`shrink-0 transition-colors ${isExpanded && !collapsed ? 'text-indigo-500' : 'text-gray-400 group-hover:text-indigo-500'}`}
+                      />
+                      {!collapsed && (
+                        <>
+                          <span className="flex-1 text-left text-sm font-semibold">{item.label}</span>
+                          {isExpanded
+                            ? <ChevronDown size={14} className="text-indigo-400 shrink-0" />
+                            : <ChevronRight size={14} className="text-gray-300 group-hover:text-indigo-400 shrink-0 transition-colors" />}
+                        </>
+                      )}
+                    </button>
+
+                    {isExpanded && !collapsed && (
+                      <div className="mt-0.5 ml-4 pl-3 border-l-2 border-indigo-100 space-y-0.5">
+                        {item.submenu.map((sub, si) => {
+                          const SubIcon = sub.icon;
+                          return (
+                            <NavLink
+                              key={si}
+                              to={sub.path}
+                              onClick={() => { onMenuItemClick(sub.label); onMobileClose?.(); }}
+                            >
+                              {({ isActive }) => (
+                                <div className={`
+                                  flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm transition-all
+                                  ${isActive
+                                    ? 'bg-yellow-50 text-yellow-700 font-semibold'
+                                    : 'text-gray-500 hover:text-gray-800 hover:bg-gray-50'}
+                                `}>
+                                  <SubIcon size={14} className={`shrink-0 ${isActive ? 'text-yellow-500' : 'text-gray-400'}`} />
+                                  <span>{sub.label}</span>
+                                  {isActive && <span className="ml-auto w-1.5 h-1.5 rounded-full bg-yellow-500 shrink-0" />}
+                                </div>
+                              )}
+                            </NavLink>
+                          );
+                        })}
+                      </div>
                     )}
-                  </button>
+                  </>
                 ) : (
                   <NavLink
                     to={item.path}
-                    onClick={() => onMenuItemClick(item.label)}
+                    onClick={() => { onMenuItemClick(item.label); onMobileClose?.(); }}
                   >
                     {({ isActive }) => (
-                      <div className={`
-                        flex items-center space-x-3 px-4 py-3 rounded-lg
-                        group transition-all duration-200 ease-out
-                        ${isActive
-                          ? 'bg-gradient-to-r from-yellow-100 to-yellow-50 text-yellow-700 shadow-sm border-l-4 border-yellow-500'
-                          : 'text-gray-600 hover:bg-gradient-to-r hover:from-blue-50 hover:to-yellow-50 hover:text-gray-900 hover:shadow-sm hover:border-l-4 hover:border-blue-300'}
-                      `}>
-                        <Icon size={20} className={`flex-shrink-0 transition-colors duration-200 ${isActive ? 'text-yellow-600' : 'group-hover:text-blue-600'}`} />
-                        {!collapsed && <span className="font-medium flex-1 opacity-100 transition-opacity duration-200">{item.label}</span>}
+                      <div
+                        title={collapsed ? item.label : undefined}
+                        className={`
+                          flex items-center gap-3 px-3 py-2.5 rounded-xl
+                          transition-all duration-150 group
+                          ${collapsed ? 'justify-center' : ''}
+                          ${isActive
+                            ? 'bg-yellow-50 text-yellow-700'
+                            : 'text-gray-500 hover:text-gray-900 hover:bg-gray-50'}
+                        `}
+                      >
+                        <Icon
+                          size={18}
+                          className={`shrink-0 transition-colors ${isActive ? 'text-yellow-600' : 'text-gray-400 group-hover:text-yellow-500'}`}
+                        />
+                        {!collapsed && (
+                          <span className={`text-sm flex-1 ${isActive ? 'font-bold' : 'font-semibold'}`}>
+                            {item.label}
+                          </span>
+                        )}
+                        {!collapsed && isActive && (
+                          <span className="w-1.5 h-1.5 rounded-full bg-yellow-500 shrink-0" />
+                        )}
                       </div>
                     )}
                   </NavLink>
-                )}
-                
-                {/* Submenu Items */}
-                {item.hasSubmenu && isExpanded && !collapsed && (
-                  <div className="ml-6 mt-1 space-y-1">
-                    {item.submenu.map((subItem, subIndex) => {
-                      const SubIcon = subItem.icon;
-                      return (
-                        <NavLink
-                          key={subIndex}
-                          to={subItem.path}
-                          onClick={() => onMenuItemClick(subItem.label)}
-                        >
-                          {({ isActive }) => (
-                            <div className={`
-                              flex items-center space-x-3 px-4 py-2 rounded-lg
-                              group transition-all duration-200 ease-out
-                              ${isActive
-                                ? 'bg-gradient-to-r from-yellow-100 to-yellow-50 text-yellow-700 border-l-2 border-yellow-500 shadow-sm'
-                                : 'text-gray-500 hover:bg-gradient-to-r hover:from-gray-50 hover:to-blue-50 hover:text-gray-700 hover:shadow-sm hover:border-l-2 hover:border-blue-200'}
-                            `}>
-                              <SubIcon size={16} className={`flex-shrink-0 transition-colors duration-200 ${isActive ? 'text-yellow-600' : 'group-hover:text-blue-600'}`} />
-                              <span className="text-sm font-medium opacity-100 transition-opacity duration-200">{subItem.label}</span>
-                            </div>
-                          )}
-                        </NavLink>
-                      );
-                    })}
-                  </div>
                 )}
               </div>
             );
           })}
         </nav>
 
-        {/* Admin Info Footer */}
-        <div className="p-4 border-t border-gray-200 bg-gray-50 hover:bg-gradient-to-r hover:from-gray-50 hover:to-blue-50 transition-all duration-200 cursor-pointer group">
-          <div className={`flex items-center ${collapsed ? 'justify-center space-x-0' : 'space-x-3'}`}>
-            <div className="w-10 h-10 rounded-full bg-yellow-100 group-hover:bg-blue-100 flex items-center justify-center transition-all duration-200 group-hover:shadow-sm overflow-hidden border border-white">
-              {footerLogoSrc ? (
-                <img
-                  src={footerLogoSrc}
-                  alt={adminUser?.schoolName || 'School logo'}
-                  className="w-full h-full object-cover"
-                />
+        {/* ── Footer ── */}
+        <div className="border-t border-gray-100 p-3 space-y-1">
+          {/* User row */}
+          <div className={`flex items-center gap-2.5 px-2 py-2 rounded-xl ${collapsed ? 'justify-center' : ''}`}>
+            <div className="w-8 h-8 rounded-xl bg-indigo-100 flex items-center justify-center shrink-0 overflow-hidden">
+              {brandLogoSrc ? (
+                <img src={brandLogoSrc} alt={footerName} className="w-full h-full object-cover" />
               ) : (
-                <span className="text-yellow-600 group-hover:text-blue-600 font-semibold transition-colors duration-200">
-                  {footerInitial}
-                </span>
+                <span className="text-indigo-600 font-bold text-sm">{footerInitial}</span>
               )}
             </div>
             {!collapsed && (
-              <div className="opacity-100 transition-opacity duration-200">
-                <p className="text-sm font-medium text-gray-900 group-hover:text-blue-900 transition-colors duration-200">
-                  {adminUser?.name || 'Admin User'}
-                </p>
-                <p className="text-xs text-gray-500 group-hover:text-blue-600 transition-colors duration-200">
-                  {adminUser?.role || 'Administrator'}
-                </p>
+              <div className="flex-1 min-w-0">
+                <p className="text-xs font-bold text-gray-900 truncate">{footerName}</p>
+                <p className="text-[11px] text-gray-400 truncate">{footerRole}</p>
               </div>
             )}
           </div>
+
+          {/* Logout */}
+          <button
+            onClick={handleLogout}
+            title={collapsed ? 'Logout' : undefined}
+            className={`
+              w-full flex items-center gap-2.5 px-3 py-2 rounded-xl
+              text-gray-400 hover:text-red-600 hover:bg-red-50
+              transition-all duration-150 text-sm font-semibold
+              ${collapsed ? 'justify-center' : ''}
+            `}
+          >
+            <LogOut size={15} className="shrink-0" />
+            {!collapsed && <span>Logout</span>}
+          </button>
         </div>
-        {/* Removed Logout Button */}
       </div>
     </>
   );
