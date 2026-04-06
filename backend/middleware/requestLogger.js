@@ -33,14 +33,7 @@ const resolveActor = (req) => {
 
 const isLoggedPath = (req) => {
   const url = String(req?.originalUrl || '');
-  return (
-    url.startsWith('/api/admin') ||
-    url.startsWith('/api/super-admin') ||
-    url.startsWith('/api/school-registration') ||
-    url.startsWith('/api/schools') ||
-    url.startsWith('/api/support') ||
-    url.startsWith('/api/issues')
-  );
+  return url.startsWith('/api/');
 };
 
 const isSuspiciousForwarding = (req) => {

@@ -14,6 +14,7 @@ const Section = require('../models/Section');
 const AcademicYear = require('../models/AcademicYear');
 const School = require('../models/School');
 const NotificationService = require('../utils/notificationService');
+const { logger } = require('../utils/logger');
 const {
   buildRazorpayReceipt,
   createRazorpayOrder,
@@ -531,7 +532,7 @@ router.post('/invoices', adminAuth, async (req, res) => {
             createdBy: req.admin?.id || null
           });
         } catch (notifErr) {
-          console.error('Failed to create fee notification:', notifErr);
+          (req.log || logger).error({ err: notifErr, invoiceId: created._id }, 'Failed to create fee notification');
           // Don't fail the entire request if notification fails
         }
       }

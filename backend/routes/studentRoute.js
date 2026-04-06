@@ -18,6 +18,7 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const adminAuth = require('../middleware/adminAuth');
 const { generatePassword } = require('../utils/generator');
+const { logger } = require('../utils/logger');
 const extractPopulatedDoc = (doc) => {
   if (doc && typeof doc.toJSON === 'function') {
     return doc.toJSON();
@@ -490,7 +491,7 @@ router.post('/register', adminAuth, async (req, res) => {
       reason: err.message,
       statusCode: 400,
     });
-    console.error('Student register error:', err);
+    (req.log || logger).error({ err }, 'Student register error');
     res.status(400).json({ error: err.message });
   }
 });
@@ -688,25 +689,15 @@ router.get('/test/list', adminAuth, async (req, res) => {
 router.get('/profile', authStudent, async (req, res) => {
   // #swagger.tags = ['Students']
   try {
-    console.log('📥 Profile request received');
-    console.log('User ID from token:', req.user.id);
-    console.log('User type:', req.userType);
-
+    (req.log || logger).info({ userId: req.user?.id, userType: req.userType }, 'Student profile request received');
     const student = await StudentUser.findById(req.user.id)
       .select('-password')
       .populate('schoolId', 'name code address logo')
       .lean();
-
-    console.log('Student found:', student ? 'YES' : 'NO');
-    if (student) {
-      console.log('Student name:', student.name);
-      console.log('Student username:', student.username);
-      console.log('Student grade:', student.grade);
-      console.log('Student section:', student.section);
-    }
+    (req.log || logger).info({ found: Boolean(student) }, 'Student profile lookup completed');
 
     if (!student) {
-      console.log('❌ Student not found in database');
+      (req.log || logger).warn({ userId: req.user?.id }, 'Student profile not found in database');
       return res.status(404).json({ error: 'Student not found' });
     }
 
@@ -721,10 +712,10 @@ router.get('/profile', authStudent, async (req, res) => {
       profilePic: resolveProfilePhoto(student),
       avatar: resolveProfilePhoto(student),
     };
-    console.log('✅ Sending profile data to frontend');
+    (req.log || logger).info({ userId: req.user?.id }, 'Student profile response sent');
     res.json(response);
   } catch (err) {
-    console.error('❌ Get profile error:', err);
+    (req.log || logger).error({ err, userId: req.user?.id }, 'Get profile error');
     res.status(400).json({ error: err.message });
   }
 });
@@ -875,7 +866,7 @@ router.get('/dashboard', authStudent, async (req, res) => {
 
     res.json(dashboardData);
   } catch (err) {
-    console.error('Dashboard data error:', err);
+    (req.log || logger).error({ err }, 'Dashboard data error');
     res.status(400).json({ error: err.message });
   }
 });
@@ -1013,7 +1004,7 @@ router.get('/attendance', authStudent, async (req, res) => {
       }
     });
   } catch (err) {
-    console.error('Attendance error:', err);
+    (req.log || logger).error({ err }, 'Attendance error');
     res.status(400).json({ error: err.message });
   }
 });
@@ -1034,7 +1025,7 @@ router.get('/assignments', authStudent, async (req, res) => {
       assignments: student.assignments || []
     });
   } catch (err) {
-    console.error('Assignments error:', err);
+    (req.log || logger).error({ err }, 'Assignments error');
     res.status(400).json({ error: err.message });
   }
 });
@@ -1124,7 +1115,7 @@ router.get('/results', authStudent, async (req, res) => {
       results: [...formattedResults, ...assignmentResults]
     });
   } catch (err) {
-    console.error('Results error:', err);
+    (req.log || logger).error({ err }, 'Results error');
     res.status(400).json({ error: err.message });
   }
 });
@@ -1240,7 +1231,7 @@ router.get('/schedule', authStudent, async (req, res) => {
       schedule: scheduleByDay
     });
   } catch (err) {
-    console.error('Schedule error:', err);
+    (req.log || logger).error({ err }, 'Schedule error');
     res.status(500).json({ error: err.message });
   }
 });
@@ -1260,7 +1251,7 @@ router.get('/teacher-feedback/context', authStudent, async (req, res) => {
     const { contexts } = await buildTeacherFeedbackContext(student);
     res.json({ teachers: contexts });
   } catch (err) {
-    console.error('Teacher feedback context error:', err);
+    (req.log || logger).error({ err }, 'Teacher feedback context error');
     res.status(500).json({ error: err.message });
   }
 });
@@ -1290,7 +1281,7 @@ router.get('/teacher-feedback', authStudent, async (req, res) => {
 
     res.json(formatted);
   } catch (err) {
-    console.error('Teacher feedback list error:', err);
+    (req.log || logger).error({ err }, 'Teacher feedback list error');
     res.status(500).json({ error: err.message });
   }
 });
@@ -1393,7 +1384,7 @@ router.post('/teacher-feedback', authStudent, async (req, res) => {
       }
     });
   } catch (err) {
-    console.error('Teacher feedback submit error:', err);
+    (req.log || logger).error({ err }, 'Teacher feedback submit error');
     res.status(500).json({ error: err.message });
   }
 });

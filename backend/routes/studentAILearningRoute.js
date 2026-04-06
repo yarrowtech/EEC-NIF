@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const StudentUser = require('../models/StudentUser');
 const authStudent = require('../middleware/authStudent');
+const { logger } = require('../utils/logger');
 
 const ensureStudentAccess = (req, res, studentId) => {
   if (req.userType === 'Admin') return true;
@@ -31,7 +32,7 @@ router.get('/courses/:studentId', authStudent, async (req, res) => {
     
     res.status(200).json(courses);
   } catch (error) {
-    console.error('Error fetching courses:', error);
+    (req.log || logger).error({ err: error, studentId: req.params.studentId }, 'Error fetching AI courses');
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -69,7 +70,7 @@ router.post('/generate-content', async (req, res) => {
       content: generatedContent
     });
   } catch (error) {
-    console.error('Error generating AI content:', error);
+    (req.log || logger).error({ err: error, contentType: req.body?.contentType, topic: req.body?.topic }, 'Error generating AI content');
     res.status(500).json({ error: 'Failed to generate content' });
   }
 });
@@ -104,7 +105,7 @@ router.get('/progress/:studentId', authStudent, async (req, res) => {
 
     res.status(200).json(progress);
   } catch (error) {
-    console.error('Error fetching progress:', error);
+    (req.log || logger).error({ err: error, studentId: req.params.studentId }, 'Error fetching AI learning progress');
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -134,7 +135,7 @@ router.post('/activity', authStudent, async (req, res) => {
       activity
     });
   } catch (error) {
-    console.error('Error saving activity:', error);
+    (req.log || logger).error({ err: error, studentId: req.body?.studentId, activityType: req.body?.activityType }, 'Error saving AI learning activity');
     res.status(500).json({ error: 'Failed to save activity' });
   }
 });
@@ -178,7 +179,7 @@ router.get('/recommendations/:studentId', authStudent, async (req, res) => {
 
     res.status(200).json(recommendations);
   } catch (error) {
-    console.error('Error fetching recommendations:', error);
+    (req.log || logger).error({ err: error, studentId: req.params.studentId }, 'Error fetching AI recommendations');
     res.status(500).json({ error: 'Internal server error' });
   }
 });

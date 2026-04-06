@@ -7,6 +7,7 @@ const Section = require('../models/Section');
 const Subject = require('../models/Subject');
 const auth = require('../middleware/authStudent');
 const multer = require('multer');
+const { logger } = require('../utils/logger');
 
 // Setup multer for file uploads (in memory)
 const storage = multer.memoryStorage();
@@ -122,7 +123,7 @@ router.get('/allocated-subjects', auth, async (req, res) => {
 
     res.json({ subjects });
   } catch (err) {
-    console.error('Error fetching allocated subjects:', err);
+    (req.log || logger).error({ err, studentId: req.user?.id }, 'Error fetching allocated subjects');
     res.status(500).json({ error: 'Server error' });
   }
 });
