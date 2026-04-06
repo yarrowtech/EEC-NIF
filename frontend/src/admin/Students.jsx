@@ -2784,7 +2784,7 @@ const Students = ({ setShowAdminHeader, setShowAdminBreadcrumb }) => {
               disabled={isImporting}
               className="border border-gray-200 bg-white text-gray-700 px-3 py-2 rounded-lg hover:bg-gray-50 disabled:opacity-60 flex items-center gap-2 text-sm flex-1 sm:flex-none justify-center transition"
             >
-              <Upload size={15} />
+              {isImporting ? <Loader2 size={15} className="animate-spin" /> : <Upload size={15} />}
               {isImporting ? "Importing..." : "Bulk Upload"}
             </button>
             <input
@@ -2920,16 +2920,16 @@ const Students = ({ setShowAdminHeader, setShowAdminBreadcrumb }) => {
           {/* Students Table */}
           <>
             <div className="relative flex-1 overflow-y-auto rounded-xl border border-gray-200 bg-white shadow-sm">
-              {tableRefreshing && (
-                <div className="sticky top-0 z-20 flex items-center justify-center gap-2 bg-amber-50/95 border-b border-amber-200 px-3 py-1.5 text-xs font-medium text-amber-700">
+              {/* {isImporting && (
+                <div className={`sticky ${tableRefreshing ? "top-8" : "top-0"} z-20 flex items-center justify-center gap-2 bg-blue-50/95 border-b border-blue-200 px-3 py-1.5 text-xs font-medium text-blue-700`}>
                   <Loader2 size={13} className="animate-spin" />
-                  Refreshing table data...
+                  Uploading bulk student file...
                 </div>
-              )}
+              )} */}
               <table className="w-full border-collapse table-fixed">
                   <thead className="sticky top-0 z-10">
                     <tr className="bg-gray-50">
-                      <th className="border-b border-gray-200 px-2 py-2.5 text-left text-xs font-semibold uppercase tracking-wider text-gray-500 w-[4%]">
+                      <th className="border-b border-gray-200 px-2 py-2.5 text-left text-xs font-semibold uppercase tracking-wider text-gray-500 w-[5%]">
                         <input
                           type="checkbox"
                           className="h-4 w-4 accent-yellow-600"
@@ -2939,10 +2939,10 @@ const Students = ({ setShowAdminHeader, setShowAdminBreadcrumb }) => {
                           aria-label="Select all visible students"
                         />
                       </th>
-                      <th className="border-b border-gray-200 px-2 py-2.5 text-left text-xs font-semibold uppercase tracking-wider text-gray-500 w-[20%]">
+                      <th className="border-b border-gray-200 px-2 py-2.5 text-left text-xs font-semibold uppercase tracking-wider text-gray-500 w-[24%]">
                         Student
                       </th>
-                      <th className="border-b border-gray-200 px-2 py-2.5 text-left text-xs font-semibold uppercase tracking-wider text-gray-500 w-[12%]">
+                      <th className="border-b border-gray-200 px-2 py-2.5 text-left text-xs font-semibold uppercase tracking-wider text-gray-500 w-[14%]">
                         Academic
                       </th>
                       {/* <th className="border-b border-gray-200 px-2 py-2.5 text-left text-xs font-semibold uppercase tracking-wider text-gray-500 w-[15%]">
@@ -2954,12 +2954,12 @@ const Students = ({ setShowAdminHeader, setShowAdminBreadcrumb }) => {
                       <th className="border-b border-gray-200 px-2 py-2.5 text-left text-xs font-semibold uppercase tracking-wider text-gray-500 w-[18%]">
                         Fees
                       </th>
-                      <th className="border-b border-gray-200 px-2 py-2.5 text-center text-xs font-semibold uppercase tracking-wider text-gray-500 w-[23%]">
+                      <th className="border-b border-gray-200 px-2 py-2.5 text-center text-xs font-semibold uppercase tracking-wider text-gray-500 w-[27%]">
                         Actions
                       </th>
                     </tr>
                   </thead>
-                  <tbody className={tableRefreshing ? "opacity-70 animate-pulse" : ""}>
+                  <tbody className={tableRefreshing || isImporting ? "opacity-70 animate-pulse" : ""}>
                     {paginatedStudents.map((student) => {
                       const studentKey = student._id || student.id;
                       const admissionYear = student.admissionDate
@@ -3140,10 +3140,17 @@ const Students = ({ setShowAdminHeader, setShowAdminBreadcrumb }) => {
                     {filteredStudents.length === 0 && (
                       <tr>
                         <td
-                          colSpan={7}
+                          colSpan={6}
                           className="text-center text-gray-500 py-10 text-sm"
                         >
-                          No students found.
+                          {isImporting ? (
+                            <div className="inline-flex items-center gap-2 text-blue-700 font-medium">
+                              <Loader2 size={16} className="animate-spin" />
+                              Importing students, please wait...
+                            </div>
+                          ) : (
+                            "No students found"
+                          )}
                         </td>
                       </tr>
                     )}
