@@ -639,10 +639,10 @@ router.post("/submit", authStudent, async (req, res) => {
         };
 
         if (existingIndex >= 0) {
-            progress.submissions[existingIndex] = {
-                ...progress.submissions[existingIndex],
-                ...submissionData
-            };
+            progress.submissions[existingIndex].submittedAt = submissionData.submittedAt;
+            progress.submissions[existingIndex].status = submissionData.status;
+            progress.submissions[existingIndex].submissionText = submissionData.submissionText;
+            progress.submissions[existingIndex].attachmentUrl = submissionData.attachmentUrl;
         } else {
             progress.submissions.push({
                 assignmentId,
