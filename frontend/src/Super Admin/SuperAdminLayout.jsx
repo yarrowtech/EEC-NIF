@@ -7,9 +7,7 @@ import {
   MessageSquare,
   AlertTriangle,
   Menu,
-  KeyRound,
   Activity,
-  IdCard,
   X,
   ChevronRight,
   ChevronLeft
@@ -21,8 +19,6 @@ const navLinks = [
   { to: '/super-admin/requests', label: 'Requests', icon: Building2 },
   { to: '/super-admin/feedback', label: 'Feedback', icon: MessageSquare },
   { to: '/super-admin/issues', label: 'Issues', icon: AlertTriangle },
-  { to: '/super-admin/credentials', label: 'Passwords', icon: KeyRound },
-  { to: '/super-admin/id-pass', label: 'ID Pass', icon: IdCard },
   { to: '/super-admin/operations', label: 'Operations', icon: Activity },
   { to: '/super-admin/active-schools', label: 'Active Schools', icon: Building2 }
 ];
@@ -68,7 +64,7 @@ const SuperAdminLayout = ({ children, sidebarCollapsed, onToggleSidebar, insight
     <div className="min-h-screen flex bg-slate-50">
       {/* Desktop sidebar */}
       <aside
-        className={`hidden md:flex bg-white border-r border-gray-200 flex-col transition-all duration-300 ease-in-out shadow-lg ${
+        className={`hidden md:flex fixed inset-y-0 left-0 z-40 bg-white border-r border-gray-200 flex-col transition-all duration-300 ease-in-out shadow-lg ${
           sidebarCollapsed ? 'w-20' : 'w-72'
         }`}
         style={{ willChange: 'width' }}
@@ -187,7 +183,11 @@ const SuperAdminLayout = ({ children, sidebarCollapsed, onToggleSidebar, insight
         <div className="fixed inset-0 bg-black/50 z-30 md:hidden backdrop-blur-sm" onClick={closeMobileMenu} role="presentation" />
       )}
 
-      <div className="flex-1 flex flex-col min-w-0">
+      <div
+        className={`flex-1 flex flex-col min-w-0 transition-all duration-300 ease-in-out ${
+          sidebarCollapsed ? 'md:ml-20' : 'md:ml-72'
+        }`}
+      >
         <header className="bg-white border-b border-gray-200 shadow-sm px-4 sm:px-6 py-4 flex flex-col gap-4">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="flex items-center gap-3">

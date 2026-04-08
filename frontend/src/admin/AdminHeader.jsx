@@ -23,6 +23,7 @@ const AdminHeader = ({ adminUser, onOpenMobileSidebar }) => {
   const [searchQuery, setSearchQuery]               = useState('');
   const [searchFeedback, setSearchFeedback]         = useState('');
   const [showSuggestions, setShowSuggestions]       = useState(false);
+  const [activeSuggestionIndex, setActiveSuggestionIndex] = useState(-1);
   const [notifications, setNotifications]           = useState([]);
   const [notifLoading, setNotifLoading]             = useState(false);
   const [notifError, setNotifError]                 = useState('');
@@ -81,7 +82,7 @@ const AdminHeader = ({ adminUser, onOpenMobileSidebar }) => {
           .filter((n) => {
             if (isSuperAdmin) return true;
             const aud = String(n?.audience || 'All').toLowerCase();
-            return aud === 'all' || aud === 'student' || aud === 'admin';
+            return aud === 'all' || aud === 'admin' || aud === 'school_admin' || aud === 'school admin';
           })
           .sort((a, b) => new Date(b?.createdAt || 0) - new Date(a?.createdAt || 0))
           .slice(0, 20);
@@ -159,16 +160,75 @@ const AdminHeader = ({ adminUser, onOpenMobileSidebar }) => {
     ).slice(0, 8);
   }, [SEARCH_TARGETS, searchQuery]);
 
+  useEffect(() => {
+    if (!showSuggestions) {
+      setActiveSuggestionIndex(-1);
+      return;
+    }
+    if (!suggestions.length) {
+      setActiveSuggestionIndex(-1);
+      return;
+    }
+    if (activeSuggestionIndex >= suggestions.length) {
+      setActiveSuggestionIndex(0);
+    }
+  }, [showSuggestions, suggestions, activeSuggestionIndex]);
+
+  const navigateToSuggestion = (item) => {
+    if (!item?.path) return;
+    setSearchFeedback('');
+    setSearchQuery(item.label || '');
+    setShowSuggestions(false);
+    setShowSearch(false);
+    setActiveSuggestionIndex(-1);
+    navigate(item.path);
+  };
+
+  const findSearchMatch = (query) => {
+    const q = String(query || '').trim().toLowerCase();
+    if (!q) return null;
+    return SEARCH_TARGETS.find(({ keys, label, hint }) =>
+      keys.some((k) => k.includes(q) || q.includes(k)) ||
+      String(label || '').toLowerCase().includes(q) ||
+      String(hint || '').toLowerCase().includes(q)
+    );
+  };
+
+  const handleSearchInputKeyDown = (e) => {
+    if (!showSuggestions || suggestions.length === 0) return;
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      setActiveSuggestionIndex((prev) => (prev + 1) % suggestions.length);
+      return;
+    }
+    if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      setActiveSuggestionIndex((prev) => (prev <= 0 ? suggestions.length - 1 : prev - 1));
+      return;
+    }
+    if (e.key === 'Enter' && activeSuggestionIndex >= 0) {
+      e.preventDefault();
+      navigateToSuggestion(suggestions[activeSuggestionIndex]);
+      return;
+    }
+    if (e.key === 'Escape') {
+      setShowSuggestions(false);
+      setActiveSuggestionIndex(-1);
+    }
+  };
+
   const handleSearch = (e) => {
     e.preventDefault();
     const q = searchQuery.trim().toLowerCase();
     if (!q) return;
-    const match = SEARCH_TARGETS.find(({ keys }) => keys.some((k) => k.includes(q) || q.includes(k)));
+    const highlighted = activeSuggestionIndex >= 0 ? suggestions[activeSuggestionIndex] : null;
+    if (highlighted) {
+      navigateToSuggestion(highlighted);
+      return;
+    }
+    const match = findSearchMatch(q);
     if (!match) { setSearchFeedback('No module found'); return; }
-    setSearchFeedback('');
-    setShowSuggestions(false);
-    setShowSearch(false);
-    navigate(match.path);
+    navigateToSuggestion(match);
   };
 
   useEffect(() => {
@@ -222,15 +282,18 @@ const AdminHeader = ({ adminUser, onOpenMobileSidebar }) => {
               type="text"
               placeholder="Search modules…"
               value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
+              onChange={(e) => { setSearchQuery(e.target.value); setActiveSuggestionIndex(-1); }}
               onFocus={() => setShowSuggestions(true)}
-              onBlur={() => setTimeout(() => setShowSuggestions(false), 150)}
+              onBlur={() => setTimeout(() => { setShowSuggestions(false); setActiveSuggestionIndex(-1); }, 150)}
+              onKeyDown={handleSearchInputKeyDown}
+              aria-expanded={showSuggestions}
+              aria-haspopup="listbox"
               className="w-full pl-9 pr-24 py-2 text-sm border border-gray-200 rounded-xl bg-gray-50 outline-none focus:border-indigo-400 focus:ring-4 focus:ring-indigo-50 focus:bg-white transition-all placeholder-gray-400"
             />
             {searchQuery && (
               <button
                 type="button"
-                onClick={() => { setSearchQuery(''); setShowSuggestions(true); }}
+                onClick={() => { setSearchQuery(''); setShowSuggestions(true); setActiveSuggestionIndex(-1); }}
                 className="absolute right-[72px] text-gray-400 hover:text-gray-600"
               >
                 <X size={13} />
@@ -251,17 +314,16 @@ const AdminHeader = ({ adminUser, onOpenMobileSidebar }) => {
                 <div className="px-4 py-3 text-sm text-gray-400">No results</div>
               ) : (
                 <ul className="divide-y divide-gray-50">
-                  {suggestions.map((item) => (
+                  {suggestions.map((item, idx) => (
                     <li key={item.path}>
                       <button
                         type="button"
                         onMouseDown={(e) => e.preventDefault()}
-                        onClick={() => {
-                          setSearchQuery(item.label);
-                          setShowSuggestions(false);
-                          navigate(item.path);
-                        }}
-                        className="w-full px-4 py-2.5 text-left flex items-center gap-3 hover:bg-indigo-50/60 transition-colors"
+                        onMouseEnter={() => setActiveSuggestionIndex(idx)}
+                        onClick={() => navigateToSuggestion(item)}
+                        className={`w-full px-4 py-2.5 text-left flex items-center gap-3 transition-colors ${
+                          idx === activeSuggestionIndex ? 'bg-indigo-50/80' : 'hover:bg-indigo-50/60'
+                        }`}
                       >
                         <Search size={13} className="text-gray-300 shrink-0" />
                         <div>
@@ -458,13 +520,15 @@ const AdminHeader = ({ adminUser, onOpenMobileSidebar }) => {
               type="text"
               placeholder="Search modules…"
               value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
+              onChange={(e) => { setSearchQuery(e.target.value); setActiveSuggestionIndex(-1); }}
+              onFocus={() => setShowSuggestions(true)}
+              onKeyDown={handleSearchInputKeyDown}
               autoFocus
               className="w-full pl-9 pr-10 py-2.5 text-sm border border-gray-200 rounded-xl bg-gray-50 outline-none focus:border-indigo-400 focus:ring-4 focus:ring-indigo-50 transition-all"
             />
             <button
               type="button"
-              onClick={() => { setShowSearch(false); setSearchQuery(''); }}
+              onClick={() => { setShowSearch(false); setSearchQuery(''); setShowSuggestions(false); setActiveSuggestionIndex(-1); }}
               className="absolute right-3 text-gray-400 hover:text-gray-600"
             >
               <X size={16} />
@@ -473,12 +537,15 @@ const AdminHeader = ({ adminUser, onOpenMobileSidebar }) => {
           {searchQuery && suggestions.length > 0 && (
             <div className="mt-1.5 rounded-2xl border border-gray-100 bg-white shadow-xl overflow-hidden">
               <ul className="divide-y divide-gray-50">
-                {suggestions.map((item) => (
+                {suggestions.map((item, idx) => (
                   <li key={item.path}>
                     <button
                       type="button"
-                      onClick={() => { setShowSearch(false); setSearchQuery(''); navigate(item.path); }}
-                      className="w-full px-4 py-2.5 text-left flex items-center gap-3 hover:bg-indigo-50/60 transition-colors"
+                      onMouseEnter={() => setActiveSuggestionIndex(idx)}
+                      onClick={() => navigateToSuggestion(item)}
+                      className={`w-full px-4 py-2.5 text-left flex items-center gap-3 transition-colors ${
+                        idx === activeSuggestionIndex ? 'bg-indigo-50/80' : 'hover:bg-indigo-50/60'
+                      }`}
                     >
                       <Search size={13} className="text-gray-300 shrink-0" />
                       <div>

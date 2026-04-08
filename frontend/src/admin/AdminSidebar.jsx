@@ -48,7 +48,7 @@ const AdminSidebar = ({
       <div
         className={`
           fixed lg:static inset-y-0 left-0 z-50 lg:z-auto
-          flex flex-col h-screen bg-white border-r border-gray-100 shadow-lg
+          flex flex-col h-dvh lg:h-full bg-white border-r border-gray-100 shadow-lg
           transition-all duration-300 ease-in-out
           ${collapsed ? 'w-[72px]' : 'w-64'}
           ${mobileOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}

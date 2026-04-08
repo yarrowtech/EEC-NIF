@@ -1,5 +1,6 @@
-import { useMemo, useState } from 'react';
-import { Search, Filter, CheckCircle, XCircle, AlertCircle, RefreshCw, Loader2, BadgeCheck, Copy } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
+import { Search, Filter, CheckCircle, XCircle, AlertCircle, RefreshCw, Loader2 } from 'lucide-react';
 
 const statusStyles = {
   pending: 'bg-amber-100 text-amber-700',
@@ -7,6 +8,18 @@ const statusStyles = {
   approved: 'bg-emerald-100 text-emerald-700',
   rejected: 'bg-rose-100 text-rose-600'
 };
+
+const getSchoolInitials = (name = '') => {
+  const parts = String(name || '')
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean);
+  if (parts.length === 0) return 'NA';
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return `${parts[0][0] || ''}${parts[parts.length - 1][0] || ''}`.toUpperCase();
+};
+
+const REQUESTS_PER_PAGE = 8;
 
 const Requests = ({
   requests,
@@ -25,6 +38,7 @@ const Requests = ({
   const [showBulkDeleteConfirm, setShowBulkDeleteConfirm] = useState(false);
   const [bulkDeleteConfirmText, setBulkDeleteConfirmText] = useState('');
   const [actionError, setActionError] = useState(null);
+  const [currentPage, setCurrentPage] = useState(1);
   const pendingRequestsCount = useMemo(
     () => requests.filter((request) => request.status === 'pending').length,
     [requests]
@@ -41,6 +55,17 @@ const Requests = ({
       return matchesSearch && matchesStatus;
     });
   }, [requests, searchTerm, statusFilter]);
+
+  const totalPages = useMemo(
+    () => Math.max(1, Math.ceil(filteredRequests.length / REQUESTS_PER_PAGE)),
+    [filteredRequests.length]
+  );
+  const paginatedRequests = useMemo(() => {
+    const start = (currentPage - 1) * REQUESTS_PER_PAGE;
+    return filteredRequests.slice(start, start + REQUESTS_PER_PAGE);
+  }, [filteredRequests, currentPage]);
+  const startItem = filteredRequests.length > 0 ? (currentPage - 1) * REQUESTS_PER_PAGE + 1 : 0;
+  const endItem = Math.min(currentPage * REQUESTS_PER_PAGE, filteredRequests.length);
 
   const updateStatus = async (requestId, status) => {
     const note =
@@ -89,10 +114,14 @@ const Requests = ({
     ];
   };
 
-  const campusKeyFor = (campus, index = 0) => {
-    const rawKey = campus?.id || campus?._id || campus?.campusId || campus?.name || `campus-${index}`;
-    return String(rawKey);
-  };
+  useEffect(() => {
+    if (currentPage <= totalPages) return;
+    setCurrentPage(totalPages);
+  }, [currentPage, totalPages]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, statusFilter]);
 
   return (
     <div className="space-y-6">
@@ -232,142 +261,135 @@ const Requests = ({
 
       {!loading && (
         <div className="space-y-4">
-        {filteredRequests.map((request) => {
-          const credentialBucket = schoolCredentials[request.id];
-          const campusList = resolveCampuses(request);
-          return (
-          <div key={request.id} className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
-            <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-              <div>
-                <div className="flex items-center gap-3">
-                  <div className="p-2 rounded-lg bg-slate-100 text-slate-600">
-                    <AlertCircle size={18} />
-                  </div>
-                  <div>
-                    <p className="text-lg font-semibold text-slate-800">{request.schoolName}</p>
-                    <p className="text-sm text-slate-500">{request.board} • {request.studentCount} students • {request.campuses} campuses</p>
-                  </div>
-                </div>
-                <div className="mt-3 text-xs text-slate-500 flex flex-wrap gap-3">
-                  <span>ID: {request.id}</span>
-                  <span>Contact: {request.contactPerson}</span>
-                  <span>Email: {request.contactEmail}</span>
-                  <span>Submitted: {new Date(request.submittedAt).toLocaleDateString()}</span>
-                </div>
-              </div>
-              <div className="text-right">
-                <span className={`text-xs font-semibold px-3 py-1 rounded-full ${statusStyles[request.status] || 'bg-slate-100 text-slate-600'}`}>
-                  {request.status.toUpperCase()}
-                </span>
-                <p className="text-xs text-slate-500 mt-2">{request.notes}</p>
-              </div>
-            </div>
-
-            <div className="mt-4 bg-slate-50 border border-slate-200 rounded-xl p-4 flex flex-col gap-4">
-              <div className="flex items-center gap-2 text-xs uppercase text-slate-500">
-                <BadgeCheck className="text-amber-500" size={16} />
-                Campus credentials
-              </div>
-              <div className="space-y-3">
-                {campusList.map((campus, campusIndex) => {
-                  const campusKey = campusKeyFor(campus, campusIndex);
-                  const campusCredentials = credentialBucket?.campuses || {};
-                  const credential =
-                    campusCredentials[campusKey] ||
-                    campusCredentials.default ||
-                    (campusIndex === 0 && credentialBucket?.code ? credentialBucket : null);
-                  return (
-                    <div key={`${campusKey}-${campusIndex}`} className="rounded-xl border border-slate-200 bg-white p-4">
-                      <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-                        <div>
-                          <p className="text-sm font-semibold text-slate-800">
-                            {campus?.name || `Campus ${campusIndex + 1}`}
-                          </p>
-                          <p className="text-xs text-slate-500">
-                            {campus?.campusType || 'Campus'}
-                          </p>
-                          {credential?.generatedAt && (
-                            <p className="text-xs text-slate-400">
-                              Generated {new Date(credential.generatedAt).toLocaleString()}
-                            </p>
-                          )}
-                        </div>
-                        <div className="flex flex-wrap items-center gap-3 text-sm">
-                          <div className="flex items-center gap-2">
-                            <span className="text-xs uppercase text-slate-500">Username</span>
-                            <span className="font-mono text-sm text-slate-800">
-                              {credential?.code || 'Not generated'}
-                            </span>
-                            {credential?.code && (
-                              <button
-                                className="flex items-center gap-1 text-xs text-slate-500 border border-slate-300 rounded-lg px-2 py-1"
-                                onClick={() => navigator.clipboard.writeText(credential.code)}
-                              >
-                                <Copy size={12} /> Copy
-                              </button>
-                            )}
+          {filteredRequests.length > 0 && (
+            <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-x-auto">
+              <table className="w-full text-sm min-w-[1100px]">
+                <thead className="bg-slate-50 border-b border-slate-100">
+                  <tr>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase">School</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase">Board</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase">Students</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase">Campuses</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase">Contact</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase">Submitted</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase">Status</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {paginatedRequests.map((request) => {
+                    const logoSrc =
+                      typeof request.logo === 'string'
+                        ? request.logo
+                        : (request.logo?.secure_url || request.logo?.url || request.logo?.path || '');
+                    const campusList = resolveCampuses(request);
+                    const firstCampus = campusList[0] || null;
+                    return (
+                      <tr key={request.id} className="border-b border-slate-100 hover:bg-slate-50/60">
+                        <td className="px-4 py-3">
+                          <div className="flex items-center gap-3">
+                            <div className="h-9 w-9 rounded-lg bg-slate-100 overflow-hidden flex items-center justify-center shrink-0">
+                              {logoSrc ? (
+                                <img src={logoSrc} alt={request.schoolName || 'School logo'} className="h-full w-full object-cover" />
+                              ) : (
+                                <span className="text-[11px] font-semibold text-slate-600">
+                                  {getSchoolInitials(request.schoolName || request.name)}
+                                </span>
+                              )}
+                            </div>
+                            <div>
+                              <Link to={`/super-admin/requests/${request.id}`} className="font-semibold text-slate-800 hover:text-indigo-600">
+                                {request.schoolName}
+                              </Link>
+                              <p className="text-xs text-slate-500">ID: {request.id}</p>
+                            </div>
                           </div>
-                          <div className="flex items-center gap-2">
-                            <span className="text-xs uppercase text-slate-500">Password</span>
-                            <span className="font-mono text-sm text-slate-800">
-                              {credential?.password || 'Not generated'}
-                            </span>
-                            {credential?.password && (
-                              <button
-                                className="flex items-center gap-1 text-xs text-slate-500 border border-slate-300 rounded-lg px-2 py-1"
-                                onClick={() => navigator.clipboard.writeText(credential.password)}
-                              >
-                                <Copy size={12} /> Copy
-                              </button>
-                            )}
+                        </td>
+                        <td className="px-4 py-3 text-slate-600">{request.board || '-'}</td>
+                        <td className="px-4 py-3 text-slate-600">{request.studentCount || '-'}</td>
+                        <td className="px-4 py-3 text-slate-600">{request.campuses || campusList.length || 0}</td>
+                        <td className="px-4 py-3 text-slate-600">
+                          <div className="text-xs">
+                            <p>{request.contactPerson || '-'}</p>
+                            <p className="text-slate-500">{request.contactEmail || '-'}</p>
                           </div>
-                        </div>
-                      </div>
-                      <div className="mt-3 flex flex-wrap gap-2">
-                        <button
-                          className="px-4 py-2 rounded-lg border border-slate-200 text-slate-600 text-sm"
-                          onClick={() => onGenerateSchoolCredentials?.(request, campus, campusIndex)}
-                        >
-                          {credential ? 'Regenerate credentials' : 'Generate username & password'}
-                        </button>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
+                        </td>
+                        <td className="px-4 py-3 text-slate-600">{new Date(request.submittedAt).toLocaleDateString()}</td>
+                        <td className="px-4 py-3">
+                          <span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${statusStyles[request.status] || 'bg-slate-100 text-slate-600'}`}>
+                            {String(request.status || '').toUpperCase()}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="flex flex-wrap gap-2">
+                            <button
+                              className="px-2.5 py-1.5 rounded-lg border border-slate-200 text-slate-600 text-xs disabled:opacity-60 disabled:cursor-not-allowed"
+                              onClick={() => updateStatus(request.id, 'review')}
+                              disabled={Boolean(activeAction) || request.status === 'rejected'}
+                            >
+                              {activeAction === `${request.id}:review` ? 'Updating...' : 'Review'}
+                            </button>
+                            <button
+                              className="px-2.5 py-1.5 rounded-lg border border-rose-200 text-rose-600 text-xs disabled:opacity-60 disabled:cursor-not-allowed"
+                              onClick={() => updateStatus(request.id, 'rejected')}
+                              disabled={Boolean(activeAction) || request.status === 'rejected'}
+                            >
+                              {activeAction === `${request.id}:rejected` ? 'Rejecting...' : 'Reject'}
+                            </button>
+                            <button
+                              className="px-2.5 py-1.5 rounded-lg bg-emerald-600 text-white text-xs disabled:opacity-60 disabled:cursor-not-allowed"
+                              onClick={() => updateStatus(request.id, 'approved')}
+                              disabled={Boolean(activeAction) || request.status === 'rejected'}
+                            >
+                              {activeAction === `${request.id}:approved` ? 'Approving...' : 'Approve'}
+                            </button>
+                            <button
+                              className="px-2.5 py-1.5 rounded-lg border border-indigo-200 text-indigo-600 text-xs disabled:opacity-60 disabled:cursor-not-allowed"
+                              onClick={() => onGenerateSchoolCredentials?.(request, firstCampus, 0)}
+                              disabled={Boolean(activeAction) || request.status === 'rejected'}
+                            >
+                              Credentials
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
             </div>
-
-            <div className="mt-4 flex flex-col gap-2 sm:flex-row">
-              <button
-                className="flex items-center justify-center gap-2 px-4 py-2 rounded-lg border border-slate-200 text-slate-600 text-sm disabled:opacity-60 disabled:cursor-not-allowed"
-                onClick={() => updateStatus(request.id, 'review')}
-                disabled={Boolean(activeAction) || request.status === 'rejected'}
-              >
-                <RefreshCw size={14} />
-                {activeAction === `${request.id}:review` ? 'Updating...' : 'Request updates'}
-              </button>
-              <button
-                className="flex items-center justify-center gap-2 px-4 py-2 rounded-lg border border-rose-200 text-rose-600 text-sm disabled:opacity-60 disabled:cursor-not-allowed"
-                onClick={() => updateStatus(request.id, 'rejected')}
-                disabled={Boolean(activeAction) || request.status === 'rejected'}
-              >
-                <XCircle size={14} />
-                {activeAction === `${request.id}:rejected` ? 'Rejecting...' : 'Reject'}
-              </button>
-              <button
-                className="flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-emerald-600 text-white text-sm disabled:opacity-60 disabled:cursor-not-allowed"
-                onClick={() => updateStatus(request.id, 'approved')}
-                disabled={Boolean(activeAction) || request.status === 'rejected'}
-              >
-                <CheckCircle size={14} />
-                {activeAction === `${request.id}:approved` ? 'Approving...' : 'Approve and activate'}
-              </button>
-            </div>
-          </div>
-        )})}
+          )}
         {filteredRequests.length === 0 && (
           <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-10 text-center text-slate-500">
             No schools match the current filters.
+          </div>
+        )}
+        {filteredRequests.length > 0 && (
+          <div className="bg-white rounded-2xl border border-slate-100 shadow-sm px-4 py-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <p className="text-sm text-slate-500">
+              Showing {startItem}-{endItem} of {filteredRequests.length}
+            </p>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}
+                disabled={currentPage === 1}
+                className="px-3 py-1.5 rounded-lg border border-slate-200 text-sm text-slate-600 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Prev
+              </button>
+              <span className="text-sm text-slate-600">
+                Page {currentPage} / {totalPages}
+              </span>
+              <button
+                type="button"
+                onClick={() => setCurrentPage((prev) => Math.min(totalPages, prev + 1))}
+                disabled={currentPage === totalPages}
+                className="px-3 py-1.5 rounded-lg border border-slate-200 text-sm text-slate-600 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Next
+              </button>
+            </div>
           </div>
         )}
         </div>

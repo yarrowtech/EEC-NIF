@@ -4,6 +4,7 @@ import {
   BookOpen,
   CheckCircle2,
   Edit3,
+  Download,
   IndianRupee,
   Layers,
   Loader2,
@@ -14,6 +15,7 @@ import {
   Trash2,
   X,
 } from 'lucide-react';
+import { downloadFeesStructurePdf } from '../../utils/feesStructurePdf';
 
 const API_BASE = (import.meta.env.VITE_API_URL || 'http://localhost:5000').replace(/\/$/, '');
 const BOARD_OPTIONS = ['GENERAL', 'CBSE', 'ICSE', 'STATE', 'IB'];
@@ -38,6 +40,15 @@ const EMPTY_FORM = {
   name: '',
   feeHeads: [],
   installments: [],
+};
+
+const DEFAULT_PDF_SCHOOL = {
+  schoolName: '',
+  schoolAddressLine: '',
+  schoolContactLine: '',
+  logoUrl: '',
+  logoUrlOverride: '',
+  accentColor: '#0f172a',
 };
 
 const toAmount = (value) => {
@@ -77,6 +88,7 @@ const FeesManagement = ({ setShowAdminHeader }) => {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
+  const [pdfSchool, setPdfSchool] = useState(DEFAULT_PDF_SCHOOL);
 
   useEffect(() => {
     setShowAdminHeader?.(false);
@@ -113,7 +125,7 @@ const FeesManagement = ({ setShowAdminHeader }) => {
   const basicsDone = Boolean(form.classId && String(form.name || '').trim());
   const headsDone = configuredHeads > 0;
   const installmentsDone = configuredInstallments > 0;
-  const flowCompleted = [basicsDone, headsDone, installmentsDone].filter(Boolean).length;
+  const FLOW_COMPLETED = [basicsDone, headsDone, installmentsDone].filter(Boolean).length;
 
 
   const filteredStructures = useMemo(() => {
@@ -160,12 +172,14 @@ const FeesManagement = ({ setShowAdminHeader }) => {
     setLoading(true);
     setError('');
     try {
-      const [filtersRes, structuresRes] = await Promise.all([
+      const [filtersRes, structuresRes, templateRes] = await Promise.all([
         fetch(`${API_BASE}/api/fees/admin/filters`, { headers: authHeaders() }),
         fetch(`${API_BASE}/api/fees/structures`, { headers: authHeaders() }),
+        fetch(`${API_BASE}/api/reports/report-cards/template`, { headers: authHeaders() }),
       ]);
       const filtersData = await filtersRes.json().catch(() => ({}));
       const structuresData = await structuresRes.json().catch(() => ([]));
+      const templateData = await templateRes.json().catch(() => ({}));
       if (!filtersRes.ok) throw new Error(filtersData?.error || 'Failed to load filters');
       if (!structuresRes.ok) throw new Error(structuresData?.error || 'Failed to load fee structures');
       setFilters({
@@ -173,6 +187,18 @@ const FeesManagement = ({ setShowAdminHeader }) => {
         academicYears: filtersData.academicYears || [],
       });
       setStructures(Array.isArray(structuresData) ? structuresData : []);
+      if (templateRes.ok && templateData && typeof templateData === 'object') {
+        setPdfSchool({
+          schoolName: String(templateData.schoolName || '').trim(),
+          schoolAddressLine: String(templateData.schoolAddressLine || '').trim(),
+          schoolContactLine: String(templateData.schoolContactLine || '').trim(),
+          logoUrl: String(templateData.logoUrl || '').trim(),
+          logoUrlOverride: String(templateData.logoUrlOverride || '').trim(),
+          accentColor: String(templateData.accentColor || '#0f172a').trim() || '#0f172a',
+        });
+      } else {
+        setPdfSchool(DEFAULT_PDF_SCHOOL);
+      }
     } catch (err) {
       setError(err.message || 'Unable to load fee builder data');
     } finally {
@@ -308,6 +334,17 @@ const FeesManagement = ({ setShowAdminHeader }) => {
       await loadAll();
       resetForm();
       setNotice(isEdit ? 'Fee structure updated.' : 'Fee structure created.');
+      if (!isEdit) {
+        const academicYearName =
+          yearNameById.get(String(payload.academicYearId || '')) || '';
+        await downloadFeesStructurePdf({
+          structure: {
+            ...payload,
+            academicYearName,
+          },
+          school: pdfSchool,
+        });
+      }
     } catch (err) {
       setError(err.message || 'Unable to save structure');
     } finally {
@@ -330,6 +367,26 @@ const FeesManagement = ({ setShowAdminHeader }) => {
       setNotice('Fee structure deleted.');
     } catch (err) {
       setError(err.message || 'Unable to delete structure');
+    }
+  };
+
+  const handleDownloadStructurePdf = async (structure) => {
+    if (!structure) return;
+    setError('');
+    setNotice('');
+    try {
+      const academicYearName =
+        yearNameById.get(String(structure.academicYearId || '')) || '';
+      await downloadFeesStructurePdf({
+        structure: {
+          ...structure,
+          academicYearName,
+        },
+        school: pdfSchool,
+      });
+      setNotice('Fee structure PDF downloaded.');
+    } catch {
+      setError('Unable to generate fee structure PDF');
     }
   };
 
@@ -482,6 +539,13 @@ const FeesManagement = ({ setShowAdminHeader }) => {
                   >
                     <Edit3 className="h-3 w-3" />
                     Edit
+                  </button>
+                  <button
+                    onClick={() => handleDownloadStructurePdf(item)}
+                    className="inline-flex items-center gap-1.5 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-700 hover:bg-emerald-100 transition-all"
+                  >
+                    <Download className="h-3 w-3" />
+                    PDF
                   </button>
                   <button
                     onClick={() => deleteStructure(item)}
