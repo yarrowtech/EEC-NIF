@@ -289,6 +289,12 @@ router.delete('/:id', adminAuth, async (req, res) => {
     if (!schoolId) return;
     const campusId = req.campusId || null;
     const { id } = req.params;
+    const existing = await Notification.findOne({ _id: id, schoolId, ...(campusId ? { campusId } : {}) }).lean();
+    if (!existing) return res.status(404).json({ error: 'Not found' });
+    if (!req.isSuperAdmin && String(existing.createdByType || '').toLowerCase() === 'super_admin') {
+      return res.status(403).json({ error: 'Super admin notices cannot be deleted by school admin' });
+    }
+
     const deleted = await Notification.findOneAndDelete({ _id: id, schoolId, ...(campusId ? { campusId } : {}) });
     if (!deleted) return res.status(404).json({ error: 'Not found' });
     res.json({ ok: true });
@@ -384,6 +390,22 @@ router.get('/user', authAnyUser, async (req, res) => {
         }
       ]
     };
+
+    if (normalizedAudience === 'Admin') {
+      filter.$and.push({
+        $or: [
+          { createdBy: { $exists: false } },
+          { createdBy: null },
+          {
+            $and: [
+              { createdBy: userId },
+              { type: { $nin: ['notice', 'exam', 'announcement'] } },
+            ],
+          },
+          { createdBy: { $ne: userId } },
+        ],
+      });
+    }
 
     if (normalizedAudience === 'Student') {
       const student = await StudentUser.findById(userId).select('grade section').lean();

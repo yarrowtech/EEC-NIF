@@ -71,7 +71,7 @@ const AdminHeader = ({ adminUser, onOpenMobileSidebar }) => {
       setNotifLoading(true);
       setNotifError('');
       try {
-        const res  = await fetch(`${API_BASE}/api/notifications`, {
+        const res  = await fetch(`${API_BASE}/api/notifications/user`, {
           headers: { 'Content-Type': 'application/json', authorization: `Bearer ${token}` },
         });
         const data = await res.json().catch(() => []);

@@ -76,6 +76,10 @@ const Support = ({ setShowAdminHeader }) => {
     const email = String(supportSettings.email || '').trim();
     return email ? `mailto:${email}` : 'mailto:support@eecschools.com';
   }, [supportSettings.email]);
+  const supportEscalationEmail = useMemo(() => {
+    const email = String(supportSettings.email || '').trim();
+    return email || 'support@eecschools.com';
+  }, [supportSettings.email]);
 
   useEffect(() => { setShowAdminHeader(true); }, [setShowAdminHeader]);
 
@@ -240,55 +244,50 @@ const Support = ({ setShowAdminHeader }) => {
 
   const impactBadge = { low: 'bg-slate-100 text-slate-600', medium: 'bg-amber-100 text-amber-700', high: 'bg-orange-100 text-orange-700', critical: 'bg-red-100 text-red-700' };
 
-  const fieldBase = 'mt-1 w-full rounded-xl border border-gray-200 px-3 py-2.5 text-sm focus:ring-2 focus:ring-amber-400 focus:border-amber-400 outline-none transition bg-gray-50 hover:bg-white focus:bg-white';
-  const fieldLabel = 'block text-xs font-bold text-gray-500 uppercase tracking-wider mb-0';
+  const fieldBase = 'mt-1 w-full rounded-xl border border-gray-200 px-3 py-2.5 text-sm focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-400 outline-none transition bg-gray-50 hover:bg-white focus:bg-white';
+  const fieldLabel = 'block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-0';
 
   /* ── Render ───────────────────────────────────────────────────────────────── */
   return (
-    <div className="min-h-screen bg-gray-50/80">
+    <div className="min-h-screen bg-slate-50">
 
       {/* ── Gradient Hero ─────────────────────────────────────────────────── */}
-      <div className="relative overflow-hidden bg-linear-to-br from-amber-500 via-amber-400 to-orange-400">
-        {/* decorative circles */}
-        <div className="pointer-events-none absolute -top-20 -right-20 h-72 w-72 rounded-full bg-white/10" />
-        <div className="pointer-events-none absolute -bottom-10 -left-10 h-48 w-48 rounded-full bg-white/10" />
+      <div className="relative overflow-hidden bg-linear-to-r from-slate-900 via-blue-950 to-slate-900 px-6 py-6 shadow-lg">
+        <div className="pointer-events-none absolute top-0 right-0 w-72 h-72 rounded-full bg-indigo-400/10 -translate-y-1/2 translate-x-1/4 blur-3xl" />
+        <div className="pointer-events-none absolute bottom-0 left-0 w-56 h-56 rounded-full bg-cyan-500/10 translate-y-1/2 -translate-x-1/4 blur-3xl" />
 
-        <div className="relative max-w-6xl mx-auto px-6 py-10">
-          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-6">
+        <div className="relative max-w-6xl mx-auto">
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-5">
             <div className="flex items-center gap-4">
-              <div className="p-3 rounded-2xl bg-white/20 backdrop-blur-sm">
-                <LifeBuoy className="h-9 w-9 text-white" />
+              <div className="w-11 h-11 rounded-2xl bg-white/10 border border-white/20 flex items-center justify-center backdrop-blur-sm shrink-0">
+                <LifeBuoy className="h-5 w-5 text-white" />
               </div>
               <div>
-                <p className="text-xs font-bold text-amber-100 uppercase tracking-widest">EEC Support Desk</p>
-                <h1 className="text-2xl md:text-3xl font-extrabold text-white mt-0.5 leading-tight">
-                  How can we help you?
-                </h1>
-                <p className="text-amber-100 text-sm mt-1.5 max-w-lg">
-                  Reset credentials, share feedback, or escalate complaints — our team responds within one business day.
+                <p className="text-xs font-semibold text-slate-400 uppercase tracking-widest">EEC Support Desk</p>
+                <h1 className="text-xl font-bold text-white mt-0.5 tracking-tight">How can we help you?</h1>
+                <p className="text-slate-400 text-sm mt-0.5">
+                  Reset credentials, share feedback, or escalate complaints.
                 </p>
               </div>
             </div>
 
-            <div className="flex flex-col sm:flex-row gap-2.5 md:shrink-0">
-              <a href={supportPhoneHref}
-                className="flex items-center gap-2.5 px-4 py-2.5 rounded-xl bg-white/20 hover:bg-white/30 backdrop-blur-sm border border-white/30 text-sm font-semibold text-white transition">
-                <Phone className="h-4 w-4" /> {supportSettings.phoneNumber}
+            <div className="flex flex-wrap gap-2.5 md:shrink-0">
+              <a className="flex items-center gap-2 px-4 py-2 rounded-xl bg-white/10 hover:bg-white/20 backdrop-blur-sm border border-white/15 text-sm font-semibold text-white transition"
+                href={supportPhoneHref}>
+                <Phone className="h-4 w-4 text-white" /> {supportSettings.phoneNumber}
               </a>
-              <a href={supportMailHref}
-                className="flex items-center gap-2.5 px-4 py-2.5 rounded-xl bg-white/20 hover:bg-white/30 backdrop-blur-sm border border-white/30 text-sm font-semibold text-white transition">
-                <Mail className="h-4 w-4" /> Email us
+              <a className="flex items-center gap-2 px-4 py-2 rounded-xl bg-white/10 hover:bg-white/20 backdrop-blur-sm border border-white/15 text-sm font-semibold text-white transition"
+                href={supportMailHref}>
+                <Mail className="h-4 w-4 text-white" /> Email us
               </a>
+              <div className="flex items-center gap-2 px-4 py-2 rounded-xl bg-white/10 border border-white/15 text-sm text-white">
+                <span className="inline-block w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                {supportSettings.onCall24x7
+                  ? <span className="font-semibold">24 / 7 On-call</span>
+                  : <span className="font-semibold">{supportSettings.availableDays} · {supportSettings.availableTime}</span>
+                }
+              </div>
             </div>
-          </div>
-
-          {/* Availability */}
-          <div className="mt-5 flex items-center gap-2 text-xs text-amber-100">
-            <span className="inline-block w-2 h-2 rounded-full bg-white animate-pulse" />
-            {supportSettings.onCall24x7
-              ? <span className="font-bold text-white">On-call team available 24 / 7</span>
-              : <><span className="font-bold text-white">{supportSettings.availableDays}</span>&nbsp;·&nbsp;<span className="font-bold text-white">{supportSettings.availableTime}</span></>
-            }
           </div>
         </div>
       </div>
@@ -678,7 +677,7 @@ const Support = ({ setShowAdminHeader }) => {
                 {[
                   { icon: ClipboardList, label: 'Service status', value: 'All systems normal', color: 'text-emerald-400', bg: 'bg-emerald-500/10' },
                   { icon: Clock, label: 'Available window', value: `${supportSettings.availableDays} · ${supportSettings.availableTime}`, color: 'text-amber-400', bg: 'bg-amber-500/10' },
-                  { icon: Mail, label: 'Escalation email', value: supportSettings.email, color: 'text-blue-400', bg: 'bg-blue-500/10' },
+                  { icon: Mail, label: 'Escalation email', value: supportEscalationEmail, color: 'text-blue-400', bg: 'bg-blue-500/10' },
                 ].map((item) => (
                   <div key={item.label} className="flex items-center gap-3">
                     <div className={`p-1.5 rounded-lg ${item.bg}`}>
@@ -686,7 +685,9 @@ const Support = ({ setShowAdminHeader }) => {
                     </div>
                     <div>
                       <p className="text-xs text-gray-500">{item.label}</p>
-                      <p className="text-sm font-semibold text-white truncate max-w-56">{item.value}</p>
+                      <p className={`text-sm font-semibold text-white ${item.label === 'Escalation email' ? 'break-all' : 'truncate max-w-56'}`}>
+                        {item.value}
+                      </p>
                     </div>
                   </div>
                 ))}

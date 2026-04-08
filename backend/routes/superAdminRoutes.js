@@ -7,6 +7,10 @@ const TeacherUser = require('../models/TeacherUser');
 const ParentUser = require('../models/ParentUser');
 const Principal = require('../models/Principal');
 const AuditLog = require('../models/AuditLog');
+const Notification = require('../models/Notification');
+const SuperAdminAnnouncement = require('../models/SuperAdminAnnouncement');
+const SuperAdminCompliance = require('../models/SuperAdminCompliance');
+const SuperAdminActivity = require('../models/SuperAdminActivity');
 const adminAuth = require('../middleware/adminAuth');
 const { isStrongPassword, passwordPolicyMessage } = require('../utils/passwordPolicy');
 
@@ -30,6 +34,71 @@ const resolveSchoolIdOrError = async (schoolId, res) => {
     return null;
   }
   return schoolId;
+};
+
+const resolveBroadcastSchoolFilter = (audience = 'All schools') => {
+  const normalized = String(audience || '').trim().toLowerCase();
+  if (normalized === 'premium schools') {
+    return { registrationStatus: 'approved', subscriptionPlan: { $in: ['premium', 'enterprise'] } };
+  }
+  if (normalized === 'pending onboarding') {
+    return { registrationStatus: 'pending' };
+  }
+  return { registrationStatus: 'approved' };
+};
+
+const DEFAULT_COMPLIANCE_ITEMS = [
+  {
+    title: 'Data residency attestation',
+    status: 'pending',
+    owner: 'Legal',
+    dueDate: '2024-02-10',
+  },
+  {
+    title: 'SOC2 quarterly backup drill',
+    status: 'in_progress',
+    owner: 'Security',
+    dueDate: '2024-02-08',
+  },
+  {
+    title: 'GDPR DPIA update',
+    status: 'completed',
+    owner: 'Privacy Office',
+    dueDate: '2024-01-28',
+  },
+];
+
+const toOpsAnnouncement = (item) => ({
+  id: String(item?._id || ''),
+  title: item?.title || '',
+  message: item?.message || '',
+  audience: item?.audience || 'All schools',
+  createdAt: item?.createdAt || item?.updatedAt || new Date().toISOString(),
+  owner: item?.createdByName || 'Super Admin',
+  status: item?.status || 'sent',
+  targetSchools: Number(item?.targetSchools || 0),
+  notificationsCreated: Number(item?.notificationsCreated || 0),
+});
+
+const toOpsCompliance = (item) => ({
+  id: String(item?._id || ''),
+  title: item?.title || '',
+  status: item?.status || 'pending',
+  owner: item?.owner || '',
+  dueDate: item?.dueDate || '',
+});
+
+const toOpsActivity = (item) => ({
+  id: String(item?._id || ''),
+  label: item?.label || '',
+  timestamp: item?.timestamp || item?.createdAt || new Date().toISOString(),
+  type: item?.type || 'other',
+});
+
+const ensureComplianceSeed = async () => {
+  const count = await SuperAdminCompliance.countDocuments();
+  if (count > 0) return;
+  await SuperAdminCompliance.insertMany(DEFAULT_COMPLIANCE_ITEMS);
 };
 
 // Overview counts (super admin only)
@@ -117,6 +186,127 @@ router.get('/schools', adminAuth, ensureSuperAdmin, async (req, res) => {
     res.json(schools);
   } catch (err) {
     res.status(500).json({ error: err.message });
+  }
+});
+
+// Operations data (super admin only)
+router.get('/operations/data', adminAuth, ensureSuperAdmin, async (_req, res) => {
+  // #swagger.tags = ['Super Admin']
+  try {
+    await ensureComplianceSeed();
+    const [announcements, complianceItems, activityFeed] = await Promise.all([
+      SuperAdminAnnouncement.find().sort({ createdAt: -1 }).limit(100).lean(),
+      SuperAdminCompliance.find().sort({ createdAt: -1 }).limit(100).lean(),
+      SuperAdminActivity.find().sort({ timestamp: -1, createdAt: -1 }).limit(200).lean(),
+    ]);
+    return res.json({
+      announcements: announcements.map(toOpsAnnouncement),
+      complianceItems: complianceItems.map(toOpsCompliance),
+      activityFeed: activityFeed.map(toOpsActivity),
+    });
+  } catch (err) {
+    return res.status(500).json({ error: err.message || 'Failed to fetch operations data' });
+  }
+});
+
+// Update compliance item status (super admin only)
+router.patch('/operations/compliance/:id', adminAuth, ensureSuperAdmin, async (req, res) => {
+  // #swagger.tags = ['Super Admin']
+  try {
+    const { id } = req.params;
+    const { status } = req.body || {};
+    if (!mongoose.isValidObjectId(id)) {
+      return res.status(400).json({ error: 'Invalid compliance item id' });
+    }
+    if (!['pending', 'in_progress', 'completed'].includes(String(status || ''))) {
+      return res.status(400).json({ error: 'Invalid compliance status' });
+    }
+    const updated = await SuperAdminCompliance.findByIdAndUpdate(
+      id,
+      { $set: { status: String(status) } },
+      { new: true, runValidators: true }
+    ).lean();
+    if (!updated) {
+      return res.status(404).json({ error: 'Compliance item not found' });
+    }
+    const activity = await SuperAdminActivity.create({
+      label: `Compliance ${String(status)}: ${updated.title}`,
+      type: 'compliance',
+      timestamp: new Date(),
+    });
+    return res.json({
+      item: toOpsCompliance(updated),
+      activity: toOpsActivity(activity),
+    });
+  } catch (err) {
+    return res.status(500).json({ error: err.message || 'Failed to update compliance item' });
+  }
+});
+
+// Broadcast announcement to schools (super admin only)
+router.post('/announcements/broadcast', adminAuth, ensureSuperAdmin, async (req, res) => {
+  // #swagger.tags = ['Super Admin']
+  try {
+    const { title, message, audience = 'All schools', priority = 'medium', expiresAt } = req.body || {};
+    const safeTitle = String(title || '').trim();
+    const safeMessage = String(message || '').trim();
+    if (!safeTitle || !safeMessage) {
+      return res.status(400).json({ error: 'title and message are required' });
+    }
+
+    const allowedPriority = new Set(['low', 'medium', 'high']);
+    const safePriority = allowedPriority.has(String(priority || '').trim().toLowerCase())
+      ? String(priority).trim().toLowerCase()
+      : 'medium';
+
+    const schoolFilter = resolveBroadcastSchoolFilter(audience);
+    const schools = await School.find(schoolFilter).select('_id').lean();
+    if (!schools.length) {
+      return res.status(404).json({ error: 'No schools matched the selected audience' });
+    }
+
+    const docs = schools.map((school) => ({
+      schoolId: school._id,
+      campusId: null,
+      title: safeTitle,
+      message: safeMessage,
+      audience: 'Admin',
+      createdBy: req.admin?.id || req.admin?._id || null,
+      createdByType: 'super_admin',
+      createdByName: req.admin?.name || req.admin?.username || 'Super Admin',
+      type: 'announcement',
+      typeLabel: 'Super Admin Broadcast',
+      priority: safePriority,
+      category: 'general',
+      expiresAt: expiresAt ? new Date(expiresAt) : undefined,
+    }));
+
+    const created = await Notification.insertMany(docs, { ordered: false });
+    const announcement = await SuperAdminAnnouncement.create({
+      title: safeTitle,
+      message: safeMessage,
+      audience: String(audience || 'All schools'),
+      status: 'sent',
+      targetSchools: schools.length,
+      notificationsCreated: Array.isArray(created) ? created.length : 0,
+      createdBy: req.admin?.id || req.admin?._id || null,
+      createdByName: req.admin?.name || req.admin?.username || 'Super Admin',
+    });
+    const activity = await SuperAdminActivity.create({
+      label: `Broadcast sent: ${safeTitle}`,
+      type: 'broadcast',
+      timestamp: new Date(),
+    });
+    return res.status(201).json({
+      message: 'Announcement broadcast sent',
+      targetSchools: schools.length,
+      notificationsCreated: Array.isArray(created) ? created.length : 0,
+      audience: String(audience || 'All schools'),
+      announcement: toOpsAnnouncement(announcement),
+      activity: toOpsActivity(activity),
+    });
+  } catch (err) {
+    return res.status(500).json({ error: err.message || 'Failed to broadcast announcement' });
   }
 });
 

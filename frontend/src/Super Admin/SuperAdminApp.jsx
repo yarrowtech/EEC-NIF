@@ -10,10 +10,7 @@ import Operations from './pages/Operations';
 import IDPass from './pages/IDPass';
 import ActiveSchools from './pages/ActiveSchools';
 import {
-  initialSchoolRequests,
-  initialAnnouncements,
-  initialComplianceItems,
-  initialActivityFeed
+  initialSchoolRequests
 } from './mockData';
 
 const API_BASE = import.meta.env.VITE_API_URL;
@@ -102,9 +99,9 @@ const SuperAdminApp = () => {
   const [issuesLoading, setIssuesLoading] = useState(false);
   const [issuesError, setIssuesError] = useState(null);
   const [issuesLastSyncedAt, setIssuesLastSyncedAt] = useState(null);
-  const [announcements, setAnnouncements] = useState(initialAnnouncements);
-  const [complianceItems, setComplianceItems] = useState(initialComplianceItems);
-  const [activityFeed, setActivityFeed] = useState(initialActivityFeed);
+  const [announcements, setAnnouncements] = useState([]);
+  const [complianceItems, setComplianceItems] = useState([]);
+  const [activityFeed, setActivityFeed] = useState([]);
   const [supportSettings, setSupportSettings] = useState({
     phoneNumber: '+91 90420 56789',
     email: 'support@eecschools.com',
@@ -454,9 +451,38 @@ const SuperAdminApp = () => {
     }
   }, []);
 
+  const fetchOperationsData = useCallback(async () => {
+    const token = localStorage.getItem('token');
+    if (!token || !API_BASE) {
+      setAnnouncements([]);
+      setComplianceItems([]);
+      setActivityFeed([]);
+      return;
+    }
+    try {
+      const response = await fetch(`${API_BASE}/api/super-admin/operations/data`, {
+        headers: {
+          Authorization: `Bearer ${token}`
+        }
+      });
+      if (!response.ok) {
+        throw new Error('Failed to load operations data');
+      }
+      const data = await response.json().catch(() => ({}));
+      setAnnouncements(Array.isArray(data?.announcements) ? data.announcements : []);
+      setComplianceItems(Array.isArray(data?.complianceItems) ? data.complianceItems : []);
+      setActivityFeed(Array.isArray(data?.activityFeed) ? data.activityFeed : []);
+    } catch (error) {
+      console.error('Failed to fetch operations data', error);
+      setAnnouncements([]);
+      setComplianceItems([]);
+      setActivityFeed([]);
+    }
+  }, []);
+
   const handleSupportSettingsSave = useCallback(async (nextSettings = {}) => {
     const token = localStorage.getItem('token');
-    if (!token || !API_BASE) return;
+    if (!token || !API_BASE) return false;
     setSupportSettingsSaving(true);
     setSupportSettingsError(null);
     try {
@@ -477,9 +503,11 @@ const SuperAdminApp = () => {
         ...(data || {}),
         onCall24x7: data?.onCall24x7 !== false
       }));
+      return true;
     } catch (error) {
       console.error('Failed to save support settings', error);
       setSupportSettingsError(error.message || 'Unable to save support settings');
+      return false;
     } finally {
       setSupportSettingsSaving(false);
     }
@@ -528,6 +556,10 @@ const SuperAdminApp = () => {
   useEffect(() => {
     fetchSupportSettings();
   }, [fetchSupportSettings]);
+
+  useEffect(() => {
+    fetchOperationsData();
+  }, [fetchOperationsData]);
 
   useEffect(() => {
     const handleRefresh = () => fetchRequests();
@@ -954,47 +986,70 @@ const SuperAdminApp = () => {
     [fetchIssues, issues]
   );
 
-  const pushActivity = (entry) => {
-    setActivityFeed((prev) => [
-      {
-        id: `ACT-${Date.now()}`,
-        timestamp: new Date().toISOString(),
-        ...entry
-      },
-      ...prev
-    ]);
-  };
+  const handleAnnouncementCreate = async ({ title, message, audience }) => {
+    const token = localStorage.getItem('token');
+    if (!token || !API_BASE) {
+      return true;
+    }
 
-  const handleAnnouncementCreate = ({ title, message, audience }) => {
-    const newAnnouncement = {
-      id: `BC-${Date.now()}`,
-      title,
-      message,
-      audience,
-      createdAt: new Date().toISOString(),
-      owner: profile.name,
-      status: 'scheduled'
-    };
-    setAnnouncements((prev) => [newAnnouncement, ...prev]);
-    pushActivity({ label: `Broadcast scheduled: ${title}`, type: 'broadcast' });
-  };
-
-  const handleComplianceUpdate = (itemId, status) => {
-    setComplianceItems((prev) => {
-      const updated = prev.map((item) =>
-        item.id === itemId
-          ? {
-              ...item,
-              status
-            }
-          : item
-      );
-      const updatedItem = prev.find((item) => item.id === itemId);
-      if (updatedItem) {
-        pushActivity({ label: `Compliance ${status}: ${updatedItem.title}`, type: 'compliance' });
+    try {
+      const response = await fetch(`${API_BASE}/api/super-admin/announcements/broadcast`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({ title, message, audience, priority: 'medium' })
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(data?.error || 'Failed to send broadcast');
       }
-      return updated;
-    });
+
+      if (data?.announcement) {
+        setAnnouncements((prev) => [data.announcement, ...prev]);
+      } else {
+        await fetchOperationsData();
+      }
+      if (data?.activity) {
+        setActivityFeed((prev) => [data.activity, ...prev]);
+      }
+      return true;
+    } catch (error) {
+      console.error('Failed to broadcast announcement', error);
+      return false;
+    }
+  };
+
+  const handleComplianceUpdate = async (itemId, status) => {
+    const token = localStorage.getItem('token');
+    if (!token || !API_BASE || !itemId) return false;
+    try {
+      const response = await fetch(`${API_BASE}/api/super-admin/operations/compliance/${itemId}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({ status })
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(data?.error || 'Failed to update compliance item');
+      }
+      if (data?.item) {
+        setComplianceItems((prev) => prev.map((item) => (item.id === itemId ? data.item : item)));
+      } else {
+        await fetchOperationsData();
+      }
+      if (data?.activity) {
+        setActivityFeed((prev) => [data.activity, ...prev]);
+      }
+      return true;
+    } catch (error) {
+      console.error('Failed to update compliance item', error);
+      return false;
+    }
   };
 
   const handleCredentialGenerate = (schoolId) => {

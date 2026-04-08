@@ -25,6 +25,10 @@ const Operations = ({
     audience: 'All schools'
   });
   const [sending, setSending] = useState(false);
+  const [broadcastFeedback, setBroadcastFeedback] = useState({ type: '', message: '' });
+  const [supportFeedback, setSupportFeedback] = useState({ type: '', message: '' });
+  const [complianceUpdatingId, setComplianceUpdatingId] = useState('');
+  const [complianceFeedback, setComplianceFeedback] = useState({ type: '', message: '' });
   const [supportForm, setSupportForm] = useState({
     phoneNumber: '+91 90420 56789',
     email: 'support@eecschools.com',
@@ -49,26 +53,55 @@ const Operations = ({
     });
   }, [supportSettings]);
 
-  const handleSubmit = (event) => {
+  const handleSubmit = async (event) => {
     event.preventDefault();
     if (!form.title.trim() || !form.message.trim()) return;
+    setBroadcastFeedback({ type: '', message: '' });
     setSending(true);
-    setTimeout(() => {
-      onCreateAnnouncement(form);
+    try {
+      const ok = await onCreateAnnouncement(form);
+      if (ok === false) {
+        setBroadcastFeedback({ type: 'error', message: 'Failed to send announcement. Please try again.' });
+        return;
+      }
       setForm({ title: '', message: '', audience: 'All schools' });
+      setBroadcastFeedback({ type: 'success', message: 'Announcement sent successfully.' });
+    } finally {
       setSending(false);
-    }, 400);
+    }
   };
 
-  const handleSupportSubmit = (event) => {
+  const handleSupportSubmit = async (event) => {
     event.preventDefault();
-    onSaveSupportSettings({
+    setSupportFeedback({ type: '', message: '' });
+    const ok = await onSaveSupportSettings({
       phoneNumber: supportForm.phoneNumber,
       email: supportForm.email,
       availableDays: supportForm.availableDays,
       availableTime: supportForm.availableTime,
       onCall24x7: supportForm.onCall24x7
     });
+    if (ok === false) {
+      setSupportFeedback({ type: 'error', message: 'Unable to save support settings.' });
+      return;
+    }
+    setSupportFeedback({ type: 'success', message: 'Support settings saved.' });
+  };
+
+  const handleComplianceAction = async (item, status) => {
+    if (!item?.id) return;
+    setComplianceFeedback({ type: '', message: '' });
+    setComplianceUpdatingId(String(item.id));
+    try {
+      const ok = await onComplianceUpdate(item.id, status);
+      if (ok === false) {
+        setComplianceFeedback({ type: 'error', message: 'Failed to update compliance status.' });
+      } else {
+        setComplianceFeedback({ type: 'success', message: 'Compliance status updated.' });
+      }
+    } finally {
+      setComplianceUpdatingId('');
+    }
   };
 
   return (
@@ -179,6 +212,11 @@ const Operations = ({
               <Send size={16} />
               {supportSettingsSaving ? 'Saving...' : 'Save support settings'}
             </button>
+            {supportFeedback.message ? (
+              <p className={`text-xs ${supportFeedback.type === 'error' ? 'text-rose-600' : 'text-emerald-600'}`}>
+                {supportFeedback.message}
+              </p>
+            ) : null}
           </form>
         </div>
 
@@ -230,12 +268,17 @@ const Operations = ({
               disabled={sending}
             >
               <Send size={16} />
-              {sending ? 'Scheduling...' : 'Schedule broadcast'}
+              {sending ? 'Sending...' : 'Send broadcast'}
             </button>
+            {broadcastFeedback.message ? (
+              <p className={`text-xs ${broadcastFeedback.type === 'error' ? 'text-rose-600' : 'text-emerald-600'}`}>
+                {broadcastFeedback.message}
+              </p>
+            ) : null}
           </form>
         </div>
 
-        <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6">
+        {/* <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6">
           <div className="flex items-center gap-3 mb-4">
             <div className="p-2 rounded-lg bg-amber-50 text-amber-500">
               <ClipboardList size={18} />
@@ -260,21 +303,28 @@ const Operations = ({
                 <div className="flex gap-2 mt-3">
                   <button
                     className="text-xs px-3 py-1 border border-slate-200 rounded-lg text-slate-600"
-                    onClick={() => onComplianceUpdate(item.id, 'in_progress')}
+                    disabled={item.status === 'in_progress' || complianceUpdatingId === String(item.id)}
+                    onClick={() => handleComplianceAction(item, 'in_progress')}
                   >
                     Progress
                   </button>
                   <button
                     className="text-xs px-3 py-1 rounded-lg bg-emerald-50 text-emerald-600"
-                    onClick={() => onComplianceUpdate(item.id, 'completed')}
+                    disabled={item.status === 'completed' || complianceUpdatingId === String(item.id)}
+                    onClick={() => handleComplianceAction(item, 'completed')}
                   >
                     Mark done
                   </button>
                 </div>
               </div>
             ))}
+            {complianceFeedback.message ? (
+              <p className={`text-xs ${complianceFeedback.type === 'error' ? 'text-rose-600' : 'text-emerald-600'}`}>
+                {complianceFeedback.message}
+              </p>
+            ) : null}
           </div>
-        </div>
+        </div> */}
       </div>
 
       <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6">
@@ -336,6 +386,10 @@ const Operations = ({
               </div>
               <p className="text-sm text-slate-600 mt-2">{item.message}</p>
               <p className="text-xs text-slate-500 mt-2">Audience: {item.audience}</p>
+              <p className="text-xs text-slate-500 mt-1">
+                Status: {item.status || 'sent'}
+                {item.notificationsCreated ? ` • Notifications: ${item.notificationsCreated}` : ''}
+              </p>
             </div>
           ))}
           {announcements.length === 0 && (

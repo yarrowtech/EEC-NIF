@@ -10,7 +10,7 @@ const notificationSchema = new mongoose.Schema(
     classId: { type: mongoose.Schema.Types.ObjectId, ref: 'Class' },
     sectionId: { type: mongoose.Schema.Types.ObjectId, ref: 'Section' },
     createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'Admin' },
-    createdByType: { type: String, enum: ['admin', 'teacher'], default: 'admin' },
+    createdByType: { type: String, enum: ['admin', 'super_admin', 'teacher'], default: 'admin' },
     createdByTeacherId: { type: mongoose.Schema.Types.ObjectId, ref: 'TeacherUser', default: null },
     createdByName: { type: String, default: '' },
     className: { type: String, default: '' },
