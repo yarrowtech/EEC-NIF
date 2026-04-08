@@ -996,7 +996,7 @@ const AcademicSetup = ({ setShowAdminHeader }) => {
         <div className="flex gap-2">
           <button
             onClick={() => selectionMap[entityType][1]([])}
-            className="rounded border border-gray-300 px-3 py-1 text-xs hover:bg-white"
+            className="rounded border border-gray-300 px-3 py-1 text-xs text-black hover:bg-white"
           >
             Clear
           </button>
@@ -1576,7 +1576,7 @@ const AcademicSetup = ({ setShowAdminHeader }) => {
                   <button
                     type="button"
                     onClick={() => setClassTeacherForm({ teacherId: "", yearId: "", classId: "", sectionId: "" })}
-                    className="rounded-lg border border-gray-200 px-4 py-2 text-sm text-gray-600 hover:bg-gray-50"
+                    className="rounded-lg border border-gray-200 px-4 py-2 text-sm text-black hover:bg-gray-50"
                   >
                     Clear
                   </button>
