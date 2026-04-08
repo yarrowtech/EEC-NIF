@@ -490,6 +490,8 @@ router.post('/school-admins', adminAuth, ensureSuperAdmin, async (req, res) => {
       existing.schoolId = resolved;
       existing.status = status || existing.status;
       existing.role = 'admin';
+      // Regenerated credentials should trigger first-login password reset flow.
+      existing.lastLoginAt = null;
       if (campusId !== undefined) {
         existing.campusId = campusId;
       }

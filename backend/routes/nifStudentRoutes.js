@@ -137,8 +137,8 @@ router.post('/students/bulk', adminAuth, async (req, res) => {
         sequenceByPrefix.set(prefix, nextSequence + 1);
 
         const password = generatePassword();
-        const normalizedCourse = normalizeClassLikeValue(row.course || row.grade || '');
-        let normalizedGrade = normalizeClassLikeValue(row.grade || '');
+        const normalizedCourse = normalizeClassLikeValue(row.class || row.course || row.grade || '');
+        let normalizedGrade = normalizeClassLikeValue(row.class || row.grade || '');
         const normalizedSection = String(row.section || '').trim().toUpperCase();
         if (!normalizedGrade) {
           normalizedGrade = normalizedCourse;

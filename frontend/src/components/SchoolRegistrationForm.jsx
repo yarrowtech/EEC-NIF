@@ -12,9 +12,11 @@ const API_BASE = import.meta.env.VITE_API_URL;
 
 // Validation helpers
 const isValidPhone = (phone) => {
-  const cleaned = phone.replace(/[\s\-()]/g, '');
-  return /^\+?[1-9]\d{9,14}$/.test(cleaned);
+  const cleaned = String(phone || '').replace(/\D/g, '');
+  return /^\d{10}$/.test(cleaned);
 };
+
+const normalizeIndianPhone = (value) => String(value || '').replace(/\D/g, '').slice(0, 10);
 
 const isValidEmail = (email) => {
   return /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(email.trim());
@@ -175,9 +177,10 @@ const SchoolRegistrationForm = () => {
   };
 
   const handleCampusChange = (idx, field, value) => {
+    const nextValue = field === 'contactPhone' ? normalizeIndianPhone(value) : value;
     setFormData(p => ({
       ...p,
-      campuses: p.campuses.map((c, i) => i === idx ? { ...c, [field]: value } : c),
+      campuses: p.campuses.map((c, i) => i === idx ? { ...c, [field]: nextValue } : c),
     }));
     const key = `campus_${idx}_${field}`;
     if (errors[key]) setErrors(p => ({ ...p, [key]: '' }));
@@ -186,7 +189,8 @@ const SchoolRegistrationForm = () => {
   /* ── input helper ── */
   const handleInputChange = (e) => {
     const { name, value } = e.target;
-    setFormData(p => ({ ...p, [name]: value }));
+    const nextValue = name === 'contactPhone' ? normalizeIndianPhone(value) : value;
+    setFormData(p => ({ ...p, [name]: nextValue }));
     if (errors[name]) setErrors(p => ({ ...p, [name]: '' }));
   };
 
@@ -207,7 +211,7 @@ const SchoolRegistrationForm = () => {
         else if (c.address.trim().length < 10)
           e[`campus_${i}_address`] = 'Please provide a complete address (min 10 characters)';
         if (c.contactPhone && !isValidPhone(c.contactPhone))
-          e[`campus_${i}_contactPhone`] = 'Please enter a valid phone number';
+          e[`campus_${i}_contactPhone`] = 'Please enter a valid 10-digit Indian phone number';
       });
     }
 
@@ -238,7 +242,7 @@ const SchoolRegistrationForm = () => {
     if (!formData.contactPhone.trim())
       e.contactPhone = 'Contact phone is required';
     else if (!isValidPhone(formData.contactPhone))
-      e.contactPhone = 'Please enter a valid phone number (10–15 digits)';
+      e.contactPhone = 'Please enter a valid 10-digit Indian phone number';
 
     if (!formData.officialEmail.trim())
       e.officialEmail = 'Official email is required';
@@ -531,7 +535,10 @@ const SchoolRegistrationForm = () => {
                           type="tel"
                           value={campus.contactPhone}
                           onChange={(e) => handleCampusChange(idx, 'contactPhone', e.target.value)}
-                          placeholder="+91 98765 43210"
+                          inputMode="numeric"
+                          maxLength={10}
+                          pattern="[0-9]{10}"
+                          placeholder="9876543210"
                           className={`w-full px-3 py-2 border rounded-lg text-sm transition focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-transparent ${
                             errors[`campus_${idx}_contactPhone`] ? 'border-red-400 bg-red-50' : 'border-gray-300 bg-white'
                           }`}
@@ -617,7 +624,10 @@ const SchoolRegistrationForm = () => {
                   name="contactPhone"
                   value={formData.contactPhone}
                   onChange={handleInputChange}
-                  placeholder="+91 98765 43210"
+                  inputMode="numeric"
+                  maxLength={10}
+                  pattern="[0-9]{10}"
+                  placeholder="9876543210"
                 />
               </InputWithIcon>
               <FieldError msg={errors.contactPhone} />

@@ -170,13 +170,13 @@ const Overview = ({
                   </div>
                 </div>
                 <div className="flex flex-col sm:flex-row gap-2">
-                  <button
+                  {/* <button
                     className="px-4 py-2 rounded-lg border border-slate-200 text-sm text-slate-600 hover:bg-slate-50 disabled:opacity-60 disabled:cursor-not-allowed"
                     onClick={() => handleRequestAction(request.id, 'review')}
                     disabled={Boolean(activeRequestAction)}
                   >
                     {activeRequestAction === `${request.id}:review` ? 'Updating...' : 'Request Info'}
-                  </button>
+                  </button> */}
                   <button
                     className="px-4 py-2 rounded-lg bg-emerald-600 text-white text-sm hover:bg-emerald-700 disabled:opacity-60 disabled:cursor-not-allowed"
                     onClick={() => handleRequestAction(request.id, 'approved')}

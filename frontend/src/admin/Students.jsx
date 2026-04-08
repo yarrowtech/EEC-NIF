@@ -2128,18 +2128,15 @@ const Students = ({ setShowAdminHeader, setShowAdminBreadcrumb }) => {
     'section': 'section',
     'sec': 'section',
     'division': 'section',
-    'course': 'course',
-    'coursename': 'course',
-    'class': 'grade',
-    'classname': 'grade',
-    'program': 'course',
-    'programname': 'course',
-    'stream': 'course',
-    'courseid': 'courseId',
-    'coursecode': 'courseId',
-    'grade': 'grade',
-    'classgrade': 'grade',
-    'duration': 'duration',
+    'course': 'class',
+    'coursename': 'class',
+    'class': 'class',
+    'classname': 'class',
+    'program': 'class',
+    'programname': 'class',
+    'stream': 'class',
+    'grade': 'class',
+    'classgrade': 'class',
 
     // IDs
     'serialno': 'serialNo',
@@ -2201,7 +2198,7 @@ const Students = ({ setShowAdminHeader, setShowAdminBreadcrumb }) => {
     'admissionDate',
     'roll',
     'section',
-    'course',
+    'class',
     'email',
     'dob',
     'address',
@@ -2213,9 +2210,6 @@ const Students = ({ setShowAdminHeader, setShowAdminBreadcrumb }) => {
     'enrollmentNo',
     'guardianEmail',
     'status',
-    'grade',
-    'courseId',
-    'duration',
     'dob',
     'bloodGroup',
     'permanentAddress',
@@ -2239,9 +2233,9 @@ const Students = ({ setShowAdminHeader, setShowAdminBreadcrumb }) => {
     if (normalized.includes('batch') || normalized.includes('session') || normalized.includes('academicyear')) return 'batchCode';
     if (normalized.includes('roll')) return 'roll';
     if (normalized.includes('section') || normalized === 'sec' || normalized.includes('division')) return 'section';
-    if (normalized.includes('course') || normalized.includes('program') || normalized.includes('stream')) return 'course';
-    if (normalized.includes('class')) return 'grade';
-    if (normalized.includes('grade')) return 'grade';
+    if (normalized.includes('course') || normalized.includes('program') || normalized.includes('stream')) return 'class';
+    if (normalized.includes('class')) return 'class';
+    if (normalized.includes('grade')) return 'class';
     if (normalized.includes('address')) return 'address';
     if (normalized.includes('permanent') && normalized.includes('address')) return 'permanentAddress';
     if (normalized.includes('pin') || normalized.includes('zip') || normalized.includes('postal')) return 'pincode';
@@ -2436,7 +2430,7 @@ const Students = ({ setShowAdminHeader, setShowAdminBreadcrumb }) => {
         admissionDate: "2026-04-01",
         roll: "12",
         section: "A",
-        course: "Science",
+        class: "10",
         email: "aarav.sharma@example.com",
         dob: "2010-05-14",
         address: "Kolkata",
@@ -2448,9 +2442,6 @@ const Students = ({ setShowAdminHeader, setShowAdminBreadcrumb }) => {
         enrollmentNo: "ENR-2026-011",
         guardianEmail: "rajesh.sharma@example.com",
         status: "Active",
-        grade: "10",
-        courseId: "SCI-10",
-        duration: "12 Months",
         bloodGroup: "O+",
         permanentAddress: "Kolkata",
         nationality: "Indian",
@@ -2465,7 +2456,7 @@ const Students = ({ setShowAdminHeader, setShowAdminBreadcrumb }) => {
         admissionDate: "2026-04-01",
         roll: "13",
         section: "A",
-        course: "Science",
+        class: "10",
         email: "ananya.das@example.com",
         dob: "2010-08-22",
         address: "Howrah",
@@ -2477,9 +2468,6 @@ const Students = ({ setShowAdminHeader, setShowAdminBreadcrumb }) => {
         enrollmentNo: "ENR-2026-012",
         guardianEmail: "sanjay.das@example.com",
         status: "Active",
-        grade: "10",
-        courseId: "SCI-10",
-        duration: "12 Months",
         bloodGroup: "A+",
         permanentAddress: "Howrah",
         nationality: "Indian",
@@ -2514,7 +2502,7 @@ const Students = ({ setShowAdminHeader, setShowAdminBreadcrumb }) => {
         if (mappedField) headerMap[mappedField] = i;
       });
 
-      const requiredFields = ['name', 'mobile', 'gender', 'batchCode', 'admissionDate', 'roll', 'section', 'course'];
+      const requiredFields = ['name', 'mobile', 'gender', 'batchCode', 'admissionDate', 'roll', 'section', 'class'];
       const missingRequired = requiredFields.filter((f) => headerMap[f] === undefined);
 
       let startRow = 1;
@@ -2569,28 +2557,22 @@ const Students = ({ setShowAdminHeader, setShowAdminBreadcrumb }) => {
           }
         });
 
-        // Allow "grade" or "courseId" to fill course if course is missing
-        if (!student.course && student.grade) student.course = student.grade;
-        if (!student.course && student.courseId) student.course = student.courseId;
-
-        student.course = normalizeClassLikeValue(student.course);
-        student.grade = normalizeClassLikeValue(student.grade || "");
-        if (!student.grade) {
-          student.grade = student.course;
-        } else {
+        student.class = normalizeClassLikeValue(student.class || "");
+        student.grade = student.class;
+        if (student.grade) {
           const upperGrade = String(student.grade).toUpperCase();
           const upperSection = String(student.section || "").trim().toUpperCase();
           const looksLikeSection = /^[A-Z]$/.test(upperGrade);
           const matchesSection = upperSection && upperGrade === upperSection;
-          if ((looksLikeSection || matchesSection) && isNumericClassLabel(student.course)) {
-            student.grade = student.course;
+          if ((looksLikeSection || matchesSection) && isNumericClassLabel(student.class)) {
+            student.grade = student.class;
           }
         }
 
         // Check required fields (let backend handle validation)
         if (!student.name || !student.mobile || !student.gender ||
             !student.batchCode || !student.admissionDate ||
-            !student.roll || !student.section || !student.course) {
+            !student.roll || !student.section || !student.class) {
           skippedRows.push({
             row: r + 1,
             reason: "Missing required fields"
@@ -2632,11 +2614,9 @@ const Students = ({ setShowAdminHeader, setShowAdminBreadcrumb }) => {
           batchCode: student.batchCode,
           admissionDate,
           roll: student.roll,
-          grade: student.grade || "",
+          grade: student.class || "",
           section: student.section,
-          course: student.course || "",
-          courseId: student.courseId || "",
-          duration: student.duration || "",
+          course: student.class || "",
           formNo: student.formNo || "",
           enrollmentNo: student.enrollmentNo || "",
         });

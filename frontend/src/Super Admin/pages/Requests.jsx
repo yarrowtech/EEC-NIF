@@ -25,14 +25,18 @@ const Requests = ({
   const [showBulkDeleteConfirm, setShowBulkDeleteConfirm] = useState(false);
   const [bulkDeleteConfirmText, setBulkDeleteConfirmText] = useState('');
   const [actionError, setActionError] = useState(null);
+  const pendingRequestsCount = useMemo(
+    () => requests.filter((request) => request.status === 'pending').length,
+    [requests]
+  );
 
   const filteredRequests = useMemo(() => {
     return requests.filter((request) => {
       if (request.status === 'approved') return false;
       const matchesSearch =
-        request.schoolName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        request.contactPerson.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        request.contactEmail.toLowerCase().includes(searchTerm.toLowerCase());
+        String(request.schoolName || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+        String(request.contactPerson || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+        String(request.contactEmail || '').toLowerCase().includes(searchTerm.toLowerCase());
       const matchesStatus = statusFilter === 'all' || request.status === statusFilter;
       return matchesSearch && matchesStatus;
     });
@@ -129,6 +133,16 @@ const Requests = ({
             >
               Need info
             </button>
+            <button
+              className={`px-4 py-2 rounded-lg text-sm font-medium border ${
+                statusFilter === 'rejected'
+                  ? 'bg-rose-500 text-white border-rose-500'
+                  : 'border-slate-200 text-slate-600'
+              }`}
+              onClick={() => setStatusFilter('rejected')}
+            >
+              Rejected
+            </button>
           </div>
         </div>
 
@@ -150,10 +164,10 @@ const Requests = ({
           <button
             className="flex items-center gap-2 px-4 py-2 rounded-xl border border-rose-300 bg-rose-50 text-sm text-rose-700 disabled:opacity-60 disabled:cursor-not-allowed"
             onClick={() => setShowBulkDeleteConfirm((prev) => !prev)}
-            disabled={loading || bulkDeleteLoading || requests.length === 0}
+            disabled={loading || bulkDeleteLoading || pendingRequestsCount === 0}
           >
             {bulkDeleteLoading ? <Loader2 size={16} className="animate-spin" /> : <XCircle size={16} />}
-            Delete all pending ({requests.length})
+            Delete all pending ({pendingRequestsCount})
           </button>
         </div>
 
@@ -327,7 +341,7 @@ const Requests = ({
               <button
                 className="flex items-center justify-center gap-2 px-4 py-2 rounded-lg border border-slate-200 text-slate-600 text-sm disabled:opacity-60 disabled:cursor-not-allowed"
                 onClick={() => updateStatus(request.id, 'review')}
-                disabled={Boolean(activeAction)}
+                disabled={Boolean(activeAction) || request.status === 'rejected'}
               >
                 <RefreshCw size={14} />
                 {activeAction === `${request.id}:review` ? 'Updating...' : 'Request updates'}
@@ -335,7 +349,7 @@ const Requests = ({
               <button
                 className="flex items-center justify-center gap-2 px-4 py-2 rounded-lg border border-rose-200 text-rose-600 text-sm disabled:opacity-60 disabled:cursor-not-allowed"
                 onClick={() => updateStatus(request.id, 'rejected')}
-                disabled={Boolean(activeAction)}
+                disabled={Boolean(activeAction) || request.status === 'rejected'}
               >
                 <XCircle size={14} />
                 {activeAction === `${request.id}:rejected` ? 'Rejecting...' : 'Reject'}
@@ -343,7 +357,7 @@ const Requests = ({
               <button
                 className="flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-emerald-600 text-white text-sm disabled:opacity-60 disabled:cursor-not-allowed"
                 onClick={() => updateStatus(request.id, 'approved')}
-                disabled={Boolean(activeAction)}
+                disabled={Boolean(activeAction) || request.status === 'rejected'}
               >
                 <CheckCircle size={14} />
                 {activeAction === `${request.id}:approved` ? 'Approving...' : 'Approve and activate'}

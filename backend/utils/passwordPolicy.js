@@ -6,11 +6,12 @@ const isStrongPassword = (password = '') => {
   if (!/[a-z]/.test(password)) return false;
   if (!/[A-Z]/.test(password)) return false;
   if (!/[0-9]/.test(password)) return false;
+  if (!/[!@#$%^&*()_\-+=[\]{};:'"\\|,.<>/?`~]/.test(password)) return false;
   return true;
 };
 
 const passwordPolicyMessage =
-  'Password must be at least 8 characters and include uppercase, lowercase, and a number.';
+  'Password must be at least 8 characters and include uppercase, lowercase, a number, and a special character.';
 
 module.exports = {
   isStrongPassword,

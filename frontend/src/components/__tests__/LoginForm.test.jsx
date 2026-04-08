@@ -431,8 +431,8 @@ describe('LoginForm Component', () => {
       const newPasswordInput = screen.getByPlaceholderText(/Create a strong password/i);
       const confirmPasswordInput = screen.getByPlaceholderText(/Re-enter your password/i);
 
-      await user.type(newPasswordInput, 'StrongPass1');
-      await user.type(confirmPasswordInput, 'StrongPass1');
+      await user.type(newPasswordInput, 'StrongPass1!');
+      await user.type(confirmPasswordInput, 'StrongPass1!');
 
       await user.click(screen.getByRole('button', { name: /Reset & Sign In/i }));
 
@@ -448,7 +448,7 @@ describe('LoginForm Component', () => {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             username: 'student01',
-            newPassword: 'StrongPass1',
+            newPassword: 'StrongPass1!',
           }),
         })
       );
@@ -460,7 +460,7 @@ describe('LoginForm Component', () => {
           method: 'POST',
           body: JSON.stringify({
             username: 'student01',
-            password: 'StrongPass1',
+            password: 'StrongPass1!',
           }),
         })
       );
@@ -491,8 +491,8 @@ describe('LoginForm Component', () => {
 
       expect(await screen.findByRole('heading', { name: /Reset your password/i })).toBeInTheDocument();
 
-      await user.type(screen.getByPlaceholderText(/Create a strong password/i), 'StrongPass1');
-      await user.type(screen.getByPlaceholderText(/Re-enter your password/i), 'StrongPass1');
+      await user.type(screen.getByPlaceholderText(/Create a strong password/i), 'StrongPass1!');
+      await user.type(screen.getByPlaceholderText(/Re-enter your password/i), 'StrongPass1!');
 
       await user.click(screen.getByRole('button', { name: /Reset & Sign In/i }));
 

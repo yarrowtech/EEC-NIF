@@ -82,8 +82,9 @@ const LoginForm = () => {
       newErrors.newPassword = 'Password must be at least 8 characters';
     } else if (!/[a-z]/.test(formData.newPassword)
       || !/[A-Z]/.test(formData.newPassword)
-      || !/[0-9]/.test(formData.newPassword)) {
-      newErrors.newPassword = 'Include uppercase, lowercase, and a number';
+      || !/[0-9]/.test(formData.newPassword)
+      || !/[!@#$%^&*()_\-+=[\]{};:'"\\|,.<>/?`~]/.test(formData.newPassword)) {
+      newErrors.newPassword = 'Include uppercase, lowercase, a number, and a special character';
     }
     if (!formData.confirmPassword) {
       newErrors.confirmPassword = 'Confirm your password';

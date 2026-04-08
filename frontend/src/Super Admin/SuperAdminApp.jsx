@@ -732,7 +732,22 @@ const SuperAdminApp = () => {
           throw new Error(data?.error || 'Unable to update registration');
         }
 
-        setRequests((prev) => prev.filter((request) => request.id !== requestId));
+        if (status === 'approved') {
+          setRequests((prev) => prev.filter((request) => request.id !== requestId));
+        } else {
+          setRequests((prev) =>
+            prev.map((request) =>
+              request.id === requestId
+                ? {
+                    ...request,
+                    status: 'rejected',
+                    notes: body.rejectionReason,
+                    updatedAt: new Date().toISOString()
+                  }
+                : request
+            )
+          );
+        }
       } catch (error) {
         console.error('Failed to update registration', error);
         setRequestError(error.message || 'Unable to update registration');
