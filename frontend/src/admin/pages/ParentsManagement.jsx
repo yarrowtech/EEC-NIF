@@ -70,6 +70,8 @@ const ParentsManagement = ({ setShowAdminHeader }) => {
   const [deleteConfirmParent, setDeleteConfirmParent] = useState(null);
   const [deleteConfirmChild, setDeleteConfirmChild] = useState(null);
   const [submitStatus, setSubmitStatus] = useState(null);
+  const [selectedParentIds, setSelectedParentIds] = useState([]);
+  const [bulkDeleteLoading, setBulkDeleteLoading] = useState(false);
 
   const filteredParents = parents.filter((parent) => {
     const children = Array.isArray(parent.children) ? parent.children : [];
@@ -96,6 +98,17 @@ const ParentsManagement = ({ setShowAdminHeader }) => {
     const start = (currentPage - 1) * PARENTS_PER_PAGE;
     return filteredParents.slice(start, start + PARENTS_PER_PAGE);
   }, [filteredParents, currentPage]);
+  const visibleParentIds = useMemo(
+    () => paginatedParents.map((parent) => String(parent?.id)).filter(Boolean),
+    [paginatedParents]
+  );
+  const selectedParentIdSet = useMemo(
+    () => new Set(selectedParentIds.map((id) => String(id))),
+    [selectedParentIds]
+  );
+  const isAllVisibleSelected =
+    visibleParentIds.length > 0 && visibleParentIds.every((id) => selectedParentIdSet.has(id));
+  const isAnyVisibleSelected = visibleParentIds.some((id) => selectedParentIdSet.has(id));
   const startItem = filteredParents.length > 0 ? (currentPage - 1) * PARENTS_PER_PAGE + 1 : 0;
   const endItem = Math.min(currentPage * PARENTS_PER_PAGE, filteredParents.length);
 
@@ -204,6 +217,37 @@ const ParentsManagement = ({ setShowAdminHeader }) => {
     fetchParents();
   }, [setShowAdminHeader]);
 
+  useEffect(() => {
+    const validIds = new Set(parents.map((parent) => String(parent?.id)).filter(Boolean));
+    setSelectedParentIds((prev) => prev.filter((id) => validIds.has(String(id))));
+  }, [parents]);
+
+  const toggleParentSelection = (parentId) => {
+    if (!parentId) return;
+    const id = String(parentId);
+    setSelectedParentIds((prev) => {
+      const nextSet = new Set(prev.map((value) => String(value)));
+      if (nextSet.has(id)) {
+        nextSet.delete(id);
+      } else {
+        nextSet.add(id);
+      }
+      return Array.from(nextSet);
+    });
+  };
+
+  const toggleSelectAllVisibleParents = () => {
+    setSelectedParentIds((prev) => {
+      const nextSet = new Set(prev.map((value) => String(value)));
+      if (isAllVisibleSelected) {
+        visibleParentIds.forEach((id) => nextSet.delete(String(id)));
+      } else {
+        visibleParentIds.forEach((id) => nextSet.add(String(id)));
+      }
+      return Array.from(nextSet);
+    });
+  };
+
   const openChildrenModal = (parent) => {
     setSelectedParent(parent);
     setShowChildrenModal(true);
@@ -311,6 +355,7 @@ const ParentsManagement = ({ setShowAdminHeader }) => {
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data?.error || 'Failed to delete parent');
+      setSelectedParentIds((prev) => prev.filter((id) => String(id) !== String(parent.id)));
       await fetchParents();
       setSubmitStatus({ type: 'success', message: `${parent.name || 'Parent'} deleted successfully.` });
     } catch (err) {
@@ -318,6 +363,55 @@ const ParentsManagement = ({ setShowAdminHeader }) => {
     } finally {
       setParentActionLoadingId('');
       setDeleteConfirmParent(null);
+    }
+  };
+
+  const handleBulkDeleteParents = async () => {
+    if (!selectedParentIds.length || bulkDeleteLoading) return;
+    const isConfirmed = window.confirm(
+      `Delete ${selectedParentIds.length} selected parent(s)? This action cannot be undone.`
+    );
+    if (!isConfirmed) return;
+    setBulkDeleteLoading(true);
+    try {
+      const results = await Promise.allSettled(
+        selectedParentIds.map((id) =>
+          fetch(`${import.meta.env.VITE_API_URL}/api/admin/users/parents/${id}`, {
+            method: 'DELETE',
+            headers: {
+              'Content-Type': 'application/json',
+              authorization: `Bearer ${localStorage.getItem('token')}`,
+            },
+          }).then(async (res) => {
+            if (!res.ok) {
+              const data = await res.json().catch(() => ({}));
+              throw new Error(data?.error || 'Failed to delete parent');
+            }
+            return true;
+          })
+        )
+      );
+      const failed = results.filter((result) => result.status === 'rejected');
+      const successCount = results.length - failed.length;
+
+      setSelectedParentIds([]);
+      await fetchParents();
+
+      if (failed.length) {
+        setSubmitStatus({
+          type: 'error',
+          message: `${successCount} parent(s) deleted, ${failed.length} failed. Please retry failed records.`,
+        });
+      } else {
+        setSubmitStatus({
+          type: 'success',
+          message: `${successCount} parent(s) deleted successfully.`,
+        });
+      }
+    } catch (err) {
+      setSubmitStatus({ type: 'error', message: err.message || 'Failed to delete selected parents' });
+    } finally {
+      setBulkDeleteLoading(false);
     }
   };
 
@@ -468,6 +562,28 @@ const ParentsManagement = ({ setShowAdminHeader }) => {
               <option value="overdue">Overdue Contact</option>
             </select> */}
           </div>
+          {selectedParentIds.length > 0 && (
+            <div className="mt-3 flex items-center justify-end">
+              <button
+                type="button"
+                onClick={handleBulkDeleteParents}
+                disabled={bulkDeleteLoading}
+                className="inline-flex items-center gap-2 rounded-xl bg-red-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-red-700 disabled:opacity-60"
+              >
+                {bulkDeleteLoading ? (
+                  <>
+                    <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    Deleting...
+                  </>
+                ) : (
+                  <>
+                    <Trash2 size={14} />
+                    Delete Selected ({selectedParentIds.length})
+                  </>
+                )}
+              </button>
+            </div>
+          )}
         </div>
 
         {/* Table */}
@@ -476,6 +592,16 @@ const ParentsManagement = ({ setShowAdminHeader }) => {
             <table className="w-full">
               <thead>
                 <tr className="bg-gradient-to-r from-gray-50 to-slate-50/80 border-b border-gray-100">
+                  <th className="px-6 py-3.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                    <input
+                      type="checkbox"
+                      className="h-4 w-4 accent-emerald-600"
+                      checked={isAllVisibleSelected}
+                      disabled={!isAnyVisibleSelected && visibleParentIds.length === 0}
+                      onChange={toggleSelectAllVisibleParents}
+                      aria-label="Select all visible parents"
+                    />
+                  </th>
                   <th className="px-6 py-3.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Parent</th>
                   <th className="px-6 py-3.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Contact</th>
                   <th className="px-6 py-3.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Children & Grades</th>
@@ -487,7 +613,7 @@ const ParentsManagement = ({ setShowAdminHeader }) => {
               <tbody className="divide-y divide-gray-50">
                 {isLoading && (
                   <tr>
-                    <td colSpan={6} className="px-6 py-16 text-center">
+                    <td colSpan={7} className="px-6 py-16 text-center">
                       <div className="flex flex-col items-center gap-3">
                         <span className="w-8 h-8 border-3 border-emerald-200 border-t-emerald-600 rounded-full animate-spin" />
                         <span className="text-sm text-gray-500">Loading parents...</span>
@@ -497,7 +623,7 @@ const ParentsManagement = ({ setShowAdminHeader }) => {
                 )}
                 {!isLoading && filteredParents.length === 0 && (
                   <tr>
-                    <td colSpan={6} className="text-center py-16">
+                    <td colSpan={7} className="text-center py-16">
                       <div className="w-16 h-16 rounded-2xl bg-emerald-50 flex items-center justify-center mx-auto mb-4">
                         <Users size={28} className="text-emerald-400" />
                       </div>
@@ -511,6 +637,15 @@ const ParentsManagement = ({ setShowAdminHeader }) => {
                   const initials = (parent.name || 'NA').split(' ').map((n) => n[0]).join('').slice(0, 2).toUpperCase();
                   return (
                     <tr key={parent.id} className="hover:bg-emerald-50/30 transition-colors">
+                      <td className="px-6 py-4">
+                        <input
+                          type="checkbox"
+                          className="h-4 w-4 accent-emerald-600"
+                          checked={selectedParentIdSet.has(String(parent.id))}
+                          onChange={() => toggleParentSelection(parent.id)}
+                          aria-label={`Select ${parent.name || 'parent'}`}
+                        />
+                      </td>
                       {/* Parent Info */}
                       <td className="px-6 py-4">
                         <div className="flex items-center gap-3">

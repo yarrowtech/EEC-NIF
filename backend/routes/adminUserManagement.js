@@ -31,6 +31,10 @@ const {
   getTeacherPrefix,
 } = require('../utils/codeGenerator');
 
+const EXITED_STUDENT_STATUSES = ['Leaving', 'Left', 'Expelled', 'leaving', 'left', 'expelled'];
+const isExitedStudentStatus = (status) =>
+  EXITED_STUDENT_STATUSES.includes(String(status || '').trim());
+
 const parseCsvLine = (line = '') => {
   const out = [];
   let current = '';
@@ -507,6 +511,7 @@ router.get("/get-students", adminAuth, async (req, res) => {
   try {
     const filter = buildScopedFilter(req);
     filter.isArchived = { $ne: true };
+    filter.status = { $nin: EXITED_STUDENT_STATUSES };
     const students = await StudentUser.find(filter);
     res.status(200).json(students);
   } catch (err) {
@@ -532,21 +537,42 @@ router.get("/get-parents", adminAuth, async (req, res) => {
     const parents = await ParentUser.find(filter)
       .populate({
         path: 'childrenIds',
-        select: 'name grade section performance address pinCode',
+        select: 'name grade section performance address pinCode status isArchived',
       })
       .lean();
-    const withResolvedAddress = parents.map((parent) => {
-      const children = Array.isArray(parent.childrenIds) ? parent.childrenIds : [];
+    const withResolvedAddress = parents
+      .map((parent) => {
+      const populatedChildren = Array.isArray(parent.childrenIds) ? parent.childrenIds : [];
+      const activeChildren = populatedChildren.filter(
+        (child) => child && child.isArchived !== true && !isExitedStudentStatus(child.status)
+      );
+      if (populatedChildren.length > 0 && activeChildren.length === 0) {
+        return null;
+      }
+
+      const children = activeChildren.length > 0 ? activeChildren : populatedChildren;
       const studentAddress =
         children.find((child) => String(child?.address || '').trim())?.address ||
         (Array.isArray(parent.childrenDetails)
           ? parent.childrenDetails.find((child) => String(child?.address || '').trim())?.address
           : '');
+
+      const childNames = children
+        .map((child) => String(child?.name || '').trim())
+        .filter(Boolean);
+      const childGrades = children
+        .map((child) => String(child?.grade || '').trim())
+        .filter(Boolean);
+
       return {
         ...parent,
+        childrenIds: children,
+        children: childNames.length > 0 ? childNames : parent.children,
+        grade: childGrades.length > 0 ? childGrades : parent.grade,
         address: String(parent.address || '').trim() || String(studentAddress || '').trim() || '',
       };
-    });
+    })
+      .filter(Boolean);
     res.status(200).json(withResolvedAddress);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -965,7 +991,74 @@ router.put('/students/:id', adminAuth, async (req, res) => {
 router.delete('/students/:id', adminAuth, async (req, res) => {
   // #swagger.tags = ['Admin Users']
   try {
-    await deleteByScope(StudentUser, req, res);
+    const filter = buildScopedIdFilter(req, req.params.id);
+    if (!filter) {
+      return res.status(400).json({ error: 'Invalid id' });
+    }
+
+    const removedStudent = await StudentUser.findOneAndDelete(filter).lean();
+    if (!removedStudent) {
+      return res.status(404).json({ error: 'Record not found' });
+    }
+
+    const studentId = String(removedStudent._id);
+    const studentName = String(removedStudent.name || '').trim();
+    const studentGrade = String(removedStudent.grade || '').trim();
+
+    const parentScope = { schoolId: removedStudent.schoolId };
+    if (req.campusId) {
+      parentScope.$or = [
+        { campusId: req.campusId },
+        { campusId: { $exists: false } },
+        { campusId: null },
+      ];
+    }
+
+    const linkedParents = await ParentUser.find({
+      ...parentScope,
+      $or: [
+        { childrenIds: removedStudent._id },
+        ...(studentName ? [{ children: studentName }] : []),
+      ],
+    });
+
+    let deletedParents = 0;
+    let updatedParents = 0;
+
+    for (const parent of linkedParents) {
+      parent.childrenIds = Array.isArray(parent.childrenIds)
+        ? parent.childrenIds.filter((id) => String(id) !== studentId)
+        : [];
+
+      if (studentName) {
+        parent.children = Array.isArray(parent.children)
+          ? parent.children.filter((name) => String(name || '').trim() !== studentName)
+          : [];
+      }
+
+      if (studentGrade) {
+        parent.grade = Array.isArray(parent.grade)
+          ? parent.grade.filter((grade) => String(grade || '').trim() !== studentGrade)
+          : [];
+      }
+
+      const remainingChildIds = Array.isArray(parent.childrenIds) ? parent.childrenIds.length : 0;
+      const remainingChildNames = Array.isArray(parent.children) ? parent.children.length : 0;
+      if (remainingChildIds === 0 && remainingChildNames === 0) {
+        await ParentUser.deleteOne({ _id: parent._id });
+        deletedParents += 1;
+      } else {
+        await parent.save();
+        updatedParents += 1;
+      }
+    }
+
+    return res.json({
+      message: 'Deleted successfully',
+      deletedStudentId: removedStudent._id,
+      deletedParents,
+      updatedParents,
+    });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

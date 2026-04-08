@@ -148,12 +148,10 @@ const AdminApp = () => {
       'Academic Setup',
       // 'Subjects',
       'Teachers',
+      'Routine Management',
       'Students',
-      'Teacher Timetable',
-      'Student Attendance',
       'Promotion & Leave',
       'Parents',
-      'Routines',
       'Floor & Rooms',
       'Lesson Plan',
       'Exam Management',
@@ -170,7 +168,12 @@ const AdminApp = () => {
 
   const menuItems = useMemo(() => {
     if (isSuperAdmin) return ADMIN_MENU_ITEMS;
-    const filteredMenuItems = ADMIN_MENU_ITEMS.filter((item) => item.scope !== 'super');
+    const filteredMenuItems = ADMIN_MENU_ITEMS.filter(
+      (item) =>
+        item.scope !== 'super' &&
+        item.label !== 'Student Attendance' &&
+        item.path !== '/admin/attendance'
+    );
     const orderIndexByLabel = new Map(
       schoolAdminMenuOrder.map((label, index) => [label, index])
     );

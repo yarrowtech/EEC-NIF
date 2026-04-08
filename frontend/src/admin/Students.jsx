@@ -45,6 +45,9 @@ import CredentialGeneratorButton from "./components/CredentialGeneratorButton";
 
 const API_BASE = import.meta.env.VITE_API_URL;
 const STUDENTS_CACHE_PREFIX = "admin_students_cache_v1";
+const EXCLUDED_STUDENT_STATUSES = new Set(["leaving", "left", "expelled"]);
+const shouldHideLeavingStudent = (student) =>
+  EXCLUDED_STUDENT_STATUSES.has(String(student?.status || "").trim().toLowerCase());
 
 const STUDENTS_PER_PAGE = 10;
 
@@ -522,7 +525,7 @@ const Students = ({ setShowAdminHeader, setShowAdminBreadcrumb }) => {
         if (cachedRaw) {
           const cached = JSON.parse(cachedRaw);
           if (Array.isArray(cached?.students)) {
-            setStudentData(cached.students);
+            setStudentData(cached.students.filter((student) => !shouldHideLeavingStudent(student)));
             setParentDirectory(Array.isArray(cached?.parents) ? cached.parents : []);
             servedFromCache = true;
             if (showLoader) setStudentsLoading(false);
@@ -556,6 +559,7 @@ const Students = ({ setShowAdminHeader, setShowAdminBreadcrumb }) => {
       studentsResult.status === "fulfilled" && Array.isArray(studentsResult.value)
         ? studentsResult.value
         : [];
+    const activeStudents = students.filter((student) => !shouldHideLeavingStudent(student));
     const parents = parentsResult.status === "fulfilled" ? parentsResult.value : [];
     const invoices =
       invoicesResult.status === "fulfilled" && Array.isArray(invoicesResult.value)
@@ -584,7 +588,7 @@ const Students = ({ setShowAdminHeader, setShowAdminBreadcrumb }) => {
     });
 
     if (!parents.length) {
-      const withFees = students.map((student) => {
+      const withFees = activeStudents.map((student) => {
         const fee = feeSummaryByStudentId.get(String(student?._id || "")) || {
           totalFee: 0,
           paidAmount: 0,
@@ -625,7 +629,7 @@ const Students = ({ setShowAdminHeader, setShowAdminBreadcrumb }) => {
       });
     });
 
-    const enriched = students.map((student) => {
+    const enriched = activeStudents.map((student) => {
       const studentId = student?._id ? String(student._id) : null;
       const portalUserId = student?.studentPortalUser
         ? String(student.studentPortalUser)

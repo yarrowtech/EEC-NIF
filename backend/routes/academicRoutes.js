@@ -6,6 +6,7 @@ const AcademicYear = require('../models/AcademicYear');
 const ClassModel = require('../models/Class');
 const Section = require('../models/Section');
 const Subject = require('../models/Subject');
+const TeacherAllocation = require('../models/TeacherAllocation');
 const FeeStructure = require('../models/FeeStructure');
 const FeeInvoice = require('../models/FeeInvoice');
 const StudentUser = require('../models/StudentUser');
@@ -271,6 +272,263 @@ router.delete('/years/:id', adminAuth, async (req, res) => {
     res.json({ ok: true, message: 'Academic year deleted successfully' });
   } catch (err) {
     res.status(400).json({ error: err.message });
+  }
+});
+
+router.post('/years/:id/copy-setup', adminAuth, async (req, res) => {
+  // #swagger.tags = ['Academics']
+  try {
+    const targetYearId = req.params?.id;
+    if (!mongoose.isValidObjectId(targetYearId)) {
+      return res.status(400).json({ error: 'Invalid target academic year ID' });
+    }
+
+    const schoolId = resolveSchoolId(req, res);
+    if (!schoolId) return;
+    const campusId = resolveCampusId(req);
+    const scopeFilter = buildCampusFilter(schoolId, campusId);
+
+    const targetYear = await AcademicYear.findOne({ _id: targetYearId, schoolId }).lean();
+    if (!targetYear) {
+      return res.status(404).json({ error: 'Target academic year not found' });
+    }
+
+    const requestedSourceYearId = String(req.body?.sourceYearId || '').trim();
+    let sourceYearId = requestedSourceYearId;
+    if (sourceYearId && !mongoose.isValidObjectId(sourceYearId)) {
+      return res.status(400).json({ error: 'Invalid source academic year ID' });
+    }
+
+    if (!sourceYearId) {
+      const candidateYears = await AcademicYear.find({
+        schoolId,
+        _id: { $ne: targetYearId },
+      })
+        .sort({ endDate: -1, startDate: -1, createdAt: -1 })
+        .lean();
+
+      for (const year of candidateYears) {
+        const classCount = await ClassModel.countDocuments({
+          ...scopeFilter,
+          academicYearId: year._id,
+        });
+        if (classCount > 0) {
+          sourceYearId = String(year._id);
+          break;
+        }
+      }
+    }
+
+    if (!sourceYearId) {
+      return res.status(400).json({ error: 'No source academic year with classes found to copy from' });
+    }
+    if (String(sourceYearId) === String(targetYearId)) {
+      return res.status(400).json({ error: 'Source and target academic years must be different' });
+    }
+
+    const sourceYear = await AcademicYear.findOne({ _id: sourceYearId, schoolId }).lean();
+    if (!sourceYear) {
+      return res.status(404).json({ error: 'Source academic year not found' });
+    }
+
+    const sourceClasses = await ClassModel.find({
+      ...scopeFilter,
+      academicYearId: sourceYear._id,
+    })
+      .sort({ order: 1, name: 1 })
+      .lean();
+
+    if (!sourceClasses.length) {
+      return res.status(400).json({ error: 'Source academic year has no classes to copy' });
+    }
+
+    const sourceClassIds = sourceClasses.map((item) => item._id);
+    const targetClasses = await ClassModel.find({
+      ...scopeFilter,
+      academicYearId: targetYear._id,
+    }).lean();
+
+    const classIdMap = new Map();
+    let classesCreated = 0;
+    let classesSkipped = 0;
+
+    for (const sourceClass of sourceClasses) {
+      const existingClass = targetClasses.find(
+        (item) =>
+          String(item.name || '').trim().toLowerCase() === String(sourceClass.name || '').trim().toLowerCase()
+      );
+      if (existingClass) {
+        classIdMap.set(String(sourceClass._id), existingClass._id);
+        classesSkipped += 1;
+        continue;
+      }
+
+      const createdClass = await ClassModel.create({
+        schoolId,
+        campusId: campusId || null,
+        academicYearId: targetYear._id,
+        name: sourceClass.name,
+        order: Number.isFinite(Number(sourceClass.order)) ? Number(sourceClass.order) : 0,
+      });
+      classIdMap.set(String(sourceClass._id), createdClass._id);
+      targetClasses.push(createdClass.toObject ? createdClass.toObject() : createdClass);
+      classesCreated += 1;
+    }
+
+    const sourceSections = await Section.find({
+      ...scopeFilter,
+      classId: { $in: sourceClassIds },
+    }).lean();
+
+    const targetClassIds = Array.from(classIdMap.values());
+    const targetSections = targetClassIds.length
+      ? await Section.find({
+          ...scopeFilter,
+          classId: { $in: targetClassIds },
+        }).lean()
+      : [];
+
+    const sectionIdMap = new Map();
+    let sectionsCreated = 0;
+    let sectionsSkipped = 0;
+
+    for (const sourceSection of sourceSections) {
+      const mappedClassId = classIdMap.get(String(sourceSection.classId));
+      if (!mappedClassId) continue;
+
+      const existingSection = targetSections.find(
+        (item) =>
+          String(item.classId) === String(mappedClassId) &&
+          String(item.name || '').trim().toLowerCase() === String(sourceSection.name || '').trim().toLowerCase()
+      );
+
+      if (existingSection) {
+        sectionIdMap.set(String(sourceSection._id), existingSection._id);
+        sectionsSkipped += 1;
+        continue;
+      }
+
+      const createdSection = await Section.create({
+        schoolId,
+        campusId: campusId || null,
+        classId: mappedClassId,
+        name: sourceSection.name,
+      });
+      sectionIdMap.set(String(sourceSection._id), createdSection._id);
+      targetSections.push(createdSection.toObject ? createdSection.toObject() : createdSection);
+      sectionsCreated += 1;
+    }
+
+    const sourceSubjects = await Subject.find({
+      ...scopeFilter,
+      classId: { $in: sourceClassIds },
+    }).lean();
+
+    const targetSubjects = targetClassIds.length
+      ? await Subject.find({
+          ...scopeFilter,
+          classId: { $in: targetClassIds },
+        }).lean()
+      : [];
+
+    const subjectIdMap = new Map();
+    let subjectsCreated = 0;
+    let subjectsSkipped = 0;
+
+    for (const sourceSubject of sourceSubjects) {
+      const mappedClassId = classIdMap.get(String(sourceSubject.classId));
+      if (!mappedClassId) continue;
+
+      const existingSubject = targetSubjects.find(
+        (item) =>
+          String(item.classId) === String(mappedClassId) &&
+          String(item.name || '').trim().toLowerCase() === String(sourceSubject.name || '').trim().toLowerCase()
+      );
+
+      if (existingSubject) {
+        subjectIdMap.set(String(sourceSubject._id), existingSubject._id);
+        subjectsSkipped += 1;
+        continue;
+      }
+
+      const createdSubject = await Subject.create({
+        schoolId,
+        campusId: campusId || null,
+        classId: mappedClassId,
+        name: sourceSubject.name,
+        code: sourceSubject.code || '',
+      });
+      subjectIdMap.set(String(sourceSubject._id), createdSubject._id);
+      targetSubjects.push(createdSubject.toObject ? createdSubject.toObject() : createdSubject);
+      subjectsCreated += 1;
+    }
+
+    const sourceClassTeacherAllocations = await TeacherAllocation.find({
+      schoolId,
+      ...(campusId ? { campusId } : {}),
+      isClassTeacher: true,
+      classId: { $in: sourceClassIds },
+    }).lean();
+
+    const targetClassTeacherAllocations = await TeacherAllocation.find({
+      schoolId,
+      ...(campusId ? { campusId } : {}),
+      isClassTeacher: true,
+      classId: { $in: targetClassIds },
+    }).lean();
+
+    let classTeachersCreated = 0;
+    let classTeachersSkipped = 0;
+
+    for (const sourceAllocation of sourceClassTeacherAllocations) {
+      const mappedClassId = classIdMap.get(String(sourceAllocation.classId));
+      const mappedSectionId = sectionIdMap.get(String(sourceAllocation.sectionId));
+      if (!mappedClassId || !mappedSectionId) continue;
+
+      const exists = targetClassTeacherAllocations.some(
+        (item) =>
+          String(item.teacherId) === String(sourceAllocation.teacherId) &&
+          String(item.classId) === String(mappedClassId) &&
+          String(item.sectionId) === String(mappedSectionId) &&
+          item.isClassTeacher === true
+      );
+
+      if (exists) {
+        classTeachersSkipped += 1;
+        continue;
+      }
+
+      const createdAllocation = await TeacherAllocation.create({
+        schoolId,
+        campusId: campusId || null,
+        teacherId: sourceAllocation.teacherId,
+        subjectId: null,
+        classId: mappedClassId,
+        sectionId: mappedSectionId,
+        isClassTeacher: true,
+        notes: sourceAllocation.notes || '',
+      });
+      targetClassTeacherAllocations.push(
+        createdAllocation.toObject ? createdAllocation.toObject() : createdAllocation
+      );
+      classTeachersCreated += 1;
+    }
+
+    return res.json({
+      ok: true,
+      sourceYear: { id: sourceYear._id, name: sourceYear.name },
+      targetYear: { id: targetYear._id, name: targetYear.name },
+      classes: { created: classesCreated, skipped: classesSkipped, totalSource: sourceClasses.length },
+      sections: { created: sectionsCreated, skipped: sectionsSkipped, totalSource: sourceSections.length },
+      subjects: { created: subjectsCreated, skipped: subjectsSkipped, totalSource: sourceSubjects.length },
+      classTeachers: {
+        created: classTeachersCreated,
+        skipped: classTeachersSkipped,
+        totalSource: sourceClassTeacherAllocations.length,
+      },
+    });
+  } catch (err) {
+    return res.status(500).json({ error: err.message || 'Failed to copy academic setup' });
   }
 });
 

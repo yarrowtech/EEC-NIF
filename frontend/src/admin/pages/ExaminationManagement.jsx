@@ -86,6 +86,7 @@ const ExaminationManagement = ({ setShowAdminHeader }) => {
   const [groups,    setGroups]    = useState([]);
   const [ungrouped, setUngrouped] = useState([]);   // legacy exams without groupId
   const [classes,   setClasses]   = useState([]);
+  const [years,     setYears]     = useState([]);
   const [sections,  setSections]  = useState([]);
   const [subjects,  setSubjects]  = useState([]);
   const [buildings, setBuildings] = useState([]);
@@ -104,6 +105,7 @@ const ExaminationManagement = ({ setShowAdminHeader }) => {
   const [showGroupModal,   setShowGroupModal]   = useState(false);
   const [editingGroupId,   setEditingGroupId]   = useState(null);
   const [groupForm,        setGroupForm]        = useState(EMPTY_GROUP);
+  const [groupYearId,      setGroupYearId]      = useState('');
 
   /* ── subject modal ── */
   const [showSubjectModal,   setShowSubjectModal]   = useState(false);
@@ -134,6 +136,7 @@ const ExaminationManagement = ({ setShowAdminHeader }) => {
   const loadOptions = async () => {
     const h = authH();
     const results = await Promise.allSettled([
+      fetch(`${API_BASE}/api/academic/years`,             { headers: h }),
       fetch(`${API_BASE}/api/academic/classes`,           { headers: h }),
       fetch(`${API_BASE}/api/academic/sections`,          { headers: h }),
       fetch(`${API_BASE}/api/academic/subjects`,          { headers: h }),
@@ -143,7 +146,15 @@ const ExaminationManagement = ({ setShowAdminHeader }) => {
       fetch(`${API_BASE}/api/admin/users/get-teachers`,   { headers: h }),
     ]);
     const parse = async (r) => r.status === 'fulfilled' ? (await r.value.json().catch(() => [])) : [];
-    const [c,s,sub,b,f,rm,tch] = await Promise.all(results.map(parse));
+    const [y,c,s,sub,b,f,rm,tch] = await Promise.all(results.map(parse));
+    const yearItems = Array.isArray(y) ? y : [];
+    setYears(yearItems);
+    const activeYear = yearItems.find((item) => item?.isActive);
+    if (activeYear?._id) {
+      setGroupYearId(String(activeYear._id));
+    } else if (yearItems[0]?._id) {
+      setGroupYearId(String(yearItems[0]._id));
+    }
     setClasses(Array.isArray(c) ? c : []);
     setSections(Array.isArray(s) ? s : []);
     setSubjects(Array.isArray(sub) ? sub : []);
@@ -199,6 +210,16 @@ const ExaminationManagement = ({ setShowAdminHeader }) => {
     return teachers.filter(t => !occupied.has(t.name));
   }, [teachers, subjectForm.date, subjectForm.time, subjectForm.duration, allExamsForConflict, editingSubjectId]);
 
+  const activeYears = useMemo(
+    () => years.filter((y) => y?.isActive),
+    [years]
+  );
+
+  const modalClasses = useMemo(
+    () => classes.filter((c) => groupYearId ? String(c.academicYearId || '') === String(groupYearId) : true),
+    [classes, groupYearId]
+  );
+
   /* ── group sections ── */
   const groupFormSections = useMemo(() =>
     sections.filter(s => groupForm.classId ? String(s.classId) === String(groupForm.classId) : true),
@@ -215,10 +236,21 @@ const ExaminationManagement = ({ setShowAdminHeader }) => {
   }, [groups, search, termFilter]);
 
   /* ── group handlers ── */
-  const openCreateGroup = () => { setEditingGroupId(null); setGroupForm(EMPTY_GROUP); setShowGroupModal(true); };
+  const openCreateGroup = () => {
+    setEditingGroupId(null);
+    setGroupForm(EMPTY_GROUP);
+    const activeYear = activeYears[0];
+    if (activeYear?._id) {
+      setGroupYearId(String(activeYear._id));
+    }
+    setShowGroupModal(true);
+  };
   const openEditGroup   = (g)  => {
     setEditingGroupId(g._id);
-    setGroupForm({ title: g.title||'', term: g.term||'Term 1', classId: g.classId?._id||g.classId||'', sectionId: g.sectionId?._id||g.sectionId||'', status: g.status||'Scheduled', startDate: g.startDate||'', endDate: g.endDate||'' });
+    const classId = g.classId?._id || g.classId || '';
+    const classItem = classes.find((item) => String(item._id) === String(classId));
+    setGroupYearId(String(classItem?.academicYearId || ''));
+    setGroupForm({ title: g.title||'', term: g.term||'Term 1', classId, sectionId: g.sectionId?._id||g.sectionId||'', status: g.status||'Scheduled', startDate: g.startDate||'', endDate: g.endDate||'' });
     setShowGroupModal(true);
   };
 
@@ -605,14 +637,42 @@ const ExaminationManagement = ({ setShowAdminHeader }) => {
             </Field>
           </div>
           <div className="grid grid-cols-2 gap-3">
+            <Field label="Academic Year">
+              <select
+                value={groupYearId}
+                onChange={e => {
+                  setGroupYearId(e.target.value);
+                  setGroupForm(p => ({ ...p, classId: '', sectionId: '' }));
+                }}
+                className={inp}
+                required
+              >
+                <option value="">Select active year</option>
+                {activeYears.map(y => <option key={y._id} value={y._id}>{y.name} (Active)</option>)}
+              </select>
+            </Field>
+            <div />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
             <Field label="Class">
-              <select value={groupForm.classId} onChange={e => setGroupForm(p=>({...p,classId:e.target.value,sectionId:''}))} className={inp}>
-                <option value="">Select class</option>
-                {classes.map(c=><option key={c._id} value={c._id}>{c.name}</option>)}
+              <select
+                value={groupForm.classId}
+                onChange={e => setGroupForm(p=>({...p,classId:e.target.value,sectionId:''}))}
+                className={inp}
+                disabled={!groupYearId}
+                required
+              >
+                <option value="">{groupYearId ? 'Select class' : 'Select active year first'}</option>
+                {modalClasses.map(c=><option key={c._id} value={c._id}>{c.name}</option>)}
               </select>
             </Field>
             <Field label="Section">
-              <select value={groupForm.sectionId} onChange={e => setGroupForm(p=>({...p,sectionId:e.target.value}))} className={inp}>
+              <select
+                value={groupForm.sectionId}
+                onChange={e => setGroupForm(p=>({...p,sectionId:e.target.value}))}
+                className={inp}
+                disabled={!groupForm.classId}
+              >
                 <option value="">Select section</option>
                 {groupFormSections.map(s=><option key={s._id} value={s._id}>{s.name}</option>)}
               </select>

@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import {
   BookOpen, Calendar, Layers, Plus, Edit3, Trash2, X,
-  ChevronUp, ChevronDown, ChevronsUpDown, Search, GraduationCap,
+  ChevronUp, ChevronDown, ChevronsUpDown, Search, GraduationCap, Copy,
   FolderOpen, UserCheck,
 } from "lucide-react";
 import Swal from "sweetalert2";
@@ -120,6 +120,7 @@ const AcademicSetup = ({ setShowAdminHeader }) => {
 
   // Search/filter
   const [searchYear, setSearchYear] = useState("");
+  const [yearStatusFilter, setYearStatusFilter] = useState("active");
   const [searchClass, setSearchClass] = useState("");
   const [searchSection, setSearchSection] = useState("");
   const [searchSubject, setSearchSubject] = useState("");
@@ -158,61 +159,140 @@ const AcademicSetup = ({ setShowAdminHeader }) => {
     };
   }, []);
 
+  const isYearActive = (year) => {
+    const status = String(year?.status || "").trim().toLowerCase();
+    if (status) return status === "active";
+    if (typeof year?.isActive === "boolean") return year.isActive;
+    return true;
+  };
+
+  const activeYears = useMemo(
+    () => years.filter((year) => isYearActive(year)),
+    [years]
+  );
+  const activeYearIdSet = useMemo(
+    () => new Set(activeYears.map((year) => String(year?._id || "")).filter(Boolean)),
+    [activeYears]
+  );
+  const visibleClasses = useMemo(
+    () =>
+      classes.filter((item) => {
+        const yearId = String(item?.academicYearId || "").trim();
+        if (!yearId) return true;
+        return activeYearIdSet.has(yearId);
+      }),
+    [classes, activeYearIdSet]
+  );
+  const visibleClassIdSet = useMemo(
+    () => new Set(visibleClasses.map((item) => String(item?._id || "")).filter(Boolean)),
+    [visibleClasses]
+  );
+  const visibleSections = useMemo(
+    () =>
+      sections.filter((item) => {
+        const classId = String(item?.classId || "").trim();
+        if (!classId) return true;
+        return visibleClassIdSet.has(classId);
+      }),
+    [sections, visibleClassIdSet]
+  );
+  const visibleSectionIdSet = useMemo(
+    () => new Set(visibleSections.map((item) => String(item?._id || "")).filter(Boolean)),
+    [visibleSections]
+  );
+  const visibleSubjects = useMemo(
+    () =>
+      subjects.filter((item) => {
+        const classId = String(item?.classId || "").trim();
+        if (!classId) return true;
+        return visibleClassIdSet.has(classId);
+      }),
+    [subjects, visibleClassIdSet]
+  );
+  const yearNameById = useMemo(
+    () =>
+      activeYears.reduce((acc, year) => {
+        acc[String(year?._id || "")] = year?.name || "";
+        return acc;
+      }, {}),
+    [activeYears]
+  );
+  const classNameById = useMemo(
+    () =>
+      visibleClasses.reduce((acc, item) => {
+        acc[String(item?._id || "")] = item?.name || "";
+        return acc;
+      }, {}),
+    [visibleClasses]
+  );
+
   /* ─── Filtered data ─── */
   const filteredYears = useMemo(() => {
-    if (!searchYear.trim()) return years;
+    let sourceYears = activeYears;
+    if (yearStatusFilter === "inactive") {
+      sourceYears = years.filter((year) => !isYearActive(year));
+    } else if (yearStatusFilter === "all") {
+      sourceYears = years;
+    }
+    if (!searchYear.trim()) return sourceYears;
     const q = searchYear.toLowerCase();
-    return years.filter(
+    return sourceYears.filter(
       (y) =>
         y.name.toLowerCase().includes(q) ||
         (y.startDate && new Date(y.startDate).toLocaleDateString().includes(q))
     );
-  }, [years, searchYear]);
+  }, [activeYears, years, yearStatusFilter, searchYear]);
 
   const filteredClasses = useMemo(() => {
-    if (!searchClass.trim()) return classes;
+    if (!searchClass.trim()) return visibleClasses;
     const q = searchClass.toLowerCase();
-    return classes.filter(
+    return visibleClasses.filter(
       (c) => c.name.toLowerCase().includes(q) || c.order?.toString().includes(q)
     );
-  }, [classes, searchClass]);
+  }, [visibleClasses, searchClass]);
 
   const filteredSections = useMemo(() => {
-    if (!searchSection.trim()) return sections;
+    if (!searchSection.trim()) return visibleSections;
     const q = searchSection.toLowerCase();
-    return sections.filter((s) => {
-      const className = classes.find((c) => c._id === s.classId)?.name || "";
+    return visibleSections.filter((s) => {
+      const className = classNameById[String(s.classId || "")] || "";
       return s.name.toLowerCase().includes(q) || className.toLowerCase().includes(q);
     });
-  }, [sections, searchSection, classes]);
+  }, [visibleSections, searchSection, classNameById]);
 
   const filteredSubjects = useMemo(() => {
-    if (!searchSubject.trim()) return subjects;
+    if (!searchSubject.trim()) return visibleSubjects;
     const q = searchSubject.toLowerCase();
-    return subjects.filter((s) => {
-      const className = classes.find((c) => c._id === s.classId)?.name || "";
+    return visibleSubjects.filter((s) => {
+      const className = classNameById[String(s.classId || "")] || "";
       return (
         s.name.toLowerCase().includes(q) ||
         (s.code && s.code.toLowerCase().includes(q)) ||
         className.toLowerCase().includes(q)
       );
     });
-  }, [subjects, searchSubject, classes]);
+  }, [visibleSubjects, searchSubject, classNameById]);
 
   const classTeacherAllocations = useMemo(
-    () => teacherAllocations.filter((a) => a.isClassTeacher),
-    [teacherAllocations]
+    () =>
+      teacherAllocations.filter(
+        (a) =>
+          a.isClassTeacher &&
+          visibleClassIdSet.has(String(a.classId?._id || a.classId || "")) &&
+          visibleSectionIdSet.has(String(a.sectionId?._id || a.sectionId || ""))
+      ),
+    [teacherAllocations, visibleClassIdSet, visibleSectionIdSet]
   );
 
   const classTeacherClasses = useMemo(() => {
     if (!classTeacherForm.yearId) return [];
-    return classes.filter((c) => String(c.academicYearId) === String(classTeacherForm.yearId));
-  }, [classes, classTeacherForm.yearId]);
+    return visibleClasses.filter((c) => String(c.academicYearId) === String(classTeacherForm.yearId));
+  }, [visibleClasses, classTeacherForm.yearId]);
 
   const classTeacherSections = useMemo(() => {
     if (!classTeacherForm.classId) return [];
-    return sections.filter((s) => String(s.classId) === String(classTeacherForm.classId));
-  }, [sections, classTeacherForm.classId]);
+    return visibleSections.filter((s) => String(s.classId) === String(classTeacherForm.classId));
+  }, [visibleSections, classTeacherForm.classId]);
 
   const handleSaveClassTeacher = async (e) => {
     e.preventDefault();
@@ -589,6 +669,87 @@ const AcademicSetup = ({ setShowAdminHeader }) => {
   const deleteSection = (id) => handleDelete("/api/academic/sections", id, "section", loadAcademicData);
   const deleteSubject = (id) => handleDelete("/api/academic/subjects", id, "subject", loadAcademicData);
 
+  const copyYearSetup = async (sourceYear) => {
+    const sourceYearId = sourceYear?._id;
+    if (!sourceYearId) return;
+    const targetCandidates = years.filter((item) => String(item?._id) !== String(sourceYearId));
+    if (!targetCandidates.length) {
+      Swal.fire({
+        title: "No Target Year",
+        text: "Create another academic year first, then copy setup.",
+        icon: "warning",
+      });
+      return;
+    }
+
+    const defaultTarget = targetCandidates.find((item) => isYearActive(item)) || targetCandidates[0];
+    const targetOptions = targetCandidates.reduce((acc, item) => {
+      const label = `${item.name}${isYearActive(item) ? " (Active)" : " (Inactive)"}`;
+      acc[String(item._id)] = label;
+      return acc;
+    }, {});
+
+    const targetSelection = await Swal.fire({
+      title: "Select Target Year",
+      input: "select",
+      inputOptions: targetOptions,
+      inputValue: String(defaultTarget?._id || ""),
+      inputPlaceholder: "Choose target year",
+      showCancelButton: true,
+      confirmButtonText: "Continue",
+      cancelButtonText: "Cancel",
+      inputValidator: (value) => (!value ? "Please select a target year" : null),
+    });
+    if (!targetSelection.isConfirmed) return;
+    const targetYearId = String(targetSelection.value || "");
+    const targetYear = targetCandidates.find((item) => String(item._id) === targetYearId);
+    if (!targetYear) return;
+
+    const confirm = await Swal.fire({
+      title: "Copy Setup",
+      html: `This will copy <b>classes, sections, subjects, and class teachers</b> from <b>${sourceYear?.name || "source year"}</b> to <b>${targetYear?.name || "target year"}</b>.`,
+      icon: "question",
+      showCancelButton: true,
+      confirmButtonText: "Yes, Copy",
+      cancelButtonText: "Cancel",
+      confirmButtonColor: "#f59e0b",
+    });
+    if (!confirm.isConfirmed) return;
+
+    setDeletingId(targetYearId);
+    try {
+      const res = await fetch(`${API_BASE}/api/academic/years/${targetYearId}/copy-setup`, {
+        method: "POST",
+        headers: authHeaders,
+        body: JSON.stringify({ sourceYearId }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || "Unable to copy setup");
+
+      await Promise.all([loadAcademicData(), loadClassTeachers()]);
+
+      await Swal.fire({
+        title: "Copy Completed",
+        icon: "success",
+        html: `
+          <div style="text-align:left">
+            <p><b>Source:</b> ${data?.sourceYear?.name || "Previous Year"}</p>
+            <p><b>Target:</b> ${data?.targetYear?.name || targetYear?.name || ""}</p>
+            <hr style="margin:10px 0" />
+            <p><b>Classes:</b> ${data?.classes?.created || 0} created, ${data?.classes?.skipped || 0} skipped</p>
+            <p><b>Sections:</b> ${data?.sections?.created || 0} created, ${data?.sections?.skipped || 0} skipped</p>
+            <p><b>Subjects:</b> ${data?.subjects?.created || 0} created, ${data?.subjects?.skipped || 0} skipped</p>
+            <p><b>Class Teachers:</b> ${data?.classTeachers?.created || 0} created, ${data?.classTeachers?.skipped || 0} skipped</p>
+          </div>
+        `,
+      });
+    } catch (err) {
+      Swal.fire({ title: "Error", text: err.message || "Failed to copy setup", icon: "error" });
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
   /* ─── Sorting ─── */
   const sortData = (data, sortConfig) => {
     if (!sortConfig.field) return data;
@@ -707,10 +868,10 @@ const AcademicSetup = ({ setShowAdminHeader }) => {
 
   /* ═══════════════════════ SUB-COMPONENTS ═══════════════════════ */
 
-  const StatCard = ({ icon: Icon, label, value, color }) => (
+  const StatCard = ({ icon, label, value, color }) => (
     <div className="flex items-center gap-3 rounded-xl border border-gray-100 bg-white px-4 py-3 shadow-sm">
       <div className={`flex h-10 w-10 items-center justify-center rounded-lg ${color}`}>
-        <Icon className="h-5 w-5 text-white" />
+        {React.createElement(icon, { className: "h-5 w-5 text-white" })}
       </div>
       <div>
         <p className="text-2xl font-bold text-gray-900">{value}</p>
@@ -860,10 +1021,10 @@ const AcademicSetup = ({ setShowAdminHeader }) => {
   /* ═══════════════════════ TAB CONFIG ═══════════════════════ */
 
   const tabs = [
-    { key: "years", label: "Academic Years", icon: Calendar, count: years.length },
-    { key: "classes", label: "Classes", icon: Layers, count: classes.length },
-    { key: "sections", label: "Sections", icon: BookOpen, count: sections.length },
-    { key: "subjects", label: "Subjects", icon: GraduationCap, count: subjects.length },
+    { key: "years", label: "Academic Years", icon: Calendar, count: activeYears.length },
+    { key: "classes", label: "Classes", icon: Layers, count: visibleClasses.length },
+    { key: "sections", label: "Sections", icon: BookOpen, count: visibleSections.length },
+    { key: "subjects", label: "Subjects", icon: GraduationCap, count: visibleSubjects.length },
     { key: "class-teachers", label: "Class Teachers", icon: UserCheck, count: classTeacherAllocations.length },
   ];
 
@@ -889,10 +1050,10 @@ const AcademicSetup = ({ setShowAdminHeader }) => {
 
         {/* ─── Stat Cards ─── */}
         <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-          <StatCard icon={Calendar} label="Academic Years" value={years.length} color="bg-blue-500" />
-          <StatCard icon={Layers} label="Classes" value={classes.length} color="bg-emerald-500" />
-          <StatCard icon={BookOpen} label="Sections" value={sections.length} color="bg-violet-500" />
-          <StatCard icon={GraduationCap} label="Subjects" value={subjects.length} color="bg-amber-500" />
+          <StatCard icon={Calendar} label="Academic Years" value={activeYears.length} color="bg-blue-500" />
+          <StatCard icon={Layers} label="Classes" value={visibleClasses.length} color="bg-emerald-500" />
+          <StatCard icon={BookOpen} label="Sections" value={visibleSections.length} color="bg-violet-500" />
+          <StatCard icon={GraduationCap} label="Subjects" value={visibleSubjects.length} color="bg-amber-500" />
         </div>
 
         {/* ─── Error ─── */}
@@ -968,8 +1129,19 @@ const AcademicSetup = ({ setShowAdminHeader }) => {
             <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
               <div className="flex items-center justify-between border-b border-gray-100 px-5 py-3">
                 <h3 className="text-sm font-semibold text-gray-700">Academic Years</h3>
-                <div className="w-64">
+                <div className="flex items-center gap-2">
+                  <select
+                    value={yearStatusFilter}
+                    onChange={(e) => { setYearStatusFilter(e.target.value); setYearPage(1); }}
+                    className="rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-600 focus:border-amber-400 focus:outline-none focus:ring-2 focus:ring-amber-100"
+                  >
+                    <option value="active">Active</option>
+                    <option value="inactive">Inactive</option>
+                    <option value="all">All</option>
+                  </select>
+                  <div className="w-64">
                   <SearchInput value={searchYear} onChange={setSearchYear} placeholder="Search years..." />
+                  </div>
                 </div>
               </div>
               <BulkBar entityType="years" entityName="academic year" />
@@ -1007,6 +1179,14 @@ const AcademicSetup = ({ setShowAdminHeader }) => {
                         </td>
                         <td className="px-4 py-3 text-right">
                           <div className="flex items-center justify-end gap-1">
+                            <button
+                              onClick={() => copyYearSetup(year)}
+                              disabled={deletingId === year._id}
+                              className="rounded-md p-1.5 text-gray-400 transition hover:bg-emerald-50 hover:text-emerald-600 disabled:opacity-50"
+                              title="Copy this year's classes, sections, subjects and class teachers to another year"
+                            >
+                              <Copy className="h-4 w-4" />
+                            </button>
                             <button onClick={() => setEditingYear(year)} className="rounded-md p-1.5 text-gray-400 transition hover:bg-blue-50 hover:text-blue-600" title="Edit">
                               <Edit3 className="h-4 w-4" />
                             </button>
@@ -1045,7 +1225,7 @@ const AcademicSetup = ({ setShowAdminHeader }) => {
                     <select value={classForm.academicYearId} onChange={(e) => setClassForm((p) => ({ ...p, academicYearId: e.target.value }))}
                       className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-amber-400 focus:outline-none focus:ring-2 focus:ring-amber-100">
                       <option value="">Select Year</option>
-                      {years.map((y) => <option key={y._id} value={y._id}>{y.name}</option>)}
+                      {activeYears.map((y) => <option key={y._id} value={y._id}>{y.name}</option>)}
                     </select>
                   </div>
                   <div>
@@ -1095,7 +1275,7 @@ const AcademicSetup = ({ setShowAdminHeader }) => {
                         </td>
                         <td className="px-4 py-3 text-sm font-medium text-gray-900">{cls.name}</td>
                         <td className="px-4 py-3 text-sm text-gray-500">{cls.order ?? 0}</td>
-                        <td className="px-4 py-3 text-sm text-gray-500">{years.find((y) => y._id === cls.academicYearId)?.name || "—"}</td>
+                        <td className="px-4 py-3 text-sm text-gray-500">{yearNameById[String(cls.academicYearId || "")] || "—"}</td>
                         <td className="px-4 py-3 text-right">
                           <div className="flex items-center justify-end gap-1">
                             <button onClick={() => setEditingClass(cls)} className="rounded-md p-1.5 text-gray-400 transition hover:bg-blue-50 hover:text-blue-600" title="Edit">
@@ -1136,7 +1316,7 @@ const AcademicSetup = ({ setShowAdminHeader }) => {
                     <select value={sectionForm.classId} onChange={(e) => setSectionForm((p) => ({ ...p, classId: e.target.value }))}
                       className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-amber-400 focus:outline-none focus:ring-2 focus:ring-amber-100" required>
                       <option value="">Select class</option>
-                      {classes.map((c) => <option key={c._id} value={c._id}>{c.name}</option>)}
+                      {visibleClasses.map((c) => <option key={c._id} value={c._id}>{c.name}</option>)}
                     </select>
                   </div>
                   <div className="flex items-end">
@@ -1178,7 +1358,7 @@ const AcademicSetup = ({ setShowAdminHeader }) => {
                             onChange={() => handleSelectItem("sections", sec._id)} className="h-4 w-4 rounded border-gray-300 text-amber-500" />
                         </td>
                         <td className="px-4 py-3 text-sm font-medium text-gray-900">{sec.name}</td>
-                        <td className="px-4 py-3 text-sm text-gray-500">{classes.find((c) => c._id === sec.classId)?.name || "—"}</td>
+                        <td className="px-4 py-3 text-sm text-gray-500">{classNameById[String(sec.classId || "")] || "—"}</td>
                         <td className="px-4 py-3 text-right">
                           <div className="flex items-center justify-end gap-1">
                             <button onClick={() => setEditingSection(sec)} className="rounded-md p-1.5 text-gray-400 transition hover:bg-blue-50 hover:text-blue-600" title="Edit">
@@ -1225,7 +1405,7 @@ const AcademicSetup = ({ setShowAdminHeader }) => {
                     <select value={subjectForm.classId} onChange={(e) => setSubjectForm((p) => ({ ...p, classId: e.target.value }))}
                       className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-amber-400 focus:outline-none focus:ring-2 focus:ring-amber-100">
                       <option value="">Select Class</option>
-                      {classes.map((c) => <option key={c._id} value={c._id}>{c.name}</option>)}
+                      {visibleClasses.map((c) => <option key={c._id} value={c._id}>{c.name}</option>)}
                     </select>
                   </div>
                   <div className="flex items-end">
@@ -1269,7 +1449,7 @@ const AcademicSetup = ({ setShowAdminHeader }) => {
                         </td>
                         <td className="px-4 py-3 text-sm font-medium text-gray-900">{sub.name}</td>
                         {/* <td className="px-4 py-3 text-sm text-gray-500">{sub.code || "—"}</td> */}
-                        <td className="px-4 py-3 text-sm text-gray-500">{classes.find((c) => c._id === sub.classId)?.name || "—"}</td>
+                        <td className="px-4 py-3 text-sm text-gray-500">{classNameById[String(sub.classId || "")] || "—"}</td>
                         <td className="px-4 py-3 text-right">
                           <div className="flex items-center justify-end gap-1">
                             <button onClick={() => setEditingSubject(sub)} className="rounded-md p-1.5 text-gray-400 transition hover:bg-blue-50 hover:text-blue-600" title="Edit">
@@ -1334,7 +1514,7 @@ const AcademicSetup = ({ setShowAdminHeader }) => {
                     required
                   >
                     <option value="">Select year</option>
-                    {years.map((y) => (
+                    {activeYears.map((y) => (
                       <option key={y._id} value={y._id}>
                         {y.name}
                       </option>
@@ -1498,7 +1678,7 @@ const AcademicSetup = ({ setShowAdminHeader }) => {
               <select value={editingClass?.academicYearId || ""} onChange={(e) => setEditingClass((p) => ({ ...p, academicYearId: e.target.value }))}
                 className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-amber-400 focus:outline-none focus:ring-2 focus:ring-amber-100">
                 <option value="">Select year</option>
-                {years.map((y) => <option key={y._id} value={y._id}>{y.name}</option>)}
+                {activeYears.map((y) => <option key={y._id} value={y._id}>{y.name}</option>)}
               </select>
             </div>
             <div>
@@ -1522,7 +1702,7 @@ const AcademicSetup = ({ setShowAdminHeader }) => {
               <select value={editingSection?.classId || ""} onChange={(e) => setEditingSection((p) => ({ ...p, classId: e.target.value }))}
                 className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-amber-400 focus:outline-none focus:ring-2 focus:ring-amber-100" required>
                 <option value="">Select class</option>
-                {classes.map((c) => <option key={c._id} value={c._id}>{c.name}</option>)}
+                {visibleClasses.map((c) => <option key={c._id} value={c._id}>{c.name}</option>)}
               </select>
             </div>
           </div>
@@ -1547,7 +1727,7 @@ const AcademicSetup = ({ setShowAdminHeader }) => {
               <select value={editingSubject?.classId || ""} onChange={(e) => setEditingSubject((p) => ({ ...p, classId: e.target.value }))}
                 className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-amber-400 focus:outline-none focus:ring-2 focus:ring-amber-100">
                 <option value="">Optional</option>
-                {classes.map((c) => <option key={c._id} value={c._id}>{c.name}</option>)}
+                {visibleClasses.map((c) => <option key={c._id} value={c._id}>{c.name}</option>)}
               </select>
             </div>
           </div>

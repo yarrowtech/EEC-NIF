@@ -62,12 +62,14 @@ const StudentPromotion = ({ setShowAdminHeader }) => {
   const [fromClassName, setFromClassName] = useState("");
   const [fromSection, setFromSection] = useState("");
   const [fromSections, setFromSections] = useState([]);
+  const [fromAcademicYearId, setFromAcademicYearId] = useState("");
   const [fromAcademicYear, setFromAcademicYear] = useState("");
 
   const [toClassId, setToClassId] = useState("");
   const [toClassName, setToClassName] = useState("");
   const [toSection, setToSection] = useState("");
   const [toSections, setToSections] = useState([]);
+  const [toAcademicYearId, setToAcademicYearId] = useState("");
   const [toAcademicYear, setToAcademicYear] = useState("");
 
   const [previewStudents, setPreviewStudents] = useState([]);
@@ -132,7 +134,9 @@ const StudentPromotion = ({ setShowAdminHeader }) => {
         // Pre-select current academic year if one is marked active
         const active = (Array.isArray(data) ? data : []).find((y) => y.isActive);
         if (active) {
+          setFromAcademicYearId(active._id);
           setFromAcademicYear(active.name);
+          setToAcademicYearId(active._id);
           setToAcademicYear(active.name);
         }
       }
@@ -203,11 +207,35 @@ const StudentPromotion = ({ setShowAdminHeader }) => {
     setSelectedStudentIds([]);
   };
 
+  const handleFromAcademicYearChange = (e) => {
+    const selectedId = e.target.value;
+    const selectedYear = academicYears.find((y) => String(y._id) === String(selectedId));
+    setFromAcademicYearId(selectedId);
+    setFromAcademicYear(selectedYear?.name || "");
+    setFromClassId("");
+    setFromClassName("");
+    setFromSections([]);
+    setFromSection("");
+    setPreviewStudents([]);
+    setSelectedStudentIds([]);
+  };
+
   const handleToClassChange = (e) => {
     const selectedId = e.target.value;
     const cls = classes.find((c) => c._id === selectedId);
     setToClassId(selectedId);
     setToClassName(cls ? cls.name : "");
+    setToSection("");
+  };
+
+  const handleToAcademicYearChange = (e) => {
+    const selectedId = e.target.value;
+    const selectedYear = academicYears.find((y) => String(y._id) === String(selectedId));
+    setToAcademicYearId(selectedId);
+    setToAcademicYear(selectedYear?.name || "");
+    setToClassId("");
+    setToClassName("");
+    setToSections([]);
     setToSection("");
   };
 
@@ -242,7 +270,9 @@ const StudentPromotion = ({ setShowAdminHeader }) => {
       });
       const data = await res.json();
       if (res.ok) {
-        const students = data.students || [];
+        const students = (data.students || []).filter(
+          (s) => !["Leaving", "Left"].includes(String(s?.status || ""))
+        );
         setPreviewStudents(students);
         if (students.length === 0) {
           Swal.fire({
@@ -287,6 +317,14 @@ const StudentPromotion = ({ setShowAdminHeader }) => {
       Swal.fire({ icon: "warning", title: "No Students Selected", text: "Please preview and select students first.", confirmButtonColor: "#6366f1" });
       return;
     }
+    const targetYearName =
+      academicYears.find((y) => String(y._id) === String(toAcademicYearId))?.name ||
+      toAcademicYear ||
+      "";
+    if (!targetYearName) {
+      Swal.fire({ icon: "warning", title: "Select Target Academic Year", text: "Please select target academic year.", confirmButtonColor: "#6366f1" });
+      return;
+    }
 
     const confirm = await Swal.fire({
       icon: "question",
@@ -294,7 +332,7 @@ const StudentPromotion = ({ setShowAdminHeader }) => {
       html: `Promote <strong>${selectedStudentIds.length}</strong> student(s)<br/>
              From: <strong>${fromClassName}${fromSection ? " – " + fromSection : ""}</strong><br/>
              To: <strong>${toClassName}${toSection ? " – " + toSection : ""}</strong>
-             ${toAcademicYear ? `<br/>Academic Year: <strong>${toAcademicYear}</strong>` : ""}
+             ${targetYearName ? `<br/>Academic Year: <strong>${targetYearName}</strong>` : ""}
              ${promotionMode === "marks" ? `<br/>Pass Criteria: <strong>${minPromotionPercentage}% and above</strong><br/>Roll numbers will be reassigned by marks rank.` : ""}`,
       showCancelButton: true,
       confirmButtonText: "Yes, Promote",
@@ -312,7 +350,7 @@ const StudentPromotion = ({ setShowAdminHeader }) => {
           studentIds: selectedStudentIds,
           toClass: toClassName,
           toSection: toSection || undefined,
-          toAcademicYear: toAcademicYear || undefined,
+          toAcademicYear: targetYearName || undefined,
           fromClass: fromClassName,
           fromSection: fromSection || undefined,
           fromAcademicYear: fromAcademicYear || undefined,
@@ -560,6 +598,13 @@ const StudentPromotion = ({ setShowAdminHeader }) => {
     );
   });
 
+  const fromYearClasses = fromAcademicYearId
+    ? classes.filter((c) => String(c.academicYearId || "") === String(fromAcademicYearId))
+    : [];
+  const toYearClasses = toAcademicYearId
+    ? classes.filter((c) => String(c.academicYearId || "") === String(toAcademicYearId))
+    : [];
+
   const filteredActive = activeStudents.filter((s) => {
     const matchClass = !leaveClassFilter || (s.grade || "") === leaveClassFilter;
     if (!matchClass) return false;
@@ -747,15 +792,36 @@ const StudentPromotion = ({ setShowAdminHeader }) => {
                 </label>
                 <div className="space-y-3">
                   <div>
+                    <label className="block text-xs text-gray-600 mb-1">Academic Year *</label>
+                    <div className="relative">
+                      <select
+                        value={fromAcademicYearId}
+                        onChange={handleFromAcademicYearChange}
+                        className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm appearance-none bg-white focus:outline-none focus:ring-2 focus:ring-indigo-300"
+                      >
+                        <option value="">Select year...</option>
+                        {academicYears.map((ay) => (
+                          <option key={ay._id} value={ay._id}>
+                            {ay.name}{ay.isActive ? " (current)" : ""}
+                          </option>
+                        ))}
+                      </select>
+                      <ChevronDown className="absolute right-2 top-2.5 w-4 h-4 text-gray-400 pointer-events-none" />
+                    </div>
+                  </div>
+                  <div>
                     <label className="block text-xs text-gray-600 mb-1">Class *</label>
                     <div className="relative">
                       <select
                         value={fromClassId}
                         onChange={handleFromClassChange}
-                        className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm appearance-none bg-white focus:outline-none focus:ring-2 focus:ring-indigo-300"
+                        disabled={!fromAcademicYearId}
+                        className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm appearance-none bg-white focus:outline-none focus:ring-2 focus:ring-indigo-300 disabled:bg-gray-50 disabled:text-gray-400"
                       >
-                        <option value="">Select class...</option>
-                        {classes.map((c) => (
+                        <option value="">
+                          {fromAcademicYearId ? "Select class..." : "Select academic year first"}
+                        </option>
+                        {fromYearClasses.map((c) => (
                           <option key={c._id} value={c._id}>
                             {c.name}
                             {studentCounts[c.name]
@@ -779,32 +845,12 @@ const StudentPromotion = ({ setShowAdminHeader }) => {
                           setPreviewStudents([]);
                           setSelectedStudentIds([]);
                         }}
-                        disabled={fromSections.length === 0}
+                        disabled={!fromClassId || fromSections.length === 0}
                         className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm appearance-none bg-white focus:outline-none focus:ring-2 focus:ring-indigo-300 disabled:bg-gray-50 disabled:text-gray-400"
                       >
                         <option value="">All sections</option>
                         {fromSections.map((s) => (
                           <option key={s._id} value={s.name}>{s.name}</option>
-                        ))}
-                      </select>
-                      <ChevronDown className="absolute right-2 top-2.5 w-4 h-4 text-gray-400 pointer-events-none" />
-                    </div>
-                  </div>
-                  <div>
-                    <label className="block text-xs text-gray-600 mb-1">
-                      Academic Year <span className="text-gray-400">(optional filter)</span>
-                    </label>
-                    <div className="relative">
-                      <select
-                        value={fromAcademicYear}
-                        onChange={(e) => setFromAcademicYear(e.target.value)}
-                        className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm appearance-none bg-white focus:outline-none focus:ring-2 focus:ring-indigo-300"
-                      >
-                        <option value="">Any year</option>
-                        {academicYears.map((ay) => (
-                          <option key={ay._id} value={ay.name}>
-                            {ay.name}{ay.isActive ? " (current)" : ""}
-                          </option>
                         ))}
                       </select>
                       <ChevronDown className="absolute right-2 top-2.5 w-4 h-4 text-gray-400 pointer-events-none" />
@@ -828,15 +874,36 @@ const StudentPromotion = ({ setShowAdminHeader }) => {
                 </label>
                 <div className="space-y-3">
                   <div>
+                    <label className="block text-xs text-gray-600 mb-1">Academic Year *</label>
+                    <div className="relative">
+                      <select
+                        value={toAcademicYearId}
+                        onChange={handleToAcademicYearChange}
+                        className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm appearance-none bg-white focus:outline-none focus:ring-2 focus:ring-indigo-300"
+                      >
+                        <option value="">Select year...</option>
+                        {academicYears.map((ay) => (
+                          <option key={ay._id} value={ay._id}>
+                            {ay.name}{ay.isActive ? " (current)" : ""}
+                          </option>
+                        ))}
+                      </select>
+                      <ChevronDown className="absolute right-2 top-2.5 w-4 h-4 text-gray-400 pointer-events-none" />
+                    </div>
+                  </div>
+                  <div>
                     <label className="block text-xs text-gray-600 mb-1">Class *</label>
                     <div className="relative">
                       <select
                         value={toClassId}
                         onChange={handleToClassChange}
-                        className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm appearance-none bg-white focus:outline-none focus:ring-2 focus:ring-indigo-300"
+                        disabled={!toAcademicYearId}
+                        className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm appearance-none bg-white focus:outline-none focus:ring-2 focus:ring-indigo-300 disabled:bg-gray-50 disabled:text-gray-400"
                       >
-                        <option value="">Select class...</option>
-                        {classes.map((c) => (
+                        <option value="">
+                          {toAcademicYearId ? "Select class..." : "Select academic year first"}
+                        </option>
+                        {toYearClasses.map((c) => (
                           <option key={c._id} value={c._id}>{c.name}</option>
                         ))}
                       </select>
@@ -851,32 +918,12 @@ const StudentPromotion = ({ setShowAdminHeader }) => {
                       <select
                         value={toSection}
                         onChange={(e) => setToSection(e.target.value)}
-                        disabled={toSections.length === 0}
+                        disabled={!toClassId || toSections.length === 0}
                         className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm appearance-none bg-white focus:outline-none focus:ring-2 focus:ring-indigo-300 disabled:bg-gray-50 disabled:text-gray-400"
                       >
                         <option value="">Same / any section</option>
                         {toSections.map((s) => (
                           <option key={s._id} value={s.name}>{s.name}</option>
-                        ))}
-                      </select>
-                      <ChevronDown className="absolute right-2 top-2.5 w-4 h-4 text-gray-400 pointer-events-none" />
-                    </div>
-                  </div>
-                  <div>
-                    <label className="block text-xs text-gray-600 mb-1">
-                      New Academic Year <span className="text-gray-400">(optional)</span>
-                    </label>
-                    <div className="relative">
-                      <select
-                        value={toAcademicYear}
-                        onChange={(e) => setToAcademicYear(e.target.value)}
-                        className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm appearance-none bg-white focus:outline-none focus:ring-2 focus:ring-indigo-300"
-                      >
-                        <option value="">Keep same year</option>
-                        {academicYears.map((ay) => (
-                          <option key={ay._id} value={ay.name}>
-                            {ay.name}{ay.isActive ? " (current)" : ""}
-                          </option>
                         ))}
                       </select>
                       <ChevronDown className="absolute right-2 top-2.5 w-4 h-4 text-gray-400 pointer-events-none" />

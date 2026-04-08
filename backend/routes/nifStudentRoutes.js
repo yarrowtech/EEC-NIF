@@ -3,6 +3,7 @@ const mongoose = require('mongoose');
 const adminAuth = require('../middleware/adminAuth');
 const StudentUser = require('../models/StudentUser');
 const ParentUser = require('../models/ParentUser');
+const ClassModel = require('../models/Class');
 const { generatePassword } = require('../utils/generator');
 
 const router = express.Router();
@@ -92,6 +93,7 @@ const normalizeClassLikeValue = (value) => {
 };
 
 const isNumericClassLabel = (value) => /^\d{1,2}$/.test(String(value || '').trim());
+const normalizeLookupKey = (value) => normalizeClassLikeValue(value).toLowerCase();
 
 router.post('/students/bulk', adminAuth, async (req, res) => {
   // #swagger.tags = ['Students']
@@ -110,6 +112,13 @@ router.post('/students/bulk', adminAuth, async (req, res) => {
       failed: 0,
       errors: [],
     };
+
+    const classDocs = await ClassModel.find({ schoolId }).select('name').lean();
+    const classLookup = new Set(
+      classDocs
+        .map((item) => normalizeLookupKey(item?.name))
+        .filter(Boolean)
+    );
 
     const sequenceByPrefix = new Map();
     const parentSequenceByPrefix = new Map();
@@ -149,6 +158,15 @@ router.post('/students/bulk', adminAuth, async (req, res) => {
           if ((looksLikeSection || matchesSection) && isNumericClassLabel(normalizedCourse)) {
             normalizedGrade = normalizedCourse;
           }
+        }
+
+        const incomingClass = String(row.class || row.course || row.grade || '').trim();
+        const normalizedIncomingClass = normalizeLookupKey(normalizedGrade || normalizedCourse || incomingClass);
+        if (!normalizedIncomingClass) {
+          throw new Error('Class is required');
+        }
+        if (!classLookup.has(normalizedIncomingClass)) {
+          throw new Error(`Class "${incomingClass || normalizedGrade || normalizedCourse}" is not created for this school`);
         }
 
         const payload = {

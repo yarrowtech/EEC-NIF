@@ -23,6 +23,29 @@ const resolveSchoolId = (req, res) => {
 
 const resolveCampusId = (req) => req.campusId || null;
 
+const escapeRegex = (value = '') => String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+const buildAcademicYearMatcher = (value) => {
+  const raw = String(value || '').trim();
+  if (!raw) return null;
+
+  const match = raw.match(/(\d{4})\D+(\d{2,4})/);
+  if (!match) {
+    return new RegExp(`^\\s*${escapeRegex(raw)}\\s*$`, 'i');
+  }
+
+  const startYear = match[1];
+  const endPart = match[2];
+  const endYearFull =
+    endPart.length === 2 ? `${startYear.slice(0, 2)}${endPart}` : endPart;
+  const endYearShort = endYearFull.slice(-2);
+
+  return new RegExp(
+    `^\\s*${escapeRegex(startYear)}\\s*[-/]\\s*(?:${escapeRegex(endYearShort)}|${escapeRegex(endYearFull)})\\s*$`,
+    'i'
+  );
+};
+
 const buildPromotionStudentFilter = ({
   schoolId,
   campusId,
@@ -38,7 +61,10 @@ const buildPromotionStudentFilter = ({
   };
   if (campusId) filter.campusId = campusId;
   if (fromSection) filter.section = fromSection;
-  if (fromAcademicYear) filter.academicYear = fromAcademicYear;
+  if (fromAcademicYear) {
+    const matcher = buildAcademicYearMatcher(fromAcademicYear);
+    if (matcher) filter.academicYear = matcher;
+  }
   return filter;
 };
 
@@ -273,7 +299,10 @@ router.post('/execute', adminAuth, async (req, res) => {
     if (campusId) eligibleFilter.campusId = campusId;
     if (fromClass) eligibleFilter.grade = fromClass;
     if (fromSection) eligibleFilter.section = fromSection;
-    if (fromAcademicYear) eligibleFilter.academicYear = fromAcademicYear;
+    if (fromAcademicYear) {
+      const matcher = buildAcademicYearMatcher(fromAcademicYear);
+      if (matcher) eligibleFilter.academicYear = matcher;
+    }
 
     const eligibleStudents = await StudentUser.find(eligibleFilter).select('_id').lean();
     if (eligibleStudents.length === 0) {
@@ -315,7 +344,10 @@ router.post('/execute', adminAuth, async (req, res) => {
     // Build the update payload
     const updateFields = { grade: toClass };
     if (toSection) updateFields.section = toSection;
-    if (toAcademicYear) updateFields.academicYear = toAcademicYear;
+    if (toAcademicYear) {
+      updateFields.academicYear = toAcademicYear;
+      updateFields.batchCode = toAcademicYear;
+    }
 
     const updateResult = await StudentUser.updateMany(
       { _id: { $in: finalPromoteIds }, schoolId },

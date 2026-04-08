@@ -96,8 +96,21 @@ export const ADMIN_MENU_ITEMS = [
   },
   {
     icon: Calendar,
-    label: 'Teacher Timetable',
-    path: '/admin/timetable'
+    label: 'Routine Management',
+    path: '/admin/routine',
+    hasSubmenu: true,
+    submenu: [
+      {
+        icon: Calendar,
+        label: 'Routines',
+        path: '/admin/routine'
+      },
+      {
+        icon: Calendar,
+        label: 'Teacher Timetable',
+        path: '/admin/timetable'
+      }
+    ]
   },
   {
     icon: UserCheck,
@@ -108,11 +121,6 @@ export const ADMIN_MENU_ITEMS = [
     icon: Layers,
     label: 'Academic Setup',
     path: '/admin/academics'
-  },
-  {
-    icon: Calendar,
-    label: 'Routines',
-    path: '/admin/routine'
   },
   {
     icon: Building2,

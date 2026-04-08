@@ -126,24 +126,28 @@ const AdminHeader = ({ adminUser, onOpenMobileSidebar }) => {
   };
 
   /* Search */
-  const SEARCH_TARGETS = useMemo(() => [
-    { label: 'Dashboard',       hint: 'Overview',                      path: '/admin/dashboard',      keys: ['dashboard', 'home', 'overview'] },
-    { label: 'Analytics',       hint: 'Reports & charts',              path: '/admin/analytics',      keys: ['analytics', 'report', 'chart'] },
-    { label: 'Academic Setup',  hint: 'Classes, sections, subjects',   path: '/admin/academics',      keys: ['academic', 'class', 'section', 'subject'] },
-    { label: 'Teachers',        hint: 'Manage teachers',               path: '/admin/teachers',       keys: ['teacher', 'faculty'] },
-    { label: 'Students',        hint: 'Manage students',               path: '/admin/students',       keys: ['student', 'pupil'] },
-    { label: 'Routines',        hint: 'Schedules & timetables',        path: '/admin/routine',        keys: ['routine', 'schedule', 'timetable'] },
-    { label: 'Attendance',      hint: 'Daily attendance',              path: '/admin/attendance',     keys: ['attendance', 'present', 'absent'] },
-    { label: 'Examination',     hint: 'Exams & papers',                path: '/admin/examination',    keys: ['exam', 'examination', 'test'] },
-    { label: 'Results',         hint: 'Marks & results',               path: '/admin/result',         keys: ['result', 'marks'] },
-    { label: 'Report Cards',    hint: 'Generate report cards',         path: '/admin/report-cards',   keys: ['report card'] },
-    { label: 'Fees Collection', hint: 'Collect & track fees',          path: '/admin/fees/collection',keys: ['fees', 'payment', 'collection'] },
-    { label: 'HR',              hint: 'Staff & leave management',      path: '/admin/hr',             keys: ['hr', 'leave', 'staff'] },
-    { label: 'Parents',         hint: 'Parent records',                path: '/admin/parents',        keys: ['parent'] },
-    { label: 'Notices',         hint: 'Notifications & notices',       path: '/admin/notices',        keys: ['notice', 'notification'] },
-    { label: 'Holidays',        hint: 'Holiday calendar',              path: '/admin/holidays',       keys: ['holiday'] },
-    { label: 'Settings',        hint: 'Account & app settings',        path: '/admin/settings',       keys: ['setting', 'profile'] },
-  ], []);
+  const SEARCH_TARGETS = useMemo(() => {
+    const baseTargets = [
+      { label: 'Dashboard',       hint: 'Overview',                      path: '/admin/dashboard',      keys: ['dashboard', 'home', 'overview'] },
+      { label: 'Analytics',       hint: 'Reports & charts',              path: '/admin/analytics',      keys: ['analytics', 'report', 'chart'] },
+      { label: 'Academic Setup',  hint: 'Classes, sections, subjects',   path: '/admin/academics',      keys: ['academic', 'class', 'section', 'subject'] },
+      { label: 'Teachers',        hint: 'Manage teachers',               path: '/admin/teachers',       keys: ['teacher', 'faculty'] },
+      { label: 'Students',        hint: 'Manage students',               path: '/admin/students',       keys: ['student', 'pupil'] },
+      { label: 'Routines',        hint: 'Schedules & timetables',        path: '/admin/routine',        keys: ['routine', 'schedule', 'timetable'] },
+      { label: 'Attendance',      hint: 'Daily attendance',              path: '/admin/attendance',     keys: ['attendance', 'present', 'absent'] },
+      { label: 'Examination',     hint: 'Exams & papers',                path: '/admin/examination',    keys: ['exam', 'examination', 'test'] },
+      { label: 'Results',         hint: 'Marks & results',               path: '/admin/result',         keys: ['result', 'marks'] },
+      { label: 'Report Cards',    hint: 'Generate report cards',         path: '/admin/report-cards',   keys: ['report card'] },
+      { label: 'Fees Collection', hint: 'Collect & track fees',          path: '/admin/fees/collection',keys: ['fees', 'payment', 'collection'] },
+      { label: 'HR',              hint: 'Staff & leave management',      path: '/admin/hr',             keys: ['hr', 'leave', 'staff'] },
+      { label: 'Parents',         hint: 'Parent records',                path: '/admin/parents',        keys: ['parent'] },
+      { label: 'Notices',         hint: 'Notifications & notices',       path: '/admin/notices',        keys: ['notice', 'notification'] },
+      { label: 'Holidays',        hint: 'Holiday calendar',              path: '/admin/holidays',       keys: ['holiday'] },
+      { label: 'Settings',        hint: 'Account & app settings',        path: '/admin/settings',       keys: ['setting', 'profile'] },
+    ];
+    if (isSuperAdmin) return baseTargets;
+    return baseTargets.filter((item) => item.path !== '/admin/attendance');
+  }, [isSuperAdmin]);
 
   const suggestions = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
