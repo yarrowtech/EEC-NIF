@@ -237,17 +237,22 @@ const Students = ({ setShowAdminHeader, setShowAdminBreadcrumb }) => {
     filteredStudents.length
   );
   const sessionOptions = useMemo(
-    () => {
-      const catalogSessions = academicYears
+    () =>
+      academicYears
+        .filter((year) => year?.isActive)
         .map((year) => String(year?.name || "").trim())
-        .filter(Boolean);
-      const studentSessions = studentData
-        .map((student) => String(student.academicYear || "").trim())
-        .filter(Boolean);
-      return Array.from(new Set([...catalogSessions, ...studentSessions])).sort();
-    },
-    [academicYears, studentData]
+        .filter(Boolean),
+    [academicYears]
   );
+
+  useEffect(() => {
+    if (!sessionOptions.length) return;
+    if (!sessionFilter || !sessionOptions.includes(sessionFilter)) {
+      setSessionFilter(sessionOptions[0]);
+      setClassFilter("");
+      setSectionFilter("");
+    }
+  }, [sessionOptions, sessionFilter]);
   const classOptions = useMemo(
     () => {
       const source = sessionFilter
@@ -2837,9 +2842,10 @@ const Students = ({ setShowAdminHeader, setShowAdminBreadcrumb }) => {
               <select
                 value={sessionFilter}
                 onChange={(e) => { setSessionFilter(e.target.value); setClassFilter(""); setSectionFilter(""); }}
+                disabled={!sessionOptions.length}
                 className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-yellow-500 min-w-[140px]"
               >
-                <option value="">All Sessions</option>
+                {!sessionOptions.length && <option value="">No Active Session</option>}
                 {sessionOptions.map((s) => <option key={s} value={s}>{s}</option>)}
               </select>
 
@@ -2916,7 +2922,7 @@ const Students = ({ setShowAdminHeader, setShowAdminBreadcrumb }) => {
                       <th className="border-b border-gray-200 px-2 py-2.5 text-left text-xs font-semibold uppercase tracking-wider text-gray-500 w-[5%]">
                         <input
                           type="checkbox"
-                          className="h-4 w-4 accent-yellow-600"
+                          className="h-5 w-5 rounded-full border-2 border-amber-200 bg-white text-amber-500 focus:ring-2 focus:ring-amber-200 focus:ring-offset-0 cursor-pointer transition shadow-sm"
                           checked={isAllVisibleSelected}
                           disabled={!isAnyVisibleSelected && visibleStudentIds.length === 0}
                           onChange={toggleSelectAllVisible}
@@ -2973,7 +2979,7 @@ const Students = ({ setShowAdminHeader, setShowAdminBreadcrumb }) => {
                           >
                             <input
                               type="checkbox"
-                              className="h-4 w-4 accent-yellow-600"
+                              className="h-5 w-5 rounded-full border-2 border-amber-200 bg-white text-amber-500 focus:ring-2 focus:ring-amber-200 focus:ring-offset-0 cursor-pointer transition shadow-sm"
                               checked={selectedIdSet.has(String(studentKey))}
                               onChange={() => toggleStudentSelection(studentKey)}
                               aria-label={`Select ${student.name || "student"}`}
@@ -5378,7 +5384,7 @@ const Students = ({ setShowAdminHeader, setShowAdminBreadcrumb }) => {
                       <th className="px-4 py-3 text-left">
                         <input
                           type="checkbox"
-                          className="h-4 w-4 accent-yellow-600"
+                          className="h-5 w-5 rounded-full border-2 border-amber-200 bg-white text-amber-500 focus:ring-2 focus:ring-amber-200 focus:ring-offset-0 cursor-pointer transition shadow-sm"
                           checked={
                             archivedStudents.length > 0 &&
                             archivedStudents.every((student) =>
@@ -5404,7 +5410,7 @@ const Students = ({ setShowAdminHeader, setShowAdminBreadcrumb }) => {
                         <td className="px-4 py-3">
                           <input
                             type="checkbox"
-                            className="h-4 w-4 accent-yellow-600"
+                            className="h-5 w-5 rounded-full border-2 border-amber-200 bg-white text-amber-500 focus:ring-2 focus:ring-amber-200 focus:ring-offset-0 cursor-pointer transition shadow-sm"
                             checked={selectedArchivedStudentIds.includes(String(student?._id || ""))}
                             onChange={() => toggleArchivedStudentSelection(student?._id)}
                             aria-label={`Select archived ${student.name || "student"}`}

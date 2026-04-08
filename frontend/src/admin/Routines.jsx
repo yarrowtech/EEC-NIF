@@ -180,6 +180,7 @@ const Routines = ({ setShowAdminHeader }) => {
   const [isModalOpen, setIsModalOpen]       = useState(false);
   const [editingRoutine, setEditingRoutine] = useState(null);
   const [form, setForm]                     = useState({ class: '', section: '', day: 'Monday', schedule: [] });
+  const [formYearId, setFormYearId]         = useState('');
   const [showAdvanced, setShowAdvanced]     = useState(false);
   const [selectedCopyRoutine, setSelectedCopyRoutine] = useState('');
 
@@ -220,14 +221,43 @@ const Routines = ({ setShowAdminHeader }) => {
   useEffect(() => { setShowAdminHeader?.(false); }, []);
   useEffect(() => { loadInitialData(); }, []);
   useEffect(() => { if (!isModalOpen) { setSelectedCopyRoutine(''); setShowAdvanced(false); } }, [isModalOpen]);
+  useEffect(() => {
+    if (!isModalOpen) return;
+    if (formYearId) return;
+    if (selectedYearId) setFormYearId(selectedYearId);
+  }, [isModalOpen, formYearId, selectedYearId]);
 
   /* ── derived ── */
-  const selectedClassDoc = useMemo(() => classes.find(c => String(c.name) === String(form.class)), [classes, form.class]);
+  const selectedClassDoc = useMemo(
+    () =>
+      classes.find(
+        (c) =>
+          String(c.name) === String(form.class) &&
+          (!formYearId || String(c.academicYearId || '') === String(formYearId))
+      ) || null,
+    [classes, form.class, formYearId]
+  );
 
   const classFilteredSubjects = useMemo(() =>
     selectedClassDoc?._id ? subjects.filter(s => String(s.classId) === String(selectedClassDoc._id)) : subjects,
     [subjects, selectedClassDoc]
   );
+
+  const modalClasses = useMemo(() => {
+    if (!formYearId) return [];
+    return classes.filter((c) => String(c.academicYearId || '') === String(formYearId));
+  }, [classes, formYearId]);
+
+  const modalSections = useMemo(() => {
+    const clsDoc =
+      classes.find(
+        (c) =>
+          String(c.name) === String(form.class) &&
+          (!formYearId || String(c.academicYearId || '') === String(formYearId))
+      ) || null;
+    if (!clsDoc) return [];
+    return sections.filter((s) => String(getId(s.classId) || '') === String(clsDoc._id));
+  }, [classes, form.class, formYearId, sections]);
 
   const roomsById = useMemo(() => { const m = new Map(); rooms.forEach(r => r?._id && m.set(String(r._id), r)); return m; }, [rooms]);
 
@@ -249,6 +279,21 @@ const Routines = ({ setShowAdminHeader }) => {
     if (!selectedYearId) return [];
     return classes.filter((c) => String(c.academicYearId || '') === String(selectedYearId));
   }, [classes, selectedYearId]);
+
+  const activeYears = useMemo(
+    () => years.filter((year) => year?.isActive),
+    [years]
+  );
+
+  useEffect(() => {
+    if (!activeYears.length) return;
+    const hasSelected = activeYears.some((year) => String(year._id) === String(selectedYearId));
+    if (!hasSelected) {
+      setSelectedYearId(String(activeYears[0]._id));
+      setSelectedClassId('');
+      setSelectedSectionId('');
+    }
+  }, [activeYears, selectedYearId]);
 
   const filteredSections = useMemo(() => {
     if (!selectedClassId) return [];
@@ -304,19 +349,26 @@ const Routines = ({ setShowAdminHeader }) => {
       avail[0] ||
       null;
     const sec = sectionName || secDoc?.name || '';
+    const nextYearId = String(clsDoc?.academicYearId || selectedYearId || '');
     const existing = routines.find(
       (r) =>
         String(r.classId || '') === String(clsDoc?._id || '') &&
         String(r.sectionId || '') === String(secDoc?._id || '') &&
         normalizeDayLabel(r.day) === normalizeDayLabel(day)
     );
+    setFormYearId(nextYearId);
     setForm({ class: cls, section: sec, day, schedule: buildScheduleForDay(existing?.schedule || []) });
     setEditingRoutine(existing || null);
     setIsModalOpen(true);
   };
 
   /* ── helpers inside form ── */
-  const getClassDoc = () => classes.find(c => c.name === form.class);
+  const getClassDoc = () =>
+    classes.find(
+      (c) =>
+        c.name === form.class &&
+        (!formYearId || String(c.academicYearId || '') === String(formYearId))
+    );
   const getSectionDoc = (cd) => sections.find(s => s.name === form.section && getId(s.classId) === cd?._id);
 
   const updateRowTimeField = (idx, field, value) => {
@@ -374,6 +426,7 @@ const Routines = ({ setShowAdminHeader }) => {
       setSaving(true); setConflicts([]);
       const classDoc = getClassDoc();
       const sectionDoc = getSectionDoc(classDoc);
+      if (!formYearId) { showToast('Select a session', 'error'); return; }
       if (!classDoc) { showToast('Select a class', 'error'); return; }
       const incomplete = form.schedule.filter(p => !p.isBreak && (!p.subject || !p.teacher));
       if (incomplete.length) { showToast('Fill subject and teacher for all periods', 'error'); return; }
@@ -594,8 +647,8 @@ const Routines = ({ setShowAdminHeader }) => {
           <div className="flex flex-wrap gap-3 items-center">
             <select value={selectedYearId} onChange={e => { setSelectedYearId(e.target.value); setSelectedClassId(''); setSelectedSectionId(''); }}
               className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm text-slate-700 focus:outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 min-w-[160px]">
-              <option value="">All Sessions</option>
-              {years.map(y => <option key={y._id} value={y._id}>{y.name}{y.isActive ? ' (Active)' : ''}</option>)}
+              <option value="">Select Active Session</option>
+              {activeYears.map(y => <option key={y._id} value={y._id}>{y.name}</option>)}
             </select>
             <ChevronRight size={14} className="text-slate-300" />
             <select value={selectedClassId} onChange={e => { setSelectedClassId(e.target.value); setSelectedSectionId(''); }}
@@ -791,7 +844,11 @@ const Routines = ({ setShowAdminHeader }) => {
                 </div>
                 <div>
                   <h3 className="font-bold text-slate-900 text-base leading-tight">{editingRoutine ? 'Edit Routine' : 'Create Routine'}</h3>
-                  {form.class && form.section && <p className="text-xs text-slate-400">Class {form.class} – {form.section} · {form.day}</p>}
+                  {form.class && form.section && (
+                    <p className="text-xs text-slate-400">
+                      {years.find((y) => String(y._id) === String(formYearId))?.name || 'Session'} · Class {form.class} – {form.section} · {form.day}
+                    </p>
+                  )}
                 </div>
               </div>
               <button onClick={() => setIsModalOpen(false)} className="h-8 w-8 flex items-center justify-center rounded-xl text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors">
@@ -801,27 +858,60 @@ const Routines = ({ setShowAdminHeader }) => {
 
             <div className="flex-1 overflow-y-auto px-6 py-5 space-y-5">
 
-              {/* Step 1: Class / Section / Day */}
+              {/* Step 1: Session / Class / Section / Day */}
               <div className="rounded-2xl bg-slate-50 border border-slate-100 p-4">
-                <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">Step 1 — Select Class, Section & Day</p>
-                <div className="grid grid-cols-3 gap-3">
-                  {[
-                    { label: 'Class', value: form.class, onChange: v => setForm(f => ({...f, class: v, section: ''})),
-                      options: classes.map(c => ({ val: c.name, label: c.name })), placeholder: 'Class' },
-                    { label: 'Section', value: form.section, onChange: v => setForm(f => ({...f, section: v})),
-                      options: sections.filter(s => { const cd = classes.find(c => c.name === form.class); return !cd || getId(s.classId) === cd._id; }).map(s => ({ val: s.name, label: s.name })), placeholder: 'Section' },
-                    { label: 'Day', value: form.day, onChange: v => setForm(f => ({...f, day: v})),
-                      options: DAYS.map(d => ({ val: d, label: d })), placeholder: 'Day' },
-                  ].map(({ label, value, onChange, options, placeholder }) => (
-                    <div key={label}>
-                      <label className="block text-xs font-medium text-slate-500 mb-1">{label}</label>
-                      <select value={value} onChange={e => onChange(e.target.value)}
-                        className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-800 focus:outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100">
-                        <option value="">{placeholder}</option>
-                        {options.map(o => <option key={o.val} value={o.val}>{o.label}</option>)}
-                      </select>
-                    </div>
-                  ))}
+                <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">Step 1 — Select Session, Class, Section & Day</p>
+                <div className="grid grid-cols-4 gap-3">
+                  <div>
+                    <label className="block text-xs font-medium text-slate-500 mb-1">Session</label>
+                    <select
+                      value={formYearId}
+                      onChange={(e) => {
+                        setFormYearId(e.target.value);
+                        setForm((f) => ({ ...f, class: '', section: '' }));
+                      }}
+                      className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-800 focus:outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100"
+                    >
+                      <option value="">Session</option>
+                      {activeYears.map((y) => (
+                        <option key={y._id} value={y._id}>{y.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-slate-500 mb-1">Class</label>
+                    <select
+                      value={form.class}
+                      onChange={(e) => setForm((f) => ({ ...f, class: e.target.value, section: '' }))}
+                      disabled={!formYearId}
+                      className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-800 focus:outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 disabled:opacity-60"
+                    >
+                      <option value="">Class</option>
+                      {modalClasses.map((c) => <option key={c._id} value={c.name}>{c.name}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-slate-500 mb-1">Section</label>
+                    <select
+                      value={form.section}
+                      onChange={(e) => setForm((f) => ({ ...f, section: e.target.value }))}
+                      disabled={!form.class}
+                      className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-800 focus:outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 disabled:opacity-60"
+                    >
+                      <option value="">Section</option>
+                      {modalSections.map((s) => <option key={s._id} value={s.name}>{s.name}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-slate-500 mb-1">Day</label>
+                    <select
+                      value={form.day}
+                      onChange={(e) => setForm((f) => ({ ...f, day: e.target.value }))}
+                      className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-800 focus:outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100"
+                    >
+                      {DAYS.map((day) => <option key={day} value={day}>{day}</option>)}
+                    </select>
+                  </div>
                 </div>
               </div>
 

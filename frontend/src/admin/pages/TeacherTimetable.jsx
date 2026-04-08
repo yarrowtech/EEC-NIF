@@ -80,9 +80,11 @@ const TeacherTimetable = ({ setShowAdminHeader }) => {
   useEffect(() => { setShowAdminHeader(true); }, [setShowAdminHeader]);
 
   const [selectedTeacher, setSelectedTeacher] = useState('all');
+  const [selectedYearId, setSelectedYearId]   = useState('');
   const [currentWeek, setCurrentWeek]         = useState(new Date());
   const [modalOpen, setModalOpen]             = useState(false);
   const [modalTeacher, setModalTeacher]       = useState(null);
+  const [years, setYears]                     = useState([]);
   const [teachers, setTeachers]               = useState([]);
   const [timetables, setTimetables]           = useState([]);
   const [loading, setLoading]                 = useState(true);
@@ -100,9 +102,21 @@ const TeacherTimetable = ({ setShowAdminHeader }) => {
   ];
   const weekDays = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
+  const activeYear = useMemo(
+    () => years.find((year) => year?.isActive) || null,
+    [years]
+  );
+
+  const yearFilteredTimetables = useMemo(() => {
+    if (!selectedYearId) return timetables;
+    return (Array.isArray(timetables) ? timetables : []).filter(
+      (tt) => String(tt?.classId?.academicYearId || '') === String(selectedYearId)
+    );
+  }, [timetables, selectedYearId]);
+
   const timeSlots = useMemo(() => {
     const slots = new Map();
-    timetables.forEach((tt) => {
+    yearFilteredTimetables.forEach((tt) => {
       (tt.entries || []).forEach((entry) => {
         if (!entry.startTime || !entry.endTime) return;
         const key = `${entry.startTime}-${entry.endTime}`;
@@ -117,7 +131,7 @@ const TeacherTimetable = ({ setShowAdminHeader }) => {
       const d = toMins(a.startTime) - toMins(b.startTime);
       return d !== 0 ? d : toMins(a.endTime) - toMins(b.endTime);
     });
-  }, [timetables]);
+  }, [yearFilteredTimetables]);
 
   const slotLabelByKey = useMemo(() => {
     const m = new Map(); timeSlots.forEach((s) => m.set(s.key, s.label)); return m;
@@ -126,7 +140,7 @@ const TeacherTimetable = ({ setShowAdminHeader }) => {
   const routineData = useMemo(() => {
     const data = {};
     weekDays.forEach((d) => { data[d] = {}; });
-    timetables.forEach((tt) => {
+    yearFilteredTimetables.forEach((tt) => {
       const className = tt.classId?.name || ''; const sectionName = tt.sectionId?.name || '';
       (tt.entries || []).forEach((entry) => {
         if (!entry.dayOfWeek || !entry.startTime || !entry.endTime) return;
@@ -142,21 +156,37 @@ const TeacherTimetable = ({ setShowAdminHeader }) => {
       });
     });
     return data;
-  }, [timetables]);
+  }, [yearFilteredTimetables]);
 
   const loadData = async () => {
     try {
       setLoading(true); setError(null);
-      const [td, ttd] = await Promise.all([
+      const [yd, td, ttd] = await Promise.all([
+        academicApi.getYears().catch(() => []),
         academicApi.getTeachers().catch(() => []),
         timetableApi.getAll().catch(() => []),
       ]);
+      const yearItems = Array.isArray(yd) ? yd : [];
+      setYears(yearItems);
+      const preferredYear = yearItems.find((year) => year?.isActive) || yearItems[0] || null;
+      if (preferredYear?._id) {
+        setSelectedYearId(String(preferredYear._id));
+      }
       setTeachers(Array.isArray(td) ? td : []);
       setTimetables(Array.isArray(ttd) ? ttd : []);
     } catch (err) { setError(err.message || 'Failed to load'); }
     finally { setLoading(false); }
   };
   useEffect(() => { loadData(); }, []);
+
+  useEffect(() => {
+    if (!years.length) return;
+    const hasSelected = years.some((year) => String(year._id) === String(selectedYearId));
+    if (!hasSelected) {
+      const preferredYear = years.find((year) => year?.isActive) || years[0];
+      if (preferredYear?._id) setSelectedYearId(String(preferredYear._id));
+    }
+  }, [years, selectedYearId]);
 
   const resolveLogoUrl = (logo) => {
     if (!logo) return '';
@@ -257,7 +287,8 @@ const TeacherTimetable = ({ setShowAdminHeader }) => {
         pdf.text('Teacher Timetable Report', logoDataUrl ? 27 : margin, 18);
         pdf.setTextColor(31, 41, 55); pdf.setFontSize(9);
         const fl = exportTeacherId === 'all' ? 'All Teachers' : (teachers.find((t) => String(t._id) === String(exportTeacherId))?.name || 'Teacher');
-        pdf.text(`Filter: ${fl}`, margin, 30);
+        const sessionLabel = years.find((year) => String(year._id) === String(selectedYearId))?.name || 'Session';
+        pdf.text(`Filter: ${sessionLabel} • ${fl}`, margin, 30);
         pdf.text(`Generated: ${currentDate}`, pageWidth - margin, 30, { align: 'right' });
       };
       const drawFooter = (pn, tp) => {
@@ -434,6 +465,26 @@ const TeacherTimetable = ({ setShowAdminHeader }) => {
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <Filter size={13} color={T.textSubtle} />
+          <label style={{ fontSize: 11, fontWeight: 700, color: T.textSubtle, textTransform: 'uppercase', letterSpacing: '.5px' }}>Session</label>
+          <div style={{ position: 'relative', marginLeft: 2 }}>
+            <select
+              value={selectedYearId}
+              onChange={(e) => setSelectedYearId(e.target.value)}
+              style={{
+                appearance: 'none', padding: '7px 28px 7px 11px',
+                border: `1px solid ${T.border}`, borderRadius: 7,
+                fontSize: 13, fontWeight: 500, color: T.text, background: T.bg,
+                cursor: 'pointer', outline: 'none',
+              }}
+            >
+              {years.map((year) => (
+                <option key={year._id} value={year._id}>
+                  {year.name}{String(year._id) === String(activeYear?._id || '') ? ' (Active)' : ''}
+                </option>
+              ))}
+            </select>
+            <ChevronRight size={11} color={T.textSubtle} style={{ position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%) rotate(90deg)', pointerEvents: 'none' }} />
+          </div>
           <label style={{ fontSize: 11, fontWeight: 700, color: T.textSubtle, textTransform: 'uppercase', letterSpacing: '.5px' }}>Teacher</label>
           <div style={{ position: 'relative', marginLeft: 2 }}>
             <select
@@ -501,7 +552,9 @@ const TeacherTimetable = ({ setShowAdminHeader }) => {
               {selectedTeacher === 'all'
                 ? 'All Teachers'
                 : (teachers.find((t) => String(t._id) === String(selectedTeacher))?.name || 'Teacher')}
-              <span style={{ fontWeight: 400, color: T.textMuted }}> · Weekly View</span>
+              <span style={{ fontWeight: 400, color: T.textMuted }}>
+                {' '}· {years.find((year) => String(year._id) === String(selectedYearId))?.name || 'Session'} · Weekly View
+              </span>
             </span>
             <span style={{ fontSize: 11, color: T.textSubtle }}>{timeSlots.length} time slots</span>
           </div>

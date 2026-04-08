@@ -462,7 +462,7 @@ router.get('/all', adminAuth, async (req, res) => {
     const campusId = resolveCampusId(req);
 
     const timetables = await Timetable.find(buildCampusFilter(schoolId, campusId))
-      .populate('classId', 'name')
+      .populate('classId', 'name academicYearId')
       .populate('sectionId', 'name')
       .populate('entries.subjectId', 'name')
       .populate('entries.teacherId', 'name')
