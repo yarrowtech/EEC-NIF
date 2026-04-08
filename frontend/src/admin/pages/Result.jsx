@@ -40,6 +40,15 @@ const EXAM_STATUS_STYLE = {
 };
 
 const inp = 'w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-800 focus:border-indigo-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-100 transition placeholder:text-slate-400';
+const deriveGradeFromPercentage = (percentage) => {
+  if (!Number.isFinite(percentage)) return '';
+  if (percentage >= 90) return 'A+';
+  if (percentage >= 80) return 'A';
+  if (percentage >= 70) return 'B';
+  if (percentage >= 60) return 'C';
+  if (percentage >= 50) return 'D';
+  return 'F';
+};
 
 /* ── modal shell ── */
 const Modal = ({ show, onClose, title, subtitle, icon: Icon, iconColor = 'bg-indigo-600', children, maxWidth = 'sm:max-w-2xl' }) => {
@@ -99,19 +108,17 @@ const Result = ({ setShowAdminHeader }) => {
   const [exams, setExams]       = useState([]);
   const [examGroups, setExamGroups] = useState([]);
   const [students, setStudents] = useState([]);
-  const [classes, setClasses]   = useState([]);
-  const [sections, setSections] = useState([]);
 
   const [loading, setLoading]           = useState(true);
   const [loadingExams, setLoadingExams] = useState(false);
-  const [loadingExamGroups, setLoadingExamGroups] = useState(false);
+  const [, setLoadingExamGroups] = useState(false);
   const [loadingStudents, setLoadingStudents] = useState(false);
 
   const [searchTerm, setSearchTerm]     = useState('');
+  const [selectedSession, setSelectedSession] = useState('');
   const [selectedClass, setSelectedClass]   = useState('');
   const [selectedSection, setSelectedSection] = useState('');
   const [filterSubject, setFilterSubject]   = useState('all');
-  const [selectedTerm, setSelectedTerm]     = useState('all');
 
   const [showAddResult, setShowAddResult]   = useState(false);
   const [showEditResult, setShowEditResult] = useState(false);
@@ -125,8 +132,12 @@ const Result = ({ setShowAdminHeader }) => {
   const [bulkExamId, setBulkExamId]         = useState('');
   const [expandedExams, setExpandedExams]   = useState(new Set());
   const [examTabState, setExamTabState]     = useState({});   // { [examId]: { cls: 'all', sec: 'all' } }
-  const [selectedCompletedExamGroupId, setSelectedCompletedExamGroupId] = useState('');
-  const [updatingSelectedExamPublish, setUpdatingSelectedExamPublish] = useState(false);
+  const [updatingCompletedExamGroupId, setUpdatingCompletedExamGroupId] = useState('');
+  const [addResultMode, setAddResultMode] = useState('single');
+  const [bulkEntryForm, setBulkEntryForm] = useState({ session: '', className: '', sectionName: '', examId: '' });
+  const [bulkEntryRows, setBulkEntryRows] = useState([]);
+  const [bulkEntryLoading, setBulkEntryLoading] = useState(false);
+  const [bulkEntrySubmitting, setBulkEntrySubmitting] = useState(false);
 
   /* ── fetch ── */
   const fetchResults = async () => {
@@ -138,17 +149,6 @@ const Result = ({ setShowAdminHeader }) => {
       setResults(Array.isArray(d) ? d : []);
     } catch { toast.error('Failed to load results'); setResults([]); }
     finally { setLoading(false); }
-  };
-
-  const fetchClassesAndSections = async () => {
-    try {
-      const [cr, sr] = await Promise.all([
-        fetch(`${API_BASE}/api/academic/classes`, { headers: authH() }),
-        fetch(`${API_BASE}/api/academic/sections`, { headers: authH() }),
-      ]);
-      if (cr.ok) { const d = await cr.json(); setClasses(Array.isArray(d) ? d : []); }
-      if (sr.ok) { const d = await sr.json(); setSections(Array.isArray(d) ? d : []); }
-    } catch { /**/ }
   };
 
   const fetchExams = async () => {
@@ -206,7 +206,7 @@ const Result = ({ setShowAdminHeader }) => {
     finally { setLoadingStudents(false); }
   };
 
-  useEffect(() => { fetchResults(); fetchClassesAndSections(); fetchExams(); fetchExamGroups(); }, []);
+  useEffect(() => { fetchResults(); fetchExams(); fetchExamGroups(); }, []);
   useEffect(() => { if (selectedClass) fetchStudentsByClass(); }, [selectedClass, selectedSection]);
 
   const handleTogglePublish = async (id, val) => {
@@ -235,13 +235,19 @@ const Result = ({ setShowAdminHeader }) => {
     } catch { toast.error('Failed to update publish status'); }
   };
 
-  const handleSelectedCompletedExamPublish = async (publish) => {
-    if (!selectedCompletedExamGroupId) {
-      toast.error('Select a completed main exam first');
-      return;
-    }
-    const selectedGroup = examGroups.find((group) => String(group?._id) === String(selectedCompletedExamGroupId));
-    const groupExamIds = new Set((selectedGroup?.subjects || []).map((subjectExam) => String(subjectExam?._id || '')));
+  const getCompletedExamGroupSummary = (group) => {
+    const groupExamIds = new Set((group?.subjects || []).map((subjectExam) => String(subjectExam?._id || '')));
+    const examResults = groupExamIds.size
+      ? results.filter(r => groupExamIds.has(String(r.examId?._id || r.examId)))
+      : [];
+    const publishedCount = examResults.filter((result) => Boolean(result.published)).length;
+    const totalCount = examResults.length;
+    const fullyPublished = totalCount > 0 && publishedCount === totalCount;
+    return { publishedCount, totalCount, fullyPublished, groupExamIds };
+  };
+
+  const handleCompletedExamGroupPublish = async (group, publish) => {
+    const groupExamIds = new Set((group?.subjects || []).map((subjectExam) => String(subjectExam?._id || '')));
     if (!groupExamIds.size) {
       toast.error('No subject exams found under selected main exam');
       return;
@@ -256,7 +262,7 @@ const Result = ({ setShowAdminHeader }) => {
       toast.error('No valid result entries found for the selected exam');
       return;
     }
-    setUpdatingSelectedExamPublish(true);
+    setUpdatingCompletedExamGroupId(String(group?._id || ''));
     try {
       const r = await fetch(`${API_BASE}/api/exam/results/bulk-publish`, {
         method: 'PUT',
@@ -270,7 +276,7 @@ const Result = ({ setShowAdminHeader }) => {
     } catch (err) {
       toast.error(err.message || 'Failed to update exam visibility');
     } finally {
-      setUpdatingSelectedExamPublish(false);
+      setUpdatingCompletedExamGroupId('');
     }
   };
 
@@ -285,8 +291,154 @@ const Result = ({ setShowAdminHeader }) => {
       const r = await fetch(`${API_BASE}/api/exam/results`, { method: 'POST', headers: authH(), body: JSON.stringify(resultForm) });
       const d = await r.json();
       if (!r.ok) throw new Error(d.error || 'Failed');
-      toast.success('Result added'); setShowAddResult(false); setResultForm(emptyR); fetchResults();
+      toast.success('Result added'); closeAddResultModal(); fetchResults();
     } catch (err) { toast.error(err.message || 'Failed to add result'); }
+  };
+
+  const loadBulkEntryRows = async ({ examId, session, className, sectionName }) => {
+    if (!examId || !session || !className || !sectionName) {
+      setBulkEntryRows([]);
+      return;
+    }
+
+    setBulkEntryLoading(true);
+    try {
+      const scopedStudents = students
+        .filter((s) => String(s.academicYear || s.session || '').trim() === String(session).trim())
+        .filter((s) => normalizeClass(s.grade || s.class || '') === normalizeClass(className))
+        .filter((s) => normSec(s.section || '') === normSec(sectionName))
+        .sort((a, b) => {
+          const ra = Number(a?.roll);
+          const rb = Number(b?.roll);
+          if (Number.isFinite(ra) && Number.isFinite(rb) && ra !== rb) return ra - rb;
+          return String(a?.name || '').localeCompare(String(b?.name || ''));
+        });
+
+      if (!scopedStudents.length) {
+        setBulkEntryRows([]);
+        return;
+      }
+
+      const resultsRes = await fetch(`${API_BASE}/api/exam/results?examId=${encodeURIComponent(examId)}`, { headers: authH() });
+      const resultList = resultsRes.ok ? await resultsRes.json().catch(() => []) : [];
+      const resultByStudentId = new Map(
+        (Array.isArray(resultList) ? resultList : [])
+          .map((r) => [String(r?.studentId?._id || r?.studentId || ''), r])
+          .filter(([id]) => Boolean(id))
+      );
+
+      const nextRows = scopedStudents.map((student) => {
+        const existing = resultByStudentId.get(String(student._id)) || null;
+        return {
+          studentId: String(student._id),
+          name: student.name || '',
+          roll: student.roll ?? '',
+          studentCode: student.studentCode || '',
+          marks: existing?.marks ?? '',
+          remarks: existing?.remarks || '',
+          status: existing?.status || 'pass',
+          grade: existing?.grade || '',
+        };
+      });
+
+      setBulkEntryRows(nextRows);
+    } catch {
+      toast.error('Failed to load students for bulk result entry');
+      setBulkEntryRows([]);
+    } finally {
+      setBulkEntryLoading(false);
+    }
+  };
+
+  const handleBulkRowMarksChange = (studentId, value) => {
+    setBulkEntryRows((prev) =>
+      prev.map((row) => {
+        if (row.studentId !== studentId) return row;
+        const selectedExam = exams.find((ex) => String(ex._id) === String(bulkEntryForm.examId));
+        const parsed = value === '' ? NaN : Number(value);
+        const maxMarks = Number(selectedExam?.marks);
+        const percentage = Number.isFinite(parsed) && Number.isFinite(maxMarks) && maxMarks > 0
+          ? (parsed / maxMarks) * 100
+          : NaN;
+        const nextGrade = Number.isFinite(percentage) ? deriveGradeFromPercentage(percentage) : row.grade;
+        const nextStatus = Number.isFinite(percentage) ? (percentage >= 50 ? 'pass' : 'fail') : row.status;
+        return {
+          ...row,
+          marks: value,
+          grade: nextGrade,
+          status: nextStatus,
+        };
+      })
+    );
+  };
+
+  const handleBulkResultSubmit = async (e) => {
+    e.preventDefault();
+    const selectedExam = exams.find((ex) => String(ex._id) === String(bulkEntryForm.examId));
+    if (!selectedExam?._id) {
+      toast.error('Select an exam');
+      return;
+    }
+    const payloadRows = bulkEntryRows
+      .map((row) => {
+        const marksText = String(row.marks ?? '').trim();
+        if (!marksText) return null;
+        const marks = Number(marksText);
+        if (!Number.isFinite(marks) || marks < 0) return { error: `Invalid marks for ${row.name || 'student'}` };
+        return {
+          examId: selectedExam._id,
+          studentId: row.studentId,
+          marks,
+          grade: row.grade || '',
+          remarks: row.remarks || '',
+          status: row.status || 'pass',
+        };
+      })
+      .filter(Boolean);
+
+    const invalidRow = payloadRows.find((item) => item?.error);
+    if (invalidRow?.error) {
+      toast.error(invalidRow.error);
+      return;
+    }
+    if (!payloadRows.length) {
+      toast.error('Enter marks for at least one student');
+      return;
+    }
+
+    setBulkEntrySubmitting(true);
+    try {
+      const results = await Promise.allSettled(
+        payloadRows.map((body) =>
+          fetch(`${API_BASE}/api/exam/results`, {
+            method: 'POST',
+            headers: authH(),
+            body: JSON.stringify(body),
+          }).then(async (res) => {
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok) throw new Error(data?.error || 'Failed to save result');
+            return data;
+          })
+        )
+      );
+
+      const successCount = results.filter((r) => r.status === 'fulfilled').length;
+      const failed = results.filter((r) => r.status === 'rejected');
+
+      if (successCount) {
+        toast.success(`${successCount} result${successCount > 1 ? 's' : ''} uploaded`);
+      }
+      if (failed.length) {
+        toast.error(`${failed.length} result${failed.length > 1 ? 's' : ''} failed`);
+      }
+
+      await fetchResults();
+      await loadBulkEntryRows(bulkEntryForm);
+    } catch (err) {
+      toast.error(err.message || 'Bulk upload failed');
+    } finally {
+      setBulkEntrySubmitting(false);
+    }
   };
 
   /* ── edit result ── */
@@ -456,6 +608,34 @@ const Result = ({ setShowAdminHeader }) => {
 
   /* ── computed ── */
   const uniqueSubjects = [...new Set(results.map(r => r.examId?.subject).filter(Boolean))];
+  const studentSessionById = new Map(
+    students
+      .map((student) => [String(student?._id || ''), String(student?.academicYear || student?.session || '').trim()])
+      .filter(([id]) => Boolean(id))
+  );
+  const getResultSession = (result) =>
+    String(
+      result?.studentId?.academicYear ||
+      result?.studentId?.session ||
+      studentSessionById.get(String(result?.studentId?._id || result?.studentId || '')) ||
+      ''
+    ).trim();
+  const filterSessionOptions = [...new Set(
+    results.map((result) => getResultSession(result)).filter(Boolean)
+  )].sort();
+  const filterClassOptions = [...new Set(
+    results
+      .filter((result) => !selectedSession || getResultSession(result) === selectedSession)
+      .map((result) => String(result?.studentId?.grade || '').trim())
+      .filter(Boolean)
+  )].sort();
+  const filterSectionOptions = [...new Set(
+    results
+      .filter((result) => !selectedSession || getResultSession(result) === selectedSession)
+      .filter((result) => !selectedClass || String(result?.studentId?.grade || '').trim() === selectedClass)
+      .map((result) => String(result?.studentId?.section || '').trim())
+      .filter(Boolean)
+  )].sort();
   const completedExamGroupOptions = (Array.isArray(examGroups) ? examGroups : [])
     .filter(group => String(group?.status || '').toLowerCase() === 'completed')
     .sort((a, b) => {
@@ -468,7 +648,9 @@ const Result = ({ setShowAdminHeader }) => {
     const name = (r.studentId?.name||'').toLowerCase();
     const subj = (r.examId?.subject||'').toLowerCase();
     const q = searchTerm.toLowerCase();
+    const resultSession = getResultSession(r);
     return (!q || name.includes(q) || subj.includes(q)) &&
+      (!selectedSession || resultSession === selectedSession) &&
       (!selectedClass || r.studentId?.grade === selectedClass) &&
       (!selectedSection || r.studentId?.section === selectedSection) &&
       (filterSubject === 'all' || r.examId?.subject === filterSubject);
@@ -483,26 +665,6 @@ const Result = ({ setShowAdminHeader }) => {
 
   const passRate = stats.total > 0 ? Math.round((stats.pass / stats.total) * 100) : 0;
   const examById = new Map((Array.isArray(exams) ? exams : []).map((exam) => [String(exam._id), exam]));
-  const selectedCompletedExamGroup = completedExamGroupOptions.find(group => String(group._id) === String(selectedCompletedExamGroupId)) || null;
-  const selectedCompletedExamGroupExamIds = new Set((selectedCompletedExamGroup?.subjects || []).map(subjectExam => String(subjectExam?._id || '')));
-  const selectedCompletedExamResults = selectedCompletedExamGroupExamIds.size
-    ? results.filter(r => selectedCompletedExamGroupExamIds.has(String(r.examId?._id || r.examId)))
-    : [];
-  const selectedCompletedExamPublishedCount = selectedCompletedExamResults.filter(r => Boolean(r.published)).length;
-  const selectedCompletedExamResultCount = selectedCompletedExamResults.length;
-  const selectedCompletedExamPublished = selectedCompletedExamPublishedCount > 0;
-
-  useEffect(() => {
-    if (!completedExamGroupOptions.length) {
-      if (selectedCompletedExamGroupId) setSelectedCompletedExamGroupId('');
-      return;
-    }
-    const exists = completedExamGroupOptions.some(group => String(group._id) === String(selectedCompletedExamGroupId));
-    if (!selectedCompletedExamGroupId || !exists) {
-      setSelectedCompletedExamGroupId(String(completedExamGroupOptions[0]._id));
-    }
-  }, [completedExamGroupOptions, selectedCompletedExamGroupId]);
-
   const resultsByExam = filteredResults.reduce((acc, r) => {
     const eid = r.examId?._id || String(r.examId) || 'unknown';
     if (!acc[eid]) acc[eid] = { exam: r.examId, results: [] };
@@ -511,7 +673,8 @@ const Result = ({ setShowAdminHeader }) => {
   }, {});
 
   /* ── result form fields (reusable) ── */
-  const renderResultFields = (form, setForm) => {
+  const renderResultFields = (form, setForm, options = {}) => {
+    const lockScope = Boolean(options?.lockScope);
     const selectedExam = exams.find(ex => ex._id === form.examId);
 
     const handleMarksChange = (e) => {
@@ -529,11 +692,39 @@ const Result = ({ setShowAdminHeader }) => {
       setForm({ ...form, marks, grade: newGrade });
     };
 
-    const formSections = sections.filter(s => {
-      if (!form.className) return true;
-      const cls = classes.find(c => c.name === form.className);
-      return cls ? s.classId === cls._id || s.classId?._id === cls._id : true;
+    const availableSessions = [...new Set(
+      students
+        .map((s) => String(s.academicYear || s.session || '').trim())
+        .filter(Boolean)
+    )].sort();
+    const sessionOptions = form.session && !availableSessions.includes(String(form.session).trim())
+      ? [String(form.session).trim(), ...availableSessions]
+      : availableSessions;
+
+    const sessionScopedStudents = students.filter((s) => {
+      if (!form.session) return true;
+      const studentSession = String(s.academicYear || s.session || '').trim();
+      return studentSession === String(form.session).trim();
     });
+
+    const availableClasses = [...new Set(
+      sessionScopedStudents
+        .map((s) => String(s.grade || s.class || '').trim())
+        .filter(Boolean)
+    )].sort();
+    const classOptions = form.className && !availableClasses.includes(String(form.className).trim())
+      ? [String(form.className).trim(), ...availableClasses]
+      : availableClasses;
+
+    const availableSections = [...new Set(
+      sessionScopedStudents
+        .filter((s) => !form.className || normalizeClass(s.grade || s.class || '') === normalizeClass(form.className))
+        .map((s) => String(s.section || '').trim())
+        .filter(Boolean)
+    )].sort();
+    const sectionOptions = form.sectionName && !availableSections.includes(String(form.sectionName).trim())
+      ? [String(form.sectionName).trim(), ...availableSections]
+      : availableSections;
 
     const filteredStudents = students.filter(s => {
       const matchSession = !form.session || s.academicYear === form.session || s.session === form.session;
@@ -546,23 +737,57 @@ const Result = ({ setShowAdminHeader }) => {
     <div className="space-y-4">
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         <Field label="Session">
-          <select value={form.session || ''} onChange={e => setForm({...form, session: e.target.value, studentId: ''})} className={inp}>
-            <option value="">All Sessions</option>
-            {[...new Set(students.map(s => s.academicYear || s.session).filter(Boolean))].map(y => (
+          <select
+            value={form.session || ''}
+            onChange={e => {
+              if (lockScope) return;
+              setForm({
+                ...form,
+                session: e.target.value,
+                className: '',
+                sectionName: '',
+                studentId: ''
+              });
+            }}
+            className={inp}
+            disabled={lockScope}
+          >
+            <option value="">{lockScope ? 'Session not available' : 'Select session'}</option>
+            {sessionOptions.map(y => (
               <option key={y} value={y}>{y}</option>
             ))}
           </select>
         </Field>
         <Field label="Class">
-          <select value={form.className || ''} onChange={e => setForm({...form, className: e.target.value, sectionName: '', studentId: ''})} className={inp}>
-            <option value="">All Classes</option>
-            {classes.map(c => <option key={c._id} value={c.name}>{c.name}</option>)}
+          <select
+            value={form.className || ''}
+            onChange={e => {
+              if (lockScope) return;
+              setForm({...form, className: e.target.value, sectionName: '', studentId: ''});
+            }}
+            className={inp}
+            disabled={lockScope}
+          >
+            <option value="">{lockScope ? 'Class not available' : 'Select class'}</option>
+            {classOptions.map((className) => (
+              <option key={className} value={className}>{className}</option>
+            ))}
           </select>
         </Field>
         <Field label="Section">
-          <select value={form.sectionName || ''} onChange={e => setForm({...form, sectionName: e.target.value, studentId: ''})} className={inp}>
-            <option value="">All Sections</option>
-            {formSections.map(s => <option key={s._id} value={s.name}>{s.name}</option>)}
+          <select
+            value={form.sectionName || ''}
+            onChange={e => {
+              if (lockScope) return;
+              setForm({...form, sectionName: e.target.value, studentId: ''});
+            }}
+            className={inp}
+            disabled={lockScope}
+          >
+            <option value="">{lockScope ? 'Section not available' : 'Select section'}</option>
+            {sectionOptions.map((sectionName) => (
+              <option key={sectionName} value={sectionName}>{sectionName}</option>
+            ))}
           </select>
         </Field>
       </div>
@@ -604,6 +829,231 @@ const Result = ({ setShowAdminHeader }) => {
     );
   };
 
+  const renderBulkEntryFields = () => {
+    const availableSessions = [...new Set(
+      students.map((s) => String(s.academicYear || s.session || '').trim()).filter(Boolean)
+    )].sort();
+    const sessionScopedStudents = students.filter((s) =>
+      !bulkEntryForm.session ||
+      String(s.academicYear || s.session || '').trim() === String(bulkEntryForm.session).trim()
+    );
+    const availableClasses = [...new Set(
+      sessionScopedStudents.map((s) => String(s.grade || s.class || '').trim()).filter(Boolean)
+    )].sort();
+    const availableSections = [...new Set(
+      sessionScopedStudents
+        .filter((s) => !bulkEntryForm.className || normalizeClass(s.grade || s.class || '') === normalizeClass(bulkEntryForm.className))
+        .map((s) => String(s.section || '').trim())
+        .filter(Boolean)
+    )].sort();
+
+    const examOptions = exams.filter((exam) => {
+      const examClass = String(exam?.classId?.name || exam?.grade || '').trim();
+      const examSection = String(exam?.sectionId?.name || exam?.section || '').trim();
+      const matchClass = !bulkEntryForm.className || normalizeClass(examClass) === normalizeClass(bulkEntryForm.className);
+      const matchSection = !bulkEntryForm.sectionName || normSec(examSection) === normSec(bulkEntryForm.sectionName);
+      return matchClass && matchSection;
+    });
+    const selectedExam = exams.find((exam) => String(exam._id) === String(bulkEntryForm.examId));
+
+    const onFilterChange = (patch) => {
+      const next = {
+        ...bulkEntryForm,
+        ...patch,
+      };
+      setBulkEntryForm(next);
+      const hasAllFilters = next.session && next.className && next.sectionName && next.examId;
+      if (hasAllFilters) {
+        loadBulkEntryRows(next);
+      } else {
+        setBulkEntryRows([]);
+      }
+    };
+
+    return (
+      <form onSubmit={handleBulkResultSubmit} className="space-y-4">
+        <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
+          <Field label="Session">
+            <select
+              value={bulkEntryForm.session}
+              onChange={(e) => onFilterChange({ session: e.target.value, className: '', sectionName: '', examId: '' })}
+              className={inp}
+            >
+              <option value="">Select session</option>
+              {availableSessions.map((session) => (
+                <option key={session} value={session}>{session}</option>
+              ))}
+            </select>
+          </Field>
+          <Field label="Class">
+            <select
+              value={bulkEntryForm.className}
+              onChange={(e) => onFilterChange({ className: e.target.value, sectionName: '', examId: '' })}
+              className={inp}
+              disabled={!bulkEntryForm.session}
+            >
+              <option value="">Select class</option>
+              {availableClasses.map((className) => (
+                <option key={className} value={className}>{className}</option>
+              ))}
+            </select>
+          </Field>
+          <Field label="Section">
+            <select
+              value={bulkEntryForm.sectionName}
+              onChange={(e) => onFilterChange({ sectionName: e.target.value, examId: '' })}
+              className={inp}
+              disabled={!bulkEntryForm.className}
+            >
+              <option value="">Select section</option>
+              {availableSections.map((sectionName) => (
+                <option key={sectionName} value={sectionName}>{sectionName}</option>
+              ))}
+            </select>
+          </Field>
+          <Field label="Exam Subject">
+            <select
+              value={bulkEntryForm.examId}
+              onChange={(e) => onFilterChange({ examId: e.target.value })}
+              className={inp}
+              disabled={!bulkEntryForm.sectionName}
+            >
+              <option value="">Select exam</option>
+              {examOptions.map((exam) => (
+                <option key={exam._id} value={exam._id}>
+                  {exam.subject || exam.title} {exam.term ? `(${exam.term})` : ''} {exam.marks ? `- Max ${exam.marks}` : ''}
+                </option>
+              ))}
+            </select>
+          </Field>
+        </div>
+
+        <div className="rounded-xl border border-slate-200 overflow-hidden">
+          <div className="px-4 py-2.5 bg-slate-50 border-b border-slate-200 text-xs text-slate-500 font-semibold uppercase tracking-wide">
+            Students
+          </div>
+          {bulkEntryLoading ? (
+            <div className="p-6 text-sm text-slate-500 flex items-center gap-2">
+              <Loader2 size={14} className="animate-spin" />
+              Loading students...
+            </div>
+          ) : bulkEntryRows.length === 0 ? (
+            <div className="p-6 text-sm text-slate-500">
+              Select session, class, section, and exam to load students.
+            </div>
+          ) : (
+            <div className="max-h-[420px] overflow-auto">
+              <table className="w-full text-sm">
+                <thead className="bg-white sticky top-0">
+                  <tr className="border-b border-slate-100">
+                    <th className="px-3 py-2 text-left text-xs font-semibold text-slate-500">Student</th>
+                    <th className="px-3 py-2 text-left text-xs font-semibold text-slate-500">Roll</th>
+                    <th className="px-3 py-2 text-left text-xs font-semibold text-slate-500">Marks{selectedExam?.marks ? ` / ${selectedExam.marks}` : ''}</th>
+                    <th className="px-3 py-2 text-left text-xs font-semibold text-slate-500">Grade</th>
+                    <th className="px-3 py-2 text-left text-xs font-semibold text-slate-500">Status</th>
+                    <th className="px-3 py-2 text-left text-xs font-semibold text-slate-500">Remarks</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-50">
+                  {bulkEntryRows.map((row) => (
+                    <tr key={row.studentId}>
+                      <td className="px-3 py-2">
+                        <div className="font-medium text-slate-800">{row.name || '—'}</div>
+                        <div className="text-xs text-slate-400">{row.studentCode || ''}</div>
+                      </td>
+                      <td className="px-3 py-2 text-slate-600">{row.roll || '—'}</td>
+                      <td className="px-3 py-2">
+                        <input
+                          type="number"
+                          min="0"
+                          max={selectedExam?.marks || undefined}
+                          value={row.marks}
+                          onChange={(e) => handleBulkRowMarksChange(row.studentId, e.target.value)}
+                          className="w-28 rounded-lg border border-slate-200 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-100 focus:border-indigo-400"
+                        />
+                      </td>
+                      <td className="px-3 py-2">
+                        <input
+                          type="text"
+                          value={row.grade}
+                          onChange={(e) => {
+                            const value = e.target.value;
+                            setBulkEntryRows((prev) => prev.map((item) => item.studentId === row.studentId ? { ...item, grade: value } : item));
+                          }}
+                          className="w-20 rounded-lg border border-slate-200 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-100 focus:border-indigo-400"
+                        />
+                      </td>
+                      <td className="px-3 py-2">
+                        <select
+                          value={row.status}
+                          onChange={(e) => {
+                            const value = e.target.value;
+                            setBulkEntryRows((prev) => prev.map((item) => item.studentId === row.studentId ? { ...item, status: value } : item));
+                          }}
+                          className="rounded-lg border border-slate-200 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-100 focus:border-indigo-400"
+                        >
+                          <option value="pass">Pass</option>
+                          <option value="fail">Fail</option>
+                          <option value="absent">Absent</option>
+                        </select>
+                      </td>
+                      <td className="px-3 py-2">
+                        <input
+                          type="text"
+                          value={row.remarks}
+                          onChange={(e) => {
+                            const value = e.target.value;
+                            setBulkEntryRows((prev) => prev.map((item) => item.studentId === row.studentId ? { ...item, remarks: value } : item));
+                          }}
+                          className="w-full rounded-lg border border-slate-200 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-100 focus:border-indigo-400"
+                        />
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+
+        <div className="flex justify-end gap-2.5 pt-2">
+          <button
+            type="button"
+            onClick={closeAddResultModal}
+            className="px-4 py-2 rounded-xl border border-slate-200 text-sm text-slate-600 hover:bg-slate-50"
+          >
+            Cancel
+          </button>
+          <button
+            type="submit"
+            disabled={bulkEntrySubmitting || bulkEntryLoading || !bulkEntryRows.length}
+            className="px-5 py-2 rounded-xl bg-indigo-600 text-white text-sm font-semibold hover:bg-indigo-700 shadow-md shadow-indigo-200 disabled:opacity-60"
+          >
+            {bulkEntrySubmitting ? 'Uploading...' : 'Upload All Marks'}
+          </button>
+        </div>
+      </form>
+    );
+  };
+
+  const openAddResultModal = async () => {
+    await Promise.all([fetchExams(), fetchStudentsByClass(true)]);
+    setAddResultMode('bulk');
+    setBulkEntryForm({ session: '', className: '', sectionName: '', examId: '' });
+    setBulkEntryRows([]);
+    setShowAddResult(true);
+  };
+
+  const closeAddResultModal = () => {
+    setShowAddResult(false);
+    setResultForm(emptyR);
+    setAddResultMode('single');
+    setBulkEntryForm({ session: '', className: '', sectionName: '', examId: '' });
+    setBulkEntryRows([]);
+    setBulkEntryLoading(false);
+    setBulkEntrySubmitting(false);
+  };
+
   /* ════════════ RENDER ════════════ */
   return (
     <div className="min-h-screen bg-slate-50">
@@ -637,7 +1087,7 @@ const Result = ({ setShowAdminHeader }) => {
               className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-slate-200 text-xs text-slate-600 hover:bg-slate-50 transition-colors">
               <FileDown size={13} /> Export
             </button>
-            <button onClick={async () => { await Promise.all([fetchExams(), fetchStudentsByClass(true)]); setShowAddResult(true); }}
+            <button onClick={openAddResultModal}
               className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-indigo-600 text-white text-xs font-semibold hover:bg-indigo-700 shadow-md shadow-indigo-200 transition-colors">
               <Plus size={13} /> Add Result
             </button>
@@ -664,51 +1114,49 @@ const Result = ({ setShowAdminHeader }) => {
           </div>
         </div>
 
-        {/* ── Publish Control by Completed Main Exam ── */}
+        {/* ── Completed Exam Publish Toggles ── */}
         <div className="bg-white rounded-2xl border border-slate-200 p-4 shadow-sm">
-          <div className="flex flex-col lg:flex-row lg:items-center gap-3 lg:gap-5">
-            <div className="w-full lg:max-w-sm">
-              <label className="mb-1.5 block text-xs font-semibold text-slate-500 uppercase tracking-wide">
-                Select Completed Main Exam
-              </label>
-              <select
-                value={selectedCompletedExamGroupId}
-                onChange={e => setSelectedCompletedExamGroupId(e.target.value)}
-                className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-700 focus:border-indigo-400 focus:outline-none min-w-[220px] w-full"
-                disabled={loadingExamGroups || !completedExamGroupOptions.length}
-              >
-                {!completedExamGroupOptions.length && <option value="">No completed main exams</option>}
-                {completedExamGroupOptions.map(group => (
-                  <option key={group._id} value={group._id}>
-                    {group.title} {group.term ? `(${group.term})` : ''}
-                  </option>
-                ))}
-              </select>
+          <label className="mb-2 block text-xs font-semibold text-slate-500 uppercase tracking-wide">
+            Completed Main Exams
+          </label>
+          {!completedExamGroupOptions.length ? (
+            <p className="text-sm text-slate-500">No completed main exams found</p>
+          ) : (
+            <div className="space-y-2">
+              {completedExamGroupOptions.map((group) => {
+                const { publishedCount, totalCount, fullyPublished } = getCompletedExamGroupSummary(group);
+                const isUpdating = updatingCompletedExamGroupId === String(group._id);
+                const disabled = isUpdating || totalCount === 0;
+                return (
+                  <div key={group._id} className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5">
+                    <div>
+                      <p className="text-sm font-semibold text-slate-700">
+                        {group.title} {group.term ? `(${group.term})` : ''}
+                      </p>
+                      <p className="text-xs text-slate-500">
+                        {publishedCount}/{totalCount} subject results visible to students
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        disabled={disabled}
+                        onClick={() => handleCompletedExamGroupPublish(group, !fullyPublished)}
+                        className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full border-2 transition-colors duration-300 focus:outline-none ${
+                          fullyPublished ? 'bg-emerald-500 border-emerald-500' : 'bg-gray-200 border-gray-200'
+                        } ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}
+                      >
+                        <span className={`inline-block h-4 w-4 rounded-full bg-white shadow-md transition-transform duration-300 ${fullyPublished ? 'translate-x-5' : 'translate-x-0.5'}`} />
+                      </button>
+                      <span className={`text-sm font-semibold ${fullyPublished ? 'text-emerald-600' : 'text-gray-500'}`}>
+                        {isUpdating ? 'Updating...' : fullyPublished ? 'Published' : 'Unpublished'}
+                      </span>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
-
-            <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4">
-              <label className={`inline-flex items-center gap-2 rounded-xl border px-3 py-2 ${
-                selectedCompletedExamPublished ? 'bg-emerald-50 border-emerald-200' : 'bg-amber-50 border-amber-200'
-              } ${(!selectedCompletedExamGroupId || updatingSelectedExamPublish || !selectedCompletedExamResultCount) ? 'opacity-60' : ''}`}>
-                <input
-                  type="checkbox"
-                  className="h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
-                  checked={selectedCompletedExamPublished}
-                  disabled={!selectedCompletedExamGroupId || updatingSelectedExamPublish || !selectedCompletedExamResultCount}
-                  onChange={(e) => handleSelectedCompletedExamPublish(Boolean(e.target.checked))}
-                />
-                <span className={`text-sm font-semibold ${selectedCompletedExamPublished ? 'text-emerald-700' : 'text-amber-700'}`}>
-                  {selectedCompletedExamPublished ? 'Published to Students' : 'Unpublished'}
-                </span>
-              </label>
-
-              <div className="text-xs text-slate-500">
-                {selectedCompletedExamGroup
-                  ? `${selectedCompletedExamPublishedCount}/${selectedCompletedExamResultCount} subject results visible to students`
-                  : 'Select a completed main exam to control student visibility'}
-              </div>
-            </div>
-          </div>
+          )}
         </div>
 
         {/* ── Filters ── */}
@@ -719,15 +1167,20 @@ const Result = ({ setShowAdminHeader }) => {
               <input value={searchTerm} onChange={e => setSearchTerm(e.target.value)} placeholder="Search student or subject…"
                 className="pl-8 pr-4 py-2.5 rounded-xl border border-slate-200 bg-slate-50 text-sm focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-100 w-52" />
             </div>
+            <select value={selectedSession} onChange={e => { setSelectedSession(e.target.value); setSelectedClass(''); setSelectedSection(''); }}
+              className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-700 focus:border-indigo-400 focus:outline-none min-w-[140px]">
+              <option value="">All Sessions</option>
+              {filterSessionOptions.map(session => <option key={session} value={session}>{session}</option>)}
+            </select>
             <select value={selectedClass} onChange={e => { setSelectedClass(e.target.value); setSelectedSection(''); }}
               className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-700 focus:border-indigo-400 focus:outline-none min-w-[120px]">
               <option value="">All Classes</option>
-              {classes.map(c => <option key={c._id} value={c.name}>{c.name}</option>)}
+              {filterClassOptions.map(className => <option key={className} value={className}>{className}</option>)}
             </select>
             <select value={selectedSection} onChange={e => setSelectedSection(e.target.value)}
               className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-700 focus:border-indigo-400 focus:outline-none min-w-[120px]">
               <option value="">All Sections</option>
-              {sections.filter(s => !selectedClass || classes.find(c => c.name === selectedClass)?._id === (s.classId?._id||s.classId)).map(s => <option key={s._id} value={s.name}>{s.name}</option>)}
+              {filterSectionOptions.map(sectionName => <option key={sectionName} value={sectionName}>{sectionName}</option>)}
             </select>
             <div className="relative">
               <Filter size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
@@ -754,7 +1207,7 @@ const Result = ({ setShowAdminHeader }) => {
             </div>
             <p className="text-sm font-semibold text-slate-500">No results found</p>
             <p className="text-xs text-slate-400">Try adjusting filters or add a new result</p>
-            <button onClick={async () => { await Promise.all([fetchExams(), fetchStudentsByClass(true)]); setShowAddResult(true); }}
+            <button onClick={openAddResultModal}
               className="mt-1 flex items-center gap-1.5 text-xs font-semibold text-indigo-600 hover:text-indigo-700">
               <Plus size={13} /> Add Result
             </button>
@@ -912,17 +1365,21 @@ const Result = ({ setShowAdminHeader }) => {
                                   <span className="text-xs text-slate-500">{result.remarks || '—'}</span>
                                 </td>
                                 <td className="px-4 py-3">
-                                  <button
-                                    onClick={() => handleTogglePublish(result._id, !result.published)}
-                                    disabled={!examIsCompleted && !result.published}
-                                    title={!examIsCompleted && !result.published ? 'Only completed exams can be published' : ''}
-                                    className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-semibold transition-colors ${
-                                      result.published ? 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100' : 'bg-amber-50 text-amber-700 hover:bg-amber-100'
-                                    } ${!examIsCompleted && !result.published ? 'opacity-50 cursor-not-allowed hover:bg-amber-50' : ''}`}
-                                  >
-                                    {result.published ? <Eye size={11} /> : <EyeOff size={11} />}
-                                    {result.published ? 'Published' : 'Unpublished'}
-                                  </button>
+                                  <div className="flex items-center gap-2">
+                                    <button
+                                      onClick={() => handleTogglePublish(result._id, !result.published)}
+                                      disabled={!examIsCompleted && !result.published}
+                                      title={!examIsCompleted && !result.published ? 'Only completed exams can be published' : ''}
+                                      className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full border-2 transition-colors duration-300 focus:outline-none ${
+                                        result.published ? 'bg-emerald-500 border-emerald-500' : 'bg-gray-200 border-gray-200'
+                                      } ${!examIsCompleted && !result.published ? 'opacity-50 cursor-not-allowed' : ''}`}
+                                    >
+                                      <span className={`inline-block h-4 w-4 rounded-full bg-white shadow-md transition-transform duration-300 ${result.published ? 'translate-x-5' : 'translate-x-0.5'}`} />
+                                    </button>
+                                    <span className={`text-[11px] font-semibold ${result.published ? 'text-emerald-600' : 'text-gray-400'}`}>
+                                      {result.published ? 'Published' : 'Unpublished'}
+                                    </span>
+                                  </div>
                                 </td>
                                 <td className="px-4 py-3">
                                   <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -952,20 +1409,43 @@ const Result = ({ setShowAdminHeader }) => {
       </div>
 
       {/* ═══ ADD RESULT MODAL ═══ */}
-      <Modal show={showAddResult} onClose={() => setShowAddResult(false)} title="Add Result" subtitle="Record a student's exam result" icon={Plus} iconColor="bg-indigo-600">
-        <form onSubmit={handleAddResult} className="space-y-4">
-          {renderResultFields(resultForm, setResultForm)}
-          <div className="flex justify-end gap-2.5 pt-2">
-            <button type="button" onClick={() => setShowAddResult(false)} className="px-4 py-2 rounded-xl border border-slate-200 text-sm text-slate-600 hover:bg-slate-50">Cancel</button>
-            <button type="submit" className="px-5 py-2 rounded-xl bg-indigo-600 text-white text-sm font-semibold hover:bg-indigo-700 shadow-md shadow-indigo-200">Add Result</button>
+      <Modal show={showAddResult} onClose={closeAddResultModal} title="Add Result" subtitle="Record a student's exam result" icon={Plus} iconColor="bg-indigo-600">
+        <div className="space-y-4">
+          <div className="inline-flex rounded-xl border border-slate-200 p-1 bg-slate-50">
+            <button
+              type="button"
+              onClick={() => setAddResultMode('single')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold ${addResultMode === 'single' ? 'bg-white text-indigo-700 shadow-sm' : 'text-slate-600'}`}
+            >
+              Single Entry
+            </button>
+            <button
+              type="button"
+              onClick={() => setAddResultMode('bulk')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold ${addResultMode === 'bulk' ? 'bg-white text-indigo-700 shadow-sm' : 'text-slate-600'}`}
+            >
+              Bulk Entry
+            </button>
           </div>
-        </form>
+
+          {addResultMode === 'single' ? (
+            <form onSubmit={handleAddResult} className="space-y-4">
+              {renderResultFields(resultForm, setResultForm)}
+              <div className="flex justify-end gap-2.5 pt-2">
+                <button type="button" onClick={closeAddResultModal} className="px-4 py-2 rounded-xl border border-slate-200 text-sm text-slate-600 hover:bg-slate-50">Cancel</button>
+                <button type="submit" className="px-5 py-2 rounded-xl bg-indigo-600 text-white text-sm font-semibold hover:bg-indigo-700 shadow-md shadow-indigo-200">Add Result</button>
+              </div>
+            </form>
+          ) : (
+            renderBulkEntryFields()
+          )}
+        </div>
       </Modal>
 
       {/* ═══ EDIT RESULT MODAL ═══ */}
       <Modal show={showEditResult} onClose={() => setShowEditResult(false)} title="Edit Result" subtitle="Update result details" icon={Edit2} iconColor="bg-slate-600">
         <form onSubmit={handleUpdateResult} className="space-y-4">
-          {renderResultFields(editResultForm, setEditResultForm)}
+          {renderResultFields(editResultForm, setEditResultForm, { lockScope: true })}
           <div className="flex justify-end gap-2.5 pt-2">
             <button type="button" onClick={() => setShowEditResult(false)} className="px-4 py-2 rounded-xl border border-slate-200 text-sm text-slate-600 hover:bg-slate-50">Cancel</button>
             <button type="submit" className="px-5 py-2 rounded-xl bg-indigo-600 text-white text-sm font-semibold hover:bg-indigo-700 shadow-md shadow-indigo-200">Save Changes</button>

@@ -10,6 +10,7 @@ import { downloadBulkReportCardsPdf, downloadSingleReportCardPdf } from '../../u
 const API_BASE = (import.meta.env.VITE_API_URL || 'http://localhost:5000').replace(/\/$/, '');
 
 const inp = 'w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-800 focus:border-indigo-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-100 transition placeholder:text-slate-400';
+const normalizeText = (value) => String(value || '').trim().toLowerCase();
 
 const initialTemplate = {
   title: 'Report Card',
@@ -156,7 +157,14 @@ const ReportCardManagement = ({ setShowAdminHeader }) => {
   const [signatories, setSignatories] = useState({ classTeacherName: '', principalName: '', loading: false });
   const logoInputRef = useRef(null);
 
-  const [filters, setFilters] = useState({ examGroupId: '', classId: '', sectionId: '', academicYearId: '', includeUnpublished: false });
+  const [filters, setFilters] = useState({ examGroupId: '', classId: '', sectionId: '', academicYearId: '', includeUnpublished: true });
+
+  const isYearActive = (year) => {
+    const status = String(year?.status || '').trim().toLowerCase();
+    if (status) return status === 'active';
+    if (typeof year?.isActive === 'boolean') return year.isActive;
+    return false;
+  };
 
   /* ── initial load ── */
   useEffect(() => {
@@ -183,38 +191,55 @@ const ReportCardManagement = ({ setShowAdminHeader }) => {
     load();
   }, [token]);
 
+  const filteredClasses = useMemo(() => {
+    if (!filters.academicYearId) return [];
+    return classes.filter((cls) => String(cls?.academicYearId || '') === String(filters.academicYearId));
+  }, [classes, filters.academicYearId]);
+
+  const activeAcademicYears = useMemo(
+    () => academicYears.filter((year) => isYearActive(year)),
+    [academicYears]
+  );
+
   const filteredSections = useMemo(() => {
-    if (!filters.classId) return sections;
+    if (!filters.classId) return [];
     return sections.filter(s => String(s.classId) === String(filters.classId) || String(s.classId?._id) === String(filters.classId));
   }, [sections, filters.classId]);
 
   const completedExamGroupOptions = useMemo(() => {
-    const selectedYear = academicYears.find(y => String(y._id) === String(filters.academicYearId));
-    const yearStart = selectedYear?.startDate ? new Date(selectedYear.startDate) : null;
-    const yearEnd = selectedYear?.endDate ? new Date(selectedYear.endDate) : null;
-    const hasYearWindow = yearStart && !Number.isNaN(yearStart.getTime()) && yearEnd && !Number.isNaN(yearEnd.getTime());
+    const selectedClass = classes.find((item) => String(item?._id) === String(filters.classId));
+    const selectedSection = sections.find((item) => String(item?._id) === String(filters.sectionId));
+    const selectedClassName = String(selectedClass?.name || '').trim();
+    const selectedSectionName = String(selectedSection?.name || '').trim();
 
     return examGroups
       .filter((group) => String(group?.status || '').toLowerCase() === 'completed')
-      .filter((group) => !filters.classId || String(group?.classId?._id || group?.classId || '') === String(filters.classId))
-      .filter((group) => !filters.sectionId || String(group?.sectionId?._id || group?.sectionId || '') === String(filters.sectionId))
       .filter((group) => {
-        if (!hasYearWindow) return true;
-        const startDate = group?.startDate ? new Date(group.startDate) : null;
-        const endDate = group?.endDate ? new Date(group.endDate) : null;
-        const hasStart = startDate && !Number.isNaN(startDate.getTime());
-        const hasEnd = endDate && !Number.isNaN(endDate.getTime());
-        if (!hasStart && !hasEnd) return false;
-        const effectiveStart = hasStart ? startDate : endDate;
-        const effectiveEnd = hasEnd ? endDate : startDate;
-        return effectiveStart <= yearEnd && effectiveEnd >= yearStart;
+        if (!filters.classId) return true;
+        const byId = String(group?.classId?._id || group?.classId || '') === String(filters.classId);
+        const byName = selectedClassName && normalizeText(group?.grade) === normalizeText(selectedClassName);
+        return byId || byName;
+      })
+      .filter((group) => {
+        if (!filters.sectionId) return true;
+        const byId = String(group?.sectionId?._id || group?.sectionId || '') === String(filters.sectionId);
+        const byName = selectedSectionName && normalizeText(group?.section) === normalizeText(selectedSectionName);
+        return byId || byName;
       })
       .sort((a, b) => {
         const d1 = a?.startDate ? new Date(a.startDate).getTime() : 0;
         const d2 = b?.startDate ? new Date(b.startDate).getTime() : 0;
         return d2 - d1;
       });
-  }, [examGroups, filters.classId, filters.sectionId, filters.academicYearId, academicYears]);
+  }, [examGroups, filters.classId, filters.sectionId, classes, sections]);
+
+  useEffect(() => {
+    if (!filters.academicYearId) return;
+    const existsInActiveList = activeAcademicYears.some((year) => String(year?._id) === String(filters.academicYearId));
+    if (!existsInActiveList) {
+      setFilters((prev) => ({ ...prev, academicYearId: '', classId: '', sectionId: '', examGroupId: '' }));
+    }
+  }, [filters.academicYearId, activeAcademicYears]);
 
   /* ── auto-fetch class teacher & principal ── */
   useEffect(() => {
@@ -277,7 +302,9 @@ const ReportCardManagement = ({ setShowAdminHeader }) => {
 
   /* ── generate ── */
   const handleGenerate = async () => {
+    if (!filters.academicYearId) { toast.error('Select an academic year'); return; }
     if (!filters.classId) { toast.error('Select a class'); return; }
+    if (!filters.sectionId) { toast.error('Select a section'); return; }
     if (!filters.examGroupId) { toast.error('Select a completed examination'); return; }
     setGenerating(true);
     setReportCards([]);
@@ -286,7 +313,14 @@ const ReportCardManagement = ({ setShowAdminHeader }) => {
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data?.error || 'Failed to generate');
       const cards = Array.isArray(data?.reportCards) ? data.reportCards : [];
-      if (!cards.length) { toast.error('No published results found for the selected filters'); return; }
+      if (!cards.length) {
+        toast.error(
+          filters.includeUnpublished
+            ? 'No results found for the selected filters'
+            : 'No published results found. Enable "Include unpublished results" or publish results first.'
+        );
+        return;
+      }
       const selectedExamGroup = completedExamGroupOptions.find(ex => String(ex._id) === String(filters.examGroupId));
       const examLabel = data?.filters?.examGroupTitle || selectedExamGroup?.title || '';
       setReportCards(cards.map(c => ({ ...c, term: examLabel })));
@@ -409,30 +443,30 @@ const ReportCardManagement = ({ setShowAdminHeader }) => {
           <h2 className="font-semibold text-slate-800 mb-3 text-sm">Generate Report Cards</h2>
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
             <div>
+              <label className="mb-1 block text-[11px] font-semibold text-slate-500 uppercase tracking-wide">Academic Year</label>
+              <select value={filters.academicYearId} onChange={e => setFilters(p => ({ ...p, academicYearId: e.target.value, classId: '', sectionId: '', examGroupId: '' }))} className={inp}>
+                <option value="">Select year</option>
+                {activeAcademicYears.map(y => <option key={y._id} value={y._id}>{y.name}</option>)}
+              </select>
+            </div>
+            <div>
               <label className="mb-1 block text-[11px] font-semibold text-slate-500 uppercase tracking-wide">Class</label>
-              <select value={filters.classId} onChange={e => setFilters(p => ({ ...p, classId: e.target.value, sectionId: '', examGroupId: '' }))} className={inp}>
-                <option value="">All Classes</option>
-                {classes.map(c => <option key={c._id} value={c._id}>{c.name}</option>)}
+              <select value={filters.classId} onChange={e => setFilters(p => ({ ...p, classId: e.target.value, sectionId: '', examGroupId: '' }))} className={inp} disabled={!filters.academicYearId}>
+                <option value="">{filters.academicYearId ? 'Select class' : 'Select year first'}</option>
+                {filteredClasses.map(c => <option key={c._id} value={c._id}>{c.name}</option>)}
               </select>
             </div>
             <div>
               <label className="mb-1 block text-[11px] font-semibold text-slate-500 uppercase tracking-wide">Section</label>
-              <select value={filters.sectionId} onChange={e => setFilters(p => ({ ...p, sectionId: e.target.value, examGroupId: '' }))} className={inp}>
-                <option value="">All Sections</option>
+              <select value={filters.sectionId} onChange={e => setFilters(p => ({ ...p, sectionId: e.target.value, examGroupId: '' }))} className={inp} disabled={!filters.classId}>
+                <option value="">{filters.classId ? 'Select section' : 'Select class first'}</option>
                 {filteredSections.map(s => <option key={s._id} value={s._id}>{s.name}</option>)}
               </select>
             </div>
             <div>
-              <label className="mb-1 block text-[11px] font-semibold text-slate-500 uppercase tracking-wide">Academic Year</label>
-              <select value={filters.academicYearId} onChange={e => setFilters(p => ({ ...p, academicYearId: e.target.value, examGroupId: '' }))} className={inp}>
-                <option value="">All Years</option>
-                {academicYears.map(y => <option key={y._id} value={y._id}>{y.name}</option>)}
-              </select>
-            </div>
-            <div>
               <label className="mb-1 block text-[11px] font-semibold text-slate-500 uppercase tracking-wide">Completed Examination</label>
-              <select value={filters.examGroupId} onChange={e => setFilters(p => ({ ...p, examGroupId: e.target.value }))} className={inp}>
-                <option value="">Select completed examination</option>
+              <select value={filters.examGroupId} onChange={e => setFilters(p => ({ ...p, examGroupId: e.target.value }))} className={inp} disabled={!filters.sectionId}>
+                <option value="">{filters.sectionId ? 'Select completed examination' : 'Select section first'}</option>
                 {completedExamGroupOptions.map(ex => (
                   <option key={ex._id} value={ex._id}>
                     {ex.title || 'Examination'}
@@ -442,7 +476,7 @@ const ReportCardManagement = ({ setShowAdminHeader }) => {
             </div>
             <div className="flex flex-col justify-between">
               <label className="mb-1 block text-[11px] font-semibold text-slate-500 uppercase tracking-wide invisible">Generate</label>
-              <button onClick={handleGenerate} disabled={generating || !filters.classId || !filters.examGroupId}
+              <button onClick={handleGenerate} disabled={generating || !filters.academicYearId || !filters.classId || !filters.sectionId || !filters.examGroupId}
                 className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-indigo-600 text-white text-sm font-semibold hover:bg-indigo-700 shadow-md shadow-indigo-200 disabled:opacity-60 transition-colors">
                 {generating ? <Loader2 size={15} className="animate-spin" /> : <RefreshCw size={15} />}
                 {generating ? 'Generating…' : 'Generate'}

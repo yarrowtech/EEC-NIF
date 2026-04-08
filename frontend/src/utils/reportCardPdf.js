@@ -8,7 +8,7 @@ const DEFAULT_TEMPLATE = {
   schoolContactLine: 'Contact: +1 234 567 890 | email: info@educare.edu',
   accentColor: '#0f172a', // Slate 900
   showPageBorder: true,
-  watermarkText: 'OFFICIAL',
+  watermarkText: '',
   footerNote: 'This is an official computer-generated document. No signature is required unless specified.',
   signatureLabel: 'Class Teacher',
   principalLabel: 'Head of Institution',
@@ -70,7 +70,8 @@ const drawPageStructure = (doc, template, r, g, b) => {
 const drawWatermark = (doc, template) => {
   const pageWidth = doc.internal.pageSize.getWidth();
   const pageHeight = doc.internal.pageSize.getHeight();
-  const watermark = (toText(template.schoolName) || toText(template.watermarkText) || 'SCHOOL').toUpperCase();
+  const watermark = toText(template.watermarkText).toUpperCase();
+  if (!watermark) return;
 
   try {
     doc.saveGraphicsState();
@@ -84,7 +85,7 @@ const drawWatermark = (doc, template) => {
     const textWidth = doc.getTextWidth(watermark);
     const stepX = Math.max(textWidth + 28, 110);
     const stepY = 46;
-    for (let y = 24; y < pageHeight + 30; y += stepY) {
+    for (let y = 64; y < pageHeight + 30; y += stepY) {
       for (let x = -20; x < pageWidth + stepX; x += stepX) {
         doc.text(watermark, x, y, { angle: 30 });
       }
@@ -99,7 +100,7 @@ const drawWatermark = (doc, template) => {
     const textWidth = doc.getTextWidth(watermark);
     const stepX = Math.max(textWidth + 28, 110);
     const stepY = 46;
-    for (let y = 24; y < pageHeight + 30; y += stepY) {
+    for (let y = 64; y < pageHeight + 30; y += stepY) {
       for (let x = -20; x < pageWidth + stepX; x += stepX) {
         doc.text(watermark, x, y, { angle: 30 });
       }

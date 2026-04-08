@@ -209,7 +209,7 @@ const ResultsView = () => {
         </div>
       )}
 
-      <div className="rounded-xl border border-gray-100 bg-white p-4 flex flex-col md:flex-row md:items-end gap-3 md:justify-between">
+      {/* <div className="rounded-xl border border-gray-100 bg-white p-4 flex flex-col md:flex-row md:items-end gap-3 md:justify-between">
         <div className="w-full md:max-w-md">
           <label className="block text-xs font-semibold text-gray-500 mb-1">Completed Examination</label>
           <select
@@ -237,7 +237,7 @@ const ResultsView = () => {
             {downloadingReportCard ? 'Preparing PDF...' : 'Download Grade Card'}
           </button>
         )}
-      </div>
+      </div> */}
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <SummaryCard icon={Award} title="Exams Taken" value={overview.examsTaken} accent="bg-blue-100 text-blue-600" />

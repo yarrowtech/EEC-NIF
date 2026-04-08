@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { CheckCircle2, Edit2, Plus, Save, Search, Send, Trash2, X } from 'lucide-react';
+import { Edit2, Plus, Save, Search, Trash2, X } from 'lucide-react';
 import { useLocation } from 'react-router-dom';
 import { formatStudentDisplay } from '../utils/studentDisplay';
 
@@ -484,21 +484,22 @@ const ResultManagement = () => {
                     <td className="px-4 py-3 text-gray-800">{item?.grade || '-'}</td>
                     <td className="px-4 py-3 text-gray-800 capitalize">{item?.status || '-'}</td>
                     <td className="px-4 py-3">
-                      <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold ${item?.published ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
-                        {item?.published ? 'Published' : 'Draft'}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3">
                       <div className="flex items-center gap-2">
                         <button
                           type="button"
                           onClick={() => handleTogglePublish(item)}
-                          className={`inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-semibold ${item?.published ? 'bg-amber-100 text-amber-700 hover:bg-amber-200' : 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200'}`}
-                          title={item?.published ? 'Unpublish' : 'Publish'}
+                          title={item?.published ? 'Click to unpublish' : 'Click to publish'}
+                          className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full border-2 transition-colors duration-300 focus:outline-none ${item?.published ? 'bg-emerald-500 border-emerald-500' : 'bg-gray-200 border-gray-200'}`}
                         >
-                          {item?.published ? <Send size={12} /> : <CheckCircle2 size={12} />}
-                          {item?.published ? 'Unpublish' : 'Publish'}
+                          <span className={`inline-block h-4 w-4 rounded-full bg-white shadow-md transition-transform duration-300 ${item?.published ? 'translate-x-5' : 'translate-x-0.5'}`} />
                         </button>
+                        <span className={`text-xs font-semibold ${item?.published ? 'text-emerald-600' : 'text-gray-400'}`}>
+                          {item?.published ? 'Published' : 'Unpublished'}
+                        </span>
+                      </div>
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-2">
                         <button
                           type="button"
                           onClick={() => openEdit(item)}

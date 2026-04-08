@@ -374,6 +374,16 @@ router.put('/groups/:groupId', adminAuth, async (req, res) => {
     ).populate('classId', 'name').populate('sectionId', 'name').lean();
 
     if (!group) return res.status(404).json({ error: 'Exam group not found' });
+
+    // Keep child subject exams in sync: marking a main exam group as Completed
+    // should complete every subject exam under that group.
+    if (String(updates.status || '').trim() === 'Completed') {
+      await Exam.updateMany(
+        { groupId, schoolId, ...(campusId ? { campusId } : {}) },
+        { $set: { status: 'Completed' } }
+      );
+    }
+
     res.json({ message: 'Exam group updated', group });
   } catch (err) {
     res.status(400).json({ error: err.message });
@@ -765,7 +775,7 @@ router.get("/results", adminOrTeacherAuth, async (req, res) => {
         if (examId) filter.examId = examId;
         if (studentId) filter.studentId = studentId;
         const results = await ExamResult.find(filter)
-            .populate('studentId', 'name grade section roll')
+            .populate('studentId', 'name grade section roll academicYear')
             .populate('examId', 'title subject date term grade section classId sectionId subjectId')
             .lean();
 
@@ -953,7 +963,7 @@ router.get("/results/admin", adminAuth, async (req, res) => {
     const results = await ExamResult.find(filter)
       .populate({
         path: 'studentId',
-        select: 'name grade section roll studentCode schoolId',
+        select: 'name grade section roll studentCode schoolId academicYear',
         populate: { path: 'schoolId', select: 'name code' },
       })
       .populate('examId', 'title subject date term grade section classId sectionId subjectId status')
@@ -1300,7 +1310,7 @@ router.put("/results/:id", adminOrTeacherAuth, async (req, res) => {
       updates,
       { new: true, runValidators: true }
     )
-      .populate('studentId', 'name grade section roll')
+      .populate('studentId', 'name grade section roll academicYear')
       .populate('examId', 'title subject date term grade section classId sectionId subjectId')
       .lean();
 

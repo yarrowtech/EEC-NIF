@@ -37,6 +37,7 @@ const REPORT_CARD_DEFAULTS = {
 };
 
 const normalizeKey = (value) => String(value || '').trim().toLowerCase();
+const escapeRegex = (value) => String(value || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 const toDateValue = (value) => {
   if (!value) return null;
@@ -172,7 +173,9 @@ const resolveAcademicYear = async ({ schoolId, academicYearId, academicYear }) =
 const withinAcademicYear = (examDate, yearDoc) => {
   if (!yearDoc) return true;
   const parsedDate = toDateValue(examDate);
-  if (!parsedDate) return false;
+  // Legacy/partial exam rows may not have a date; do not exclude them from
+  // report generation solely due to missing date.
+  if (!parsedDate) return true;
   const start = toDateValue(yearDoc.startDate);
   const end = toDateValue(yearDoc.endDate);
   if (start && parsedDate < start) return false;
@@ -193,11 +196,12 @@ const buildReportCards = async ({
 }) => {
   if (!students.length) return [];
   const studentIds = students.map((student) => student._id);
+  const scopedExamIds = Array.isArray(examIds) && examIds.length > 0 ? examIds : null;
   const results = await ExamResult.find({
     schoolId,
     ...(campusId ? { campusId } : {}),
     studentId: { $in: studentIds },
-    ...(Array.isArray(examIds) ? { examId: { $in: examIds } } : {}),
+    ...(scopedExamIds ? { examId: { $in: scopedExamIds } } : {}),
     ...(includeUnpublished ? {} : { published: true }),
   })
     .populate('examId', 'title subject term date marks grade section classId sectionId')
@@ -231,7 +235,10 @@ const buildReportCards = async ({
       ) {
         return;
       }
-      if (yearDoc && !withinAcademicYear(exam.date, yearDoc)) {
+      // If caller already scoped to an explicit exam set (e.g. selected completed
+      // exam group), do not additionally drop rows by academic-year date window.
+      // Legacy year ranges/dates can otherwise hide valid completed results.
+      if (!scopedExamIds && yearDoc && !withinAcademicYear(exam.date, yearDoc)) {
         return;
       }
       const subjectName = String(exam.subject || 'Subject').trim() || 'Subject';
@@ -505,15 +512,23 @@ router.post('/report-cards/bulk', adminAuth, async (req, res) => {
         schoolId,
         ...(campusId ? { campusId } : {}),
       })
-        .select('_id title term classId sectionId')
+        .select('_id title term classId sectionId grade section')
         .lean();
       if (!selectedExamGroup) {
         return res.status(404).json({ error: 'Exam group not found' });
       }
-      if (scope.classDoc && String(selectedExamGroup.classId || '') !== String(scope.classDoc._id || '')) {
+      const groupClassMatches =
+        !scope.classDoc ||
+        String(selectedExamGroup.classId || '') === String(scope.classDoc._id || '') ||
+        normalizeKey(selectedExamGroup.grade) === normalizeKey(scope.classDoc.name);
+      if (!groupClassMatches) {
         return res.status(400).json({ error: 'Selected exam group does not belong to selected class' });
       }
-      if (scope.sectionDoc && String(selectedExamGroup.sectionId || '') !== String(scope.sectionDoc._id || '')) {
+      const groupSectionMatches =
+        !scope.sectionDoc ||
+        String(selectedExamGroup.sectionId || '') === String(scope.sectionDoc._id || '') ||
+        normalizeKey(selectedExamGroup.section) === normalizeKey(scope.sectionDoc.name);
+      if (!groupSectionMatches) {
         return res.status(400).json({ error: 'Selected exam group does not belong to selected section' });
       }
       const groupedExams = await Exam.find({
@@ -529,7 +544,9 @@ router.post('/report-cards/bulk', adminAuth, async (req, res) => {
     const studentFilter = buildStudentScopeFilter({ schoolId, campusId });
     if (className) studentFilter.grade = className;
     if (sectionName) studentFilter.section = sectionName;
-    if (academicYearName) studentFilter.academicYear = academicYearName;
+    if (academicYearName) {
+      studentFilter.academicYear = { $regex: escapeRegex(academicYearName), $options: 'i' };
+    }
 
     const students = await StudentUser.find(studentFilter)
       .select('name roll grade section academicYear admissionNumber username studentCode')
