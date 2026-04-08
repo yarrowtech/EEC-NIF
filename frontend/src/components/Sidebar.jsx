@@ -113,6 +113,7 @@ const Sidebar = ({ activeView, isOpen, setIsOpen }) => {
       description: 'Time Management',
       children: [
         { id: 'routine', name: 'Weekly Routine', icon: Calendar },
+        { id: 'exams', name: 'Exams', icon: FileText },
         { id: 'holidays', name: 'Holiday List', icon: Bell },
         { id: 'attendance', name: 'Attendance', icon: Users },
         { id: 'lesson-plan-status', name: 'Syllabus Status', icon: BookOpen },

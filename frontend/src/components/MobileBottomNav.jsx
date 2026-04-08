@@ -24,6 +24,7 @@ const subMenus = {
     gradient: 'from-orange-500 to-orange-600',
     items: [
       { id: 'routine',            name: 'Daily Routine', icon: Calendar, color: 'bg-orange-500', desc: 'Timetable' },
+      { id: 'exams',              name: 'Exams',         icon: FileText, color: 'bg-indigo-500', desc: 'Exam routine' },
       { id: 'holidays',           name: 'Holidays',      icon: Bell,     color: 'bg-amber-500',  desc: 'Holiday list' },
       { id: 'attendance',         name: 'Attendance',    icon: Users,    color: 'bg-green-500',  desc: 'Track presence' },
       { id: 'lesson-plan-status', name: 'Syllabus',      icon: BookOpen, color: 'bg-blue-500',   desc: 'Course status' },

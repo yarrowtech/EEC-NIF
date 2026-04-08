@@ -20,6 +20,7 @@ import AcademicAlcove from './AcademicAlcove';
 import StudentWellbeing from './StudentWellbeing';
 import LessonPlanStatusView from './LessonPlanStatusView';
 import StudyMaterials from './StudyMaterials';
+import StudentExamsView from './StudentExamsView';
 import { StudentDashboardProvider } from './StudentDashboardContext';
 import MobileBottomNav from './MobileBottomNav';
 import AdventureTryouts from './AdventureTryouts';
@@ -77,6 +78,7 @@ const Dashboard = () => {
     attendance: AttendanceView,
     routine: RoutineView,
     schedule: RoutineView,
+    exams: StudentExamsView,
     holidays: HolidayListView,
     'lesson-plan-status': LessonPlanStatusView,
     assignments: (props) => <AssignmentView {...props} defaultType="school" />,

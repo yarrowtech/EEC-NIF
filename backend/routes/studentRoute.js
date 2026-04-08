@@ -3,6 +3,7 @@ const router = express.Router();
 const StudentUser = require('../models/StudentUser');
 const ParentUser = require('../models/ParentUser');
 const Class = require('../models/Class');
+const AcademicYear = require('../models/AcademicYear');
 const Timetable = require('../models/Timetable');
 const ExamResult = require('../models/ExamResult');
 const Exam = require('../models/Exam');
@@ -1125,7 +1126,7 @@ router.get('/schedule', authStudent, async (req, res) => {
   // #swagger.tags = ['Students']
   try {
     const student = await StudentUser.findById(req.user.id)
-      .select('grade section schoolId campusId')
+      .select('grade section schoolId campusId academicYear')
       .lean();
 
     if (!student) {
@@ -1146,21 +1147,51 @@ router.get('/schedule', authStudent, async (req, res) => {
       return res.json({ schedule: [] });
     }
 
-    // Find Class by grade/class name (case-insensitive fallback)
-    const classFilter = {
-      schoolId: student.schoolId,
-      name: resolvedGrade,
-    };
-    if (student.campusId) {
-      classFilter.campusId = student.campusId;
-    }
+    const [activeYear] = await Promise.all([
+      AcademicYear.findOne({ schoolId: student.schoolId, isActive: true })
+        .select('_id name')
+        .lean(),
+    ]);
 
-    let classDoc = await Class.findOne(classFilter).lean();
-    if (!classDoc) {
-      classDoc = await Class.findOne({
-        ...classFilter,
-        name: { $regex: `^${escapeRegex(resolvedGrade)}$`, $options: 'i' },
-      }).lean();
+    // Find class candidates by grade/class name (handle duplicate class names across years).
+    const classFilter = { schoolId: student.schoolId };
+    if (student.campusId) classFilter.campusId = student.campusId;
+    const classCandidates = await Class.find({
+      ...classFilter,
+      name: { $regex: `^${escapeRegex(resolvedGrade)}$`, $options: 'i' },
+    })
+      .sort({ createdAt: -1 })
+      .lean();
+
+    let classDoc = null;
+    if (Array.isArray(classCandidates) && classCandidates.length > 0) {
+      // Prefer active academic year class first so promoted students don't get previous-year routine.
+      if (activeYear?._id) {
+        classDoc =
+          classCandidates.find((doc) => String(doc.academicYearId || '') === String(activeYear._id)) ||
+          null;
+      }
+
+      // Fallback to student's tagged academic year name when available.
+      if (!classDoc && student.academicYear) {
+        const yearDocs = await AcademicYear.find({
+          _id: { $in: classCandidates.map((doc) => doc.academicYearId).filter(Boolean) },
+        })
+          .select('_id name')
+          .lean();
+        const yearNameById = new Map(
+          yearDocs.map((doc) => [String(doc._id), String(doc.name || '').trim().toLowerCase()])
+        );
+        const studentYearKey = String(student.academicYear || '').trim().toLowerCase();
+        classDoc =
+          classCandidates.find(
+            (doc) => yearNameById.get(String(doc.academicYearId || '')) === studentYearKey
+          ) || null;
+      }
+
+      if (!classDoc) {
+        classDoc = classCandidates[0];
+      }
     }
 
     if (!classDoc) {
@@ -1174,6 +1205,11 @@ router.get('/schedule', authStudent, async (req, res) => {
     };
     if (student.campusId) {
       timetableFilter.campusId = student.campusId;
+    }
+    if (classDoc.academicYearId) {
+      timetableFilter.academicYearId = classDoc.academicYearId;
+    } else if (activeYear?._id) {
+      timetableFilter.academicYearId = activeYear._id;
     }
 
     const timetables = await Timetable.find(timetableFilter)
@@ -1213,7 +1249,7 @@ router.get('/schedule', authStudent, async (req, res) => {
       }
       scheduleByDay[entry.dayOfWeek].push({
         time: `${entry.startTime} - ${entry.endTime}`,
-        subject: entry.subjectId?.name || 'Unknown',
+        subject: entry.subjectId?.name || entry.subjectName || entry.subject || 'Subject',
         instructor: entry.teacherId?.name || 'TBA',
         room: entry.room || '',
         period: entry.period,

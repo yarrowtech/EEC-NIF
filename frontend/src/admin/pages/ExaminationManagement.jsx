@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { jsPDF } from 'jspdf';
 import {
   Award, BookOpen, Building2, Calendar, ChevronRight,
   Clock, DoorOpen, Edit2, FileText, Filter, Layers,
@@ -53,6 +54,24 @@ const hasOverlap = (fd, ft, fdur, ex) => {
   return fs < ee && fe > es;
 };
 
+const toDataUrl = async (url) => {
+  const src = String(url || '').trim();
+  if (!src) return '';
+  try {
+    const response = await fetch(src);
+    if (!response.ok) return '';
+    const blob = await response.blob();
+    return await new Promise((resolve) => {
+      const reader = new FileReader();
+      reader.onloadend = () => resolve(String(reader.result || ''));
+      reader.onerror = () => resolve('');
+      reader.readAsDataURL(blob);
+    });
+  } catch {
+    return '';
+  }
+};
+
 /* ── Modal shell ── */
 const Modal = ({ show, onClose, title, subtitle, icon:Icon, iconColor='bg-indigo-600', children, maxWidth='sm:max-w-2xl' }) => {
   if (!show) return null;
@@ -93,6 +112,7 @@ const ExaminationManagement = ({ setShowAdminHeader }) => {
   const [floors,    setFloors]    = useState([]);
   const [rooms,     setRooms]     = useState([]);
   const [teachers,  setTeachers]  = useState([]);
+  const [pdfHeader, setPdfHeader] = useState({ schoolName: '', schoolAddressLine: '', logoUrl: '' });
   const [loading,   setLoading]   = useState(true);
   const [saving,    setSaving]    = useState(false);
 
@@ -120,9 +140,12 @@ const ExaminationManagement = ({ setShowAdminHeader }) => {
       const res  = await fetch(`${API_BASE}/api/exam/groups`, { headers: authH() });
       const data = await res.json().catch(() => []);
       if (!res.ok) throw new Error(data?.error || 'Failed');
-      setGroups(Array.isArray(data) ? data : []);
+      const list = Array.isArray(data) ? data : [];
+      setGroups(list);
+      return list;
     } catch (err) { toast.error(err.message || 'Failed to load exam groups'); }
     finally { setLoading(false); }
+    return [];
   };
 
   const loadUngrouped = async () => {
@@ -144,9 +167,10 @@ const ExaminationManagement = ({ setShowAdminHeader }) => {
       fetch(`${API_BASE}/api/academic/floors`,            { headers: h }),
       fetch(`${API_BASE}/api/academic/rooms`,             { headers: h }),
       fetch(`${API_BASE}/api/admin/users/get-teachers`,   { headers: h }),
+      fetch(`${API_BASE}/api/reports/report-cards/template`, { headers: h }),
     ]);
     const parse = async (r) => r.status === 'fulfilled' ? (await r.value.json().catch(() => [])) : [];
-    const [y,c,s,sub,b,f,rm,tch] = await Promise.all(results.map(parse));
+    const [y,c,s,sub,b,f,rm,tch,template] = await Promise.all(results.map(parse));
     const yearItems = Array.isArray(y) ? y : [];
     setYears(yearItems);
     const activeYear = yearItems.find((item) => item?.isActive);
@@ -162,6 +186,11 @@ const ExaminationManagement = ({ setShowAdminHeader }) => {
     setFloors(Array.isArray(f) ? f : []);
     setRooms(Array.isArray(rm) ? rm : []);
     setTeachers(Array.isArray(tch) ? tch : []);
+    setPdfHeader({
+      schoolName: String(template?.schoolName || '').trim(),
+      schoolAddressLine: String(template?.schoolAddressLine || '').trim(),
+      logoUrl: String(template?.logoUrl || template?.logoUrlOverride || '').trim(),
+    });
   };
 
   useEffect(() => { loadGroups(); loadUngrouped(); loadOptions(); }, []);
@@ -235,6 +264,163 @@ const ExaminationManagement = ({ setShowAdminHeader }) => {
     });
   }, [groups, search, termFilter]);
 
+  const generateExamSchedulePdf = async (group) => {
+    if (!group?._id) return;
+    const className = group.classId?.name || group.grade || '—';
+    const sectionName = group.sectionId?.name || group.section || '—';
+    const classItem = classes.find((item) => String(item._id) === String(group.classId?._id || group.classId || ''));
+    const yearName = years.find((y) => String(y._id) === String(classItem?.academicYearId || ''))?.name || '';
+    const title = String(group.title || 'Exam Schedule').trim();
+
+    const doc = new jsPDF({ orientation: 'p', unit: 'mm', format: 'a4' });
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const margin = 12;
+    let y = 0;
+
+    // ── Gradient-style top banner ──────────────────────────────────────────
+    doc.setFillColor(15, 23, 42);           // slate-900
+    doc.rect(0, 0, pageWidth, 38, 'F');
+    doc.setFillColor(30, 58, 138);          // indigo accent strip on left
+    doc.rect(0, 0, 5, 38, 'F');
+
+    // Logo inside banner
+    const logoDataUrl = await toDataUrl(pdfHeader.logoUrl);
+    if (logoDataUrl) {
+      try {
+        doc.setFillColor(255, 255, 255);
+        doc.roundedRect(margin, 6, 24, 24, 2, 2, 'F');
+        doc.addImage(logoDataUrl, 'PNG', margin + 1, 7, 22, 22);
+      } catch { /* ignore */ }
+    }
+
+    // School name & address inside banner
+    const textX = logoDataUrl ? margin + 30 : margin + 8;
+    doc.setTextColor(255, 255, 255);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(14);
+    doc.text((pdfHeader.schoolName || 'School').toUpperCase(), textX, 18);
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(8.5);
+    doc.setTextColor(148, 163, 184);        // slate-400
+    if (pdfHeader.schoolAddressLine) {
+      doc.text(pdfHeader.schoolAddressLine, textX, 26);
+    }
+
+    y = 46;
+
+    // ── Exam title block ──────────────────────────────────────────────────
+    doc.setFillColor(238, 242, 255);        // indigo-50
+    doc.roundedRect(margin, y - 5, pageWidth - margin * 2, 22, 3, 3, 'F');
+    doc.setDrawColor(199, 210, 254);        // indigo-200
+    doc.roundedRect(margin, y - 5, pageWidth - margin * 2, 22, 3, 3, 'S');
+
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(13);
+    doc.setTextColor(30, 27, 75);           // indigo-950
+    doc.text(title, pageWidth / 2, y + 4, { align: 'center' });
+
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(8.5);
+    doc.setTextColor(99, 102, 241);         // indigo-500
+    const meta = [
+      yearName ? `Session: ${yearName}` : '',
+      `Class: ${className}`,
+      `Section: ${sectionName}`,
+    ].filter(Boolean).join('   •   ');
+    doc.text(meta, pageWidth / 2, y + 11, { align: 'center' });
+
+    y += 26;
+
+    // ── Table ─────────────────────────────────────────────────────────────
+    const headers = ['Date', 'Day', 'Subject', 'Room No.'];
+    const colWidths = [30, 34, 88, 30];
+    const tableW = colWidths.reduce((s, v) => s + v, 0);
+    const startX = margin;
+    const rowH = 9;
+
+    // Header row
+    doc.setFillColor(30, 41, 59);           // slate-800
+    doc.roundedRect(startX, y, tableW, rowH, 2, 2, 'F');
+    doc.setTextColor(255, 255, 255);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(9);
+    let x = startX;
+    headers.forEach((h, i) => {
+      doc.text(h, x + colWidths[i] / 2, y + 6, { align: 'center' });
+      x += colWidths[i];
+    });
+    y += rowH;
+
+    // Data rows
+    const rows = (group.subjects || [])
+      .map((exam) => {
+        const date = exam?.date ? new Date(exam.date) : null;
+        const dateText = date && !Number.isNaN(date.getTime())
+          ? date.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
+          : '—';
+        const dayText = date && !Number.isNaN(date.getTime())
+          ? date.toLocaleDateString('en-US', { weekday: 'long' })
+          : '—';
+        const subjectName = exam?.subjectId?.name || exam?.subject || 'Subject';
+        const room = exam?.roomId?.roomNumber || exam?.roomId?.name || '—';
+        return [dateText, dayText, subjectName, room];
+      })
+      .sort((a, b) => String(a[0]).localeCompare(String(b[0])));
+
+    if (!rows.length) {
+      rows.push(['—', '—', 'No subjects added yet', '—']);
+    }
+
+    rows.forEach((row, idx) => {
+      if (y > 270) {
+        doc.addPage();
+        y = 14;
+      }
+      // Alternating row fill
+      const isEven = idx % 2 === 0;
+      doc.setFillColor(isEven ? 248 : 255, isEven ? 250 : 255, isEven ? 252 : 255);
+      doc.rect(startX, y, tableW, rowH, 'F');
+
+      // Row border
+      doc.setDrawColor(226, 232, 240);
+      doc.rect(startX, y, tableW, rowH, 'S');
+
+      // Vertical column separators
+      doc.setDrawColor(226, 232, 240);
+      let sepX = startX;
+      colWidths.forEach((w, i) => {
+        sepX += w;
+        if (i < colWidths.length - 1) {
+          doc.line(sepX, y, sepX, y + rowH);
+        }
+      });
+
+      doc.setTextColor(51, 65, 85);
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(9);
+      let cx = startX;
+      row.forEach((cell, i) => {
+        const clipped = doc.splitTextToSize(String(cell || ''), colWidths[i] - 4)[0] || '';
+        doc.text(clipped, cx + colWidths[i] / 2, y + 6, { align: 'center' });
+        cx += colWidths[i];
+      });
+      y += rowH;
+    });
+
+    // ── Footer ────────────────────────────────────────────────────────────
+    y += 8;
+    doc.setDrawColor(226, 232, 240);
+    doc.line(margin, y, pageWidth - margin, y);
+    y += 5;
+    doc.setFontSize(7.5);
+    doc.setTextColor(148, 163, 184);
+    doc.text(`Generated on ${new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' })}`, margin, y);
+    doc.text(pdfHeader.schoolName || '', pageWidth - margin, y, { align: 'right' });
+
+    const safeFile = `${title}_${className}_${sectionName}`.replace(/[^\w.-]+/g, '_').toLowerCase();
+    doc.save(`${safeFile}_schedule.pdf`);
+  };
+
   /* ── group handlers ── */
   const openCreateGroup = () => {
     setEditingGroupId(null);
@@ -265,7 +451,10 @@ const ExaminationManagement = ({ setShowAdminHeader }) => {
       if (!res.ok) throw new Error(data?.error || 'Failed');
       toast.success(editingGroupId ? 'Exam updated!' : 'Exam created!');
       setShowGroupModal(false);
-      await loadGroups();
+      const list = await loadGroups();
+      const targetGroupId = data?.group?._id || editingGroupId;
+      const targetGroup = list.find((g) => String(g._id) === String(targetGroupId));
+      if (targetGroup) await generateExamSchedulePdf(targetGroup);
     } catch (err) { toast.error(err.message || 'Failed to save'); }
     finally { setSaving(false); }
   };
@@ -344,7 +533,9 @@ const ExaminationManagement = ({ setShowAdminHeader }) => {
       if (!res.ok) throw new Error(data?.error || 'Failed');
       toast.success(editingSubjectId ? 'Subject exam updated!' : 'Subject exam added!');
       setShowSubjectModal(false);
-      await loadGroups();
+      const list = await loadGroups();
+      const targetGroup = list.find((g) => String(g._id) === String(activeGroup?._id || ''));
+      if (targetGroup) await generateExamSchedulePdf(targetGroup);
     } catch (err) { toast.error(err.message || 'Failed to save'); }
     finally { setSaving(false); }
   };
@@ -471,6 +662,12 @@ const ExaminationManagement = ({ setShowAdminHeader }) => {
                         <button onClick={() => openAddSubject(group)}
                           className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-indigo-600 text-white text-xs font-semibold hover:bg-indigo-700 shadow-sm shadow-indigo-200 transition-colors">
                           <Plus size={12} /> Add Subject
+                        </button>
+                        <button
+                          onClick={() => generateExamSchedulePdf(group)}
+                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-200 bg-slate-50 text-xs font-semibold text-slate-600 hover:bg-slate-100 transition-colors"
+                        >
+                          <FileText size={12} /> Download Routine
                         </button>
                         <button onClick={() => openEditGroup(group)}
                           className="h-8 w-8 flex items-center justify-center rounded-xl text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 transition-colors">

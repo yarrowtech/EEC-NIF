@@ -288,13 +288,13 @@ const AssignmentView = forwardRef(({ defaultType = "school" }, ref) => {
                   {autosaveLabel === "Saved" ? <Save className="h-3 w-3" /> : <Clock className="h-3 w-3" />}
                   <span className="hidden sm:inline">{autosaveLabel}</span>
                 </div>
-                <div
+                {/* <div
                   className="flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-xs font-bold"
                   style={{ background: "#fffbeb", borderColor: "#fde68a", color: "#b45309" }}
                 >
                   <span>⚡</span>
                   <PointsBadge />
-                </div>
+                </div> */}
               </div>
             </div>
 

@@ -19,6 +19,7 @@ const Room = require('../models/Room');
 const adminAuth = require('../middleware/adminAuth');
 const teacherAuth = require('../middleware/authTeacher');
 const NotificationService = require('../utils/notificationService');
+const authStudent = require('../middleware/authStudent');
 
 // Configure multer for CSV upload
 const upload = multer({ dest: 'uploads/' });
@@ -279,6 +280,77 @@ router.get('/groups', adminAuth, async (req, res) => {
     res.json(groups.map(g => ({ ...g, subjects: examsByGroup.get(String(g._id)) || [] })));
   } catch (err) {
     res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /groups/student-schedule — exam schedule visible for the logged-in student
+router.get('/groups/student-schedule', authStudent, async (req, res) => {
+  try {
+    const schoolId = req.schoolId || req.user?.schoolId || null;
+    if (!schoolId) return res.status(400).json({ error: 'schoolId is required' });
+    const campusId = req.campusId || null;
+    const studentId = req.user?.id || null;
+    if (!studentId || !mongoose.isValidObjectId(studentId)) {
+      return res.status(400).json({ error: 'Valid studentId is required' });
+    }
+
+    const student = await StudentUser.findOne({
+      _id: studentId,
+      schoolId,
+      ...(campusId ? { campusId } : {}),
+    })
+      .select('name grade section')
+      .lean();
+    if (!student) {
+      return res.status(404).json({ error: 'Student not found' });
+    }
+
+    const filter = { schoolId, ...(campusId ? { campusId } : {}) };
+    const [groups, exams] = await Promise.all([
+      ExamGroup.find(filter)
+        .populate('classId', 'name')
+        .populate('sectionId', 'name classId')
+        .sort({ startDate: 1, createdAt: -1 })
+        .lean(),
+      Exam.find({ ...filter, groupId: { $exists: true, $ne: null } })
+        .populate('subjectId', 'name code')
+        .populate('classId', 'name')
+        .populate('sectionId', 'name classId')
+        .populate({
+          path: 'roomId',
+          select: 'roomNumber floorId',
+          populate: {
+            path: 'floorId',
+            select: 'name floorCode buildingId',
+            populate: { path: 'buildingId', select: 'name code' },
+          },
+        })
+        .sort({ date: 1, createdAt: 1 })
+        .lean(),
+    ]);
+
+    const studentGroups = groups.filter((group) => studentMatchesExamScope(student, group));
+    const allowedGroupIds = new Set(studentGroups.map((group) => String(group._id)));
+    const examsByGroup = new Map();
+
+    exams.forEach((exam) => {
+      const gid = String(exam.groupId || '');
+      if (!gid || !allowedGroupIds.has(gid)) return;
+      if (!examsByGroup.has(gid)) examsByGroup.set(gid, []);
+      examsByGroup.get(gid).push(exam);
+    });
+
+    const payload = studentGroups.map((group) => {
+      const subjects = examsByGroup.get(String(group._id)) || [];
+      return {
+        ...group,
+        subjects,
+      };
+    });
+
+    return res.status(200).json(payload);
+  } catch (err) {
+    return res.status(500).json({ error: err.message || 'Failed to fetch exam schedule' });
   }
 });
 
@@ -988,7 +1060,7 @@ router.get("/results/admin", adminAuth, async (req, res) => {
 });
 
 // Student fetch their results
-router.get("/results/me", require('../middleware/authStudent'), async (req, res) => {
+router.get("/results/me", authStudent, async (req, res) => {
   // #swagger.tags = ['Exams']
     try {
         const schoolId = req.schoolId || req.user?.schoolId || null;

@@ -66,11 +66,6 @@ const normalizeDayLabel = (v = '') => {
   return map[raw] || String(v).trim();
 };
 
-const normalizeScopeValue = (v = '') => String(v).trim().toLowerCase();
-const routineMatchesScope = (r, cls, sec) =>
-  normalizeScopeValue(r?.class) === normalizeScopeValue(cls) &&
-  normalizeScopeValue(r?.section) === normalizeScopeValue(sec);
-
 const getDefaultSlots = () =>
   TIMES.map(time => {
     const p = parseTimeRange(time);
@@ -159,6 +154,7 @@ const DayCard = ({ day, routine, onEdit, isSelected, onClick }) => {
 const Routines = ({ setShowAdminHeader }) => {
   /* data */
   const [routines, setRoutines]   = useState([]);
+  const [years, setYears]         = useState([]);
   const [classes, setClasses]     = useState([]);
   const [sections, setSections]   = useState([]);
   const [subjects, setSubjects]   = useState([]);
@@ -175,8 +171,9 @@ const Routines = ({ setShowAdminHeader }) => {
   const [toast, setToast]         = useState({ show: false, message: '', type: 'success' });
 
   /* filters */
-  const [selectedClass, setSelectedClass]     = useState('');
-  const [selectedSection, setSelectedSection] = useState('');
+  const [selectedYearId, setSelectedYearId]   = useState('');
+  const [selectedClassId, setSelectedClassId] = useState('');
+  const [selectedSectionId, setSelectedSectionId] = useState('');
   const [selectedDay, setSelectedDay]         = useState('Monday');
 
   /* modal */
@@ -200,14 +197,22 @@ const Routines = ({ setShowAdminHeader }) => {
   const loadInitialData = async () => {
     try {
       setLoading(true); setError(null);
-      const [ttData, clsData, secData, subData, tchData, flData, rmData] = await Promise.allSettled([
-        timetableApi.getAll(), academicApi.getClasses(), academicApi.getSections(),
+      const [ttData, yrData, clsData, secData, subData, tchData, flData, rmData] = await Promise.allSettled([
+        timetableApi.getAll(), academicApi.getYears(), academicApi.getClasses(), academicApi.getSections(),
         academicApi.getSubjects(), academicApi.getTeachers(), academicApi.getFloors(), academicApi.getRooms(),
       ]);
       const safe = (r, fallback = []) => r.status === 'fulfilled' ? (Array.isArray(r.value) ? r.value : fallback) : fallback;
+      const yearItems = safe(yrData);
       setRoutines(transformTimetablesToRoutines(safe(ttData)));
+      setYears(yearItems);
       setClasses(safe(clsData)); setSections(safe(secData)); setSubjects(safe(subData));
       setTeachers(safe(tchData)); setFloors(safe(flData)); setRooms(safe(rmData));
+      const activeYear = yearItems.find((y) => y?.isActive);
+      if (activeYear?._id) {
+        setSelectedYearId(String(activeYear._id));
+      } else if (yearItems[0]?._id) {
+        setSelectedYearId(String(yearItems[0]._id));
+      }
     } catch (err) { setError(err.message || 'Failed to load'); showToast(err.message || 'Failed to load', 'error'); }
     finally { setLoading(false); }
   };
@@ -240,14 +245,34 @@ const Routines = ({ setShowAdminHeader }) => {
     [routines]
   );
 
-  const filteredSections = useMemo(() => {
-    if (!selectedClass) return sections;
-    const cls = classes.find(c => c.name === selectedClass);
-    return cls ? sections.filter(s => getId(s.classId) === cls._id) : sections;
-  }, [sections, classes, selectedClass]);
+  const filteredClasses = useMemo(() => {
+    if (!selectedYearId) return [];
+    return classes.filter((c) => String(c.academicYearId || '') === String(selectedYearId));
+  }, [classes, selectedYearId]);
 
-  const getRoutineForDay = (day, cls = selectedClass, sec = selectedSection) =>
-    routines.find(r => routineMatchesScope(r, cls, sec) && normalizeDayLabel(r.day) === normalizeDayLabel(day));
+  const filteredSections = useMemo(() => {
+    if (!selectedClassId) return [];
+    return sections.filter((s) => String(getId(s.classId) || '') === String(selectedClassId));
+  }, [sections, selectedClassId]);
+
+  const selectedClassDocByFilter = useMemo(
+    () => classes.find((c) => String(c._id) === String(selectedClassId)) || null,
+    [classes, selectedClassId]
+  );
+  const selectedSectionDocByFilter = useMemo(
+    () => sections.find((s) => String(s._id) === String(selectedSectionId)) || null,
+    [sections, selectedSectionId]
+  );
+  const selectedClassName = selectedClassDocByFilter?.name || '';
+  const selectedSectionName = selectedSectionDocByFilter?.name || '';
+
+  const getRoutineForDay = (day, classId = selectedClassId, sectionId = selectedSectionId) =>
+    routines.find(
+      (r) =>
+        String(r.classId || '') === String(classId || '') &&
+        String(r.sectionId || '') === String(sectionId || '') &&
+        normalizeDayLabel(r.day) === normalizeDayLabel(day)
+    );
 
   /* ── auto generate ── */
   const handleAutoGenerate = async () => {
@@ -265,11 +290,26 @@ const Routines = ({ setShowAdminHeader }) => {
 
   /* ── open editor ── */
   const openRoutineEditor = ({ day = 'Monday', className, sectionName } = {}) => {
-    const cls = className || selectedClass || (classes[0]?.name || '');
-    const clsDoc = classes.find(c => c.name === cls);
+    const clsDoc =
+      classes.find((c) => String(c._id) === String(selectedClassId || '')) ||
+      classes.find((c) => c.name === className) ||
+      filteredClasses[0] ||
+      classes[0] ||
+      null;
+    const cls = className || clsDoc?.name || '';
     const avail = sections.filter(s => !clsDoc || getId(s.classId) === clsDoc._id);
-    const sec = sectionName || selectedSection || (avail[0]?.name || '');
-    const existing = routines.find(r => routineMatchesScope(r, cls, sec) && normalizeDayLabel(r.day) === normalizeDayLabel(day));
+    const secDoc =
+      sections.find((s) => String(s._id) === String(selectedSectionId || '')) ||
+      avail.find((s) => s.name === sectionName) ||
+      avail[0] ||
+      null;
+    const sec = sectionName || secDoc?.name || '';
+    const existing = routines.find(
+      (r) =>
+        String(r.classId || '') === String(clsDoc?._id || '') &&
+        String(r.sectionId || '') === String(secDoc?._id || '') &&
+        normalizeDayLabel(r.day) === normalizeDayLabel(day)
+    );
     setForm({ class: cls, section: sec, day, schedule: buildScheduleForDay(existing?.schedule || []) });
     setEditingRoutine(existing || null);
     setIsModalOpen(true);
@@ -361,22 +401,29 @@ const Routines = ({ setShowAdminHeader }) => {
 
   /* ── export ── */
   const weeklyGrid = useMemo(() => {
-    if (!selectedClass || !selectedSection) return null;
+    if (!selectedClassId || !selectedSectionId) return null;
     const byDay = new Map();
-    routines.forEach(r => { if (routineMatchesScope(r, selectedClass, selectedSection)) byDay.set(r.day, r); });
+    routines.forEach(r => {
+      if (
+        String(r.classId || '') === String(selectedClassId) &&
+        String(r.sectionId || '') === String(selectedSectionId)
+      ) {
+        byDay.set(r.day, r);
+      }
+    });
     const headers = ['Time', ...DAYS];
     const rows = TIMES.map(time => {
       const cells = DAYS.map(day => { const e = byDay.get(day); const p = e?.schedule.find(x => x.time === time); return p ? (p.subject === 'Break' ? 'Break' : `${p.subject} — ${p.teacher}`) : ''; });
       return [time, ...cells];
     });
     return { headers, rows };
-  }, [selectedClass, selectedSection, routines]);
+  }, [selectedClassId, selectedSectionId, routines]);
 
   const exportCSV = () => {
     if (!weeklyGrid) return;
     const lines = [weeklyGrid.headers.join(','), ...weeklyGrid.rows.map(r => r.map(c => { const s = String(c||''); return s.includes(',') ? `"${s.replace(/"/g,'""')}"` : s; }).join(','))];
     const blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = `routine_${selectedClass}_${selectedSection}.csv`; a.click(); URL.revokeObjectURL(url);
+    const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = `routine_${selectedClassName}_${selectedSectionName}.csv`; a.click(); URL.revokeObjectURL(url);
   };
 
   const exportPDF = () => {
@@ -543,22 +590,30 @@ const Routines = ({ setShowAdminHeader }) => {
 
         {/* ──────── FILTERS ──────── */}
         <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm">
-          <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">Filter by Class & Section</p>
+          <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">Filter by Session, Class & Section</p>
           <div className="flex flex-wrap gap-3 items-center">
-            <select value={selectedClass} onChange={e => { setSelectedClass(e.target.value); setSelectedSection(''); }}
-              className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm text-slate-700 focus:outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 min-w-[140px]">
-              <option value="">All Classes</option>
-              {classes.map(c => <option key={c._id} value={c.name}>{c.name}</option>)}
+            <select value={selectedYearId} onChange={e => { setSelectedYearId(e.target.value); setSelectedClassId(''); setSelectedSectionId(''); }}
+              className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm text-slate-700 focus:outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 min-w-[160px]">
+              <option value="">All Sessions</option>
+              {years.map(y => <option key={y._id} value={y._id}>{y.name}{y.isActive ? ' (Active)' : ''}</option>)}
             </select>
             <ChevronRight size={14} className="text-slate-300" />
-            <select value={selectedSection} onChange={e => setSelectedSection(e.target.value)}
+            <select value={selectedClassId} onChange={e => { setSelectedClassId(e.target.value); setSelectedSectionId(''); }}
+              disabled={!selectedYearId}
+              className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm text-slate-700 focus:outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 min-w-[140px]">
+              <option value="">All Classes</option>
+              {filteredClasses.map(c => <option key={c._id} value={c._id}>{c.name}</option>)}
+            </select>
+            <ChevronRight size={14} className="text-slate-300" />
+            <select value={selectedSectionId} onChange={e => setSelectedSectionId(e.target.value)}
+              disabled={!selectedClassId}
               className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm text-slate-700 focus:outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 min-w-[140px]">
               <option value="">All Sections</option>
-              {filteredSections.map(s => <option key={s._id} value={s.name}>{s.name}</option>)}
+              {filteredSections.map(s => <option key={s._id} value={s._id}>{s.name}</option>)}
             </select>
-            {selectedClass && selectedSection && (
+            {selectedClassId && selectedSectionId && (
               <span className="ml-auto text-xs bg-indigo-50 text-indigo-700 px-3 py-1.5 rounded-xl font-semibold border border-indigo-100">
-                Class {selectedClass} — {selectedSection}
+                Class {selectedClassName} — {selectedSectionName}
               </span>
             )}
           </div>
@@ -585,18 +640,18 @@ const Routines = ({ setShowAdminHeader }) => {
         )}
 
         {/* ──────── SELECT PROMPT ──────── */}
-        {routines.length > 0 && (!selectedClass || !selectedSection) && (
+        {routines.length > 0 && (!selectedClassId || !selectedSectionId) && (
           <div className="bg-white rounded-2xl border border-slate-200 p-12 text-center shadow-sm">
             <div className="h-14 w-14 bg-slate-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
               <Users size={24} className="text-slate-400" />
             </div>
-            <h3 className="text-base font-semibold text-slate-800 mb-1">Select Class & Section</h3>
-            <p className="text-sm text-slate-400">Choose from the filters above to view the weekly schedule.</p>
+            <h3 className="text-base font-semibold text-slate-800 mb-1">Select Session, Class & Section</h3>
+            <p className="text-sm text-slate-400">Choose session first, then class and section to view the weekly schedule.</p>
           </div>
         )}
 
         {/* ──────── WEEKLY DAY CARDS ──────── */}
-        {selectedClass && selectedSection && (
+        {selectedClassId && selectedSectionId && (
           <div>
             <div className="flex items-center justify-between mb-4">
               <div>
@@ -624,7 +679,7 @@ const Routines = ({ setShowAdminHeader }) => {
         )}
 
         {/* ──────── DAY DETAIL VIEW ──────── */}
-        {selectedClass && selectedSection && (() => {
+        {selectedClassId && selectedSectionId && (() => {
           const routine = getRoutineForDay(selectedDay);
           const periods = routine?.schedule || [];
           if (!routine) return null;
@@ -670,7 +725,7 @@ const Routines = ({ setShowAdminHeader }) => {
         })()}
 
         {/* ──────── ALL ROUTINES TABLE (when no class/section selected) ──────── */}
-        {routines.length > 0 && selectedClass && selectedSection && (
+        {routines.length > 0 && selectedClassId && selectedSectionId && (
           <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
             <div className="px-5 py-4 border-b border-slate-100">
               <h2 className="text-sm font-bold text-slate-800">All Days Summary</h2>

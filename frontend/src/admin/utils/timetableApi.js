@@ -178,6 +178,19 @@ export const timetableApi = {
 
 // Academic Data API (for dropdowns)
 export const academicApi = {
+  // Get all academic years
+  getYears: async () => {
+    try {
+      const res = await fetch(`${API_BASE}/academic/years`, {
+        headers: createHeaders()
+      });
+      return handleResponse(res);
+    } catch (error) {
+      console.error('Error fetching academic years:', error);
+      throw error;
+    }
+  },
+
   // Get all buildings
   getBuildings: async () => {
     try {
