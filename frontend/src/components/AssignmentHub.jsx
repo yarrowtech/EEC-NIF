@@ -48,7 +48,8 @@ const formatDate = (date) => {
 };
 
 const getStatus = (assignment, submission) => {
-  if (submission?.status === 'submitted' || submission?.status === 'graded') {
+  const actualStatus = submission?.status || assignment.submissionStatus;
+  if (actualStatus === 'submitted' || actualStatus === 'graded' || actualStatus === 'late') {
     return 'completed';
   }
   if (assignment.dueDate && new Date(assignment.dueDate) < new Date()) {

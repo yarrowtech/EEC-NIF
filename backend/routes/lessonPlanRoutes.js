@@ -9,6 +9,7 @@ const ClassModel = require('../models/Class');
 const Section = require('../models/Section');
 const Timetable = require('../models/Timetable');
 const StudentUser = require('../models/StudentUser');
+const { logStudentPortalEvent, logStudentPortalError } = require('../utils/studentPortalLogger');
 
 const normalizeString = (value) => String(value || '').trim();
 const normalizeLower = (value) => String(value || '').trim().toLowerCase();
@@ -522,6 +523,14 @@ router.delete('/teacher/:lessonPlanId/status/:statusId', authTeacher, async (req
 
 router.get('/student/status', authStudent, async (req, res) => {
   try {
+    logStudentPortalEvent(req, {
+      feature: 'lesson_plan_status',
+      action: 'lesson_plan_status.fetch',
+      targetType: 'student',
+      targetId: req.user?.id,
+      fromDate: req.query?.fromDate || undefined,
+      toDate: req.query?.toDate || undefined,
+    });
     const schoolId = resolveSchoolId(req);
     const campusId = resolveCampusId(req);
     const studentId = req.user?.id || null;
@@ -535,7 +544,18 @@ router.get('/student/status', authStudent, async (req, res) => {
 
     const className = normalizeLower(student.grade);
     const sectionName = normalizeLower(student.section);
-    if (!className || !sectionName) return res.json([]);
+    if (!className || !sectionName) {
+      logStudentPortalEvent(req, {
+        feature: 'lesson_plan_status',
+        action: 'lesson_plan_status.fetch',
+        outcome: 'success',
+        statusCode: 200,
+        targetType: 'student',
+        targetId: studentId,
+        resultCount: 0,
+      });
+      return res.json([]);
+    }
 
     const planFilter = {
       schoolId,
@@ -560,7 +580,18 @@ router.get('/student/status', authStudent, async (req, res) => {
     }
 
     const plans = await LessonPlan.find(planFilter).sort({ date: -1, createdAt: -1 }).lean();
-    if (!plans.length) return res.json([]);
+    if (!plans.length) {
+      logStudentPortalEvent(req, {
+        feature: 'lesson_plan_status',
+        action: 'lesson_plan_status.fetch',
+        outcome: 'success',
+        statusCode: 200,
+        targetType: 'student',
+        targetId: studentId,
+        resultCount: 0,
+      });
+      return res.json([]);
+    }
 
     const planIds = plans.map((plan) => plan._id);
     const statusFilter = { schoolId, lessonPlanId: { $in: planIds } };
@@ -627,7 +658,24 @@ router.get('/student/status', authStudent, async (req, res) => {
       (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
     );
     res.json(data);
+    logStudentPortalEvent(req, {
+      feature: 'lesson_plan_status',
+      action: 'lesson_plan_status.fetch',
+      outcome: 'success',
+      statusCode: 200,
+      targetType: 'student',
+      targetId: studentId,
+      resultCount: data.length,
+    });
   } catch (err) {
+    logStudentPortalError(req, {
+      feature: 'lesson_plan_status',
+      action: 'lesson_plan_status.fetch',
+      statusCode: 500,
+      err,
+      targetType: 'student',
+      targetId: req.user?.id,
+    });
     res.status(500).json({ error: err.message });
   }
 });

@@ -8,6 +8,7 @@ const Subject = require('../models/Subject');
 const auth = require('../middleware/authStudent');
 const multer = require('multer');
 const { logger } = require('../utils/logger');
+const { logStudentPortalEvent, logStudentPortalError } = require('../utils/studentPortalLogger');
 
 // Setup multer for file uploads (in memory)
 const storage = multer.memoryStorage();
@@ -17,6 +18,13 @@ const upload = multer({ storage });
 router.post('/profile/update', auth, upload.single('profilePic'), async (req, res) => {
   // #swagger.tags = ['Student Profile']
   try {
+    logStudentPortalEvent(req, {
+      feature: 'profile',
+      action: 'profile_update.submit',
+      targetType: 'student',
+      targetId: req.user?.id,
+      hasProfilePic: Boolean(req.file),
+    });
     const updates = { ...(req.body || {}) };
     const schoolId = req.schoolId || req.user?.schoolId || null;
     if (!schoolId) return res.status(400).json({ error: 'schoolId is required' });
@@ -43,7 +51,23 @@ router.post('/profile/update', auth, upload.single('profilePic'), async (req, re
     );
 
     res.json({ message: 'Profile updated successfully', student: updatedStudent });
+    logStudentPortalEvent(req, {
+      feature: 'profile',
+      action: 'profile_update.submit',
+      outcome: 'success',
+      statusCode: 200,
+      targetType: 'student',
+      targetId: req.user?.id,
+    });
   } catch (err) {
+    logStudentPortalError(req, {
+      feature: 'profile',
+      action: 'profile_update.submit',
+      statusCode: 400,
+      err,
+      targetType: 'student',
+      targetId: req.user?.id,
+    });
     res.status(400).json({ error: err.message });
   }
 });
@@ -51,14 +75,44 @@ router.post('/profile/update', auth, upload.single('profilePic'), async (req, re
 router.get('/profile', auth, async (req, res) => {
   // #swagger.tags = ['Student Profile']
   try {
+    logStudentPortalEvent(req, {
+      feature: 'profile',
+      action: 'profile.fetch',
+      targetType: 'student',
+      targetId: req.user?.id,
+    });
     const schoolId = req.schoolId || req.user?.schoolId || null;
     if (!schoolId) return res.status(400).json({ error: 'schoolId is required' });
     const student = await StudentUser.findOne({ _id: req.user.id, schoolId }).select('-password');
     if (!student) {
+      logStudentPortalEvent(req, {
+        feature: 'profile',
+        action: 'profile.fetch',
+        outcome: 'not_found',
+        statusCode: 404,
+        targetType: 'student',
+        targetId: req.user?.id,
+      });
       return res.status(404).json({ error: 'Student not found' });
     }
     res.json(student);
+    logStudentPortalEvent(req, {
+      feature: 'profile',
+      action: 'profile.fetch',
+      outcome: 'success',
+      statusCode: 200,
+      targetType: 'student',
+      targetId: req.user?.id,
+    });
   } catch (err) {
+    logStudentPortalError(req, {
+      feature: 'profile',
+      action: 'profile.fetch',
+      statusCode: 500,
+      err,
+      targetType: 'student',
+      targetId: req.user?.id,
+    });
     res.status(500).json({ error: 'Server error' });
   }
 });
@@ -67,6 +121,12 @@ router.get('/profile', auth, async (req, res) => {
 router.get('/allocated-subjects', auth, async (req, res) => {
   // #swagger.tags = ['Student Profile']
   try {
+    logStudentPortalEvent(req, {
+      feature: 'tryouts',
+      action: 'allocated_subjects.fetch',
+      targetType: 'student',
+      targetId: req.user?.id,
+    });
     const schoolId = req.schoolId || req.user?.schoolId || null;
     const campusId = req.campusId || req.user?.campusId || null;
     if (!schoolId) return res.status(400).json({ error: 'schoolId is required' });
@@ -74,6 +134,14 @@ router.get('/allocated-subjects', auth, async (req, res) => {
     // Get student details
     const student = await StudentUser.findOne({ _id: req.user.id, schoolId }).select('grade section');
     if (!student) {
+      logStudentPortalEvent(req, {
+        feature: 'tryouts',
+        action: 'allocated_subjects.fetch',
+        outcome: 'not_found',
+        statusCode: 404,
+        targetType: 'student',
+        targetId: req.user?.id,
+      });
       return res.status(404).json({ error: 'Student not found' });
     }
 
@@ -82,6 +150,15 @@ router.get('/allocated-subjects', auth, async (req, res) => {
     const sectionDoc = await Section.findOne({ schoolId, name: student.section });
 
     if (!classDoc || !sectionDoc) {
+      logStudentPortalEvent(req, {
+        feature: 'tryouts',
+        action: 'allocated_subjects.fetch',
+        outcome: 'success',
+        statusCode: 200,
+        targetType: 'student',
+        targetId: req.user?.id,
+        resultCount: 0,
+      });
       return res.json({ subjects: [] });
     }
 
@@ -122,7 +199,24 @@ router.get('/allocated-subjects', auth, async (req, res) => {
     const subjects = Array.from(subjectMap.values());
 
     res.json({ subjects });
+    logStudentPortalEvent(req, {
+      feature: 'tryouts',
+      action: 'allocated_subjects.fetch',
+      outcome: 'success',
+      statusCode: 200,
+      targetType: 'student',
+      targetId: req.user?.id,
+      resultCount: subjects.length,
+    });
   } catch (err) {
+    logStudentPortalError(req, {
+      feature: 'tryouts',
+      action: 'allocated_subjects.fetch',
+      statusCode: 500,
+      err,
+      targetType: 'student',
+      targetId: req.user?.id,
+    });
     (req.log || logger).error({ err, studentId: req.user?.id }, 'Error fetching allocated subjects');
     res.status(500).json({ error: 'Server error' });
   }

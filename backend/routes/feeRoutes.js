@@ -21,6 +21,7 @@ const {
   verifyRazorpaySignature,
   buildTransactionId,
 } = require('../utils/paymentGatewayService');
+const { logStudentPortalEvent, logStudentPortalError } = require('../utils/studentPortalLogger');
 
 const router = express.Router();
 
@@ -1718,6 +1719,12 @@ router.post('/parent/razorpay/verify', authParent, async (req, res) => {
 router.get('/student/invoices', authStudent, async (req, res) => {
   // #swagger.tags = ['Fees']
   try {
+    logStudentPortalEvent(req, {
+      feature: 'fees',
+      action: 'fee_invoices.fetch',
+      targetType: 'student',
+      targetId: req.user?.id,
+    });
     const schoolId = req.schoolId || null;
     if (!schoolId) {
       return res.status(400).json({ error: 'schoolId is required' });
@@ -1732,6 +1739,15 @@ router.get('/student/invoices', authStudent, async (req, res) => {
       .lean();
 
     if (invoices.length === 0) {
+      logStudentPortalEvent(req, {
+        feature: 'fees',
+        action: 'fee_invoices.fetch',
+        outcome: 'success',
+        statusCode: 200,
+        targetType: 'student',
+        targetId: studentId,
+        resultCount: 0,
+      });
       return res.json({ invoices: [], paymentsByInvoice: {} });
     }
 
@@ -1747,7 +1763,24 @@ router.get('/student/invoices', authStudent, async (req, res) => {
       invoices,
       paymentsByInvoice: buildPaymentsByInvoice(payments),
     });
+    logStudentPortalEvent(req, {
+      feature: 'fees',
+      action: 'fee_invoices.fetch',
+      outcome: 'success',
+      statusCode: 200,
+      targetType: 'student',
+      targetId: studentId,
+      resultCount: invoices.length,
+    });
   } catch (err) {
+    logStudentPortalError(req, {
+      feature: 'fees',
+      action: 'fee_invoices.fetch',
+      statusCode: 500,
+      err,
+      targetType: 'student',
+      targetId: req.user?.id,
+    });
     res.status(500).json({ error: err.message || 'Unable to load invoices' });
   }
 });

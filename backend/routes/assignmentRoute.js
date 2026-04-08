@@ -10,6 +10,7 @@ const NotificationService = require('../utils/notificationService');
 const Timetable = require('../models/Timetable');
 const Class = require('../models/Class');
 const Section = require('../models/Section');
+const { logStudentPortalEvent, logStudentPortalError } = require('../utils/studentPortalLogger');
 
 const escapeRegex = (value = '') => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 const buildCampusFilter = (campusId) => (
@@ -586,6 +587,8 @@ router.get("/student/assignments", authStudent, async (req, res) => {
                 ...assignment.toObject(),
                 submissionStatus: submission?.status || 'not_submitted',
                 submittedAt: submission?.submittedAt,
+                submissionText: submission?.submissionText || '',
+                attachmentUrl: submission?.attachmentUrl || '',
                 score: submission?.score,
                 feedback: submission?.feedback,
                 submissionFormat: assignment.submissionFormat || 'text'
@@ -593,7 +596,24 @@ router.get("/student/assignments", authStudent, async (req, res) => {
         });
 
         res.json(assignmentsWithStatus);
+        logStudentPortalEvent(req, {
+            feature: 'assignments',
+            action: 'student_assignments.fetch',
+            outcome: 'success',
+            statusCode: 200,
+            targetType: 'student',
+            targetId: studentId,
+            resultCount: assignmentsWithStatus.length,
+        });
     } catch (err) {
+        logStudentPortalError(req, {
+            feature: 'assignments',
+            action: 'student_assignments.fetch',
+            statusCode: 500,
+            err,
+            targetType: 'student',
+            targetId: req.user?.id,
+        });
         console.error('Student assignments error:', err);
         res.status(500).json({ error: err.message });
     }
@@ -610,6 +630,9 @@ router.post("/submit", authStudent, async (req, res) => {
 
         const assignment = await Assignment.findOne({ _id: assignmentId, schoolId }).lean();
         if (!assignment) return res.status(404).json({ error: 'Assignment not found' });
+        if (assignment.status !== 'active') {
+            return res.status(400).json({ error: 'This assignment is not accepting submissions right now.' });
+        }
 
         const requiredFormat = assignment.submissionFormat || 'text';
         if (requiredFormat === 'text' && !submissionText?.trim()) {
@@ -630,6 +653,10 @@ router.post("/submit", authStudent, async (req, res) => {
         const existingIndex = progress.submissions.findIndex(
             (sub) => sub.assignmentId.toString() === String(assignmentId)
         );
+        const existingSubmission = existingIndex >= 0 ? progress.submissions[existingIndex] : null;
+        if (existingSubmission) {
+            return res.status(400).json({ error: 'This assignment has already been submitted and cannot be edited, deleted, or resubmitted.' });
+        }
 
         const submissionData = {
             submittedAt: new Date(),
@@ -638,23 +665,42 @@ router.post("/submit", authStudent, async (req, res) => {
             attachmentUrl: attachmentUrl || ''
         };
 
-        if (existingIndex >= 0) {
-            progress.submissions[existingIndex].submittedAt = submissionData.submittedAt;
-            progress.submissions[existingIndex].status = submissionData.status;
-            progress.submissions[existingIndex].submissionText = submissionData.submissionText;
-            progress.submissions[existingIndex].attachmentUrl = submissionData.attachmentUrl;
-        } else {
-            progress.submissions.push({
-                assignmentId,
-                ...submissionData
-            });
-        }
+        progress.submissions.push({
+            assignmentId,
+            ...submissionData
+        });
 
         progress.lastUpdated = new Date();
         await progress.save();
 
-        res.status(201).json({ message: 'Assignment submitted', status });
+        res.status(201).json({
+            message: 'Assignment submitted',
+            status,
+            submittedAt: submissionData.submittedAt,
+            submissionText: submissionData.submissionText,
+            attachmentUrl: submissionData.attachmentUrl,
+        });
+        logStudentPortalEvent(req, {
+            feature: 'assignments',
+            action: 'assignment_submit.create',
+            outcome: 'success',
+            statusCode: 201,
+            targetType: 'assignment',
+            targetId: assignmentId,
+            studentId: req.user?.id,
+            submissionStatus: status,
+            hasAttachment: Boolean(attachmentUrl),
+        });
     } catch (err) {
+        logStudentPortalError(req, {
+            feature: 'assignments',
+            action: 'assignment_submit.create',
+            statusCode: 400,
+            err,
+            targetType: 'assignment',
+            targetId: req.body?.assignmentId,
+            studentId: req.user?.id,
+        });
         res.status(400).json({ error: err.message });
     }
 });
@@ -784,8 +830,26 @@ router.get("/my-submissions", authStudent, async (req, res) => {
         const progress = await StudentProgress.findOne({ studentId: req.user.id, schoolId })
             .populate('submissions.assignmentId', 'title subject dueDate marks')
             .lean();
-        res.json(progress?.submissions || []);
+        const submissions = progress?.submissions || [];
+        res.json(submissions);
+        logStudentPortalEvent(req, {
+            feature: 'assignments',
+            action: 'my_submissions.fetch',
+            outcome: 'success',
+            statusCode: 200,
+            targetType: 'student',
+            targetId: req.user?.id,
+            resultCount: submissions.length,
+        });
     } catch (err) {
+        logStudentPortalError(req, {
+            feature: 'assignments',
+            action: 'my_submissions.fetch',
+            statusCode: 500,
+            err,
+            targetType: 'student',
+            targetId: req.user?.id,
+        });
         res.status(500).json({ error: err.message });
     }
 });

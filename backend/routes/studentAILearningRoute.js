@@ -3,6 +3,7 @@ const router = express.Router();
 const StudentUser = require('../models/StudentUser');
 const authStudent = require('../middleware/authStudent');
 const { logger } = require('../utils/logger');
+const { logStudentPortalEvent, logStudentPortalError } = require('../utils/studentPortalLogger');
 
 const ensureStudentAccess = (req, res, studentId) => {
   if (req.userType === 'Admin') return true;
@@ -16,6 +17,12 @@ router.get('/courses/:studentId', authStudent, async (req, res) => {
   // #swagger.tags = ['Student AI Learning']
   try {
     const { studentId } = req.params;
+    logStudentPortalEvent(req, {
+      feature: 'ai_learning',
+      action: 'courses.fetch',
+      targetType: 'student',
+      targetId: studentId,
+    });
     if (!ensureStudentAccess(req, res, studentId)) return;
     const schoolId = req.schoolId || req.user?.schoolId || null;
     if (!schoolId) {
@@ -31,7 +38,24 @@ router.get('/courses/:studentId', authStudent, async (req, res) => {
     const courses = getCoursesForGrade(student.grade);
     
     res.status(200).json(courses);
+    logStudentPortalEvent(req, {
+      feature: 'ai_learning',
+      action: 'courses.fetch',
+      outcome: 'success',
+      statusCode: 200,
+      targetType: 'student',
+      targetId: studentId,
+      resultCount: Array.isArray(courses) ? courses.length : 0,
+    });
   } catch (error) {
+    logStudentPortalError(req, {
+      feature: 'ai_learning',
+      action: 'courses.fetch',
+      statusCode: 500,
+      err: error,
+      targetType: 'student',
+      targetId: req.params.studentId,
+    });
     (req.log || logger).error({ err: error, studentId: req.params.studentId }, 'Error fetching AI courses');
     res.status(500).json({ error: 'Internal server error' });
   }
@@ -42,6 +66,16 @@ router.post('/generate-content', async (req, res) => {
   // #swagger.tags = ['Student AI Learning']
   try {
     const { topic, subject, contentType, difficulty } = req.body;
+    logStudentPortalEvent(req, {
+      feature: 'ai_learning',
+      action: 'content.generate',
+      targetType: 'student',
+      targetId: req.user?.id,
+      contentType,
+      topic,
+      subject,
+      difficulty,
+    });
 
     let generatedContent;
     
@@ -69,7 +103,28 @@ router.post('/generate-content', async (req, res) => {
       success: true,
       content: generatedContent
     });
+    logStudentPortalEvent(req, {
+      feature: 'ai_learning',
+      action: 'content.generate',
+      outcome: 'success',
+      statusCode: 200,
+      targetType: 'student',
+      targetId: req.user?.id,
+      contentType,
+      topic,
+      subject,
+    });
   } catch (error) {
+    logStudentPortalError(req, {
+      feature: 'ai_learning',
+      action: 'content.generate',
+      statusCode: 500,
+      err: error,
+      targetType: 'student',
+      targetId: req.user?.id,
+      contentType: req.body?.contentType,
+      topic: req.body?.topic,
+    });
     (req.log || logger).error({ err: error, contentType: req.body?.contentType, topic: req.body?.topic }, 'Error generating AI content');
     res.status(500).json({ error: 'Failed to generate content' });
   }
@@ -80,6 +135,12 @@ router.get('/progress/:studentId', authStudent, async (req, res) => {
   // #swagger.tags = ['Student AI Learning']
   try {
     const { studentId } = req.params;
+    logStudentPortalEvent(req, {
+      feature: 'ai_learning',
+      action: 'progress.fetch',
+      targetType: 'student',
+      targetId: studentId,
+    });
     if (!ensureStudentAccess(req, res, studentId)) return;
     
     // Mock progress data - in real implementation, this would come from a progress tracking system
@@ -104,7 +165,24 @@ router.get('/progress/:studentId', authStudent, async (req, res) => {
     };
 
     res.status(200).json(progress);
+    logStudentPortalEvent(req, {
+      feature: 'ai_learning',
+      action: 'progress.fetch',
+      outcome: 'success',
+      statusCode: 200,
+      targetType: 'student',
+      targetId: studentId,
+      weeklyProgress: progress.weeklyProgress,
+    });
   } catch (error) {
+    logStudentPortalError(req, {
+      feature: 'ai_learning',
+      action: 'progress.fetch',
+      statusCode: 500,
+      err: error,
+      targetType: 'student',
+      targetId: req.params.studentId,
+    });
     (req.log || logger).error({ err: error, studentId: req.params.studentId }, 'Error fetching AI learning progress');
     res.status(500).json({ error: 'Internal server error' });
   }
@@ -115,6 +193,17 @@ router.post('/activity', authStudent, async (req, res) => {
   // #swagger.tags = ['Student AI Learning']
   try {
     const { studentId, topic, subject, activityType, timeSpent, completed } = req.body;
+    logStudentPortalEvent(req, {
+      feature: 'ai_learning',
+      action: 'activity.save',
+      targetType: 'student',
+      targetId: studentId,
+      activityType,
+      topic,
+      subject,
+      timeSpent,
+      completed: Boolean(completed),
+    });
     if (!ensureStudentAccess(req, res, studentId)) return;
     
     // In real implementation, save to database
@@ -134,7 +223,26 @@ router.post('/activity', authStudent, async (req, res) => {
       message: 'Activity logged successfully',
       activity
     });
+    logStudentPortalEvent(req, {
+      feature: 'ai_learning',
+      action: 'activity.save',
+      outcome: 'success',
+      statusCode: 200,
+      targetType: 'student',
+      targetId: studentId,
+      activityType,
+      topic,
+    });
   } catch (error) {
+    logStudentPortalError(req, {
+      feature: 'ai_learning',
+      action: 'activity.save',
+      statusCode: 500,
+      err: error,
+      targetType: 'student',
+      targetId: req.body?.studentId,
+      activityType: req.body?.activityType,
+    });
     (req.log || logger).error({ err: error, studentId: req.body?.studentId, activityType: req.body?.activityType }, 'Error saving AI learning activity');
     res.status(500).json({ error: 'Failed to save activity' });
   }
@@ -145,6 +253,12 @@ router.get('/recommendations/:studentId', authStudent, async (req, res) => {
   // #swagger.tags = ['Student AI Learning']
   try {
     const { studentId } = req.params;
+    logStudentPortalEvent(req, {
+      feature: 'ai_learning',
+      action: 'recommendations.fetch',
+      targetType: 'student',
+      targetId: studentId,
+    });
     if (!ensureStudentAccess(req, res, studentId)) return;
     
     const recommendations = [
@@ -178,7 +292,24 @@ router.get('/recommendations/:studentId', authStudent, async (req, res) => {
     ];
 
     res.status(200).json(recommendations);
+    logStudentPortalEvent(req, {
+      feature: 'ai_learning',
+      action: 'recommendations.fetch',
+      outcome: 'success',
+      statusCode: 200,
+      targetType: 'student',
+      targetId: studentId,
+      resultCount: recommendations.length,
+    });
   } catch (error) {
+    logStudentPortalError(req, {
+      feature: 'ai_learning',
+      action: 'recommendations.fetch',
+      statusCode: 500,
+      err: error,
+      targetType: 'student',
+      targetId: req.params.studentId,
+    });
     (req.log || logger).error({ err: error, studentId: req.params.studentId }, 'Error fetching AI recommendations');
     res.status(500).json({ error: 'Internal server error' });
   }

@@ -20,6 +20,7 @@ const adminAuth = require('../middleware/adminAuth');
 const teacherAuth = require('../middleware/authTeacher');
 const NotificationService = require('../utils/notificationService');
 const authStudent = require('../middleware/authStudent');
+const { logStudentPortalEvent, logStudentPortalError } = require('../utils/studentPortalLogger');
 
 // Configure multer for CSV upload
 const upload = multer({ dest: 'uploads/' });
@@ -1074,7 +1075,24 @@ router.get("/results/me", authStudent, async (req, res) => {
             .populate('examId', 'title subject date term grade section classId sectionId subjectId')
             .lean();
         res.json(results);
+        logStudentPortalEvent(req, {
+            feature: 'results',
+            action: 'exam_results.fetch',
+            outcome: 'success',
+            statusCode: 200,
+            targetType: 'student',
+            targetId: req.user?.id,
+            resultCount: results.length,
+        });
     } catch (err) {
+        logStudentPortalError(req, {
+            feature: 'results',
+            action: 'exam_results.fetch',
+            statusCode: 500,
+            err,
+            targetType: 'student',
+            targetId: req.user?.id,
+        });
         res.status(500).json({ error: err.message });
     }
 });

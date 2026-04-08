@@ -9,6 +9,7 @@ const TeacherAllocation = require('../models/TeacherAllocation');
 const ClassModel = require('../models/Class');
 const Section = require('../models/Section');
 const School = require('../models/School');
+const { logStudentPortalEvent, logStudentPortalError } = require('../utils/studentPortalLogger');
 
 const router = express.Router();
 
@@ -34,6 +35,12 @@ const buildSchoolMeta = async (schoolId) => {
 // Student: list own letters
 router.get('/student', authStudent, async (req, res) => {
   try {
+    logStudentPortalEvent(req, {
+      feature: 'excuse_letter',
+      action: 'excuse_letters.fetch',
+      targetType: 'student',
+      targetId: req.user?.id,
+    });
     const schoolId = req.schoolId;
     const campusId = req.campusId || null;
     const studentId = req.user?.id;
@@ -48,7 +55,24 @@ router.get('/student', authStudent, async (req, res) => {
       .lean();
 
     res.json(items);
+    logStudentPortalEvent(req, {
+      feature: 'excuse_letter',
+      action: 'excuse_letters.fetch',
+      outcome: 'success',
+      statusCode: 200,
+      targetType: 'student',
+      targetId: studentId,
+      resultCount: items.length,
+    });
   } catch (err) {
+    logStudentPortalError(req, {
+      feature: 'excuse_letter',
+      action: 'excuse_letters.fetch',
+      statusCode: 400,
+      err,
+      targetType: 'student',
+      targetId: req.user?.id,
+    });
     res.status(400).json({ error: err.message });
   }
 });
@@ -56,6 +80,13 @@ router.get('/student', authStudent, async (req, res) => {
 // Student: create letter
 router.post('/student', authStudent, async (req, res) => {
   try {
+    logStudentPortalEvent(req, {
+      feature: 'excuse_letter',
+      action: 'excuse_letter.create',
+      targetType: 'student',
+      targetId: req.user?.id,
+      reasonType: req.body?.reasonType || undefined,
+    });
     const schoolId = req.schoolId;
     const campusId = req.campusId || null;
     const studentId = req.user?.id;
@@ -117,7 +148,25 @@ router.post('/student', authStudent, async (req, res) => {
     });
 
     res.status(201).json(created);
+    logStudentPortalEvent(req, {
+      feature: 'excuse_letter',
+      action: 'excuse_letter.create',
+      outcome: 'success',
+      statusCode: 201,
+      targetType: 'excuse_letter',
+      targetId: created._id,
+      reasonType: created.reasonType,
+    });
   } catch (err) {
+    logStudentPortalError(req, {
+      feature: 'excuse_letter',
+      action: 'excuse_letter.create',
+      statusCode: 400,
+      err,
+      targetType: 'student',
+      targetId: req.user?.id,
+      reasonType: req.body?.reasonType || undefined,
+    });
     res.status(400).json({ error: err.message });
   }
 });

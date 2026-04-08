@@ -7,6 +7,7 @@ const StudentUser = require('../models/StudentUser');
 const teacherAuth = require('../middleware/authTeacher');
 const authAnyUser = require('../middleware/authAnyUser');
 const authStudent = require('../middleware/authStudent');
+const { logStudentPortalEvent, logStudentPortalError } = require('../utils/studentPortalLogger');
 
 const resolveSchoolId = (req, res) => {
   const schoolId = req.schoolId || req.user?.schoolId || null;
@@ -46,6 +47,14 @@ router.post('/posts', teacherAuth, async (req, res) => {
 router.get('/posts', authAnyUser, async (req, res) => {
   // #swagger.tags = ['Alcove']
   try {
+    logStudentPortalEvent(req, {
+      feature: 'academic_alcove',
+      action: 'posts.fetch',
+      targetType: 'student',
+      targetId: req.user?.id,
+      page: Number(req.query?.page || 1),
+      limit: Number(req.query?.limit || 20),
+    });
     const schoolId = resolveSchoolId(req, res);
     if (!schoolId) return;
     const { subject, chapter, difficulty, q, page = 1, limit = 20 } = req.query;
@@ -70,7 +79,25 @@ router.get('/posts', authAnyUser, async (req, res) => {
       AlcovePost.countDocuments(filter),
     ]);
     res.json({ items, total, page: Number(page), limit: Number(limit) });
+    logStudentPortalEvent(req, {
+      feature: 'academic_alcove',
+      action: 'posts.fetch',
+      outcome: 'success',
+      statusCode: 200,
+      targetType: 'student',
+      targetId: req.user?.id,
+      resultCount: Array.isArray(items) ? items.length : 0,
+      total,
+    });
   } catch (err) {
+    logStudentPortalError(req, {
+      feature: 'academic_alcove',
+      action: 'posts.fetch',
+      statusCode: 400,
+      err,
+      targetType: 'student',
+      targetId: req.user?.id,
+    });
     res.status(400).json({ error: err.message });
   }
 });
@@ -131,7 +158,24 @@ router.get('/posts/:id/comments', authAnyUser, async (req, res) => {
     if (!schoolId) return;
     const items = await AlcoveComment.find({ post: req.params.id, schoolId }).sort({ createdAt: 1 });
     res.json(items);
+    logStudentPortalEvent(req, {
+      feature: 'academic_alcove',
+      action: 'comments.fetch',
+      outcome: 'success',
+      statusCode: 200,
+      targetType: 'alcove_post',
+      targetId: req.params.id,
+      resultCount: Array.isArray(items) ? items.length : 0,
+    });
   } catch (err) {
+    logStudentPortalError(req, {
+      feature: 'academic_alcove',
+      action: 'comments.fetch',
+      statusCode: 400,
+      err,
+      targetType: 'alcove_post',
+      targetId: req.params.id,
+    });
     res.status(400).json({ error: err.message });
   }
 });
@@ -153,7 +197,24 @@ router.post('/posts/:id/comments', authAnyUser, async (req, res) => {
       authorName: authorName?.trim() || 'Anonymous',
     });
     res.status(201).json(comment);
+    logStudentPortalEvent(req, {
+      feature: 'academic_alcove',
+      action: 'comment.create',
+      outcome: 'success',
+      statusCode: 201,
+      targetType: 'alcove_comment',
+      targetId: comment._id,
+      postId: req.params.id,
+    });
   } catch (err) {
+    logStudentPortalError(req, {
+      feature: 'academic_alcove',
+      action: 'comment.create',
+      statusCode: 400,
+      err,
+      targetType: 'alcove_post',
+      targetId: req.params.id,
+    });
     res.status(400).json({ error: err.message });
   }
 });
@@ -230,7 +291,24 @@ router.post('/posts/:postId/submissions', authStudent, async (req, res) => {
       message: 'Answer submitted successfully',
       submission
     });
+    logStudentPortalEvent(req, {
+      feature: 'academic_alcove',
+      action: 'submission.create',
+      outcome: 'success',
+      statusCode: 201,
+      targetType: 'alcove_submission',
+      targetId: submission._id,
+      postId,
+    });
   } catch (err) {
+    logStudentPortalError(req, {
+      feature: 'academic_alcove',
+      action: 'submission.create',
+      statusCode: 400,
+      err,
+      targetType: 'alcove_post',
+      targetId: req.params.postId,
+    });
     if (err.code === 11000) {
       // Duplicate key error (shouldn't happen with findOneAndUpdate)
       res.status(400).json({ error: 'You have already submitted an answer' });
@@ -264,7 +342,24 @@ router.get('/posts/:postId/submissions', authAnyUser, async (req, res) => {
     .lean();
 
     res.json(submissions);
+    logStudentPortalEvent(req, {
+      feature: 'academic_alcove',
+      action: 'submissions.fetch',
+      outcome: 'success',
+      statusCode: 200,
+      targetType: 'alcove_post',
+      targetId: postId,
+      resultCount: Array.isArray(submissions) ? submissions.length : 0,
+    });
   } catch (err) {
+    logStudentPortalError(req, {
+      feature: 'academic_alcove',
+      action: 'submissions.fetch',
+      statusCode: 400,
+      err,
+      targetType: 'alcove_post',
+      targetId: req.params.postId,
+    });
     res.status(400).json({ error: err.message });
   }
 });
@@ -285,7 +380,24 @@ router.get('/posts/:postId/my-submission', authStudent, async (req, res) => {
     });
 
     res.json(submission || null);
+    logStudentPortalEvent(req, {
+      feature: 'academic_alcove',
+      action: 'my_submission.fetch',
+      outcome: 'success',
+      statusCode: 200,
+      targetType: 'alcove_post',
+      targetId: postId,
+      hasSubmission: Boolean(submission),
+    });
   } catch (err) {
+    logStudentPortalError(req, {
+      feature: 'academic_alcove',
+      action: 'my_submission.fetch',
+      statusCode: 400,
+      err,
+      targetType: 'alcove_post',
+      targetId: req.params.postId,
+    });
     res.status(400).json({ error: err.message });
   }
 });

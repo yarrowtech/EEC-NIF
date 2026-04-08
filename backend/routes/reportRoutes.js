@@ -18,6 +18,7 @@ const Exam = require('../models/Exam');
 const ExamGroup = require('../models/ExamGroup');
 const TeacherAllocation = require('../models/TeacherAllocation');
 const Principal = require('../models/Principal');
+const { logStudentPortalEvent, logStudentPortalError } = require('../utils/studentPortalLogger');
 
 const router = express.Router();
 
@@ -594,6 +595,13 @@ router.post('/report-cards/bulk', adminAuth, async (req, res) => {
 
 router.get('/report-cards/me', authStudent, async (req, res) => {
   try {
+    logStudentPortalEvent(req, {
+      feature: 'results',
+      action: 'report_card.fetch',
+      targetType: 'student',
+      targetId: req.user?.id,
+      examGroupId: req.query?.examGroupId || undefined,
+    });
     const schoolId = resolveSchoolId(req, res);
     if (!schoolId) return;
     const campusId = resolveCampusId(req);
@@ -705,7 +713,26 @@ router.get('/report-cards/me', authStudent, async (req, res) => {
       selectedExamGroupId: selectedExamGroup?._id || '',
       selectedExamGroupTitle: selectedExamGroup?.title || '',
     });
+    logStudentPortalEvent(req, {
+      feature: 'results',
+      action: 'report_card.fetch',
+      outcome: 'success',
+      statusCode: 200,
+      targetType: 'student',
+      targetId: req.user?.id,
+      resultCount: reportCard ? 1 : 0,
+      examGroupId: selectedExamGroup?._id || undefined,
+    });
   } catch (err) {
+    logStudentPortalError(req, {
+      feature: 'results',
+      action: 'report_card.fetch',
+      statusCode: 500,
+      err,
+      targetType: 'student',
+      targetId: req.user?.id,
+      examGroupId: req.query?.examGroupId || undefined,
+    });
     res.status(500).json({ error: err.message });
   }
 });

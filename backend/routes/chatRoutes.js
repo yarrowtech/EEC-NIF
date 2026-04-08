@@ -14,6 +14,7 @@ const TeacherAllocation = require('../models/TeacherAllocation');
 const ChatKey = require('../models/ChatKey');
 const { getPresenceSnapshot } = require('../utils/chatPresence');
 const { syncAllocationGroupThreads, syncTimetableGroupThreads } = require('../utils/chatGroupProvisioning');
+const { logStudentPortalEvent, logStudentPortalError } = require('../utils/studentPortalLogger');
 
 const router = express.Router();
 router.use(authAnyUser);
@@ -460,7 +461,23 @@ router.get('/me', async (req, res) => {
       avatar = null;
     }
     res.json({ id, userType, name, avatar, schoolId, campusId });
+    logStudentPortalEvent(req, {
+      feature: 'chat',
+      action: 'me.fetch',
+      outcome: 'success',
+      statusCode: 200,
+      targetType: 'student',
+      targetId: id,
+    });
   } catch (err) {
+    logStudentPortalError(req, {
+      feature: 'chat',
+      action: 'me.fetch',
+      statusCode: 500,
+      err,
+      targetType: 'student',
+      targetId: req.user?.id,
+    });
     res.status(500).json({ error: err.message });
   }
 });
@@ -777,11 +794,37 @@ router.get('/contacts', async (req, res) => {
         userType: 'student',
         avatar: s.profilePic || null,
       }));
+      logStudentPortalEvent(req, {
+        feature: 'chat',
+        action: 'contacts.fetch',
+        outcome: 'success',
+        statusCode: 200,
+        targetType: 'student',
+        targetId: req.user?.id,
+        resultCount: items.length,
+      });
       return res.json(items);
     }
 
+    logStudentPortalEvent(req, {
+      feature: 'chat',
+      action: 'contacts.fetch',
+      outcome: 'success',
+      statusCode: 200,
+      targetType: 'student',
+      targetId: req.user?.id,
+      resultCount: 0,
+    });
     res.json([]);
   } catch (err) {
+    logStudentPortalError(req, {
+      feature: 'chat',
+      action: 'contacts.fetch',
+      statusCode: 500,
+      err,
+      targetType: 'student',
+      targetId: req.user?.id,
+    });
     res.status(500).json({ error: err.message });
   }
 });
@@ -925,11 +968,29 @@ router.get('/threads', async (req, res) => {
     }
 
     if (!isTeacherRequest(req)) {
+      logStudentPortalEvent(req, {
+        feature: 'chat',
+        action: 'threads.fetch',
+        outcome: 'success',
+        statusCode: 200,
+        targetType: 'student',
+        targetId: req.user?.id,
+        resultCount: result.length,
+      });
       return res.json(result);
     }
 
     const combos = await getTeacherCombos(req);
     if (!combos?.length) {
+      logStudentPortalEvent(req, {
+        feature: 'chat',
+        action: 'threads.fetch',
+        outcome: 'success',
+        statusCode: 200,
+        targetType: 'student',
+        targetId: req.user?.id,
+        resultCount: 0,
+      });
       return res.json([]);
     }
 
@@ -956,8 +1017,25 @@ router.get('/threads', async (req, res) => {
       return studentMatchesCombos(student, combos);
     });
 
+    logStudentPortalEvent(req, {
+      feature: 'chat',
+      action: 'threads.fetch',
+      outcome: 'success',
+      statusCode: 200,
+      targetType: 'student',
+      targetId: req.user?.id,
+      resultCount: filtered.length,
+    });
     res.json(filtered);
   } catch (err) {
+    logStudentPortalError(req, {
+      feature: 'chat',
+      action: 'threads.fetch',
+      statusCode: 500,
+      err,
+      targetType: 'student',
+      targetId: req.user?.id,
+    });
     res.status(500).json({ error: err.message });
   }
 });
@@ -1087,7 +1165,27 @@ router.post('/threads/direct', async (req, res) => {
       lastMessageAt: thread.lastMessageAt,
       unreadCount: 0,
     });
+    logStudentPortalEvent(req, {
+      feature: 'chat',
+      action: 'thread_direct.open',
+      outcome: 'success',
+      statusCode: 200,
+      targetType: 'chat_thread',
+      targetId: thread._id,
+      otherUserType: normalizedTargetType,
+      otherUserId: targetId,
+    });
   } catch (err) {
+    logStudentPortalError(req, {
+      feature: 'chat',
+      action: 'thread_direct.open',
+      statusCode: 500,
+      err,
+      targetType: 'student',
+      targetId: req.user?.id,
+      otherUserId: req.body?.targetId,
+      otherUserType: req.body?.targetType,
+    });
     res.status(500).json({ error: err.message });
   }
 });
@@ -1127,8 +1225,25 @@ router.get('/threads/:threadId/messages', async (req, res) => {
     );
     await markThreadMessagesSeen({ threadId, schoolId, campusId, userId });
 
+    logStudentPortalEvent(req, {
+      feature: 'chat',
+      action: 'messages.fetch',
+      outcome: 'success',
+      statusCode: 200,
+      targetType: 'chat_thread',
+      targetId: threadId,
+      resultCount: messages.length,
+    });
     res.json(messages);
   } catch (err) {
+    logStudentPortalError(req, {
+      feature: 'chat',
+      action: 'messages.fetch',
+      statusCode: 500,
+      err,
+      targetType: 'chat_thread',
+      targetId: req.params.threadId,
+    });
     res.status(500).json({ error: err.message });
   }
 });
@@ -1160,8 +1275,24 @@ router.get('/threads/:threadId/presence', async (req, res) => {
       presence[pid] = getPresenceSnapshot(pid);
     });
 
+    logStudentPortalEvent(req, {
+      feature: 'chat',
+      action: 'presence.fetch',
+      outcome: 'success',
+      statusCode: 200,
+      targetType: 'chat_thread',
+      targetId: threadId,
+    });
     res.json({ threadId, presence });
   } catch (err) {
+    logStudentPortalError(req, {
+      feature: 'chat',
+      action: 'presence.fetch',
+      statusCode: 500,
+      err,
+      targetType: 'chat_thread',
+      targetId: req.params.threadId,
+    });
     res.status(500).json({ error: err.message });
   }
 });
@@ -1258,8 +1389,27 @@ router.post('/threads/:threadId/messages', async (req, res) => {
       bulkOps.length ? ChatThread.bulkWrite(bulkOps) : Promise.resolve(),
     ]);
 
+    logStudentPortalEvent(req, {
+      feature: 'chat',
+      action: 'message.send',
+      outcome: 'success',
+      statusCode: 201,
+      targetType: 'chat_thread',
+      targetId: threadId,
+      messageId: msg._id,
+      hasEncrypted,
+      hasPlainText: Boolean(plainText),
+    });
     res.status(201).json(msg);
   } catch (err) {
+    logStudentPortalError(req, {
+      feature: 'chat',
+      action: 'message.send',
+      statusCode: 500,
+      err,
+      targetType: 'chat_thread',
+      targetId: req.params.threadId,
+    });
     res.status(500).json({ error: err.message });
   }
 });

@@ -346,23 +346,29 @@ const Assignment = ({ assignmentType, filter, setFilter }) => {
         : Array.isArray(response.data?.assignments)
           ? response.data.assignments
           : [];
-      const transformedAssignments = assignmentsPayload.map(assignment => ({
-        id: assignment._id,
-        title: assignment.title,
-        course: assignment.subject,
-        dueDate: assignment.dueDate,
-        status: assignment.submissionStatus === 'submitted' || assignment.submissionStatus === 'graded' ? 'completed' :
-                assignment.submissionStatus === 'not_submitted' && new Date(assignment.dueDate) < new Date() ? 'overdue' : 'pending',
-        priority: 'medium',
-        description: assignment.description,
-        submissionFormat: assignment.submissionFormat === 'pdf' ? 'pdf' : 'text',
-        maxMarks: assignment.marks,
-        submittedAt: assignment.submittedAt,
-        score: assignment.score,
-        feedback: assignment.feedback,
-        teacherName: assignment.teacherId?.name,
-        attachments: assignment.attachments || []
-      }));
+      const transformedAssignments = assignmentsPayload.map((assignment) => {
+        const state = getAssignmentState(assignment);
+        return {
+          id: assignment._id,
+          title: assignment.title,
+          course: assignment.subject,
+          dueDate: assignment.dueDate,
+          status: state.bucket,
+          statusLabel: state.label,
+          submissionStatus: state.rawStatus,
+          priority: 'medium',
+          description: assignment.description,
+          submissionFormat: assignment.submissionFormat === 'pdf' ? 'pdf' : 'text',
+          maxMarks: assignment.marks,
+          submittedAt: assignment.submittedAt,
+          submissionText: assignment.submissionText || '',
+          submissionAttachmentUrl: assignment.attachmentUrl || '',
+          score: assignment.score,
+          feedback: assignment.feedback,
+          teacherName: assignment.teacherId?.name,
+          attachments: assignment.attachments || []
+        };
+      });
 
       setAssignments(transformedAssignments);
     } catch (err) {
@@ -389,10 +395,10 @@ const Assignment = ({ assignmentType, filter, setFilter }) => {
 
 const openDetail = (assignment) => {
   setSelectedAssignment(assignment);
-  setSubmissionText('');
+  setSubmissionText(assignment.submissionText || '');
   setSubmitSuccess(false);
-  setSubmissionFileUrl('');
-  setSubmissionFileName('');
+  setSubmissionFileUrl(assignment.submissionAttachmentUrl || '');
+  setSubmissionFileName(getFileNameFromUrl(assignment.submissionAttachmentUrl));
 };
 
 const closeDetail = () => {
@@ -416,7 +422,7 @@ const closeDetail = () => {
     try {
       setSubmitting(true);
       const token = localStorage.getItem('token');
-      await axios.post(
+      const response = await axios.post(
         `${API_BASE_URL}/api/assignment/submit`,
         {
           assignmentId: selectedAssignment.id,
@@ -431,7 +437,20 @@ const closeDetail = () => {
       // Refresh list so card status updates
       await fetchAssignments();
       // Update the open modal card too
-      setSelectedAssignment(prev => ({ ...prev, status: 'completed' }));
+      setSelectedAssignment((prev) => {
+        if (!prev) return prev;
+        const rawSubmissionStatus = response.data?.status || (new Date(prev.dueDate) < new Date() ? 'late' : 'submitted');
+        const state = getAssignmentState({ ...prev, submissionStatus: rawSubmissionStatus });
+        return {
+          ...prev,
+          status: state.bucket,
+          statusLabel: state.label,
+          submissionStatus: state.rawStatus,
+          submittedAt: response.data?.submittedAt || new Date().toISOString(),
+          submissionText: response.data?.submissionText ?? submissionText,
+          submissionAttachmentUrl: response.data?.attachmentUrl ?? (requiresPdfUpload ? submissionFileUrl : ''),
+        };
+      });
     } catch (err) {
       console.error('Submit error:', err);
       alert(err.response?.data?.error || 'Failed to submit. Please try again.');
@@ -536,6 +555,29 @@ const closeDetail = () => {
   };
 
   // Helper functions
+  const getAssignmentState = (assignment) => {
+    const rawStatus = String(assignment?.submissionStatus || 'not_submitted').toLowerCase();
+    const dueDate = assignment?.dueDate ? new Date(assignment.dueDate) : null;
+    const isPastDue = dueDate && !Number.isNaN(dueDate.getTime()) ? dueDate < new Date() : false;
+
+    if (rawStatus === 'graded') return { bucket: 'completed', label: 'Completed', rawStatus };
+    if (rawStatus === 'submitted') return { bucket: 'pending', label: 'Submitted', rawStatus };
+    if (rawStatus === 'late') return { bucket: 'pending', label: 'Submitted Late', rawStatus };
+    if (rawStatus === 'not_submitted' && isPastDue) return { bucket: 'overdue', label: 'Overdue', rawStatus };
+    return { bucket: 'pending', label: 'Pending', rawStatus };
+  };
+
+  const getFileNameFromUrl = (url) => {
+    if (!url) return '';
+    try {
+      const pathname = new URL(url).pathname;
+      return decodeURIComponent(pathname.split('/').filter(Boolean).pop() || '');
+    } catch {
+      const normalized = String(url).split('?')[0];
+      return decodeURIComponent(normalized.split('/').filter(Boolean).pop() || '');
+    }
+  };
+
   const getStatusColor = (status) => {
     switch (status) {
       case 'completed': return 'text-green-600 bg-green-100';
@@ -1183,7 +1225,7 @@ const closeDetail = () => {
                       <div className="flex items-start justify-between gap-2 mb-2">
                         <h3 className="text-sm font-semibold text-gray-900 line-clamp-2 leading-snug flex-1">{assignment.title}</h3>
                         <span className={`shrink-0 px-2 py-0.5 rounded-full text-[11px] font-semibold capitalize border ${getStatusColor(assignment.status)}`}>
-                          {assignment.status}
+                          {assignment.statusLabel || assignment.status}
                         </span>
                       </div>
 
@@ -1254,7 +1296,9 @@ const closeDetail = () => {
           const days = getDaysRemaining(a.dueDate);
           const daysText = days < 0 ? `${Math.abs(days)} days overdue` : days === 0 ? 'Due today' : `${days} days remaining`;
           const daysColor = days < 0 ? 'text-red-600 bg-red-50 border-red-200' : days <= 3 ? 'text-amber-700 bg-amber-50 border-amber-200' : 'text-green-700 bg-green-50 border-green-200';
-          const isSubmitted = a.status === 'completed';
+          const isGraded = a.submissionStatus === 'graded';
+          const isSubmitted = ['submitted', 'late', 'graded'].includes(a.submissionStatus);
+          const isLateSubmission = a.submissionStatus === 'late';
           const isOverdue = a.status === 'overdue';
           const requiresPdfUpload = a.submissionFormat === 'pdf';
           const uploadInputId = `assignment-upload-${a.id}`;
@@ -1302,7 +1346,7 @@ const closeDetail = () => {
                   <div className="mt-4 flex flex-wrap gap-2">
                     <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium border ${getStatusColor(a.status)}`}>
                       {getStatusIcon(a.status)}
-                      <span className="capitalize ml-0.5">{a.status}</span>
+                      <span className="capitalize ml-0.5">{a.statusLabel || a.status}</span>
                     </span>
                     <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium border ${daysColor}`}>
                       <Clock className="w-3 h-3 mr-1" />{daysText}
@@ -1395,7 +1439,7 @@ const closeDetail = () => {
                   )}
 
                   {/* Grade / Feedback */}
-                  {isSubmitted && a.score !== undefined && a.score !== null && (
+                  {isGraded && a.score !== undefined && a.score !== null && (
                     <div className="rounded-xl border border-green-200 bg-green-50 p-4">
                       <div className="flex items-center gap-2 mb-2">
                         <Award className="w-5 h-5 text-green-600" />
@@ -1411,20 +1455,56 @@ const closeDetail = () => {
                   )}
 
                   {/* Submitted (no score yet) */}
-                  {isSubmitted && (a.score === undefined || a.score === null) && (
-                    <div className="rounded-xl border border-green-200 bg-green-50 p-4 flex items-center gap-3">
-                      <CheckCircle className="w-5 h-5 text-green-600 shrink-0" />
+                  {isSubmitted && !isGraded && (
+                    <div className={`rounded-xl border p-4 flex items-center gap-3 ${isLateSubmission ? 'border-amber-200 bg-amber-50' : 'border-blue-200 bg-blue-50'}`}>
+                      <CheckCircle className={`w-5 h-5 shrink-0 ${isLateSubmission ? 'text-amber-600' : 'text-blue-600'}`} />
                       <div>
-                        <p className="text-sm font-semibold text-green-800">Submitted</p>
+                        <p className={`text-sm font-semibold ${isLateSubmission ? 'text-amber-800' : 'text-blue-800'}`}>
+                          {isLateSubmission ? 'Submitted Late' : 'Submitted'}
+                        </p>
                         {a.submittedAt && (
-                          <p className="text-xs text-green-600">on {formatDate(a.submittedAt)}</p>
+                          <p className={`text-xs ${isLateSubmission ? 'text-amber-700' : 'text-blue-700'}`}>on {formatDate(a.submittedAt)}</p>
                         )}
+                        <p className={`text-xs mt-1 ${isLateSubmission ? 'text-amber-700' : 'text-blue-700'}`}>
+                          Waiting for teacher review.
+                        </p>
+                        <p className={`text-xs mt-1 ${isLateSubmission ? 'text-amber-700' : 'text-blue-700'}`}>
+                          Submitted work is locked and cannot be edited or deleted.
+                        </p>
                       </div>
                     </div>
                   )}
 
+                  {/* Submitted answer */}
+                  {isSubmitted && (
+                    <div className="space-y-3">
+                      <h3 className="text-sm font-semibold text-gray-700 uppercase tracking-wide">Your Submission</h3>
+                      {a.submissionText && (
+                        <div className="rounded-xl border border-gray-200 bg-gray-50 p-4">
+                          <p className="text-sm text-gray-700 whitespace-pre-line">{a.submissionText}</p>
+                        </div>
+                      )}
+                      {a.submissionAttachmentUrl && (
+                        <a
+                          href={a.submissionAttachmentUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex items-center gap-3 p-3 bg-purple-50 border border-purple-200 rounded-xl hover:bg-purple-100 transition-colors"
+                        >
+                          <div className="w-8 h-8 rounded-lg bg-purple-100 flex items-center justify-center shrink-0">
+                            <FileText className="w-4 h-4 text-purple-600" />
+                          </div>
+                          <span className="text-sm text-purple-700 font-medium truncate flex-1">
+                            {getFileNameFromUrl(a.submissionAttachmentUrl) || 'Submitted PDF'}
+                          </span>
+                          <Download className="w-4 h-4 text-purple-500 shrink-0" />
+                        </a>
+                      )}
+                    </div>
+                  )}
+
                   {/* Submit section */}
-                  {!isSubmitted && (
+                  {!isSubmitted && !isGraded && (
                     <div>
                       <h3 className="text-sm font-semibold text-gray-700 uppercase tracking-wide mb-2">
                         {isOverdue ? 'Submit (Late)' : requiresPdfUpload ? 'Upload Your PDF' : 'Your Answer'}

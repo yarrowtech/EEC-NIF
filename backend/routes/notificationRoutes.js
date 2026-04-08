@@ -12,6 +12,7 @@ const ClassModel = require('../models/Class');
 const Section = require('../models/Section');
 const Subject = require('../models/Subject');
 const Timetable = require('../models/Timetable');
+const { logStudentPortalEvent, logStudentPortalError } = require('../utils/studentPortalLogger');
 
 const router = express.Router();
 
@@ -359,6 +360,12 @@ router.delete('/teacher/:id', authTeacher, async (req, res) => {
 router.get('/user', authAnyUser, async (req, res) => {
   // #swagger.tags = ['Notifications']
   try {
+    logStudentPortalEvent(req, {
+      feature: 'noticeboard',
+      action: 'notifications.fetch',
+      targetType: 'student',
+      targetId: req.user?.id,
+    });
     const schoolId = req.schoolId;
     if (!schoolId) return res.status(400).json({ error: 'schoolId is required' });
     const campusId = req.campusId || null;
@@ -529,7 +536,24 @@ router.get('/user', authAnyUser, async (req, res) => {
     }));
 
     res.json(itemsWithReadStatus);
+    logStudentPortalEvent(req, {
+      feature: 'noticeboard',
+      action: 'notifications.fetch',
+      outcome: 'success',
+      statusCode: 200,
+      targetType: 'student',
+      targetId: userId,
+      resultCount: itemsWithReadStatus.length,
+    });
   } catch (err) {
+    logStudentPortalError(req, {
+      feature: 'noticeboard',
+      action: 'notifications.fetch',
+      statusCode: 500,
+      err,
+      targetType: 'student',
+      targetId: req.user?.id,
+    });
     res.status(500).json({ error: err.message });
   }
 });
@@ -640,7 +664,23 @@ router.post('/user/read-all', authAnyUser, async (req, res) => {
     );
 
     res.json({ success: true });
+    logStudentPortalEvent(req, {
+      feature: 'noticeboard',
+      action: 'notifications.read_all',
+      outcome: 'success',
+      statusCode: 200,
+      targetType: 'student',
+      targetId: userId,
+    });
   } catch (err) {
+    logStudentPortalError(req, {
+      feature: 'noticeboard',
+      action: 'notifications.read_all',
+      statusCode: 500,
+      err,
+      targetType: 'student',
+      targetId: req.user?.id,
+    });
     res.status(500).json({ error: err.message });
   }
 });
@@ -681,7 +721,24 @@ router.get('/user/unread-count', authAnyUser, async (req, res) => {
 
     const count = await Notification.countDocuments(filter);
     res.json({ count });
+    logStudentPortalEvent(req, {
+      feature: 'noticeboard',
+      action: 'notifications.unread_count',
+      outcome: 'success',
+      statusCode: 200,
+      targetType: 'student',
+      targetId: userId,
+      resultCount: count,
+    });
   } catch (err) {
+    logStudentPortalError(req, {
+      feature: 'noticeboard',
+      action: 'notifications.unread_count',
+      statusCode: 500,
+      err,
+      targetType: 'student',
+      targetId: req.user?.id,
+    });
     res.status(500).json({ error: err.message });
   }
 });

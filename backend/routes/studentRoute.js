@@ -241,6 +241,7 @@ const rateLimit = require('../middleware/rateLimit');
 const { isStrongPassword, passwordPolicyMessage } = require('../utils/passwordPolicy');
 const authStudent = require('../middleware/authStudent');
 const { logAuthEvent } = require('../utils/authEventLogger');
+const { logStudentPortalEvent, logStudentPortalError } = require('../utils/studentPortalLogger');
 
 // Register Student
 router.post('/register', adminAuth, async (req, res) => {
@@ -731,9 +732,23 @@ router.get('/class-teacher', authStudent, async (req, res) => {
     if (!schoolId || !studentId) {
       return res.status(400).json({ error: 'schoolId and studentId are required' });
     }
+    logStudentPortalEvent(req, {
+      feature: 'dashboard',
+      action: 'class_teacher.fetch',
+      targetType: 'student',
+      targetId: studentId,
+    });
 
     const student = await StudentUser.findById(studentId).select('grade section').lean();
     if (!student) {
+      logStudentPortalEvent(req, {
+        feature: 'dashboard',
+        action: 'class_teacher.fetch',
+        outcome: 'not_found',
+        statusCode: 404,
+        targetType: 'student',
+        targetId: studentId,
+      });
       return res.status(404).json({ error: 'Student not found' });
     }
 
@@ -755,6 +770,15 @@ router.get('/class-teacher', authStudent, async (req, res) => {
     }
 
     if (!classDoc) {
+      logStudentPortalEvent(req, {
+        feature: 'dashboard',
+        action: 'class_teacher.fetch',
+        outcome: 'success',
+        statusCode: 200,
+        targetType: 'teacher',
+        targetId: null,
+        hasTeacher: false,
+      });
       return res.json({ teacher: null });
     }
 
@@ -769,6 +793,15 @@ router.get('/class-teacher', authStudent, async (req, res) => {
       : null;
 
     if (!sectionDoc) {
+      logStudentPortalEvent(req, {
+        feature: 'dashboard',
+        action: 'class_teacher.fetch',
+        outcome: 'success',
+        statusCode: 200,
+        targetType: 'teacher',
+        targetId: null,
+        hasTeacher: false,
+      });
       return res.json({ teacher: null });
     }
 
@@ -784,6 +817,15 @@ router.get('/class-teacher', authStudent, async (req, res) => {
       .lean();
 
     if (!allocation?.teacherId) {
+      logStudentPortalEvent(req, {
+        feature: 'dashboard',
+        action: 'class_teacher.fetch',
+        outcome: 'success',
+        statusCode: 200,
+        targetType: 'teacher',
+        targetId: null,
+        hasTeacher: false,
+      });
       return res.json({ teacher: null });
     }
 
@@ -799,7 +841,25 @@ router.get('/class-teacher', authStudent, async (req, res) => {
         sectionName: sectionDoc.name || '',
       },
     });
+    logStudentPortalEvent(req, {
+      feature: 'dashboard',
+      action: 'class_teacher.fetch',
+      outcome: 'success',
+      statusCode: 200,
+      targetType: 'teacher',
+      targetId: allocation.teacherId._id,
+      hasTeacher: true,
+      subjectName: allocation.subjectId?.name || '',
+    });
   } catch (err) {
+    logStudentPortalError(req, {
+      feature: 'dashboard',
+      action: 'class_teacher.fetch',
+      statusCode: 400,
+      err,
+      targetType: 'student',
+      targetId: req.user?.id,
+    });
     res.status(400).json({ error: err.message });
   }
 });
@@ -808,11 +868,25 @@ router.get('/class-teacher', authStudent, async (req, res) => {
 router.get('/dashboard', authStudent, async (req, res) => {
   // #swagger.tags = ['Students']
   try {
+    logStudentPortalEvent(req, {
+      feature: 'dashboard',
+      action: 'dashboard.fetch',
+      targetType: 'student',
+      targetId: req.user?.id,
+    });
     const student = await StudentUser.findById(req.user.id)
       .populate('schoolId', 'name code address logo')
       .lean();
 
     if (!student) {
+      logStudentPortalEvent(req, {
+        feature: 'dashboard',
+        action: 'dashboard.fetch',
+        outcome: 'not_found',
+        statusCode: 404,
+        targetType: 'student',
+        targetId: req.user?.id,
+      });
       return res.status(404).json({ error: 'Student not found' });
     }
 
@@ -866,7 +940,24 @@ router.get('/dashboard', authStudent, async (req, res) => {
     };
 
     res.json(dashboardData);
+    logStudentPortalEvent(req, {
+      feature: 'dashboard',
+      action: 'dashboard.fetch',
+      outcome: 'success',
+      statusCode: 200,
+      targetType: 'student',
+      targetId: req.user?.id,
+      attendancePercentage,
+    });
   } catch (err) {
+    logStudentPortalError(req, {
+      feature: 'dashboard',
+      action: 'dashboard.fetch',
+      statusCode: 400,
+      err,
+      targetType: 'student',
+      targetId: req.user?.id,
+    });
     (req.log || logger).error({ err }, 'Dashboard data error');
     res.status(400).json({ error: err.message });
   }
@@ -887,7 +978,24 @@ router.get('/journal', authStudent, async (req, res) => {
       .sort({ updatedAt: -1 })
       .lean();
     res.json({ entries });
+    logStudentPortalEvent(req, {
+      feature: 'assignments_journal',
+      action: 'journal.fetch',
+      outcome: 'success',
+      statusCode: 200,
+      targetType: 'student',
+      targetId: req.user?.id,
+      resultCount: entries.length,
+    });
   } catch (err) {
+    logStudentPortalError(req, {
+      feature: 'assignments_journal',
+      action: 'journal.fetch',
+      statusCode: 400,
+      err,
+      targetType: 'student',
+      targetId: req.user?.id,
+    });
     res.status(400).json({ error: err.message });
   }
 });
@@ -913,7 +1021,23 @@ router.post('/journal', authStudent, async (req, res) => {
       mood: String(mood || 'Neutral'),
     });
     res.status(201).json({ entry });
+    logStudentPortalEvent(req, {
+      feature: 'assignments_journal',
+      action: 'journal.create',
+      outcome: 'success',
+      statusCode: 201,
+      targetType: 'journal_entry',
+      targetId: entry._id,
+    });
   } catch (err) {
+    logStudentPortalError(req, {
+      feature: 'assignments_journal',
+      action: 'journal.create',
+      statusCode: 400,
+      err,
+      targetType: 'student',
+      targetId: req.user?.id,
+    });
     res.status(400).json({ error: err.message });
   }
 });
@@ -948,7 +1072,23 @@ router.put('/journal/:id', authStudent, async (req, res) => {
       return res.status(404).json({ error: 'Entry not found' });
     }
     res.json({ entry });
+    logStudentPortalEvent(req, {
+      feature: 'assignments_journal',
+      action: 'journal.update',
+      outcome: 'success',
+      statusCode: 200,
+      targetType: 'journal_entry',
+      targetId: req.params.id,
+    });
   } catch (err) {
+    logStudentPortalError(req, {
+      feature: 'assignments_journal',
+      action: 'journal.update',
+      statusCode: 400,
+      err,
+      targetType: 'journal_entry',
+      targetId: req.params.id,
+    });
     res.status(400).json({ error: err.message });
   }
 });
@@ -970,7 +1110,23 @@ router.delete('/journal/:id', authStudent, async (req, res) => {
       return res.status(404).json({ error: 'Entry not found' });
     }
     res.json({ message: 'Entry deleted' });
+    logStudentPortalEvent(req, {
+      feature: 'assignments_journal',
+      action: 'journal.delete',
+      outcome: 'success',
+      statusCode: 200,
+      targetType: 'journal_entry',
+      targetId: req.params.id,
+    });
   } catch (err) {
+    logStudentPortalError(req, {
+      feature: 'assignments_journal',
+      action: 'journal.delete',
+      statusCode: 400,
+      err,
+      targetType: 'journal_entry',
+      targetId: req.params.id,
+    });
     res.status(400).json({ error: err.message });
   }
 });
@@ -979,11 +1135,25 @@ router.delete('/journal/:id', authStudent, async (req, res) => {
 router.get('/attendance', authStudent, async (req, res) => {
   // #swagger.tags = ['Students']
   try {
+    logStudentPortalEvent(req, {
+      feature: 'attendance',
+      action: 'attendance.fetch',
+      targetType: 'student',
+      targetId: req.user?.id,
+    });
     const student = await StudentUser.findById(req.user.id)
       .select('attendance name grade section')
       .lean();
 
     if (!student) {
+      logStudentPortalEvent(req, {
+        feature: 'attendance',
+        action: 'attendance.fetch',
+        outcome: 'not_found',
+        statusCode: 404,
+        targetType: 'student',
+        targetId: req.user?.id,
+      });
       return res.status(404).json({ error: 'Student not found' });
     }
 
@@ -1004,7 +1174,25 @@ router.get('/attendance', authStudent, async (req, res) => {
         attendancePercentage
       }
     });
+    logStudentPortalEvent(req, {
+      feature: 'attendance',
+      action: 'attendance.fetch',
+      outcome: 'success',
+      statusCode: 200,
+      targetType: 'student',
+      targetId: req.user?.id,
+      resultCount: attendance.length,
+      attendancePercentage,
+    });
   } catch (err) {
+    logStudentPortalError(req, {
+      feature: 'attendance',
+      action: 'attendance.fetch',
+      statusCode: 400,
+      err,
+      targetType: 'student',
+      targetId: req.user?.id,
+    });
     (req.log || logger).error({ err }, 'Attendance error');
     res.status(400).json({ error: err.message });
   }
@@ -1014,18 +1202,49 @@ router.get('/attendance', authStudent, async (req, res) => {
 router.get('/assignments', authStudent, async (req, res) => {
   // #swagger.tags = ['Students']
   try {
+    logStudentPortalEvent(req, {
+      feature: 'assignments',
+      action: 'assignments.fetch',
+      targetType: 'student',
+      targetId: req.user?.id,
+    });
     const student = await StudentUser.findById(req.user.id)
       .select('assignments name grade section')
       .lean();
 
     if (!student) {
+      logStudentPortalEvent(req, {
+        feature: 'assignments',
+        action: 'assignments.fetch',
+        outcome: 'not_found',
+        statusCode: 404,
+        targetType: 'student',
+        targetId: req.user?.id,
+      });
       return res.status(404).json({ error: 'Student not found' });
     }
 
     res.json({
       assignments: student.assignments || []
     });
+    logStudentPortalEvent(req, {
+      feature: 'assignments',
+      action: 'assignments.fetch',
+      outcome: 'success',
+      statusCode: 200,
+      targetType: 'student',
+      targetId: req.user?.id,
+      resultCount: Array.isArray(student.assignments) ? student.assignments.length : 0,
+    });
   } catch (err) {
+    logStudentPortalError(req, {
+      feature: 'assignments',
+      action: 'assignments.fetch',
+      statusCode: 400,
+      err,
+      targetType: 'student',
+      targetId: req.user?.id,
+    });
     (req.log || logger).error({ err }, 'Assignments error');
     res.status(400).json({ error: err.message });
   }
@@ -1035,11 +1254,25 @@ router.get('/assignments', authStudent, async (req, res) => {
 router.get('/results', authStudent, async (req, res) => {
   // #swagger.tags = ['Students']
   try {
+    logStudentPortalEvent(req, {
+      feature: 'results',
+      action: 'results.fetch',
+      targetType: 'student',
+      targetId: req.user?.id,
+    });
     const student = await StudentUser.findById(req.user.id)
       .select('name grade section schoolId campusId')
       .lean();
 
     if (!student) {
+      logStudentPortalEvent(req, {
+        feature: 'results',
+        action: 'results.fetch',
+        outcome: 'not_found',
+        statusCode: 404,
+        targetType: 'student',
+        targetId: req.user?.id,
+      });
       return res.status(404).json({ error: 'Student not found' });
     }
 
@@ -1115,7 +1348,24 @@ router.get('/results', authStudent, async (req, res) => {
     res.json({
       results: [...formattedResults, ...assignmentResults]
     });
+    logStudentPortalEvent(req, {
+      feature: 'results',
+      action: 'results.fetch',
+      outcome: 'success',
+      statusCode: 200,
+      targetType: 'student',
+      targetId: req.user?.id,
+      resultCount: formattedResults.length + assignmentResults.length,
+    });
   } catch (err) {
+    logStudentPortalError(req, {
+      feature: 'results',
+      action: 'results.fetch',
+      statusCode: 400,
+      err,
+      targetType: 'student',
+      targetId: req.user?.id,
+    });
     (req.log || logger).error({ err }, 'Results error');
     res.status(400).json({ error: err.message });
   }
@@ -1125,11 +1375,25 @@ router.get('/results', authStudent, async (req, res) => {
 router.get('/schedule', authStudent, async (req, res) => {
   // #swagger.tags = ['Students']
   try {
+    logStudentPortalEvent(req, {
+      feature: 'schedule',
+      action: 'schedule.fetch',
+      targetType: 'student',
+      targetId: req.user?.id,
+    });
     const student = await StudentUser.findById(req.user.id)
       .select('grade section schoolId campusId academicYear')
       .lean();
 
     if (!student) {
+      logStudentPortalEvent(req, {
+        feature: 'schedule',
+        action: 'schedule.fetch',
+        outcome: 'not_found',
+        statusCode: 404,
+        targetType: 'student',
+        targetId: req.user?.id,
+      });
       return res.status(404).json({ error: 'Student not found' });
     }
 
@@ -1144,6 +1408,15 @@ router.get('/schedule', authStudent, async (req, res) => {
     const resolvedSection = String(student.section || '').trim();
 
     if (!resolvedGrade) {
+      logStudentPortalEvent(req, {
+        feature: 'schedule',
+        action: 'schedule.fetch',
+        outcome: 'success',
+        statusCode: 200,
+        targetType: 'student',
+        targetId: req.user?.id,
+        resultCount: 0,
+      });
       return res.json({ schedule: [] });
     }
 
@@ -1195,6 +1468,15 @@ router.get('/schedule', authStudent, async (req, res) => {
     }
 
     if (!classDoc) {
+      logStudentPortalEvent(req, {
+        feature: 'schedule',
+        action: 'schedule.fetch',
+        outcome: 'success',
+        statusCode: 200,
+        targetType: 'student',
+        targetId: req.user?.id,
+        resultCount: 0,
+      });
       return res.json({ schedule: [] });
     }
 
@@ -1219,6 +1501,15 @@ router.get('/schedule', authStudent, async (req, res) => {
       .lean();
 
     if (!Array.isArray(timetables) || timetables.length === 0) {
+      logStudentPortalEvent(req, {
+        feature: 'schedule',
+        action: 'schedule.fetch',
+        outcome: 'success',
+        statusCode: 200,
+        targetType: 'student',
+        targetId: req.user?.id,
+        resultCount: 0,
+      });
       return res.json({ schedule: [] });
     }
 
@@ -1236,6 +1527,15 @@ router.get('/schedule', authStudent, async (req, res) => {
     }
 
     if (!timetable || !Array.isArray(timetable.entries) || timetable.entries.length === 0) {
+      logStudentPortalEvent(req, {
+        feature: 'schedule',
+        action: 'schedule.fetch',
+        outcome: 'success',
+        statusCode: 200,
+        targetType: 'student',
+        targetId: req.user?.id,
+        resultCount: 0,
+      });
       return res.json({ schedule: [] });
     }
 
@@ -1266,7 +1566,24 @@ router.get('/schedule', authStudent, async (req, res) => {
     res.json({
       schedule: scheduleByDay
     });
+    logStudentPortalEvent(req, {
+      feature: 'schedule',
+      action: 'schedule.fetch',
+      outcome: 'success',
+      statusCode: 200,
+      targetType: 'student',
+      targetId: req.user?.id,
+      resultCount: Object.keys(scheduleByDay).length,
+    });
   } catch (err) {
+    logStudentPortalError(req, {
+      feature: 'schedule',
+      action: 'schedule.fetch',
+      statusCode: 500,
+      err,
+      targetType: 'student',
+      targetId: req.user?.id,
+    });
     (req.log || logger).error({ err }, 'Schedule error');
     res.status(500).json({ error: err.message });
   }
@@ -1276,17 +1593,48 @@ router.get('/schedule', authStudent, async (req, res) => {
 router.get('/teacher-feedback/context', authStudent, async (req, res) => {
   // #swagger.tags = ['Students']
   try {
+    logStudentPortalEvent(req, {
+      feature: 'teacher_feedback',
+      action: 'feedback_context.fetch',
+      targetType: 'student',
+      targetId: req.user?.id,
+    });
     const student = await StudentUser.findById(req.user.id)
       .select('name grade section schoolId campusId')
       .lean();
 
     if (!student) {
+      logStudentPortalEvent(req, {
+        feature: 'teacher_feedback',
+        action: 'feedback_context.fetch',
+        outcome: 'not_found',
+        statusCode: 404,
+        targetType: 'student',
+        targetId: req.user?.id,
+      });
       return res.status(404).json({ error: 'Student not found' });
     }
 
     const { contexts } = await buildTeacherFeedbackContext(student);
     res.json({ teachers: contexts });
+    logStudentPortalEvent(req, {
+      feature: 'teacher_feedback',
+      action: 'feedback_context.fetch',
+      outcome: 'success',
+      statusCode: 200,
+      targetType: 'student',
+      targetId: req.user?.id,
+      resultCount: contexts.length,
+    });
   } catch (err) {
+    logStudentPortalError(req, {
+      feature: 'teacher_feedback',
+      action: 'feedback_context.fetch',
+      statusCode: 500,
+      err,
+      targetType: 'student',
+      targetId: req.user?.id,
+    });
     (req.log || logger).error({ err }, 'Teacher feedback context error');
     res.status(500).json({ error: err.message });
   }
@@ -1296,6 +1644,12 @@ router.get('/teacher-feedback/context', authStudent, async (req, res) => {
 router.get('/teacher-feedback', authStudent, async (req, res) => {
   // #swagger.tags = ['Students']
   try {
+    logStudentPortalEvent(req, {
+      feature: 'teacher_feedback',
+      action: 'feedback_list.fetch',
+      targetType: 'student',
+      targetId: req.user?.id,
+    });
     const feedbackDocs = await TeacherFeedback.find({ studentId: req.user.id })
       .sort({ createdAt: -1 })
       .lean();
@@ -1316,7 +1670,24 @@ router.get('/teacher-feedback', authStudent, async (req, res) => {
     }));
 
     res.json(formatted);
+    logStudentPortalEvent(req, {
+      feature: 'teacher_feedback',
+      action: 'feedback_list.fetch',
+      outcome: 'success',
+      statusCode: 200,
+      targetType: 'student',
+      targetId: req.user?.id,
+      resultCount: formatted.length,
+    });
   } catch (err) {
+    logStudentPortalError(req, {
+      feature: 'teacher_feedback',
+      action: 'feedback_list.fetch',
+      statusCode: 500,
+      err,
+      targetType: 'student',
+      targetId: req.user?.id,
+    });
     (req.log || logger).error({ err }, 'Teacher feedback list error');
     res.status(500).json({ error: err.message });
   }
@@ -1326,11 +1697,27 @@ router.get('/teacher-feedback', authStudent, async (req, res) => {
 router.post('/teacher-feedback', authStudent, async (req, res) => {
   // #swagger.tags = ['Students']
   try {
+    logStudentPortalEvent(req, {
+      feature: 'teacher_feedback',
+      action: 'feedback_submit.create',
+      targetType: 'student',
+      targetId: req.user?.id,
+      teacherId: req.body?.teacherId || undefined,
+      subjectName: req.body?.subjectName || undefined,
+    });
     const student = await StudentUser.findById(req.user.id)
       .select('name grade section schoolId campusId')
       .lean();
 
     if (!student) {
+      logStudentPortalEvent(req, {
+        feature: 'teacher_feedback',
+        action: 'feedback_submit.create',
+        outcome: 'not_found',
+        statusCode: 404,
+        targetType: 'student',
+        targetId: req.user?.id,
+      });
       return res.status(404).json({ error: 'Student not found' });
     }
 
@@ -1419,7 +1806,28 @@ router.post('/teacher-feedback', authStudent, async (req, res) => {
         isAnonymous: Boolean(feedbackDoc.isAnonymous)
       }
     });
+    logStudentPortalEvent(req, {
+      feature: 'teacher_feedback',
+      action: 'feedback_submit.create',
+      outcome: 'success',
+      statusCode: 201,
+      targetType: 'teacher_feedback',
+      targetId: feedbackDoc._id,
+      teacherId: feedbackDoc.teacherId,
+      subjectName: feedbackDoc.subjectName,
+      overallRating,
+    });
   } catch (err) {
+    logStudentPortalError(req, {
+      feature: 'teacher_feedback',
+      action: 'feedback_submit.create',
+      statusCode: 500,
+      err,
+      targetType: 'student',
+      targetId: req.user?.id,
+      teacherId: req.body?.teacherId || undefined,
+      subjectName: req.body?.subjectName || undefined,
+    });
     (req.log || logger).error({ err }, 'Teacher feedback submit error');
     res.status(500).json({ error: err.message });
   }

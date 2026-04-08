@@ -10,6 +10,7 @@ const authStudent = require('../middleware/authStudent');
 const authTeacher = require('../middleware/authTeacher');
 const authParent = require('../middleware/authParent');
 const adminAuth = require('../middleware/adminAuth');
+const { logStudentPortalEvent, logStudentPortalError } = require('../utils/studentPortalLogger');
 
 const VALID_STATUSES = new Set(['present', 'absent']);
 const SUBSTITUTE_SUBJECT_PREFIX = 'general::';
@@ -543,7 +544,27 @@ router.post('/mark', authStudent, async (req, res) => {
     student.attendance.push({ status, subject });
     await student.save();
     res.status(200).json({ message: 'Attendance marked' });
+    logStudentPortalEvent(req, {
+      feature: 'attendance',
+      action: 'attendance.mark',
+      outcome: 'success',
+      statusCode: 200,
+      targetType: 'student',
+      targetId: req.user?.id,
+      attendanceStatus: status,
+      subject: subject || '',
+    });
   } catch (err) {
+    logStudentPortalError(req, {
+      feature: 'attendance',
+      action: 'attendance.mark',
+      statusCode: 400,
+      err,
+      targetType: 'student',
+      targetId: req.user?.id,
+      attendanceStatus: req.body?.status,
+      subject: req.body?.subject,
+    });
     res.status(400).json({ error: err.message });
   }
 });

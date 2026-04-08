@@ -12,6 +12,7 @@ const ClassModel = require('../models/Class');
 const Section = require('../models/Section');
 const Subject = require('../models/Subject');
 const Timetable = require('../models/Timetable');
+const { logStudentPortalEvent, logStudentPortalError } = require('../utils/studentPortalLogger');
 
 const router = express.Router();
 
@@ -354,7 +355,24 @@ router.get('/student/meta', authStudent, async (req, res) => {
       subjects: subjects.map((s) => ({ id: s._id, name: s.name, code: s.code || '' })),
       questionTypes: ['mcq', 'blank'],
     });
+    logStudentPortalEvent(req, {
+      feature: 'practice',
+      action: 'practice_meta.fetch',
+      outcome: 'success',
+      statusCode: 200,
+      targetType: 'student',
+      targetId: studentId,
+      resultCount: subjects.length,
+    });
   } catch (err) {
+    logStudentPortalError(req, {
+      feature: 'practice',
+      action: 'practice_meta.fetch',
+      statusCode: 400,
+      err,
+      targetType: 'student',
+      targetId: req.user?.id,
+    });
     res.status(400).json({ error: err.message });
   }
 });
@@ -420,7 +438,27 @@ router.get('/student/questions', authStudent, async (req, res) => {
         type: q.type,
       })),
     });
+    logStudentPortalEvent(req, {
+      feature: 'practice',
+      action: 'practice_questions.fetch',
+      outcome: 'success',
+      statusCode: 200,
+      targetType: 'student',
+      targetId: studentId,
+      subjectId,
+      resultCount: questions.length,
+      questionType: type,
+    });
   } catch (err) {
+    logStudentPortalError(req, {
+      feature: 'practice',
+      action: 'practice_questions.fetch',
+      statusCode: 400,
+      err,
+      targetType: 'student',
+      targetId: req.user?.id,
+      subjectId: req.query?.subjectId,
+    });
     res.status(400).json({ error: err.message });
   }
 });
@@ -516,7 +554,25 @@ router.post('/student/submit', authStudent, async (req, res) => {
       correct: correctCount,
       results,
     });
+    logStudentPortalEvent(req, {
+      feature: 'practice',
+      action: 'practice_submit.create',
+      outcome: 'success',
+      statusCode: 200,
+      targetType: 'student',
+      targetId: studentId,
+      resultCount: results.length,
+      correctCount,
+    });
   } catch (err) {
+    logStudentPortalError(req, {
+      feature: 'practice',
+      action: 'practice_submit.create',
+      statusCode: 400,
+      err,
+      targetType: 'student',
+      targetId: req.user?.id,
+    });
     res.status(400).json({ error: err.message });
   }
 });

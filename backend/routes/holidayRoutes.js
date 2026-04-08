@@ -6,6 +6,7 @@ const adminAuth = require('../middleware/adminAuth');
 const authTeacher = require('../middleware/authTeacher');
 const authStudent = require('../middleware/authStudent');
 const authParent = require('../middleware/authParent');
+const { logStudentPortalEvent, logStudentPortalError } = require('../utils/studentPortalLogger');
 
 const router = express.Router();
 
@@ -239,14 +240,39 @@ router.get('/teacher', authTeacher, async (req, res) => {
 
 router.get('/student', authStudent, async (req, res) => {
   try {
+    logStudentPortalEvent(req, {
+      feature: 'holidays',
+      action: 'holidays.fetch',
+      targetType: 'student',
+      targetId: req.user?.id,
+      fromDate: req.query?.from || undefined,
+      toDate: req.query?.to || undefined,
+    });
     const schoolId = req.schoolId || null;
     const campusId = req.campusId || null;
     if (!schoolId || !mongoose.isValidObjectId(schoolId)) {
       return jsonError(res, 400, 'Valid schoolId is required');
     }
     const items = await loadPublicHolidays({ schoolId, campusId }, req.query);
+    logStudentPortalEvent(req, {
+      feature: 'holidays',
+      action: 'holidays.fetch',
+      outcome: 'success',
+      statusCode: 200,
+      targetType: 'student',
+      targetId: req.user?.id,
+      resultCount: items.length,
+    });
     return res.json(items);
   } catch (err) {
+    logStudentPortalError(req, {
+      feature: 'holidays',
+      action: 'holidays.fetch',
+      statusCode: 500,
+      err,
+      targetType: 'student',
+      targetId: req.user?.id,
+    });
     return jsonError(res, 500, err.message || 'Unable to load holidays');
   }
 });
