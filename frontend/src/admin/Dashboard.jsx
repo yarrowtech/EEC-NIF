@@ -167,18 +167,72 @@ const classifyActivity = (action = '') => {
   return 'info';
 };
 
+const toTitleCase = (value = '') =>
+  String(value || '')
+    .replace(/[_-]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .replace(/\b\w/g, (ch) => ch.toUpperCase());
+
+const friendlyEntityName = (entity = '') => {
+  const normalized = String(entity || '').trim().toLowerCase();
+  if (!normalized) return '';
+  const map = {
+    studentuser: 'Student',
+    teacheruser: 'Teacher',
+    parentuser: 'Parent',
+    promotionhistory: 'Promotion',
+  };
+  return map[normalized] || toTitleCase(entity);
+};
+
+const friendlyActionLabel = (action = '') => {
+  const normalized = String(action || '').trim().toLowerCase();
+  if (!normalized) return 'Activity updated';
+  const map = {
+    'promotion.execute': 'Students promoted to next class',
+    'student.mark_leaving': 'Student marked as leaving',
+    'student.mark_left': 'Student marked as left',
+    'student.restore_active': 'Student restored to active status',
+    'student.create': 'Student added',
+    'student.update': 'Student details updated',
+    'student.delete': 'Student removed',
+    'teacher.create': 'Teacher added',
+    'teacher.update': 'Teacher details updated',
+    'teacher.delete': 'Teacher removed',
+    'parent.create': 'Parent added',
+    'parent.update': 'Parent details updated',
+    'parent.delete': 'Parent removed',
+  };
+  if (map[normalized]) return map[normalized];
+  return toTitleCase(
+    normalized
+      .replace(/\./g, ' ')
+      .replace(/\b(create|add)\b/g, 'added')
+      .replace(/\b(update|edit)\b/g, 'updated')
+      .replace(/\b(delete|remove)\b/g, 'removed')
+  );
+};
+
 const normalizeActivity = (logs = []) =>
   logs.slice(0, 6).map((log) => ({
     id: log._id || log.id,
-    action: log.action || 'Activity recorded',
+    action: friendlyActionLabel(log.action || ''),
     detail: log.entity
-      ? `${log.entity}${log.entityId ? ` • ${log.entityId}` : ''}`
+      ? `${friendlyEntityName(log.entity)} updated`
       : typeof log.meta === 'string'
         ? log.meta
         : log.meta?.message || '',
     createdAt: log.createdAt || log.timestamp || new Date().toISOString(),
     type: classifyActivity(log.action || ''),
   }));
+
+const friendlyActivityType = (type = '') => {
+  const normalized = String(type || '').toLowerCase();
+  if (normalized === 'success') return 'Done';
+  if (normalized === 'warning') return 'Attention';
+  return 'Update';
+};
 
 const buildFinancialState = (invoices = [], payments = []) => {
   const trend = buildMonthlyTrend(invoices, payments);
@@ -762,10 +816,15 @@ const Dashboard = ({ setShowAdminHeader }) => {
 
           {/* Recent Activity */}
           <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
-            <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2 mb-5">
-              <Clock className="w-5 h-5 text-purple-500" />
-              Recent Activity
-            </h2>
+            <div className="flex items-center justify-between mb-5">
+              <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+                <Clock className="w-5 h-5 text-purple-500" />
+                Recent Activity
+              </h2>
+              <span className="inline-flex items-center px-2.5 py-1 rounded-full bg-purple-50 text-purple-700 text-[11px] font-semibold">
+                Latest {recentActivity.length}
+              </span>
+            </div>
             {activityError ? (
               <div className="flex items-center gap-2 text-sm text-red-600 bg-red-50 rounded-xl p-3 border border-red-100">
                 <AlertCircle className="w-4 h-4 flex-shrink-0" />
@@ -774,7 +833,7 @@ const Dashboard = ({ setShowAdminHeader }) => {
             ) : activityLoading ? (
               <div className="space-y-4">
                 {[1, 2, 3, 4].map((i) => (
-                  <div key={i} className="h-10 rounded-xl bg-gray-100 animate-pulse" />
+                  <div key={i} className="h-16 rounded-xl bg-gray-100 animate-pulse" />
                 ))}
               </div>
             ) : recentActivity.length === 0 ? (
@@ -783,26 +842,40 @@ const Dashboard = ({ setShowAdminHeader }) => {
                 <p className="text-sm">No recent activity recorded.</p>
               </div>
             ) : (
-              <div className="space-y-1">
+              <div className="space-y-3">
                 {recentActivity.map((item, idx) => (
                   <div
                     key={item.id || item.createdAt}
-                    className={`flex gap-3 py-3 ${idx < recentActivity.length - 1 ? 'border-b border-gray-50' : ''}`}
+                    className="relative rounded-xl border border-slate-100 bg-slate-50/70 hover:bg-slate-50 transition-colors px-3 py-3"
                   >
-                    <ActivityDot type={item.type} />
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-gray-900 truncate">{item.action}</p>
+                    {idx < recentActivity.length - 1 && (
+                      <div className="absolute left-[22px] top-[46px] h-5 w-px bg-slate-200" />
+                    )}
+                    <div className="flex gap-3">
+                      <ActivityDot type={item.type} />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-semibold text-gray-900 truncate">{item.action}</p>
                       {item.detail && (
-                        <p className="text-xs text-gray-500 truncate mt-0.5">{item.detail}</p>
+                        <p className="text-xs text-gray-600 truncate mt-0.5">{item.detail}</p>
                       )}
-                      <p className="text-[11px] text-gray-400 mt-0.5">
+                      <p className="text-[11px] text-gray-400 mt-1">
                         {new Date(item.createdAt).toLocaleString()}
                       </p>
                     </div>
+                    <span className={`shrink-0 self-start text-[10px] font-semibold uppercase tracking-wide px-2 py-1 rounded-full ${
+                      item.type === 'success'
+                        ? 'bg-emerald-100 text-emerald-700'
+                        : item.type === 'warning'
+                        ? 'bg-amber-100 text-amber-700'
+                        : 'bg-blue-100 text-blue-700'
+                    }`}>
+                      {friendlyActivityType(item.type)}
+                    </span>
                   </div>
-                ))}
-              </div>
-            )}
+                </div>
+              ))}
+            </div>
+          )}
           </div>
         </div>
 
