@@ -13,6 +13,10 @@ import {
   User,
   ChevronDown,
   AlertCircle,
+  Sparkles,
+  GraduationCap,
+  NotebookPen,
+  ArrowUpRight,
 } from 'lucide-react';
 
 const StudyMaterials = () => {
@@ -135,268 +139,260 @@ const StudyMaterials = () => {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 p-4 sm:p-6">
-      <div className="mx-auto max-w-7xl">
-        <div className="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
-      {/* Header */}
-      <div className="bg-gradient-to-r from-indigo-500 to-purple-600 p-6 text-white">
-        <div className="flex items-center justify-between">
-          <div>
-            <h2 className="text-2xl font-bold flex items-center gap-3">
-              <BookOpen className="h-7 w-7" />
-              Study Materials
-            </h2>
-            <p className="mt-1 text-sm text-indigo-100">
-              Access all learning materials shared by your teachers
-            </p>
-          </div>
-          <div className="bg-white/20 rounded-lg px-4 py-2">
-            <div className="text-2xl font-bold">{materials.length}</div>
-            <div className="text-xs text-indigo-100">Total</div>
-          </div>
-        </div>
-      </div>
-
-      {/* Search and Filter Bar */}
-      <div className="border-b border-slate-200 bg-slate-50 p-4">
-        <div className="flex flex-col sm:flex-row gap-3">
-          {/* Search */}
-          <div className="flex-1 relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-slate-400" />
-            <input
-              type="text"
-              placeholder="Search materials by title or content..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-10 pr-4 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-sm"
-            />
-          </div>
-
-          {/* Subject Filter */}
-          <div className="relative sm:w-64">
-            <Filter className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-slate-400" />
-            <select
-              value={selectedSubject}
-              onChange={(e) => setSelectedSubject(e.target.value)}
-              className="w-full pl-10 pr-8 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent appearance-none bg-white text-sm font-medium"
-            >
-              {subjects.map((subject) => (
-                <option key={subject} value={subject}>
-                  {subject === 'all' ? 'All Subjects' : subject}
-                </option>
-              ))}
-            </select>
-            <ChevronDown className="absolute right-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-slate-400 pointer-events-none" />
-          </div>
-        </div>
-
-        {/* Filter Summary */}
-        {(searchQuery || selectedSubject !== 'all') && (
-          <div className="mt-3 flex items-center gap-2 text-sm text-slate-600">
-            <span>
-              Showing {filteredMaterials.length} of {materials.length} materials
-            </span>
-            {searchQuery && (
-              <span className="px-2 py-1 bg-indigo-100 text-indigo-700 rounded">
-                Search: "{searchQuery}"
-              </span>
-            )}
-            {selectedSubject !== 'all' && (
-              <span className="px-2 py-1 bg-purple-100 text-purple-700 rounded">
-                Subject: {selectedSubject}
-              </span>
-            )}
-          </div>
-        )}
-      </div>
-
-      {/* Error State */}
-      {error && (
-        <div className="p-4 bg-red-50 border-b border-red-200">
-          <div className="flex items-center gap-2 text-sm text-red-700">
-            <AlertCircle className="h-4 w-4" />
-            {error}
-          </div>
-        </div>
-      )}
-
-      {/* Materials List */}
-      <div className="divide-y divide-slate-200 max-h-[600px] overflow-y-auto">
-        {filteredMaterials.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-16 text-center px-4">
-            <div className="p-4 rounded-full bg-slate-100 mb-4">
-              <BookOpen className="h-12 w-12 text-slate-300" />
-            </div>
-            <h3 className="text-lg font-semibold text-slate-900 mb-2">
-              No Materials Found
-            </h3>
-            <p className="text-sm text-slate-500 max-w-md">
-              {searchQuery || selectedSubject !== 'all'
-                ? 'No materials match your current filters. Try adjusting your search or filter criteria.'
-                : 'Your teachers haven\'t uploaded any study materials yet. Check back later!'}
-            </p>
-          </div>
-        ) : (
-          filteredMaterials.map((material) => {
-            const attachments = Array.isArray(material.attachments)
-              ? material.attachments
-              : [];
-            const isExpanded = expandedMaterial === material._id;
-
-            return (
-              <div
-                key={material._id}
-                className="p-5 hover:bg-slate-50 transition-colors"
-              >
-                {/* Material Header */}
-                <div className="flex items-start justify-between gap-4 mb-3">
-                  <div className="flex-1">
-                    <h3 className="text-lg font-semibold text-slate-900 flex items-center gap-2 mb-2">
-                      <FileText className="h-5 w-5 text-indigo-600 shrink-0" />
-                      {material.title}
-                    </h3>
-
-                    {/* Metadata */}
-                    <div className="flex flex-wrap items-center gap-3 text-sm">
-                      {material.subjectName && (
-                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-indigo-100 text-indigo-700 font-medium">
-                          <BookOpen className="h-3 w-3" />
-                          {material.subjectName}
-                        </span>
-                      )}
-                      {material.typeLabel && (
-                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-purple-100 text-purple-700 font-medium">
-                          {material.typeLabel}
-                        </span>
-                      )}
-                      {material.priority && (
-                        <span
-                          className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full font-medium ${
-                            material.priority === 'high'
-                              ? 'bg-red-100 text-red-700'
-                              : material.priority === 'medium'
-                              ? 'bg-amber-100 text-amber-700'
-                              : 'bg-green-100 text-green-700'
-                          }`}
-                        >
-                          {material.priority}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Attachment Count Badge */}
-                  {attachments.length > 0 && (
-                    <div className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-indigo-50 border border-indigo-200">
-                      <Paperclip className="h-4 w-4 text-indigo-600" />
-                      <span className="text-sm font-semibold text-indigo-700">
-                        {attachments.length}
-                      </span>
-                    </div>
-                  )}
+    <div className="min-h-screen bg-[radial-gradient(circle_at_top_left,_rgba(14,165,233,0.10),_transparent_28%),radial-gradient(circle_at_top_right,_rgba(249,115,22,0.10),_transparent_24%),linear-gradient(180deg,_#f8fafc_0%,_#eef4ff_100%)] p-4 sm:p-6">
+      <div className="mx-auto max-w-7xl space-y-5">
+        <section className="relative overflow-hidden rounded-[28px] border border-slate-200/80 bg-white shadow-[0_24px_80px_-48px_rgba(15,23,42,0.45)]">
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,_rgba(59,130,246,0.18),_transparent_26%),radial-gradient(circle_at_bottom_left,_rgba(249,115,22,0.14),_transparent_24%)]" />
+          <div className="relative px-5 py-6 sm:px-7 sm:py-7">
+            <div className="flex flex-col gap-5">
+              <div className="max-w-2xl">
+                <div className="inline-flex items-center gap-2 rounded-full border border-sky-200 bg-sky-50 px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-sky-700">
+                  <Sparkles className="h-3.5 w-3.5" />
+                  Student Resource Desk
                 </div>
-
-                {/* Message */}
-                <p className="text-sm text-slate-600 leading-relaxed mb-3">
-                  {material.message}
+                <h2 className="mt-4 flex items-center gap-3 text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl">
+                  <BookOpen className="h-8 w-8 text-sky-600" />
+                  Study Materials
+                </h2>
+                <p className="mt-2 max-w-xl text-sm leading-6 text-slate-600 sm:text-base">
+                  Notes, handouts, and classroom resources shared by your teachers. Use the filters below to quickly find the exact material you need.
                 </p>
+              </div>
+            </div>
+          </div>
+        </section>
 
-                {/* Footer Info */}
-                <div className="flex flex-wrap items-center gap-4 text-xs text-slate-500 mb-3">
-                  {material.createdByName && (
-                    <span className="flex items-center gap-1">
-                      <User className="h-3 w-3" />
-                      {material.createdByName}
-                    </span>
-                  )}
-                  {material.createdAt && (
-                    <span className="flex items-center gap-1">
-                      <Calendar className="h-3 w-3" />
-                      {formatDate(material.createdAt)}
-                    </span>
-                  )}
-                  {material.className && (
-                    <span>
-                      {material.className}
-                      {material.sectionName && `-${material.sectionName}`}
-                    </span>
-                  )}
-                </div>
+        <section className="rounded-[28px] border border-slate-200/80 bg-white shadow-[0_18px_50px_-38px_rgba(15,23,42,0.35)]">
+          <div className="border-b border-slate-200 bg-slate-50/80 px-5 py-4 sm:px-6">
+            <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
+              <div className="relative flex-1">
+                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                <input
+                  type="text"
+                  placeholder="Search materials by title or content..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-full rounded-2xl border border-slate-300 bg-white py-3 pl-10 pr-4 text-sm text-slate-700 shadow-sm outline-none transition focus:border-sky-400 focus:ring-4 focus:ring-sky-100"
+                />
+              </div>
 
-                {/* Attachments */}
-                {attachments.length > 0 && (
-                  <div className="mt-4 pt-4 border-t border-slate-200">
-                    <button
-                      onClick={() =>
-                        setExpandedMaterial(isExpanded ? null : material._id)
-                      }
-                      className="flex items-center gap-2 text-sm font-semibold text-indigo-600 hover:text-indigo-700 mb-3"
-                    >
-                      <Paperclip className="h-4 w-4" />
-                      {isExpanded ? 'Hide' : 'Show'} Attachments ({attachments.length})
-                      <ChevronDown
-                        className={`h-4 w-4 transition-transform ${
-                          isExpanded ? 'rotate-180' : ''
-                        }`}
-                      />
-                    </button>
+              <div className="relative lg:w-72">
+                <Filter className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                <select
+                  value={selectedSubject}
+                  onChange={(e) => setSelectedSubject(e.target.value)}
+                  className="w-full appearance-none rounded-2xl border border-slate-300 bg-white py-3 pl-10 pr-10 text-sm font-medium text-slate-700 shadow-sm outline-none transition focus:border-sky-400 focus:ring-4 focus:ring-sky-100"
+                >
+                  {subjects.map((subject) => (
+                    <option key={subject} value={subject}>
+                      {subject === 'all' ? 'All Subjects' : subject}
+                    </option>
+                  ))}
+                </select>
+                <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+              </div>
+            </div>
 
-                    {isExpanded && (
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-2 animate-in fade-in">
-                        {attachments.map((attachment, idx) => {
-                          const FileIcon = getFileIcon(attachment?.type);
-                          return (
-                            <a
-                              key={idx}
-                              href={attachment?.url || '#'}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="flex items-center gap-3 rounded-lg border border-slate-200 bg-white px-3 py-3 hover:border-indigo-300 hover:bg-indigo-50 transition group"
-                            >
-                              <div className="p-2 bg-indigo-100 rounded-lg group-hover:bg-indigo-200 transition">
-                                <FileIcon className="w-5 h-5 text-indigo-600" />
-                              </div>
-                              <div className="flex-1 min-w-0">
-                                <p className="text-sm font-medium text-slate-900 truncate group-hover:text-indigo-700">
-                                  {attachment?.name || `File ${idx + 1}`}
-                                </p>
-                                {attachment?.size && (
-                                  <p className="text-xs text-slate-500">
-                                    {formatFileSize(attachment.size)}
-                                  </p>
-                                )}
-                              </div>
-                              <Download className="w-4 h-4 text-slate-400 group-hover:text-indigo-600 shrink-0" />
-                            </a>
-                          );
-                        })}
-                      </div>
-                    )}
-                  </div>
+            {(searchQuery || selectedSubject !== 'all') && (
+              <div className="mt-3 flex flex-wrap items-center gap-2 text-sm text-slate-600">
+                <span className="font-medium">
+                  Showing {filteredMaterials.length} of {materials.length} materials
+                </span>
+                {searchQuery && (
+                  <span className="rounded-full border border-sky-200 bg-sky-50 px-3 py-1 text-xs font-semibold text-sky-700">
+                    Search: {searchQuery}
+                  </span>
+                )}
+                {selectedSubject !== 'all' && (
+                  <span className="rounded-full border border-violet-200 bg-violet-50 px-3 py-1 text-xs font-semibold text-violet-700">
+                    Subject: {selectedSubject}
+                  </span>
                 )}
               </div>
-            );
-          })
-        )}
-      </div>
-
-      {/* Footer Summary */}
-      {filteredMaterials.length > 0 && (
-        <div className="bg-slate-50 border-t border-slate-200 px-5 py-3 text-sm text-slate-600">
-          <div className="flex items-center justify-between">
-            <span>
-              Total: {filteredMaterials.length} material{filteredMaterials.length !== 1 ? 's' : ''}
-            </span>
-            <button
-              onClick={fetchMaterials}
-              className="text-indigo-600 hover:text-indigo-700 font-medium"
-            >
-              Refresh
-            </button>
+            )}
           </div>
-        </div>
-      )}
-        </div>
+
+          {error && (
+            <div className="border-b border-red-200 bg-red-50 px-5 py-3 text-sm text-red-700 sm:px-6">
+              <div className="flex items-center gap-2">
+                <AlertCircle className="h-4 w-4" />
+                {error}
+              </div>
+            </div>
+          )}
+
+          <div className="p-4 sm:p-6">
+            {filteredMaterials.length === 0 ? (
+              <div className="flex min-h-[340px] flex-col items-center justify-center rounded-[24px] border border-dashed border-slate-300 bg-slate-50/80 px-4 text-center">
+                <div className="mb-4 rounded-full bg-white p-4 shadow-sm">
+                  <BookOpen className="h-10 w-10 text-slate-300" />
+                </div>
+                <h3 className="text-lg font-semibold text-slate-900">No Materials Found</h3>
+                <p className="mt-2 max-w-md text-sm leading-6 text-slate-500">
+                  {searchQuery || selectedSubject !== 'all'
+                    ? 'No materials match your current filters. Try adjusting your search or subject selection.'
+                    : 'Your teachers have not uploaded any study materials yet. Check back later.'}
+                </p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+                {filteredMaterials.map((material) => {
+                  const attachments = Array.isArray(material.attachments)
+                    ? material.attachments
+                    : [];
+                  const isExpanded = expandedMaterial === material._id;
+
+                  return (
+                    <article
+                      key={material._id}
+                      className="group rounded-[24px] border border-slate-200 bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:border-sky-200 hover:shadow-[0_20px_45px_-35px_rgba(14,165,233,0.45)]"
+                    >
+                      <div className="flex items-start justify-between gap-4">
+                        <div className="min-w-0 flex-1">
+                          <div className="mb-3 flex flex-wrap items-center gap-2">
+                            {material.subjectName && (
+                              <span className="inline-flex items-center gap-1 rounded-full border border-sky-200 bg-sky-50 px-3 py-1 text-xs font-semibold text-sky-700">
+                                <GraduationCap className="h-3 w-3" />
+                                {material.subjectName}
+                              </span>
+                            )}
+                            {material.typeLabel && (
+                              <span className="inline-flex items-center gap-1 rounded-full border border-violet-200 bg-violet-50 px-3 py-1 text-xs font-semibold text-violet-700">
+                                <NotebookPen className="h-3 w-3" />
+                                {material.typeLabel}
+                              </span>
+                            )}
+                            {material.priority && (
+                              <span
+                                className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold ${
+                                  material.priority === 'high'
+                                    ? 'border border-red-200 bg-red-50 text-red-700'
+                                    : material.priority === 'medium'
+                                      ? 'border border-amber-200 bg-amber-50 text-amber-700'
+                                      : 'border border-emerald-200 bg-emerald-50 text-emerald-700'
+                                }`}
+                              >
+                                {material.priority}
+                              </span>
+                            )}
+                          </div>
+
+                          <h3 className="flex items-start gap-3 text-lg font-semibold leading-tight text-slate-900">
+                            <span className="mt-0.5 rounded-xl bg-slate-100 p-2 text-sky-600">
+                              <FileText className="h-4 w-4" />
+                            </span>
+                            <span className="min-w-0">{material.title}</span>
+                          </h3>
+                        </div>
+
+                        <div className="shrink-0 rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2 text-right">
+                          <p className="text-lg font-bold text-slate-900">{attachments.length}</p>
+                          <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Files</p>
+                        </div>
+                      </div>
+
+                      <p className="mt-4 text-sm leading-7 text-slate-600">
+                        {material.message || 'No description added by the teacher.'}
+                      </p>
+
+                      <div className="mt-5 grid grid-cols-1 gap-3 text-xs text-slate-500 sm:grid-cols-3">
+                        <div className="rounded-2xl bg-slate-50 px-3 py-3">
+                          <div className="flex items-center gap-2 font-medium text-slate-700">
+                            <User className="h-3.5 w-3.5 text-slate-400" />
+                            Teacher
+                          </div>
+                          <p className="mt-1 truncate">{material.createdByName || 'Teacher'}</p>
+                        </div>
+                        <div className="rounded-2xl bg-slate-50 px-3 py-3">
+                          <div className="flex items-center gap-2 font-medium text-slate-700">
+                            <Calendar className="h-3.5 w-3.5 text-slate-400" />
+                            Shared On
+                          </div>
+                          <p className="mt-1">{formatDate(material.createdAt)}</p>
+                        </div>
+                        <div className="rounded-2xl bg-slate-50 px-3 py-3">
+                          <div className="flex items-center gap-2 font-medium text-slate-700">
+                            <BookOpen className="h-3.5 w-3.5 text-slate-400" />
+                            Class
+                          </div>
+                          <p className="mt-1">
+                            {material.className || 'Class'}
+                            {material.sectionName ? ` - ${material.sectionName}` : ''}
+                          </p>
+                        </div>
+                      </div>
+
+                      {attachments.length > 0 && (
+                        <div className="mt-5 border-t border-slate-100 pt-4">
+                          <button
+                            onClick={() => setExpandedMaterial(isExpanded ? null : material._id)}
+                            className="inline-flex items-center gap-2 rounded-full border border-sky-200 bg-sky-50 px-4 py-2 text-sm font-semibold text-sky-700 transition hover:bg-sky-100"
+                          >
+                            <Paperclip className="h-4 w-4" />
+                            {isExpanded ? 'Hide Attachments' : 'Open Attachments'}
+                            <span className="rounded-full bg-white px-2 py-0.5 text-xs text-sky-700">
+                              {attachments.length}
+                            </span>
+                            <ChevronDown className={`h-4 w-4 transition-transform ${isExpanded ? 'rotate-180' : ''}`} />
+                          </button>
+
+                          {isExpanded && (
+                            <div className="mt-4 grid grid-cols-1 gap-3">
+                              {attachments.map((attachment, idx) => {
+                                const FileIcon = getFileIcon(attachment?.type);
+                                return (
+                                  <a
+                                    key={idx}
+                                    href={attachment?.url || '#'}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 transition hover:border-sky-200 hover:bg-sky-50"
+                                  >
+                                    <div className="rounded-xl bg-white p-2 shadow-sm">
+                                      <FileIcon className="h-5 w-5 text-sky-600" />
+                                    </div>
+                                    <div className="min-w-0 flex-1">
+                                      <p className="truncate text-sm font-semibold text-slate-900">
+                                        {attachment?.name || `File ${idx + 1}`}
+                                      </p>
+                                      <p className="mt-0.5 text-xs text-slate-500">
+                                        {formatFileSize(attachment?.size) || 'Open attachment'}
+                                      </p>
+                                    </div>
+                                    <div className="inline-flex items-center gap-1 rounded-full bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-sm">
+                                      Open
+                                      <ArrowUpRight className="h-3.5 w-3.5" />
+                                    </div>
+                                  </a>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </article>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          {filteredMaterials.length > 0 && (
+            <div className="border-t border-slate-200 bg-slate-50 px-5 py-3 text-sm text-slate-600 sm:px-6">
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                <span>
+                  Showing {filteredMaterials.length} material{filteredMaterials.length !== 1 ? 's' : ''} from {materials.length} total
+                </span>
+                <button
+                  onClick={fetchMaterials}
+                  className="font-semibold text-sky-700 transition hover:text-sky-800"
+                >
+                  Refresh materials
+                </button>
+              </div>
+            </div>
+          )}
+        </section>
       </div>
     </div>
   );

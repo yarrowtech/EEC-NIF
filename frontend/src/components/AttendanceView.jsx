@@ -518,82 +518,88 @@ const AttendanceView = () => {
         {/* ═══════════ OVERVIEW TAB ═══════════ */}
         {activeTab === 'overview' && (
           <>
-            {/* Overall stats row */}
-            <div className="grid grid-cols-1 gap-5 md:grid-cols-3">
-              {/* Circular gauge + stats */}
-              <div className="flex flex-col items-center justify-center rounded-2xl border border-slate-200 bg-white p-6 shadow-sm md:col-span-1">
-                <CircularProgress percentage={attendanceStats.percentage} />
-                <p className="mt-3 text-sm font-medium text-slate-600">Overall Attendance</p>
-                <p className="mt-1 text-xs text-slate-400">
-                  {attendanceStats.attended} of {attendanceStats.totalClasses} classes
-                </p>
-              </div>
-
-              {/* Quick stats grid */}
-              <div className="grid grid-cols-2 gap-3 md:col-span-2">
-                <StatCard icon={BookOpen} iconBg="bg-indigo-500" label="Total Classes"
-                  value={attendanceStats.totalClasses} />
-                <StatCard icon={CheckCircle2} iconBg="bg-emerald-500" label="Present"
-                  value={attendanceStats.attended} valueColor="text-emerald-600" />
-                <StatCard icon={XCircle} iconBg="bg-rose-500" label="Absent"
-                  value={attendanceStats.absent} valueColor="text-rose-600" />
-                <StatCard icon={Flame} iconBg="bg-orange-500" label="Current Streak"
-                  value={`${currentStreak} day${currentStreak !== 1 ? 's' : ''}`} valueColor="text-orange-600" />
-              </div>
-            </div>
-
-            {/* Monthly snapshot */}
-            <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-              <h2 className="mb-4 font-semibold text-slate-900 flex items-center gap-2">
-                <CalendarDays className="h-4 w-4 text-indigo-600" />
-                This Month — {monthNames[currentDate.getMonth()]} {currentDate.getFullYear()}
-              </h2>
-              <div className="grid grid-cols-3 gap-4">
-                <div className="rounded-xl bg-slate-50 p-4 text-center">
-                  <p className="text-2xl font-bold text-slate-900">{monthlyRecords.length}</p>
-                  <p className="text-xs text-slate-500">Classes</p>
-                </div>
-                <div className="rounded-xl bg-emerald-50 p-4 text-center">
-                  <p className="text-2xl font-bold text-emerald-600">{monthlyPresent}</p>
-                  <p className="text-xs text-slate-500">Present</p>
-                </div>
-                <div className="rounded-xl bg-indigo-50 p-4 text-center">
-                  <p className="text-2xl font-bold text-indigo-600">{monthlyPct}%</p>
-                  <p className="text-xs text-slate-500">Attendance</p>
-                </div>
-              </div>
-            </div>
-
-            {/* Subject-wise breakdown */}
-            {subjectStats.length > 0 && (
-              <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-                <h2 className="mb-4 font-semibold text-slate-900 flex items-center gap-2">
-                  <BookOpen className="h-4 w-4 text-indigo-600" />
-                  Subject-wise Attendance
-                </h2>
-                <div className="space-y-4">
-                  {subjectStats.map((s) => (
-                    <div key={s.subject}>
-                      <div className="mb-1.5 flex items-center justify-between">
-                        <span className="text-sm font-medium text-slate-700">{s.subject}</span>
-                        <span className="text-xs text-slate-500">
-                          {s.present}/{s.total} classes &middot;{' '}
-                          <span className={`font-semibold ${
-                            s.pct >= 75 ? 'text-emerald-600' : s.pct >= 50 ? 'text-amber-600' : 'text-rose-600'
-                          }`}>{s.pct}%</span>
-                        </span>
-                      </div>
-                      <ProgressBar value={s.present} max={s.total} />
+            <div className="overflow-hidden rounded-[28px] border border-slate-200 bg-white shadow-sm">
+              <div className="border-b border-slate-100 bg-[radial-gradient(circle_at_top_left,_rgba(79,70,229,0.10),_transparent_26%),radial-gradient(circle_at_bottom_right,_rgba(16,185,129,0.10),_transparent_24%),linear-gradient(180deg,_#ffffff_0%,_#f8fafc_100%)] p-5 md:p-6">
+                <div className="grid grid-cols-1 gap-5 xl:grid-cols-[320px_1fr]">
+                  <div className="rounded-3xl border border-slate-200 bg-white/90 p-6 text-center shadow-sm">
+                    <CircularProgress percentage={attendanceStats.percentage} />
+                    <p className="mt-4 text-sm font-semibold text-slate-700">Overall Attendance</p>
+                    <p className="mt-1 text-xs text-slate-400">
+                      {attendanceStats.attended} of {attendanceStats.totalClasses} classes attended
+                    </p>
+                    <div className="mt-4 inline-flex rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-semibold text-slate-600">
+                      {attendanceStats.percentage >= 75 ? 'Healthy attendance trend' : 'Needs attention this term'}
                     </div>
-                  ))}
+                  </div>
+
+                  <div className="space-y-4">
+                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                      <StatCard icon={BookOpen} iconBg="bg-indigo-500" label="Total Classes" value={attendanceStats.totalClasses} />
+                      <StatCard icon={CheckCircle2} iconBg="bg-emerald-500" label="Present" value={attendanceStats.attended} valueColor="text-emerald-600" />
+                      <StatCard icon={XCircle} iconBg="bg-rose-500" label="Absent" value={attendanceStats.absent} valueColor="text-rose-600" />
+                      <StatCard icon={Flame} iconBg="bg-orange-500" label="Current Streak" value={`${currentStreak} day${currentStreak !== 1 ? 's' : ''}`} valueColor="text-orange-600" />
+                    </div>
+
+                    <div className="grid grid-cols-1 gap-3 lg:grid-cols-3">
+                      <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                        <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+                          <CalendarDays className="h-3.5 w-3.5 text-indigo-600" />
+                          This Month
+                        </div>
+                        <p className="mt-3 text-base font-semibold text-slate-900">
+                          {monthNames[currentDate.getMonth()]} {currentDate.getFullYear()}
+                        </p>
+                        <p className="mt-1 text-xs text-slate-500">
+                          {monthlyRecords.length} classes recorded
+                        </p>
+                      </div>
+                      <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
+                        <p className="text-xs font-semibold uppercase tracking-[0.16em] text-emerald-700">Present Days</p>
+                        <p className="mt-3 text-3xl font-bold text-emerald-600">{monthlyPresent}</p>
+                        <p className="mt-1 text-xs text-emerald-700/80">Absences this month: {monthlyAbsent}</p>
+                      </div>
+                      <div className="rounded-2xl border border-indigo-200 bg-indigo-50 p-4">
+                        <p className="text-xs font-semibold uppercase tracking-[0.16em] text-indigo-700">Monthly Rate</p>
+                        <p className="mt-3 text-3xl font-bold text-indigo-600">{monthlyPct}%</p>
+                        <p className="mt-1 text-xs text-indigo-700/80">Based on current month records</p>
+                      </div>
+                    </div>
+                  </div>
                 </div>
               </div>
-            )}
 
-            {/* Tip */}
-            <div className="rounded-xl border border-slate-200 bg-white p-4">
-              <p className="text-sm text-slate-600 flex items-center gap-2">
-                <Target className="h-4 w-4 text-indigo-600 shrink-0" />
+              {subjectStats.length > 0 && (
+                <div className="p-5 md:p-6">
+                  <div className="mb-4 flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-2">
+                      <BookOpen className="h-4 w-4 text-indigo-600" />
+                      <h2 className="font-semibold text-slate-900">Subject-wise Attendance</h2>
+                    </div>
+                    <span className="text-xs font-medium text-slate-400">{subjectStats.length} subjects</span>
+                  </div>
+                  <div className="space-y-4">
+                    {subjectStats.map((s) => (
+                      <div key={s.subject} className="rounded-2xl border border-slate-100 bg-slate-50/70 p-4">
+                        <div className="mb-2 flex items-center justify-between gap-3">
+                          <span className="text-sm font-semibold text-slate-800">{s.subject}</span>
+                          <span className="text-xs text-slate-500">
+                            {s.present}/{s.total} classes ·{' '}
+                            <span className={`font-semibold ${
+                              s.pct >= 75 ? 'text-emerald-600' : s.pct >= 50 ? 'text-amber-600' : 'text-rose-600'
+                            }`}>{s.pct}%</span>
+                          </span>
+                        </div>
+                        <ProgressBar value={s.present} max={s.total} />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+              <p className="flex items-center gap-2 text-sm text-slate-600">
+                <Target className="h-4 w-4 shrink-0 text-indigo-600" />
                 Aim to maintain 75%+ attendance. If any entry looks incorrect, contact your class teacher.
               </p>
             </div>

@@ -567,6 +567,48 @@ const closeDetail = () => {
     return { bucket: 'pending', label: 'Pending', rawStatus };
   };
 
+  const getAssignmentPresentation = (assignment) => {
+    const rawStatus = String(assignment?.submissionStatus || '').toLowerCase();
+    if (rawStatus === 'graded' || assignment?.status === 'completed') {
+      return {
+        badgeClass: 'border-emerald-200 bg-emerald-50 text-emerald-700',
+        cardAccentClass: 'border-l-emerald-500',
+        iconClass: 'text-emerald-600',
+        summaryBucket: 'completed',
+      };
+    }
+    if (rawStatus === 'late') {
+      return {
+        badgeClass: 'border-amber-200 bg-amber-50 text-amber-700',
+        cardAccentClass: 'border-l-amber-500',
+        iconClass: 'text-amber-600',
+        summaryBucket: 'submittedLate',
+      };
+    }
+    if (rawStatus === 'submitted') {
+      return {
+        badgeClass: 'border-sky-200 bg-sky-50 text-sky-700',
+        cardAccentClass: 'border-l-sky-500',
+        iconClass: 'text-sky-600',
+        summaryBucket: 'submitted',
+      };
+    }
+    if (assignment?.status === 'overdue') {
+      return {
+        badgeClass: 'border-red-200 bg-red-50 text-red-700',
+        cardAccentClass: 'border-l-red-500',
+        iconClass: 'text-red-600',
+        summaryBucket: 'overdue',
+      };
+    }
+    return {
+      badgeClass: 'border-slate-200 bg-slate-50 text-slate-700',
+      cardAccentClass: 'border-l-slate-400',
+      iconClass: 'text-slate-600',
+      summaryBucket: 'toSubmit',
+    };
+  };
+
   const getFileNameFromUrl = (url) => {
     if (!url) return '';
     try {
@@ -634,7 +676,8 @@ const closeDetail = () => {
       if (!matchesSearch) return false;
       
       if (filter === 'all') return true;
-      if (filter === 'pending') return assignment.status === 'pending';
+      if (filter === 'pending') return assignment.status === 'pending' && !['submitted', 'late'].includes(assignment.submissionStatus);
+      if (filter === 'submitted') return ['submitted', 'late'].includes(assignment.submissionStatus);
       if (filter === 'completed') return assignment.status === 'completed';
       if (filter === 'overdue') return assignment.status === 'overdue';
       
@@ -655,6 +698,20 @@ const closeDetail = () => {
       }
       return 0;
     });
+
+  const assignmentSummary = assignments.reduce((acc, assignment) => {
+    const presentation = getAssignmentPresentation(assignment);
+    acc.total += 1;
+    acc[presentation.summaryBucket] += 1;
+    return acc;
+  }, {
+    total: 0,
+    toSubmit: 0,
+    submitted: 0,
+    submittedLate: 0,
+    completed: 0,
+    overdue: 0,
+  });
 
   // Lab effects
   useEffect(() => {
@@ -1126,9 +1183,10 @@ const closeDetail = () => {
           <div className="flex overflow-x-auto gap-2 pb-0.5 scrollbar-hide">
             {[
               { key: 'all', label: 'All' },
-              { key: 'pending', label: '⏳ Pending' },
-              { key: 'completed', label: '✅ Done' },
-              { key: 'overdue', label: '🔴 Overdue' },
+              { key: 'pending', label: 'To Submit' },
+              { key: 'submitted', label: 'Submitted' },
+              { key: 'completed', label: 'Completed' },
+              { key: 'overdue', label: 'Overdue' },
             ].map(({ key, label }) => (
               <button
                 key={key}
@@ -1146,12 +1204,12 @@ const closeDetail = () => {
         </div>
 
         {/* Stats Cards */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-3">
           <div className="bg-white p-3 md:p-5 rounded-xl shadow-sm border border-gray-100">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-xs font-medium text-gray-500">Total</p>
-                <p className="text-2xl font-bold text-gray-900">{assignments.length}</p>
+                <p className="text-2xl font-bold text-gray-900">{assignmentSummary.total}</p>
               </div>
               <div className="p-2 bg-blue-50 rounded-lg">
                 <FileText className="w-5 h-5 text-blue-600" />
@@ -1161,26 +1219,44 @@ const closeDetail = () => {
           <div className="bg-white p-3 md:p-5 rounded-xl shadow-sm border border-gray-100">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-xs font-medium text-gray-500">Pending</p>
-                <p className="text-2xl font-bold text-yellow-600">
-                  {assignments.filter(a => a.status === 'pending').length}
+                <p className="text-xs font-medium text-gray-500">To Submit</p>
+                <p className="text-2xl font-bold text-slate-700">
+                  {assignmentSummary.toSubmit}
                 </p>
               </div>
-              <div className="p-2 bg-yellow-50 rounded-lg">
-                <Clock className="w-5 h-5 text-yellow-600" />
+              <div className="p-2 bg-slate-100 rounded-lg">
+                <Clock className="w-5 h-5 text-slate-600" />
               </div>
             </div>
           </div>
           <div className="bg-white p-3 md:p-5 rounded-xl shadow-sm border border-gray-100">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-xs font-medium text-gray-500">Done</p>
-                <p className="text-2xl font-bold text-green-600">
-                  {assignments.filter(a => a.status === 'completed').length}
+                <p className="text-xs font-medium text-gray-500">Submitted</p>
+                <p className="text-2xl font-bold text-sky-600">
+                  {assignmentSummary.submitted + assignmentSummary.submittedLate}
                 </p>
               </div>
-              <div className="p-2 bg-green-50 rounded-lg">
-                <CheckCircle className="w-5 h-5 text-green-600" />
+              <div className="p-2 bg-sky-50 rounded-lg">
+                <Upload className="w-5 h-5 text-sky-600" />
+              </div>
+            </div>
+            {assignmentSummary.submittedLate > 0 && (
+              <p className="mt-2 text-[11px] font-medium text-amber-600">
+                {assignmentSummary.submittedLate} late
+              </p>
+            )}
+          </div>
+          <div className="bg-white p-3 md:p-5 rounded-xl shadow-sm border border-gray-100">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs font-medium text-gray-500">Completed</p>
+                <p className="text-2xl font-bold text-emerald-600">
+                  {assignmentSummary.completed}
+                </p>
+              </div>
+              <div className="p-2 bg-emerald-50 rounded-lg">
+                <CheckCircle className="w-5 h-5 text-emerald-600" />
               </div>
             </div>
           </div>
@@ -1189,7 +1265,7 @@ const closeDetail = () => {
               <div>
                 <p className="text-xs font-medium text-gray-500">Overdue</p>
                 <p className="text-2xl font-bold text-red-600">
-                  {assignments.filter(a => a.status === 'overdue').length}
+                  {assignmentSummary.overdue}
                 </p>
               </div>
               <div className="p-2 bg-red-50 rounded-lg">
@@ -1213,18 +1289,18 @@ const closeDetail = () => {
                 const daysText = days < 0 ? `${Math.abs(days)}d overdue` : days === 0 ? 'Due today' : `${days}d left`;
                 const daysColor = days < 0 ? 'text-red-600 bg-red-50 border-red-200' : days <= 3 ? 'text-amber-700 bg-amber-50 border-amber-200' : 'text-green-700 bg-green-50 border-green-200';
                 const requiresPdf = assignment.submissionFormat === 'pdf';
-                const statusBorderColor = assignment.status === 'completed' ? 'border-l-green-500' : assignment.status === 'overdue' ? 'border-l-red-500' : 'border-l-blue-500';
+                const presentation = getAssignmentPresentation(assignment);
                 return (
                   <div
                     key={assignment.id}
                     onClick={() => openDetail(assignment)}
-                    className={`bg-white rounded-2xl border border-gray-100 border-l-4 ${statusBorderColor} shadow-sm active:scale-[0.99] hover:shadow-md transition-all cursor-pointer overflow-hidden`}
+                    className={`bg-white rounded-2xl border border-gray-100 border-l-4 ${presentation.cardAccentClass} shadow-sm active:scale-[0.99] hover:shadow-md transition-all cursor-pointer overflow-hidden`}
                   >
                     <div className="p-4">
                       {/* Title row */}
                       <div className="flex items-start justify-between gap-2 mb-2">
                         <h3 className="text-sm font-semibold text-gray-900 line-clamp-2 leading-snug flex-1">{assignment.title}</h3>
-                        <span className={`shrink-0 px-2 py-0.5 rounded-full text-[11px] font-semibold capitalize border ${getStatusColor(assignment.status)}`}>
+                        <span className={`shrink-0 px-2.5 py-1 rounded-full text-[11px] font-semibold border ${presentation.badgeClass}`}>
                           {assignment.statusLabel || assignment.status}
                         </span>
                       </div>
@@ -1284,7 +1360,17 @@ const closeDetail = () => {
                   <FileText className="w-10 h-10 text-gray-200" />
                 </div>
                 <p className="font-medium text-gray-500">No assignments found</p>
-                <p className="text-sm text-gray-400">Try changing the filter or search term.</p>
+                <p className="text-sm text-gray-400">
+                  {filter === 'submitted'
+                    ? 'No submitted assignments match this search right now.'
+                    : filter === 'completed'
+                      ? 'No completed assignments match this search right now.'
+                      : filter === 'overdue'
+                        ? 'No overdue assignments match this search right now.'
+                        : filter === 'pending'
+                          ? 'No unsubmitted assignments match this search right now.'
+                          : 'Try changing the filter or search term.'}
+                </p>
               </div>
             )}
           </>
@@ -1293,6 +1379,7 @@ const closeDetail = () => {
         {/* ── Detail Modal ── */}
         {selectedAssignment && (() => {
           const a = selectedAssignment;
+          const presentation = getAssignmentPresentation(a);
           const days = getDaysRemaining(a.dueDate);
           const daysText = days < 0 ? `${Math.abs(days)} days overdue` : days === 0 ? 'Due today' : `${days} days remaining`;
           const daysColor = days < 0 ? 'text-red-600 bg-red-50 border-red-200' : days <= 3 ? 'text-amber-700 bg-amber-50 border-amber-200' : 'text-green-700 bg-green-50 border-green-200';
@@ -1319,10 +1406,30 @@ const closeDetail = () => {
                   <div className="w-10 h-1 rounded-full bg-gray-200" />
                 </div>
                 {/* Modal Header */}
-                <div className={`px-4 sm:px-6 pt-3 sm:pt-6 pb-4 border-b border-gray-100 ${a.status === 'completed' ? 'bg-green-50' : a.status === 'overdue' ? 'bg-red-50' : 'bg-blue-50'}`}>
+                <div className={`px-4 sm:px-6 pt-3 sm:pt-6 pb-4 border-b border-gray-100 ${
+                  presentation.summaryBucket === 'completed'
+                    ? 'bg-emerald-50'
+                    : presentation.summaryBucket === 'submittedLate'
+                      ? 'bg-amber-50'
+                      : presentation.summaryBucket === 'submitted'
+                        ? 'bg-sky-50'
+                        : presentation.summaryBucket === 'overdue'
+                          ? 'bg-red-50'
+                          : 'bg-slate-50'
+                }`}>
                   <div className="flex items-start justify-between gap-4">
                     <div className="flex items-start gap-3 min-w-0">
-                      <div className={`shrink-0 p-2 rounded-lg ${a.status === 'completed' ? 'bg-green-100' : a.status === 'overdue' ? 'bg-red-100' : 'bg-blue-100'}`}>
+                      <div className={`shrink-0 p-2 rounded-lg ${
+                        presentation.summaryBucket === 'completed'
+                          ? 'bg-emerald-100'
+                          : presentation.summaryBucket === 'submittedLate'
+                            ? 'bg-amber-100'
+                            : presentation.summaryBucket === 'submitted'
+                              ? 'bg-sky-100'
+                              : presentation.summaryBucket === 'overdue'
+                                ? 'bg-red-100'
+                                : 'bg-slate-100'
+                      }`}>
                         {getStatusIcon(a.status)}
                       </div>
                       <div className="min-w-0">
@@ -1344,9 +1451,9 @@ const closeDetail = () => {
 
                   {/* Meta pills */}
                   <div className="mt-4 flex flex-wrap gap-2">
-                    <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium border ${getStatusColor(a.status)}`}>
+                    <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium border ${presentation.badgeClass}`}>
                       {getStatusIcon(a.status)}
-                      <span className="capitalize ml-0.5">{a.statusLabel || a.status}</span>
+                      <span className="ml-0.5">{a.statusLabel || a.status}</span>
                     </span>
                     <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium border ${daysColor}`}>
                       <Clock className="w-3 h-3 mr-1" />{daysText}

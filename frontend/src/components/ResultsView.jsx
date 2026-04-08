@@ -12,6 +12,10 @@ import {
   CheckCircle2,
   XCircle,
   Loader2,
+  Sparkles,
+  GraduationCap,
+  ShieldCheck,
+  BookOpen,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { downloadSingleReportCardPdf } from '../utils/reportCardPdf';
@@ -160,6 +164,7 @@ const ResultsView = () => {
     (examGroups.find((group) => String(group?._id) === String(selectedExamGroupId))?.status || '')
   ).toLowerCase();
   const hideDownloadButton = selectedExamGroupStatus === 'completed';
+  const hasResults = examCards.length > 0;
 
   if (loading) {
     return (
@@ -176,94 +181,125 @@ const ResultsView = () => {
   }
 
   return (
-    <div className="space-y-4 p-3 md:p-4 pb-24 md:pb-6">
-      <div className="bg-gradient-to-r from-yellow-400 via-amber-500 to-orange-500 rounded-2xl p-4 md:p-6 text-white relative overflow-hidden">
-        <div className="absolute inset-0 opacity-10">
-          <div className="absolute top-3 right-3 w-24 h-24 bg-white rounded-full" />
-          <div className="absolute bottom-3 left-3 w-16 h-16 bg-white rounded-full" />
+    <div className="space-y-5 bg-[radial-gradient(circle_at_top_left,_rgba(250,204,21,0.14),_transparent_24%),radial-gradient(circle_at_top_right,_rgba(251,146,60,0.12),_transparent_26%),linear-gradient(180deg,_#fffaf3_0%,_#f8fafc_100%)] p-3 pb-24 md:p-4 md:pb-6">
+      <div className="relative overflow-hidden rounded-[28px] border border-amber-200/70 bg-gradient-to-r from-amber-400 via-orange-500 to-amber-500 p-5 text-white shadow-[0_28px_80px_-45px_rgba(249,115,22,0.65)] md:p-7">
+        <div className="absolute inset-0 opacity-20">
+          <div className="absolute -right-10 top-0 h-40 w-40 rounded-full bg-white/40 blur-3xl" />
+          <div className="absolute -left-12 bottom-0 h-32 w-32 rounded-full bg-yellow-100/50 blur-3xl" />
         </div>
-        <div className="relative z-10 flex items-center justify-between gap-3">
-          <div>
-            <div className="flex items-center gap-2 mb-1">
-              <Trophy className="w-6 h-6 text-yellow-200" />
-              <h1 className="text-xl md:text-3xl font-bold">My Results</h1>
+
+        <div className="relative z-10 flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
+          <div className="max-w-2xl">
+            <div className="inline-flex items-center gap-2 rounded-full border border-white/30 bg-white/15 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-white/90">
+              <Sparkles className="h-3.5 w-3.5" />
+              Academic Progress
             </div>
-            <p className="text-yellow-100 text-xs md:text-sm">Exam-wise subject performance and official grade card</p>
+            <div className="mt-4 flex items-center gap-3">
+              <Trophy className="h-7 w-7 text-amber-100" />
+              <h1 className="text-2xl font-bold tracking-tight md:text-4xl">My Results</h1>
+            </div>
+            <p className="mt-2 text-sm leading-6 text-amber-50/95 md:text-base">
+              Track your published exam performance, review subject-wise marks, and download the official report card when it becomes available.
+            </p>
           </div>
-          <div className="text-right shrink-0">
-            <div className="bg-white/20 rounded-xl px-3 py-2 backdrop-blur-sm">
-              <p className="text-yellow-100 text-xs mb-0.5">Average</p>
-              <p className="text-2xl md:text-3xl font-bold">{overview.averagePercentage.toFixed(1)}%</p>
-            </div>
-            {lastUpdated && (
-              <p className="text-yellow-200 text-[10px] mt-1">Updated {lastUpdated.toLocaleDateString()}</p>
-            )}
+
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:min-w-[430px]">
+            <HeroMetric
+              label="Average"
+              value={`${overview.averagePercentage.toFixed(1)}%`}
+              helper={hasResults ? 'Across published exams' : 'Waiting for first result'}
+            />
+            <HeroMetric
+              label="Published"
+              value={overview.examsTaken}
+              helper={overview.examsTaken === 1 ? 'Exam available' : 'Exams available'}
+            />
+            <HeroMetric
+              label="Updated"
+              value={lastUpdated ? lastUpdated.toLocaleDateString() : 'Today'}
+              helper="Latest sync"
+            />
           </div>
         </div>
       </div>
 
       {error && (
-        <div className="bg-red-50 border border-red-100 text-red-700 px-4 py-3 rounded-xl text-sm flex items-center gap-2">
+        <div className="rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-700 flex items-center gap-2">
           <AlertCircle size={16} className="shrink-0" />
           {error}
         </div>
       )}
 
-      {/* <div className="rounded-xl border border-gray-100 bg-white p-4 flex flex-col md:flex-row md:items-end gap-3 md:justify-between">
-        <div className="w-full md:max-w-md">
-          <label className="block text-xs font-semibold text-gray-500 mb-1">Completed Examination</label>
-          <select
-            value={selectedExamGroupId}
-            onChange={(e) => fetchExamWiseReport(e.target.value)}
-            className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-800 focus:border-indigo-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-100 transition"
-            disabled={!examGroups.length}
-          >
-            {!examGroups.length && <option value="">No completed exams</option>}
-            {examGroups.map((group) => (
-              <option key={group._id} value={group._id}>
-                {group.title || 'Exam'}
-              </option>
-            ))}
-          </select>
-        </div>
-        {!hideDownloadButton && (
-          <button
-            type="button"
-            onClick={handleDownloadReportCard}
-            disabled={downloadingReportCard || !reportCard}
-            className="inline-flex items-center justify-center gap-2 rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white hover:bg-slate-800 disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {downloadingReportCard ? <Loader2 size={16} className="animate-spin" /> : <Download size={16} />}
-            {downloadingReportCard ? 'Preparing PDF...' : 'Download Grade Card'}
-          </button>
-        )}
-      </div> */}
-
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <SummaryCard icon={Award} title="Exams Taken" value={overview.examsTaken} accent="bg-blue-100 text-blue-600" />
+      <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
+        <SummaryCard
+          icon={Award}
+          title="Published Exams"
+          value={overview.examsTaken}
+          subtitle={hasResults ? 'Results available now' : 'No published records yet'}
+          accent="bg-blue-100 text-blue-600"
+        />
         <SummaryCard
           icon={TrendingUp}
           title="Best Exam"
           value={overview.topScore ? `${overview.topScore.percentage.toFixed(1)}%` : 'N/A'}
-          subtitle={overview.topScore?.examName || 'Awaiting data'}
+          subtitle={overview.topScore?.examName || 'Awaiting published result'}
           accent="bg-green-100 text-green-600"
         />
-        <SummaryCard icon={Target} title="Average" value={`${overview.averagePercentage.toFixed(1)}%`} accent="bg-yellow-100 text-yellow-600" />
+        <SummaryCard
+          icon={Target}
+          title="Average Score"
+          value={`${overview.averagePercentage.toFixed(1)}%`}
+          subtitle={hasResults ? 'Current published average' : 'Will appear after first result'}
+          accent="bg-yellow-100 text-yellow-600"
+        />
         <SummaryCard
           icon={Calendar}
-          title="Recent Exam"
-          value={overview.recentExam?.examName || 'N/A'}
-          subtitle={overview.recentExam?.date ? new Date(overview.recentExam.date).toLocaleDateString() : 'No records'}
+          title="Latest Exam"
+          value={overview.recentExam?.examName || 'Not available'}
+          subtitle={overview.recentExam?.date ? new Date(overview.recentExam.date).toLocaleDateString() : 'No exam published'}
           accent="bg-purple-100 text-purple-600"
         />
       </div>
 
-      <div className="space-y-3">
+      <div className="space-y-4">
         {examCards.length === 0 ? (
-          <div className="bg-white border border-dashed border-gray-200 rounded-2xl p-10 text-center text-gray-400">
-            <Trophy className="w-10 h-10 mx-auto mb-3 text-gray-200" />
-            <p className="font-medium text-gray-500 mb-1">Result is not published yet</p>
-            <p className="text-sm">Please wait until your school publishes this exam result.</p>
+          <div className="overflow-hidden rounded-[28px] border border-dashed border-amber-200 bg-white shadow-[0_18px_45px_-38px_rgba(15,23,42,0.35)]">
+            <div className="grid gap-0 lg:grid-cols-[1.2fr_0.8fr]">
+              <div className="border-b border-amber-100 bg-[linear-gradient(135deg,_rgba(254,243,199,0.55),_rgba(255,255,255,0.95))] p-6 sm:p-8 lg:border-b-0 lg:border-r">
+                <div className="inline-flex items-center gap-2 rounded-full border border-amber-200 bg-white px-3 py-1 text-xs font-semibold uppercase tracking-[0.16em] text-amber-700">
+                  <ShieldCheck className="h-3.5 w-3.5" />
+                  Awaiting Publication
+                </div>
+                <h2 className="mt-4 text-2xl font-bold tracking-tight text-slate-900">Results have not been published yet</h2>
+                <p className="mt-3 max-w-xl text-sm leading-7 text-slate-600">
+                  Your school has not released an exam result for this term yet. Once marks are published, this page will automatically show your overall percentage, subject breakdown, grade, and downloadable report card.
+                </p>
+                <div className="mt-6 grid gap-3 sm:grid-cols-2">
+                  <InfoTile
+                    icon={GraduationCap}
+                    title="What will appear here"
+                    copy="Exam name, marks, grade, pass or fail status, and subject-wise performance."
+                  />
+                  <InfoTile
+                    icon={BookOpen}
+                    title="What to do now"
+                    copy="Check with your class teacher or school noticeboard if you expected a published result already."
+                  />
+                </div>
+              </div>
+
+              <div className="flex flex-col justify-center bg-slate-50/80 p-6 sm:p-8">
+                <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-white shadow-sm">
+                  <Trophy className="h-10 w-10 text-amber-300" />
+                </div>
+                <p className="mt-5 text-center text-sm font-semibold text-slate-700">
+                  Nothing is missing from your account right now.
+                </p>
+                <p className="mt-2 text-center text-sm leading-6 text-slate-500">
+                  This section will update as soon as the school publishes your exam record.
+                </p>
+              </div>
+            </div>
           </div>
         ) : (
           examCards.map((exam, index) => (
@@ -277,6 +313,27 @@ const ResultsView = () => {
           ))
         )}
       </div>
+    </div>
+  );
+};
+
+const HeroMetric = ({ label, value, helper }) => (
+  <div className="rounded-2xl border border-white/20 bg-white/15 px-4 py-3 backdrop-blur-sm">
+    <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-white/75">{label}</p>
+    <p className="mt-2 text-xl font-bold text-white">{value}</p>
+    <p className="mt-1 text-[11px] text-white/75">{helper}</p>
+  </div>
+);
+
+const InfoTile = ({ icon, title, copy }) => {
+  const Icon = icon;
+  return (
+    <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+      <div className="inline-flex rounded-xl bg-amber-50 p-2 text-amber-600">
+        <Icon className="h-4 w-4" />
+      </div>
+      <p className="mt-3 text-sm font-semibold text-slate-900">{title}</p>
+      <p className="mt-1 text-xs leading-6 text-slate-500">{copy}</p>
     </div>
   );
 };
