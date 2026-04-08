@@ -3,7 +3,6 @@ import AdminLayout from './AdminLayout';
 import Dashboard from './Dashboard';
 import Analytics from './Analytics';
 import Teachers from './Teachers';
-import Staff from './Staff';
 import Students from './Students';
 import Wellbeing from './pages/Wellbeing';
 import SchoolsManagement from './pages/SchoolsManagement';
@@ -163,7 +162,6 @@ const AdminApp = () => {
       'Fees Management',
       'Notices',
       'Holiday List',
-      'Staff',
       'HR',
       'Support',
     ],
@@ -222,7 +220,6 @@ const AdminApp = () => {
           element={<SchoolAdminsManagement setShowAdminHeader={setShowAdminHeader} isSuperAdmin={isSuperAdmin} />}
         />
         <Route path="teachers" element={<Teachers setShowAdminHeader={setShowAdminHeader} />} />
-        <Route path="staff" element={<Staff setShowAdminHeader={setShowAdminHeader} />} />
         <Route
           path="students"
           element={

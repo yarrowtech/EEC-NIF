@@ -112,6 +112,33 @@ const ActiveSchools = ({
     }
   };
 
+  const handleDeleteSchool = async (school) => {
+    if (!school) return;
+    const confirmed = window.confirm(`Delete ${school.name}? This cannot be undone.`);
+    if (!confirmed) return;
+    const token = localStorage.getItem('token');
+    if (!token) return;
+    try {
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/super-admin/schools/${school._id || school.id}`, {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+          authorization: `Bearer ${token}`
+        }
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data?.error || 'Unable to delete school');
+      }
+      await fetchActiveSchools?.();
+      if (selected && String(selected.school._id || selected.school.id) === String(school._id || school.id)) {
+        setSelected(null);
+      }
+    } catch (err) {
+      window.alert(err.message || 'Unable to delete school');
+    }
+  };
+
   const handleResetSchoolAdminPassword = async (admin) => {
     if (!admin?._id) return;
     const confirmed = window.confirm(`Reset password for ${admin.username || 'this school admin'}?`);
@@ -263,6 +290,12 @@ const ActiveSchools = ({
                       >
                         {effectiveStatus === 'inactive' ? 'Activate' : 'Deactivate'}
                       </button>
+                      <button
+                        className="ml-2 text-xs font-semibold px-3 py-1 rounded-full border border-rose-300 bg-rose-50 text-rose-700 hover:bg-rose-100"
+                        onClick={() => handleDeleteSchool(school)}
+                      >
+                        Delete
+                      </button>
                     </td>
                         </>
                       );
@@ -357,7 +390,7 @@ const ActiveSchools = ({
                     ))}
                   </div>
                 )}
-                <div className="pt-2">
+                <div className="pt-2 flex flex-col gap-2">
                   <button
                     className={`text-xs font-semibold px-3 py-2 rounded-lg border ${
                       getSchoolStatus(selected.school) === 'inactive'
@@ -368,6 +401,12 @@ const ActiveSchools = ({
                     onClick={() => handleStatusChange(selected.school, getSchoolStatus(selected.school) === 'inactive' ? 'active' : 'inactive')}
                   >
                     {getSchoolStatus(selected.school) === 'inactive' ? 'Activate school' : 'Deactivate school'}
+                  </button>
+                  <button
+                    className="text-xs font-semibold px-3 py-2 rounded-lg border border-rose-300 bg-rose-50 text-rose-700 hover:bg-rose-100"
+                    onClick={() => handleDeleteSchool(selected.school)}
+                  >
+                    Delete school
                   </button>
                 </div>
               </div>

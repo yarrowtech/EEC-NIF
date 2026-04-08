@@ -212,6 +212,34 @@ router.patch('/schools/:id/subscription', adminAuth, ensureSuperAdmin, async (re
   }
 });
 
+// Delete school (super admin only)
+router.delete('/schools/:id', adminAuth, ensureSuperAdmin, async (req, res) => {
+  // #swagger.tags = ['Super Admin']
+  try {
+    const { id } = req.params;
+    if (!mongoose.isValidObjectId(id)) {
+      return res.status(400).json({ error: 'Invalid school id' });
+    }
+
+    const school = await School.findById(id);
+    if (!school) {
+      return res.status(404).json({ error: 'School not found' });
+    }
+
+    await School.deleteOne({ _id: id });
+    await Promise.all([
+      Admin.deleteMany({ schoolId: id }),
+      StudentUser.deleteMany({ schoolId: id }),
+      TeacherUser.deleteMany({ schoolId: id }),
+      ParentUser.deleteMany({ schoolId: id }),
+    ]);
+
+    res.json({ message: 'School deleted successfully' });
+  } catch (err) {
+    res.status(500).json({ error: err.message || 'Unable to delete school' });
+  }
+});
+
 // Create school admin (super admin only)
 router.post('/admins', adminAuth, ensureSuperAdmin, async (req, res) => {
   // #swagger.tags = ['Super Admin']

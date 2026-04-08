@@ -1207,37 +1207,6 @@ Endpoints directly connected:
 - POST /api/fees/admin/discount
 - GET /api/fees/payments/:paymentId/receipt
 
----
-
-## URL: http://localhost:5173/admin/staff
-1. Entry server + route mounts
-backend/index.js
-Mounted APIs used by this page:
-- /api/admin/users -> backend/routes/adminUserManagement.js
-- /api/staff/auth -> backend/routes/staffRoutes.js
-
-2. Auth + access control middleware
-backend/middleware/adminAuth.js
-
-3. Route endpoint handlers used by this page
-backend/routes/adminUserManagement.js
-backend/routes/staffRoutes.js
-
-4. Global request correlation/logging
-backend/middleware/requestLogger.js
-
-5. Structured logger implementation (Pino)
-backend/utils/logger.js
-
-6. Database models used by these APIs
-backend/models/StaffUser.js
-backend/models/Admin.js
-
-7. API docs mapping (reference)
-backend/swagger.js (expected by script, currently not present)
-backend/swagger-output.json (loaded when present, currently not present)
-
-8. Verification / simulation layer (current files in repo)
 backend/scripts/validateRuntimeLogs.js
 
 Endpoints directly connected:

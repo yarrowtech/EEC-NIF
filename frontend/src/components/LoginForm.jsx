@@ -521,13 +521,13 @@ const LoginForm = () => {
               <button
                 type="submit"
                 disabled={isLoading}
-                className="w-full mt-1 py-3.5 rounded-full font-bold text-sm text-white transition-all active:scale-[0.98] disabled:opacity-60 flex items-center justify-center gap-2 shadow-lg shadow-amber-200/60 hover:shadow-xl hover:shadow-amber-300/50 hover:-translate-y-0.5"
+                className="w-full mt-1 py-3.5 rounded-full font-bold text-sm text-white transition-all active:scale-[0.98] disabled:opacity-60 flex items-center justify-center gap-3 shadow-lg shadow-amber-200/60 hover:shadow-xl hover:shadow-amber-300/50 hover:-translate-y-0.5"
                 style={{ background: 'linear-gradient(135deg,#d97706 0%,#f59e0b 60%,#fbbf24 100%)' }}
               >
                 {isLoading ? (
                   <>
-                    <div className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />
-                    {resetMode ? 'Resetting...' : 'Signing in...'}
+                    <span className="login-loader" role="status" aria-label="Loading" />
+                    <span className="tracking-wide">{resetMode ? 'Resetting...' : 'Signing in...'}</span>
                   </>
                 ) : (
                   <>

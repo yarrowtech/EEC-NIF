@@ -539,14 +539,22 @@ const SuperAdminApp = () => {
     persistSchoolCredentials(schoolCredentials);
   }, [schoolCredentials, persistSchoolCredentials]);
 
-  const generateSchoolCode = (name = '') => {
-    const cleaned = name
-      .toUpperCase()
-      .replace(/[^A-Z0-9]/g, '')
-      .slice(0, 3)
-      .padEnd(3, 'X');
+  const buildSchoolInitials = (value = '') =>
+    String(value || '')
+      .trim()
+      .split(/\s+/)
+      .map((word) => word.replace(/[^A-Za-z0-9]/g, ''))
+      .filter(Boolean)
+      .map((word) => word[0].toUpperCase())
+      .join('');
+
+  const generateSchoolCode = (request = {}) => {
+    const baseCode = String(request?.code || '')
+      .replace(/[^A-Za-z0-9]/g, '')
+      .toUpperCase();
+    const initials = baseCode || buildSchoolInitials(request?.schoolName || request?.name) || 'SCH';
     const suffix = Math.floor(1000 + Math.random() * 9000);
-    return `EEC-${cleaned}-${suffix}`;
+    return `EEC-${initials}-${suffix}`;
   };
 
   const generateSchoolPassword = () => {
@@ -610,9 +618,9 @@ const SuperAdminApp = () => {
 
   const handleSchoolCredentialGenerate = async (request, campus, campusIndex = 0, status = 'active') => {
     if (!request?.id) return;
-    const campusName = campus?.name || `Campus ${campusIndex + 1}`;
     const campusKey = campusKeyFor(campus, campusIndex);
-    const code = generateSchoolCode(`${request.schoolName || request.name}-${campusName}`);
+    const campusName = campus?.name || `Campus ${campusIndex + 1}`;
+    const code = generateSchoolCode(request);
     const password = generateSchoolPassword();
     const entry = {
       code,

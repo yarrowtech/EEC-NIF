@@ -140,11 +140,6 @@ export const ADMIN_MENU_ITEMS = [
     path: '/admin/report-cards'
   },
   {
-    icon: Users,
-    label: 'Staff',
-    path: '/admin/staff'
-  },
-  {
     icon: Briefcase,
     label: 'HR',
     path: '/admin/hr'

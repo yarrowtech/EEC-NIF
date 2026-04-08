@@ -148,30 +148,39 @@ const schoolSchema = new mongoose.Schema(
 schoolSchema.index({ registrationStatus: 1, createdAt: -1 });
 schoolSchema.index({ officialEmail: 1 });
 
+const deriveInitialCode = (value = '') => {
+  const normalized = String(value || '')
+    .trim()
+    .split(/\s+/)
+    .map((word) => word.replace(/[^A-Za-z0-9]/g, ''))
+    .filter(Boolean);
+  if (!normalized.length) return '';
+  return normalized.map((word) => word[0].toUpperCase()).join('');
+};
+
 // Auto-generate school code if not provided
-schoolSchema.pre('save', async function(next) {
-  if (!this.code) {
-    // Generate code: First 3 letters of name + 4 random digits
-    const prefix = this.name.substring(0, 3).toUpperCase().replace(/[^A-Z]/g, '');
-    let attempts = 0;
+schoolSchema.pre('save', async function autoGenerateSchoolCode(next) {
+  if (this.code) return next();
 
-    while (attempts < 10) {
-      const randomNum = Math.floor(1000 + Math.random() * 9000);
-      const generatedCode = `${prefix}${randomNum}`;
+  const baseCode = deriveInitialCode(this.name) || 'SCH';
+  let candidate = baseCode;
+  let suffix = 1;
+  const MAX_ATTEMPTS = 50;
 
-      const exists = await this.constructor.findOne({ code: generatedCode });
-      if (!exists) {
-        this.code = generatedCode;
-        break;
-      }
-      attempts++;
+  while (suffix <= MAX_ATTEMPTS) {
+    const exists = await this.constructor.findOne({ code: candidate });
+    if (!exists) {
+      this.code = candidate;
+      break;
     }
-
-    // Fallback: timestamp-based
-    if (!this.code) {
-      this.code = `SCH${Date.now().toString().slice(-6)}`;
-    }
+    candidate = `${baseCode}${suffix}`;
+    suffix += 1;
   }
+
+  if (!this.code) {
+    this.code = `SCH${Date.now().toString().slice(-6)}`;
+  }
+
   next();
 });
 
