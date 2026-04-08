@@ -9,6 +9,7 @@ import Credentials from './pages/Credentials';
 import Operations from './pages/Operations';
 import IDPass from './pages/IDPass';
 import ActiveSchools from './pages/ActiveSchools';
+import RequestDetails from './pages/RequestDetails';
 import {
   initialSchoolRequests
 } from './mockData';
@@ -1140,6 +1141,7 @@ const SuperAdminApp = () => {
             onGenerateSchoolCredentials={handleSchoolCredentialGenerate}
           />
         } />
+        <Route path="requests/:requestId" element={<RequestDetails requests={requests} />} />
         <Route path="feedback" element={
           <Feedback
             feedbackItems={feedbackItems}
