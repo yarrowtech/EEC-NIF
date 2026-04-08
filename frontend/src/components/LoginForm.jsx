@@ -6,16 +6,38 @@ import { AUTH_NOTICE, consumeAuthNotice } from '../utils/authSession';
 
 const API_BASE = (import.meta.env.VITE_API_URL || 'http://localhost:5000').replace(/\/$/, '');
 
+const REMEMBER_ME_KEY   = 'eec_remember_me';
+const REMEMBER_ME_DAYS  = 30;
+
+// Password strength scorer
+const getPasswordStrength = (pwd) => {
+  if (!pwd) return { score: 0, label: '', color: '' };
+  let score = 0;
+  if (pwd.length >= 8)  score++;
+  if (pwd.length >= 12) score++;
+  if (/[A-Z]/.test(pwd)) score++;
+  if (/[0-9]/.test(pwd)) score++;
+  if (/[!@#$%^&*()_\-+=[\]{};:'"\\|,.<>/?`~]/.test(pwd)) score++;
+  if (score <= 1) return { score, label: 'Weak',   color: 'bg-red-400'   };
+  if (score <= 3) return { score, label: 'Fair',   color: 'bg-amber-400' };
+  if (score === 4) return { score, label: 'Good',   color: 'bg-blue-400'  };
+  return              { score, label: 'Strong', color: 'bg-emerald-500' };
+};
+
 const LoginForm = () => {
   const [showPass, setShowPass] = useState(false);
   const [resetMode, setResetMode] = useState(false);
   const [resetUserType, setResetUserType] = useState('');
-  const [formData, setFormData] = useState({
-    username: '',
-    password: '',
-    newPassword: '',
-    confirmPassword: '',
-    rememberMe: false
+  const [rememberMeDaysLeft, setRememberMeDaysLeft] = useState(REMEMBER_ME_DAYS);
+  const [formData, setFormData] = useState(() => {
+    // Restore saved username if Remember Me was set
+    try {
+      const saved = JSON.parse(localStorage.getItem(REMEMBER_ME_KEY) || 'null');
+      if (saved?.expiry && saved.expiry > Date.now()) {
+        return { username: saved.username || '', password: '', newPassword: '', confirmPassword: '', rememberMe: true };
+      }
+    } catch { /* ignore */ }
+    return { username: '', password: '', newPassword: '', confirmPassword: '', rememberMe: false };
   });
   const [errors, setErrors] = useState({});
   const [loginError, setLoginError] = useState('');
@@ -39,6 +61,23 @@ const LoginForm = () => {
     }
   }, [location.state]);
 
+  // Auto-focus username field on mount (Fix #11)
+  useEffect(() => {
+    const el = document.getElementById('login-username');
+    if (el) el.focus();
+  }, []);
+
+  // Calculate remaining Remember Me days (Fix #12)
+  useEffect(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem(REMEMBER_ME_KEY) || 'null');
+      if (saved?.expiry && saved.expiry > Date.now()) {
+        const daysLeft = Math.ceil((saved.expiry - Date.now()) / (1000 * 60 * 60 * 24));
+        setRememberMeDaysLeft(Math.min(daysLeft, REMEMBER_ME_DAYS));
+      }
+    } catch { /* ignore */ }
+  }, []);
+
   const handleInputChange = (e) => {
     const { name, value, type, checked } = e.target;
     setFormData(prev => ({
@@ -46,14 +85,40 @@ const LoginForm = () => {
       [name]: type === 'checkbox' ? checked : value
     }));
 
+    // Clear field error as user types
     if (errors[name]) {
       setErrors(prev => ({ ...prev, [name]: '' }));
     }
-    if (loginError) {
-      setLoginError('');
+    if (loginError) setLoginError('');
+    if (resetNotice) setResetNotice('');
+  };
+
+  const handleBlur = (e) => {
+    const { name, value } = e.target;
+    // Validate on blur — works in both login and reset mode (Fix #8)
+    if (name === 'username' && !value.trim()) {
+      setErrors(prev => ({ ...prev, username: 'User ID is required' }));
     }
-    if (resetNotice) {
-      setResetNotice('');
+    if (name === 'password') {
+      if (!value) {
+        setErrors(prev => ({ ...prev, password: 'Password is required' }));
+      } else if (!resetMode && value.length < 6) {
+        setErrors(prev => ({ ...prev, password: 'Password must be at least 6 characters' }));
+      }
+    }
+    if (name === 'newPassword') {
+      if (!value) {
+        setErrors(prev => ({ ...prev, newPassword: 'New password is required' }));
+      } else if (value.length < 6) {
+        setErrors(prev => ({ ...prev, newPassword: 'Password must be at least 6 characters' }));
+      }
+    }
+    if (name === 'confirmPassword') {
+      if (!value) {
+        setErrors(prev => ({ ...prev, confirmPassword: 'Please confirm your password' }));
+      } else if (value !== formData.newPassword) {
+        setErrors(prev => ({ ...prev, confirmPassword: 'Passwords do not match' }));
+      }
     }
   };
 
@@ -208,12 +273,22 @@ const LoginForm = () => {
           confirmPassword: ''
         }));
         setResetNotice('First login detected. Please reset your password.');
+        setIsLoading(false); // Fix #1 — must unblock the form for reset
         return;
       }
 
       localStorage.setItem('token', data.token);
       localStorage.setItem('userType', data.userType);
-      toast.success('Login successful');
+
+      // Persist Remember Me — store username + expiry
+      if (formData.rememberMe) {
+        localStorage.setItem(REMEMBER_ME_KEY, JSON.stringify({
+          username: sanitizedUsername,
+          expiry: Date.now() + REMEMBER_ME_DAYS * 24 * 60 * 60 * 1000,
+        }));
+      } else {
+        localStorage.removeItem(REMEMBER_ME_KEY);
+      }
 
       const redirectByUserType = {
         Student: '/student',
@@ -224,16 +299,21 @@ const LoginForm = () => {
         SuperAdmin: '/super-admin/overview',
       };
 
-      navigate(redirectByUserType[data.userType] || '/');
-      if (!redirectByUserType[data.userType]) {
-        console.warn('Unknown userType from auth response:', data.userType);
+      const targetPath = redirectByUserType[data.userType];
+      if (!targetPath) {
+        // Fix #3 — unknown userType: show error, reset spinner
+        setLoginError('Login succeeded but your account type is not recognised. Please contact support.');
+      } else {
+        // Fix #7 — toast fires after navigate so it's visible on the destination page
+        navigate(targetPath);
+        toast.success('Login successful');
+        return; // keep spinner alive during navigation
       }
     } catch (error) {
       console.error('Login failed:', error);
       setLoginError(error.message || 'Login failed. Please try again.');
-    } finally {
-      setIsLoading(false);
     }
+    setIsLoading(false);
   };
 
   const features = [
@@ -244,7 +324,7 @@ const LoginForm = () => {
   ];
 
   return (
-    <div className="min-h-[100svh] flex bg-gray-50">
+    <div className="min-h-svh flex bg-gray-50">
 
       {/* ── LEFT PANEL ── */}
       <div
@@ -322,7 +402,7 @@ const LoginForm = () => {
       </div>
 
       {/* ── RIGHT PANEL ── */}
-      <div className="flex-1 relative flex items-center justify-center min-h-[100svh] px-5 py-6 sm:px-12 sm:py-10 bg-gray-50">
+      <div className="flex-1 relative flex items-center justify-center min-h-svh px-5 py-6 sm:px-12 sm:py-10 bg-gray-50">
 
         {/* Background accent blobs */}
         <div className="absolute top-0 right-0 w-72 h-72 rounded-full bg-amber-100/50 blur-3xl pointer-events-none" />
@@ -399,10 +479,13 @@ const LoginForm = () => {
                     <User className="w-3.5 h-3.5 text-amber-500" />
                   </div>
                   <input
+                    id="login-username"
                     type="text"
                     name="username"
+                    aria-label="User ID"
                     value={formData.username}
                     onChange={handleInputChange}
+                    onBlur={handleBlur}
                     placeholder="Enter your User ID"
                     className={`bg-white w-full pl-12 pr-4 py-3.5 rounded-full border text-gray-900 placeholder-gray-300 text-sm font-medium transition-all focus:outline-none focus:border-amber-400 focus:ring-4 focus:ring-amber-50 ${
                       errors.username
@@ -425,8 +508,10 @@ const LoginForm = () => {
                     <input
                       type={showPass ? 'text' : 'password'}
                       name="password"
+                      aria-label="Password"
                       value={formData.password}
                       onChange={handleInputChange}
+                      onBlur={handleBlur}
                       placeholder="Enter your password"
                       className={`bg-white w-full pl-12 pr-12 py-3.5 rounded-full border text-gray-900 placeholder-gray-300 text-sm font-medium transition-all focus:outline-none focus:border-amber-400 focus:ring-4 focus:ring-amber-50 ${
                         errors.password
@@ -436,6 +521,7 @@ const LoginForm = () => {
                     />
                     <button
                       type="button"
+                      aria-label={showPass ? 'Hide password' : 'Show password'}
                       className="absolute right-3.5 top-1/2 -translate-y-1/2 w-7 h-7 rounded-lg flex items-center justify-center text-gray-400 hover:text-amber-500 hover:bg-amber-50 transition-all"
                       onClick={() => setShowPass(!showPass)}
                     >
@@ -460,6 +546,7 @@ const LoginForm = () => {
                         name="newPassword"
                         value={formData.newPassword}
                         onChange={handleInputChange}
+                        onBlur={handleBlur}
                         placeholder="Create a strong password"
                         className={`w-full pl-12 pr-12 py-3.5 rounded-full border text-gray-900 placeholder-gray-300 text-sm font-medium transition-all focus:outline-none focus:border-amber-400 focus:ring-4 focus:ring-amber-50 ${
                           errors.newPassword
@@ -469,12 +556,32 @@ const LoginForm = () => {
                       />
                       <button
                         type="button"
+                        aria-label={showPass ? 'Hide password' : 'Show password'}
                         className="absolute right-3.5 top-1/2 -translate-y-1/2 w-7 h-7 rounded-lg flex items-center justify-center text-gray-400 hover:text-amber-500 hover:bg-amber-50 transition-all"
                         onClick={() => setShowPass(!showPass)}
                       >
                         {showPass ? <EyeOff size={15} /> : <Eye size={15} />}
                       </button>
                     </div>
+                    {/* Password strength meter */}
+                    {formData.newPassword && (() => {
+                      const { score, label, color } = getPasswordStrength(formData.newPassword);
+                      return (
+                        <div className="mt-2 space-y-1">
+                          <div className="flex gap-1">
+                            {[1,2,3,4,5].map((i) => (
+                              <div
+                                key={i}
+                                className={`h-1 flex-1 rounded-full transition-all duration-300 ${i <= score ? color : 'bg-gray-100'}`}
+                              />
+                            ))}
+                          </div>
+                          <p className={`text-[11px] font-semibold pl-0.5 ${
+                            score <= 1 ? 'text-red-500' : score <= 3 ? 'text-amber-500' : score === 4 ? 'text-blue-500' : 'text-emerald-600'
+                          }`}>{label} password</p>
+                        </div>
+                      );
+                    })()}
                     {errors.newPassword && <p className="text-xs text-red-500 flex items-center gap-1 pl-1">⚠ {errors.newPassword}</p>}
                   </div>
 
@@ -489,6 +596,7 @@ const LoginForm = () => {
                         name="confirmPassword"
                         value={formData.confirmPassword}
                         onChange={handleInputChange}
+                        onBlur={handleBlur}
                         placeholder="Re-enter your password"
                         className={`w-full pl-12 pr-4 py-3.5 rounded-2xl border text-gray-900 placeholder-gray-300 text-sm font-medium transition-all focus:outline-none focus:border-amber-400 focus:ring-4 focus:ring-amber-50 ${
                           errors.confirmPassword
@@ -505,7 +613,7 @@ const LoginForm = () => {
               {/* Remember me */}
               {!resetMode && (
                 <label htmlFor="remember" className="flex items-center gap-3 cursor-pointer select-none group pt-0.5">
-                  <input type="checkbox" id="remember" name="rememberMe" checked={formData.rememberMe} onChange={handleInputChange} className="sr-only peer" />
+                  <input type="checkbox" id="remember" name="rememberMe" aria-label="Remember me for 30 days" checked={formData.rememberMe} onChange={handleInputChange} className="sr-only peer" />
                   <div className="w-[18px] h-[18px] rounded-md border-2 border-gray-200 bg-white peer-checked:bg-amber-500 peer-checked:border-amber-500 transition-all flex items-center justify-center shrink-0 shadow-sm">
                     {formData.rememberMe && (
                       <svg className="w-2.5 h-2.5 text-white" viewBox="0 0 12 10" fill="none">
@@ -513,7 +621,11 @@ const LoginForm = () => {
                       </svg>
                     )}
                   </div>
-                  <span className="text-sm text-gray-400 group-hover:text-gray-600 transition-colors">Remember me for 30 days</span>
+                  <span className="text-sm text-gray-400 group-hover:text-gray-600 transition-colors">
+                    {formData.rememberMe && rememberMeDaysLeft < REMEMBER_ME_DAYS
+                      ? `Remembered — ${rememberMeDaysLeft} day${rememberMeDaysLeft !== 1 ? 's' : ''} left`
+                      : `Remember me for ${REMEMBER_ME_DAYS} days`}
+                  </span>
                 </label>
               )}
 
@@ -521,7 +633,7 @@ const LoginForm = () => {
               <button
                 type="submit"
                 disabled={isLoading}
-                className="w-full mt-1 py-3.5 rounded-full font-bold text-sm text-white transition-all active:scale-[0.98] disabled:opacity-60 flex items-center justify-center gap-3 shadow-lg shadow-amber-200/60 hover:shadow-xl hover:shadow-amber-300/50 hover:-translate-y-0.5"
+                className="w-full mt-1 py-3.5 rounded-full font-bold text-sm text-white transition-all active:scale-[0.98] disabled:opacity-60 disabled:cursor-not-allowed disabled:transform-none disabled:shadow-lg flex items-center justify-center gap-3 shadow-lg shadow-amber-200/60 hover:enabled:shadow-xl hover:enabled:shadow-amber-300/50 hover:enabled:-translate-y-0.5"
                 style={{ background: 'linear-gradient(135deg,#d97706 0%,#f59e0b 60%,#fbbf24 100%)' }}
               >
                 {isLoading ? (

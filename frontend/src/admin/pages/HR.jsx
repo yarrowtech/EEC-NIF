@@ -91,6 +91,7 @@ const HR = ({ setShowAdminHeader }) => {
   });
   const [activityLoading, setActivityLoading] = useState(false);
   const [activityError, setActivityError] = useState('');
+  const [hrNotice, setHrNotice] = useState({ type: '', text: '' });
   const [teacherLeaves, setTeacherLeaves] = useState([]);
   const [teacherExpenses, setTeacherExpenses] = useState([]);
   const [teacherAttendanceRecords, setTeacherAttendanceRecords] = useState([]);
@@ -706,7 +707,7 @@ const HR = ({ setShowAdminHeader }) => {
       pdf.save(`ID_Card_${idCardData.firstName}_${idCardData.lastName}_${idCardType}.pdf`);
     } catch (error) {
       console.error('Error generating PDF:', error);
-      alert('Error generating PDF. Please try again.');
+      setHrNotice({ type: 'error', text: 'Unable to generate ID card PDF. Please try again.' });
     }
   };
 
@@ -739,14 +740,13 @@ const HR = ({ setShowAdminHeader }) => {
     const data = new FormData(e.currentTarget);
     const entries = {};
     for (const [k, v] of data.entries()) entries[k] = v;
-    console.log(`Submitting ${kind}`, entries);
-
-    // Generate ID card after form submission
-    if (confirm(`${kind} added successfully! Would you like to generate an ID card?`)) {
+    if (entries.firstName) {
       generateIDCard(entries, kind.toLowerCase());
     }
-
-    alert(`${kind} form captured. Implement API to persist.`);
+    setHrNotice({
+      type: 'info',
+      text: `${kind} form captured. Persistence API is pending for this section, but ID card preview is ready.`,
+    });
   };
 
   // Form components for Add New section
@@ -863,6 +863,17 @@ const HR = ({ setShowAdminHeader }) => {
             ))}
           </div>
         </div>
+
+        {hrNotice.text && (
+          <div className={`mb-6 rounded-xl border px-4 py-3 text-sm flex items-center gap-2 ${
+            hrNotice.type === 'error'
+              ? 'border-red-200 bg-red-50 text-red-700'
+              : 'border-blue-200 bg-blue-50 text-blue-700'
+          }`}>
+            <AlertCircle size={16} className="shrink-0" />
+            <span>{hrNotice.text}</span>
+          </div>
+        )}
 
         {/* Payroll */}
         {tab === 'payroll' && (

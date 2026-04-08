@@ -137,7 +137,7 @@ const StudentFeeDetails = ({ setShowAdminHeader }) => {
 
   const handlePaymentSave = async () => {
     if (!paymentForm.amount) {
-      alert('Enter amount');
+      setActionMessage({ type: 'error', text: 'Enter amount' });
       return;
     }
     if (paymentForm.method === 'razorpay') {
@@ -278,6 +278,7 @@ const StudentFeeDetails = ({ setShowAdminHeader }) => {
 
   const handleDiscountSave = async () => {
     setSavingDiscount(true);
+    setActionMessage({ type: '', text: '' });
     try {
       const res = await fetch(`${API_BASE}/api/fees/admin/discount`, {
         method: 'POST',
@@ -295,9 +296,10 @@ const StudentFeeDetails = ({ setShowAdminHeader }) => {
       if (!res.ok) {
         throw new Error(data?.error || 'Unable to apply discount');
       }
+      setActionMessage({ type: 'success', text: 'Discount updated successfully.' });
       fetchDetails();
     } catch (err) {
-      alert(err.message || 'Unable to apply discount');
+      setActionMessage({ type: 'error', text: err.message || 'Unable to apply discount' });
     } finally {
       setSavingDiscount(false);
     }

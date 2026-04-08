@@ -23,7 +23,7 @@ export const parseJwtPayload = (token) => {
     const padded = base64.padEnd(base64.length + ((4 - (base64.length % 4)) % 4), '=');
     const json = atob(padded);
     return JSON.parse(json);
-  } catch (_error) {
+  } catch {
     return null;
   }
 };
@@ -59,4 +59,19 @@ export const logoutAndRedirect = ({
   if (typeof navigate === 'function') {
     navigate('/', { replace, state: { authNotice: notice } });
   }
+};
+
+// ---------------------------------------------------------------------------
+// apiFetch — drop-in fetch() wrapper that auto-redirects on 401/403.
+// Usage: const res = await apiFetch(url, options, navigate);
+// ---------------------------------------------------------------------------
+export const apiFetch = async (url, options = {}, navigate = null) => {
+  const res = await fetch(url, options);
+  if ((res.status === 401 || res.status === 403) && navigate) {
+    logoutAndRedirect({ navigate, notice: AUTH_NOTICE.EXPIRED, clearAllLocalStorage: true });
+    const authError = new Error('Session expired');
+    authError.code = AUTH_NOTICE.EXPIRED;
+    throw authError;
+  }
+  return res;
 };

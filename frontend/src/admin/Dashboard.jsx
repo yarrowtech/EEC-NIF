@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { apiFetch } from '../utils/authSession';
 import {
   BarChart2,
   Users,
@@ -379,9 +380,11 @@ const Dashboard = ({ setShowAdminHeader }) => {
 
     const fetchStats = async () => {
       try {
-        const res = await fetch(`${import.meta.env.VITE_API_URL}/api/admin/users/dashboard-stats`, {
-          headers: { authorization: `Bearer ${localStorage.getItem('token')}` },
-        });
+        const res = await apiFetch(
+          `${import.meta.env.VITE_API_URL}/api/admin/users/dashboard-stats`,
+          { headers: { authorization: `Bearer ${localStorage.getItem('token')}` } },
+          navigate
+        );
         const data = await res.json();
         if (!res.ok) throw new Error(data?.error || 'Failed to load dashboard stats');
         setDashboardStats(data);
@@ -417,8 +420,8 @@ const Dashboard = ({ setShowAdminHeader }) => {
       try {
         const authHeaders = { authorization: `Bearer ${localStorage.getItem('token')}` };
         const [invoiceRes, paymentRes] = await Promise.all([
-          fetch(`${import.meta.env.VITE_API_URL}/api/fees/invoices`, { headers: authHeaders }),
-          fetch(`${import.meta.env.VITE_API_URL}/api/fees/payments`, { headers: authHeaders }),
+          apiFetch(`${import.meta.env.VITE_API_URL}/api/fees/invoices`, { headers: authHeaders }, navigate),
+          apiFetch(`${import.meta.env.VITE_API_URL}/api/fees/payments`, { headers: authHeaders }, navigate),
         ]);
         const invoicesData = await invoiceRes.json().catch(() => []);
         const paymentsData = await paymentRes.json().catch(() => []);
@@ -433,8 +436,10 @@ const Dashboard = ({ setShowAdminHeader }) => {
           writeDashboardCache(financialCacheKey, nextFinancialState);
         }
       } catch (err) {
-        if (!cancelled && !cachedFinancial) {
+        if (!cancelled) {
           setFinancialError(err.message || 'Failed to load fee data');
+        }
+        if (!cancelled && !cachedFinancial) {
           setFinancialState({
             trend: [],
             totals: { totalCollected: 0, totalOutstanding: 0, overdueAmount: 0 },
@@ -463,7 +468,11 @@ const Dashboard = ({ setShowAdminHeader }) => {
       setActivityError('');
       if (!cachedActivity) setActivityLoading(true);
       try {
-        const res = await fetch(`${import.meta.env.VITE_API_URL}/api/audit-logs`);
+        const res = await apiFetch(
+          `${import.meta.env.VITE_API_URL}/api/audit-logs`,
+          { headers: { authorization: `Bearer ${localStorage.getItem('token')}` } },
+          navigate
+        );
         const data = await res.json().catch(() => []);
         if (!res.ok) throw new Error(data?.error || 'Failed to load activity');
         if (!cancelled) {
@@ -707,8 +716,24 @@ const Dashboard = ({ setShowAdminHeader }) => {
 
             <div className="px-4 pb-5">
               {financialLoading ? (
-                <div className="flex h-56 items-center justify-center text-sm text-gray-400">
-                  <span className="animate-pulse">Loading fee data...</span>
+                <div className="h-56 flex flex-col justify-end gap-2 px-2 pt-4">
+                  {/* Skeleton bar chart */}
+                  <div className="flex items-end gap-3 h-40">
+                    {[55, 80, 40, 90, 65, 75, 50, 85, 60, 70, 45, 95].map((h, i) => (
+                      <div key={i} className="flex-1 flex flex-col justify-end">
+                        <div
+                          className="rounded-t-md bg-gray-100 animate-pulse"
+                          style={{ height: `${h}%` }}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                  {/* X-axis skeleton */}
+                  <div className="flex gap-3 px-0.5">
+                    {[...Array(12)].map((_, i) => (
+                      <div key={i} className="flex-1 h-2 rounded-full bg-gray-100 animate-pulse" />
+                    ))}
+                  </div>
                 </div>
               ) : feesTrend.length ? (
                 <ResponsiveContainer width="100%" height={260}>

@@ -2736,9 +2736,24 @@ const Students = ({ setShowAdminHeader, setShowAdminBreadcrumb }) => {
     <div className="flex-1 bg-gray-50 overflow-hidden flex flex-col">
       <div className="w-full flex-1 flex flex-col p-3 md:p-5 lg:p-6 overflow-hidden text-sm md:text-base">
         {studentsLoading && (
-          <div className="mb-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-amber-700 text-sm inline-flex items-center gap-2 w-fit">
-            <Loader2 size={15} className="animate-spin" />
-            Loading students...
+          <div className="mb-4 rounded-2xl border border-gray-100 bg-white shadow-sm overflow-hidden">
+            <div className="px-4 py-3 border-b border-gray-100 flex items-center gap-2">
+              <Loader2 size={14} className="animate-spin text-indigo-400" />
+              <span className="text-sm text-gray-500 font-medium">Loading students…</span>
+            </div>
+            <div className="divide-y divide-gray-50">
+              {[...Array(5)].map((_, i) => (
+                <div key={i} className="flex items-center gap-4 px-4 py-3">
+                  <div className="w-8 h-8 rounded-xl bg-gray-100 animate-pulse shrink-0" />
+                  <div className="flex-1 space-y-1.5">
+                    <div className="h-3 bg-gray-100 rounded-full animate-pulse w-40" />
+                    <div className="h-2.5 bg-gray-50 rounded-full animate-pulse w-24" />
+                  </div>
+                  <div className="h-2.5 bg-gray-100 rounded-full animate-pulse w-16" />
+                  <div className="h-6 w-16 bg-gray-100 rounded-lg animate-pulse" />
+                </div>
+              ))}
+            </div>
           </div>
         )}
         {/* Header */}
@@ -3127,19 +3142,38 @@ const Students = ({ setShowAdminHeader, setShowAdminBreadcrumb }) => {
                         </tr>
                       );
                     })}
-                    {filteredStudents.length === 0 && (
+                    {filteredStudents.length === 0 && !studentsLoading && (
                       <tr>
-                        <td
-                          colSpan={6}
-                          className="text-center text-gray-500 py-10 text-sm"
-                        >
+                        <td colSpan={6} className="py-14 px-4 text-center">
                           {isImporting ? (
-                            <div className="inline-flex items-center gap-2 text-blue-700 font-medium">
+                            <div className="inline-flex items-center gap-2 text-blue-700 font-medium text-sm">
                               <Loader2 size={16} className="animate-spin" />
-                              Importing students, please wait...
+                              Importing students, please wait…
                             </div>
                           ) : (
-                            "No students found"
+                            <div className="flex flex-col items-center gap-3">
+                              <div className="w-14 h-14 rounded-2xl bg-indigo-50 flex items-center justify-center">
+                                <svg className="w-7 h-7 text-indigo-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                                  <path strokeLinecap="round" strokeLinejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
+                                </svg>
+                              </div>
+                              <div>
+                                <p className="text-sm font-semibold text-gray-700">No students found</p>
+                                <p className="text-xs text-gray-400 mt-0.5">
+                                  {studentData.length === 0
+                                    ? 'Add your first student to get started'
+                                    : 'Try adjusting your search or filters'}
+                                </p>
+                              </div>
+                              {studentData.length === 0 && (
+                                <button
+                                  onClick={() => setShowAddForm(true)}
+                                  className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-indigo-600 text-white text-xs font-semibold hover:bg-indigo-700 transition-colors"
+                                >
+                                  + Add First Student
+                                </button>
+                              )}
+                            </div>
                           )}
                         </td>
                       </tr>

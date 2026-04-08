@@ -12,11 +12,10 @@ import {
   Clock,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { AUTH_NOTICE, logoutAndRedirect } from '../utils/authSession';
-
+import { apiFetch } from '../utils/authSession';
 const API_BASE = (import.meta.env.VITE_API_URL || 'http://localhost:5000').replace(/\/$/, '');
 
-const AdminHeader = ({ adminUser, onOpenMobileSidebar }) => {
+const AdminHeader = ({ adminUser, onOpenMobileSidebar, onLogoutRequest }) => {
   const [showProfileMenu, setShowProfileMenu]       = useState(false);
   const [showNotifications, setShowNotifications]   = useState(false);
   const [showSearch, setShowSearch]                 = useState(false);
@@ -47,9 +46,9 @@ const AdminHeader = ({ adminUser, onOpenMobileSidebar }) => {
   /* Read-IDs persistence */
   const readKey = useMemo(() => {
     const r = String(adminUser?.role || 'admin').toLowerCase().replace(/\s+/g, '_');
-    const u = String(adminUser?.name || 'user').toLowerCase().replace(/\s+/g, '_');
+    const u = String(adminUser?.id || adminUser?.email || 'user').toLowerCase().replace(/\s+/g, '_');
     return `admin_read_notifications_v1_${r}_${u}`;
-  }, [adminUser?.role, adminUser?.name]);
+  }, [adminUser?.role, adminUser?.id, adminUser?.email]);
 
   useEffect(() => {
     try {
@@ -64,17 +63,17 @@ const AdminHeader = ({ adminUser, onOpenMobileSidebar }) => {
     localStorage.setItem(readKey, JSON.stringify(deduped));
   };
 
-  /* Fetch notifications */
+  /* Fetch notifications — idle-aware: pause polling when tab is hidden */
   useEffect(() => {
-    const fetch_ = async () => {
+    const fetchNotifs = async () => {
       const token = localStorage.getItem('token');
       if (!token) { setNotifications([]); return; }
       setNotifLoading(true);
       setNotifError('');
       try {
-        const res  = await fetch(`${API_BASE}/api/notifications/user`, {
+        const res  = await apiFetch(`${API_BASE}/api/notifications/user`, {
           headers: { 'Content-Type': 'application/json', authorization: `Bearer ${token}` },
-        });
+        }, navigate);
         const data = await res.json().catch(() => []);
         if (!res.ok) throw new Error(data?.error || 'Failed to load notifications');
         const all = Array.isArray(data) ? data : [];
@@ -92,10 +91,23 @@ const AdminHeader = ({ adminUser, onOpenMobileSidebar }) => {
         setNotifications([]);
       } finally { setNotifLoading(false); }
     };
-    fetch_();
-    const poll = setInterval(fetch_, 45000);
-    return () => clearInterval(poll);
-  }, [isSuperAdmin]);
+
+    fetchNotifs();
+
+    // Poll every 60s but skip when the tab is hidden (saves bandwidth when idle)
+    const poll = setInterval(() => {
+      if (document.visibilityState === 'visible') fetchNotifs();
+    }, 60_000);
+
+    // Also re-fetch immediately when the user returns to the tab
+    const onVisible = () => { if (document.visibilityState === 'visible') fetchNotifs(); };
+    document.addEventListener('visibilitychange', onVisible);
+
+    return () => {
+      clearInterval(poll);
+      document.removeEventListener('visibilitychange', onVisible);
+    };
+  }, [isSuperAdmin, navigate]);
 
   const unreadCount = useMemo(
     () => notifications.filter((n) => !readIds.includes(String(n?._id || n?.id || ''))).length,
@@ -214,6 +226,11 @@ const AdminHeader = ({ adminUser, onOpenMobileSidebar }) => {
     if (e.key === 'Escape') {
       setShowSuggestions(false);
       setActiveSuggestionIndex(-1);
+      return;
+    }
+    if (e.key === 'Tab') {
+      setShowSuggestions(false);
+      setActiveSuggestionIndex(-1);
     }
   };
 
@@ -237,7 +254,7 @@ const AdminHeader = ({ adminUser, onOpenMobileSidebar }) => {
     return () => clearTimeout(t);
   }, [searchFeedback]);
 
-  const handleLogout = () => logoutAndRedirect({ navigate, notice: AUTH_NOTICE.LOGGED_OUT });
+  const handleLogout = () => { setShowProfileMenu(false); onLogoutRequest?.(); };
 
   /* Close dropdowns on outside click */
   useEffect(() => {
@@ -485,7 +502,7 @@ const AdminHeader = ({ adminUser, onOpenMobileSidebar }) => {
                   <p className="text-sm font-bold text-gray-900 truncate">{profileName}</p>
                   <p className="text-xs text-gray-400 truncate">{profileRole}</p>
                   {schoolName && (
-                    <p className="text-[11px] text-indigo-600 font-medium truncate mt-0.5">{schoolName}</p>
+                    <p className="text-[11px] text-indigo-600 font-medium truncate mt-0.5" title={schoolName}>{schoolName}</p>
                   )}
                 </div>
                 <div className="py-1">
@@ -534,28 +551,32 @@ const AdminHeader = ({ adminUser, onOpenMobileSidebar }) => {
               <X size={16} />
             </button>
           </form>
-          {searchQuery && suggestions.length > 0 && (
+          {searchQuery && (
             <div className="mt-1.5 rounded-2xl border border-gray-100 bg-white shadow-xl overflow-hidden">
-              <ul className="divide-y divide-gray-50">
-                {suggestions.map((item, idx) => (
-                  <li key={item.path}>
-                    <button
-                      type="button"
-                      onMouseEnter={() => setActiveSuggestionIndex(idx)}
-                      onClick={() => navigateToSuggestion(item)}
-                      className={`w-full px-4 py-2.5 text-left flex items-center gap-3 transition-colors ${
-                        idx === activeSuggestionIndex ? 'bg-indigo-50/80' : 'hover:bg-indigo-50/60'
-                      }`}
-                    >
-                      <Search size={13} className="text-gray-300 shrink-0" />
-                      <div>
-                        <p className="text-sm font-medium text-gray-800">{item.label}</p>
-                        <p className="text-[11px] text-gray-400">{item.hint}</p>
-                      </div>
-                    </button>
-                  </li>
-                ))}
-              </ul>
+              {suggestions.length > 0 ? (
+                <ul className="divide-y divide-gray-50">
+                  {suggestions.map((item, idx) => (
+                    <li key={item.path}>
+                      <button
+                        type="button"
+                        onMouseEnter={() => setActiveSuggestionIndex(idx)}
+                        onClick={() => navigateToSuggestion(item)}
+                        className={`w-full px-4 py-2.5 text-left flex items-center gap-3 transition-colors ${
+                          idx === activeSuggestionIndex ? 'bg-indigo-50/80' : 'hover:bg-indigo-50/60'
+                        }`}
+                      >
+                        <Search size={13} className="text-gray-300 shrink-0" />
+                        <div>
+                          <p className="text-sm font-medium text-gray-800">{item.label}</p>
+                          <p className="text-[11px] text-gray-400">{item.hint}</p>
+                        </div>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <div className="px-4 py-3 text-sm text-gray-400">No results</div>
+              )}
             </div>
           )}
         </div>

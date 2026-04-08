@@ -1,8 +1,7 @@
-import React, { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { ChevronRight, ChevronLeft, ChevronDown, LogOut, X } from 'lucide-react';
 import { ADMIN_MENU_ITEMS } from './adminConstants';
-import { NavLink, useNavigate } from 'react-router-dom';
-import { AUTH_NOTICE, logoutAndRedirect } from '../utils/authSession';
+import { NavLink } from 'react-router-dom';
 
 const AdminSidebar = ({
   onMenuItemClick,
@@ -10,11 +9,29 @@ const AdminSidebar = ({
   onToggleSidebar,
   menuItems = ADMIN_MENU_ITEMS,
   adminUser,
+  profileLoading = false,
   mobileOpen = false,
   onMobileClose,
+  onLogoutRequest,
 }) => {
   const [expandedMenus, setExpandedMenus] = useState({});
-  const navigate = useNavigate();
+  const [skeletonTimedOut, setSkeletonTimedOut] = useState(false);
+
+  // Close mobile sidebar on Escape key
+  useEffect(() => {
+    if (!mobileOpen) return;
+    const onKeyDown = (e) => { if (e.key === 'Escape') onMobileClose?.(); };
+    document.addEventListener('keydown', onKeyDown);
+    return () => document.removeEventListener('keydown', onKeyDown);
+  }, [mobileOpen, onMobileClose]);
+  useEffect(() => {
+    if (!profileLoading) {
+      setSkeletonTimedOut(false);
+      return undefined;
+    }
+    const timeout = setTimeout(() => setSkeletonTimedOut(true), 7000);
+    return () => clearTimeout(timeout);
+  }, [profileLoading]);
 
   const brandLogoSrc = adminUser?.schoolLogo || adminUser?.avatar || '';
   const schoolName   = adminUser?.schoolName || adminUser?.name || 'School Admin';
@@ -24,14 +41,11 @@ const AdminSidebar = ({
   const footerInitial = (adminUser?.name || 'A').charAt(0).toUpperCase();
   const footerName    = adminUser?.name || 'Admin User';
   const footerRole    = adminUser?.role || 'Administrator';
+  const showSkeleton = profileLoading && !skeletonTimedOut;
 
   const toggleSubmenu = (label) => {
     if (collapsed) return;
     setExpandedMenus((prev) => ({ ...prev, [label]: !prev[label] }));
-  };
-
-  const handleLogout = () => {
-    logoutAndRedirect({ navigate, notice: AUTH_NOTICE.LOGGED_OUT });
   };
 
   return (
@@ -62,22 +76,32 @@ const AdminSidebar = ({
             bg-linear-to-br from-yellow-500 to-amber-700 shadow-md shadow-indigo-200
             transition-all duration-300
             ${collapsed ? 'w-9 h-9' : 'w-10 h-10'}
+            ${showSkeleton ? 'animate-pulse bg-gray-200' : ''}
           `}>
-            {brandLogoSrc ? (
+            {!showSkeleton && (brandLogoSrc ? (
               <img src={brandLogoSrc} alt={schoolName} className="w-full h-full object-cover" />
             ) : (
               <span className="text-white font-black text-sm">
                 {schoolName.slice(0, 2).toUpperCase()}
               </span>
-            )}
+            ))}
           </div>
 
-          {/* School name + campus */}
+          {/* School name + campus — skeleton while loading */}
           {!collapsed && (
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-bold text-gray-900 truncate leading-tight">{schoolName}</p>
-              {campusLabel && (
-                <p className="text-[11px] text-indigo-500 font-medium truncate mt-0.5">{campusLabel}</p>
+              {showSkeleton ? (
+                <>
+                  <div className="h-3 w-28 bg-gray-200 rounded-full animate-pulse mb-1.5" />
+                  <div className="h-2.5 w-20 bg-gray-100 rounded-full animate-pulse" />
+                </>
+              ) : (
+                <>
+                  <p className="text-sm font-bold text-gray-900 truncate leading-tight">{schoolName}</p>
+                  {campusLabel && (
+                    <p className="text-[11px] text-indigo-500 font-medium truncate mt-0.5">{campusLabel}</p>
+                  )}
+                </>
               )}
             </div>
           )}
@@ -114,6 +138,8 @@ const AdminSidebar = ({
                     <button
                       onClick={() => toggleSubmenu(item.label)}
                       title={collapsed ? item.label : undefined}
+                      aria-label={collapsed ? item.label : undefined}
+                      aria-expanded={!collapsed ? isExpanded : undefined}
                       className={`
                         w-full flex items-center gap-3 px-3 py-2.5 rounded-xl
                         text-gray-500 hover:text-gray-900 hover:bg-gray-50
@@ -172,6 +198,7 @@ const AdminSidebar = ({
                     {({ isActive }) => (
                       <div
                         title={collapsed ? item.label : undefined}
+                        aria-label={collapsed ? item.label : undefined}
                         className={`
                           flex items-center gap-3 px-3 py-2.5 rounded-xl
                           transition-all duration-150 group
@@ -204,27 +231,38 @@ const AdminSidebar = ({
 
         {/* ── Footer ── */}
         <div className="border-t border-gray-100 p-3 space-y-1">
-          {/* User row */}
+          {/* User row — skeleton while loading */}
           <div className={`flex items-center gap-2.5 px-2 py-2 rounded-xl ${collapsed ? 'justify-center' : ''}`}>
-            <div className="w-8 h-8 rounded-xl bg-indigo-100 flex items-center justify-center shrink-0 overflow-hidden">
-              {brandLogoSrc ? (
+            <div className={`w-8 h-8 rounded-xl shrink-0 overflow-hidden flex items-center justify-center
+              ${showSkeleton ? 'bg-gray-200 animate-pulse' : 'bg-indigo-100'}`}>
+              {!showSkeleton && (brandLogoSrc ? (
                 <img src={brandLogoSrc} alt={footerName} className="w-full h-full object-cover" />
               ) : (
                 <span className="text-indigo-600 font-bold text-sm">{footerInitial}</span>
-              )}
+              ))}
             </div>
             {!collapsed && (
               <div className="flex-1 min-w-0">
-                <p className="text-xs font-bold text-gray-900 truncate">{footerName}</p>
-                <p className="text-[11px] text-gray-400 truncate">{footerRole}</p>
+                {showSkeleton ? (
+                  <>
+                    <div className="h-2.5 w-24 bg-gray-200 rounded-full animate-pulse mb-1.5" />
+                    <div className="h-2 w-16 bg-gray-100 rounded-full animate-pulse" />
+                  </>
+                ) : (
+                  <>
+                    <p className="text-xs font-bold text-gray-900 truncate">{footerName}</p>
+                    <p className="text-[11px] text-gray-400 truncate">{footerRole}</p>
+                  </>
+                )}
               </div>
             )}
           </div>
 
           {/* Logout */}
           <button
-            onClick={handleLogout}
+            onClick={onLogoutRequest}
             title={collapsed ? 'Logout' : undefined}
+            aria-label="Logout"
             className={`
               w-full flex items-center gap-2.5 px-3 py-2 rounded-xl
               text-gray-400 hover:text-red-600 hover:bg-red-50
