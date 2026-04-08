@@ -204,6 +204,7 @@ export const downloadFeesStructurePdf = async ({ structure = {}, school = {} }) 
     structure.totalAmount ||
       (structure.feeHeads || []).reduce((sum, item) => sum + toAmount(item?.amount), 0)
   );
+  const lateFeeAmount = toAmount(structure.lateFeeAmount);
 
   let currentY = drawTable({
     doc,
@@ -247,6 +248,28 @@ export const downloadFeesStructurePdf = async ({ structure = {}, school = {} }) 
   doc.setTextColor(15, 23, 42);
   doc.text(`Total Fees: ${formatCurrency(totalAmount)}`, pageWidth - 16, currentY + 6.3, { align: 'right' });
   currentY += 14;
+
+  if (currentY > 274) {
+    doc.addPage();
+    currentY = 18;
+  }
+  doc.setFillColor(255, 247, 237);
+  doc.setDrawColor(253, 186, 116);
+  doc.roundedRect(12, currentY, pageWidth - 24, 12, 2, 2, 'FD');
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(9.5);
+  doc.setTextColor(154, 52, 18);
+  doc.text('Late Fine Policy', 15, currentY + 5.1);
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(8.5);
+  doc.text(
+    lateFeeAmount > 0
+      ? `Fine Amount: ${formatCurrency(lateFeeAmount)} per day after due date (until payment).`
+      : 'Fine Amount: No late fine configured for this fee structure.',
+    15,
+    currentY + 9.2
+  );
+  currentY += 16;
 
   doc.setTextColor(100, 116, 139);
   doc.setFont('helvetica', 'italic');

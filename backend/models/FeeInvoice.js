@@ -15,6 +15,11 @@ const feeInvoiceSchema = new mongoose.Schema(
     balanceAmount: { type: Number, required: true, min: 0 },
     discountAmount: { type: Number, default: 0, min: 0 },
     discountNote: { type: String, trim: true },
+    lateFeeRuleSnapshot: {
+      amount: { type: Number, default: 0, min: 0 },
+    },
+    lateFeeAmountApplied: { type: Number, default: 0, min: 0 },
+    lateFeeAppliedAt: { type: Date },
     feeHeadsSnapshot: [
       {
         label: { type: String, required: true, trim: true },

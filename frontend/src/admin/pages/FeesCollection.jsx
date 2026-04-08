@@ -1,7 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { jsPDF } from 'jspdf';
-import { formatStudentDisplay } from '../../utils/studentDisplay';
 import {
   AlertCircle,
   CheckCircle2,
@@ -45,6 +44,7 @@ const loadRazorpayScript = () =>
 const FeesCollection = ({ setShowAdminHeader }) => {
   const navigate = useNavigate();
   const [filters, setFilters] = useState({
+    academicYearId: '',
     classId: '',
     section: '',
     status: '',
@@ -60,19 +60,10 @@ const FeesCollection = ({ setShowAdminHeader }) => {
   const [loading, setLoading] = useState(false);
   const [fetchError, setFetchError] = useState('');
 
-  const [showInvoiceForm, setShowInvoiceForm] = useState(false);
-  const [creatingInvoice, setCreatingInvoice] = useState(false);
-  const [invoiceForm, setInvoiceForm] = useState({
-    studentId: '',
-    feeStructureId: '',
-    title: '',
-    totalAmount: '',
-    dueDate: '',
-  });
-
   const [students, setStudents] = useState([]);
   const [structures, setStructures] = useState([]);
   const [bulkForm, setBulkForm] = useState({
+    academicYearId: '',
     classId: '',
     section: '',
     title: '',
@@ -110,6 +101,14 @@ const FeesCollection = ({ setShowAdminHeader }) => {
         sections: data.sections || [],
         academicYears: data.academicYears || [],
       });
+      const activeYear = (data.academicYears || []).find((year) => Boolean(year?.isActive));
+      if (activeYear?.id) {
+        setFilters((prev) => (
+          prev.academicYearId
+            ? prev
+            : { ...prev, academicYearId: String(activeYear.id), classId: '', section: '' }
+        ));
+      }
     } catch (err) {
       console.error(err);
     }
@@ -124,6 +123,7 @@ const FeesCollection = ({ setShowAdminHeader }) => {
         ? classOptions.find((cls) => String(cls.id) === String(filters.classId))?.name
         : '';
       if (filters.classId) params.append('classId', filters.classId);
+      if (filters.academicYearId) params.append('academicYearId', filters.academicYearId);
       if (selectedClassName) params.append('className', selectedClassName);
       if (filters.section) params.append('section', filters.section);
       if (filters.status) params.append('status', filters.status);
@@ -205,54 +205,12 @@ const FeesCollection = ({ setShowAdminHeader }) => {
     return { totalStudents, totalDue, totalCollected, totalPending };
   }, [records]);
 
-  const handleInvoiceCreate = async () => {
-    if (!invoiceForm.studentId) {
-      alert('Select a student');
-      return;
-    }
-    if (!invoiceForm.feeStructureId && !invoiceForm.totalAmount) {
-      alert('Select a fee structure or enter total amount');
-      return;
-    }
-    setCreatingInvoice(true);
-    try {
-      const payload = {
-        studentId: invoiceForm.studentId,
-        feeStructureId: invoiceForm.feeStructureId || undefined,
-        title: invoiceForm.title || undefined,
-        totalAmount: invoiceForm.feeStructureId ? undefined : Number(invoiceForm.totalAmount || 0),
-        dueDate: invoiceForm.dueDate || undefined,
-      };
-      const res = await fetch(`${API_BASE}/api/fees/invoices`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          authorization: `Bearer ${localStorage.getItem('token')}`,
-        },
-        body: JSON.stringify(payload),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        throw new Error(data?.error || 'Unable to create invoice');
-      }
-      setInvoiceForm({
-        studentId: '',
-        feeStructureId: '',
-        title: '',
-        totalAmount: '',
-        dueDate: '',
-      });
-      setShowInvoiceForm(false);
-      fetchRecords();
-    } catch (err) {
-      alert(err.message || 'Unable to create invoice');
-    } finally {
-      setCreatingInvoice(false);
-    }
-  };
-
   const classOptions = useMemo(() => filterOptions.classes || [], [filterOptions.classes]);
   const sectionOptions = useMemo(() => filterOptions.sections || [], [filterOptions.sections]);
+  const activeAcademicYears = useMemo(
+    () => (filterOptions.academicYears || []).filter((year) => Boolean(year?.isActive)),
+    [filterOptions.academicYears]
+  );
   const classNameById = useMemo(() => {
     const map = new Map();
     classOptions.forEach((cls) => map.set(String(cls.id), cls.name));
@@ -263,11 +221,23 @@ const FeesCollection = ({ setShowAdminHeader }) => {
     if (!selectedClassId) return sectionOptions;
     return sectionOptions.filter((sec) => String(sec.classId) === String(selectedClassId));
   }, [filters.classId, sectionOptions]);
+  const filteredClasses = useMemo(() => {
+    if (!filters.academicYearId) return classOptions;
+    return classOptions.filter(
+      (cls) => String(cls?.academicYearId || '') === String(filters.academicYearId)
+    );
+  }, [classOptions, filters.academicYearId]);
   const bulkSections = useMemo(() => {
     const selectedClassId = bulkForm.classId || null;
     if (!selectedClassId) return sectionOptions;
     return sectionOptions.filter((sec) => String(sec.classId) === String(selectedClassId));
   }, [bulkForm.classId, sectionOptions]);
+  const bulkClassOptions = useMemo(() => {
+    if (!bulkForm.academicYearId) return [];
+    return classOptions.filter(
+      (cls) => String(cls?.academicYearId || '') === String(bulkForm.academicYearId)
+    );
+  }, [classOptions, bulkForm.academicYearId]);
 
   useEffect(() => {
     if (!filters.section) return;
@@ -276,6 +246,13 @@ const FeesCollection = ({ setShowAdminHeader }) => {
       setFilters((prev) => ({ ...prev, section: '' }));
     }
   }, [filteredSections, filters.section]);
+  useEffect(() => {
+    if (!filters.classId) return;
+    const valid = filteredClasses.some((cls) => String(cls.id) === String(filters.classId));
+    if (!valid) {
+      setFilters((prev) => ({ ...prev, classId: '', section: '' }));
+    }
+  }, [filteredClasses, filters.classId]);
 
   useEffect(() => {
     if (!bulkForm.section) return;
@@ -284,6 +261,19 @@ const FeesCollection = ({ setShowAdminHeader }) => {
       setBulkForm((prev) => ({ ...prev, section: '' }));
     }
   }, [bulkSections, bulkForm.section]);
+  useEffect(() => {
+    if (!bulkForm.classId) return;
+    const valid = bulkClassOptions.some((cls) => String(cls.id) === String(bulkForm.classId));
+    if (!valid) {
+      setBulkForm((prev) => ({ ...prev, classId: '', section: '' }));
+    }
+  }, [bulkClassOptions, bulkForm.classId]);
+  useEffect(() => {
+    if (bulkForm.academicYearId) return;
+    const defaultYearId = activeAcademicYears[0]?.id ? String(activeAcademicYears[0].id) : '';
+    if (!defaultYearId) return;
+    setBulkForm((prev) => ({ ...prev, academicYearId: defaultYearId }));
+  }, [activeAcademicYears, bulkForm.academicYearId]);
 
   const bulkTargetSummary = useMemo(() => {
     const className = classNameById.get(String(bulkForm.classId)) || '';
@@ -305,31 +295,33 @@ const FeesCollection = ({ setShowAdminHeader }) => {
     };
   }, [bulkForm.classId, bulkForm.section, classNameById, students]);
 
-  const activeAcademicYear = useMemo(
+  const selectedBulkAcademicYear = useMemo(
     () =>
-      (filterOptions.academicYears || []).find((year) => Boolean(year?.isActive)) || null,
-    [filterOptions.academicYears]
+      (filterOptions.academicYears || []).find(
+        (year) => String(year?.id || '') === String(bulkForm.academicYearId || '')
+      ) || null,
+    [filterOptions.academicYears, bulkForm.academicYearId]
   );
 
   const matchedBulkStructure = useMemo(() => {
-    if (!bulkForm.classId) return null;
-    const activeYearId = activeAcademicYear?.id ? String(activeAcademicYear.id) : '';
+    if (!bulkForm.classId || !bulkForm.academicYearId) return null;
+    const selectedYearId = String(bulkForm.academicYearId);
     const filtered = (structures || []).filter((structure) => {
       if (String(structure?.classId || '') !== String(bulkForm.classId)) return false;
       if (structure?.isActive === false) return false;
-      if (!activeYearId) return true;
-      return String(structure?.academicYearId || '') === activeYearId;
+      return String(structure?.academicYearId || '') === selectedYearId;
     });
     if (!filtered.length) return null;
     return filtered[0];
-  }, [bulkForm.classId, structures, activeAcademicYear]);
+  }, [bulkForm.classId, bulkForm.academicYearId, structures]);
 
   const bulkAssignDisabledReason = useMemo(() => {
+    if (!bulkForm.academicYearId) return 'Select a session first.';
     if (!bulkForm.classId) return 'Select a class first.';
-    if (!matchedBulkStructure) return 'No active-year fee structure found for this class.';
+    if (!matchedBulkStructure) return 'No fee structure found for selected session and class.';
     if (bulkTargetSummary.studentCount === 0) return 'No students found for selected class/section.';
     return '';
-  }, [bulkForm.classId, matchedBulkStructure, bulkTargetSummary.studentCount]);
+  }, [bulkForm.academicYearId, bulkForm.classId, matchedBulkStructure, bulkTargetSummary.studentCount]);
 
   const handleViewDetails = (record) => {
     if (!record?.invoiceId) return;
@@ -471,6 +463,10 @@ const FeesCollection = ({ setShowAdminHeader }) => {
   };
 
   const handleBulkGenerate = async () => {
+    if (!bulkForm.academicYearId) {
+      setBulkStatus({ type: 'error', text: 'Select a session before generating invoices.' });
+      return;
+    }
     if (!bulkForm.classId) {
       setBulkStatus({ type: 'error', text: 'Select a class before generating invoices.' });
       return;
@@ -495,6 +491,7 @@ const FeesCollection = ({ setShowAdminHeader }) => {
     setBulkStatus({ type: '', text: '' });
     try {
       const payload = {
+        academicYearId: bulkForm.academicYearId,
         classId: bulkForm.classId,
         section: bulkForm.section || undefined,
         title: bulkForm.title || undefined,
@@ -670,7 +667,7 @@ const FeesCollection = ({ setShowAdminHeader }) => {
 
         {/* Step pills */}
         <div className="grid grid-cols-3 gap-2">
-          {['Select Class / Section', 'Verify Active Structure', 'Click Assign'].map((step, i) => (
+          {['Select Session / Class / Section', 'Verify Structure', 'Click Assign'].map((step, i) => (
             <div key={step} className="flex items-center gap-2 rounded-xl border border-gray-100 bg-gray-50 px-3 py-2">
               <span className="w-5 h-5 rounded-full bg-indigo-100 text-indigo-600 text-[10px] font-bold flex items-center justify-center shrink-0">{i + 1}</span>
               <span className="text-xs text-gray-600 font-medium">{step}</span>
@@ -680,14 +677,35 @@ const FeesCollection = ({ setShowAdminHeader }) => {
 
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <div className="space-y-1.5">
+            <label className="block text-[11px] font-semibold text-gray-500 uppercase tracking-wider">Session</label>
+            <select
+              value={bulkForm.academicYearId}
+              onChange={(e) =>
+                setBulkForm((prev) => ({
+                  ...prev,
+                  academicYearId: e.target.value,
+                  classId: '',
+                  section: '',
+                }))
+              }
+              className={selectCls}
+            >
+              <option value="">Select active session</option>
+              {activeAcademicYears.map((year) => (
+                <option key={year.id} value={year.id}>{year.name}</option>
+              ))}
+            </select>
+          </div>
+          <div className="space-y-1.5">
             <label className="block text-[11px] font-semibold text-gray-500 uppercase tracking-wider">Class</label>
             <select
               value={bulkForm.classId}
               onChange={(e) => setBulkForm((prev) => ({ ...prev, classId: e.target.value, section: '' }))}
               className={selectCls}
+              disabled={!bulkForm.academicYearId}
             >
-              <option value="">Select class</option>
-              {classOptions.map((cls) => (
+              <option value="">{bulkForm.academicYearId ? 'Select class' : 'Select session first'}</option>
+              {bulkClassOptions.map((cls) => (
                 <option key={cls.id} value={cls.id}>{cls.name}</option>
               ))}
             </select>
@@ -698,8 +716,9 @@ const FeesCollection = ({ setShowAdminHeader }) => {
               value={bulkForm.section}
               onChange={(e) => setBulkForm((prev) => ({ ...prev, section: e.target.value }))}
               className={selectCls}
+              disabled={!bulkForm.classId}
             >
-              <option value="">All Sections</option>
+              <option value="">{bulkForm.classId ? 'All Sections' : 'Select class first'}</option>
               {bulkSections.map((sec) => (
                 <option key={sec.id} value={sec.name}>{sec.name}</option>
               ))}
@@ -739,7 +758,7 @@ const FeesCollection = ({ setShowAdminHeader }) => {
           </div>
           <div className="rounded-xl border border-gray-200 bg-gray-50 px-4 py-2.5 text-xs text-gray-600">
             <span className="font-semibold">Academic Year: </span>
-            {activeAcademicYear?.name || 'Not configured'}
+            {selectedBulkAcademicYear?.name || 'Not selected'}
           </div>
           <div className="rounded-xl border border-indigo-100 bg-indigo-50 px-4 py-2.5 text-xs text-indigo-700">
             <span className="font-semibold">Target: </span>
@@ -791,10 +810,20 @@ const FeesCollection = ({ setShowAdminHeader }) => {
               Overdue only
             </label>
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-            <select value={filters.classId} onChange={(e) => setFilters((prev) => ({ ...prev, classId: e.target.value }))} className={selectCls}>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+            <select
+              value={filters.academicYearId}
+              onChange={(e) => setFilters((prev) => ({ ...prev, academicYearId: e.target.value, classId: '', section: '' }))}
+              className={selectCls}
+            >
+              <option value="">All Sessions</option>
+              {(filterOptions.academicYears || []).map((year) => (
+                <option key={year.id} value={year.id}>{year.name}</option>
+              ))}
+            </select>
+            <select value={filters.classId} onChange={(e) => setFilters((prev) => ({ ...prev, classId: e.target.value, section: '' }))} className={selectCls}>
               <option value="">All Classes</option>
-              {classOptions.map((cls) => <option key={cls.id} value={cls.id}>{cls.name}</option>)}
+              {filteredClasses.map((cls) => <option key={cls.id} value={cls.id}>{cls.name}</option>)}
             </select>
             <select value={filters.section} onChange={(e) => setFilters((prev) => ({ ...prev, section: e.target.value }))} className={selectCls}>
               <option value="">All Sections</option>

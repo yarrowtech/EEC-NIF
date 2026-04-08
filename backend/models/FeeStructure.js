@@ -26,6 +26,7 @@ const feeStructureSchema = new mongoose.Schema(
     board: { type: String, default: 'GENERAL' },
     name: { type: String, required: true, trim: true },
     totalAmount: { type: Number, required: true, min: 0 },
+    lateFeeAmount: { type: Number, default: 0, min: 0 },
     feeHeads: [feeHeadSchema],
     installments: [installmentSchema],
     isActive: { type: Boolean, default: true },

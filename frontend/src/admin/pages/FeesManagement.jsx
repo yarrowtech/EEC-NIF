@@ -38,6 +38,7 @@ const EMPTY_FORM = {
   academicYearId: '',
   board: 'GENERAL',
   name: '',
+  lateFeeAmount: 0,
   feeHeads: [],
   installments: [],
 };
@@ -103,6 +104,29 @@ const FeesManagement = ({ setShowAdminHeader }) => {
     () => new Map((filters.academicYears || []).map((item) => [String(item.id), item.name])),
     [filters.academicYears]
   );
+  const activeAcademicYears = useMemo(
+    () => (filters.academicYears || []).filter((year) => Boolean(year?.isActive)),
+    [filters.academicYears]
+  );
+  const classOptionsByFormYear = useMemo(() => {
+    if (!form.academicYearId) return [];
+    return (filters.classes || []).filter(
+      (cls) => String(cls?.academicYearId || '') === String(form.academicYearId)
+    );
+  }, [filters.classes, form.academicYearId]);
+  const classOptionsBySelectedYear = useMemo(() => {
+    if (!selectedYear) return [];
+    return (filters.classes || []).filter(
+      (cls) => String(cls?.academicYearId || '') === String(selectedYear)
+    );
+  }, [filters.classes, selectedYear]);
+  useEffect(() => {
+    if (!selectedClass) return;
+    const classStillValid = classOptionsBySelectedYear.some(
+      (cls) => String(cls.id) === String(selectedClass)
+    );
+    if (!classStillValid) setSelectedClass('');
+  }, [classOptionsBySelectedYear, selectedClass]);
 
   const formTotal = useMemo(
     () => form.feeHeads.reduce((sum, item) => sum + toAmount(item.amount), 0),
@@ -199,6 +223,15 @@ const FeesManagement = ({ setShowAdminHeader }) => {
       } else {
         setPdfSchool(DEFAULT_PDF_SCHOOL);
       }
+      const activeYear = (filtersData.academicYears || []).find((year) => Boolean(year?.isActive));
+      if (activeYear?.id) {
+        setSelectedYear((prev) => (prev ? prev : String(activeYear.id)));
+        setForm((prev) =>
+          prev.academicYearId
+            ? prev
+            : { ...prev, academicYearId: String(activeYear.id), classId: '', className: '' }
+        );
+      }
     } catch (err) {
       setError(err.message || 'Unable to load fee builder data');
     } finally {
@@ -227,6 +260,7 @@ const FeesManagement = ({ setShowAdminHeader }) => {
       academicYearId: structure.academicYearId || '',
       board: structure.board || 'GENERAL',
       name: structure.name || '',
+      lateFeeAmount: toAmount(structure.lateFeeAmount),
       feeHeads: (structure.feeHeads || []).map((item) => ({
         label: item.label || '',
         customLabel: '',
@@ -316,6 +350,7 @@ const FeesManagement = ({ setShowAdminHeader }) => {
         academicYearId: form.academicYearId || undefined,
         board: form.board || 'GENERAL',
         name: String(form.name || '').trim(),
+        lateFeeAmount: toAmount(form.lateFeeAmount),
         totalAmount,
         feeHeads: heads,
         installments,
@@ -471,13 +506,18 @@ const FeesManagement = ({ setShowAdminHeader }) => {
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
                 <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search name…" className={`${iCls} pl-9`} />
               </div>
-              <select value={selectedClass} onChange={(e) => setSelectedClass(e.target.value)} className={sCls}>
-                <option value="">All Classes</option>
-                {filters.classes.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-              </select>
               <select value={selectedYear} onChange={(e) => setSelectedYear(e.target.value)} className={sCls}>
-                <option value="">All Years</option>
-                {filters.academicYears.map((y) => <option key={y.id} value={y.id}>{y.name}</option>)}
+                <option value="">Select Active Session</option>
+                {activeAcademicYears.map((y) => <option key={y.id} value={y.id}>{y.name}</option>)}
+              </select>
+              <select
+                value={selectedClass}
+                onChange={(e) => setSelectedClass(e.target.value)}
+                className={sCls}
+                disabled={!selectedYear}
+              >
+                <option value="">{selectedYear ? 'All Classes' : 'Select session first'}</option>
+                {classOptionsBySelectedYear.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
               </select>
               <select value={selectedBoard} onChange={(e) => setSelectedBoard(e.target.value)} className={sCls}>
                 <option value="">All Boards</option>
@@ -519,6 +559,9 @@ const FeesManagement = ({ setShowAdminHeader }) => {
                       </span>
                       <span className="inline-flex items-center rounded-full bg-gray-100 border border-gray-200 px-2 py-0.5 text-[11px] font-semibold text-gray-600">
                         {item.board || 'GENERAL'}
+                      </span>
+                      <span className="inline-flex items-center rounded-full bg-rose-50 border border-rose-100 px-2 py-0.5 text-[11px] font-semibold text-rose-700">
+                        Fine {money(item.lateFeeAmount || 0)}/day
                       </span>
                       {item.academicYearId && (
                         <span className="inline-flex items-center rounded-full bg-violet-50 border border-violet-100 px-2 py-0.5 text-[11px] font-semibold text-violet-700">
@@ -604,23 +647,12 @@ const FeesManagement = ({ setShowAdminHeader }) => {
             <div className="space-y-3">
               <p className="text-[11px] font-bold text-gray-500 uppercase tracking-wider">Step 1 — Basics</p>
               <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1.5">
-                  <label className="block text-[11px] font-semibold text-gray-500 uppercase tracking-wider">Class <span className="text-red-400">*</span></label>
-                  <select
-                    value={form.classId}
-                    onChange={(e) => setForm((prev) => ({ ...prev, classId: e.target.value, className: classNameById.get(String(e.target.value)) || '' }))}
-                    className={sCls}
-                  >
-                    <option value="">Select class</option>
-                    {filters.classes.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-                  </select>
-                </div>
-                <div className="space-y-1.5">
-                  <label className="block text-[11px] font-semibold text-gray-500 uppercase tracking-wider">Board</label>
-                  <select value={form.board} onChange={(e) => setForm((prev) => ({ ...prev, board: e.target.value }))} className={sCls}>
-                    {BOARD_OPTIONS.map((b) => <option key={b} value={b}>{b}</option>)}
-                  </select>
-                </div>
+              <div className="space-y-1.5">
+                <label className="block text-[11px] font-semibold text-gray-500 uppercase tracking-wider">Board</label>
+                <select value={form.board} onChange={(e) => setForm((prev) => ({ ...prev, board: e.target.value }))} className={sCls}>
+                  {BOARD_OPTIONS.map((b) => <option key={b} value={b}>{b}</option>)}
+                </select>
+              </div>
               </div>
               <div className="space-y-1.5">
                 <label className="block text-[11px] font-semibold text-gray-500 uppercase tracking-wider">Structure Name <span className="text-red-400">*</span></label>
@@ -632,11 +664,55 @@ const FeesManagement = ({ setShowAdminHeader }) => {
                 />
               </div>
               <div className="space-y-1.5">
-                <label className="block text-[11px] font-semibold text-gray-500 uppercase tracking-wider">Academic Year</label>
-                <select value={form.academicYearId} onChange={(e) => setForm((prev) => ({ ...prev, academicYearId: e.target.value }))} className={sCls}>
-                  <option value="">Select year (optional)</option>
-                  {filters.academicYears.map((y) => <option key={y.id} value={y.id}>{y.name}</option>)}
+                <label className="block text-[11px] font-semibold text-gray-500 uppercase tracking-wider">Session <span className="text-red-400">*</span></label>
+                <select
+                  value={form.academicYearId}
+                  onChange={(e) =>
+                    setForm((prev) => ({
+                      ...prev,
+                      academicYearId: e.target.value,
+                      classId: '',
+                      className: '',
+                    }))
+                  }
+                  className={sCls}
+                >
+                  <option value="">Select active session</option>
+                  {activeAcademicYears.map((y) => <option key={y.id} value={y.id}>{y.name}</option>)}
                 </select>
+              </div>
+              <div className="space-y-1.5">
+                <label className="block text-[11px] font-semibold text-gray-500 uppercase tracking-wider">Class <span className="text-red-400">*</span></label>
+                <select
+                  value={form.classId}
+                  onChange={(e) =>
+                    setForm((prev) => ({
+                      ...prev,
+                      classId: e.target.value,
+                      className: classNameById.get(String(e.target.value)) || '',
+                    }))
+                  }
+                  className={sCls}
+                  disabled={!form.academicYearId}
+                >
+                  <option value="">{form.academicYearId ? 'Select class' : 'Select session first'}</option>
+                  {classOptionsByFormYear.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                </select>
+              </div>
+              <div className="space-y-1.5">
+                <label className="block text-[11px] font-semibold text-gray-500 uppercase tracking-wider">Late Fine Amount (Per Day)</label>
+                <div className="relative">
+                  <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 text-sm font-medium">₹</span>
+                  <input
+                    type="number"
+                    min="0"
+                    value={form.lateFeeAmount}
+                    onChange={(e) => setForm((prev) => ({ ...prev, lateFeeAmount: toAmount(e.target.value) }))}
+                    placeholder="0"
+                    className={`${iCls} pl-7`}
+                  />
+                </div>
+                <p className="text-[11px] text-gray-400">Auto-added daily after due date while invoice remains unpaid.</p>
               </div>
             </div>
 

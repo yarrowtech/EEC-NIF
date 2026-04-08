@@ -107,6 +107,33 @@ const StudentFeeDetails = ({ setShowAdminHeader }) => {
     const balance = Math.max(0, total - discount - paid);
     return { total, paid, balance, discount };
   }, [detail]);
+  const fineSummary = useMemo(() => {
+    const invoice = detail?.invoice || {};
+    const perDayFine = Number(invoice?.lateFeeRuleSnapshot?.amount || 0);
+    const appliedFine = Number(invoice?.lateFeeAmountApplied || 0);
+    const dueDate = invoice?.dueDate ? new Date(invoice.dueDate) : null;
+    const hasValidDueDate = dueDate && !Number.isNaN(dueDate.getTime());
+    const startOfDay = (value) => {
+      const dt = new Date(value);
+      if (Number.isNaN(dt.getTime())) return null;
+      return new Date(dt.getFullYear(), dt.getMonth(), dt.getDate());
+    };
+    const todayStart = startOfDay(new Date());
+    const dueStart = hasValidDueDate ? startOfDay(dueDate) : null;
+    const overdueDays =
+      dueStart && todayStart && todayStart.getTime() > dueStart.getTime()
+        ? Math.floor((todayStart.getTime() - dueStart.getTime()) / (1000 * 60 * 60 * 24))
+        : 0;
+    const hasOutstanding = Number(invoice?.balanceAmount || 0) > 0;
+    const todayFineApplied = perDayFine > 0 && overdueDays > 0 && hasOutstanding;
+    return {
+      perDayFine,
+      appliedFine,
+      overdueDays,
+      todayFineApplied,
+      todayFineAmount: todayFineApplied ? perDayFine : 0,
+    };
+  }, [detail]);
 
   const handlePaymentSave = async () => {
     if (!paymentForm.amount) {
@@ -452,6 +479,35 @@ const StudentFeeDetails = ({ setShowAdminHeader }) => {
                 <p className="text-2xl font-semibold text-red-600">{formatCurrency(totals.balance)}</p>
               </div>
             </div>
+
+            {(fineSummary.perDayFine > 0 || fineSummary.appliedFine > 0) && (
+              <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4">
+                <h3 className="text-base font-semibold text-amber-800 mb-2">Late Fine Details</h3>
+                <div className="grid gap-3 sm:grid-cols-3">
+                  <div>
+                    <p className="text-xs text-amber-700">Fine Per Day</p>
+                    <p className="text-sm font-semibold text-amber-900">{formatCurrency(fineSummary.perDayFine)}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-amber-700">Total Fine Applied</p>
+                    <p className="text-sm font-semibold text-amber-900">{formatCurrency(fineSummary.appliedFine)}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-amber-700">Today Fine Status</p>
+                    <p className="text-sm font-semibold text-amber-900">
+                      {fineSummary.todayFineApplied
+                        ? `${formatCurrency(fineSummary.todayFineAmount)} added today`
+                        : 'No fine added today'}
+                    </p>
+                  </div>
+                </div>
+                {fineSummary.overdueDays > 0 ? (
+                  <p className="text-xs text-amber-700 mt-2">
+                    Invoice is overdue by {fineSummary.overdueDays} day{fineSummary.overdueDays > 1 ? 's' : ''}.
+                  </p>
+                ) : null}
+              </div>
+            )}
 
             <div className="grid gap-6 lg:grid-cols-2">
               <div className="rounded-2xl border border-slate-200 p-5">

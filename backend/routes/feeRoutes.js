@@ -117,6 +117,20 @@ const normalizeInstallments = (installments) => {
 const sumAmounts = (items) =>
   items.reduce((sum, item) => sum + Number(item.amount || 0), 0);
 
+const getEarliestInstallmentDueDate = (installments = []) => {
+  if (!Array.isArray(installments) || installments.length === 0) return undefined;
+  const dates = installments
+    .map((item) => (item?.dueDate ? new Date(item.dueDate) : null))
+    .filter((date) => date && !Number.isNaN(date.getTime()))
+    .sort((a, b) => a.getTime() - b.getTime());
+  return dates[0] || undefined;
+};
+
+const normalizeLateFeeAmount = (value) => {
+  const amount = Number(value);
+  return Number.isFinite(amount) && amount >= 0 ? amount : 0;
+};
+
 const buildCampusFilter = (schoolId, campusId) => {
   const filter = { schoolId };
   if (campusId) {
@@ -158,6 +172,113 @@ const ensureInvoiceCampusAccess = async ({ invoice, schoolId, campusId }) => {
   return Boolean(student && String(student.campusId || '') === String(campusId));
 };
 
+const getOverdueDate = (invoice) => {
+  if (invoice?.dueDate) return new Date(invoice.dueDate);
+  const installmentDates = Array.isArray(invoice?.installmentsSnapshot)
+    ? invoice.installmentsSnapshot
+        .map((item) => (item?.dueDate ? new Date(item.dueDate) : null))
+        .filter((date) => date && !Number.isNaN(date.getTime()))
+    : [];
+  if (!installmentDates.length) return null;
+  return installmentDates.sort((a, b) => a.getTime() - b.getTime())[0];
+};
+
+const shouldAutoApplyLateFee = (invoice) => {
+  if (!invoice) return false;
+  if (Number(invoice.balanceAmount || 0) <= 0) return false;
+  const dueDate = getOverdueDate(invoice);
+  if (!dueDate || Number.isNaN(dueDate.getTime())) return false;
+  return Date.now() > dueDate.getTime();
+};
+
+const startOfDay = (value) => {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate());
+};
+
+const getOverdueDays = (invoice) => {
+  const dueDate = getOverdueDate(invoice);
+  const dueStart = startOfDay(dueDate);
+  const todayStart = startOfDay(new Date());
+  if (!dueStart || !todayStart) return 0;
+  const diffMs = todayStart.getTime() - dueStart.getTime();
+  if (diffMs <= 0) return 0;
+  return Math.floor(diffMs / (1000 * 60 * 60 * 24));
+};
+
+const resolveInvoiceLateFeeAmount = async ({ invoice, schoolId, structureCache }) => {
+  const fromSnapshot = normalizeLateFeeAmount(invoice?.lateFeeRuleSnapshot?.amount);
+  if (fromSnapshot > 0) return fromSnapshot;
+
+  const structureId = String(invoice?.feeStructureId || '');
+  if (!structureId || !mongoose.isValidObjectId(structureId)) return 0;
+
+  if (structureCache && structureCache.has(structureId)) {
+    return structureCache.get(structureId);
+  }
+
+  const structure = await FeeStructure.findOne({ _id: structureId, schoolId })
+    .select('lateFeeAmount')
+    .lean();
+  const amount = normalizeLateFeeAmount(structure?.lateFeeAmount);
+  if (structureCache) structureCache.set(structureId, amount);
+  return amount;
+};
+
+const applyLateFeeToInvoiceIfEligible = async ({ invoice, schoolId, structureCache }) => {
+  if (!shouldAutoApplyLateFee(invoice)) return false;
+  const perDayLateFeeAmount = await resolveInvoiceLateFeeAmount({ invoice, schoolId, structureCache });
+  if (perDayLateFeeAmount <= 0) return false;
+  const overdueDays = getOverdueDays(invoice);
+  if (overdueDays <= 0) return false;
+
+  const expectedLateFeeTotal = perDayLateFeeAmount * overdueDays;
+  const alreadyAppliedLateFee = normalizeLateFeeAmount(invoice.lateFeeAmountApplied);
+  const lateFeeDelta = expectedLateFeeTotal - alreadyAppliedLateFee;
+  if (lateFeeDelta <= 0) return false;
+
+  invoice.totalAmount = Number(invoice.totalAmount || 0) + lateFeeDelta;
+  invoice.lateFeeAmountApplied = alreadyAppliedLateFee + lateFeeDelta;
+  invoice.lateFeeAppliedAt = new Date();
+  const snapshotHeads = Array.isArray(invoice.feeHeadsSnapshot) ? [...invoice.feeHeadsSnapshot] : [];
+  const lateFeeHeadIndex = snapshotHeads.findIndex(
+    (item) => String(item?.label || '').trim().toLowerCase() === 'late fee'
+  );
+  if (lateFeeHeadIndex >= 0) {
+    snapshotHeads[lateFeeHeadIndex] = {
+      ...snapshotHeads[lateFeeHeadIndex],
+      amount: normalizeLateFeeAmount(snapshotHeads[lateFeeHeadIndex].amount) + lateFeeDelta,
+    };
+  } else {
+    snapshotHeads.push({ label: 'Late fee', amount: lateFeeDelta });
+  }
+  invoice.feeHeadsSnapshot = snapshotHeads;
+  recomputeInvoiceStatus(invoice);
+  await invoice.save();
+  return true;
+};
+
+const applyLateFeesForFilter = async ({ schoolId, filter = {} }) => {
+  const overdueFilter = {
+    ...filter,
+    schoolId,
+    balanceAmount: { $gt: 0 },
+  };
+
+  const overdueInvoices = await FeeInvoice.find(overdueFilter);
+  if (!overdueInvoices.length) return 0;
+
+  const structureCache = new Map();
+  let appliedCount = 0;
+  for (const invoice of overdueInvoices) {
+    // eslint-disable-next-line no-await-in-loop
+    const applied = await applyLateFeeToInvoiceIfEligible({ invoice, schoolId, structureCache });
+    if (applied) appliedCount += 1;
+  }
+  return appliedCount;
+};
+
 
 // Fee Structures
 router.post('/structures', adminAuth, async (req, res) => {
@@ -175,6 +296,7 @@ router.post('/structures', adminAuth, async (req, res) => {
       installments,
       feeHeads,
       board,
+      lateFeeAmount,
     } = req.body || {};
     if (!name || !String(name).trim()) {
       return res.status(400).json({ error: 'Structure name is required' });
@@ -195,6 +317,7 @@ router.post('/structures', adminAuth, async (req, res) => {
       return res.status(400).json({ error: 'Valid totalAmount is required' });
     }
     const normalizedInstallments = normalizeInstallments(installments);
+    const normalizedLateFeeAmount = normalizeLateFeeAmount(lateFeeAmount);
 
     const created = await FeeStructure.create({
       schoolId,
@@ -204,6 +327,7 @@ router.post('/structures', adminAuth, async (req, res) => {
       board: board ? String(board).trim() : 'GENERAL',
       name: String(name).trim(),
       totalAmount: total,
+      lateFeeAmount: normalizedLateFeeAmount,
       feeHeads: normalizedFeeHeads,
       installments: normalizedInstallments,
     });
@@ -360,6 +484,7 @@ router.put('/structures/:id', adminAuth, async (req, res) => {
       feeHeads,
       board,
       isActive,
+      lateFeeAmount,
     } = req.body || {};
 
     if (typeof name !== 'undefined' && !String(name).trim()) {
@@ -380,6 +505,9 @@ router.put('/structures/:id', adminAuth, async (req, res) => {
     if (typeof classId !== 'undefined') updates.classId = classId || undefined;
     if (typeof className !== 'undefined') updates.className = className ? String(className).trim() : undefined;
     if (typeof isActive !== 'undefined') updates.isActive = Boolean(isActive);
+    if (typeof lateFeeAmount !== 'undefined') {
+      updates.lateFeeAmount = normalizeLateFeeAmount(lateFeeAmount);
+    }
 
     let normalizedFeeHeads = null;
     if (typeof feeHeads !== 'undefined') {
@@ -407,6 +535,23 @@ router.put('/structures/:id', adminAuth, async (req, res) => {
 
     Object.assign(existing, updates);
     await existing.save();
+
+    // Keep assigned student invoices in sync when installment due dates are changed.
+    // We update only unpaid/partial invoices so completed fee records remain untouched.
+    if (normalizedInstallments !== null) {
+      const invoicesToSync = await FeeInvoice.find({
+        schoolId,
+        feeStructureId: existing._id,
+        status: { $in: ['due', 'partial'] },
+      });
+      const nextDueDate = getEarliestInstallmentDueDate(normalizedInstallments);
+      for (const invoice of invoicesToSync) {
+        invoice.installmentsSnapshot = normalizedInstallments;
+        invoice.dueDate = nextDueDate;
+        await invoice.save();
+      }
+    }
+
     res.json(existing);
   } catch (err) {
     res.status(400).json({ error: err.message || 'Unable to update structure' });
@@ -514,6 +659,10 @@ router.post('/invoices', adminAuth, async (req, res) => {
       balanceAmount: resolvedTotal,
       discountAmount: 0,
       discountNote: '',
+      lateFeeRuleSnapshot: {
+        amount: normalizeLateFeeAmount(structure?.lateFeeAmount),
+      },
+      lateFeeAmountApplied: 0,
       feeHeadsSnapshot: structure?.feeHeads || [],
       installmentsSnapshot: structure?.installments || [],
       status: 'due',
@@ -566,6 +715,7 @@ router.get('/invoices', adminAuth, async (req, res) => {
       }
       filter.studentId = req.query.studentId;
     }
+    await applyLateFeesForFilter({ schoolId, filter });
     const items = await FeeInvoice.find(filter).sort({ createdAt: -1 }).lean();
     res.json(items);
   } catch (err) {
@@ -601,6 +751,7 @@ router.post('/payments', adminAuth, async (req, res) => {
     if (!hasInvoiceAccess) {
       return res.status(403).json({ error: 'Invoice not available for this campus' });
     }
+    await applyLateFeeToInvoiceIfEligible({ invoice, schoolId, structureCache: new Map() });
 
     const balance = Math.max(
       0,
@@ -789,10 +940,17 @@ router.post('/admin/razorpay/order', adminAuth, async (req, res) => {
     if (!hasInvoiceAccess) {
       return res.status(403).json({ error: 'Invoice not available for this campus' });
     }
+    await applyLateFeesForFilter({ schoolId, filter: { _id: invoiceId } });
+    const refreshedInvoice = await FeeInvoice.findOne({ _id: invoiceId, schoolId }).lean();
+    if (!refreshedInvoice) {
+      return res.status(404).json({ error: 'Invoice not found' });
+    }
 
     const balance = Math.max(
       0,
-      Number(invoice.totalAmount || 0) - Number(invoice.discountAmount || 0) - Number(invoice.paidAmount || 0)
+      Number(refreshedInvoice.totalAmount || 0) -
+        Number(refreshedInvoice.discountAmount || 0) -
+        Number(refreshedInvoice.paidAmount || 0)
     );
     if (balance <= 0) {
       return res.status(400).json({ error: 'Invoice is already paid' });
@@ -813,7 +971,7 @@ router.post('/admin/razorpay/order', adminAuth, async (req, res) => {
       receipt,
       notes: {
         invoiceId: String(invoiceId),
-        studentId: String(invoice.studentId),
+        studentId: String(refreshedInvoice.studentId),
         source: 'admin',
         note: String(notes || '').trim().slice(0, 120),
       },
@@ -869,6 +1027,7 @@ router.post('/admin/razorpay/verify', adminAuth, async (req, res) => {
     if (!hasInvoiceAccess) {
       return res.status(403).json({ error: 'Invoice not available for this campus' });
     }
+    await applyLateFeeToInvoiceIfEligible({ invoice, schoolId, structureCache: new Map() });
 
     const isValidSignature = verifyRazorpaySignature({
       orderId,
@@ -1017,6 +1176,7 @@ router.get('/admin/summary', adminAuth, async (req, res) => {
     if (studentIds.length > 0) {
       invoiceFilter.studentId = { $in: studentIds };
     }
+    await applyLateFeesForFilter({ schoolId, filter: invoiceFilter });
     const invoices = await FeeInvoice.find(invoiceFilter).lean();
 
     const totals = invoices.reduce(
@@ -1113,6 +1273,7 @@ router.get('/admin/invoices', adminAuth, async (req, res) => {
     if (!requireCampusId(req, res)) return;
 
     const {
+      academicYearId,
       classId,
       className,
       section,
@@ -1196,6 +1357,13 @@ router.get('/admin/invoices', adminAuth, async (req, res) => {
     if (studentIds) {
       invoiceFilter.studentId = { $in: studentIds };
     }
+    if (academicYearId && mongoose.isValidObjectId(academicYearId)) {
+      invoiceFilter.academicYearId = academicYearId;
+    }
+    await applyLateFeesForFilter({
+      schoolId,
+      filter: studentIds ? { studentId: invoiceFilter.studentId } : {},
+    });
     if (status) {
       invoiceFilter.status = String(status).trim();
     }
@@ -1248,7 +1416,10 @@ router.post('/admin/invoices/bulk', adminAuth, async (req, res) => {
     if (!schoolId) return;
     if (!requireCampusId(req, res)) return;
 
-    const { classId, section, dueDate, title } = req.body || {};
+    const { academicYearId, classId, section, dueDate, title } = req.body || {};
+    if (!academicYearId || !mongoose.isValidObjectId(academicYearId)) {
+      return res.status(400).json({ error: 'Valid academicYearId is required' });
+    }
     if (!classId || !mongoose.isValidObjectId(classId)) {
       return res.status(400).json({ error: 'Valid classId is required' });
     }
@@ -1259,29 +1430,31 @@ router.post('/admin/invoices/bulk', adminAuth, async (req, res) => {
     }
 
     const classDoc = await ClassModel.findOne({ _id: classId, schoolId, campusId: req.campusId })
-      .select('name')
+      .select('name academicYearId')
       .lean();
     if (!classDoc) {
       return res.status(404).json({ error: 'Class not found' });
     }
 
-    const activeYear = await AcademicYear.findOne({ schoolId, isActive: true })
-      .sort({ createdAt: -1 })
+    const selectedYear = await AcademicYear.findOne({ _id: academicYearId, schoolId })
       .lean();
-    if (!activeYear) {
-      return res.status(400).json({ error: 'Active academic year not found' });
+    if (!selectedYear) {
+      return res.status(404).json({ error: 'Academic year not found' });
+    }
+    if (classDoc.academicYearId && String(classDoc.academicYearId) !== String(selectedYear._id)) {
+      return res.status(400).json({ error: 'Selected class is not mapped to the selected academic year' });
     }
 
     const structure = await FeeStructure.findOne({
       schoolId,
       classId,
-      academicYearId: activeYear._id,
+      academicYearId: selectedYear._id,
       isActive: true,
     })
       .sort({ createdAt: -1 })
       .lean();
     if (!structure) {
-      return res.status(400).json({ error: 'Fee structure not found for active academic year' });
+      return res.status(400).json({ error: 'Fee structure not found for selected academic year' });
     }
 
     const studentFilter = {
@@ -1314,7 +1487,7 @@ router.post('/admin/invoices/bulk', adminAuth, async (req, res) => {
       .filter((student) => !existingSet.has(String(student._id)))
       .map((student) => ({
         schoolId,
-        academicYearId: structure.academicYearId || activeYear._id,
+        academicYearId: structure.academicYearId || selectedYear._id,
         classId: structure.classId,
         className: student.grade || classDoc.name || structure.className || '',
         section: student.section || '',
@@ -1326,6 +1499,10 @@ router.post('/admin/invoices/bulk', adminAuth, async (req, res) => {
         balanceAmount: structure.totalAmount,
         discountAmount: 0,
         discountNote: '',
+        lateFeeRuleSnapshot: {
+          amount: normalizeLateFeeAmount(structure?.lateFeeAmount),
+        },
+        lateFeeAmountApplied: 0,
         feeHeadsSnapshot: structure.feeHeads || [],
         installmentsSnapshot: structure.installments || [],
         status: 'due',
@@ -1343,7 +1520,7 @@ router.post('/admin/invoices/bulk', adminAuth, async (req, res) => {
       structureId: structure._id,
       className: classDoc.name,
       section: section || '',
-      academicYearId: activeYear._id,
+      academicYearId: selectedYear._id,
     });
   } catch (err) {
     res.status(400).json({ error: err.message || 'Unable to generate invoices' });
@@ -1366,7 +1543,13 @@ router.get('/admin/invoices/:id', adminAuth, async (req, res) => {
       return res.status(404).json({ error: 'Invoice not found' });
     }
 
-    const student = await StudentUser.findOne({ _id: invoice.studentId, schoolId })
+    await applyLateFeesForFilter({ schoolId, filter: { _id: invoiceId } });
+    const refreshedInvoice = await FeeInvoice.findOne({ _id: invoiceId, schoolId }).lean();
+    if (!refreshedInvoice) {
+      return res.status(404).json({ error: 'Invoice not found' });
+    }
+
+    const student = await StudentUser.findOne({ _id: refreshedInvoice.studentId, schoolId })
       .select('name grade section roll admissionNumber guardianName guardianPhone guardianEmail mobile email campusId')
       .lean();
     if (req.campusId && (!student || String(student.campusId || '') !== String(req.campusId))) {
@@ -1378,7 +1561,7 @@ router.get('/admin/invoices/:id', adminAuth, async (req, res) => {
       .lean();
 
     res.json({
-      invoice,
+      invoice: refreshedInvoice,
       student,
       payments,
     });
@@ -1406,6 +1589,7 @@ router.post('/admin/discount', adminAuth, async (req, res) => {
     if (!invoice) {
       return res.status(404).json({ error: 'Invoice not found' });
     }
+    await applyLateFeeToInvoiceIfEligible({ invoice, schoolId, structureCache: new Map() });
     if (discountAmount > Number(invoice.totalAmount || 0)) {
       return res.status(400).json({ error: 'Discount cannot exceed total amount' });
     }
@@ -1499,18 +1683,19 @@ router.get('/parent/invoices', authParent, async (req, res) => {
       return res.status(403).json({ error: 'Student not linked to this parent' });
     }
 
-    const invoices = await FeeInvoice.find({
+    await applyLateFeesForFilter({ schoolId, filter: { studentId } });
+    const refreshedInvoices = await FeeInvoice.find({
       schoolId,
       studentId,
     })
       .sort({ createdAt: -1 })
       .lean();
 
-    if (invoices.length === 0) {
+    if (refreshedInvoices.length === 0) {
       return res.json({ student, invoices: [], paymentsByInvoice: {} });
     }
 
-    const invoiceIds = invoices.map((invoice) => invoice._id);
+    const invoiceIds = refreshedInvoices.map((invoice) => invoice._id);
     const payments = await FeePayment.find({
       schoolId,
       invoiceId: { $in: invoiceIds },
@@ -1520,7 +1705,7 @@ router.get('/parent/invoices', authParent, async (req, res) => {
 
     res.json({
       student,
-      invoices,
+      invoices: refreshedInvoices,
       paymentsByInvoice: buildPaymentsByInvoice(payments),
     });
   } catch (err) {
@@ -1559,10 +1744,15 @@ router.post('/parent/razorpay/order', authParent, async (req, res) => {
     if (!isLinkedStudent) {
       return res.status(403).json({ error: 'Student not linked to this parent' });
     }
+    await applyLateFeesForFilter({ schoolId, filter: { _id: invoiceId } });
+    const refreshedInvoice = await FeeInvoice.findOne({ _id: invoiceId, schoolId }).lean();
+    if (!refreshedInvoice) {
+      return res.status(404).json({ error: 'Invoice not found' });
+    }
 
     const balance = Math.max(
       0,
-      Number(invoice.totalAmount || 0) - Number(invoice.discountAmount || 0) - Number(invoice.paidAmount || 0)
+      Number(refreshedInvoice.totalAmount || 0) - Number(refreshedInvoice.discountAmount || 0) - Number(refreshedInvoice.paidAmount || 0)
     );
     if (balance <= 0) {
       return res.status(400).json({ error: 'Invoice is already paid' });
@@ -1583,7 +1773,7 @@ router.post('/parent/razorpay/order', authParent, async (req, res) => {
       receipt,
       notes: {
         invoiceId: String(invoiceId),
-        studentId: String(invoice.studentId),
+        studentId: String(refreshedInvoice.studentId),
       },
     });
 
@@ -1642,6 +1832,7 @@ router.post('/parent/razorpay/verify', authParent, async (req, res) => {
     if (!isLinkedStudent) {
       return res.status(403).json({ error: 'Student not linked to this parent' });
     }
+    await applyLateFeeToInvoiceIfEligible({ invoice, schoolId, structureCache: new Map() });
 
     const isValidSignature = verifyRazorpaySignature({
       orderId,
@@ -1731,14 +1922,15 @@ router.get('/student/invoices', authStudent, async (req, res) => {
     }
 
     const studentId = req.user.id;
-    const invoices = await FeeInvoice.find({
+    await applyLateFeesForFilter({ schoolId, filter: { studentId } });
+    const refreshedInvoices = await FeeInvoice.find({
       schoolId,
       studentId,
     })
       .sort({ createdAt: -1 })
       .lean();
 
-    if (invoices.length === 0) {
+    if (refreshedInvoices.length === 0) {
       logStudentPortalEvent(req, {
         feature: 'fees',
         action: 'fee_invoices.fetch',
@@ -1751,7 +1943,7 @@ router.get('/student/invoices', authStudent, async (req, res) => {
       return res.json({ invoices: [], paymentsByInvoice: {} });
     }
 
-    const invoiceIds = invoices.map((invoice) => invoice._id);
+    const invoiceIds = refreshedInvoices.map((invoice) => invoice._id);
     const payments = await FeePayment.find({
       schoolId,
       invoiceId: { $in: invoiceIds },
@@ -1760,7 +1952,7 @@ router.get('/student/invoices', authStudent, async (req, res) => {
       .lean();
 
     res.json({
-      invoices,
+      invoices: refreshedInvoices,
       paymentsByInvoice: buildPaymentsByInvoice(payments),
     });
     logStudentPortalEvent(req, {
@@ -1770,7 +1962,7 @@ router.get('/student/invoices', authStudent, async (req, res) => {
       statusCode: 200,
       targetType: 'student',
       targetId: studentId,
-      resultCount: invoices.length,
+      resultCount: refreshedInvoices.length,
     });
   } catch (err) {
     logStudentPortalError(req, {
