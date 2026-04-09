@@ -72,6 +72,21 @@ const toDataUrl = async (url) => {
   }
 };
 
+const findCreatedGroupFromList = ({ list = [], payload = {}, fallbackId = '' }) => {
+  if (!Array.isArray(list) || !list.length) return null;
+  if (fallbackId) {
+    const direct = list.find((g) => String(g?._id) === String(fallbackId));
+    if (direct) return direct;
+  }
+  const scoped = list
+    .filter((g) => String(g?.title || '').trim() === String(payload?.title || '').trim())
+    .filter((g) => String(g?.term || '') === String(payload?.term || ''))
+    .filter((g) => String(g?.classId?._id || g?.classId || '') === String(payload?.classId || ''))
+    .filter((g) => String(g?.sectionId?._id || g?.sectionId || '') === String(payload?.sectionId || ''));
+  if (!scoped.length) return list[0] || null;
+  return scoped.sort((a, b) => new Date(b?.createdAt || 0) - new Date(a?.createdAt || 0))[0];
+};
+
 /* ── Modal shell ── */
 const Modal = ({ show, onClose, title, subtitle, icon:Icon, iconColor='bg-indigo-600', children, maxWidth='sm:max-w-2xl' }) => {
   if (!show) return null;
@@ -443,6 +458,7 @@ const ExaminationManagement = ({ setShowAdminHeader }) => {
   const handleSaveGroup = async (e) => {
     e.preventDefault(); setSaving(true);
     try {
+      const isCreating = !editingGroupId;
       if (!groupForm.title.trim()) throw new Error('Exam group title is required');
       const url    = editingGroupId ? `${API_BASE}/api/exam/groups/${editingGroupId}` : `${API_BASE}/api/exam/groups`;
       const method = editingGroupId ? 'PUT' : 'POST';
@@ -451,7 +467,34 @@ const ExaminationManagement = ({ setShowAdminHeader }) => {
       if (!res.ok) throw new Error(data?.error || 'Failed');
       toast.success(editingGroupId ? 'Exam updated!' : 'Exam created!');
       setShowGroupModal(false);
-      await loadGroups();
+      const list = await loadGroups();
+
+      if (isCreating) {
+        const targetGroup = findCreatedGroupFromList({
+          list,
+          payload: groupForm,
+          fallbackId: data?.group?._id || data?._id || '',
+        });
+        if (targetGroup?._id) {
+          setExpandedGroups((prev) => {
+            const next = new Set(prev);
+            next.add(targetGroup._id);
+            return next;
+          });
+          const choice = await Swal.fire({
+            title: 'Step 1 completed',
+            text: 'Exam created successfully. Do you want to add subjects now?',
+            icon: 'success',
+            showCancelButton: true,
+            confirmButtonText: 'Add Subjects',
+            cancelButtonText: 'Later',
+            confirmButtonColor: '#4f46e5',
+          });
+          if (choice.isConfirmed) {
+            openAddSubject(targetGroup);
+          }
+        }
+      }
     } catch (err) { toast.error(err.message || 'Failed to save'); }
     finally { setSaving(false); }
   };
@@ -656,7 +699,7 @@ const ExaminationManagement = ({ setShowAdminHeader }) => {
                         </span>
                         <button onClick={() => openAddSubject(group)}
                           className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-indigo-600 text-white text-xs font-semibold hover:bg-indigo-700 shadow-sm shadow-indigo-200 transition-colors">
-                          <Plus size={12} /> Add Subject
+                          <Plus size={12} /> Step 2: Add Subject
                         </button>
                         <button
                           onClick={() => generateExamSchedulePdf(group)}
@@ -687,7 +730,7 @@ const ExaminationManagement = ({ setShowAdminHeader }) => {
                       {subCount === 0 ? (
                         <div className="flex flex-col items-center justify-center py-8 gap-2 text-slate-400">
                           <FileText size={20} className="text-slate-300" />
-                          <p className="text-xs font-medium">No subjects added yet</p>
+                          <p className="text-xs font-medium">Step 2 pending: add subjects for this exam</p>
                           <button onClick={() => openAddSubject(group)}
                             className="flex items-center gap-1 text-xs font-semibold text-indigo-600 hover:text-indigo-700">
                             <Plus size={11} /> Add first subject
@@ -813,6 +856,11 @@ const ExaminationManagement = ({ setShowAdminHeader }) => {
         subtitle={editingGroupId ? 'Update exam details' : 'Step 1 — Set the exam title, term and class'}
         icon={BookOpen} iconColor="bg-indigo-600" maxWidth="sm:max-w-lg">
         <form onSubmit={handleSaveGroup} className="space-y-4">
+          {!editingGroupId && (
+            <div className="rounded-xl border border-indigo-100 bg-indigo-50 px-3 py-2 text-xs text-indigo-700">
+              <span className="font-semibold">Simple flow:</span> Step 1 Create exam → Step 2 Add subjects → Step 3 Download routine.
+            </div>
+          )}
           <Field label="Exam Title">
             <input value={groupForm.title} onChange={e => setGroupForm(p=>({...p,title:e.target.value}))} className={inp} placeholder="e.g. First Term 2024-25" required />
           </Field>
@@ -878,7 +926,7 @@ const ExaminationManagement = ({ setShowAdminHeader }) => {
             <button type="button" onClick={() => setShowGroupModal(false)} className="px-4 py-2 rounded-xl border border-slate-200 text-sm text-slate-600 hover:bg-slate-50">Cancel</button>
             <button type="submit" disabled={saving} className="flex items-center gap-2 px-5 py-2 rounded-xl bg-indigo-600 text-white text-sm font-semibold hover:bg-indigo-700 disabled:opacity-60 shadow-md shadow-indigo-200">
               {saving ? <Loader2 size={14} className="animate-spin"/> : <BookOpen size={14}/>}
-              {saving ? 'Saving…' : editingGroupId ? 'Update Exam' : 'Create Exam'}
+              {saving ? 'Saving…' : editingGroupId ? 'Update Exam' : 'Save & Continue'}
             </button>
           </div>
         </form>
@@ -887,7 +935,7 @@ const ExaminationManagement = ({ setShowAdminHeader }) => {
       {/* ══════════ ADD / EDIT SUBJECT MODAL ══════════ */}
       <Modal show={showSubjectModal} onClose={() => setShowSubjectModal(false)}
         title={editingSubjectId ? 'Edit Subject Exam' : 'Add Subject Exam'}
-        subtitle={activeGroup ? `${activeGroup.title} · ${activeGroup.term}` : ''}
+        subtitle={activeGroup ? `Step 2 — ${activeGroup.title} · ${activeGroup.term}` : 'Step 2 — Add subjects to the exam'}
         icon={FileText} iconColor="bg-violet-600">
         <form onSubmit={handleSaveSubject} className="space-y-5">
 
