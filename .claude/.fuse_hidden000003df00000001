@@ -1,0 +1,34 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(test:*)",
+      "Bash(find:*)",
+      "Bash(node -e:*)",
+      "Bash(npx vite build:*)",
+      "Bash(npm run build:*)",
+      "Bash(git -C /media/koushik/New\\\\ Volume/EEC-NIF remote:*)",
+      "Bash(pip3 install:*)",
+      "Bash(python3:*)",
+      "Bash(pip show:*)",
+      "Bash(pip3 list:*)",
+      "Bash(fc-list:*)",
+      "Bash(npx --yes @mermaid-js/mermaid-cli:*)",
+      "Bash(node scripts/render-mermaid.mjs:*)",
+      "Bash(mmdc:*)",
+      "Bash(npx mmdc:*)",
+      "Bash(npx mmdc --help:*)",
+      "Bash(for role in student teacher parent admin principal superadmin)",
+      "Bash(do npx mmdc -i \"docs/flow-$role.mmd\" -o \"docs/flow-$role.png\" -p \"docs/puppeteer-config.json\" -w 900 -H 1400 -s 2 -b white --quiet)",
+      "Bash(ls:*)",
+      "Bash(grep:*)",
+      "Bash(npm install html2canvas --save)",
+      "Bash(cd:*)",
+      "Bash(npm install:*)",
+      "Bash(npm test)",
+      "Bash(npm test:*)",
+      "Bash(npm run test:coverage:*)",
+      "Bash(lsof:*)",
+      "Bash(curl:*)"
+    ]
+  }
+}

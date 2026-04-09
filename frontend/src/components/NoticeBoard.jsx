@@ -107,141 +107,91 @@ const SkeletonCard = () => (
   </div>
 );
 
-/* ─── Notice card ─── */
-const NoticeCard = ({ notice, isBookmarked, onBookmark }) => {
-  const [expanded, setExpanded] = useState(false);
-
+/* ─── Notice row ─── */
+const NoticeCard = ({ notice, onOpen }) => {
   const noticeId = resolveId(notice);
+  const priority = resolvePriority(notice);
+  const meta = PRIORITY_META[priority] || PRIORITY_META.general;
+  const author = resolveAuthor(notice);
+  const displayDate = resolveDate(notice);
+
+  return (
+    <div className="bg-white rounded-xl border border-gray-100 shadow-sm hover:shadow-md transition-all duration-200 overflow-hidden">
+      <div className="flex">
+        <div className={`w-1.5 shrink-0 ${meta.bar}`} />
+        <div className="flex-1 px-4 py-3">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <button
+              type="button"
+              onClick={() => onOpen?.(notice)}
+              className="text-sm font-semibold text-gray-900 hover:text-indigo-700 text-left underline-offset-2 hover:underline"
+            >
+              {notice?.title || 'Untitled Notice'}
+            </button>
+            <span className={`inline-flex items-center px-2 py-0.5 rounded-full border text-[11px] font-semibold ${meta.badge}`}>
+              {meta.label}
+            </span>
+            <span className="text-xs text-gray-500">
+              {author} • {formatDate(displayDate)}
+            </span>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const NoticeDetailsView = ({ notice, onBack }) => {
+  if (!notice) return null;
   const priority = resolvePriority(notice);
   const category = resolveCategory(notice);
   const meta = PRIORITY_META[priority] || PRIORITY_META.general;
-  const PriorityIcon = meta.icon;
-  const catClass = CATEGORY_META[category] || CATEGORY_META.general;
-  const isPinned = Boolean(notice.pinned);
   const author = resolveAuthor(notice);
   const displayDate = resolveDate(notice);
   const subjectLabel = notice.subjectName || notice.subject || '';
   const attachments = Array.isArray(notice.attachments) ? notice.attachments : [];
-  const message = notice.message || '';
-  const isLong = message.length > 200;
 
   return (
-    <div
-      className={`bg-white rounded-2xl border shadow-sm hover:shadow-md transition-all duration-200 overflow-hidden ${
-        isPinned ? 'border-purple-200 ring-2 ring-purple-100' : 'border-gray-100'
-      }`}
-    >
-      <div className="flex">
-        {/* Priority accent bar */}
-        <div className={`w-1.5 shrink-0 ${meta.bar}`} />
-
-        <div className="flex-1 p-5">
-          {/* Badges + actions */}
-          <div className="flex items-start justify-between gap-3 mb-3">
-            <div className="flex flex-wrap items-center gap-2">
-              {isPinned && (
-                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-purple-100 text-purple-700 border border-purple-200 text-xs font-medium">
-                  <Pin className="w-3 h-3" /> Pinned
-                </span>
-              )}
-              <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full border text-xs font-semibold ${meta.badge}`}>
-                <PriorityIcon className="w-3 h-3" /> {meta.label}
-              </span>
-              <span className={`px-2 py-0.5 rounded-full border text-xs font-medium capitalize ${catClass}`}>
-                {category}
-              </span>
-            </div>
-
-            <div className="flex items-center gap-1.5 shrink-0">
-              <button
-                onClick={() => onBookmark(noticeId)}
-                title={isBookmarked ? 'Remove bookmark' : 'Bookmark'}
-                className={`p-1.5 rounded-lg transition-colors ${
-                  isBookmarked
-                    ? 'bg-amber-100 text-amber-600 hover:bg-amber-200'
-                    : 'text-gray-400 hover:bg-gray-100 hover:text-gray-600'
-                }`}
-              >
-                {isBookmarked ? <BookmarkCheck className="w-4 h-4" /> : <Bookmark className="w-4 h-4" />}
-              </button>
-              <button
-                title="Share"
-                className="p-1.5 rounded-lg text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-colors"
-              >
-                <Share2 className="w-4 h-4" />
-              </button>
-            </div>
-          </div>
-
-          {/* Title */}
-          <h3 className="text-base font-bold text-gray-900 leading-snug mb-2">{notice.title}</h3>
-
-          {/* Message */}
-          <div className="text-sm text-gray-600 leading-relaxed">
-            <p className={!expanded && isLong ? 'line-clamp-3' : ''}>{message}</p>
-            {isLong && (
-              <button
-                onClick={() => setExpanded(!expanded)}
-                className="inline-flex items-center gap-0.5 text-xs font-medium text-indigo-600 hover:text-indigo-800 mt-1 transition-colors"
-              >
-                {expanded
-                  ? (<><ChevronUp className="w-3 h-3" /> Show less</>)
-                  : (<><ChevronDown className="w-3 h-3" /> Read more</>)}
-              </button>
-            )}
-          </div>
-
-          {subjectLabel && (
-            <p className="text-xs text-gray-400 mt-1.5">Subject: {subjectLabel}</p>
-          )}
-
-          {/* Attachments */}
-          {attachments.length > 0 && (
-            <div className="mt-3">
-              <div className="flex items-center gap-1.5 mb-2">
-                <Paperclip className="w-3.5 h-3.5 text-gray-400" />
-                <span className="text-xs font-semibold text-gray-600">
-                  Attachments ({attachments.length})
-                </span>
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
-                {attachments.map((att, idx) => {
-                  const FileIcon = getFileIcon(att?.type);
-                  return (
-                    <a
-                      key={idx}
-                      href={att?.url || '#'}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="flex items-center gap-2 bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 hover:bg-indigo-50 hover:border-indigo-200 transition-all group"
-                    >
-                      <div className="p-1.5 bg-white rounded-lg border border-gray-100 shadow-sm group-hover:border-indigo-200 transition-colors">
-                        <FileIcon className="w-4 h-4 text-indigo-500" />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-gray-800 font-medium truncate text-xs group-hover:text-indigo-700">
-                          {att?.name || `File ${idx + 1}`}
-                        </p>
-                        {att?.size && <p className="text-gray-400 text-xs">{formatFileSize(att.size)}</p>}
-                      </div>
-                      <Download className="w-3.5 h-3.5 text-gray-400 group-hover:text-indigo-500 shrink-0" />
-                    </a>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-
-          {/* Footer */}
-          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-4 pt-3 border-t border-gray-100 text-xs text-gray-400">
-            <span className="inline-flex items-center gap-1">
-              <User className="w-3.5 h-3.5" /> {author}
-            </span>
-            <span className="inline-flex items-center gap-1">
-              <Calendar className="w-3.5 h-3.5" /> {formatDate(displayDate)}
-            </span>
-          </div>
+    <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+      <div className={`h-1.5 ${meta.bar}`} />
+      <div className="p-5 space-y-4">
+        <button type="button" onClick={onBack} className="text-sm text-indigo-600 hover:text-indigo-800 font-medium">
+          ← Back to notices
+        </button>
+        <div className="flex flex-wrap items-center gap-2">
+          <span className={`inline-flex items-center px-2 py-0.5 rounded-full border text-xs font-semibold ${meta.badge}`}>{meta.label}</span>
+          <span className={`inline-flex items-center px-2 py-0.5 rounded-full border text-xs font-semibold capitalize ${CATEGORY_META[category] || CATEGORY_META.general}`}>{category}</span>
         </div>
+        <h2 className="text-xl md:text-2xl font-bold text-gray-900">{notice.title || 'Untitled Notice'}</h2>
+        <p className="text-sm text-gray-500">{author} • {formatDate(displayDate)}</p>
+        <p className="text-gray-700 leading-relaxed whitespace-pre-wrap">{notice.message || 'No details available.'}</p>
+        {subjectLabel ? <p className="text-sm text-gray-500">Subject: {subjectLabel}</p> : null}
+        {attachments.length > 0 && (
+          <div className="space-y-2">
+            <p className="text-sm font-semibold text-gray-700">Attachments</p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              {attachments.map((att, idx) => {
+                const FileIcon = getFileIcon(att?.type);
+                return (
+                  <a
+                    key={`${att?.url || idx}`}
+                    href={att?.url || '#'}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-2 bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 hover:bg-indigo-50 hover:border-indigo-200 transition-all"
+                  >
+                    <FileIcon className="w-4 h-4 text-indigo-600" />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm text-gray-800 truncate">{att?.name || `File ${idx + 1}`}</p>
+                      {att?.size ? <p className="text-xs text-gray-500">{formatFileSize(att.size)}</p> : null}
+                    </div>
+                    <Download className="w-4 h-4 text-gray-500" />
+                  </a>
+                );
+              })}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -272,6 +222,7 @@ const NoticeBoard = () => {
   const [lastUpdated, setLastUpdated] = useState(null);
   const [classTeacher, setClassTeacher] = useState(null);
   const [teacherLoading, setTeacherLoading] = useState(false);
+  const [selectedNotice, setSelectedNotice] = useState(null);
   const [expandedCategories, setExpandedCategories] = useState({});
   const [expandedTypes, setExpandedTypes] = useState({});
 
@@ -310,9 +261,6 @@ const NoticeBoard = () => {
     };
     fetchNotices();
   }, []);
-
-  const toggleBookmark = (id) =>
-    setBookmarkedNotices(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
 
   const filteredNotices = notices.filter(notice => {
     const q = searchQuery.toLowerCase();
@@ -537,6 +485,9 @@ const NoticeBoard = () => {
 
       {/* Notices */}
       <div className="space-y-4">
+        {selectedNotice ? (
+          <NoticeDetailsView notice={selectedNotice} onBack={() => setSelectedNotice(null)} />
+        ) : null}
         {loading ? (
           <><SkeletonCard /><SkeletonCard /><SkeletonCard /></>
         ) : groupedNotices.length === 0 ? (
@@ -547,7 +498,7 @@ const NoticeBoard = () => {
             <h3 className="text-base font-semibold text-gray-700 mb-1">No notices found</h3>
             <p className="text-sm text-gray-400">Try adjusting your search or filter criteria</p>
           </div>
-        ) : (
+        ) : !selectedNotice ? (
           <>
             <p className="text-xs text-gray-400 px-1">
               Showing {sortedNotices.length} of {notices.length} notice{notices.length !== 1 ? 's' : ''}
@@ -628,8 +579,7 @@ const NoticeBoard = () => {
                                   <NoticeCard
                                     key={resolveId(notice)}
                                     notice={notice}
-                                    isBookmarked={bookmarkedNotices.includes(resolveId(notice))}
-                                    onBookmark={toggleBookmark}
+                                    onOpen={setSelectedNotice}
                                   />
                                 ))}
                               </div>
@@ -643,7 +593,7 @@ const NoticeBoard = () => {
               );
             })}
           </>
-        )}
+        ) : null}
       </div>
     </div>
   );
