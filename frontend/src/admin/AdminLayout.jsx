@@ -14,6 +14,7 @@ const AdminLayout = ({
   adminUser,
   profileLoading,
   menuItems,
+  showAdminHeader = true,
 }) => {
   const navigate = useNavigate();
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -26,7 +27,7 @@ const AdminLayout = ({
   };
 
   return (
-    <div className="flex w-full h-dvh bg-gray-50">
+    <div className="flex w-full min-h-dvh bg-gray-50">
       {/* ── Shared logout confirmation dialog ── */}
       {showLogoutConfirm && (
         <div className="fixed inset-0 z-200 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
@@ -72,14 +73,16 @@ const AdminLayout = ({
         onLogoutRequest={handleLogoutRequest}
       />
 
-      <div className="flex-1 flex flex-col min-w-0 min-h-0 bg-gray-50">
-        <AdminHeader
-          adminUser={adminUser}
-          onOpenMobileSidebar={() => setMobileOpen(true)}
-          onLogoutRequest={handleLogoutRequest}
-        />
+      <div className="flex-1 flex flex-col min-w-0 bg-gray-50">
+        {showAdminHeader && (
+          <AdminHeader
+            adminUser={adminUser}
+            onOpenMobileSidebar={() => setMobileOpen(true)}
+            onLogoutRequest={handleLogoutRequest}
+          />
+        )}
 
-        <main className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden bg-gray-50">
+        <main className="flex-1 overflow-x-hidden bg-gray-50">
           {children}
         </main>
       </div>

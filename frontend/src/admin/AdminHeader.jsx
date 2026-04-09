@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Bell,
   Search,
@@ -14,6 +14,8 @@ import {
 import { useNavigate } from 'react-router-dom';
 import { apiFetch } from '../utils/authSession';
 const API_BASE = (import.meta.env.VITE_API_URL || 'http://localhost:5000').replace(/\/$/, '');
+const DESKTOP_SEARCH_LISTBOX_ID = 'admin-header-search-suggestions-desktop';
+const MOBILE_SEARCH_LISTBOX_ID = 'admin-header-search-suggestions-mobile';
 
 const AdminHeader = ({ adminUser, onOpenMobileSidebar, onLogoutRequest }) => {
   const [showProfileMenu, setShowProfileMenu]       = useState(false);
@@ -28,6 +30,8 @@ const AdminHeader = ({ adminUser, onOpenMobileSidebar, onLogoutRequest }) => {
   const [notifError, setNotifError]                 = useState('');
   const [readIds, setReadIds]                       = useState([]);
   const [now, setNow]                               = useState(new Date());
+  const desktopSearchRef = useRef(null);
+  const mobileSearchRef = useRef(null);
   const navigate = useNavigate();
 
   const isSuperAdmin  = String(adminUser?.role || '').toLowerCase() === 'super admin';
@@ -146,7 +150,7 @@ const AdminHeader = ({ adminUser, onOpenMobileSidebar, onLogoutRequest }) => {
       { label: 'Academic Setup',  hint: 'Classes, sections, subjects',   path: '/admin/academics',      keys: ['academic', 'class', 'section', 'subject'] },
       { label: 'Teachers',        hint: 'Manage teachers',               path: '/admin/teachers',       keys: ['teacher', 'faculty'] },
       { label: 'Students',        hint: 'Manage students',               path: '/admin/students',       keys: ['student', 'pupil'] },
-      { label: 'Routines',        hint: 'Schedules & timetables',        path: '/admin/routine',        keys: ['routine', 'schedule', 'timetable'] },
+      { label: 'Routines',        hint: 'Schedules & timetables',        path: '/admin/routines',       keys: ['routine', 'schedule', 'timetable'] },
       { label: 'Attendance',      hint: 'Daily attendance',              path: '/admin/attendance',     keys: ['attendance', 'present', 'absent'] },
       { label: 'Examination',     hint: 'Exams & papers',                path: '/admin/examination',    keys: ['exam', 'examination', 'test'] },
       { label: 'Results',         hint: 'Marks & results',               path: '/admin/result',         keys: ['result', 'marks'] },
@@ -248,6 +252,16 @@ const AdminHeader = ({ adminUser, onOpenMobileSidebar, onLogoutRequest }) => {
     navigateToSuggestion(match);
   };
 
+  const closeSuggestionsIfFocusOutside = (containerRef) => {
+    requestAnimationFrame(() => {
+      const container = containerRef?.current;
+      const activeEl = document.activeElement;
+      if (container && activeEl && container.contains(activeEl)) return;
+      setShowSuggestions(false);
+      setActiveSuggestionIndex(-1);
+    });
+  };
+
   useEffect(() => {
     if (!searchFeedback) return;
     const t = setTimeout(() => setSearchFeedback(''), 2200);
@@ -292,7 +306,7 @@ const AdminHeader = ({ adminUser, onOpenMobileSidebar, onLogoutRequest }) => {
         </div>
 
         {/* ── Desktop search ── */}
-        <div className="hidden lg:flex flex-1 max-w-md relative">
+        <div ref={desktopSearchRef} className="hidden lg:flex flex-1 max-w-md relative">
           <form className="relative w-full flex items-center" onSubmit={handleSearch}>
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
             <input
@@ -301,10 +315,16 @@ const AdminHeader = ({ adminUser, onOpenMobileSidebar, onLogoutRequest }) => {
               value={searchQuery}
               onChange={(e) => { setSearchQuery(e.target.value); setActiveSuggestionIndex(-1); }}
               onFocus={() => setShowSuggestions(true)}
-              onBlur={() => setTimeout(() => { setShowSuggestions(false); setActiveSuggestionIndex(-1); }, 150)}
+              onBlur={() => closeSuggestionsIfFocusOutside(desktopSearchRef)}
               onKeyDown={handleSearchInputKeyDown}
               aria-expanded={showSuggestions}
               aria-haspopup="listbox"
+              aria-controls={DESKTOP_SEARCH_LISTBOX_ID}
+              aria-activedescendant={
+                showSuggestions && activeSuggestionIndex >= 0
+                  ? `desktop-search-option-${activeSuggestionIndex}`
+                  : undefined
+              }
               className="w-full pl-9 pr-24 py-2 text-sm border border-gray-200 rounded-xl bg-gray-50 outline-none focus:border-indigo-400 focus:ring-4 focus:ring-indigo-50 focus:bg-white transition-all placeholder-gray-400"
             />
             {searchQuery && (
@@ -326,7 +346,11 @@ const AdminHeader = ({ adminUser, onOpenMobileSidebar, onLogoutRequest }) => {
 
           {/* Search suggestions dropdown */}
           {showSuggestions && (
-            <div className="absolute top-full left-0 right-0 mt-1.5 rounded-2xl border border-gray-100 bg-white shadow-xl z-50 overflow-hidden">
+            <div
+              id={DESKTOP_SEARCH_LISTBOX_ID}
+              role="listbox"
+              className="absolute top-full left-0 right-0 mt-1.5 rounded-2xl border border-gray-100 bg-white shadow-xl z-50 overflow-hidden"
+            >
               {suggestions.length === 0 ? (
                 <div className="px-4 py-3 text-sm text-gray-400">No results</div>
               ) : (
@@ -334,6 +358,9 @@ const AdminHeader = ({ adminUser, onOpenMobileSidebar, onLogoutRequest }) => {
                   {suggestions.map((item, idx) => (
                     <li key={item.path}>
                       <button
+                        id={`desktop-search-option-${idx}`}
+                        role="option"
+                        aria-selected={idx === activeSuggestionIndex}
                         type="button"
                         onMouseDown={(e) => e.preventDefault()}
                         onMouseEnter={() => setActiveSuggestionIndex(idx)}
@@ -530,7 +557,7 @@ const AdminHeader = ({ adminUser, onOpenMobileSidebar, onLogoutRequest }) => {
 
       {/* ── Mobile search bar (expanded) ── */}
       {showSearch && (
-        <div className="lg:hidden px-4 pb-3">
+        <div ref={mobileSearchRef} className="lg:hidden px-4 pb-3">
           <form className="relative flex items-center" onSubmit={handleSearch}>
             <Search className="absolute left-3 w-4 h-4 text-gray-400 pointer-events-none" />
             <input
@@ -539,8 +566,17 @@ const AdminHeader = ({ adminUser, onOpenMobileSidebar, onLogoutRequest }) => {
               value={searchQuery}
               onChange={(e) => { setSearchQuery(e.target.value); setActiveSuggestionIndex(-1); }}
               onFocus={() => setShowSuggestions(true)}
+              onBlur={() => closeSuggestionsIfFocusOutside(mobileSearchRef)}
               onKeyDown={handleSearchInputKeyDown}
               autoFocus
+              aria-expanded={showSuggestions}
+              aria-haspopup="listbox"
+              aria-controls={MOBILE_SEARCH_LISTBOX_ID}
+              aria-activedescendant={
+                showSuggestions && activeSuggestionIndex >= 0
+                  ? `mobile-search-option-${activeSuggestionIndex}`
+                  : undefined
+              }
               className="w-full pl-9 pr-10 py-2.5 text-sm border border-gray-200 rounded-xl bg-gray-50 outline-none focus:border-indigo-400 focus:ring-4 focus:ring-indigo-50 transition-all"
             />
             <button
@@ -551,14 +587,22 @@ const AdminHeader = ({ adminUser, onOpenMobileSidebar, onLogoutRequest }) => {
               <X size={16} />
             </button>
           </form>
-          {searchQuery && (
-            <div className="mt-1.5 rounded-2xl border border-gray-100 bg-white shadow-xl overflow-hidden">
+          {showSuggestions && (
+            <div
+              id={MOBILE_SEARCH_LISTBOX_ID}
+              role="listbox"
+              className="mt-1.5 rounded-2xl border border-gray-100 bg-white shadow-xl overflow-hidden"
+            >
               {suggestions.length > 0 ? (
                 <ul className="divide-y divide-gray-50">
                   {suggestions.map((item, idx) => (
                     <li key={item.path}>
                       <button
+                        id={`mobile-search-option-${idx}`}
+                        role="option"
+                        aria-selected={idx === activeSuggestionIndex}
                         type="button"
+                        onMouseDown={(e) => e.preventDefault()}
                         onMouseEnter={() => setActiveSuggestionIndex(idx)}
                         onClick={() => navigateToSuggestion(item)}
                         className={`w-full px-4 py-2.5 text-left flex items-center gap-3 transition-colors ${

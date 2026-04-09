@@ -51,7 +51,7 @@ const shouldHideLeavingStudent = (student) =>
 
 const STUDENTS_PER_PAGE = 10;
 
-const Students = ({ setShowAdminHeader, setShowAdminBreadcrumb }) => {
+const Students = ({ setShowAdminHeader }) => {
   const navigate = useNavigate(); 
 
   const [studentData, setStudentData] = useState([]);
@@ -876,16 +876,11 @@ const Students = ({ setShowAdminHeader, setShowAdminBreadcrumb }) => {
   /* -------------------- Effects -------------------- */
   useEffect(() => {
     setShowAdminHeader?.(true);
-    setShowAdminBreadcrumb?.(false);
     refreshStudents({ useCache: true, showLoader: true }).catch(console.error);
     refreshArchivedStudents().catch(console.error);
     refreshEnrollContext().catch(console.error);
     refreshAcademicCatalog().catch(console.error);
-
-    return () => {
-      setShowAdminBreadcrumb?.(true);
-    };
-  }, [setShowAdminHeader, setShowAdminBreadcrumb, getStudentsCacheKey]);
+  }, [setShowAdminHeader, getStudentsCacheKey]);
 
   /* -------------------- Archive Student -------------------- */
   const handleArchiveStudent = async (student) => {
@@ -1204,7 +1199,11 @@ const Students = ({ setShowAdminHeader, setShowAdminBreadcrumb }) => {
     );
 
     if (missing.length) {
-      alert(`Please fill required fields: ${missing.join(", ")}`);
+      await Swal.fire({
+        icon: "warning",
+        title: "Required fields missing",
+        text: `Please fill required fields: ${missing.join(", ")}`,
+      });
       return;
     }
 
@@ -1272,7 +1271,11 @@ const Students = ({ setShowAdminHeader, setShowAdminBreadcrumb }) => {
 
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        alert(`Registration failed: ${data.message || res.statusText}`);
+        await Swal.fire({
+          icon: "error",
+          title: "Registration failed",
+          text: data.message || res.statusText,
+        });
         return;
       }
       const studentId = data.studentCode || data.username || data.userId || "Generated";
@@ -1325,7 +1328,11 @@ const Students = ({ setShowAdminHeader, setShowAdminBreadcrumb }) => {
       });
     } catch (err) {
       console.error(err);
-      alert(`Error: ${err.message}`);
+      await Swal.fire({
+        icon: "error",
+        title: "Unable to add student",
+        text: err.message || "Something went wrong",
+      });
     } finally {
       setIsSubmitting(false);
     }
@@ -1941,7 +1948,16 @@ const Students = ({ setShowAdminHeader, setShowAdminBreadcrumb }) => {
 
   const handleUnarchiveStudent = async (studentId) => {
     if (!studentId) return;
-    if (!window.confirm("Restore this student from archive?")) return;
+    const confirm = await Swal.fire({
+      icon: "question",
+      title: "Restore student?",
+      text: "This will move the student back to active records.",
+      showCancelButton: true,
+      confirmButtonText: "Yes, Restore",
+      cancelButtonText: "Cancel",
+      confirmButtonColor: "#16A34A",
+    });
+    if (!confirm.isConfirmed) return;
     try {
       setArchiveActionLoading(true);
       const res = await fetch(
@@ -1970,7 +1986,11 @@ const Students = ({ setShowAdminHeader, setShowAdminBreadcrumb }) => {
       });
     } catch (err) {
       console.error(err);
-      alert(err.message);
+      await Swal.fire({
+        icon: "error",
+        title: "Unable to restore student",
+        text: err.message || "Please try again",
+      });
     } finally {
       setArchiveActionLoading(false);
     }
@@ -2498,7 +2518,11 @@ const Students = ({ setShowAdminHeader, setShowAdminBreadcrumb }) => {
       const rows = await parseFileToRows(file);
 
       if (!rows.length) {
-        alert("File is empty");
+        await Swal.fire({
+          icon: "warning",
+          title: "File is empty",
+          text: "Please upload a file with student rows.",
+        });
         return;
       }
 
@@ -2694,7 +2718,11 @@ const Students = ({ setShowAdminHeader, setShowAdminBreadcrumb }) => {
 
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        alert(`Import failed: ${data.message || res.statusText}`);
+        await Swal.fire({
+          icon: "error",
+          title: "Import failed",
+          text: data.message || res.statusText,
+        });
         return;
       }
 
@@ -2735,27 +2763,6 @@ const Students = ({ setShowAdminHeader, setShowAdminBreadcrumb }) => {
   return (
     <div className="flex-1 bg-gray-50 overflow-hidden flex flex-col">
       <div className="w-full flex-1 flex flex-col p-3 md:p-5 lg:p-6 overflow-hidden text-sm md:text-base">
-        {studentsLoading && (
-          <div className="mb-4 rounded-2xl border border-gray-100 bg-white shadow-sm overflow-hidden">
-            <div className="px-4 py-3 border-b border-gray-100 flex items-center gap-2">
-              <Loader2 size={14} className="animate-spin text-indigo-400" />
-              <span className="text-sm text-gray-500 font-medium">Loading students…</span>
-            </div>
-            <div className="divide-y divide-gray-50">
-              {[...Array(5)].map((_, i) => (
-                <div key={i} className="flex items-center gap-4 px-4 py-3">
-                  <div className="w-8 h-8 rounded-xl bg-gray-100 animate-pulse shrink-0" />
-                  <div className="flex-1 space-y-1.5">
-                    <div className="h-3 bg-gray-100 rounded-full animate-pulse w-40" />
-                    <div className="h-2.5 bg-gray-50 rounded-full animate-pulse w-24" />
-                  </div>
-                  <div className="h-2.5 bg-gray-100 rounded-full animate-pulse w-16" />
-                  <div className="h-6 w-16 bg-gray-100 rounded-lg animate-pulse" />
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:flex-wrap gap-3 sm:justify-between sm:items-center mb-4 flex-shrink-0">
           <div>
@@ -2924,14 +2931,14 @@ const Students = ({ setShowAdminHeader, setShowAdminBreadcrumb }) => {
 
           {/* Students Table */}
           <>
-            <div className="relative flex-1 overflow-y-auto rounded-xl border border-gray-200 bg-white shadow-sm">
+            <div className="relative flex-1 overflow-auto rounded-xl border border-gray-200 bg-white shadow-sm">
               {/* {isImporting && (
                 <div className={`sticky ${tableRefreshing ? "top-8" : "top-0"} z-20 flex items-center justify-center gap-2 bg-blue-50/95 border-b border-blue-200 px-3 py-1.5 text-xs font-medium text-blue-700`}>
                   <Loader2 size={13} className="animate-spin" />
                   Uploading bulk student file...
                 </div>
               )} */}
-              <table className="w-full border-collapse table-fixed">
+              <table className="w-full min-w-[980px] border-collapse table-fixed">
                   <thead className="sticky top-0 z-10">
                     <tr className="bg-gray-50">
                       <th className="border-b border-gray-200 px-2 py-2.5 text-left text-xs font-semibold uppercase tracking-wider text-gray-500 w-[5%]">

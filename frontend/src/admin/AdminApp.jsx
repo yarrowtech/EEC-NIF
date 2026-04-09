@@ -31,7 +31,7 @@ import AdminSettings from './pages/AdminSettings';
 import StudentPromotion from './pages/StudentPromotion';
 import ReportCardManagement from './pages/ReportCardManagement';
 import HolidayList from './pages/HolidayList';
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ADMIN_MENU_ITEMS } from './adminConstants';
 import { syncScopeFromProfile } from './utils/adminScope';
@@ -87,14 +87,56 @@ const resolveLogoUrl = (logo) => {
   return '';
 };
 
+const ADMIN_PROFILE_CACHE_KEY = 'admin_profile_cache_v1';
+
+const getAdminProfileCacheKey = () => {
+  const token = localStorage.getItem('token');
+  if (!token) return `${ADMIN_PROFILE_CACHE_KEY}:anonymous`;
+  try {
+    const payloadPart = token.split('.')[1];
+    if (!payloadPart) return `${ADMIN_PROFILE_CACHE_KEY}:fallback`;
+    const normalized = payloadPart.replace(/-/g, '+').replace(/_/g, '/');
+    const padded = normalized + '='.repeat((4 - (normalized.length % 4)) % 4);
+    const payload = JSON.parse(atob(padded));
+    const adminId = payload?.id || 'unknown';
+    const schoolId = payload?.schoolId || 'school';
+    const campusId = payload?.campusId || 'campus';
+    return `${ADMIN_PROFILE_CACHE_KEY}:${adminId}_${schoolId}_${campusId}`;
+  } catch {
+    return `${ADMIN_PROFILE_CACHE_KEY}:fallback`;
+  }
+};
+
+const readCachedAdminProfile = () => {
+  try {
+    const raw = sessionStorage.getItem(getAdminProfileCacheKey());
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === 'object' ? parsed : null;
+  } catch {
+    return null;
+  }
+};
+
+const writeCachedAdminProfile = (profile) => {
+  try {
+    if (!profile || typeof profile !== 'object') return;
+    sessionStorage.setItem(getAdminProfileCacheKey(), JSON.stringify(profile));
+  } catch {
+    // ignore storage errors
+  }
+};
+
 const AdminApp = () => {
   const navigate = useNavigate();
+  const cachedAdminProfile = useMemo(() => readCachedAdminProfile(), []);
+  const profileHydratedRef = useRef(Boolean(cachedAdminProfile));
   const [sidebarCollapsed, setSidebarCollapsed] = useState(
     () => localStorage.getItem('adminSidebarCollapsed') === 'true'
   );
   const [activeMenuItem, setActiveMenuItem] = useState('Dashboard');
-  const [adminProfile, setAdminProfile] = useState(null);
-  const [adminProfileLoading, setAdminProfileLoading] = useState(true);
+  const [adminProfile, setAdminProfile] = useState(cachedAdminProfile);
+  const [adminProfileLoading, setAdminProfileLoading] = useState(!cachedAdminProfile);
 
   const handleMenuItemClick = (item) => {
     setActiveMenuItem(item);
@@ -102,7 +144,6 @@ const AdminApp = () => {
 
   // state to manage admin header
   const [showAdminHeader, setShowAdminHeader] = useState(true);
-  const [showAdminBreadcrumb, setShowAdminBreadcrumb] = useState(true);
 
   const handleSettingsUpdated = ({ admin, school } = {}) => {
     setAdminProfile((prev) => {
@@ -122,6 +163,7 @@ const AdminApp = () => {
           next.schoolLogo = '';
         }
       }
+      writeCachedAdminProfile(next);
       return next;
     });
   };
@@ -130,7 +172,9 @@ const AdminApp = () => {
     const fetchProfile = async () => {
       const token = localStorage.getItem('token');
       if (!token) { setAdminProfileLoading(false); return; }
-      setAdminProfileLoading(true);
+      if (!profileHydratedRef.current) {
+        setAdminProfileLoading(true);
+      }
       try {
         const res = await apiFetch(
           `${import.meta.env.VITE_API_URL}/api/admin/auth/profile`,
@@ -175,6 +219,8 @@ const AdminApp = () => {
 
         const profileWithSchool = { ...data, ...schoolDetails };
         setAdminProfile(profileWithSchool);
+        writeCachedAdminProfile(profileWithSchool);
+        profileHydratedRef.current = true;
         syncScopeFromProfile(profileWithSchool);
       } catch (err) {
         console.error('Failed to load admin profile', err);
@@ -275,7 +321,6 @@ const AdminApp = () => {
         profileLoading={adminProfileLoading}
         menuItems={menuItems}
         showAdminHeader={showAdminHeader}
-        showBreadcrumb={showAdminBreadcrumb}
       >
         <Routes>
           <Route index element={<Navigate to="/admin/dashboard" replace />} />
@@ -289,7 +334,7 @@ const AdminApp = () => {
           <Route path="school-registrations" element={<SuperAdminOnly><SchoolRegistrations setShowAdminHeader={setShowAdminHeader} /></SuperAdminOnly>} />
 
           <Route path="teachers" element={<Teachers setShowAdminHeader={setShowAdminHeader} />} />
-          <Route path="students" element={<Students setShowAdminHeader={setShowAdminHeader} setShowAdminBreadcrumb={setShowAdminBreadcrumb} />} />
+          <Route path="students" element={<Students setShowAdminHeader={setShowAdminHeader} />} />
           <Route path="wellbeing" element={<Wellbeing setShowAdminHeader={setShowAdminHeader} />} />
           {/* Canonical route is /routines; /routine redirects to it */}
           <Route path="routine" element={<Navigate to="/admin/routines" replace />} />

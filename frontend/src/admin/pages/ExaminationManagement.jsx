@@ -451,10 +451,7 @@ const ExaminationManagement = ({ setShowAdminHeader }) => {
       if (!res.ok) throw new Error(data?.error || 'Failed');
       toast.success(editingGroupId ? 'Exam updated!' : 'Exam created!');
       setShowGroupModal(false);
-      const list = await loadGroups();
-      const targetGroupId = data?.group?._id || editingGroupId;
-      const targetGroup = list.find((g) => String(g._id) === String(targetGroupId));
-      if (targetGroup) await generateExamSchedulePdf(targetGroup);
+      await loadGroups();
     } catch (err) { toast.error(err.message || 'Failed to save'); }
     finally { setSaving(false); }
   };
@@ -533,9 +530,7 @@ const ExaminationManagement = ({ setShowAdminHeader }) => {
       if (!res.ok) throw new Error(data?.error || 'Failed');
       toast.success(editingSubjectId ? 'Subject exam updated!' : 'Subject exam added!');
       setShowSubjectModal(false);
-      const list = await loadGroups();
-      const targetGroup = list.find((g) => String(g._id) === String(activeGroup?._id || ''));
-      if (targetGroup) await generateExamSchedulePdf(targetGroup);
+      await loadGroups();
     } catch (err) { toast.error(err.message || 'Failed to save'); }
     finally { setSaving(false); }
   };

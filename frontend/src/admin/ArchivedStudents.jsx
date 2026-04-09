@@ -7,10 +7,12 @@ const API_BASE = import.meta.env.VITE_API_URL;
 const ArchivedStudents = () => {
   const [students, setStudents] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
 
   const fetchArchived = async () => {
     try {
       setLoading(true);
+      setError('');
       const res = await fetch(`${API_BASE}/api/nif/students/archived`, {
         headers: {
           "Content-Type": "application/json",
@@ -21,7 +23,7 @@ const ArchivedStudents = () => {
       setStudents(Array.isArray(data) ? data : []);
     } catch (err) {
       console.error("Failed to load archived students:", err);
-      alert("Failed to load archived students.");
+      setError("Failed to load archived students.");
     } finally {
       setLoading(false);
     }
@@ -52,6 +54,11 @@ const ArchivedStudents = () => {
             Download CSV
           </button>
         </div>
+        {error ? (
+          <div className="mb-4 rounded-lg border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-700">
+            {error}
+          </div>
+        ) : null}
 
         {/* Table */}
         <table className="w-full border border-yellow-200 rounded-lg">

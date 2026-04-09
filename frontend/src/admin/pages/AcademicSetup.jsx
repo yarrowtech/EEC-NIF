@@ -353,7 +353,16 @@ const AcademicSetup = ({ setShowAdminHeader }) => {
   };
 
   const deleteClassTeacher = async (id) => {
-    if (!window.confirm("Remove this class teacher?")) return;
+    const confirm = await Swal.fire({
+      icon: "warning",
+      title: "Remove class teacher?",
+      text: "This assignment will be removed.",
+      showCancelButton: true,
+      confirmButtonText: "Yes, Remove",
+      cancelButtonText: "Cancel",
+      confirmButtonColor: "#dc2626",
+    });
+    if (!confirm.isConfirmed) return;
     try {
       const res = await fetch(`${API_BASE}/api/teacher-allocations/${id}`, {
         method: "DELETE",

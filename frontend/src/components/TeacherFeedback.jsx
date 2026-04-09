@@ -186,22 +186,23 @@ const TeacherFeedback = () => {
 
   const getSelectedContextOrAlert = () => {
     if (!selectedSubject) {
-      alert('Please select a subject before submitting feedback.');
+      setSubmitError('Please select a subject before submitting feedback.');
       return null;
     }
     const context = teacherSubjects.find(subject => subject.contextId === selectedSubject);
     if (!context) {
-      alert('Selected subject is no longer available. Please choose again.');
+      setSubmitError('Selected subject is no longer available. Please choose again.');
       return null;
     }
     if (Object.keys(ratings).length === 0) {
-      alert('Please provide ratings before submitting.');
+      setSubmitError('Please provide ratings before submitting.');
       return null;
     }
     return context;
   };
 
   const handleSubmit = async () => {
+    setSubmitError('');
     const context = getSelectedContextOrAlert();
     if (!context) return;
 

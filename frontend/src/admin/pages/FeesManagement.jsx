@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import Swal from 'sweetalert2';
 import {
   AlertCircle,
   BookOpen,
@@ -389,7 +390,16 @@ const FeesManagement = ({ setShowAdminHeader }) => {
 
   const deleteStructure = async (structure) => {
     if (!structure?._id) return;
-    if (!window.confirm(`Delete "${structure.name || 'this structure'}"?`)) return;
+    const confirm = await Swal.fire({
+      icon: 'warning',
+      title: 'Delete fee structure?',
+      text: `Delete "${structure.name || 'this structure'}"?`,
+      showCancelButton: true,
+      confirmButtonText: 'Yes, Delete',
+      cancelButtonText: 'Cancel',
+      confirmButtonColor: '#dc2626',
+    });
+    if (!confirm.isConfirmed) return;
     try {
       const res = await fetch(`${API_BASE}/api/fees/structures/${structure._id}`, {
         method: 'DELETE',

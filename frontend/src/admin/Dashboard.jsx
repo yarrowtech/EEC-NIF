@@ -235,6 +235,41 @@ const friendlyActivityType = (type = '') => {
   return 'Update';
 };
 
+const formatActivityTimestamp = (value) => {
+  if (!value) return '';
+  const ts = new Date(value);
+  if (Number.isNaN(ts.getTime())) return '';
+
+  const now = new Date();
+  const diffMs = now.getTime() - ts.getTime();
+  const diffMin = Math.floor(diffMs / 60000);
+
+  if (diffMin < 1) return 'Just now';
+  if (diffMin < 60) return `${diffMin} min ago`;
+
+  const diffHr = Math.floor(diffMin / 60);
+  if (diffHr < 24) return `${diffHr} hr${diffHr === 1 ? '' : 's'} ago`;
+
+  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const startOfTs = new Date(ts.getFullYear(), ts.getMonth(), ts.getDate());
+  const dayDiff = Math.round((startOfToday.getTime() - startOfTs.getTime()) / 86400000);
+
+  if (dayDiff === 1) {
+    return `Yesterday, ${ts.toLocaleTimeString('en-IN', {
+      hour: 'numeric',
+      minute: '2-digit',
+    })}`;
+  }
+
+  return ts.toLocaleString('en-IN', {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  });
+};
+
 const buildFinancialState = (invoices = [], payments = []) => {
   const trend = buildMonthlyTrend(invoices, payments);
   const totals = invoices.reduce(
@@ -884,7 +919,7 @@ const Dashboard = ({ setShowAdminHeader }) => {
                         <p className="text-xs text-gray-600 truncate mt-0.5">{item.detail}</p>
                       )}
                       <p className="text-[11px] text-gray-400 mt-1">
-                        {new Date(item.createdAt).toLocaleString()}
+                        {formatActivityTimestamp(item.createdAt)}
                       </p>
                     </div>
                     <span className={`shrink-0 self-start text-[10px] font-semibold uppercase tracking-wide px-2 py-1 rounded-full ${

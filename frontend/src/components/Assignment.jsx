@@ -26,6 +26,7 @@ import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { addPoints, hasAward, markAwarded } from '../utils/points';
 import axios from 'axios';
 import { useLocation } from 'react-router-dom';
+import Swal from 'sweetalert2';
 
 const labModelUrl = (file) => new URL(`../models/${file}`, import.meta.url).href;
 
@@ -412,11 +413,19 @@ const closeDetail = () => {
   const handleSubmit = async () => {
     const requiresPdfUpload = selectedAssignment?.submissionFormat === 'pdf';
     if (!requiresPdfUpload && !submissionText.trim()) {
-      alert('Please write something before submitting.');
+      await Swal.fire({
+        icon: 'warning',
+        title: 'Submission required',
+        text: 'Please write something before submitting.',
+      });
       return;
     }
     if (requiresPdfUpload && !submissionFileUrl) {
-      alert('Please upload your PDF before submitting.');
+      await Swal.fire({
+        icon: 'warning',
+        title: 'PDF required',
+        text: 'Please upload your PDF before submitting.',
+      });
       return;
     }
     try {
@@ -453,7 +462,11 @@ const closeDetail = () => {
       });
     } catch (err) {
       console.error('Submit error:', err);
-      alert(err.response?.data?.error || 'Failed to submit. Please try again.');
+      await Swal.fire({
+        icon: 'error',
+        title: 'Submission failed',
+        text: err.response?.data?.error || 'Failed to submit. Please try again.',
+      });
     } finally {
       setSubmitting(false);
     }
@@ -465,13 +478,21 @@ const closeDetail = () => {
     if (!file) return;
 
     if (file.type !== 'application/pdf') {
-      alert('Please upload a PDF file.');
+      await Swal.fire({
+        icon: 'warning',
+        title: 'Invalid file',
+        text: 'Please upload a PDF file.',
+      });
       input.value = '';
       return;
     }
 
     if (file.size > 20 * 1024 * 1024) {
-      alert('File size must be under 20MB.');
+      await Swal.fire({
+        icon: 'warning',
+        title: 'File too large',
+        text: 'File size must be under 20MB.',
+      });
       input.value = '';
       return;
     }
@@ -499,7 +520,11 @@ const closeDetail = () => {
       setSubmissionFileName(uploaded.originalName || file.name);
     } catch (error) {
       console.error('Assignment submission upload failed:', error);
-      alert('Failed to upload PDF. Please try again.');
+      await Swal.fire({
+        icon: 'error',
+        title: 'Upload failed',
+        text: 'Failed to upload PDF. Please try again.',
+      });
       setSubmissionFileUrl('');
       setSubmissionFileName('');
     } finally {

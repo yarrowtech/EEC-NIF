@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import jsPDF from 'jspdf';
+import Swal from 'sweetalert2';
 import { BookOpen, Calendar, CalendarRange, Clock, Download, MapPin, Plus, Search, Sparkles, Users } from 'lucide-react';
 import { academicApi, timetableApi, convertTo12Hour } from '../utils/timetableApi';
 
@@ -248,7 +249,16 @@ const ClassRoutine = () => {
   };
 
   const deleteSubject = async (id) => {
-    if (!window.confirm('Delete this subject?')) return;
+    const confirm = await Swal.fire({
+      icon: 'warning',
+      title: 'Delete subject?',
+      text: 'This action cannot be undone.',
+      showCancelButton: true,
+      confirmButtonText: 'Yes, Delete',
+      cancelButtonText: 'Cancel',
+      confirmButtonColor: '#dc2626',
+    });
+    if (!confirm.isConfirmed) return;
     try {
       await apiRequest(`/api/academic/subjects/${id}`, { method: 'DELETE' });
       setManageMessage('Subject deleted');
@@ -311,7 +321,16 @@ const ClassRoutine = () => {
   };
 
   const deleteAllocation = async (id) => {
-    if (!window.confirm('Delete this teacher allocation?')) return;
+    const confirm = await Swal.fire({
+      icon: 'warning',
+      title: 'Delete teacher allocation?',
+      text: 'This action cannot be undone.',
+      showCancelButton: true,
+      confirmButtonText: 'Yes, Delete',
+      cancelButtonText: 'Cancel',
+      confirmButtonColor: '#dc2626',
+    });
+    if (!confirm.isConfirmed) return;
     try {
       await apiRequest(`/api/teacher-allocations/${id}`, { method: 'DELETE' });
       setManageMessage('Allocation deleted');
@@ -324,8 +343,17 @@ const ClassRoutine = () => {
 
   const handleAutoGenerate = async () => {
     const generateAll = selectedClass === 'all';
-    if (generateAll && !window.confirm('Generate routines for all classes? This will overwrite existing timetables.')) {
-      return;
+    if (generateAll) {
+      const confirm = await Swal.fire({
+        icon: 'question',
+        title: 'Generate routines for all classes?',
+        text: 'This will overwrite existing timetables.',
+        showCancelButton: true,
+        confirmButtonText: 'Yes, Generate',
+        cancelButtonText: 'Cancel',
+        confirmButtonColor: '#2563eb',
+      });
+      if (!confirm.isConfirmed) return;
     }
 
     try {
@@ -652,7 +680,7 @@ const ClassRoutine = () => {
           <div className="mt-4 flex flex-wrap items-center gap-3 rounded-2xl border border-slate-200 bg-white/70 px-4 py-3 text-xs font-medium text-slate-600">
             <span>Need custom edits after auto-generation?</span>
             <a
-              href="/admin/routine"
+              href="/admin/routines"
               className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-700 transition hover:-translate-y-0.5 hover:border-slate-300"
             >
               Open Customize / Edit

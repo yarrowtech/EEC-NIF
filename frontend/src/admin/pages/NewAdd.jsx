@@ -84,6 +84,7 @@ const NewAdd = ({ setShowAdminHeader }) => {
 
   // local states (minimal to avoid bloat; we collect via FormData on submit)
   const [tab, setTab] = useState('teacher');
+  const [submitNotice, setSubmitNotice] = useState('');
 
   const handleSubmit = (e, kind) => {
     e.preventDefault();
@@ -92,7 +93,7 @@ const NewAdd = ({ setShowAdminHeader }) => {
     const entries = {};
     for (const [k, v] of data.entries()) entries[k] = v;
     console.log(`Submitting ${kind}`, entries);
-    alert(`${kind} form captured. Implement API to persist.`);
+    setSubmitNotice(`${kind} form captured. API persistence is pending implementation.`);
   };
 
   return (
@@ -106,6 +107,11 @@ const NewAdd = ({ setShowAdminHeader }) => {
             <button className={`px-3 py-1 rounded-md text-sm font-medium ${tab==='staff'?'bg-purple-100 text-purple-700':'text-gray-600 hover:text-gray-800'}`} onClick={()=>setTab('staff')}>Staff</button>
           </div>
         </div>
+        {submitNotice ? (
+          <div className="mb-4 rounded-lg border border-blue-100 bg-blue-50 px-4 py-3 text-sm text-blue-700">
+            {submitNotice}
+          </div>
+        ) : null}
 
         {tab === 'teacher' && (
           <Card title="Add New Teacher" description="Capture personal, employment, and document details" onSubmit={(e)=>handleSubmit(e,'Teacher')}>

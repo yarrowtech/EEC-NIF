@@ -26,6 +26,7 @@ import {
 } from 'lucide-react';
 import CredentialGeneratorButton from '../components/CredentialGeneratorButton';
 import { useNavigate } from 'react-router-dom';
+import Swal from 'sweetalert2';
 
 const PARENTS_PER_PAGE = 5;
 
@@ -368,10 +369,16 @@ const ParentsManagement = ({ setShowAdminHeader }) => {
 
   const handleBulkDeleteParents = async () => {
     if (!selectedParentIds.length || bulkDeleteLoading) return;
-    const isConfirmed = window.confirm(
-      `Delete ${selectedParentIds.length} selected parent(s)? This action cannot be undone.`
-    );
-    if (!isConfirmed) return;
+    const confirm = await Swal.fire({
+      icon: 'warning',
+      title: 'Delete selected parents?',
+      text: `Delete ${selectedParentIds.length} selected parent(s)? This action cannot be undone.`,
+      showCancelButton: true,
+      confirmButtonText: 'Yes, Delete',
+      cancelButtonText: 'Cancel',
+      confirmButtonColor: '#dc2626',
+    });
+    if (!confirm.isConfirmed) return;
     setBulkDeleteLoading(true);
     try {
       const results = await Promise.allSettled(

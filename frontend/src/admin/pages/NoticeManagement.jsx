@@ -4,6 +4,7 @@ import {
   Send, Eye, Clock, FileText, X, Search, Users, Tag, AlertCircle, CheckCircle2
 } from 'lucide-react';
 import toast from 'react-hot-toast';
+import Swal from 'sweetalert2';
 
 const API_BASE = import.meta.env.VITE_API_URL || '';
 
@@ -196,7 +197,16 @@ const NoticeManagement = ({ setShowAdminHeader }) => {
   };
 
   const deleteNotice = async (id) => {
-    if (!window.confirm('Delete this notice?')) return;
+    const confirm = await Swal.fire({
+      icon: 'warning',
+      title: 'Delete notice?',
+      text: 'This notice will be removed for recipients.',
+      showCancelButton: true,
+      confirmButtonText: 'Yes, Delete',
+      cancelButtonText: 'Cancel',
+      confirmButtonColor: '#dc2626',
+    });
+    if (!confirm.isConfirmed) return;
     try {
       await apiRequest(`/api/notifications/${id}`, { method: 'DELETE' });
       toast.success('Notice deleted');

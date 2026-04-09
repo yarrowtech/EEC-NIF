@@ -61,8 +61,8 @@ const AdminSidebar = ({
       {/* Sidebar panel */}
       <div
         className={`
-          fixed lg:static inset-y-0 left-0 z-50 lg:z-auto
-          flex flex-col h-dvh lg:h-full bg-white border-r border-gray-100 shadow-lg
+          fixed lg:sticky inset-y-0 lg:inset-y-auto left-0 lg:top-0 z-50 lg:z-auto
+          flex flex-col h-dvh bg-white border-r border-gray-100 shadow-lg
           transition-all duration-300 ease-in-out
           ${collapsed ? 'w-[72px]' : 'w-64'}
           ${mobileOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
@@ -127,12 +127,13 @@ const AdminSidebar = ({
 
         {/* ── Navigation ── */}
         <nav className="flex-1 overflow-y-auto overflow-x-hidden py-3 px-2 space-y-0.5">
-          {menuItems.map((item, idx) => {
+          {menuItems.map((item) => {
             const Icon = item.icon;
             const isExpanded = expandedMenus[item.label];
+            const itemKey = `${item.label}:${item.path || 'root'}`;
 
             return (
-              <div key={idx}>
+              <div key={itemKey}>
                 {item.hasSubmenu ? (
                   <>
                     <button
@@ -164,11 +165,12 @@ const AdminSidebar = ({
 
                     {isExpanded && !collapsed && (
                       <div className="mt-0.5 ml-4 pl-3 border-l-2 border-indigo-100 space-y-0.5">
-                        {item.submenu.map((sub, si) => {
+                        {item.submenu.map((sub) => {
                           const SubIcon = sub.icon;
+                          const subKey = `${sub.label}:${sub.path}`;
                           return (
                             <NavLink
-                              key={si}
+                              key={subKey}
                               to={sub.path}
                               onClick={() => { onMenuItemClick(sub.label); onMobileClose?.(); }}
                             >

@@ -97,13 +97,13 @@ export const ADMIN_MENU_ITEMS = [
   {
     icon: Calendar,
     label: 'Routine Management',
-    path: '/admin/routine',
+    path: '/admin/routines',
     hasSubmenu: true,
     submenu: [
       {
         icon: Calendar,
         label: 'Routines',
-        path: '/admin/routine'
+        path: '/admin/routines'
       },
       {
         icon: Calendar,

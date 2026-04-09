@@ -118,6 +118,21 @@ const HR = ({ setShowAdminHeader }) => {
   const [expenseSearch, setExpenseSearch] = useState('');
   const [showExpenseFilters, setShowExpenseFilters] = useState(false);
 
+  const toFriendlyHrError = (err, fallback) => {
+    const message = String(err?.message || '').trim();
+    if (!message) return fallback;
+    const lower = message.toLowerCase();
+    if (
+      lower.includes('failed to fetch') ||
+      lower.includes('network error') ||
+      lower.includes('network') ||
+      lower.includes('unexpected token')
+    ) {
+      return fallback;
+    }
+    return message;
+  };
+
   const normalizedStatus = (status) => String(status || '').trim().toLowerCase();
 
   const countWeekdaysInMonth = (month) => {
@@ -351,7 +366,7 @@ const HR = ({ setShowAdminHeader }) => {
           : 12,
       });
     } catch (err) {
-      setActivityError(err.message || 'Unable to load teacher activities');
+      setActivityError(toFriendlyHrError(err, 'Could not load HR data. Please try again.'));
     } finally {
       setActivityLoading(false);
     }
@@ -381,7 +396,7 @@ const HR = ({ setShowAdminHeader }) => {
           : Number(leavePolicy.casualLeaveDays) || 0,
       });
     } catch (err) {
-      setActivityError(err.message || 'Unable to save leave policy');
+      setActivityError(toFriendlyHrError(err, 'Could not save leave policy. Please try again.'));
     } finally {
       setLeavePolicySaving(false);
     }
@@ -416,7 +431,7 @@ const HR = ({ setShowAdminHeader }) => {
       });
       await fetchTeacherActivities(teacherActivityMonth);
     } catch (err) {
-      setActivityError(err.message || 'Unable to save attendance settings');
+      setActivityError(toFriendlyHrError(err, 'Could not save attendance settings. Please try again.'));
     } finally {
       setAttendanceSettingsSaving(false);
     }
@@ -451,7 +466,7 @@ const HR = ({ setShowAdminHeader }) => {
       if (!res.ok) throw new Error(data?.error || 'Unable to update leave status');
       await fetchTeacherActivities(teacherActivityMonth);
     } catch (err) {
-      setActivityError(err.message || 'Unable to update leave status');
+      setActivityError(toFriendlyHrError(err, 'Could not update leave status. Please try again.'));
     }
   };
 
@@ -471,7 +486,7 @@ const HR = ({ setShowAdminHeader }) => {
       if (!res.ok) throw new Error(data?.error || 'Unable to update expense status');
       await fetchTeacherActivities(teacherActivityMonth);
     } catch (err) {
-      setActivityError(err.message || 'Unable to update expense status');
+      setActivityError(toFriendlyHrError(err, 'Could not update expense status. Please try again.'));
     }
   };
 
@@ -913,7 +928,12 @@ const HR = ({ setShowAdminHeader }) => {
                             <button onClick={() => generatePayslipPDF(emp, emp._type, salaryMonth)} className="inline-flex items-center px-3 py-1 border border-gray-300 rounded text-gray-700 hover:bg-gray-50">
                               <FileText size={14} className="mr-1" /> Payslip
                             </button>
-                            <button onClick={() => alert('Payment recorded (demo).')} className="inline-flex items-center px-3 py-1 rounded text-white bg-green-600 hover:bg-green-700">Pay</button>
+                            <button
+                              onClick={() => setHrNotice({ type: 'info', text: 'Payment recorded (demo).' })}
+                              className="inline-flex items-center px-3 py-1 rounded text-white bg-green-600 hover:bg-green-700"
+                            >
+                              Pay
+                            </button>
                           </div>
                         </td>
                       </tr>
@@ -945,7 +965,12 @@ const HR = ({ setShowAdminHeader }) => {
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">{v.service}</td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">₹{v.due.toLocaleString()}</td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm">
-                        <button onClick={() => alert('Vendor payment recorded (demo).')} className="inline-flex items-center px-3 py-1 rounded text-white bg-green-600 hover:bg-green-700">Pay</button>
+                        <button
+                          onClick={() => setHrNotice({ type: 'info', text: 'Vendor payment recorded (demo).' })}
+                          className="inline-flex items-center px-3 py-1 rounded text-white bg-green-600 hover:bg-green-700"
+                        >
+                          Pay
+                        </button>
                       </td>
                     </tr>
                   ))}

@@ -28,6 +28,7 @@ import {
   MapPin,
   Building2
 } from 'lucide-react';
+import Swal from 'sweetalert2';
 
 const normalizeAttendance = (value) => {
   if (!value) return 'Unknown';
@@ -279,8 +280,16 @@ const Staff = ({ setShowAdminHeader }) => {
   const handleDeleteStaff = async (staffMember) => {
     const staffId = staffMember?._id || staffMember?.id;
     if (!staffId || deletingStaffId) return;
-    const confirmed = window.confirm(`Delete staff member ${staffMember.name || ''}?`);
-    if (!confirmed) return;
+    const confirmed = await Swal.fire({
+      icon: 'warning',
+      title: 'Delete staff member?',
+      text: `Delete ${staffMember.name || 'this staff member'}? This action cannot be undone.`,
+      showCancelButton: true,
+      confirmButtonText: 'Yes, Delete',
+      cancelButtonText: 'Cancel',
+      confirmButtonColor: '#dc2626',
+    });
+    if (!confirmed.isConfirmed) return;
     setDeletingStaffId(staffId);
     try {
       const res = await fetch(`${import.meta.env.VITE_API_URL}/api/admin/users/staff/${staffId}`, {
@@ -302,8 +311,16 @@ const Staff = ({ setShowAdminHeader }) => {
   const handleViewCredentials = async (staffMember) => {
     const staffId = staffMember?._id || staffMember?.id;
     if (!staffId) return;
-    const confirmReset = window.confirm(`This will reset ${staffMember.name || 'the staff member'}'s password and generate a new one. Continue?`);
-    if (!confirmReset) return;
+    const confirmReset = await Swal.fire({
+      icon: 'question',
+      title: 'Reset login password?',
+      text: `This will reset ${staffMember.name || 'the staff member'}'s password and generate a new one.`,
+      showCancelButton: true,
+      confirmButtonText: 'Yes, Reset',
+      cancelButtonText: 'Cancel',
+      confirmButtonColor: '#2563eb',
+    });
+    if (!confirmReset.isConfirmed) return;
     setCredentialLoadingId(staffId);
     try {
       const res = await fetch(`${import.meta.env.VITE_API_URL}/api/admin/users/staff/${staffId}/credentials`, {

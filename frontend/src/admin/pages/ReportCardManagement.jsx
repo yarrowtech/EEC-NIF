@@ -157,7 +157,7 @@ const ReportCardManagement = ({ setShowAdminHeader }) => {
   const [signatories, setSignatories] = useState({ classTeacherName: '', principalName: '', loading: false });
   const logoInputRef = useRef(null);
 
-  const [filters, setFilters] = useState({ examGroupId: '', classId: '', sectionId: '', academicYearId: '', includeUnpublished: true });
+  const [filters, setFilters] = useState({ examGroupId: '', classId: '', sectionId: '', academicYearId: '', includeUnpublished: false });
 
   const isYearActive = (year) => {
     const status = String(year?.status || '').trim().toLowerCase();

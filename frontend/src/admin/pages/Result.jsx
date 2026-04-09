@@ -649,10 +649,12 @@ const Result = ({ setShowAdminHeader }) => {
     const subj = (r.examId?.subject||'').toLowerCase();
     const q = searchTerm.toLowerCase();
     const resultSession = getResultSession(r);
+    const resultClass = normalizeClass(r?.studentId?.grade || r?.studentId?.class || '');
+    const selectedClassNormalized = normalizeClass(selectedClass);
     return (!q || name.includes(q) || subj.includes(q)) &&
       (!selectedSession || resultSession === selectedSession) &&
-      (!selectedClass || r.studentId?.grade === selectedClass) &&
-      (!selectedSection || r.studentId?.section === selectedSection) &&
+      (!selectedClass || resultClass === selectedClassNormalized) &&
+      (!selectedSection || normSec(r?.studentId?.section || '') === normSec(selectedSection)) &&
       (filterSubject === 'all' || r.examId?.subject === filterSubject);
   });
 
@@ -727,7 +729,9 @@ const Result = ({ setShowAdminHeader }) => {
       : availableSections;
 
     const filteredStudents = students.filter(s => {
-      const matchSession = !form.session || s.academicYear === form.session || s.session === form.session;
+      const studentSession = String(s.academicYear || s.session || '').trim();
+      const formSession = String(form.session || '').trim();
+      const matchSession = !formSession || studentSession === formSession;
       const matchClass = !form.className || normalizeClass(s.grade || s.class || '') === normalizeClass(form.className);
       const matchSection = !form.sectionName || normSec(s.section || '') === normSec(form.sectionName);
       return matchSession && matchClass && matchSection;

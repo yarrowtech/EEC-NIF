@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import jsPDF from 'jspdf';
+import Swal from 'sweetalert2';
 import {
   Plus, Edit2, Trash2, Clock, Calendar, ChevronLeft, ChevronRight,
   Grid, Loader2, AlertCircle, Sparkles, Download, BookOpen,
@@ -321,7 +322,16 @@ const Routines = ({ setShowAdminHeader }) => {
 
   /* ── auto generate ── */
   const handleAutoGenerate = async () => {
-    if (!window.confirm('Generate routines? This will overwrite existing timetables.')) return;
+    const confirm = await Swal.fire({
+      icon: 'question',
+      title: 'Generate routines?',
+      text: 'This will overwrite existing timetables.',
+      showCancelButton: true,
+      confirmButtonText: 'Yes, Generate',
+      cancelButtonText: 'Cancel',
+      confirmButtonColor: '#2563eb',
+    });
+    if (!confirm.isConfirmed) return;
     try {
       setGenerating(true);
       const result = await timetableApi.autoGenerate({ overwriteExisting: true });

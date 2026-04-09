@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { BookOpen, Filter, Search as SearchIcon, Star, MessageSquare, Calendar as CalendarIcon, Layers, Users, Award, TrendingUp, Send, Heart, ThumbsUp, User, PlusCircle, Check } from 'lucide-react';
+import Swal from 'sweetalert2';
 
 const API = import.meta.env.VITE_API_URL;
 
@@ -124,7 +125,11 @@ export default function AcademicAlcove() {
       setComments((prev) => [...prev, data]);
       setCommentText('');
     } catch (e) {
-      alert(e.message || 'Could not post comment');
+      await Swal.fire({
+        icon: 'error',
+        title: 'Comment failed',
+        text: e.message || 'Could not post comment',
+      });
     } finally {
       setPostingComment(false);
     }
@@ -160,9 +165,17 @@ export default function AcademicAlcove() {
         setSubmissions(await refreshRes.json());
       }
 
-      alert('Answer submitted successfully!');
+      await Swal.fire({
+        icon: 'success',
+        title: 'Answer submitted',
+        text: 'Answer submitted successfully!',
+      });
     } catch (e) {
-      alert(e.message || 'Could not submit answer');
+      await Swal.fire({
+        icon: 'error',
+        title: 'Submission failed',
+        text: e.message || 'Could not submit answer',
+      });
     } finally {
       setSubmitting(false);
     }

@@ -4,6 +4,7 @@ import {
   ChevronRight, ChevronDown, Home, Hash
 } from 'lucide-react';
 import { academicApi } from '../utils/timetableApi';
+import Swal from 'sweetalert2';
 
 /* ─── tiny accordion state helpers ─── */
 function useSet(init = []) {
@@ -166,7 +167,16 @@ const FloorRoomManagement = ({ setShowAdminHeader }) => {
   };
 
   const handleDeleteBuilding = async (id) => {
-    if (!window.confirm('Delete this building?')) return;
+    const confirm = await Swal.fire({
+      icon: 'warning',
+      title: 'Delete building?',
+      text: 'All linked floors and rooms may also be affected.',
+      showCancelButton: true,
+      confirmButtonText: 'Yes, Delete',
+      cancelButtonText: 'Cancel',
+      confirmButtonColor: '#dc2626',
+    });
+    if (!confirm.isConfirmed) return;
     try { await academicApi.deleteBuilding(id); flash('ok', 'Building deleted'); await loadData(); }
     catch (e) { flash('error', e.message || 'Failed'); }
   };
@@ -185,7 +195,16 @@ const FloorRoomManagement = ({ setShowAdminHeader }) => {
   };
 
   const handleDeleteFloor = async (id) => {
-    if (!window.confirm('Delete this floor?')) return;
+    const confirm = await Swal.fire({
+      icon: 'warning',
+      title: 'Delete floor?',
+      text: 'Rooms under this floor may also be affected.',
+      showCancelButton: true,
+      confirmButtonText: 'Yes, Delete',
+      cancelButtonText: 'Cancel',
+      confirmButtonColor: '#dc2626',
+    });
+    if (!confirm.isConfirmed) return;
     try { await academicApi.deleteFloor(id); flash('ok', 'Floor deleted'); await loadData(); }
     catch (e) { flash('error', e.message || 'Failed'); }
   };
@@ -203,7 +222,16 @@ const FloorRoomManagement = ({ setShowAdminHeader }) => {
   };
 
   const handleDeleteRoom = async (id) => {
-    if (!window.confirm('Delete this room?')) return;
+    const confirm = await Swal.fire({
+      icon: 'warning',
+      title: 'Delete room?',
+      text: 'This room will be removed from the setup.',
+      showCancelButton: true,
+      confirmButtonText: 'Yes, Delete',
+      cancelButtonText: 'Cancel',
+      confirmButtonColor: '#dc2626',
+    });
+    if (!confirm.isConfirmed) return;
     try { await academicApi.deleteRoom(id); flash('ok', 'Room deleted'); await loadData(); }
     catch (e) { flash('error', e.message || 'Failed'); }
   };
