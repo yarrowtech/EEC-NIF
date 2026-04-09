@@ -726,6 +726,7 @@ router.get('/profile', authStudent, async (req, res) => {
 router.get('/class-teacher', authStudent, async (req, res) => {
   // #swagger.tags = ['Students']
   try {
+    const escapeRegex = (value = '') => String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     const schoolId = req.schoolId || null;
     const campusId = req.campusId || null;
     const studentId = req.user?.id;
@@ -739,7 +740,9 @@ router.get('/class-teacher', authStudent, async (req, res) => {
       targetId: studentId,
     });
 
-    const student = await StudentUser.findById(studentId).select('grade section').lean();
+    const student = await StudentUser.findById(studentId)
+      .select('grade class className section sectionName')
+      .lean();
     if (!student) {
       logStudentPortalEvent(req, {
         feature: 'dashboard',
@@ -752,7 +755,12 @@ router.get('/class-teacher', authStudent, async (req, res) => {
       return res.status(404).json({ error: 'Student not found' });
     }
 
-    const rawClassName = String(student.grade || '').trim();
+    const rawClassName = String(
+      student.class ||
+      student.className ||
+      student.grade ||
+      ''
+    ).trim();
     const classNameCandidates = new Set();
     if (rawClassName) {
       classNameCandidates.add(rawClassName);
@@ -760,16 +768,27 @@ router.get('/class-teacher', authStudent, async (req, res) => {
       if (/^class\s+/i.test(rawClassName)) classNameCandidates.add(rawClassName.replace(/^class\s+/i, '').trim());
     }
 
-    let classDoc = null;
+    let classDocs = [];
     if (classNameCandidates.size) {
-      classDoc = await ClassModel.findOne({
+      const classRegex = Array.from(classNameCandidates)
+        .map((name) => String(name || '').trim())
+        .filter(Boolean)
+        .map((name) => new RegExp(`^${escapeRegex(name)}$`, 'i'));
+      const classBaseFilter = {
         schoolId,
+        ...(classRegex.length ? { name: { $in: classRegex } } : {}),
+      };
+      classDocs = await ClassModel.find({
+        ...classBaseFilter,
         ...(campusId ? { campusId } : {}),
-        name: { $in: Array.from(classNameCandidates) },
-      }).select('_id name').lean();
+      }).select('_id name').sort({ updatedAt: -1 }).lean();
+      // Fallback for legacy records that may not carry campusId.
+      if (!classDocs.length && campusId) {
+        classDocs = await ClassModel.find(classBaseFilter).select('_id name').sort({ updatedAt: -1 }).lean();
+      }
     }
 
-    if (!classDoc) {
+    if (!classDocs.length) {
       logStudentPortalEvent(req, {
         feature: 'dashboard',
         action: 'class_teacher.fetch',
@@ -782,17 +801,26 @@ router.get('/class-teacher', authStudent, async (req, res) => {
       return res.json({ teacher: null });
     }
 
-    const sectionName = String(student.section || '').trim();
-    const sectionDoc = sectionName
-      ? await Section.findOne({
-          schoolId,
-          ...(campusId ? { campusId } : {}),
-          classId: classDoc._id,
-          name: sectionName,
-        }).select('_id name').lean()
-      : null;
+    const sectionName = String(student.section || student.sectionName || '').trim();
+    let sectionDocs = [];
+    if (sectionName) {
+      const classIds = classDocs.map((item) => item._id);
+      const sectionBaseFilter = {
+        schoolId,
+        classId: { $in: classIds },
+        name: new RegExp(`^${escapeRegex(sectionName)}$`, 'i'),
+      };
+      sectionDocs = await Section.find({
+        ...sectionBaseFilter,
+        ...(campusId ? { campusId } : {}),
+      }).select('_id name classId').sort({ updatedAt: -1 }).lean();
+      // Fallback for legacy records that may not carry campusId.
+      if (!sectionDocs.length && campusId) {
+        sectionDocs = await Section.find(sectionBaseFilter).select('_id name classId').sort({ updatedAt: -1 }).lean();
+      }
+    }
 
-    if (!sectionDoc) {
+    if (!sectionDocs.length) {
       logStudentPortalEvent(req, {
         feature: 'dashboard',
         action: 'class_teacher.fetch',
@@ -805,16 +833,28 @@ router.get('/class-teacher', authStudent, async (req, res) => {
       return res.json({ teacher: null });
     }
 
-    const allocation = await TeacherAllocation.findOne({
+    const allocationBaseFilter = {
       schoolId,
-      ...(campusId ? { campusId } : {}),
-      classId: classDoc._id,
-      sectionId: sectionDoc._id,
+      classId: { $in: classDocs.map((item) => item._id) },
+      sectionId: { $in: sectionDocs.map((item) => item._id) },
       isClassTeacher: true,
+    };
+    let allocation = await TeacherAllocation.findOne({
+      ...allocationBaseFilter,
+      ...(campusId ? { campusId } : {}),
     })
       .populate('teacherId', 'name email mobile profilePic')
       .populate('subjectId', 'name')
+      .sort({ updatedAt: -1 })
       .lean();
+    // Fallback for legacy records that may not carry campusId.
+    if (!allocation && campusId) {
+      allocation = await TeacherAllocation.findOne(allocationBaseFilter)
+        .populate('teacherId', 'name email mobile profilePic')
+        .populate('subjectId', 'name')
+        .sort({ updatedAt: -1 })
+        .lean();
+    }
 
     if (!allocation?.teacherId) {
       logStudentPortalEvent(req, {
@@ -828,6 +868,9 @@ router.get('/class-teacher', authStudent, async (req, res) => {
       });
       return res.json({ teacher: null });
     }
+
+    const classDoc = classDocs.find((item) => String(item._id) === String(allocation.classId)) || classDocs[0] || null;
+    const sectionDoc = sectionDocs.find((item) => String(item._id) === String(allocation.sectionId)) || sectionDocs[0] || null;
 
     res.json({
       teacher: {

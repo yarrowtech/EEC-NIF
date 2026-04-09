@@ -65,7 +65,7 @@ export const StudentDashboardProvider = ({ children }) => {
         }),
         fetchCachedJson(`${import.meta.env.VITE_API_URL}/api/student/auth/class-teacher`, {
           ttlMs: STUDENT_API_CACHE_TTL_MS,
-          forceRefresh: false,
+          forceRefresh: true,
           fetchOptions: {
             signal: controller.signal,
             headers,

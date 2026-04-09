@@ -48,14 +48,29 @@ const Sidebar = ({ activeView, isOpen, setIsOpen }) => {
     schoolName: '',
     schoolLogo: null,
   };
+  const resolveTeacherName = (teacher, profileData) => {
+    if (typeof teacher === 'string' && teacher.trim()) return teacher.trim();
+    const direct = teacher?.name || teacher?.teacherName || teacher?.fullName || teacher?.displayName;
+    if (direct) return String(direct).trim();
+    const nested = teacher?.user?.name || teacher?.userId?.name || teacher?.teacher?.name;
+    if (nested) return String(nested).trim();
+    const fromProfile = profileData?.classTeacherName || profileData?.classTeacher?.name || profileData?.classTeacher?.teacherName;
+    if (fromProfile) return String(fromProfile).trim();
+    return '';
+  };
   const displayClass = studentData.className || studentData.grade;
   const displaySection = studentData.sectionName || studentData.section;
   const displayRoll = studentData.rollNumber || studentData.roll;
+  const classTeacherName = resolveTeacherName(classTeacher, studentData);
   const displayCampus = studentData.campusName
     ? studentData.campusType
       ? `${studentData.campusName} (${studentData.campusType})`
       : studentData.campusName
     : '';
+
+  useEffect(() => {
+    console.log('[Student Sidebar] Class Teacher:', classTeacherName || '(not found)');
+  }, [classTeacherName]);
 
   // Helper function to navigate to a page
   const navigateToPage = (pageId) => {
@@ -217,9 +232,9 @@ const Sidebar = ({ activeView, isOpen, setIsOpen }) => {
                     {displayCampus && (
                       <div className="text-white/80 text-[11px]">Campus: {displayCampus}</div>
                     )}
-                    {classTeacher?.name && (
+                    {classTeacherName && (
                       <div className="text-white/90 text-[11px]">
-                        Class Teacher: {classTeacher.name}
+                        Class Teacher: {classTeacherName}
                       </div>
                     )}
                   </div>
@@ -250,6 +265,16 @@ const Sidebar = ({ activeView, isOpen, setIsOpen }) => {
                 
                 {/* Divider */}
                 <div className="w-8 h-px bg-gray-300" />
+                {classTeacherName && (
+                  <div className="w-full px-1">
+                    <p
+                      className="text-[9px] leading-tight text-gray-500 text-center break-words"
+                      title={`Class Teacher: ${classTeacherName}`}
+                    >
+                      CT: {classTeacherName}
+                    </p>
+                  </div>
+                )}
               </div>
             </div>
           </div>
