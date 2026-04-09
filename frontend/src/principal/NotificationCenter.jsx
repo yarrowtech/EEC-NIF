@@ -5,10 +5,7 @@ import {
   Info,
   CheckCircle,
   Clock,
-  Filter,
   Search,
-  MoreVertical,
-  Archive,
   Flag,
   User,
   Calendar,
@@ -116,9 +113,7 @@ const NotificationCenter = ({
   }), [sortedNotifications, filter, searchQuery]);
 
   const handleRefresh = () => {
-    if (typeof onRefresh === 'function') {
-      onRefresh();
-    }
+    if (typeof onRefresh === 'function') onRefresh();
   };
 
   const startAction = (id, type) => {
@@ -158,235 +153,276 @@ const NotificationCenter = ({
     }
   };
 
+  const departmentStats = useMemo(() => {
+    const map = new Map();
+    sortedNotifications.forEach((notification) => {
+      const key = (notification.department || notification.category || 'Other').trim() || 'Other';
+      map.set(key, (map.get(key) || 0) + 1);
+    });
+    return Array.from(map.entries()).map(([label, count]) => ({ label, count }));
+  }, [sortedNotifications]);
+
+  const recentHighPriority = sortedNotifications.find((notification) => (notification.priority || '').toLowerCase() === 'high');
+
+  const filterOptions = [
+    { key: 'all', label: 'All', count: sortedNotifications.length },
+    { key: 'unread', label: 'Unread', count: priorityStats.unread },
+    { key: 'high', label: 'High', count: priorityStats.high },
+    { key: 'medium', label: 'Medium', count: priorityStats.medium },
+    { key: 'low', label: 'Low', count: priorityStats.low },
+  ];
+
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="bg-gradient-to-r from-yellow-400 via-amber-500 to-purple-600 rounded-2xl p-8 text-white">
-        <div className="flex items-center justify-between">
+      <div className="bg-gradient-to-r from-amber-500 via-orange-500 to-purple-600 rounded-3xl p-8 text-white shadow-lg">
+        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6">
           <div>
-            <h1 className="text-3xl font-bold mb-2">Notification Center</h1>
-            <p className="text-yellow-100">Manage all school notifications and alerts</p>
+            <p className="text-xs uppercase tracking-[0.3em] text-white/80">Principal alerts hub</p>
+            <h1 className="text-3xl font-bold mt-2">Notification Center</h1>
+            <p className="text-white/80 mt-2 max-w-3xl">
+              Track urgent alerts, finance updates, and academic notices pulled straight from the live feed. Filter, search, and close items.
+            </p>
           </div>
-          <div className="text-right space-y-2">
-            <div className="grid grid-cols-2 gap-4">
-              <div className="bg-white/20 rounded-lg p-3">
-                <div className="text-2xl font-bold">{priorityStats.unread}</div>
-                <div className="text-xs text-yellow-100">Unread</div>
-              </div>
-              <div className="bg-white/20 rounded-lg p-3">
-                <div className="text-2xl font-bold">{priorityStats.high}</div>
-                <div className="text-xs text-yellow-100">Urgent</div>
-              </div>
+          <div className="bg-white/15 rounded-2xl p-4 min-w-[240px]">
+            <p className="text-sm text-white/70">Unread alerts</p>
+            <p className="text-3xl font-bold">{priorityStats.unread}</p>
+            <div className="flex items-center justify-between text-xs text-white/70 mt-2">
+              <span>High priority</span>
+              <span>{priorityStats.high}</span>
             </div>
             <button
               onClick={handleRefresh}
               disabled={loading}
-              className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium rounded-lg border border-white/40 text-white hover:bg-white/10 disabled:opacity-70"
+              className="mt-3 inline-flex items-center gap-2 text-xs font-semibold px-3 py-1.5 bg-white/20 rounded-xl hover:bg-white/30 disabled:opacity-60"
             >
               <RefreshCw className={`w-3 h-3 ${loading ? 'animate-spin' : ''}`} />
-              Refresh
+              Refresh feed
             </button>
           </div>
         </div>
       </div>
 
-      {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-        <div className="bg-white rounded-xl p-6 shadow-sm border border-yellow-100">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="bg-white rounded-2xl border border-amber-100 p-5 shadow-sm">
           <div className="flex items-center justify-between">
             <div>
-              <div className="text-2xl font-bold text-amber-900">{sortedNotifications.length}</div>
-              <div className="text-sm text-amber-600">Total Notifications</div>
+              <p className="text-xs text-amber-600 uppercase">Total notifications</p>
+              <p className="text-2xl font-bold text-amber-900">{sortedNotifications.length}</p>
             </div>
-            <div className="p-3 bg-yellow-100 rounded-lg">
-              <Bell className="w-6 h-6 text-yellow-600" />
+            <div className="p-3 bg-amber-50 rounded-2xl">
+              <Bell className="w-6 h-6 text-amber-600" />
             </div>
           </div>
         </div>
-
-        <div className="bg-white rounded-xl p-6 shadow-sm border border-yellow-100">
+        <div className="bg-white rounded-2xl border border-red-100 p-5 shadow-sm">
           <div className="flex items-center justify-between">
             <div>
-              <div className="text-2xl font-bold text-red-600">{priorityStats.high}</div>
-              <div className="text-sm text-amber-600">High Priority</div>
+              <p className="text-xs text-red-600 uppercase">High priority</p>
+              <p className="text-2xl font-bold text-red-600">{priorityStats.high}</p>
             </div>
-            <div className="p-3 bg-red-100 rounded-lg">
+            <div className="p-3 bg-red-50 rounded-2xl">
               <AlertTriangle className="w-6 h-6 text-red-600" />
             </div>
           </div>
         </div>
-
-        <div className="bg-white rounded-xl p-6 shadow-sm border border-yellow-100">
+        <div className="bg-white rounded-2xl border border-amber-100 p-5 shadow-sm">
           <div className="flex items-center justify-between">
             <div>
-              <div className="text-2xl font-bold text-amber-600">{priorityStats.medium}</div>
-              <div className="text-sm text-amber-600">Medium Priority</div>
+              <p className="text-xs text-amber-600 uppercase">Medium priority</p>
+              <p className="text-2xl font-bold text-amber-600">{priorityStats.medium}</p>
             </div>
-            <div className="p-3 bg-amber-100 rounded-lg">
+            <div className="p-3 bg-amber-50 rounded-2xl">
               <Flag className="w-6 h-6 text-amber-600" />
             </div>
           </div>
         </div>
-
-        <div className="bg-white rounded-xl p-6 shadow-sm border border-yellow-100">
+        <div className="bg-white rounded-2xl border border-green-100 p-5 shadow-sm">
           <div className="flex items-center justify-between">
             <div>
-              <div className="text-2xl font-bold text-green-600">{priorityStats.low}</div>
-              <div className="text-sm text-amber-600">Low Priority</div>
+              <p className="text-xs text-green-600 uppercase">Low priority</p>
+              <p className="text-2xl font-bold text-green-600">{priorityStats.low}</p>
             </div>
-            <div className="p-3 bg-green-100 rounded-lg">
+            <div className="p-3 bg-green-50 rounded-2xl">
               <CheckCircle className="w-6 h-6 text-green-600" />
             </div>
           </div>
         </div>
       </div>
 
-      {error && (
-        <div className="rounded-xl border border-red-200 bg-red-50 text-red-700 px-4 py-3 text-sm">
-          {error}
-        </div>
-      )}
       {actionError && (
         <div className="rounded-xl border border-red-200 bg-red-50 text-red-700 px-4 py-2 text-sm">
           {actionError}
         </div>
       )}
+      {error && (
+        <div className="rounded-xl border border-red-200 bg-red-50 text-red-700 px-4 py-2 text-sm">
+          {error}
+        </div>
+      )}
 
-      {/* Controls */}
-      <div className="bg-white rounded-xl p-6 shadow-sm border border-yellow-100">
-        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-          <div className="flex items-center gap-3">
+      <div className="bg-white rounded-3xl border border-amber-100 shadow-sm p-6 space-y-4">
+        <div className="flex flex-wrap gap-2">
+          {filterOptions.map((option) => (
             <button
-              onClick={() => setFilter('all')}
-              className={`flex items-center gap-2 px-4 py-2 rounded-lg border ${filter === 'all' ? 'bg-yellow-100 text-amber-800 border-yellow-300' : 'border-gray-200 text-gray-600 hover:bg-gray-50'}`}
+              key={option.key}
+              onClick={() => setFilter(option.key)}
+              className={`px-4 py-1.5 rounded-full border text-sm font-medium flex items-center gap-2 ${
+                filter === option.key
+                  ? 'bg-amber-100 border-amber-200 text-amber-900'
+                  : 'border-gray-200 text-gray-600 hover:bg-gray-50'
+              }`}
             >
-              <Filter className="w-4 h-4" />
-              All
+              <span>{option.label}</span>
+              <span className="text-xs px-2 py-0.5 rounded-full bg-white border border-current">{option.count}</span>
             </button>
-            <button
-              onClick={() => setFilter('high')}
-              className={`flex items-center gap-2 px-4 py-2 rounded-lg border ${filter === 'high' ? 'bg-red-100 text-red-700 border-red-300' : 'border-gray-200 text-gray-600 hover:bg-gray-50'}`}
-            >
-              <AlertTriangle className="w-4 h-4" />
-              High
-            </button>
-            <button
-              onClick={() => setFilter('unread')}
-              className={`flex items-center gap-2 px-4 py-2 rounded-lg border ${filter === 'unread' ? 'bg-purple-100 text-purple-700 border-purple-300' : 'border-gray-200 text-gray-600 hover:bg-gray-50'}`}
-            >
-              <Bell className="w-4 h-4" />
-              Unread
-            </button>
-          </div>
-          <div className="relative w-full md:w-80">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4" />
-            <input
-              className="w-full pl-9 pr-4 py-2 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-amber-400"
-              placeholder="Search notifications"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-            />
-          </div>
+          ))}
+        </div>
+        <div className="relative">
+          <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+          <input
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Search notifications"
+            className="w-full border border-gray-200 rounded-2xl pl-9 pr-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-amber-400 text-sm"
+          />
         </div>
       </div>
 
-      {/* Notifications List */}
-      <div className="bg-white rounded-2xl shadow-sm border border-yellow-100 overflow-hidden">
-        <div className="divide-y divide-yellow-50">
-          {loading && (
-            <div className="p-8 text-center text-amber-700 flex items-center justify-center gap-2">
-              <Loader2 className="w-4 h-4 animate-spin" />
-              Loading notifications...
+      <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
+        <div className="xl:col-span-2 bg-white rounded-3xl border border-amber-100 shadow-sm flex flex-col">
+          <div className="p-5 border-b border-amber-100 flex items-center justify-between">
+            <div>
+              <h3 className="text-lg font-semibold text-amber-900">Live notifications</h3>
+              <p className="text-xs text-amber-700">Click to expand details, mark read, or dismiss</p>
             </div>
-          )}
-
-          {!loading && filteredNotifications.map((notification) => {
-            const Icon = getNotificationIcon(notification.type);
-            const DeptIcon = getDepartmentIcon(notification.department || notification.category || '');
-            const color = getNotificationColor(notification.type, notification.priority);
-            const timestampLabel = formatRelativeTime(notification.createdAt || notification.timestamp);
-            const pendingType = pendingActions[notification.id];
-            const isReadPending = pendingType === 'read';
-            const isDismissPending = pendingType === 'dismiss';
-
-            return (
-              <div key={notification.id} className="p-4 sm:p-6 hover:bg-yellow-50/60 transition-colors">
-                <div className="flex items-start gap-4">
-                  <div className={`p-3 rounded-2xl bg-${color}-100 text-${color}-700`}>
-                    <Icon className="w-5 h-5" />
-                  </div>
-                  <div className="flex-1">
-                    <div className="flex items-start justify-between gap-4">
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <span className="text-xs font-semibold uppercase tracking-wide text-amber-500">{notification.type || 'GENERAL'}</span>
-                          {notification.priority && (
-                            <span className={`text-xs font-semibold text-${color}-600`}>
-                              {notification.priority}
-                            </span>
-                          )}
-                        </div>
-                        <h3 className="text-lg font-semibold text-amber-900 mt-1">
-                          {notification.title}
-                        </h3>
-                        <p className="text-sm text-amber-700 mt-1">
-                          {notification.message}
+            <div className="flex items-center gap-2 text-xs text-amber-700">
+              <Clock className="w-4 h-4" />
+              Updated {new Date().toLocaleTimeString()}
+            </div>
+          </div>
+          <div className="divide-y divide-amber-50 max-h-[600px] overflow-auto">
+            {loading && (
+              <div className="p-6 flex items-center justify-center gap-2 text-amber-800">
+                <Loader2 className="w-4 h-4 animate-spin" />
+                Loading notifications...
+              </div>
+            )}
+            {!loading && filteredNotifications.length === 0 && (
+              <div className="p-6 text-center text-amber-800 text-sm">No notifications match the selected filters.</div>
+            )}
+            {!loading && filteredNotifications.map((notification) => {
+              const Icon = getNotificationIcon(notification.type);
+              const color = getNotificationColor(notification.type, notification.priority);
+              const DepartmentIcon = getDepartmentIcon(notification.department || notification.category);
+              const isPending = Boolean(pendingActions[notification.id]);
+              const read = Boolean(notification.read);
+              return (
+                <div key={notification.id} className="p-5 flex flex-col gap-3">
+                  <div className="flex items-start gap-4">
+                    <div className={`w-12 h-12 rounded-2xl flex items-center justify-center text-white ${
+                      color === 'red' ? 'bg-red-500' :
+                      color === 'yellow' ? 'bg-amber-500' :
+                      color === 'green' ? 'bg-green-500' :
+                      color === 'emerald' ? 'bg-emerald-500' :
+                      color === 'blue' ? 'bg-blue-500' :
+                      color === 'purple' ? 'bg-purple-500' : 'bg-gray-500'
+                    }`}>
+                      <Icon className="w-6 h-6" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <p className={`text-base font-semibold ${read ? 'text-gray-600' : 'text-amber-900'}`}>
+                          {notification.title || 'Notification'}
                         </p>
-                        <div className="flex flex-wrap items-center gap-2 mt-3 text-xs text-amber-600">
-                          <span className="flex items-center gap-1">
-                            <Clock className="w-3 h-3" />
-                            {timestampLabel || 'Recently'}
+                        <span className={`text-xs px-2 py-0.5 rounded-full ${
+                          color === 'red' ? 'bg-red-50 text-red-700' :
+                          color === 'yellow' ? 'bg-amber-50 text-amber-700' :
+                          color === 'green' ? 'bg-green-50 text-green-700' :
+                          'bg-gray-100 text-gray-700'
+                        }`}>
+                          {(notification.priority || 'medium').toUpperCase()}
+                        </span>
+                        {notification.department && (
+                          <span className="text-xs px-2 py-0.5 rounded-full bg-white border border-gray-200 text-gray-700 flex items-center gap-1">
+                            <DepartmentIcon className="w-3 h-3" />
+                            {notification.department}
                           </span>
-                          {notification.department && (
-                            <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-${color}-50 text-${color}-700`}>
-                              <DeptIcon className="w-3 h-3" />
-                              {notification.department}
-                            </span>
-                          )}
-                          {notification.audience && (
-                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-50 text-amber-700">
-                              <User className="w-3 h-3" />
-                              {notification.audience}
-                            </span>
-                          )}
-                        </div>
+                        )}
                       </div>
-                      <div className="flex gap-2">
-                        <button
-                          onClick={() => handleMarkReadClick(notification.id)}
-                          disabled={notification.read || isReadPending || !onMarkRead}
-                          className={`px-3 py-1.5 rounded-lg text-xs font-medium border ${
-                            notification.read
-                              ? 'border-gray-200 text-gray-400 bg-gray-50 cursor-default'
-                              : 'border-amber-200 text-amber-700 hover:bg-yellow-50 disabled:opacity-60'
-                          }`}
-                        >
-                          {isReadPending ? (
-                            <Loader2 className="w-3 h-3 animate-spin" />
-                          ) : (
-                            'Mark as read'
-                          )}
-                        </button>
-                        <button
-                          onClick={() => handleDismissClick(notification.id)}
-                          disabled={isDismissPending || !onDismiss}
-                          className="px-3 py-1.5 rounded-lg text-xs font-medium border border-gray-200 text-gray-600 hover:bg-gray-50 disabled:opacity-60"
-                        >
-                          {isDismissPending ? <Loader2 className="w-3 h-3 animate-spin" /> : 'Dismiss'}
-                        </button>
+                      <p className="text-sm text-gray-600 whitespace-pre-line mt-1">
+                        {notification.message || 'No additional details provided.'}
+                      </p>
+                      <div className="flex flex-wrap items-center gap-4 text-xs text-gray-500 mt-3">
+                        <span>Audience: {notification.audience || 'All'}</span>
+                        {notification.createdByName && <span>Sent by: {notification.createdByName}</span>}
+                        <span>{formatRelativeTime(notification.createdAt || notification.timestamp)}</span>
                       </div>
                     </div>
                   </div>
+                  <div className="flex flex-wrap items-center gap-2 text-sm">
+                    {!read && (
+                      <button
+                        onClick={() => handleMarkReadClick(notification.id)}
+                        disabled={isPending}
+                        className="px-3 py-1.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-700 hover:bg-emerald-100 disabled:opacity-60"
+                      >
+                        {pendingActions[notification.id] === 'read' ? 'Marking...' : 'Mark read'}
+                      </button>
+                    )}
+                    <button
+                      onClick={() => handleDismissClick(notification.id)}
+                      disabled={isPending}
+                      className="px-3 py-1.5 rounded-xl bg-red-50 border border-red-200 text-red-700 hover:bg-red-100 disabled:opacity-60"
+                    >
+                      {pendingActions[notification.id] === 'dismiss' ? 'Removing...' : 'Dismiss'}
+                    </button>
+                  </div>
                 </div>
-              </div>
-            );
-          })}
+              );
+            })}
+          </div>
+        </div>
 
-          {!loading && filteredNotifications.length === 0 && (
-            <div className="p-8 text-center text-amber-700">
-              No notifications match the current filters.
+        <div className="space-y-6">
+          <div className="bg-white rounded-3xl border border-amber-100 shadow-sm p-6 space-y-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs text-amber-700 uppercase">Department breakdown</p>
+                <h3 className="text-lg font-semibold text-amber-900">Which teams are posting</h3>
+              </div>
             </div>
-          )}
+            <div className="space-y-3">
+              {departmentStats.length ? departmentStats.map((dept) => (
+                <div key={dept.label}>
+                  <div className="flex items-center justify-between text-sm text-gray-700">
+                    <span>{dept.label}</span>
+                    <span>{dept.count}</span>
+                  </div>
+                  <div className="w-full bg-gray-100 rounded-full h-2 mt-1">
+                    <div
+                      className="h-2 rounded-full bg-amber-500"
+                      style={{ width: `${sortedNotifications.length ? Math.min(100, (dept.count / sortedNotifications.length) * 100) : 0}%` }}
+                    />
+                  </div>
+                </div>
+              )) : (
+                <p className="text-sm text-gray-500">No departmental data yet.</p>
+              )}
+            </div>
+          </div>
+
+          <div className="bg-white rounded-3xl border border-amber-100 shadow-sm p-6 space-y-3">
+            <p className="text-xs text-amber-700 uppercase">Latest high priority</p>
+            {recentHighPriority ? (
+              <>
+                <p className="text-base font-semibold text-amber-900">{recentHighPriority.title}</p>
+                <p className="text-sm text-gray-600">{recentHighPriority.message}</p>
+                <p className="text-xs text-gray-500">{formatRelativeTime(recentHighPriority.createdAt || recentHighPriority.timestamp)}</p>
+              </>
+            ) : (
+              <p className="text-sm text-gray-500">No high priority notifications right now.</p>
+            )}
+          </div>
         </div>
       </div>
     </div>

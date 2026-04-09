@@ -26,6 +26,7 @@ const AssignmentPortal = () => {
   const [detailDraft, setDetailDraft] = useState({
     title: '',
     subject: '',
+    topic: '',
     description: '',
     classId: '',
     sectionId: '',
@@ -39,6 +40,7 @@ const AssignmentPortal = () => {
   const [viewMode, setViewMode] = useState('grid');
   const [filterStatus, setFilterStatus] = useState('all');
   const [filterSubject, setFilterSubject] = useState('all');
+  const [filterTopic, setFilterTopic] = useState('all');
   const [searchTerm, setSearchTerm] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -46,6 +48,7 @@ const AssignmentPortal = () => {
   const [newAssignment, setNewAssignment] = useState({
     title: "",
     subject: "",
+    topic: "",
     classId: "",
     sectionId: "",
     description: "",
@@ -120,6 +123,7 @@ const AssignmentPortal = () => {
   }, [myClasses, newAssignment.classId, newAssignment.sectionId, globalSubjectOptions]);
 
   const subjects = [...new Set(assignments.map(a => a.subject).filter(Boolean))];
+  const topics = [...new Set(assignments.map(a => a.topic).filter(Boolean))];
   const totalAssignments = assignments.length;
   const activeAssignments = assignments.filter(a => a.status === 'active').length;
   const completedAssignments = assignments.filter(a => a.status === 'completed').length;
@@ -205,6 +209,7 @@ const AssignmentPortal = () => {
       filtered = filtered.filter(assignment =>
         String(assignment.title || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
         String(assignment.subject || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+        String(assignment.topic || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
         String(getAssignmentClassName(assignment)).toLowerCase().includes(searchTerm.toLowerCase()) ||
         String(getAssignmentSectionName(assignment)).toLowerCase().includes(searchTerm.toLowerCase())
       );
@@ -215,8 +220,11 @@ const AssignmentPortal = () => {
     if (filterSubject !== 'all') {
       filtered = filtered.filter(assignment => assignment.subject === filterSubject);
     }
+    if (filterTopic !== 'all') {
+      filtered = filtered.filter(assignment => assignment.topic === filterTopic);
+    }
     setFilteredAssignments(filtered);
-  }, [assignments, searchTerm, filterStatus, filterSubject]);
+  }, [assignments, searchTerm, filterStatus, filterSubject, filterTopic]);
 
   // ─────────────────────────────────────────────────────────────────────────
   // FILTER SUBMISSIONS
@@ -322,6 +330,7 @@ const AssignmentPortal = () => {
     setDetailDraft({
       title: assignment?.title || '',
       subject: assignment?.subject || '',
+      topic: assignment?.topic || '',
       description: assignment?.description || '',
       classId: resolveIdValue(assignment?.classId),
       sectionId: resolveIdValue(assignment?.sectionId),
@@ -347,6 +356,7 @@ const AssignmentPortal = () => {
       const payload = {
         title: detailDraft.title,
         subject: detailDraft.subject,
+        topic: detailDraft.topic,
         description: detailDraft.description,
         classId: detailDraft.classId,
         sectionId: detailDraft.sectionId,
@@ -448,6 +458,7 @@ const AssignmentPortal = () => {
         setNewAssignment({
           title: "",
           subject: "",
+          topic: "",
           classId: "",
           sectionId: "",
           description: "",
@@ -845,6 +856,16 @@ const ManageAssignments = ({
             <option key={subject} value={subject}>{subject}</option>
           ))}
         </select>
+        <select
+          value={filterTopic}
+          onChange={(e) => setFilterTopic(e.target.value)}
+          className="px-3 py-2 text-sm bg-gray-50 border-[2px] border-purple-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400 transition-colors"
+        >
+          <option value="all">All Topics</option>
+          {topics.map(topic => (
+            <option key={topic} value={topic}>{topic}</option>
+          ))}
+        </select>
         <div className="flex items-center gap-2 ml-auto">
           <div className="flex items-center gap-1 bg-gray-100 p-1 rounded-xl">
             <button
@@ -918,7 +939,8 @@ const ManageAssignments = ({
             return (
               <div
                 key={assignment._id}
-                className={`bg-white rounded-2xl border-[2.5px] border-purple-300 hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 border-l-4 ${statusBorder} ${viewMode === 'grid' ? 'p-5' : 'p-4'}`}
+                onClick={() => openAssignmentDetail(assignment)}
+                className={`bg-white rounded-2xl border-[2.5px] border-purple-300 hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 border-l-4 ${statusBorder} ${viewMode === 'grid' ? 'p-5' : 'p-4'} cursor-pointer`}
               >
                 <div className="flex items-start justify-between mb-3">
                   <h3 className="font-semibold text-gray-900 text-sm leading-snug flex-1 mr-3">
@@ -926,13 +948,19 @@ const ManageAssignments = ({
                   </h3>
                   <div className="flex items-center gap-1 shrink-0">
                     <button
-                      onClick={() => openAssignmentDetail(assignment)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        openAssignmentDetail(assignment);
+                      }}
                       className="p-1.5 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
                     >
                       <Eye size={14} />
                     </button>
                     <button
-                      onClick={() => openDeleteModal(assignment)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        openDeleteModal(assignment);
+                      }}
                       className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
                     >
                       <Trash2 size={14} />
@@ -947,6 +975,11 @@ const ManageAssignments = ({
                   <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-medium bg-purple-50 text-purple-700 border-[2px] border-purple-200">
                     {assignment.subject}
                   </span>
+                  {assignment.topic && (
+                    <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-medium bg-indigo-50 text-indigo-700 border-[2px] border-indigo-200">
+                      {assignment.topic}
+                    </span>
+                  )}
                   <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-medium bg-purple-100 text-purple-700 border-[2px] border-purple-200">
                     {`Class ${getAssignmentClassName(assignment) || 'N/A'}${getAssignmentSectionName(assignment) ? ` - ${getAssignmentSectionName(assignment)}` : ''}`}
                   </span>
@@ -1529,6 +1562,19 @@ const CreateAssignmentModal = ({
             </div>
 
             <div>
+              <label className="block text-xs font-semibold text-gray-600 mb-1.5">Topic</label>
+              <input
+                name="topic"
+                value={newAssignment.topic}
+                onChange={handleChange}
+                type="text"
+                placeholder="e.g., Algebra, Polynomials"
+                className="w-full px-3 py-2 text-sm bg-gray-50 border-[2px] border-purple-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400 transition-colors"
+              />
+              <p className="mt-1 text-[11px] text-gray-400">Specific topic covered</p>
+            </div>
+
+            <div>
               <label className="block text-xs font-semibold text-gray-600 mb-1.5">Class & Section *</label>
               <select
                 name="classSection"
@@ -1757,7 +1803,7 @@ const AssignmentDetailModal = ({
                   <>
                     <h2 className="text-xl font-bold text-gray-900">{selectedAssignment.title}</h2>
                     <p className="text-sm text-gray-500">
-                      {selectedAssignment.subject || 'Subject'} • Class {detailClass}{detailSection ? ` - ${detailSection}` : ''}
+                      {selectedAssignment.subject || 'Subject'}{selectedAssignment.topic ? ` - ${selectedAssignment.topic}` : ''} • Class {detailClass}{detailSection ? ` - ${detailSection}` : ''}
                     </p>
                   </>
                 )}
@@ -1841,6 +1887,15 @@ const AssignmentDetailModal = ({
                           </option>
                         ))}
                       </select>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <input
+                        type="text"
+                        value={detailDraft.topic}
+                        onChange={(e) => handleDetailDraftChange('topic', e.target.value)}
+                        placeholder="Topic (e.g., Algebra, Polynomials)"
+                        className="w-full rounded-lg border-[2px] border-purple-300 px-3 py-2 text-sm text-gray-700"
+                      />
                     </div>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       <input

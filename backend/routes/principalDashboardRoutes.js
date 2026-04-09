@@ -8,6 +8,7 @@ const Admin = require('../models/Admin');
 const ClassModel = require('../models/Class');
 const Subject = require('../models/Subject');
 const StudentProgress = require('../models/StudentProgress');
+const Exam = require('../models/Exam');
 const FeeInvoice = require('../models/FeeInvoice');
 const FeePayment = require('../models/FeePayment');
 const Notification = require('../models/Notification');
@@ -332,12 +333,207 @@ router.get('/staff/analytics', principalAuth, async (req, res) => {
   }
 });
 
+router.get('/directory', principalAuth, async (req, res) => {
+  // #swagger.tags = ['Principal Dashboard']
+  try {
+    const schoolFilter = getSchoolFilter(req);
+
+    const [teachers, staff, parents] = await Promise.all([
+      TeacherUser.find(schoolFilter).select('name subject department email mobile lastLoginAt').lean(),
+      StaffUser.find(schoolFilter).select('name role department email phone').lean(),
+      ParentUser.find(schoolFilter).select('name email mobile phone').lean(),
+    ]);
+
+    const directory = [
+      ...teachers.map((t) => ({
+        id: t._id,
+        role: 'Teacher',
+        name: t.name || 'Teacher',
+        subject: t.subject || '',
+        department: t.department || '',
+        email: t.email || '',
+        phone: t.mobile || '',
+      })),
+      ...staff.map((s) => ({
+        id: s._id,
+        role: 'Staff',
+        name: s.name || 'Staff',
+        subject: '',
+        department: s.department || '',
+        email: s.email || '',
+        phone: s.phone || '',
+      })),
+      ...parents.map((p) => ({
+        id: p._id,
+        role: 'Parent',
+        name: p.name || 'Parent',
+        subject: '',
+        department: '',
+        email: p.email || '',
+        phone: p.mobile || p.phone || '',
+      })),
+    ];
+
+    res.json(directory);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 router.get('/teachers', principalAuth, async (req, res) => {
   // #swagger.tags = ['Principal Dashboard']
   try {
     const schoolFilter = getSchoolFilter(req);
     const teachers = await TeacherUser.find(schoolFilter).select('-password').lean();
     res.json(teachers);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.get('/academic/analytics', principalAuth, async (req, res) => {
+  // #swagger.tags = ['Principal Dashboard']
+  try {
+    const schoolFilter = getSchoolFilter(req);
+    const progressFilter = { schoolId: req.schoolId };
+
+    const [
+      students,
+      studentProgressList,
+      exams,
+      classes,
+      subjects,
+    ] = await Promise.all([
+      StudentUser.find(schoolFilter, '_id name grade attendance').lean(),
+      StudentProgress.find(progressFilter).lean(),
+      Exam.find(schoolFilter).sort({ date: 1 }).limit(10).lean(),
+      ClassModel.find(schoolFilter).lean(),
+      Subject.find(schoolFilter).lean(),
+    ]);
+
+    const studentMap = new Map(students.map((s) => [String(s._id), s]));
+
+    // Grade Distribution
+    const gradeMap = studentProgressList.reduce((acc, curr) => {
+      const grade = curr.overallGrade || 'C';
+      acc[grade] = (acc[grade] || 0) + 1;
+      return acc;
+    }, {});
+
+    const totalGraded = studentProgressList.length || 1;
+    const gradeDistribution = Object.entries(gradeMap).map(([grade, count]) => ({
+      grade,
+      count,
+      percentage: Number(((count / totalGraded) * 100).toFixed(1)),
+      color: grade.startsWith('A') ? 'emerald' : grade.startsWith('B') ? 'blue' : grade.startsWith('C') ? 'yellow' : 'red',
+    })).sort((a, b) => b.count - a.count);
+
+    // Subject Performance
+    const subjectMap = new Map();
+    studentProgressList.forEach((progress) => {
+      (progress.progressMetrics || []).forEach((metric) => {
+        if (!subjectMap.has(metric.subject)) {
+          subjectMap.set(metric.subject, {
+            totalScore: 0,
+            count: 0,
+            above80: 0,
+          });
+        }
+        const data = subjectMap.get(metric.subject);
+        data.totalScore += metric.averageScore || 0;
+        data.count += 1;
+        if ((metric.averageScore || 0) >= 80) {
+          data.above80 += 1;
+        }
+      });
+    });
+
+    const subjectPerformance = Array.from(subjectMap.entries()).map(([subject, data]) => ({
+      subject,
+      avgScore: Number((data.totalScore / (data.count || 1)).toFixed(1)),
+      improvement: 0, // Mocked for now
+      studentsAbove80: data.above80,
+      totalStudents: data.count,
+      trend: 'up',
+    })).sort((a, b) => b.avgScore - a.avgScore);
+
+    // Class Analytics
+    const classAnalyticsMap = new Map();
+    studentProgressList.forEach((progress) => {
+      const student = studentMap.get(String(progress.studentId));
+      if (!student) return;
+      const grade = student.grade || 'N/A';
+      if (!classAnalyticsMap.has(grade)) {
+        classAnalyticsMap.set(grade, {
+          totalStudents: 0,
+          totalGPA: 0,
+          topPerformers: 0,
+          needsSupport: 0,
+        });
+      }
+      const data = classAnalyticsMap.get(grade);
+      data.totalStudents += 1;
+      // Map overallGrade to a numeric value for "GPA" calculation
+      const gradeValues = { 'A+': 4, 'A': 4, 'B+': 3.5, 'B': 3, 'C+': 2.5, 'C': 2, 'D': 1, 'F': 0 };
+      data.totalGPA += gradeValues[progress.overallGrade] || 2;
+      if (['A+', 'A'].includes(progress.overallGrade)) {
+        data.topPerformers += 1;
+      }
+      if (['D', 'F'].includes(progress.overallGrade)) {
+        data.needsSupport += 1;
+      }
+    });
+
+    const classAnalytics = Array.from(classAnalyticsMap.entries()).map(([grade, data]) => ({
+      grade,
+      totalStudents: data.totalStudents,
+      avgGPA: Number((data.totalGPA / (data.totalStudents || 1)).toFixed(1)),
+      topPerformers: data.topPerformers,
+      needsSupport: data.needsSupport,
+    }));
+
+    // Exam Schedule
+    const examSchedule = exams.map((exam) => ({
+      exam: exam.title || exam.term || 'Exam',
+      date: exam.date,
+      status: new Date(exam.date) < new Date() ? 'completed' : 'upcoming',
+      subjects: 1,
+    }));
+
+    // Academic Overview
+    const totalGPA = studentProgressList.reduce((acc, curr) => {
+      const gradeValues = { 'A+': 100, 'A': 90, 'B+': 80, 'B': 70, 'C+': 60, 'C': 50, 'D': 40, 'F': 30 };
+      return acc + (gradeValues[curr.overallGrade] || 50);
+    }, 0);
+
+    const academicOverview = {
+      averageGPA: `${Number((totalGPA / (studentProgressList.length || 1)).toFixed(1))}%`,
+      passRate: Number(((studentProgressList.filter(p => p.overallGrade !== 'F').length / (studentProgressList.length || 1)) * 100).toFixed(1)),
+      honorsStudents: studentProgressList.filter(p => ['A+', 'A'].includes(p.overallGrade)).length,
+      improvementRate: 0,
+      attendanceRate: 0,
+      homeworkCompletion: 0,
+    };
+
+    // Calculate attendance rate for academic overview
+    let attTotal = 0;
+    let attPresent = 0;
+    students.forEach(s => {
+      (s.attendance || []).forEach(e => {
+        attTotal++;
+        if (e.status === 'present') attPresent++;
+      });
+    });
+    academicOverview.attendanceRate = attTotal ? Number(((attPresent / attTotal) * 100).toFixed(1)) : 0;
+
+    res.json({
+      academicOverview,
+      gradeDistribution,
+      subjectPerformance,
+      classAnalytics,
+      examSchedule,
+      timestamp: new Date().toISOString(),
+    });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -458,6 +654,42 @@ router.get('/financial', principalAuth, async (req, res) => {
       recentPayments,
       timestamp: new Date().toISOString(),
     });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post('/send-message', principalAuth, async (req, res) => {
+  // #swagger.tags = ['Principal Dashboard']
+  try {
+    const { title, message, recipients, audience, channelEmail, channelSms, priority, category } = req.body || {};
+    if (!title || !message) {
+      return res.status(400).json({ error: 'title and message are required' });
+    }
+
+    // Map audience from Principal's dropdown to Notification model's audience
+    let resolvedAudience = 'All';
+    if (audience === 'Teachers') resolvedAudience = 'Teacher';
+    else if (audience === 'Parents') resolvedAudience = 'Parent';
+    else if (audience === 'Staff') resolvedAudience = 'Staff';
+
+    const notification = await Notification.create({
+      schoolId: req.schoolId,
+      campusId: req.campusId || null,
+      title: String(title).trim(),
+      message: String(message).trim(),
+      audience: resolvedAudience,
+      targetUserIds: Array.isArray(recipients) ? recipients : [],
+      createdBy: req.principal?.id || null,
+      createdByType: 'Principal',
+      createdByName: req.principal?.name || 'Principal',
+      type: 'announcement',
+      priority: priority || 'medium',
+      category: category || 'general',
+      metadata: { channelEmail, channelSms }
+    });
+
+    res.status(201).json({ success: true, notification });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

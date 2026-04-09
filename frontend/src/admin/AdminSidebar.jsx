@@ -44,8 +44,11 @@ const AdminSidebar = ({
   const showSkeleton = profileLoading && !skeletonTimedOut;
 
   const toggleSubmenu = (label) => {
-    if (collapsed) return;
     setExpandedMenus((prev) => ({ ...prev, [label]: !prev[label] }));
+  };
+
+  const handleLogout = () => {
+    logoutAndRedirect({ navigate, notice: AUTH_NOTICE.LOGGED_OUT });
   };
 
   return (
@@ -109,10 +112,16 @@ const AdminSidebar = ({
           {/* Desktop collapse toggle */}
           <button
             onClick={onToggleSidebar}
-            className="hidden lg:flex w-7 h-7 shrink-0 items-center justify-center rounded-lg text-gray-400 hover:text-yellow-600 hover:bg-yellow-50 transition-all"
+            className={`
+              hidden lg:flex shrink-0 items-center justify-center rounded-lg
+              transition-all duration-200
+              ${collapsed
+                ? 'w-9 h-9 bg-yellow-500 hover:bg-yellow-600 text-white shadow-md hover:shadow-lg'
+                : 'w-7 h-7 text-gray-400 hover:text-yellow-600 hover:bg-yellow-50'}
+            `}
             aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
           >
-            {collapsed ? <ChevronRight size={15} /> : <ChevronLeft size={15} />}
+            {collapsed ? <ChevronRight size={18} /> : <ChevronLeft size={15} />}
           </button>
 
           {/* Mobile close button */}
@@ -127,20 +136,18 @@ const AdminSidebar = ({
 
         {/* ── Navigation ── */}
         <nav className="flex-1 overflow-y-auto overflow-x-hidden py-3 px-2 space-y-0.5">
-          {menuItems.map((item) => {
+          {menuItems.map((item, idx) => {
             const Icon = item.icon;
             const isExpanded = expandedMenus[item.label];
             const itemKey = `${item.label}:${item.path || 'root'}`;
 
             return (
-              <div key={itemKey}>
+              <div key={itemKey || idx}>
                 {item.hasSubmenu ? (
                   <>
                     <button
                       onClick={() => toggleSubmenu(item.label)}
                       title={collapsed ? item.label : undefined}
-                      aria-label={collapsed ? item.label : undefined}
-                      aria-expanded={!collapsed ? isExpanded : undefined}
                       className={`
                         w-full flex items-center gap-3 px-3 py-2.5 rounded-xl
                         text-gray-500 hover:text-gray-900 hover:bg-gray-50
@@ -176,14 +183,14 @@ const AdminSidebar = ({
                             >
                               {({ isActive }) => (
                                 <div className={`
-                                  flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm transition-all
+                                  flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm transition-all duration-150
                                   ${isActive
-                                    ? 'bg-yellow-50 text-yellow-700 font-semibold'
-                                    : 'text-gray-500 hover:text-gray-800 hover:bg-gray-50'}
+                                    ? 'bg-yellow-50 text-yellow-700 font-semibold shadow-sm'
+                                    : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'}
                                 `}>
                                   <SubIcon size={14} className={`shrink-0 ${isActive ? 'text-yellow-500' : 'text-gray-400'}`} />
                                   <span>{sub.label}</span>
-                                  {isActive && <span className="ml-auto w-1.5 h-1.5 rounded-full bg-yellow-500 shrink-0" />}
+                                  {isActive && <span className="ml-auto w-1.5 h-1.5 rounded-full bg-yellow-500 shrink-0 animate-pulse" />}
                                 </div>
                               )}
                             </NavLink>
@@ -277,6 +284,42 @@ const AdminSidebar = ({
           </button>
         </div>
       </div>
+
+      {/* Add animation styles */}
+      <style>{`
+        @keyframes slideIn {
+          from {
+            opacity: 0;
+            transform: translateX(-8px) scale(0.95);
+          }
+          to {
+            opacity: 1;
+            transform: translateX(0) scale(1);
+          }
+        }
+
+        .animate-slideIn {
+          animation: slideIn 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        /* Smooth scrollbar for navigation */
+        nav::-webkit-scrollbar {
+          width: 4px;
+        }
+
+        nav::-webkit-scrollbar-track {
+          background: transparent;
+        }
+
+        nav::-webkit-scrollbar-thumb {
+          background: #e5e7eb;
+          border-radius: 4px;
+        }
+
+        nav::-webkit-scrollbar-thumb:hover {
+          background: #d1d5db;
+        }
+      `}</style>
     </>
   );
 };

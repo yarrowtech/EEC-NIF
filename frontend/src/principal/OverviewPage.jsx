@@ -1,7 +1,8 @@
 import React from 'react';
 import {
-  Calendar, Download, Filter, RefreshCw, ArrowUp, ArrowDown,
-  Bell, Activity, BarChart3, PieChart
+  Calendar, Download, RefreshCw, ArrowUp, ArrowDown,
+  Bell, Activity, BarChart3, PieChart, TrendingUp, Users,
+  GraduationCap, BookOpen, DollarSign
 } from 'lucide-react';
 import { Bar, Pie } from 'react-chartjs-2';
 
@@ -18,16 +19,18 @@ const OverviewPage = ({ overview, isLoading, loadError, schoolStats, quickStats,
     labels: attendanceTrend.map((d) => d.month),
     datasets: [
       {
-        label: 'Attendance Rate (%)',
+        label: 'Attendance Rate',
         data: attendanceTrend.map((d) => d.value),
-        backgroundColor: 'rgba(59, 130, 246, 0.7)',
-        borderRadius: 8,
+        backgroundColor: 'rgba(99, 102, 241, 0.8)',
+        borderRadius: 6,
+        barThickness: 32,
       },
       {
-        label: 'Target (%)',
+        label: 'Target',
         data: Array(attendanceTrend.length).fill(95),
-        backgroundColor: 'rgba(34, 197, 94, 0.5)',
-        borderRadius: 8,
+        backgroundColor: 'rgba(16, 185, 129, 0.3)',
+        borderRadius: 6,
+        barThickness: 32,
       }
     ]
   };
@@ -36,16 +39,48 @@ const OverviewPage = ({ overview, isLoading, loadError, schoolStats, quickStats,
     responsive: true,
     maintainAspectRatio: false,
     plugins: {
-      legend: { position: 'top' },
-      title: { display: true, text: 'Attendance Trend (Last 6 Months)' },
+      legend: {
+        position: 'top',
+        labels: {
+          font: { size: 12, weight: '500' },
+          padding: 15,
+          usePointStyle: true,
+          pointStyle: 'circle',
+        }
+      },
+      tooltip: {
+        backgroundColor: 'rgba(0, 0, 0, 0.8)',
+        padding: 12,
+        borderRadius: 8,
+        titleFont: { size: 13, weight: '600' },
+        bodyFont: { size: 12 },
+      }
     },
     scales: {
       y: {
         min: 85,
         max: 100,
-        ticks: { stepSize: 1 },
-        title: { display: true, text: 'Attendance (%)' },
+        ticks: {
+          stepSize: 5,
+          font: { size: 11 },
+          color: '#6b7280',
+        },
+        grid: {
+          color: 'rgba(0, 0, 0, 0.05)',
+          drawBorder: false,
+        },
+        border: { display: false }
       },
+      x: {
+        ticks: {
+          font: { size: 11 },
+          color: '#6b7280',
+        },
+        grid: {
+          display: false,
+        },
+        border: { display: false }
+      }
     },
   };
 
@@ -57,20 +92,13 @@ const OverviewPage = ({ overview, isLoading, loadError, schoolStats, quickStats,
         label: 'Students',
         data: studentPerformance.map((d) => d.students),
         backgroundColor: [
-          'rgba(251, 191, 36, 0.7)',
-          'rgba(59, 130, 246, 0.7)',
-          'rgba(34, 197, 94, 0.7)',
-          'rgba(239, 68, 68, 0.7)',
-          'rgba(107, 114, 128, 0.7)'
+          'rgba(99, 102, 241, 0.9)',
+          'rgba(59, 130, 246, 0.9)',
+          'rgba(16, 185, 129, 0.9)',
+          'rgba(251, 146, 60, 0.9)',
+          'rgba(239, 68, 68, 0.9)'
         ],
-        borderColor: [
-          'rgba(251, 191, 36, 1)',
-          'rgba(59, 130, 246, 1)',
-          'rgba(34, 197, 94, 1)',
-          'rgba(239, 68, 68, 1)',
-          'rgba(107, 114, 128, 1)'
-        ],
-        borderWidth: 2,
+        borderWidth: 0,
       }
     ]
   };
@@ -79,43 +107,66 @@ const OverviewPage = ({ overview, isLoading, loadError, schoolStats, quickStats,
     responsive: true,
     maintainAspectRatio: false,
     plugins: {
-      legend: { position: 'top' },
-      title: { display: true, text: 'Student Performance Distribution' },
+      legend: {
+        position: 'bottom',
+        labels: {
+          font: { size: 11, weight: '500' },
+          padding: 12,
+          usePointStyle: true,
+          pointStyle: 'circle',
+        }
+      },
+      tooltip: {
+        backgroundColor: 'rgba(0, 0, 0, 0.8)',
+        padding: 12,
+        borderRadius: 8,
+        titleFont: { size: 13, weight: '600' },
+        bodyFont: { size: 12 },
+      }
     },
   };
 
   const renderQuickStatsCard = (stat, index) => {
     const Icon = stat.icon;
+    const colorMap = {
+      'bg-blue-600': 'from-blue-500 to-blue-600',
+      'bg-green-600': 'from-green-500 to-green-600',
+      'bg-purple-600': 'from-purple-500 to-purple-600',
+      'bg-orange-600': 'from-orange-500 to-orange-600',
+      'bg-indigo-600': 'from-indigo-500 to-indigo-600',
+      'bg-yellow-500': 'from-yellow-400 to-yellow-500',
+    };
+
+    const gradient = colorMap[stat.color] || 'from-gray-500 to-gray-600';
+
     return (
       <div
         key={index}
-        className={`relative rounded-xl p-6 shadow-lg overflow-hidden bg-white`}
+        className="group relative bg-white rounded-2xl p-6 border border-gray-100 hover:border-gray-200 hover:shadow-lg transition-all duration-300 overflow-hidden"
       >
-        <div className={`absolute top-0 left-0 w-full h-1 ${stat.color}`}></div>
-        <div className="flex flex-col h-full">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-sm font-medium text-gray-600">{stat.title}</h3>
-            <div className={`p-2 rounded-lg ${stat.color.replace('600', '100')} text-white`}>
-              <Icon className="w-4 h-4" />
-            </div>
+        {/* Animated background gradient */}
+        <div className={`absolute inset-0 bg-gradient-to-br ${gradient} opacity-0 group-hover:opacity-5 transition-opacity duration-300`}></div>
+
+        <div className="relative flex items-start justify-between">
+          <div className="flex-1">
+            <p className="text-sm font-medium text-gray-500 mb-2">{stat.title}</p>
+            <h3 className="text-3xl font-bold text-gray-900 mb-1">{stat.value}</h3>
+            {stat.change && (
+              <div className={`inline-flex items-center gap-1 text-sm font-semibold ${
+                stat.changeType === 'increase'
+                  ? 'text-green-600'
+                  : stat.changeType === 'decrease'
+                  ? 'text-red-600'
+                  : 'text-gray-400'
+              }`}>
+                {stat.changeType === 'increase' && <ArrowUp className="w-4 h-4" />}
+                {stat.changeType === 'decrease' && <ArrowDown className="w-4 h-4" />}
+                <span>{stat.change}</span>
+              </div>
+            )}
           </div>
-          <div className="flex items-end justify-between mt-auto">
-            <div>
-              <p className="text-2xl font-bold text-gray-900">{stat.value}</p>
-              {stat.change && (
-                <div className={`flex items-center gap-1 mt-1 text-xs font-medium ${
-                  stat.changeType === 'increase'
-                    ? 'text-green-600'
-                    : stat.changeType === 'decrease'
-                    ? 'text-red-600'
-                    : 'text-gray-500'
-                }`}>
-                  {stat.changeType === 'increase' && <ArrowUp className="w-3 h-3" />}
-                  {stat.changeType === 'decrease' && <ArrowDown className="w-3 h-3" />}
-                  {stat.change}
-                </div>
-              )}
-            </div>
+          <div className={`p-3 rounded-xl bg-gradient-to-br ${gradient} shadow-md group-hover:scale-110 transition-transform duration-300`}>
+            <Icon className="w-6 h-6 text-white" strokeWidth={2} />
           </div>
         </div>
       </div>
@@ -123,88 +174,101 @@ const OverviewPage = ({ overview, isLoading, loadError, schoolStats, quickStats,
   };
 
   return (
-    <div className="space-y-6">
-      {/* Welcome Section */}
-      <div className="bg-gradient-to-r from-yellow-300 to-yellow-500 rounded-xl p-6 text-black relative overflow-hidden shadow-xl">
-        <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/dark-geometric.png')] opacity-10"></div>
-        <div className="relative z-10">
-          <div className="flex flex-col md:flex-row items-start md:items-center justify-between">
-            <div>
-              <h1 className="text-3xl font-bold mb-1">{getGreeting()}, Principal</h1>
-              <p className="text-black opacity-90">Comprehensive analytics for {schoolName || 'your institution'}</p>
+    <div className="space-y-8 animate-fadeIn">
+      {/* Modern Welcome Header */}
+      <div className="relative bg-white rounded-3xl p-8 border border-gray-100 shadow-sm overflow-hidden">
+        {/* Subtle gradient overlay */}
+        <div className="absolute top-0 right-0 w-1/2 h-full bg-gradient-to-l from-indigo-50/50 to-transparent pointer-events-none"></div>
+
+        <div className="relative z-10 flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6">
+          <div className="space-y-2">
+            <h1 className="text-4xl font-bold text-gray-900">
+              {getGreeting()}, <span className="text-indigo-600">Principal</span>
+            </h1>
+            <p className="text-gray-500 text-lg">
+              Overview of {schoolName || 'your institution'}
+            </p>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="flex items-center gap-2 px-4 py-2.5 bg-gray-50 rounded-xl border border-gray-200">
+              <Calendar className="w-5 h-5 text-gray-600" />
+              <span className="text-sm font-medium text-gray-700">
+                {new Date().toLocaleDateString('en-US', {
+                  month: 'short',
+                  day: 'numeric',
+                  year: 'numeric'
+                })}
+              </span>
             </div>
-            <div className="mt-4 md:mt-0 flex items-center gap-3">
-              <div className="flex items-center gap-2 bg-white/10 px-4 py-2 rounded-lg backdrop-blur-sm">
-                <Calendar className="w-5 h-5" />
-                <span>{new Date().toLocaleDateString('en-US', {
-                  weekday: 'long',
-                  year: 'numeric',
-                  month: 'long',
-                  day: 'numeric'
-                })}</span>
-              </div>
-              <button className="bg-white/20 hover:bg-white/30 px-4 py-2 rounded-lg backdrop-blur-sm flex items-center gap-2 transition-colors">
-                <Download className="w-4 h-4" />
-                Export Report
-              </button>
-            </div>
+
+            <button
+              onClick={onRefreshOverview}
+              className="flex items-center gap-2 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl transition-colors duration-200 shadow-sm hover:shadow-md"
+            >
+              <RefreshCw className="w-4 h-4" />
+              <span className="text-sm font-semibold">Refresh</span>
+            </button>
+
+            <button className="flex items-center gap-2 px-4 py-2.5 bg-white border border-gray-200 hover:border-gray-300 text-gray-700 rounded-xl transition-all duration-200 shadow-sm hover:shadow-md">
+              <Download className="w-4 h-4" />
+              <span className="text-sm font-semibold">Export</span>
+            </button>
           </div>
         </div>
       </div>
 
       {/* Quick Stats Grid */}
-      <div className="bg-white rounded-xl shadow-lg p-6">
-        <div className="flex items-center justify-between mb-6">
-          <h2 className="text-xl font-bold text-gray-900">School Overview</h2>
-          <div className="flex items-center gap-2">
-            <button className="flex items-center gap-2 px-3 py-1.5 bg-black hover:bg-gray-200 rounded-lg text-sm transition-colors">
-              <Filter className="w-4 h-4" />
-              Filters
-            </button>
-            <button
-              type="button"
-              onClick={onRefreshOverview}
-              className="flex items-center gap-2 px-3 py-1.5 bg-black hover:bg-gray-200 rounded-lg text-sm transition-colors"
-            >
-              <RefreshCw className="w-4 h-4" />
-              Refresh
-            </button>
-          </div>
-        </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
+      <div>
+        <h2 className="text-xl font-bold text-gray-900 mb-4">Key Metrics</h2>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-5">
           {quickStats.map((stat, index) => renderQuickStatsCard(stat, index))}
         </div>
       </div>
 
       {/* Charts Section */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
         {/* Attendance Trend Chart */}
-        <div className="bg-white rounded-xl shadow-lg p-6">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">Attendance Trend</h3>
-          <div className="h-64">
+        <div className="bg-white rounded-3xl p-6 border border-gray-100 shadow-sm">
+          <div className="flex items-center justify-between mb-6">
+            <h3 className="text-lg font-bold text-gray-900">Attendance Overview</h3>
+            <div className="flex items-center gap-2 px-3 py-1.5 bg-indigo-50 rounded-lg">
+              <TrendingUp className="w-4 h-4 text-indigo-600" />
+              <span className="text-sm font-semibold text-indigo-600">Last 6 Months</span>
+            </div>
+          </div>
+          <div className="h-80">
             {attendanceTrend.length > 0 ? (
               <Bar data={attendanceChartData} options={attendanceChartOptions} />
             ) : (
-              <div className="h-full flex items-center justify-center">
-                <div className="text-center">
-                  <BarChart3 className="w-12 h-12 mx-auto text-gray-300 mb-3" />
-                  <p className="text-gray-500 text-sm">No attendance data available</p>
+              <div className="h-full flex flex-col items-center justify-center">
+                <div className="w-16 h-16 rounded-2xl bg-gray-100 flex items-center justify-center mb-4">
+                  <BarChart3 className="w-8 h-8 text-gray-400" />
                 </div>
+                <p className="text-gray-500 text-sm font-medium">No attendance data available</p>
               </div>
             )}
           </div>
         </div>
 
         {/* Student Performance */}
-        <div className="bg-white rounded-xl shadow-lg p-6">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">Student Performance Distribution</h3>
-          <div className="h-64 flex items-center justify-center">
+        <div className="bg-white rounded-3xl p-6 border border-gray-100 shadow-sm">
+          <div className="flex items-center justify-between mb-6">
+            <h3 className="text-lg font-bold text-gray-900">Performance Distribution</h3>
+            <div className="flex items-center gap-2 px-3 py-1.5 bg-purple-50 rounded-lg">
+              <GraduationCap className="w-4 h-4 text-purple-600" />
+              <span className="text-sm font-semibold text-purple-600">Current Term</span>
+            </div>
+          </div>
+          <div className="h-80 flex items-center justify-center">
             {studentPerformance.length > 0 ? (
               <Pie data={performanceChartData} options={performanceChartOptions} />
             ) : (
-              <div className="text-center">
-                <PieChart className="w-12 h-12 mx-auto text-gray-300 mb-3" />
-                <p className="text-gray-500 text-sm">No performance data available</p>
+              <div className="flex flex-col items-center justify-center">
+                <div className="w-16 h-16 rounded-2xl bg-gray-100 flex items-center justify-center mb-4">
+                  <PieChart className="w-8 h-8 text-gray-400" />
+                </div>
+                <p className="text-gray-500 text-sm font-medium">No performance data available</p>
               </div>
             )}
           </div>
@@ -212,72 +276,109 @@ const OverviewPage = ({ overview, isLoading, loadError, schoolStats, quickStats,
       </div>
 
       {/* Notifications and Activities */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
         {/* Critical Notifications */}
-        <div className="bg-white rounded-xl shadow-lg overflow-hidden">
+        <div className="bg-white rounded-3xl border border-gray-100 shadow-sm overflow-hidden">
           <div className="p-6 border-b border-gray-100 flex items-center justify-between">
-            <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
-              <Bell className="w-5 h-5 text-red-500" />
-              Critical Alerts
-            </h3>
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-red-50 flex items-center justify-center">
+                <Bell className="w-5 h-5 text-red-600" />
+              </div>
+              <h3 className="text-lg font-bold text-gray-900">Critical Alerts</h3>
+            </div>
+            {criticalNotifications.length > 0 && (
+              <span className="px-3 py-1 bg-red-100 text-red-700 text-xs font-bold rounded-full">
+                {criticalNotifications.length}
+              </span>
+            )}
           </div>
-          <div className="divide-y divide-gray-100">
+          <div className="divide-y divide-gray-50 max-h-96 overflow-y-auto">
             {criticalNotifications.length > 0 ? (
-              criticalNotifications.map((notification) => (
-                <div key={notification.id} className="p-4 hover:bg-gray-50 transition-colors">
-                  <div className="flex items-start gap-3">
-                    <div className={`mt-1 flex-shrink-0 p-2 rounded-full ${notification.priority === 'high' ? 'bg-red-100 text-red-600' : 'bg-yellow-100 text-yellow-600'}`}>
-                      <Bell className="w-4 h-4" />
-                    </div>
+              criticalNotifications.slice(0, 5).map((notification) => (
+                <div key={notification.id} className="p-5 hover:bg-gray-50 transition-colors cursor-pointer group">
+                  <div className="flex items-start gap-4">
+                    <div className={`mt-0.5 flex-shrink-0 w-2 h-2 rounded-full ${
+                      notification.priority === 'high' ? 'bg-red-500' : 'bg-yellow-500'
+                    } group-hover:scale-125 transition-transform`}></div>
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-center justify-between">
-                        <p className="font-medium text-gray-900">{notification.title}</p>
-                        <span className="text-xs text-gray-500">{notification.timestamp}</span>
+                      <div className="flex items-center justify-between mb-1">
+                        <p className="font-semibold text-gray-900 text-sm">{notification.title}</p>
+                        <span className="text-xs text-gray-400 ml-2">{notification.timestamp}</span>
                       </div>
-                      <p className="text-sm text-gray-600 mt-1">{notification.message}</p>
+                      <p className="text-sm text-gray-600 line-clamp-2">{notification.message}</p>
                     </div>
                   </div>
                 </div>
               ))
             ) : (
-              <div className="p-8 text-center">
-                <Bell className="w-12 h-12 mx-auto text-gray-300 mb-3" />
-                <p className="text-gray-500 text-sm">No critical notifications</p>
+              <div className="p-12 text-center">
+                <div className="w-16 h-16 rounded-2xl bg-gray-100 flex items-center justify-center mx-auto mb-4">
+                  <Bell className="w-8 h-8 text-gray-400" />
+                </div>
+                <p className="text-gray-500 text-sm font-medium">No critical notifications</p>
+                <p className="text-gray-400 text-xs mt-1">You're all caught up!</p>
               </div>
             )}
           </div>
         </div>
 
         {/* Recent Activities */}
-        <div className="bg-white rounded-xl shadow-lg overflow-hidden">
-          <div className="p-6 border-b border-gray-100">
-            <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
-              <Activity className="w-5 h-5 text-blue-500" />
-              Recent Activities
-            </h3>
+        <div className="bg-white rounded-3xl border border-gray-100 shadow-sm overflow-hidden">
+          <div className="p-6 border-b border-gray-100 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center">
+                <Activity className="w-5 h-5 text-blue-600" />
+              </div>
+              <h3 className="text-lg font-bold text-gray-900">Recent Activities</h3>
+            </div>
           </div>
-          <div className="divide-y divide-gray-100">
+          <div className="divide-y divide-gray-50 max-h-96 overflow-y-auto">
             {recentActivities.length > 0 ? (
-              recentActivities.map((activity) => (
-                <div key={activity.id} className="p-4 hover:bg-gray-50 transition-colors">
-                  <div className="flex items-center gap-3">
-                    <div className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${activity.type === 'staff' ? 'bg-green-500' : activity.type === 'student' ? 'bg-blue-500' : activity.type === 'finance' ? 'bg-purple-500' : 'bg-orange-500'}`}></div>
+              recentActivities.slice(0, 5).map((activity) => (
+                <div key={activity.id} className="p-5 hover:bg-gray-50 transition-colors cursor-pointer group">
+                  <div className="flex items-center gap-4">
+                    <div className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${
+                      activity.type === 'staff' ? 'bg-green-500' :
+                      activity.type === 'student' ? 'bg-blue-500' :
+                      activity.type === 'finance' ? 'bg-purple-500' :
+                      'bg-orange-500'
+                    } group-hover:scale-125 transition-transform`}></div>
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium text-gray-900">{activity.action}</p>
-                      <span className="text-xs text-gray-500">{activity.time}</span>
+                      <span className="text-xs text-gray-400">{activity.time}</span>
                     </div>
                   </div>
                 </div>
               ))
             ) : (
-              <div className="p-8 text-center">
-                <Activity className="w-12 h-12 mx-auto text-gray-300 mb-3" />
-                <p className="text-gray-500 text-sm">No recent activities</p>
+              <div className="p-12 text-center">
+                <div className="w-16 h-16 rounded-2xl bg-gray-100 flex items-center justify-center mx-auto mb-4">
+                  <Activity className="w-8 h-8 text-gray-400" />
+                </div>
+                <p className="text-gray-500 text-sm font-medium">No recent activities</p>
+                <p className="text-gray-400 text-xs mt-1">Activities will appear here</p>
               </div>
             )}
           </div>
         </div>
       </div>
+
+      <style jsx>{`
+        @keyframes fadeIn {
+          from {
+            opacity: 0;
+            transform: translateY(10px);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0);
+          }
+        }
+
+        .animate-fadeIn {
+          animation: fadeIn 0.5s ease-out;
+        }
+      `}</style>
     </div>
   );
 };
