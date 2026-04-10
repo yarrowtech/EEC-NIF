@@ -22,6 +22,7 @@ const {
   buildTransactionId,
 } = require('../utils/paymentGatewayService');
 const { logStudentPortalEvent, logStudentPortalError } = require('../utils/studentPortalLogger');
+const { buildInvoiceSnapshotsForStudent } = require('../utils/feeHeadPolicy');
 
 const router = express.Router();
 
@@ -638,9 +639,18 @@ router.post('/invoices', adminAuth, async (req, res) => {
       }
     }
 
+    const hasPriorInvoice = student?._id
+      ? await FeeInvoice.exists({ schoolId, studentId: student._id })
+      : null;
+    const structureSnapshots = structure
+      ? buildInvoiceSnapshotsForStudent({
+          structure,
+          hasPriorInvoice: Boolean(hasPriorInvoice),
+        })
+      : null;
     const resolvedTotal = Number.isFinite(Number(totalAmount))
       ? Number(totalAmount)
-      : structure?.totalAmount;
+      : structureSnapshots?.totalAmount;
     if (!Number.isFinite(resolvedTotal)) {
       return res.status(400).json({ error: 'totalAmount is required' });
     }
@@ -663,8 +673,8 @@ router.post('/invoices', adminAuth, async (req, res) => {
         amount: normalizeLateFeeAmount(structure?.lateFeeAmount),
       },
       lateFeeAmountApplied: 0,
-      feeHeadsSnapshot: structure?.feeHeads || [],
-      installmentsSnapshot: structure?.installments || [],
+      feeHeadsSnapshot: structureSnapshots?.feeHeadsSnapshot || [],
+      installmentsSnapshot: structureSnapshots?.installmentsSnapshot || [],
       status: 'due',
       dueDate: dueDate ? new Date(dueDate) : undefined,
     });
@@ -1482,32 +1492,45 @@ router.post('/admin/invoices/bulk', adminAuth, async (req, res) => {
       .select('studentId')
       .lean();
     const existingSet = new Set(existingInvoices.map((inv) => String(inv.studentId)));
+    const priorInvoices = await FeeInvoice.find({
+      schoolId,
+      studentId: { $in: studentIds },
+    })
+      .select('studentId')
+      .lean();
+    const priorInvoiceSet = new Set(priorInvoices.map((inv) => String(inv.studentId)));
 
     const invoicesToCreate = students
       .filter((student) => !existingSet.has(String(student._id)))
-      .map((student) => ({
-        schoolId,
-        academicYearId: structure.academicYearId || selectedYear._id,
-        classId: structure.classId,
-        className: student.grade || classDoc.name || structure.className || '',
-        section: student.section || '',
-        studentId: student._id,
-        feeStructureId: structure._id,
-        title: title ? String(title).trim() : structure.name || 'Fee Invoice',
-        totalAmount: structure.totalAmount,
-        paidAmount: 0,
-        balanceAmount: structure.totalAmount,
-        discountAmount: 0,
-        discountNote: '',
-        lateFeeRuleSnapshot: {
-          amount: normalizeLateFeeAmount(structure?.lateFeeAmount),
-        },
-        lateFeeAmountApplied: 0,
-        feeHeadsSnapshot: structure.feeHeads || [],
-        installmentsSnapshot: structure.installments || [],
-        status: 'due',
-        dueDate: dueDate ? new Date(dueDate) : undefined,
-      }));
+      .map((student) => {
+        const snapshots = buildInvoiceSnapshotsForStudent({
+          structure,
+          hasPriorInvoice: priorInvoiceSet.has(String(student._id)),
+        });
+        return {
+          schoolId,
+          academicYearId: structure.academicYearId || selectedYear._id,
+          classId: structure.classId,
+          className: student.grade || classDoc.name || structure.className || '',
+          section: student.section || '',
+          studentId: student._id,
+          feeStructureId: structure._id,
+          title: title ? String(title).trim() : structure.name || 'Fee Invoice',
+          totalAmount: snapshots.totalAmount,
+          paidAmount: 0,
+          balanceAmount: snapshots.totalAmount,
+          discountAmount: 0,
+          discountNote: '',
+          lateFeeRuleSnapshot: {
+            amount: normalizeLateFeeAmount(structure?.lateFeeAmount),
+          },
+          lateFeeAmountApplied: 0,
+          feeHeadsSnapshot: snapshots.feeHeadsSnapshot,
+          installmentsSnapshot: snapshots.installmentsSnapshot,
+          status: 'due',
+          dueDate: dueDate ? new Date(dueDate) : undefined,
+        };
+      });
 
     if (invoicesToCreate.length > 0) {
       await FeeInvoice.insertMany(invoicesToCreate);

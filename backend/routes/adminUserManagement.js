@@ -18,6 +18,7 @@ const AcademicYear = require('../models/AcademicYear');
 const ClassModel = require('../models/Class');
 const { syncAllocationGroupThreads, syncTimetableGroupThreads } = require('../utils/chatGroupProvisioning');
 const { generatePassword } = require('../utils/generator');
+const { buildInvoiceSnapshotsForStudent } = require('../utils/feeHeadPolicy');
 const {
   getNextStudentSequence,
   getNextEmployeeSequence,
@@ -786,6 +787,15 @@ const autoGeneratePromotionInvoice = async ({ student, oldGrade, schoolId }) => 
     .lean();
   if (existing) return;
 
+  const hasPriorInvoice = await FeeInvoice.exists({
+    schoolId,
+    studentId: student._id,
+  });
+  const snapshots = buildInvoiceSnapshotsForStudent({
+    structure,
+    hasPriorInvoice: Boolean(hasPriorInvoice),
+  });
+
   await FeeInvoice.create({
     schoolId,
     academicYearId: structure.academicYearId || activeYear._id,
@@ -795,13 +805,13 @@ const autoGeneratePromotionInvoice = async ({ student, oldGrade, schoolId }) => 
     studentId: student._id,
     feeStructureId: structure._id,
     title: structure.name || 'Fee Invoice',
-    totalAmount: structure.totalAmount,
+    totalAmount: snapshots.totalAmount,
     paidAmount: 0,
-    balanceAmount: structure.totalAmount,
+    balanceAmount: snapshots.totalAmount,
     discountAmount: 0,
     discountNote: '',
-    feeHeadsSnapshot: structure.feeHeads || [],
-    installmentsSnapshot: structure.installments || [],
+    feeHeadsSnapshot: snapshots.feeHeadsSnapshot,
+    installmentsSnapshot: snapshots.installmentsSnapshot,
     status: 'due',
   });
 };

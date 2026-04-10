@@ -13,6 +13,7 @@ const SuperAdminCompliance = require('../models/SuperAdminCompliance');
 const SuperAdminActivity = require('../models/SuperAdminActivity');
 const adminAuth = require('../middleware/adminAuth');
 const { isStrongPassword, passwordPolicyMessage } = require('../utils/passwordPolicy');
+const { deleteSchoolScopedData } = require('../utils/deleteSchoolCascade');
 
 const router = express.Router();
 
@@ -416,15 +417,13 @@ router.delete('/schools/:id', adminAuth, ensureSuperAdmin, async (req, res) => {
       return res.status(404).json({ error: 'School not found' });
     }
 
+    const deletedCollections = await deleteSchoolScopedData(id);
     await School.deleteOne({ _id: id });
-    await Promise.all([
-      Admin.deleteMany({ schoolId: id }),
-      StudentUser.deleteMany({ schoolId: id }),
-      TeacherUser.deleteMany({ schoolId: id }),
-      ParentUser.deleteMany({ schoolId: id }),
-    ]);
 
-    res.json({ message: 'School deleted successfully' });
+    res.json({
+      message: 'School and associated data deleted successfully',
+      deletedCollections,
+    });
   } catch (err) {
     res.status(500).json({ error: err.message || 'Unable to delete school' });
   }

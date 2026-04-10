@@ -6,7 +6,12 @@ const StudentUser = require('../models/StudentUser');
 const ExamResult = require('../models/ExamResult');
 const PromotionHistory = require('../models/PromotionHistory');
 const AuditLog = require('../models/AuditLog');
+const AcademicYear = require('../models/AcademicYear');
+const ClassModel = require('../models/Class');
+const FeeStructure = require('../models/FeeStructure');
+const FeeInvoice = require('../models/FeeInvoice');
 const { syncAllocationGroupThreads, syncTimetableGroupThreads } = require('../utils/chatGroupProvisioning');
+const { buildInvoiceSnapshotsForStudent } = require('../utils/feeHeadPolicy');
 
 const resolveSchoolId = (req, res) => {
   const schoolId = req.schoolId || req.admin?.schoolId || null;
@@ -72,6 +77,167 @@ const toSafePercentage = (value, fallback = 50) => {
   const n = Number(value);
   if (!Number.isFinite(n)) return fallback;
   return Math.max(0, Math.min(100, n));
+};
+
+const normalizeAmount = (value) => {
+  const amount = Number(value);
+  return Number.isFinite(amount) && amount >= 0 ? amount : 0;
+};
+
+const resolveAcademicYearForPromotion = async ({ schoolId, toAcademicYear }) => {
+  if (toAcademicYear) {
+    const matcher = buildAcademicYearMatcher(toAcademicYear);
+    const exact = await AcademicYear.findOne({
+      schoolId,
+      ...(matcher ? { name: matcher } : {}),
+    })
+      .sort({ createdAt: -1 })
+      .lean();
+    if (exact) return exact;
+  }
+
+  return AcademicYear.findOne({ schoolId, isActive: true })
+    .sort({ createdAt: -1 })
+    .lean();
+};
+
+const resolveClassForPromotion = async ({ schoolId, campusId, toClass, academicYearId }) => {
+  if (!toClass) return null;
+  const classNameMatcher = new RegExp(`^${escapeRegex(String(toClass).trim())}$`, 'i');
+  const baseFilter = {
+    schoolId,
+    name: classNameMatcher,
+    ...(campusId ? { campusId } : {}),
+  };
+
+  if (academicYearId && mongoose.isValidObjectId(academicYearId)) {
+    const scoped = await ClassModel.findOne({
+      ...baseFilter,
+      academicYearId,
+    })
+      .select('_id name academicYearId')
+      .lean();
+    if (scoped) return scoped;
+  }
+
+  return ClassModel.findOne(baseFilter)
+    .sort({ createdAt: -1 })
+    .select('_id name academicYearId')
+    .lean();
+};
+
+const autoGeneratePromotionFees = async ({
+  schoolId,
+  campusId,
+  toClass,
+  toAcademicYear,
+  promotedStudentIds = [],
+}) => {
+  const ids = (Array.isArray(promotedStudentIds) ? promotedStudentIds : []).filter((id) =>
+    mongoose.isValidObjectId(id)
+  );
+  if (ids.length === 0) return { created: 0, skipped: 0, reason: 'no_students' };
+
+  const targetAcademicYear = await resolveAcademicYearForPromotion({ schoolId, toAcademicYear });
+  if (!targetAcademicYear?._id) {
+    return { created: 0, skipped: ids.length, reason: 'academic_year_not_found' };
+  }
+
+  const classDoc = await resolveClassForPromotion({
+    schoolId,
+    campusId,
+    toClass,
+    academicYearId: targetAcademicYear._id,
+  });
+  if (!classDoc?._id) {
+    return { created: 0, skipped: ids.length, reason: 'class_not_found' };
+  }
+
+  const structure = await FeeStructure.findOne({
+    schoolId,
+    classId: classDoc._id,
+    academicYearId: targetAcademicYear._id,
+    isActive: true,
+  })
+    .sort({ createdAt: -1 })
+    .lean();
+  if (!structure) {
+    return { created: 0, skipped: ids.length, reason: 'fee_structure_not_found' };
+  }
+
+  const students = await StudentUser.find({
+    _id: { $in: ids },
+    schoolId,
+    ...(campusId ? { campusId } : {}),
+    grade: toClass,
+    isArchived: { $ne: true },
+    status: { $nin: ['Leaving', 'Left', 'Expelled'] },
+  })
+    .select('_id grade section')
+    .lean();
+  if (students.length === 0) {
+    return { created: 0, skipped: ids.length, reason: 'no_matching_students' };
+  }
+
+  const studentIds = students.map((student) => student._id);
+  const existingInvoices = await FeeInvoice.find({
+    schoolId,
+    feeStructureId: structure._id,
+    studentId: { $in: studentIds },
+  })
+    .select('studentId')
+    .lean();
+  const existingSet = new Set(existingInvoices.map((item) => String(item.studentId)));
+
+  const priorInvoices = await FeeInvoice.find({
+    schoolId,
+    studentId: { $in: studentIds },
+  })
+    .select('studentId')
+    .lean();
+  const priorInvoiceSet = new Set(priorInvoices.map((item) => String(item.studentId)));
+
+  const invoicesToCreate = students
+    .filter((student) => !existingSet.has(String(student._id)))
+    .map((student) => {
+      const snapshots = buildInvoiceSnapshotsForStudent({
+        structure,
+        hasPriorInvoice: priorInvoiceSet.has(String(student._id)),
+      });
+      return {
+        schoolId,
+        academicYearId: structure.academicYearId || targetAcademicYear._id,
+        classId: structure.classId,
+        className: student.grade || classDoc.name || structure.className || String(toClass || ''),
+        section: student.section || '',
+        studentId: student._id,
+        feeStructureId: structure._id,
+        title: structure.name || `Fee Invoice - ${String(toClass || '').trim()}`,
+        totalAmount: snapshots.totalAmount,
+        paidAmount: 0,
+        balanceAmount: snapshots.totalAmount,
+        discountAmount: 0,
+        discountNote: '',
+        lateFeeRuleSnapshot: {
+          amount: normalizeAmount(structure?.lateFeeAmount),
+        },
+        lateFeeAmountApplied: 0,
+        feeHeadsSnapshot: snapshots.feeHeadsSnapshot,
+        installmentsSnapshot: snapshots.installmentsSnapshot,
+        status: 'due',
+      };
+    });
+
+  if (invoicesToCreate.length > 0) {
+    await FeeInvoice.insertMany(invoicesToCreate);
+  }
+
+  return {
+    created: invoicesToCreate.length,
+    skipped: students.length - invoicesToCreate.length,
+    structureId: structure._id,
+    academicYearId: targetAcademicYear._id,
+  };
 };
 
 const computeResultSummaryByStudent = async ({ schoolId, campusId, studentIds }) => {
@@ -437,6 +603,20 @@ router.post('/execute', adminAuth, async (req, res) => {
     });
 
     const skippedCount = validIds.length - finalPromoteIds.length;
+    let feeResult = {
+      created: 0,
+      skipped: 0,
+      reason: 'no_promotion',
+    };
+    if (updateResult.modifiedCount > 0) {
+      feeResult = await autoGeneratePromotionFees({
+        schoolId,
+        campusId,
+        toClass,
+        toAcademicYear,
+        promotedStudentIds: finalPromoteIds,
+      });
+    }
 
     res.json({
       success: true,
@@ -445,6 +625,9 @@ router.post('/execute', adminAuth, async (req, res) => {
       skipped: skippedCount,
       marksIneligible: marksIneligibleCount,
       marksThreshold,
+      feeInvoicesCreated: feeResult.created,
+      feeInvoicesSkipped: feeResult.skipped,
+      feeInvoiceReason: feeResult.reason || null,
       historyId: history._id,
       message: `${updateResult.modifiedCount} student(s) promoted to ${toClass}${toSection ? ' - ' + toSection : ''}`,
     });
@@ -466,6 +649,9 @@ router.post('/execute', adminAuth, async (req, res) => {
         matchedCount: finalPromoteIds.length,
         promotedCount: updateResult.modifiedCount,
         skippedCount,
+        feeInvoicesCreated: feeResult.created,
+        feeInvoicesSkipped: feeResult.skipped,
+        feeInvoiceReason: feeResult.reason || null,
         type,
         marksThreshold,
         marksIneligibleCount,

@@ -377,7 +377,9 @@ router.get('/user', authAnyUser, async (req, res) => {
 
     const filter = {
       schoolId,
-      ...(campusId ? { campusId } : {}),
+      ...(campusId
+        ? { $or: [{ campusId }, { campusId: null }, { campusId: { $exists: false } }] }
+        : {}),
       'dismissedBy.userId': { $ne: userId },
       $and: [
         {

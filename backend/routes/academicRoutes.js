@@ -15,6 +15,7 @@ const Floor = require('../models/Floor');
 const Room = require('../models/Room');
 const Timetable = require('../models/Timetable');
 const Exam = require('../models/Exam');
+const { buildInvoiceSnapshotsForStudent } = require('../utils/feeHeadPolicy');
 
 const router = express.Router();
 
@@ -47,6 +48,21 @@ const buildCampusFilter = (schoolId, campusId) => {
 };
 
 const normalizeKey = (value) => String(value || '').trim().toLowerCase();
+const findDuplicateSection = async ({ schoolId, campusId, classId, name, excludeId = null }) => {
+  const normalizedName = normalizeKey(name);
+  if (!normalizedName) return null;
+
+  const filter = {
+    ...buildCampusFilter(schoolId, campusId),
+    classId,
+  };
+  if (excludeId && mongoose.isValidObjectId(excludeId)) {
+    filter._id = { $ne: excludeId };
+  }
+
+  const existingSections = await Section.find(filter).select('_id name').lean();
+  return existingSections.find((item) => normalizeKey(item.name) === normalizedName) || null;
+};
 
 const generateInvoicesForAcademicYear = async ({ schoolId, campusId, academicYearId }) => {
   const classFilter = buildCampusFilter(schoolId, campusId);
@@ -98,27 +114,40 @@ const generateInvoicesForAcademicYear = async ({ schoolId, campusId, academicYea
       .select('studentId')
       .lean();
     const existingSet = new Set(existingInvoices.map((inv) => String(inv.studentId)));
+    const priorInvoices = await FeeInvoice.find({
+      schoolId,
+      studentId: { $in: studentIds },
+    })
+      .select('studentId')
+      .lean();
+    const priorInvoiceSet = new Set(priorInvoices.map((inv) => String(inv.studentId)));
 
     const invoicesToCreate = students
       .filter((student) => !existingSet.has(String(student._id)))
-      .map((student) => ({
-        schoolId,
-        academicYearId,
-        classId: structure.classId,
-        className: student.grade || classDoc.name || structure.className || '',
-        section: student.section || '',
-        studentId: student._id,
-        feeStructureId: structure._id,
-        title: structure.name || 'Fee Invoice',
-        totalAmount: structure.totalAmount,
-        paidAmount: 0,
-        balanceAmount: structure.totalAmount,
-        discountAmount: 0,
-        discountNote: '',
-        feeHeadsSnapshot: structure.feeHeads || [],
-        installmentsSnapshot: structure.installments || [],
-        status: 'due',
-      }));
+      .map((student) => {
+        const snapshots = buildInvoiceSnapshotsForStudent({
+          structure,
+          hasPriorInvoice: priorInvoiceSet.has(String(student._id)),
+        });
+        return {
+          schoolId,
+          academicYearId,
+          classId: structure.classId,
+          className: student.grade || classDoc.name || structure.className || '',
+          section: student.section || '',
+          studentId: student._id,
+          feeStructureId: structure._id,
+          title: structure.name || 'Fee Invoice',
+          totalAmount: snapshots.totalAmount,
+          paidAmount: 0,
+          balanceAmount: snapshots.totalAmount,
+          discountAmount: 0,
+          discountNote: '',
+          feeHeadsSnapshot: snapshots.feeHeadsSnapshot,
+          installmentsSnapshot: snapshots.installmentsSnapshot,
+          status: 'due',
+        };
+      });
 
     if (invoicesToCreate.length > 0) {
       await FeeInvoice.insertMany(invoicesToCreate);
@@ -720,6 +749,10 @@ router.post('/sections', adminAuth, async (req, res) => {
     if (!classDoc) {
       return res.status(404).json({ error: 'Class not found for this school' });
     }
+    const duplicateSection = await findDuplicateSection({ schoolId, campusId, classId, name });
+    if (duplicateSection) {
+      return res.status(409).json({ error: 'Section name already exists for this class' });
+    }
 
     const created = await Section.create({
       schoolId,
@@ -781,6 +814,16 @@ router.put('/sections/:id', adminAuth, async (req, res) => {
       .lean();
     if (!existing) {
       return res.status(404).json({ error: 'Section not found' });
+    }
+    const duplicateSection = await findDuplicateSection({
+      schoolId,
+      campusId,
+      classId,
+      name,
+      excludeId: id,
+    });
+    if (duplicateSection) {
+      return res.status(409).json({ error: 'Section name already exists for this class' });
     }
 
     const updated = await Section.findByIdAndUpdate(

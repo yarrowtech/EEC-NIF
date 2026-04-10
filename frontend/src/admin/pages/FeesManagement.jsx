@@ -370,17 +370,6 @@ const FeesManagement = ({ setShowAdminHeader }) => {
       await loadAll();
       resetForm();
       setNotice(isEdit ? 'Fee structure updated.' : 'Fee structure created.');
-      if (!isEdit) {
-        const academicYearName =
-          yearNameById.get(String(payload.academicYearId || '')) || '';
-        await downloadFeesStructurePdf({
-          structure: {
-            ...payload,
-            academicYearName,
-          },
-          school: pdfSchool,
-        });
-      }
     } catch (err) {
       setError(err.message || 'Unable to save structure');
     } finally {

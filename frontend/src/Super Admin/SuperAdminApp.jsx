@@ -581,13 +581,14 @@ const SuperAdminApp = () => {
       .map((word) => word[0].toUpperCase())
       .join('');
 
-  const generateSchoolCode = (request = {}) => {
-    const baseCode = String(request?.code || '')
-      .replace(/[^A-Za-z0-9]/g, '')
-      .toUpperCase();
-    const initials = baseCode || buildSchoolInitials(request?.schoolName || request?.name) || 'SCH';
-    const suffix = Math.floor(1000 + Math.random() * 9000);
-    return `EEC-${initials}-${suffix}`;
+  const generateSchoolCode = (request = {}, usedCodes = new Set()) => {
+    const initials = buildSchoolInitials(request?.schoolName || request?.name) || 'SCH';
+    for (let attempt = 0; attempt < 50; attempt += 1) {
+      const suffix = Math.floor(1000 + Math.random() * 9000);
+      const candidate = `EEC-${initials}-${suffix}`;
+      if (!usedCodes.has(candidate)) return candidate;
+    }
+    return `EEC-${initials}-${String(Date.now()).slice(-4)}`;
   };
 
   const generateSchoolPassword = () => {
@@ -653,7 +654,18 @@ const SuperAdminApp = () => {
     if (!request?.id) return;
     const campusKey = campusKeyFor(campus, campusIndex);
     const campusName = campus?.name || `Campus ${campusIndex + 1}`;
-    const code = generateSchoolCode(request);
+    const current = schoolCredentials[request.id] && typeof schoolCredentials[request.id] === 'object'
+      ? schoolCredentials[request.id]
+      : {};
+    const existingCampuses = current.campuses && typeof current.campuses === 'object'
+      ? Object.values(current.campuses)
+      : [];
+    const usedCodes = new Set(
+      existingCampuses
+        .map((entry) => String(entry?.code || '').trim())
+        .filter(Boolean)
+    );
+    const code = generateSchoolCode(request, usedCodes);
     const password = generateSchoolPassword();
     const entry = {
       code,
@@ -665,13 +677,13 @@ const SuperAdminApp = () => {
       campusId: campus?.id || campus?._id || campus?.campusId
     };
     setSchoolCredentials((prev) => {
-      const current = prev[request.id] && typeof prev[request.id] === 'object' ? prev[request.id] : {};
-      const nextCampuses = current.campuses && typeof current.campuses === 'object' ? { ...current.campuses } : {};
+      const currentEntry = prev[request.id] && typeof prev[request.id] === 'object' ? prev[request.id] : {};
+      const nextCampuses = currentEntry.campuses && typeof currentEntry.campuses === 'object' ? { ...currentEntry.campuses } : {};
       nextCampuses[campusKey] = entry;
       return {
         ...prev,
         [request.id]: {
-          ...current,
+          ...currentEntry,
           campuses: nextCampuses
         }
       };
@@ -725,7 +737,7 @@ const SuperAdminApp = () => {
     }
   }, [fetchRequests, requests]);
 
-  const handleRequestUpdate = async (requestId, status, note) => {
+  const handleRequestUpdate = async (requestId, status, note, options = {}) => {
     const selectedRequest = requests.find((item) => item.id === requestId);
     if (!selectedRequest) return;
 
@@ -803,36 +815,74 @@ const SuperAdminApp = () => {
         credentialBucket.campuses && typeof credentialBucket.campuses === 'object'
           ? credentialBucket.campuses
           : {};
+      const manualCredentials = Array.isArray(options?.approvalCredentials)
+        ? options.approvalCredentials
+            .filter((entry) => entry?.code && entry?.password)
+            .map((entry) => ({
+              code: String(entry.code).trim(),
+              password: String(entry.password).trim(),
+              campusName: entry.campusName || '',
+              campusType: entry.campusType || 'Campus',
+              campusId: entry.campusId || null,
+            }))
+        : [];
+
       const approvalCredentials = [];
 
-      for (let i = 0; i < campusList.length; i += 1) {
-        const campus = campusList[i];
-        const campusKey = campusKeyFor(campus, i);
-        const existingCredential =
-          campusCredentials[campusKey] ||
-          campusCredentials.default ||
-          (i === 0 && credentialBucket?.code && credentialBucket?.password ? credentialBucket : null);
+      if (manualCredentials.length > 0) {
+        for (let i = 0; i < manualCredentials.length; i += 1) {
+          const entry = manualCredentials[i];
+          const campus =
+            campusList.find((item) => String(item?.id || item?._id || item?.campusId || '') === String(entry.campusId || ''))
+            || campusList.find((item) => String(item?.name || '').trim().toLowerCase() === String(entry.campusName || '').trim().toLowerCase())
+            || campusList[i]
+            || null;
 
-        if (existingCredential?.code && existingCredential?.password) {
           approvalCredentials.push({
-            code: existingCredential.code,
-            password: existingCredential.password,
-            campusName: existingCredential.campusName || campus?.name || `Campus ${i + 1}`,
-            campusType: existingCredential.campusType || campus?.campusType || 'Campus',
-            campusId: existingCredential.campusId || campus?.id || campus?._id || campus?.campusId
+            code: entry.code,
+            password: entry.password,
+            campusName: entry.campusName || campus?.name || `Campus ${i + 1}`,
+            campusType: entry.campusType || campus?.campusType || 'Campus',
+            campusId: entry.campusId || campus?.id || campus?._id || campus?.campusId || null,
           });
+
           try {
-            await createSchoolAdminAccount(selectedRequest, existingCredential.code, existingCredential.password, 'active', campus);
-            continue;
+            await createSchoolAdminAccount(selectedRequest, entry.code, entry.password, 'active', campus);
           } catch (error) {
             console.error('Failed to create school admin', error);
             setRequestError(error.message || 'Unable to create school admin');
           }
         }
+      } else {
+        for (let i = 0; i < campusList.length; i += 1) {
+          const campus = campusList[i];
+          const campusKey = campusKeyFor(campus, i);
+          const existingCredential =
+            campusCredentials[campusKey] ||
+            campusCredentials.default ||
+            (i === 0 && credentialBucket?.code && credentialBucket?.password ? credentialBucket : null);
 
-        const generated = await handleSchoolCredentialGenerate(selectedRequest, campus, i, 'active');
-        if (generated) {
-          approvalCredentials.push(generated);
+          if (existingCredential?.code && existingCredential?.password) {
+            approvalCredentials.push({
+              code: existingCredential.code,
+              password: existingCredential.password,
+              campusName: existingCredential.campusName || campus?.name || `Campus ${i + 1}`,
+              campusType: existingCredential.campusType || campus?.campusType || 'Campus',
+              campusId: existingCredential.campusId || campus?.id || campus?._id || campus?.campusId
+            });
+            try {
+              await createSchoolAdminAccount(selectedRequest, existingCredential.code, existingCredential.password, 'active', campus);
+              continue;
+            } catch (error) {
+              console.error('Failed to create school admin', error);
+              setRequestError(error.message || 'Unable to create school admin');
+            }
+          }
+
+          const generated = await handleSchoolCredentialGenerate(selectedRequest, campus, i, 'active');
+          if (generated) {
+            approvalCredentials.push(generated);
+          }
         }
       }
 
@@ -849,7 +899,7 @@ const SuperAdminApp = () => {
               body: JSON.stringify({
                 schoolId: selectedRequest.schoolId || selectedRequest.id,
                 schoolName: selectedRequest.schoolName || selectedRequest.name,
-                contactEmail: selectedRequest.contactEmail || selectedRequest.officialEmail,
+                contactEmail: options?.contactEmail || selectedRequest.contactEmail || selectedRequest.officialEmail,
                 campuses: approvalCredentials.map((entry) => ({
                   campusName: entry.campusName,
                   campusType: entry.campusType,
