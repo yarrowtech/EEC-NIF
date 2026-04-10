@@ -29,7 +29,7 @@ import { useNavigate } from 'react-router-dom';
 import { useStudentDashboard } from './StudentDashboardContext';
 import { AUTH_NOTICE, logoutAndRedirect } from '../utils/authSession';
 
-const Sidebar = ({ activeView, isOpen, setIsOpen }) => {
+const Sidebar = ({ activeView, isOpen, setIsOpen, onNavigateIntent }) => {
   const navigate = useNavigate();
   const [openGroups, setOpenGroups] = useState({});
   const collapsed = !isOpen;
@@ -79,7 +79,9 @@ const Sidebar = ({ activeView, isOpen, setIsOpen }) => {
   };
 
   const handleNavigation = (pageId) => {
-    navigateToPage(pageId);
+    const path = pageId === 'dashboard' ? '/student' : `/student/${pageId}`;
+    onNavigateIntent?.(pageId === 'dashboard' ? 'dashboard' : pageId);
+    navigate(path);
     if (typeof window !== 'undefined' && window.innerWidth < 768) {
       setIsOpen(false);
     }

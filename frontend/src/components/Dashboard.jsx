@@ -44,6 +44,7 @@ const Dashboard = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const [sidebarOpen, setSidebarOpen] = useState(false); // default to closed on mobile
+  const [viewOverride, setViewOverride] = useState(null);
   const journalRef = useRef(null);
 
   useEffect(() => {
@@ -53,6 +54,11 @@ const Dashboard = () => {
   }, [location.pathname, navigate]);
 
   const activeView = normalizeViewFromPath(location.pathname);
+  const effectiveView = viewOverride || activeView;
+
+  useEffect(() => {
+    setViewOverride(null);
+  }, [location.pathname]);
 
   // Function to handle navigation
   const setActiveView = (view) => {
@@ -101,46 +107,47 @@ const Dashboard = () => {
   };
 
   useEffect(() => {
-    if (!viewComponents[activeView]) {
+    if (!viewComponents[effectiveView]) {
       navigate('/student', { replace: true });
     }
-  }, [activeView, navigate]);
+  }, [effectiveView, navigate]);
 
   const renderContent = () => {
-    const Component = viewComponents[activeView];
+    const Component = viewComponents[effectiveView];
 
     if (Component) {
-      return typeof Component === 'function' ? <Component /> : <Component setActiveView={setActiveView} />;
+      return <Component key={`${location.pathname}:${effectiveView}`} setActiveView={setActiveView} />;
     } else {
-      return <DashboardHome setActiveView={setActiveView} />;
+      return <DashboardHome key={`dashboard-fallback:${location.pathname}`} setActiveView={setActiveView} />;
     }
   };
 
   return (
-    <StudentDashboardProvider>
-      <div className="min-h-screen w-full bg-gray-50 flex relative overflow-hidden">
+    <StudentDashboardProvider key={`student-provider:${location.pathname}`}>
+      <div key={`student-shell:${location.pathname}`} className="min-h-screen w-full bg-gray-50 flex relative overflow-hidden">
         <Sidebar
-          activeView={activeView}
+          activeView={effectiveView}
           isOpen={sidebarOpen}
           setIsOpen={setSidebarOpen}
+          onNavigateIntent={setViewOverride}
         />
         <div
           className={`flex-1 flex flex-col h-screen transition-all duration-300 ${sidebarOpen ? '' : ''
-            } ${(activeView === 'chat' || activeView === 'excuse-letter' || activeView === 'assignments-journal') ? 'overflow-hidden' : 'overflow-y-auto custom-scrollbar'}`}
+            } ${(effectiveView === 'chat' || effectiveView === 'excuse-letter' || effectiveView === 'assignments-journal') ? 'overflow-hidden' : 'overflow-y-auto custom-scrollbar'}`}
         >
           <Header
             sidebarOpen={sidebarOpen}
             setSidebarOpen={setSidebarOpen}
             onOpenProfile={() => navigate('/student/profile')}
           />
-          <main className={`flex-1 min-h-0 ${(activeView === 'chat' || activeView === 'excuse-letter' || activeView === 'assignments-journal') ? 'p-0' : ''} w-full flex flex-col`}>
+          <main className={`flex-1 min-h-0 ${(effectiveView === 'chat' || effectiveView === 'excuse-letter' || effectiveView === 'assignments-journal') ? 'p-0' : ''} w-full flex flex-col`}>
             {renderContent()}
-            {activeView !== 'chat' && activeView !== 'excuse-letter' && activeView !== 'assignments-journal' && (
+            {effectiveView !== 'chat' && effectiveView !== 'excuse-letter' && effectiveView !== 'assignments-journal' && (
               <div className="h-16 md:hidden shrink-0" aria-hidden="true" />
             )}
           </main>
         </div>
-        <MobileBottomNav activeView={activeView} onSaveJournal={handleSaveJournal} />
+        <MobileBottomNav activeView={effectiveView} onSaveJournal={handleSaveJournal} />
       </div>
     </StudentDashboardProvider>
   );
