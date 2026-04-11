@@ -1,5 +1,135 @@
   const mongoose = require('mongoose'); 
 const bcrypt = require('bcryptjs');
+const crypto = require('crypto');
+
+const ENCRYPTED_PREFIX = 'enc:v1';
+const STUDENT_SENSITIVE_FIELDS = ['mobile', 'email', 'address', 'aadharNumber', 'guardianPhone', 'guardianEmail'];
+let warnedDerivedEncryptionKey = false;
+
+const resolveEncryptionKey = () => {
+  const raw = String(process.env.STUDENT_DATA_ENCRYPTION_KEY || '').trim();
+  if (!raw) {
+    const fallbackSecret = String(
+      process.env.JWT_SECRET
+      || process.env.SUPER_ADMIN_INCOMING_SECRET
+      || process.env.MONGODB_URL
+      || process.env.MONGODB_URI
+      || ''
+    ).trim();
+    if (!fallbackSecret) return null;
+    if (!warnedDerivedEncryptionKey) {
+      warnedDerivedEncryptionKey = true;
+      console.warn('[StudentUser] STUDENT_DATA_ENCRYPTION_KEY not set. Using derived fallback key from existing env secret. Set STUDENT_DATA_ENCRYPTION_KEY explicitly for production key management.');
+    }
+    return crypto.createHash('sha256').update(fallbackSecret).digest();
+  }
+
+  if (raw.startsWith('hex:')) {
+    const keyHex = raw.slice(4);
+    if (keyHex.length === 64) return Buffer.from(keyHex, 'hex');
+    return null;
+  }
+
+  if (raw.startsWith('base64:')) {
+    const keyB64 = raw.slice(7);
+    const buf = Buffer.from(keyB64, 'base64');
+    if (buf.length === 32) return buf;
+    return null;
+  }
+
+  if (/^[a-f0-9]{64}$/i.test(raw)) {
+    return Buffer.from(raw, 'hex');
+  }
+
+  const fromBase64 = Buffer.from(raw, 'base64');
+  if (fromBase64.length === 32) {
+    return fromBase64;
+  }
+
+  return crypto.createHash('sha256').update(raw).digest();
+};
+
+const getEncryptionKey = () => resolveEncryptionKey();
+
+const isEncryptedValue = (value) => (
+  typeof value === 'string' && value.startsWith(`${ENCRYPTED_PREFIX}:`)
+);
+
+const hasSensitiveValues = (target = {}) => {
+  if (!target || typeof target !== 'object') return false;
+  return STUDENT_SENSITIVE_FIELDS.some((field) => {
+    if (!Object.prototype.hasOwnProperty.call(target, field)) return false;
+    const value = target[field];
+    if (value === null || value === undefined) return false;
+    if (typeof value === 'string') return value.trim().length > 0;
+    return true;
+  });
+};
+
+const assertEncryptionConfigured = (target = {}) => {
+  if (!hasSensitiveValues(target)) return;
+  const key = getEncryptionKey();
+  if (key) return;
+  if (!warnedDerivedEncryptionKey) {
+    warnedDerivedEncryptionKey = true;
+    console.error('[StudentUser] Missing/invalid STUDENT_DATA_ENCRYPTION_KEY. Refusing to store sensitive student fields in plaintext.');
+  }
+  throw new Error('Encryption key is not available. Configure STUDENT_DATA_ENCRYPTION_KEY or JWT_SECRET.');
+};
+
+const encryptFieldValue = (value, key) => {
+  if (!key || typeof value !== 'string' || !value || isEncryptedValue(value)) {
+    return value;
+  }
+  const iv = crypto.randomBytes(12);
+  const cipher = crypto.createCipheriv('aes-256-gcm', key, iv);
+  const encrypted = Buffer.concat([cipher.update(value, 'utf8'), cipher.final()]);
+  const tag = cipher.getAuthTag();
+  return `${ENCRYPTED_PREFIX}:${iv.toString('base64')}:${tag.toString('base64')}:${encrypted.toString('base64')}`;
+};
+
+const decryptFieldValue = (value) => {
+  const key = getEncryptionKey();
+  if (!key || typeof value !== 'string' || !isEncryptedValue(value)) {
+    return value;
+  }
+
+  const parts = value.split(':');
+  if (parts.length !== 5) return value;
+  const iv = Buffer.from(parts[2], 'base64');
+  const tag = Buffer.from(parts[3], 'base64');
+  const encrypted = Buffer.from(parts[4], 'base64');
+
+  try {
+    const decipher = crypto.createDecipheriv('aes-256-gcm', key, iv);
+    decipher.setAuthTag(tag);
+    const decrypted = Buffer.concat([decipher.update(encrypted), decipher.final()]);
+    return decrypted.toString('utf8');
+  } catch (err) {
+    return value;
+  }
+};
+
+const encryptPayloadFields = (target = {}) => {
+  if (!target || typeof target !== 'object') return;
+  assertEncryptionConfigured(target);
+  const key = getEncryptionKey();
+  STUDENT_SENSITIVE_FIELDS.forEach((field) => {
+    if (Object.prototype.hasOwnProperty.call(target, field)) {
+      target[field] = encryptFieldValue(target[field], key);
+    }
+  });
+};
+
+const decryptDocFields = (doc = null) => {
+  if (!doc) return;
+  STUDENT_SENSITIVE_FIELDS.forEach((field) => {
+    const currentValue = doc[field];
+    if (typeof currentValue === 'string' && isEncryptedValue(currentValue)) {
+      doc[field] = decryptFieldValue(currentValue);
+    }
+  });
+};
 
 const hashPasswordIfNeeded = async (password) => {
   if (!password || typeof password !== 'string') return password;
@@ -104,20 +234,84 @@ const studentUserSchema = new mongoose.Schema({
 }, { timestamps: true });
 
 studentUserSchema.pre('save', async function (next) {
-  if (!this.isModified('password')) return next();
-  this.password = await bcrypt.hash(this.password, 10);
-  next();
+  if (this.isModified('password')) {
+    this.password = await bcrypt.hash(this.password, 10);
+  }
+  const payload = {};
+  STUDENT_SENSITIVE_FIELDS.forEach((field) => {
+    if (this.isModified(field)) {
+      payload[field] = this[field];
+    }
+  });
+  assertEncryptionConfigured(payload);
+  const key = getEncryptionKey();
+  STUDENT_SENSITIVE_FIELDS.forEach((field) => {
+    if (this.isModified(field)) {
+      this[field] = encryptFieldValue(this[field], key);
+    }
+  });
+  return next();
 });
 
 studentUserSchema.pre('findOneAndUpdate', async function (next) {
   const update = this.getUpdate() || {};
   const nextPassword = update.password || (update.$set && update.$set.password);
-  if (!nextPassword) return next();
-  const hashed = await hashPasswordIfNeeded(nextPassword);
-  if (update.password) update.password = hashed;
-  if (update.$set && update.$set.password) update.$set.password = hashed;
+  if (nextPassword) {
+    const hashed = await hashPasswordIfNeeded(nextPassword);
+    if (update.password) update.password = hashed;
+    if (update.$set && update.$set.password) update.$set.password = hashed;
+  }
+
+  encryptPayloadFields(update);
+  if (update.$set) encryptPayloadFields(update.$set);
+  if (update.$setOnInsert) encryptPayloadFields(update.$setOnInsert);
+
   this.setUpdate(update);
-  next();
+  return next();
+});
+
+studentUserSchema.pre('updateOne', function (next) {
+  const update = this.getUpdate() || {};
+  encryptPayloadFields(update);
+  if (update.$set) encryptPayloadFields(update.$set);
+  if (update.$setOnInsert) encryptPayloadFields(update.$setOnInsert);
+  this.setUpdate(update);
+  return next();
+});
+
+studentUserSchema.pre('updateMany', function (next) {
+  const update = this.getUpdate() || {};
+  encryptPayloadFields(update);
+  if (update.$set) encryptPayloadFields(update.$set);
+  if (update.$setOnInsert) encryptPayloadFields(update.$setOnInsert);
+  this.setUpdate(update);
+  return next();
+});
+
+studentUserSchema.pre('insertMany', function (next, docs = []) {
+  docs.forEach((doc) => encryptPayloadFields(doc));
+  return next();
+});
+
+studentUserSchema.post('init', function (doc) {
+  decryptDocFields(doc);
+});
+
+studentUserSchema.post('save', function (doc) {
+  decryptDocFields(doc);
+});
+
+studentUserSchema.post('find', function (docs) {
+  if (!Array.isArray(docs)) return;
+  docs.forEach((doc) => decryptDocFields(doc));
+});
+
+studentUserSchema.post('findOne', function (doc) {
+  decryptDocFields(doc);
+});
+
+studentUserSchema.post('findOneAndUpdate', function (doc) {
+  decryptDocFields(doc);
 });
 
 module.exports = mongoose.model('StudentUser', studentUserSchema);  

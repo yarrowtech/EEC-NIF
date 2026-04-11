@@ -7,6 +7,7 @@
    - `MONGODB_URL`
    - `JWT_SECRET`
    - `CORS_ORIGINS`
+   - `STUDENT_DATA_ENCRYPTION_KEY` (32-byte key, use `hex:<64-char-hex>` or `base64:<44-char-base64>`)
 
 ## Install
 

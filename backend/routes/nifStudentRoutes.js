@@ -198,6 +198,7 @@ router.post('/students/bulk', adminAuth, async (req, res) => {
           mobile: row.mobile || '',
           email: row.email || '',
           address: row.address || '',
+          aadharNumber: row.aadharNumber || row.aadhaarNumber || row.andhaarNumber || '',
           permanentAddress: row.permanentAddress || '',
           pinCode: row.pincode || row.pinCode || '',
           bloodGroup: row.bloodGroup || '',
@@ -223,16 +224,28 @@ router.post('/students/bulk', adminAuth, async (req, res) => {
         const parentMobile = row.guardianPhone || row.fatherPhone || row.motherPhone || '';
         const parentEmail = row.guardianEmail || '';
         if (parentName && (parentMobile || parentEmail)) {
-          const parentFilter = {
-            schoolId,
-            $or: [
-              parentEmail ? { email: parentEmail } : null,
-              parentMobile ? { mobile: parentMobile } : null,
-            ].filter(Boolean),
-          };
           let parentUser = null;
-          if (parentFilter.$or.length) {
-            parentUser = await ParentUser.findOne(parentFilter);
+          const parentLookupFilter = ParentUser.buildContactLookupFilter({
+            email: parentEmail,
+            mobile: parentMobile,
+          });
+          if (parentLookupFilter) {
+            parentUser = await ParentUser.findOne({
+              schoolId,
+              ...parentLookupFilter,
+            });
+          }
+          if (!parentUser) {
+            const legacyPlainFilter = {
+              schoolId,
+              $or: [
+                parentEmail ? { email: parentEmail } : null,
+                parentMobile ? { mobile: parentMobile } : null,
+              ].filter(Boolean),
+            };
+            if (legacyPlainFilter.$or.length) {
+              parentUser = await ParentUser.findOne(legacyPlainFilter);
+            }
           }
           if (!parentUser) {
             const parentPrefix = resolveParentPrefix({

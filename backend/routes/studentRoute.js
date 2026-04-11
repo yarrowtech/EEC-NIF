@@ -407,16 +407,28 @@ router.post('/register', adminAuth, async (req, res) => {
     const parentMobile = guardianPhone || fatherPhone || motherPhone || '';
     const parentEmail = guardianEmail || '';
     if (parentName && (parentMobile || parentEmail)) {
-      const parentFilter = {
-        schoolId: resolvedSchoolId,
-        $or: [
-          parentEmail ? { email: parentEmail } : null,
-          parentMobile ? { mobile: parentMobile } : null,
-        ].filter(Boolean),
-      };
       let parentUser = null;
-      if (parentFilter.$or.length) {
-        parentUser = await ParentUser.findOne(parentFilter);
+      const parentLookupFilter = ParentUser.buildContactLookupFilter({
+        email: parentEmail,
+        mobile: parentMobile,
+      });
+      if (parentLookupFilter) {
+        parentUser = await ParentUser.findOne({
+          schoolId: resolvedSchoolId,
+          ...parentLookupFilter,
+        });
+      }
+      if (!parentUser) {
+        const legacyPlainFilter = {
+          schoolId: resolvedSchoolId,
+          $or: [
+            parentEmail ? { email: parentEmail } : null,
+            parentMobile ? { mobile: parentMobile } : null,
+          ].filter(Boolean),
+        };
+        if (legacyPlainFilter.$or.length) {
+          parentUser = await ParentUser.findOne(legacyPlainFilter);
+        }
       }
       if (!parentUser) {
         const parentPrefix = resolveParentPrefix({
