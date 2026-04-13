@@ -147,6 +147,34 @@ const normalizeText = (value) => String(value || '').trim().toLowerCase();
 const getExamClassName = (exam) => exam?.classId?.name || exam?.grade || '';
 const getExamSectionName = (exam) => exam?.sectionId?.name || exam?.section || '';
 
+const parseInstructorNames = (value) =>
+  String(value || '')
+    .split(',')
+    .map((item) => normalizeText(item))
+    .filter(Boolean);
+
+const buildTeacherIdentitySet = (teacherDoc = {}) => {
+  const identities = new Set();
+  const pushIdentity = (value) => {
+    const normalized = normalizeText(value);
+    if (normalized) identities.add(normalized);
+  };
+
+  pushIdentity(teacherDoc?.name);
+  pushIdentity(teacherDoc?.username);
+  pushIdentity(teacherDoc?.employeeCode);
+  pushIdentity(teacherDoc?.email);
+  pushIdentity(String(teacherDoc?.email || '').split('@')[0]);
+
+  return identities;
+};
+
+const isTeacherAssignedInvigilator = (examDoc = {}, teacherIdentitySet = new Set()) => {
+  const instructors = parseInstructorNames(examDoc?.instructor);
+  if (!instructors.length || teacherIdentitySet.size === 0) return false;
+  return instructors.some((instructor) => teacherIdentitySet.has(instructor));
+};
+
 const studentMatchesExamScope = (student, exam) => {
   const examClass = normalizeText(getExamClassName(exam));
   const examSection = normalizeText(getExamSectionName(exam));
@@ -1613,6 +1641,51 @@ router.get('/teacher/manage', teacherAuth, async (req, res) => {
     res.status(200).json(exams);
   } catch (err) {
     res.status(500).json({ error: err.message });
+  }
+});
+
+// Teacher invigilation routine (assigned by admin in exam subject modal)
+router.get('/teacher/routine', teacherAuth, async (req, res) => {
+  try {
+    const schoolId = req.schoolId || req.user?.schoolId || null;
+    const campusId = req.campusId || req.user?.campusId || null;
+    const teacherId = req.user?.id || null;
+    if (!schoolId || !teacherId) {
+      return res.status(400).json({ error: 'schoolId and teacherId are required' });
+    }
+
+    const teacher = await TeacherUser.findOne({
+      _id: teacherId,
+      schoolId,
+      ...(campusId ? { campusId } : {}),
+    })
+      .select('name username employeeCode email')
+      .lean();
+    if (!teacher) {
+      return res.status(404).json({ error: 'Teacher not found' });
+    }
+
+    const teacherIdentitySet = buildTeacherIdentitySet(teacher);
+    let exams = await Exam.find({ schoolId, ...(campusId ? { campusId } : {}) })
+      .populate('classId', 'name')
+      .populate('sectionId', 'name classId')
+      .populate('subjectId', 'name code classId')
+      .populate({
+        path: 'roomId',
+        select: 'roomNumber floorId',
+        populate: {
+          path: 'floorId',
+          select: 'name floorCode buildingId',
+          populate: { path: 'buildingId', select: 'name code' },
+        },
+      })
+      .sort({ date: 1, time: 1, createdAt: 1 })
+      .lean();
+
+    exams = exams.filter((exam) => isTeacherAssignedInvigilator(exam, teacherIdentitySet));
+    res.status(200).json(exams);
+  } catch (err) {
+    res.status(500).json({ error: err.message || 'Unable to load teacher routine' });
   }
 });
 

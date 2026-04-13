@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { CalendarDays, CheckCircle2, Clock3, Edit2, Plus, Save, Search, Trash2, X } from 'lucide-react';
+import { CalendarDays, CheckCircle2, Clock3, Edit2, MapPin, Plus, Save, Search, Trash2, User, X } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 const API_BASE = (import.meta.env.VITE_API_URL || 'http://localhost:5000').replace(/\/$/, '');
@@ -64,6 +64,7 @@ const ExamManagement = () => {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [exams, setExams] = useState([]);
+  const [invigilationRoutine, setInvigilationRoutine] = useState([]);
   const [allocations, setAllocations] = useState([]);
   const [showForm, setShowForm] = useState(false);
   const [editingExamId, setEditingExamId] = useState(null);
@@ -104,16 +105,19 @@ const ExamManagement = () => {
     setLoading(true);
     setError('');
     try {
-      const [examData, allocationData] = await Promise.all([
+      const [examData, allocationData, routineData] = await Promise.all([
         apiFetch('/api/exam/teacher/manage'),
         apiFetch('/api/teacher/dashboard/allocations'),
+        apiFetch('/api/exam/teacher/routine'),
       ]);
       setExams(Array.isArray(examData) ? examData : []);
       setAllocations(Array.isArray(allocationData) ? allocationData : []);
+      setInvigilationRoutine(Array.isArray(routineData) ? routineData : []);
     } catch (err) {
       setError(err.message || 'Failed to load exams');
       setExams([]);
       setAllocations([]);
+      setInvigilationRoutine([]);
     } finally {
       setLoading(false);
     }
@@ -353,6 +357,56 @@ const ExamManagement = () => {
           <p className="text-xs text-blue-700">Completed</p>
           <p className="mt-1 text-2xl font-bold text-blue-700">{summary.completed}</p>
         </div>
+      </div>
+
+      <div className="rounded-2xl border border-indigo-100 bg-white p-4 shadow-sm">
+        <div className="mb-3 flex items-center justify-between gap-3">
+          <div>
+            <h2 className="text-sm font-semibold text-gray-900">My Exam Invigilation Routine</h2>
+            <p className="text-xs text-gray-500">Assigned by admin when exam room and invigilator are set.</p>
+          </div>
+          <span className="rounded-full bg-indigo-50 px-2.5 py-1 text-xs font-semibold text-indigo-700">
+            {invigilationRoutine.length} assigned
+          </span>
+        </div>
+        {loading ? (
+          <p className="text-sm text-gray-500">Loading routine...</p>
+        ) : invigilationRoutine.length === 0 ? (
+          <p className="text-sm text-gray-500">No invigilation duty assigned yet.</p>
+        ) : (
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+            {invigilationRoutine.map((exam) => {
+              const className = exam?.classId?.name || exam?.grade || '-';
+              const sectionName = exam?.sectionId?.name || exam?.section || '-';
+              const subjectName = exam?.subjectId?.name || exam?.subject || '-';
+              const roomText =
+                exam?.roomId?.floorId?.buildingId?.name && exam?.roomId?.roomNumber
+                  ? `${exam.roomId.floorId.buildingId.name} / ${exam.roomId.floorId.name || 'Floor'} / ${exam.roomId.roomNumber}`
+                  : (exam?.venue || exam?.roomId?.roomNumber || 'Room TBA');
+
+              return (
+                <div key={exam._id} className="rounded-xl border border-gray-200 bg-gray-50/60 p-3">
+                  <p className="text-sm font-semibold text-gray-900">{exam?.title || 'Exam'} • {subjectName}</p>
+                  <p className="mt-1 text-xs text-gray-600">{className} - {sectionName}</p>
+                  <p className="mt-1 flex items-center gap-1.5 text-xs text-gray-600">
+                    <CalendarDays size={12} className="text-gray-500" />
+                    {formatDate(exam?.date)} {exam?.time ? `• ${exam.time}` : ''}
+                  </p>
+                  <p className="mt-1 flex items-center gap-1.5 text-xs text-gray-600">
+                    <MapPin size={12} className="text-gray-500" />
+                    {roomText}
+                  </p>
+                  {exam?.instructor && (
+                    <p className="mt-1 flex items-center gap-1.5 text-xs text-gray-600">
+                      <User size={12} className="text-gray-500" />
+                      {exam.instructor}
+                    </p>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       <div className="rounded-2xl border border-gray-100 bg-white p-4">
