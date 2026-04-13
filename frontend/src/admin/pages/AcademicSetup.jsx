@@ -112,10 +112,10 @@ const AcademicSetup = ({ setShowAdminHeader }) => {
   const [classRangeForm, setClassRangeForm] = useState({ from: 1, to: 10, academicYearId: "", prefix: "" });
   const [classCustomInput, setClassCustomInput] = useState("");
   const [classCustomYear, setClassCustomYear] = useState("");
-  const [sectionBulkForm, setSectionBulkForm] = useState({ selected: [], custom: "", classId: "" });
+  const [sectionBulkForm, setSectionBulkForm] = useState({ selected: [], custom: "", classIds: [] });
   const [subjectTags, setSubjectTags] = useState([]);
   const [subjectTagInput, setSubjectTagInput] = useState("");
-  const [subjectTagClassId, setSubjectTagClassId] = useState("");
+  const [subjectTagClassIds, setSubjectTagClassIds] = useState([]);
 
   // Edit states
   const [editingYear, setEditingYear] = useState(null);
@@ -598,26 +598,28 @@ const AcademicSetup = ({ setShowAdminHeader }) => {
   /* ─── Bulk submit: sections ─── */
   const submitSectionsBulk = async (e) => {
     e.preventDefault();
-    const { selected, custom, classId } = sectionBulkForm;
-    if (!classId) { setError("Select a class."); return; }
+    const { selected, custom, classIds } = sectionBulkForm;
+    if (!classIds || classIds.length === 0) { setError("Select at least one class."); return; }
     const extra = custom.split(",").map((s) => s.trim()).filter(Boolean);
     const allNames = [...new Set([...selected, ...extra])];
     if (!allNames.length) { setError("Add at least one section."); return; }
     setIsSubmitting(true);
     setError("");
     let created = 0, failed = 0;
-    for (const name of allNames) {
-      try {
-        const res = await fetch(`${API_BASE}/api/academic/sections`, {
-          method: "POST", headers: authHeaders,
-          body: JSON.stringify({ name, classId }),
-        });
-        if (res.ok) created++; else failed++;
-      } catch { failed++; }
+    for (const cId of classIds) {
+      for (const name of allNames) {
+        try {
+          const res = await fetch(`${API_BASE}/api/academic/sections`, {
+            method: "POST", headers: authHeaders,
+            body: JSON.stringify({ name, classId: cId }),
+          });
+          if (res.ok) created++; else failed++;
+        } catch { failed++; }
+      }
     }
     await loadAcademicData();
     setIsSubmitting(false);
-    setSectionBulkForm({ selected: [], custom: "", classId: "" });
+    setSectionBulkForm({ selected: [], custom: "", classIds: [] });
     setShowAddForm(false);
     toast.success(`${created} section${created !== 1 ? "s" : ""} created${failed ? `, ${failed} failed` : ""}.`);
   };
@@ -631,19 +633,23 @@ const AcademicSetup = ({ setShowAdminHeader }) => {
     setIsSubmitting(true);
     setError("");
     let created = 0, failed = 0;
-    for (const name of allNames) {
-      try {
-        const res = await fetch(`${API_BASE}/api/academic/subjects`, {
-          method: "POST", headers: authHeaders,
-          body: JSON.stringify({ name, classId: subjectTagClassId || undefined }),
-        });
-        if (res.ok) created++; else failed++;
-      } catch { failed++; }
+    const targetClasses = subjectTagClassIds.length > 0 ? subjectTagClassIds : [undefined];
+    for (const cId of targetClasses) {
+      for (const name of allNames) {
+        try {
+          const res = await fetch(`${API_BASE}/api/academic/subjects`, {
+            method: "POST", headers: authHeaders,
+            body: JSON.stringify({ name, classId: cId }),
+          });
+          if (res.ok) created++; else failed++;
+        } catch { failed++; }
+      }
     }
     await loadAcademicData();
     setIsSubmitting(false);
     setSubjectTags([]);
     setSubjectTagInput("");
+    setSubjectTagClassIds([]);
     setShowAddForm(false);
     toast.success(`${created} subject${created !== 1 ? "s" : ""} created${failed ? `, ${failed} failed` : ""}.`);
   };
@@ -1505,14 +1511,40 @@ const AcademicSetup = ({ setShowAdminHeader }) => {
                 </div>
                 <div className="p-5 space-y-5">
                   {/* Class selector */}
-                  <div className="max-w-xs">
-                    <label className="mb-1 block text-xs font-medium text-gray-600">Class <span className="text-red-400">*</span></label>
-                    <select value={sectionBulkForm.classId}
-                      onChange={(e) => setSectionBulkForm((p) => ({ ...p, classId: e.target.value }))}
-                      className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-amber-400 focus:outline-none focus:ring-2 focus:ring-amber-100" required>
-                      <option value="">Select class</option>
-                      {visibleClasses.map((c) => <option key={c._id} value={c._id}>{c.name}</option>)}
-                    </select>
+                  <div>
+                    <label className="mb-2 block text-xs font-medium text-gray-600">Select Classes <span className="text-red-400">*</span></label>
+                    <div className="flex flex-wrap gap-2 max-h-32 overflow-y-auto p-2 border border-gray-200 rounded-lg bg-gray-50">
+                      <button
+                        type="button"
+                        onClick={() => setSectionBulkForm(p => ({ ...p, classIds: p.classIds.length === visibleClasses.length ? [] : visibleClasses.map(c => String(c._id)) }))}
+                        className="px-2 py-1 text-xs rounded border border-gray-300  hover:bg-gray-100 text-black font-medium"
+                      >
+                        {sectionBulkForm.classIds?.length === visibleClasses.length && visibleClasses.length > 0 ? "Deselect All" : "Select All"}
+                      </button>
+                      {visibleClasses.map((c) => {
+                        const isSelected = sectionBulkForm.classIds?.includes(String(c._id));
+                        return (
+                          <button
+                            key={c._id}
+                            type="button"
+                            onClick={() => {
+                              setSectionBulkForm(p => {
+                                const current = p.classIds || [];
+                                return {
+                                  ...p,
+                                  classIds: isSelected ? current.filter(id => id !== String(c._id)) : [...current, String(c._id)]
+                                };
+                              });
+                            }}
+                            className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${
+                              isSelected ? 'bg-amber-500 border-amber-500 text-white' : 'bg-white border-gray-300 text-gray-700 hover:border-amber-400'
+                            }`}
+                          >
+                            {c.name}
+                          </button>
+                        );
+                      })}
+                    </div>
                   </div>
 
                   {/* Quick-select letter buttons */}
@@ -1556,7 +1588,10 @@ const AcademicSetup = ({ setShowAdminHeader }) => {
                     const all = [...new Set([...sectionBulkForm.selected, ...extra])];
                     return all.length > 0 ? (
                       <div>
-                        <p className="text-xs font-medium text-gray-500 mb-2">Preview — {all.length} section{all.length !== 1 ? "s" : ""}:</p>
+                        <p className="text-xs font-medium text-gray-500 mb-2">
+                          Preview — {all.length} section{all.length !== 1 ? "s" : ""} 
+                          {sectionBulkForm.classIds?.length > 0 ? ` per class (${all.length * sectionBulkForm.classIds.length} total)` : ""}:
+                        </p>
                         <div className="flex flex-wrap gap-1.5">
                           {all.map((name) => (
                             <span key={name} className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-amber-100 text-amber-700 text-xs font-medium border border-amber-200">
@@ -1667,13 +1702,36 @@ const AcademicSetup = ({ setShowAdminHeader }) => {
                 </div>
                 <div className="p-5 space-y-4">
                   {/* Class selector */}
-                  <div className="max-w-xs">
-                    <label className="mb-1 block text-xs font-medium text-gray-600">Class <span className="text-gray-400">(optional — applies to all subjects below)</span></label>
-                    <select value={subjectTagClassId} onChange={(e) => setSubjectTagClassId(e.target.value)}
-                      className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-amber-400 focus:outline-none focus:ring-2 focus:ring-amber-100">
-                      <option value="">All classes / no class</option>
-                      {visibleClasses.map((c) => <option key={c._id} value={c._id}>{c.name}</option>)}
-                    </select>
+                  <div>
+                    <label className="mb-2 block text-xs font-medium text-gray-600">Select Classes <span className="text-gray-400">(optional — applies to all selected)</span></label>
+                    <div className="flex flex-wrap gap-2 max-h-32 overflow-y-auto p-2 border border-gray-200 rounded-lg bg-gray-50">
+                      <button
+                        type="button"
+                        onClick={() => setSubjectTagClassIds(p => p.length === visibleClasses.length ? [] : visibleClasses.map(c => String(c._id)))}
+                        className="px-2 py-1 text-xs rounded border border-gray-300 bg-white hover:bg-gray-100 text-black font-medium"
+                      >
+                        {subjectTagClassIds.length === visibleClasses.length && visibleClasses.length > 0 ? "Deselect All" : "Select All"}
+                      </button>
+                      {visibleClasses.map((c) => {
+                        const isSelected = subjectTagClassIds.includes(String(c._id));
+                        return (
+                          <button
+                            key={c._id}
+                            type="button"
+                            onClick={() => {
+                              setSubjectTagClassIds(p => 
+                                isSelected ? p.filter(id => id !== String(c._id)) : [...p, String(c._id)]
+                              );
+                            }}
+                            className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${
+                              isSelected ? 'bg-amber-500 border-amber-500 text-white' : 'bg-white border-gray-300 text-gray-700 hover:border-amber-400'
+                            }`}
+                          >
+                            {c.name}
+                          </button>
+                        );
+                      })}
+                    </div>
                   </div>
 
                   {/* Tag chip input */}
