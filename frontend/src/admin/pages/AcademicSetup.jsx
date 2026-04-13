@@ -109,7 +109,7 @@ const AcademicSetup = ({ setShowAdminHeader }) => {
 
   // Bulk add forms
   const [classAddMode, setClassAddMode] = useState("range"); // "range" | "custom"
-  const [classRangeForm, setClassRangeForm] = useState({ from: 1, to: 10, academicYearId: "", prefix: "" });
+  const [classRangeForm, setClassRangeForm] = useState({ from: "1", to: "10", academicYearId: "", prefix: "" });
   const [classCustomInput, setClassCustomInput] = useState("");
   const [classCustomYear, setClassCustomYear] = useState("");
   const [sectionBulkForm, setSectionBulkForm] = useState({ selected: [], custom: "", classIds: [] });
@@ -324,6 +324,23 @@ const AcademicSetup = ({ setShowAdminHeader }) => {
     if (!classTeacherForm.classId) return [];
     return visibleSections.filter((s) => String(s.classId) === String(classTeacherForm.classId));
   }, [visibleSections, classTeacherForm.classId]);
+
+  const classRangeFromRaw = String(classRangeForm.from ?? "").trim();
+  const classRangeToRaw = String(classRangeForm.to ?? "").trim();
+  const classRangeFromNumber = Number(classRangeFromRaw);
+  const classRangeToNumber = Number(classRangeToRaw);
+  const hasValidClassRange = Boolean(
+    classRangeFromRaw &&
+    classRangeToRaw &&
+    Number.isFinite(classRangeFromNumber) &&
+    Number.isFinite(classRangeToNumber) &&
+    classRangeFromNumber >= 1 &&
+    classRangeToNumber >= 1 &&
+    classRangeToNumber >= classRangeFromNumber
+  );
+  const classRangeCount = hasValidClassRange
+    ? classRangeToNumber - classRangeFromNumber + 1
+    : 0;
 
   const handleSaveClassTeacher = async (e) => {
     e.preventDefault();
@@ -549,9 +566,18 @@ const AcademicSetup = ({ setShowAdminHeader }) => {
   const submitClassRange = async (e) => {
     e.preventDefault();
     const { from, to, academicYearId, prefix } = classRangeForm;
+    const fromValue = String(from ?? "").trim();
+    const toValue = String(to ?? "").trim();
+    if (!fromValue || !toValue) {
+      setError("From and To are required.");
+      return;
+    }
     const f = Math.min(Number(from), Number(to));
     const t = Math.max(Number(from), Number(to));
-    if (isNaN(f) || isNaN(t)) return;
+    if (isNaN(f) || isNaN(t) || f < 1 || t < 1) {
+      setError("From and To must be valid numbers starting from 1.");
+      return;
+    }
     const names = Array.from({ length: t - f + 1 }, (_, i) => `${prefix ? prefix + " " : ""}${f + i}`);
     setIsSubmitting(true);
     setError("");
@@ -1158,13 +1184,15 @@ const AcademicSetup = ({ setShowAdminHeader }) => {
             <h1 className="text-2xl font-bold text-gray-900">Academic Setup</h1>
             <p className="mt-1 text-sm text-gray-500">Manage academic years, classes, sections and subjects.</p>
           </div>
-          <button
-            onClick={() => setShowAddForm((v) => !v)}
-            className="flex items-center gap-2 rounded-xl bg-amber-500 px-5 py-2.5 text-sm font-medium text-white shadow-sm transition hover:bg-amber-600"
-          >
-            <Plus className="h-4 w-4" />
-            {showAddForm ? "Hide Form" : "Add New"}
-          </button>
+          {activeTab !== "class-teachers" && (
+            <button
+              onClick={() => setShowAddForm((v) => !v)}
+              className="flex items-center gap-2 rounded-xl bg-amber-500 px-5 py-2.5 text-sm font-medium text-white shadow-sm transition hover:bg-amber-600"
+            >
+              <Plus className="h-4 w-4" />
+              {showAddForm ? "Hide Form" : "Add New"}
+            </button>
+          )}
         </div>
 
         {/* ─── Stat Cards ─── */}
@@ -1367,38 +1395,38 @@ const AcademicSetup = ({ setShowAdminHeader }) => {
                       <div>
                         <label className="mb-1 block text-xs font-medium text-gray-600">From</label>
                         <input type="number" min={1} value={classRangeForm.from}
-                          onChange={(e) => setClassRangeForm((p) => ({ ...p, from: Number(e.target.value) }))}
+                          onChange={(e) => setClassRangeForm((p) => ({ ...p, from: e.target.value }))}
                           className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-amber-400 focus:outline-none focus:ring-2 focus:ring-amber-100"
                           required />
                       </div>
                       <div>
                         <label className="mb-1 block text-xs font-medium text-gray-600">To</label>
                         <input type="number" min={1} value={classRangeForm.to}
-                          onChange={(e) => setClassRangeForm((p) => ({ ...p, to: Number(e.target.value) }))}
+                          onChange={(e) => setClassRangeForm((p) => ({ ...p, to: e.target.value }))}
                           className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-amber-400 focus:outline-none focus:ring-2 focus:ring-amber-100"
                           required />
                       </div>
                     </div>
                     {/* Live preview */}
-                    {classRangeForm.from && classRangeForm.to && classRangeForm.to >= classRangeForm.from && (
+                    {hasValidClassRange && (
                       <div>
-                        <p className="text-xs font-medium text-gray-500 mb-2">Preview — {classRangeForm.to - classRangeForm.from + 1} classes:</p>
+                        <p className="text-xs font-medium text-gray-500 mb-2">Preview — {classRangeCount} classes:</p>
                         <div className="flex flex-wrap gap-1.5">
-                          {Array.from({ length: Math.min(classRangeForm.to - classRangeForm.from + 1, 30) }, (_, i) => (
+                          {Array.from({ length: Math.min(classRangeCount, 30) }, (_, i) => (
                             <span key={i} className="inline-flex items-center px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 text-xs font-medium border border-amber-200">
-                              {classRangeForm.prefix ? `${classRangeForm.prefix} ` : ""}{classRangeForm.from + i}
+                              {classRangeForm.prefix ? `${classRangeForm.prefix} ` : ""}{classRangeFromNumber + i}
                             </span>
                           ))}
-                          {classRangeForm.to - classRangeForm.from + 1 > 30 && (
+                          {classRangeCount > 30 && (
                             <span className="text-xs text-gray-400 self-center">…and more</span>
                           )}
                         </div>
                       </div>
                     )}
-                    <button type="submit" disabled={isSubmitting || !classRangeForm.from || !classRangeForm.to || classRangeForm.to < classRangeForm.from}
+                    <button type="submit" disabled={isSubmitting || !hasValidClassRange}
                       className="flex items-center gap-2 rounded-lg bg-amber-500 px-5 py-2 text-sm font-medium text-white hover:bg-amber-600 disabled:opacity-50">
                       <Plus className="h-4 w-4" />
-                      {isSubmitting ? "Creating…" : `Create ${Math.max(0, classRangeForm.to - classRangeForm.from + 1)} Classes`}
+                      {isSubmitting ? "Creating…" : `Create ${classRangeCount} Classes`}
                     </button>
                   </form>
                 ) : (

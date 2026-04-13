@@ -2,12 +2,12 @@ import { useMemo, useState, useEffect } from 'react';
 import {
   AlertTriangle, Calendar, Building2, Check, RefreshCw, Search,
   ChevronLeft, ChevronRight, Hash, Flame, ShieldAlert, Minus,
-  ClipboardList, CheckCircle2, Loader2
+  ClipboardList, CheckCircle2, Loader2, Circle
 } from 'lucide-react';
 
 const STATUS_META = {
   open: { label: 'Open', bar: 'bg-rose-500', badge: 'bg-rose-50 text-rose-700 border-rose-200' },
-  investigating: { label: 'Investigating', bar: 'bg-amber-400', badge: 'bg-amber-50 text-amber-700 border-amber-200' },
+  investigating: { label: 'In Progress', bar: 'bg-amber-400', badge: 'bg-amber-50 text-amber-700 border-amber-200' },
   resolved: { label: 'Resolved', bar: 'bg-emerald-500', badge: 'bg-emerald-50 text-emerald-700 border-emerald-200' }
 };
 
@@ -69,13 +69,16 @@ function Pagination({ current, total, onChange }) {
 }
 
 /* ─── Issue Card ─── */
-function IssueCard({ issue, onToggleResolve }) {
+function IssueCard({ issue, onToggleInProgress, onToggleResolved }) {
   const severity = String(issue?.severity || 'medium').toLowerCase();
   const status = String(issue?.status || 'open').toLowerCase();
   const severityMeta = SEVERITY_META[severity] || SEVERITY_META.medium;
   const statusMeta = STATUS_META[status] || STATUS_META.open;
   const SeverityIcon = severityMeta.icon;
   const isResolved = status === 'resolved';
+  const isInProgress = status === 'investigating';
+  const progressChecked = isInProgress || isResolved;
+  const canToggleResolved = isInProgress || isResolved;
 
   return (
     <div className={`relative bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden transition-all hover:shadow-md ${isResolved ? 'opacity-70' : ''}`}>
@@ -83,19 +86,6 @@ function IssueCard({ issue, onToggleResolve }) {
       <div className={`absolute left-0 top-0 bottom-0 w-1 ${statusMeta.bar}`} />
 
       <div className="pl-5 pr-5 py-4 flex items-start gap-4">
-        {/* Checkbox */}
-        <button
-          onClick={() => onToggleResolve(issue)}
-          title={isResolved ? 'Mark as open' : 'Mark as resolved'}
-          className={`mt-0.5 shrink-0 flex h-6 w-6 items-center justify-center rounded-full border-2 transition-colors ${
-            isResolved
-              ? 'bg-emerald-500 border-emerald-500 text-white'
-              : 'bg-white border-slate-300 hover:border-emerald-400'
-          }`}
-        >
-          {isResolved && <Check size={13} strokeWidth={3} />}
-        </button>
-
         {/* Content */}
         <div className="min-w-0 flex-1">
           {/* Title row */}
@@ -153,6 +143,33 @@ function IssueCard({ issue, onToggleResolve }) {
               </span>
             )}
           </div>
+
+          <div className="mt-3.5 flex flex-wrap items-center gap-2">
+            <button
+              onClick={() => onToggleInProgress(issue)}
+              title={progressChecked ? 'Mark as open' : 'Mark as in progress'}
+              className="inline-flex items-center gap-2 rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-colors"
+            >
+              <span className={`flex h-4 w-4 items-center justify-center rounded-sm border ${progressChecked ? 'border-amber-500 bg-amber-500 text-white' : 'border-slate-300 bg-white text-transparent'}`}>
+                <Check size={11} strokeWidth={3} />
+              </span>
+              In Progress
+            </button>
+
+            <button
+              onClick={() => onToggleResolved(issue)}
+              disabled={!canToggleResolved}
+              title={!canToggleResolved ? 'Mark as In Progress first' : (isResolved ? 'Reopen to in progress' : 'Mark as resolved')}
+              className={`inline-flex items-center gap-2 rounded-lg border px-2.5 py-1.5 text-xs font-semibold transition-colors ${
+                isResolved
+                  ? 'border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
+                  : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
+              } ${!canToggleResolved ? 'cursor-not-allowed opacity-45 hover:bg-white' : ''}`}
+            >
+              {isResolved ? <CheckCircle2 size={14} /> : <Circle size={14} />}
+              Resolved
+            </button>
+          </div>
         </div>
       </div>
     </div>
@@ -195,15 +212,23 @@ const Issues = ({ issues = [], onIssueUpdate, loading = false, error = null, onR
 
   useEffect(() => { setCurrentPage(1); }, [filter, searchTerm]);
 
-  const handleToggleResolve = (issue) => {
-    const isResolved = issue.status === 'resolved';
-    onIssueUpdate(issue.id, { status: isResolved ? 'open' : 'resolved' }, issue);
+  const handleToggleInProgress = (issue) => {
+    const status = String(issue?.status || 'open').toLowerCase();
+    const nextStatus = status === 'open' ? 'investigating' : 'open';
+    onIssueUpdate(issue.id, { status: nextStatus }, issue);
+  };
+
+  const handleToggleResolved = (issue) => {
+    const status = String(issue?.status || 'open').toLowerCase();
+    if (status === 'open') return;
+    const nextStatus = status === 'resolved' ? 'investigating' : 'resolved';
+    onIssueUpdate(issue.id, { status: nextStatus }, issue);
   };
 
   const FILTER_TABS = [
     { key: 'all', label: 'All' },
     { key: 'open', label: 'Open' },
-    { key: 'investigating', label: 'Investigating' },
+    { key: 'investigating', label: 'In Progress' },
     { key: 'resolved', label: 'Resolved' }
   ];
 
@@ -301,7 +326,12 @@ const Issues = ({ issues = [], onIssueUpdate, loading = false, error = null, onR
         )}
 
         {paginatedIssues.map((issue) => (
-          <IssueCard key={issue.id} issue={issue} onToggleResolve={handleToggleResolve} />
+          <IssueCard
+            key={issue.id}
+            issue={issue}
+            onToggleInProgress={handleToggleInProgress}
+            onToggleResolved={handleToggleResolved}
+          />
         ))}
 
         {/* Pagination bar */}

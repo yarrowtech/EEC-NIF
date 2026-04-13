@@ -451,6 +451,26 @@ router.patch('/requests/:id', adminAuth, ensureSuperAdmin, async (req, res) => {
 
     await request.save();
 
+    // Notify school admin when status moves to in-progress.
+    if (request.status === 'in_progress' && previousStatus !== 'in_progress' && request.schoolId) {
+      try {
+        const title = request.subject || request.supportType || 'Support Request';
+        await Notification.create({
+          schoolId: request.schoolId,
+          title: 'Support Request In Progress',
+          message: `Your support request "${title}" is now in progress with the support team.`,
+          audience: 'Admin',
+          type: 'general',
+          priority: 'medium',
+          category: 'general',
+          createdByType: 'super_admin',
+          createdByName: actorName,
+        });
+      } catch (notifErr) {
+        console.warn('Failed to create in-progress notification for support request', request._id, notifErr.message);
+      }
+    }
+
     // Notify the school admin when their support request is resolved (only on first resolution)
     if (request.status === 'resolved' && previousStatus !== 'resolved' && request.schoolId) {
       try {

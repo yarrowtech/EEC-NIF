@@ -178,6 +178,25 @@ router.patch('/:id', adminAuth, ensureSuperAdmin, async (req, res) => {
 
     await issue.save();
 
+    // Notify school admin when issue moves to in-progress.
+    if (status === 'investigating' && previousStatus !== 'investigating' && issue.schoolId) {
+      try {
+        await Notification.create({
+          schoolId: issue.schoolId,
+          title: 'Issue In Progress',
+          message: `Your reported issue "${issue.title}" is now in progress with the support team.`,
+          audience: 'Admin',
+          type: 'general',
+          priority: 'medium',
+          category: 'general',
+          createdByType: 'super_admin',
+          createdByName: issue.resolvedByName || 'Super Admin',
+        });
+      } catch (notifErr) {
+        console.warn('Failed to create in-progress notification for issue', issue._id, notifErr.message);
+      }
+    }
+
     // Notify the school admin when their issue is resolved (only on first resolution)
     if (status === 'resolved' && previousStatus !== 'resolved' && issue.schoolId) {
       try {

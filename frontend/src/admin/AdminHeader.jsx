@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Bell,
   Search,
@@ -28,7 +28,6 @@ const AdminHeader = ({ adminUser, onOpenMobileSidebar, onLogoutRequest }) => {
   const [notifications, setNotifications]           = useState([]);
   const [notifLoading, setNotifLoading]             = useState(false);
   const [notifError, setNotifError]                 = useState('');
-  const [readIds, setReadIds]                       = useState([]);
   const [now, setNow]                               = useState(new Date());
   const desktopSearchRef = useRef(null);
   const mobileSearchRef = useRef(null);
@@ -46,26 +45,6 @@ const AdminHeader = ({ adminUser, onOpenMobileSidebar, onLogoutRequest }) => {
     const t = setInterval(() => setNow(new Date()), 1000);
     return () => clearInterval(t);
   }, []);
-
-  /* Read-IDs persistence */
-  const readKey = useMemo(() => {
-    const r = String(adminUser?.role || 'admin').toLowerCase().replace(/\s+/g, '_');
-    const u = String(adminUser?.id || adminUser?.email || 'user').toLowerCase().replace(/\s+/g, '_');
-    return `admin_read_notifications_v1_${r}_${u}`;
-  }, [adminUser?.role, adminUser?.id, adminUser?.email]);
-
-  useEffect(() => {
-    try {
-      const stored = JSON.parse(localStorage.getItem(readKey) || '[]');
-      setReadIds(Array.isArray(stored) ? stored : []);
-    } catch { setReadIds([]); }
-  }, [readKey]);
-
-  const persistReadIds = (ids) => {
-    const deduped = Array.from(new Set(ids.filter(Boolean)));
-    setReadIds(deduped);
-    localStorage.setItem(readKey, JSON.stringify(deduped));
-  };
 
   /* Fetch notifications — idle-aware: pause polling when tab is hidden */
   useEffect(() => {
@@ -114,12 +93,50 @@ const AdminHeader = ({ adminUser, onOpenMobileSidebar, onLogoutRequest }) => {
   }, [isSuperAdmin, navigate]);
 
   const unreadCount = useMemo(
-    () => notifications.filter((n) => !readIds.includes(String(n?._id || n?.id || ''))).length,
-    [notifications, readIds]
+    () => notifications.filter((n) => !Boolean(n?.isRead)).length,
+    [notifications]
   );
 
-  const markRead = (id) => { if (id) persistReadIds([...readIds, String(id)]); };
-  const markAllRead = () => persistReadIds(notifications.map((n) => String(n?._id || n?.id || '')));
+  const markRead = useCallback(async (id) => {
+    if (!id) return;
+    const token = localStorage.getItem('token');
+    if (!token) return;
+
+    // Optimistic UI update first, then sync with server.
+    setNotifications((prev) =>
+      prev.map((n) => (String(n?._id || n?.id || '') === String(id) ? { ...n, isRead: true } : n))
+    );
+
+    try {
+      const res = await apiFetch(`${API_BASE}/api/notifications/user/${id}/read`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', authorization: `Bearer ${token}` },
+      }, navigate);
+      if (!res.ok) throw new Error('Failed to mark notification as read');
+    } catch (err) {
+      // Revert optimistic change on failure.
+      setNotifications((prev) =>
+        prev.map((n) => (String(n?._id || n?.id || '') === String(id) ? { ...n, isRead: false } : n))
+      );
+      setNotifError(err.message || 'Failed to mark notification as read');
+    }
+  }, [navigate]);
+
+  const markAllRead = useCallback(async () => {
+    const token = localStorage.getItem('token');
+    if (!token) return;
+
+    setNotifications((prev) => prev.map((n) => ({ ...n, isRead: true })));
+    try {
+      const res = await apiFetch(`${API_BASE}/api/notifications/user/read-all`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', authorization: `Bearer ${token}` },
+      }, navigate);
+      if (!res.ok) throw new Error('Failed to mark all notifications as read');
+    } catch (err) {
+      setNotifError(err.message || 'Failed to mark all as read');
+    }
+  }, [navigate]);
 
   const resolveNotifPath = (n) => {
     const title = String(n?.title || '').toLowerCase();
@@ -128,6 +145,8 @@ const AdminHeader = ({ adminUser, onOpenMobileSidebar, onLogoutRequest }) => {
     // Support / issue resolution notifications → support page
     if (
       (String(n?.createdByType || '').toLowerCase() === 'super_admin' && String(n?.audience || '').toLowerCase() === 'admin') ||
+      title.includes('issue in progress') ||
+      title.includes('support request in progress') ||
       title.includes('issue resolved') ||
       title.includes('support request resolved')
     ) return '/admin/support#recent-requests';
@@ -471,7 +490,7 @@ const AdminHeader = ({ adminUser, onOpenMobileSidebar, onLogoutRequest }) => {
                   )}
                   {!notifLoading && !notifError && notifications.map((n) => {
                     const id = String(n?._id || n?.id || '');
-                    const isRead = readIds.includes(id);
+                    const isRead = Boolean(n?.isRead);
                     return (
                       <button
                         key={id || n?.title}

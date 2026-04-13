@@ -35,6 +35,12 @@ const PASSWORD_RESET_ROLES = [
 
 const defaultFeedback = { subject: '', category: 'general', sentiment: 'positive', message: '' };
 const defaultComplaint = { topic: 'system-issue', incidentDate: '', studentOrStaff: '', description: '', impactLevel: 'low' };
+const SUPPORT_STATUS_LABELS = {
+  open: 'Open',
+  in_progress: 'In Progress',
+  investigating: 'In Progress',
+  resolved: 'Resolved'
+};
 
 const Support = ({ setShowAdminHeader }) => {
   const location = useLocation();
@@ -240,6 +246,7 @@ const Support = ({ setShowAdminHeader }) => {
   const getStatusBadge = (status) => ({
     resolved: 'bg-emerald-100 text-emerald-700 border-emerald-200',
     in_progress: 'bg-blue-100 text-blue-700 border-blue-200',
+    investigating: 'bg-blue-100 text-blue-700 border-blue-200',
     open: 'bg-amber-100 text-amber-700 border-amber-200',
   }[status] || 'bg-gray-100 text-gray-500 border-gray-200');
 
@@ -555,9 +562,9 @@ const Support = ({ setShowAdminHeader }) => {
                   onChange={handleInput(setComplaintForm)} className={fieldBase} />
               </div>
               <div>
-                <label className={fieldLabel}>Person Involved</label>
+                <label className={fieldLabel}>Title</label>
                 <input name="studentOrStaff" value={complaintForm.studentOrStaff}
-                  onChange={handleInput(setComplaintForm)} className={fieldBase} placeholder="e.g. Grade 8 – B" />
+                  onChange={handleInput(setComplaintForm)} className={fieldBase} placeholder="Enter title" />
               </div>
             </div>
 
@@ -656,7 +663,7 @@ const Support = ({ setShowAdminHeader }) => {
                   </div>
                   <div className="flex items-center gap-2 shrink-0 ml-11 sm:ml-0">
                     <span className={`text-xs px-2.5 py-1 rounded-full font-bold capitalize border ${getStatusBadge(req.status)}`}>
-                      {req.status?.replace('_', ' ') || 'open'}
+                      {SUPPORT_STATUS_LABELS[req.status] || req.status?.replace('_', ' ') || 'Open'}
                     </span>
                     {req.priority && (
                       <span className="text-xs px-2.5 py-1 rounded-full bg-gray-100 text-gray-500 capitalize border border-gray-200">
