@@ -478,7 +478,14 @@ const AdminHeader = ({ adminUser, onOpenMobileSidebar, onLogoutRequest }) => {
                           <div className={!isRead ? '' : 'ml-3.5'}>
                             <p className="text-sm font-medium text-gray-800 line-clamp-1">{n?.title || 'Notification'}</p>
                             {n?.message && <p className="text-xs text-gray-500 mt-0.5 line-clamp-2">{n.message}</p>}
-                            <p className="text-[11px] text-gray-400 mt-1">{timeAgo(n?.createdAt)}</p>
+                            <p className="text-[11px] text-gray-400 mt-1 flex items-center">
+                              {(n?.schoolName || n?.senderName || n?.createdByName) && (
+                                <span className="font-semibold text-gray-500 mr-1.5 truncate max-w-[120px]">
+                                  {n.schoolName || n.senderName || n.createdByName} •
+                                </span>
+                              )}
+                              <span>{timeAgo(n?.createdAt)}</span>
+                            </p>
                           </div>
                         </div>
                       </button>
