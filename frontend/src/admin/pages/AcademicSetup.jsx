@@ -157,6 +157,7 @@ const AcademicSetup = ({ setShowAdminHeader }) => {
 
   // Show/hide add form
   const [showAddForm, setShowAddForm] = useState(false);
+  const [activeClassId, setActiveClassId] = useState("all");
 
   const authHeaders = useMemo(() => {
     const token = localStorage.getItem("token");
@@ -233,6 +234,25 @@ const AcademicSetup = ({ setShowAdminHeader }) => {
     [visibleClasses]
   );
 
+  const sectionsByClass = useMemo(() => {
+    const map = {};
+    classes.forEach((c) => { map[String(c._id)] = 0; });
+    sections.forEach((s) => {
+      const cId = String(s.classId || "");
+      if (cId && map[cId] !== undefined) {
+        map[cId]++;
+      }
+    });
+    return map;
+  }, [sections, classes]);
+
+  const classTabs = useMemo(() => {
+    return [
+      { id: "all", name: "All Classes" },
+      ...visibleClasses.map((c) => ({ id: String(c._id), name: c.name })),
+    ];
+  }, [visibleClasses]);
+
   /* ─── Filtered data ─── */
   const filteredYears = useMemo(() => {
     let sourceYears = activeYears;
@@ -259,13 +279,17 @@ const AcademicSetup = ({ setShowAdminHeader }) => {
   }, [visibleClasses, searchClass]);
 
   const filteredSections = useMemo(() => {
-    if (!searchSection.trim()) return visibleSections;
+    let list = visibleSections;
+    if (activeClassId !== "all") {
+      list = list.filter((s) => String(s.classId) === activeClassId);
+    }
+    if (!searchSection.trim()) return list;
     const q = searchSection.toLowerCase();
-    return visibleSections.filter((s) => {
+    return list.filter((s) => {
       const className = classNameById[String(s.classId || "")] || "";
       return s.name.toLowerCase().includes(q) || className.toLowerCase().includes(q);
     });
-  }, [visibleSections, searchSection, classNameById]);
+  }, [visibleSections, searchSection, classNameById, activeClassId]);
 
   const filteredSubjects = useMemo(() => {
     if (!searchSubject.trim()) return visibleSubjects;
@@ -1553,6 +1577,33 @@ const AcademicSetup = ({ setShowAdminHeader }) => {
               </form>
             )}
 
+            <div className="flex gap-1 overflow-x-auto rounded-xl bg-gray-100 p-1">
+              {classTabs.map((tab) => (
+                <button
+                  key={tab.id}
+                  onClick={() => setActiveClassId(tab.id)}
+                  className={`whitespace-nowrap rounded-lg px-4 py-2 text-sm font-medium transition ${
+                    activeClassId === tab.id
+                      ? "bg-white text-gray-900 shadow-sm"
+                      : "text-gray-500 hover:text-gray-700"
+                  }`}
+                >
+                  {tab.name}
+                  {tab.id !== "all" && (
+                    <span
+                      className={`ml-2 rounded-full px-2 py-0.5 text-xs font-semibold ${
+                        activeClassId === tab.id
+                          ? "bg-amber-100 text-amber-700"
+                          : "bg-gray-200 text-gray-500"
+                      }`}
+                    >
+                      {sectionsByClass[tab.id] || 0}
+                    </span>
+                  )}
+                </button>
+              ))}
+            </div>
+
             <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
               <div className="flex items-center justify-between border-b border-gray-100 px-5 py-3">
                 <h3 className="text-sm font-semibold text-gray-700">Sections</h3>
@@ -1945,7 +1996,7 @@ const AcademicSetup = ({ setShowAdminHeader }) => {
           <div className="space-y-4">
             <div>
               <label className="mb-1 block text-xs font-medium text-gray-600">Class Name</label>
-              <input type="number" value={editingClass?.name || ""} onChange={(e) => setEditingClass((p) => ({ ...p, name: e.target.value }))}
+              <input type="text" value={editingClass?.name || ""} onChange={(e) => setEditingClass((p) => ({ ...p, name: e.target.value }))}
                 className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-amber-400 focus:outline-none focus:ring-2 focus:ring-amber-100" required />
             </div>
             <div>
@@ -1958,7 +2009,7 @@ const AcademicSetup = ({ setShowAdminHeader }) => {
             </div>
             <div>
               <label className="mb-1 block text-xs font-medium text-gray-600">Display Order</label>
-              <input type="number" value={editingClass?.order ?? ""} onChange={(e) => setEditingClass((p) => ({ ...p, order: e.target.value }))}
+              <input type="number" min="0" value={editingClass?.order ?? ""} onChange={(e) => setEditingClass((p) => ({ ...p, order: e.target.value }))}
                 className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-amber-400 focus:outline-none focus:ring-2 focus:ring-amber-100" placeholder="0" />
             </div>
           </div>
