@@ -105,10 +105,17 @@ const AcademicSetup = ({ setShowAdminHeader }) => {
 
   // Forms
   const [yearForm, setYearForm] = useState({ name: "", startDate: "", endDate: "", isActive: false });
-  const [classForm, setClassForm] = useState({ name: "", academicYearId: "", order: "" });
-  const [sectionForm, setSectionForm] = useState({ name: "", classId: "" });
-  const [subjectForm, setSubjectForm] = useState({ name: "", code: "", classId: "" });
   const [classTeacherForm, setClassTeacherForm] = useState({ teacherId: "", yearId: "", classId: "", sectionId: "" });
+
+  // Bulk add forms
+  const [classAddMode, setClassAddMode] = useState("range"); // "range" | "custom"
+  const [classRangeForm, setClassRangeForm] = useState({ from: 1, to: 10, academicYearId: "", prefix: "" });
+  const [classCustomInput, setClassCustomInput] = useState("");
+  const [classCustomYear, setClassCustomYear] = useState("");
+  const [sectionBulkForm, setSectionBulkForm] = useState({ selected: [], custom: "", classId: "" });
+  const [subjectTags, setSubjectTags] = useState([]);
+  const [subjectTagInput, setSubjectTagInput] = useState("");
+  const [subjectTagClassId, setSubjectTagClassId] = useState("");
 
   // Edit states
   const [editingYear, setEditingYear] = useState(null);
@@ -513,35 +520,108 @@ const AcademicSetup = ({ setShowAdminHeader }) => {
     });
   };
 
-  const submitClass = async (e) => {
-    e.preventDefault();
-    await handleCreate("/api/academic/classes", classForm, async () => {
-      await loadAcademicData();
-      setClassForm({ name: "", academicYearId: "", order: "" });
-      setShowAddForm(false);
-    });
-  };
 
-  const submitSection = async (e) => {
+  /* ─── Bulk submit: classes by range ─── */
+  const submitClassRange = async (e) => {
     e.preventDefault();
-    if (!sectionForm.classId) {
-      setError("Select a class before creating a section.");
-      return;
+    const { from, to, academicYearId, prefix } = classRangeForm;
+    const f = Math.min(Number(from), Number(to));
+    const t = Math.max(Number(from), Number(to));
+    if (isNaN(f) || isNaN(t)) return;
+    const names = Array.from({ length: t - f + 1 }, (_, i) => `${prefix ? prefix + " " : ""}${f + i}`);
+    setIsSubmitting(true);
+    setError("");
+    let created = 0, failed = 0;
+    for (let i = 0; i < names.length; i++) {
+      try {
+        const res = await fetch(`${API_BASE}/api/academic/classes`, {
+          method: "POST", headers: authHeaders,
+          body: JSON.stringify({ name: names[i], academicYearId: academicYearId || undefined, order: f + i }),
+        });
+        if (res.ok) created++; else failed++;
+      } catch { failed++; }
     }
-    await handleCreate("/api/academic/sections", sectionForm, async () => {
-      await loadAcademicData();
-      setSectionForm({ name: "", classId: "" });
-      setShowAddForm(false);
-    });
+    await loadAcademicData();
+    setIsSubmitting(false);
+    setShowAddForm(false);
+    toast.success(`${created} class${created !== 1 ? "es" : ""} created${failed ? `, ${failed} failed` : ""}.`);
   };
 
-  const submitSubject = async (e) => {
+  /* ─── Bulk submit: classes by custom list ─── */
+  const submitClassCustom = async (e) => {
     e.preventDefault();
-    await handleCreate("/api/academic/subjects", subjectForm, async () => {
-      await loadAcademicData();
-      setSubjectForm({ name: "", code: "", classId: "" });
-      setShowAddForm(false);
-    });
+    const names = classCustomInput.split(",").map((s) => s.trim()).filter(Boolean);
+    if (!names.length) { setError("Enter at least one class name."); return; }
+    setIsSubmitting(true);
+    setError("");
+    let created = 0, failed = 0;
+    for (let i = 0; i < names.length; i++) {
+      try {
+        const res = await fetch(`${API_BASE}/api/academic/classes`, {
+          method: "POST", headers: authHeaders,
+          body: JSON.stringify({ name: names[i], academicYearId: classCustomYear || undefined, order: i }),
+        });
+        if (res.ok) created++; else failed++;
+      } catch { failed++; }
+    }
+    await loadAcademicData();
+    setIsSubmitting(false);
+    setClassCustomInput("");
+    setShowAddForm(false);
+    toast.success(`${created} class${created !== 1 ? "es" : ""} created${failed ? `, ${failed} failed` : ""}.`);
+  };
+
+  /* ─── Bulk submit: sections ─── */
+  const submitSectionsBulk = async (e) => {
+    e.preventDefault();
+    const { selected, custom, classId } = sectionBulkForm;
+    if (!classId) { setError("Select a class."); return; }
+    const extra = custom.split(",").map((s) => s.trim()).filter(Boolean);
+    const allNames = [...new Set([...selected, ...extra])];
+    if (!allNames.length) { setError("Add at least one section."); return; }
+    setIsSubmitting(true);
+    setError("");
+    let created = 0, failed = 0;
+    for (const name of allNames) {
+      try {
+        const res = await fetch(`${API_BASE}/api/academic/sections`, {
+          method: "POST", headers: authHeaders,
+          body: JSON.stringify({ name, classId }),
+        });
+        if (res.ok) created++; else failed++;
+      } catch { failed++; }
+    }
+    await loadAcademicData();
+    setIsSubmitting(false);
+    setSectionBulkForm({ selected: [], custom: "", classId: "" });
+    setShowAddForm(false);
+    toast.success(`${created} section${created !== 1 ? "s" : ""} created${failed ? `, ${failed} failed` : ""}.`);
+  };
+
+  /* ─── Bulk submit: subjects ─── */
+  const submitSubjectsBulk = async (e) => {
+    e.preventDefault();
+    const extra = subjectTagInput.split(",").map((s) => s.trim()).filter(Boolean);
+    const allNames = [...new Set([...subjectTags, ...extra])];
+    if (!allNames.length) { setError("Add at least one subject."); return; }
+    setIsSubmitting(true);
+    setError("");
+    let created = 0, failed = 0;
+    for (const name of allNames) {
+      try {
+        const res = await fetch(`${API_BASE}/api/academic/subjects`, {
+          method: "POST", headers: authHeaders,
+          body: JSON.stringify({ name, classId: subjectTagClassId || undefined }),
+        });
+        if (res.ok) created++; else failed++;
+      } catch { failed++; }
+    }
+    await loadAcademicData();
+    setIsSubmitting(false);
+    setSubjectTags([]);
+    setSubjectTagInput("");
+    setShowAddForm(false);
+    toast.success(`${created} subject${created !== 1 ? "s" : ""} created${failed ? `, ${failed} failed` : ""}.`);
   };
 
   /* ─── Update handlers ─── */
@@ -1220,37 +1300,120 @@ const AcademicSetup = ({ setShowAdminHeader }) => {
         {activeTab === "classes" && (
           <div className="space-y-4">
             {showAddForm && (
-              <form onSubmit={submitClass} className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
-                <h3 className="mb-4 text-base font-semibold text-gray-800">Add Class</h3>
-                <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
-                  <div>
-                    <label className="mb-1 block text-xs font-medium text-gray-600">Class Name</label>
-                    <input type="number" value={classForm.name} onChange={(e) => setClassForm((p) => ({ ...p, name: e.target.value }))}
-                      className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-amber-400 focus:outline-none focus:ring-2 focus:ring-amber-100"
-                      placeholder="E.g. 10" required />
-                  </div>
-                  <div>
-                    <label className="mb-1 block text-xs font-medium text-gray-600">Academic Year</label>
-                    <select value={classForm.academicYearId} onChange={(e) => setClassForm((p) => ({ ...p, academicYearId: e.target.value }))}
-                      className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-amber-400 focus:outline-none focus:ring-2 focus:ring-amber-100">
-                      <option value="">Select Year</option>
-                      {activeYears.map((y) => <option key={y._id} value={y._id}>{y.name}</option>)}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="mb-1 block text-xs font-medium text-gray-600">Display Order</label>
-                    <input type="number" value={classForm.order} onChange={(e) => setClassForm((p) => ({ ...p, order: e.target.value }))}
-                      className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-amber-400 focus:outline-none focus:ring-2 focus:ring-amber-100"
-                      placeholder="0" />
-                  </div>
-                  <div className="flex items-end">
-                    <button type="submit" disabled={isSubmitting}
-                      className="flex items-center gap-2 rounded-lg bg-amber-500 px-4 py-2 text-sm font-medium text-white hover:bg-amber-600 disabled:opacity-50">
-                      <Plus className="h-4 w-4" /> Add Class
-                    </button>
+              <div className="rounded-xl border border-amber-200 bg-white shadow-sm overflow-hidden">
+                {/* Mode switcher */}
+                <div className="flex items-center justify-between border-b border-gray-100 px-5 py-3 bg-amber-50/40">
+                  <h3 className="text-sm font-semibold text-gray-800">Add Classes</h3>
+                  <div className="flex rounded-lg border border-gray-200 overflow-hidden text-xs font-medium">
+                    {["range", "custom"].map((mode) => (
+                      <button key={mode} type="button" onClick={() => setClassAddMode(mode)}
+                        className={`px-3 py-1.5 capitalize transition ${classAddMode === mode ? "bg-amber-500 text-white" : "text-gray-500 hover:bg-gray-50"} ${mode === "custom" ? "border-l border-gray-200" : ""}`}>
+                        {mode === "range" ? "Range (1–10)" : "Custom list"}
+                      </button>
+                    ))}
                   </div>
                 </div>
-              </form>
+
+                {classAddMode === "range" ? (
+                  <form onSubmit={submitClassRange} className="p-5 space-y-4">
+                    <p className="text-xs text-gray-500">Create multiple numbered classes at once — e.g. Class 1 through Class 10.</p>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                      <div>
+                        <label className="mb-1 block text-xs font-medium text-gray-600">Academic Year</label>
+                        <select value={classRangeForm.academicYearId}
+                          onChange={(e) => setClassRangeForm((p) => ({ ...p, academicYearId: e.target.value }))}
+                          className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-amber-400 focus:outline-none focus:ring-2 focus:ring-amber-100">
+                          <option value="">Select year</option>
+                          {activeYears.map((y) => <option key={y._id} value={y._id}>{y.name}</option>)}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="mb-1 block text-xs font-medium text-gray-600">Prefix <span className="text-gray-400">(optional)</span></label>
+                        <input type="text" value={classRangeForm.prefix}
+                          onChange={(e) => setClassRangeForm((p) => ({ ...p, prefix: e.target.value }))}
+                          className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-amber-400 focus:outline-none focus:ring-2 focus:ring-amber-100"
+                          placeholder='e.g. "Class"' />
+                      </div>
+                      <div>
+                        <label className="mb-1 block text-xs font-medium text-gray-600">From</label>
+                        <input type="number" min={1} value={classRangeForm.from}
+                          onChange={(e) => setClassRangeForm((p) => ({ ...p, from: Number(e.target.value) }))}
+                          className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-amber-400 focus:outline-none focus:ring-2 focus:ring-amber-100"
+                          required />
+                      </div>
+                      <div>
+                        <label className="mb-1 block text-xs font-medium text-gray-600">To</label>
+                        <input type="number" min={1} value={classRangeForm.to}
+                          onChange={(e) => setClassRangeForm((p) => ({ ...p, to: Number(e.target.value) }))}
+                          className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-amber-400 focus:outline-none focus:ring-2 focus:ring-amber-100"
+                          required />
+                      </div>
+                    </div>
+                    {/* Live preview */}
+                    {classRangeForm.from && classRangeForm.to && classRangeForm.to >= classRangeForm.from && (
+                      <div>
+                        <p className="text-xs font-medium text-gray-500 mb-2">Preview — {classRangeForm.to - classRangeForm.from + 1} classes:</p>
+                        <div className="flex flex-wrap gap-1.5">
+                          {Array.from({ length: Math.min(classRangeForm.to - classRangeForm.from + 1, 30) }, (_, i) => (
+                            <span key={i} className="inline-flex items-center px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 text-xs font-medium border border-amber-200">
+                              {classRangeForm.prefix ? `${classRangeForm.prefix} ` : ""}{classRangeForm.from + i}
+                            </span>
+                          ))}
+                          {classRangeForm.to - classRangeForm.from + 1 > 30 && (
+                            <span className="text-xs text-gray-400 self-center">…and more</span>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                    <button type="submit" disabled={isSubmitting || !classRangeForm.from || !classRangeForm.to || classRangeForm.to < classRangeForm.from}
+                      className="flex items-center gap-2 rounded-lg bg-amber-500 px-5 py-2 text-sm font-medium text-white hover:bg-amber-600 disabled:opacity-50">
+                      <Plus className="h-4 w-4" />
+                      {isSubmitting ? "Creating…" : `Create ${Math.max(0, classRangeForm.to - classRangeForm.from + 1)} Classes`}
+                    </button>
+                  </form>
+                ) : (
+                  <form onSubmit={submitClassCustom} className="p-5 space-y-4">
+                    <p className="text-xs text-gray-500">Type class names separated by commas — e.g. <span className="font-mono bg-gray-100 px-1 rounded">Nursery, LKG, UKG, 1, 2, 3</span></p>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      <div className="md:col-span-2">
+                        <label className="mb-1 block text-xs font-medium text-gray-600">Class names (comma-separated)</label>
+                        <input type="text" value={classCustomInput}
+                          onChange={(e) => setClassCustomInput(e.target.value)}
+                          className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-amber-400 focus:outline-none focus:ring-2 focus:ring-amber-100"
+                          placeholder="Nursery, LKG, UKG, 1, 2, 3, 4, 5" required />
+                      </div>
+                      <div>
+                        <label className="mb-1 block text-xs font-medium text-gray-600">Academic Year</label>
+                        <select value={classCustomYear} onChange={(e) => setClassCustomYear(e.target.value)}
+                          className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-amber-400 focus:outline-none focus:ring-2 focus:ring-amber-100">
+                          <option value="">Select year</option>
+                          {activeYears.map((y) => <option key={y._id} value={y._id}>{y.name}</option>)}
+                        </select>
+                      </div>
+                    </div>
+                    {/* Preview chips */}
+                    {classCustomInput.trim() && (
+                      <div>
+                        <p className="text-xs font-medium text-gray-500 mb-2">
+                          Preview — {classCustomInput.split(",").map((s) => s.trim()).filter(Boolean).length} classes:
+                        </p>
+                        <div className="flex flex-wrap gap-1.5">
+                          {classCustomInput.split(",").map((s) => s.trim()).filter(Boolean).map((name, i) => (
+                            <span key={i} className="inline-flex items-center px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 text-xs font-medium border border-amber-200">
+                              {name}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    <button type="submit" disabled={isSubmitting || !classCustomInput.trim()}
+                      className="flex items-center gap-2 rounded-lg bg-amber-500 px-5 py-2 text-sm font-medium text-white hover:bg-amber-600 disabled:opacity-50">
+                      <Plus className="h-4 w-4" />
+                      {isSubmitting ? "Creating…" : `Create ${classCustomInput.split(",").filter((s) => s.trim()).length || 0} Classes`}
+                    </button>
+                  </form>
+                )}
+              </div>
             )}
 
             <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
@@ -1311,29 +1474,81 @@ const AcademicSetup = ({ setShowAdminHeader }) => {
         {activeTab === "sections" && (
           <div className="space-y-4">
             {showAddForm && (
-              <form onSubmit={submitSection} className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
-                <h3 className="mb-4 text-base font-semibold text-gray-800">Add Section</h3>
-                <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-                  <div>
-                    <label className="mb-1 block text-xs font-medium text-gray-600">Section Name</label>
-                    <input type="text" value={sectionForm.name} onChange={(e) => setSectionForm((p) => ({ ...p, name: e.target.value }))}
-                      className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-amber-400 focus:outline-none focus:ring-2 focus:ring-amber-100"
-                      placeholder="A" required />
-                  </div>
-                  <div>
-                    <label className="mb-1 block text-xs font-medium text-gray-600">Class</label>
-                    <select value={sectionForm.classId} onChange={(e) => setSectionForm((p) => ({ ...p, classId: e.target.value }))}
+              <form onSubmit={submitSectionsBulk} className="rounded-xl border border-amber-200 bg-white shadow-sm overflow-hidden">
+                <div className="border-b border-gray-100 px-5 py-3 bg-amber-50/40">
+                  <h3 className="text-sm font-semibold text-gray-800">Add Sections</h3>
+                  <p className="text-xs text-gray-500 mt-0.5">Pick a class, tap quick letters and/or type custom names — all created in one click.</p>
+                </div>
+                <div className="p-5 space-y-5">
+                  {/* Class selector */}
+                  <div className="max-w-xs">
+                    <label className="mb-1 block text-xs font-medium text-gray-600">Class <span className="text-red-400">*</span></label>
+                    <select value={sectionBulkForm.classId}
+                      onChange={(e) => setSectionBulkForm((p) => ({ ...p, classId: e.target.value }))}
                       className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-amber-400 focus:outline-none focus:ring-2 focus:ring-amber-100" required>
                       <option value="">Select class</option>
                       {visibleClasses.map((c) => <option key={c._id} value={c._id}>{c.name}</option>)}
                     </select>
                   </div>
-                  <div className="flex items-end">
-                    <button type="submit" disabled={isSubmitting}
-                      className="flex items-center gap-2 rounded-lg bg-amber-500 px-4 py-2 text-sm font-medium text-white hover:bg-amber-600 disabled:opacity-50">
-                      <Plus className="h-4 w-4" /> Add Section
-                    </button>
+
+                  {/* Quick-select letter buttons */}
+                  <div>
+                    <label className="mb-2 block text-xs font-medium text-gray-600">Quick select sections</label>
+                    <div className="flex flex-wrap gap-2">
+                      {["A","B","C","D","E","F","G","H","I","J"].map((letter) => {
+                        const active = sectionBulkForm.selected.includes(letter);
+                        return (
+                          <button key={letter} type="button"
+                            onClick={() => setSectionBulkForm((p) => ({
+                              ...p,
+                              selected: active ? p.selected.filter((s) => s !== letter) : [...p.selected, letter],
+                            }))}
+                            className={`w-10 h-10 rounded-xl text-sm font-bold border-2 transition-all ${
+                              active
+                                ? "bg-amber-500 border-amber-500 text-white shadow-sm scale-105"
+                                : "border-gray-200 text-gray-500 hover:border-amber-300 hover:text-amber-600"
+                            }`}>
+                            {letter}
+                          </button>
+                        );
+                      })}
+                    </div>
                   </div>
+
+                  {/* Custom names */}
+                  <div>
+                    <label className="mb-1 block text-xs font-medium text-gray-600">
+                      Custom names <span className="text-gray-400">(comma-separated, optional)</span>
+                    </label>
+                    <input type="text" value={sectionBulkForm.custom}
+                      onChange={(e) => setSectionBulkForm((p) => ({ ...p, custom: e.target.value }))}
+                      className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-amber-400 focus:outline-none focus:ring-2 focus:ring-amber-100"
+                      placeholder="Science, Commerce, Arts" />
+                  </div>
+
+                  {/* Preview */}
+                  {(() => {
+                    const extra = sectionBulkForm.custom.split(",").map((s) => s.trim()).filter(Boolean);
+                    const all = [...new Set([...sectionBulkForm.selected, ...extra])];
+                    return all.length > 0 ? (
+                      <div>
+                        <p className="text-xs font-medium text-gray-500 mb-2">Preview — {all.length} section{all.length !== 1 ? "s" : ""}:</p>
+                        <div className="flex flex-wrap gap-1.5">
+                          {all.map((name) => (
+                            <span key={name} className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-amber-100 text-amber-700 text-xs font-medium border border-amber-200">
+                              {name}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    ) : null;
+                  })()}
+
+                  <button type="submit" disabled={isSubmitting}
+                    className="flex items-center gap-2 rounded-lg bg-amber-500 px-5 py-2 text-sm font-medium text-white hover:bg-amber-600 disabled:opacity-50">
+                    <Plus className="h-4 w-4" />
+                    {isSubmitting ? "Creating…" : "Create Sections"}
+                  </button>
                 </div>
               </form>
             )}
@@ -1394,35 +1609,86 @@ const AcademicSetup = ({ setShowAdminHeader }) => {
         {activeTab === "subjects" && (
           <div className="space-y-4">
             {showAddForm && (
-              <form onSubmit={submitSubject} className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
-                <h3 className="mb-4 text-base font-semibold text-gray-800">Add Subject</h3>
-                <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
-                  <div>
-                    <label className="mb-1 block text-xs font-medium text-gray-600">Subject Name</label>
-                    <input type="text" value={subjectForm.name} onChange={(e) => setSubjectForm((p) => ({ ...p, name: e.target.value }))}
-                      className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-amber-400 focus:outline-none focus:ring-2 focus:ring-amber-100"
-                      placeholder="Mathematics" required />
-                  </div>
-                  {/* <div>
-                    <label className="mb-1 block text-xs font-medium text-gray-600">Subject Code</label>
-                    <input type="text" value={subjectForm.code} onChange={(e) => setSubjectForm((p) => ({ ...p, code: e.target.value }))}
-                      className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-amber-400 focus:outline-none focus:ring-2 focus:ring-amber-100"
-                      placeholder="MATH101" />
-                  </div> */}
-                  <div>
-                    <label className="mb-1 block text-xs font-medium text-gray-600">Class</label>
-                    <select value={subjectForm.classId} onChange={(e) => setSubjectForm((p) => ({ ...p, classId: e.target.value }))}
+              <form onSubmit={submitSubjectsBulk} className="rounded-xl border border-amber-200 bg-white shadow-sm overflow-hidden">
+                <div className="border-b border-gray-100 px-5 py-3 bg-amber-50/40">
+                  <h3 className="text-sm font-semibold text-gray-800">Add Subjects</h3>
+                  <p className="text-xs text-gray-500 mt-0.5">Type a name and press <kbd className="px-1 py-0.5 rounded bg-gray-200 text-gray-600 text-[10px]">Enter</kbd> or <kbd className="px-1 py-0.5 rounded bg-gray-200 text-gray-600 text-[10px]">,</kbd> to add it — create many subjects in one go.</p>
+                </div>
+                <div className="p-5 space-y-4">
+                  {/* Class selector */}
+                  <div className="max-w-xs">
+                    <label className="mb-1 block text-xs font-medium text-gray-600">Class <span className="text-gray-400">(optional — applies to all subjects below)</span></label>
+                    <select value={subjectTagClassId} onChange={(e) => setSubjectTagClassId(e.target.value)}
                       className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-amber-400 focus:outline-none focus:ring-2 focus:ring-amber-100">
-                      <option value="">Select Class</option>
+                      <option value="">All classes / no class</option>
                       {visibleClasses.map((c) => <option key={c._id} value={c._id}>{c.name}</option>)}
                     </select>
                   </div>
-                  <div className="flex items-end">
-                    <button type="submit" disabled={isSubmitting}
-                      className="flex items-center gap-2 rounded-lg bg-amber-500 px-4 py-2 text-sm font-medium text-white hover:bg-amber-600 disabled:opacity-50">
-                      <Plus className="h-4 w-4" /> Add Subject
-                    </button>
+
+                  {/* Tag chip input */}
+                  <div>
+                    <label className="mb-1 block text-xs font-medium text-gray-600">Subject names</label>
+                    <div className={`flex flex-wrap gap-1.5 rounded-lg border px-3 py-2 min-h-11 focus-within:border-amber-400 focus-within:ring-2 focus-within:ring-amber-100 transition-all ${subjectTags.length > 0 ? "border-amber-300 bg-amber-50/30" : "border-gray-200"}`}>
+                      {subjectTags.map((tag) => (
+                        <span key={tag} className="inline-flex items-center gap-1 pl-2.5 pr-1.5 py-0.5 rounded-full bg-amber-100 text-amber-800 text-xs font-medium border border-amber-200">
+                          {tag}
+                          <button type="button" onClick={() => setSubjectTags((p) => p.filter((t) => t !== tag))}
+                            className="ml-0.5 rounded-full hover:bg-amber-300 w-3.5 h-3.5 flex items-center justify-center text-amber-700 font-bold">
+                            ×
+                          </button>
+                        </span>
+                      ))}
+                      <input
+                        type="text"
+                        value={subjectTagInput}
+                        onChange={(e) => setSubjectTagInput(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" || e.key === ",") {
+                            e.preventDefault();
+                            const names = subjectTagInput.split(",").map((s) => s.trim()).filter(Boolean);
+                            if (names.length) {
+                              setSubjectTags((p) => [...new Set([...p, ...names])]);
+                              setSubjectTagInput("");
+                            }
+                          } else if (e.key === "Backspace" && !subjectTagInput && subjectTags.length) {
+                            setSubjectTags((p) => p.slice(0, -1));
+                          }
+                        }}
+                        onBlur={() => {
+                          const names = subjectTagInput.split(",").map((s) => s.trim()).filter(Boolean);
+                          if (names.length) { setSubjectTags((p) => [...new Set([...p, ...names])]); setSubjectTagInput(""); }
+                        }}
+                        className="flex-1 min-w-40 bg-transparent text-sm outline-none placeholder:text-gray-400"
+                        placeholder={subjectTags.length === 0 ? "Mathematics, Science, English, Hindi…" : "Add more…"}
+                      />
+                    </div>
+                    <p className="mt-1 text-[11px] text-gray-400">{subjectTags.length} subject{subjectTags.length !== 1 ? "s" : ""} ready to create</p>
                   </div>
+
+                  {/* Quick suggestions */}
+                  <div>
+                    <p className="text-xs font-medium text-gray-500 mb-2">Common subjects — click to add:</p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {["Mathematics","Science","English","Hindi","Social Studies","Computer Science","Physics","Chemistry","Biology","History","Geography","Economics","Accountancy","Physical Education","Art & Craft","Music"].map((s) => (
+                        <button key={s} type="button"
+                          disabled={subjectTags.includes(s)}
+                          onClick={() => setSubjectTags((p) => [...new Set([...p, s])])}
+                          className={`px-2.5 py-1 rounded-full text-xs font-medium border transition-all ${
+                            subjectTags.includes(s)
+                              ? "bg-amber-100 border-amber-300 text-amber-700 opacity-50 cursor-not-allowed"
+                              : "border-gray-200 text-gray-600 hover:border-amber-300 hover:bg-amber-50 hover:text-amber-700"
+                          }`}>
+                          {s}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <button type="submit" disabled={isSubmitting || (subjectTags.length === 0 && !subjectTagInput.trim())}
+                    className="flex items-center gap-2 rounded-lg bg-amber-500 px-5 py-2 text-sm font-medium text-white hover:bg-amber-600 disabled:opacity-50">
+                    <Plus className="h-4 w-4" />
+                    {isSubmitting ? "Creating…" : `Create ${subjectTags.length + (subjectTagInput.trim() ? subjectTagInput.split(",").filter((s) => s.trim()).length : 0)} Subject${subjectTags.length !== 1 ? "s" : ""}`}
+                  </button>
                 </div>
               </form>
             )}
