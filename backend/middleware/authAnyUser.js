@@ -17,7 +17,9 @@ module.exports = function (req, res, next) {
     req.userType = normalizedType === 'admin' ? 'Admin' : decoded.userType || 'unknown';
     req.schoolId = decoded.schoolId || null;
     req.campusId = decoded.campusId || null;
-    if (!req.campusId) {
+    // Admin tokens are school-level and may not carry campusId — allow them through.
+    // For student/teacher/parent tokens, campusId is required.
+    if (!req.campusId && normalizedType !== 'admin') {
       return res.status(400).json({ error: 'campusId is required' });
     }
     next();

@@ -98,10 +98,10 @@ const AdminHeader = ({ adminUser, onOpenMobileSidebar, onLogoutRequest }) => {
 
     fetchNotifs();
 
-    // Poll every 60s but skip when the tab is hidden (saves bandwidth when idle)
+    // Poll every 15s but skip when the tab is hidden (saves bandwidth when idle)
     const poll = setInterval(() => {
       if (document.visibilityState === 'visible') fetchNotifs();
-    }, 60_000);
+    }, 15_000);
 
     // Also re-fetch immediately when the user returns to the tab
     const onVisible = () => { if (document.visibilityState === 'visible') fetchNotifs(); };
@@ -125,6 +125,12 @@ const AdminHeader = ({ adminUser, onOpenMobileSidebar, onLogoutRequest }) => {
     const title = String(n?.title || '').toLowerCase();
     const type  = String(n?.typeLabel || '').toLowerCase();
     if (type.includes('leave request') || title.includes('leave request')) return '/admin/hr?tab=leaves';
+    // Support / issue resolution notifications → support page
+    if (
+      (String(n?.createdByType || '').toLowerCase() === 'super_admin' && String(n?.audience || '').toLowerCase() === 'admin') ||
+      title.includes('issue resolved') ||
+      title.includes('support request resolved')
+    ) return '/admin/support#recent-requests';
     return '/admin/notices';
   };
 

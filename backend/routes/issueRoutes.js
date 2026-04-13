@@ -3,6 +3,7 @@ const mongoose = require('mongoose');
 const adminAuth = require('../middleware/adminAuth');
 const Issue = require('../models/Issue');
 const Admin = require('../models/Admin');
+const Notification = require('../models/Notification');
 const { logSecurityEvent } = require('../utils/securityEventLogger');
 const { logBusinessEvent } = require('../utils/businessEventLogger');
 
@@ -176,6 +177,26 @@ router.patch('/:id', adminAuth, ensureSuperAdmin, async (req, res) => {
     }
 
     await issue.save();
+
+    // Notify the school admin when their issue is resolved (only on first resolution)
+    if (status === 'resolved' && previousStatus !== 'resolved' && issue.schoolId) {
+      try {
+        await Notification.create({
+          schoolId: issue.schoolId,
+          title: 'Issue Resolved',
+          message: `Your reported issue "${issue.title}" has been reviewed and resolved by the support team.`,
+          audience: 'Admin',
+          type: 'general',
+          priority: 'medium',
+          category: 'general',
+          createdByType: 'super_admin',
+          createdByName: issue.resolvedByName || 'Super Admin',
+        });
+      } catch (notifErr) {
+        console.warn('Failed to create resolution notification for issue', issue._id, notifErr.message);
+      }
+    }
+
     logBusinessEvent(req, {
       action: 'issue.update',
       outcome: 'success',

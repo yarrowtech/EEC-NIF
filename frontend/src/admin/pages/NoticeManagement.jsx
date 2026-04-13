@@ -107,7 +107,14 @@ const NoticeManagement = ({ setShowAdminHeader }) => {
       const title = String(n?.title || '').toLowerCase();
       const typeLabel = String(n?.typeLabel || '').toLowerCase();
       const isLeaveRequestNotice = typeLabel.includes('leave request') || title.includes('leave request');
-      return !isLeaveRequestNotice;
+      if (isLeaveRequestNotice) return false;
+      // Hide system-generated support/issue resolution alerts from notices page
+      const isSupportAlert =
+        String(n?.createdByType || '').toLowerCase() === 'super_admin' &&
+        String(n?.audience || '').toLowerCase() === 'admin' &&
+        (title.includes('resolved') || title.includes('support request'));
+      if (isSupportAlert) return false;
+      return true;
     });
   }, [notices]);
 

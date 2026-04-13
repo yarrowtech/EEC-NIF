@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useLocation } from 'react-router-dom';
 import {
   AlertTriangle,
   CheckCircle,
@@ -36,6 +37,18 @@ const defaultFeedback = { subject: '', category: 'general', sentiment: 'positive
 const defaultComplaint = { topic: 'system-issue', incidentDate: '', studentOrStaff: '', description: '', impactLevel: 'low' };
 
 const Support = ({ setShowAdminHeader }) => {
+  const location = useLocation();
+  const recentRequestsRef = useRef(null);
+
+  // Scroll to Recent Requests section when navigated here with #recent-requests
+  useEffect(() => {
+    if (location.hash === '#recent-requests' && recentRequestsRef.current) {
+      setTimeout(() => {
+        recentRequestsRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }, 300);
+    }
+  }, [location.hash]);
+
   const [passwordResetRole, setPasswordResetRole] = useState('teacher');
   const [passwordResetSearch, setPasswordResetSearch] = useState('');
   const [passwordResetUsers, setPasswordResetUsers] = useState([]);
@@ -574,7 +587,7 @@ const Support = ({ setShowAdminHeader }) => {
         </section>
 
         {/* ── Recent Requests ────────────────────────────────────────────────── */}
-        <section className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
+        <section id="recent-requests" ref={recentRequestsRef} className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
           <div className="px-6 py-4 border-b border-gray-100 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
             <div>
               <p className="text-xs font-bold text-gray-400 uppercase tracking-widest">Live History</p>

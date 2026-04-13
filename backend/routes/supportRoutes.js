@@ -9,6 +9,7 @@ const ParentUser = require('../models/ParentUser');
 const StudentUser = require('../models/StudentUser');
 const Principal = require('../models/Principal');
 const SupportSetting = require('../models/SupportSetting');
+const Notification = require('../models/Notification');
 const { isStrongPassword, passwordPolicyMessage } = require('../utils/passwordPolicy');
 const { logSecurityEvent } = require('../utils/securityEventLogger');
 const { logBusinessEvent } = require('../utils/businessEventLogger');
@@ -391,6 +392,7 @@ router.patch('/requests/:id', adminAuth, ensureSuperAdmin, async (req, res) => {
 
     const updates = {};
     const { status, owner, priority, resolutionNotes, newPassword, action } = req.body || {};
+    const previousStatus = request.status;
     if (status) {
       updates.status = status;
     }
@@ -448,6 +450,27 @@ router.patch('/requests/:id', adminAuth, ensureSuperAdmin, async (req, res) => {
     }
 
     await request.save();
+
+    // Notify the school admin when their support request is resolved (only on first resolution)
+    if (request.status === 'resolved' && previousStatus !== 'resolved' && request.schoolId) {
+      try {
+        const title = request.subject || request.supportType || 'Support Request';
+        await Notification.create({
+          schoolId: request.schoolId,
+          title: 'Support Request Resolved',
+          message: `Your support request "${title}" has been reviewed and resolved by the support team.`,
+          audience: 'Admin',
+          type: 'general',
+          priority: 'medium',
+          category: 'general',
+          createdByType: 'super_admin',
+          createdByName: actorName,
+        });
+      } catch (notifErr) {
+        console.warn('Failed to create resolution notification for support request', request._id, notifErr.message);
+      }
+    }
+
     logBusinessEvent(req, {
       action: 'support_request.update',
       outcome: 'success',
