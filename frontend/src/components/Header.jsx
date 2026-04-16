@@ -192,6 +192,30 @@ const Header = ({ sidebarOpen, setSidebarOpen, onOpenProfile }) => {
     if (!notification.isRead) {
       await markAsRead(notification._id);
     }
+
+    // Close notification dropdown
+    setShowNotifications(false);
+
+    // Navigate based on notification type
+    const type = notification.type?.toLowerCase();
+    const relatedEntity = notification.relatedEntity?.entityType?.toLowerCase();
+
+    if (relatedEntity === 'assignment' || type === 'assignment') {
+      navigate('/student/assignments');
+    } else if (relatedEntity === 'exam' || type === 'exam') {
+      navigate('/student/exams');
+    } else if (relatedEntity === 'result' || type === 'result') {
+      navigate('/student/results');
+    } else if (relatedEntity === 'fee' || type === 'fee') {
+      navigate('/student/fees');
+    } else if (type === 'notice' || type === 'announcement') {
+      navigate('/student/noticeboard');
+    } else if (type === 'class_note') {
+      navigate('/student/assignments-journal');
+    } else {
+      // For general notifications or unknown types, go to home
+      navigate('/student/home');
+    }
   };
 
   // Handle dismiss
