@@ -210,6 +210,9 @@ const RoutineView = () => {
       else setLoading(true);
       setError(null);
 
+      console.groupCollapsed('[Student Routine View] Fetching schedule...');
+      console.log('Student Profile:', profile);
+
       const token = localStorage.getItem('token');
       const userType = localStorage.getItem('userType');
       if (!token || userType !== 'Student') {
@@ -223,49 +226,108 @@ const RoutineView = () => {
         'Content-Type': 'application/json',
       };
 
-      const tryFetchSchedule = async (url) => {
-        const response = await fetch(url, { headers });
-        if (!response.ok) return null;
-        const data = await response.json().catch(() => null);
-        if (!data) return null;
-        const normalized = normalizeSchedule(data.schedule || data.routine || data.data?.schedule);
-        return hasScheduleEntries(normalized) ? normalized : null;
-      };
+      let normalized = null;
 
-      let normalized =
-        (await tryFetchSchedule(`${import.meta.env.VITE_API_URL}/api/student/auth/schedule`)) ||
-        (await tryFetchSchedule(`${import.meta.env.VITE_API_URL}/api/student/dashboard/routine`)) ||
-        (await tryFetchSchedule(`${import.meta.env.VITE_API_URL}/api/student/routine`));
+      // Attempt 1: Fetch schedule specific to the authenticated student.
+      // This is the ideal endpoint as it requires no parameters.
+      try {
+        const studentScheduleResponse = await fetch(`${import.meta.env.VITE_API_URL}/api/student/auth/schedule`, { headers });
+        if (studentScheduleResponse.ok) {
+          const studentScheduleData = await studentScheduleResponse.json().catch(() => null);
+          if (studentScheduleData) {
+            const tempNormalized = normalizeSchedule(studentScheduleData.schedule || studentScheduleData.routine || studentScheduleData.data?.schedule);
+            if (hasScheduleEntries(tempNormalized)) {
+              normalized = tempNormalized;
+            }
+          }
+        }
+      } catch (e) {
+        console.warn('Failed to fetch student-specific schedule:', e.message);
+      }
 
+      // Attempt 2 (Fallback): Fetch timetable for the student's class/section if the first attempt failed.
       if (!normalized) {
-        const classId = pickId(profile?.classId || profile?.class || profile?.currentClass);
-        const sectionId = pickId(profile?.sectionId || profile?.section || profile?.currentSection);
+        const studentEndpoints = [
+          '/api/timetable/student',
+          '/api/student/timetable'
+        ];
 
-        if (classId) {
-          const params = new URLSearchParams({ classId });
-          if (sectionId) params.append('sectionId', sectionId);
+        for (const endpoint of studentEndpoints) {
+          try {
+            const res = await fetch(`${import.meta.env.VITE_API_URL}${endpoint}`, { headers });
+            if (res.ok) {
+              const data = await res.json().catch(() => null);
+              if (data) {
+                const tempNormalized = normalizeTimetablePayload(data) || normalizeSchedule(data.schedule || data.routine || data.data?.schedule);
+                if (hasScheduleEntries(tempNormalized)) {
+                  normalized = tempNormalized;
+                  break;
+                }
+              }
+            }
+          } catch (e) {
+            console.warn(`Failed to fetch from ${endpoint}:`, e.message);
+          }
+        }
+      }
 
-          const timetableResponse = await fetch(
-            `${import.meta.env.VITE_API_URL}/api/timetable?${params.toString()}`,
-            { headers }
-          );
+      // Attempt 3: Try general timetable API only if we have valid database IDs.
+      // We skip this if we only have names (like grade="1") because it causes a 403 Forbidden error.
+      if (!normalized) {
+        const classValue = pickId(profile?.classId || profile?.currentClass || profile?.className || profile?.grade || profile?.class);
+        const sectionValue = pickId(profile?.sectionId || profile?.currentSection || profile?.sectionName || profile?.section);
+        const sessionValue = pickId(profile?.academicYearId || profile?.sessionId || profile?.academicYear || profile?.session);
 
-          if (timetableResponse.ok) {
-            const timetableData = await timetableResponse.json().catch(() => null);
-            normalized = normalizeTimetablePayload(timetableData);
+        const isValidId = (id) => String(id).length === 24 && /^[0-9a-fA-F]{24}$/.test(String(id));
+
+        if (classValue && isValidId(classValue)) {
+          try {
+            const params = new URLSearchParams();
+            
+            params.append('classId', classValue);
+
+            if (sectionValue) {
+              if (isValidId(sectionValue)) {
+                params.append('sectionId', sectionValue);
+              }
+            }
+
+            if (sessionValue) {
+              if (isValidId(sessionValue)) {
+                params.append('academicYearId', sessionValue);
+              }
+            }
+
+            const timetableResponse = await fetch(
+              `${import.meta.env.VITE_API_URL}/api/timetable?${params.toString()}`,
+              { headers }
+            );
+
+            if (timetableResponse.ok) {
+              const timetableData = await timetableResponse.json().catch(() => null);
+              const tempNormalized = normalizeTimetablePayload(timetableData);
+              if (hasScheduleEntries(tempNormalized)) {
+                normalized = tempNormalized;
+              }
+            }
+          } catch (e) {
+            console.warn('Failed to fetch class timetable as fallback:', e.message);
           }
         }
       }
 
       if (!normalized) {
+        console.log('[Student Routine View] No routine data found for this student.');
         setSchedule({});
         const now = new Date();
         setLastUpdated(now);
         setError('No routine has been assigned yet for your class/section.');
         clearCacheEntry(ROUTINE_CACHE_KEY);
+        console.groupEnd();
         return;
       }
 
+      console.log('[Student Routine View] Fetched and normalized routine:', normalized);
       const now = new Date();
       setSchedule(normalized);
       setLastUpdated(now);
@@ -274,8 +336,10 @@ const RoutineView = () => {
         { schedule: normalized, lastUpdated: now.toISOString() },
         ROUTINE_CACHE_TTL_MS
       );
+      console.groupEnd();
     } catch (err) {
       setError(err.message || 'Failed to load routine');
+      console.groupEnd();
     } finally {
       if (silent) setSilentRefreshing(false);
       else setLoading(false);
@@ -670,6 +734,8 @@ const RoutineView = () => {
             </div>
             <p className="text-slate-500 text-sm">
               Student view only
+              {(profile?.academicYear || profile?.session) &&
+                ` | Session ${profile?.academicYear || profile?.session}`}
               {(profile?.className || profile?.grade) &&
                 ` | Class ${profile?.className || profile?.grade}`}
               {(profile?.sectionName || profile?.section) &&

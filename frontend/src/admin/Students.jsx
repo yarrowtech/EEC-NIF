@@ -85,17 +85,21 @@ const Students = ({ setShowAdminHeader }) => {
   const [academicYears, setAcademicYears] = useState([]);
   const [academicClasses, setAcademicClasses] = useState([]);
   const [academicSections, setAcademicSections] = useState([]);
+  const [selectedAcademicYearId, setSelectedAcademicYearId] = useState("");
   const [selectedClassId, setSelectedClassId] = useState("");
   const [editSelectedClassId, setEditSelectedClassId] = useState("");
+  const [selectedSectionId, setSelectedSectionId] = useState("");
   const [sessionFilter, setSessionFilter] = useState("");
   const [classFilter, setClassFilter] = useState("");
   const [sectionFilter, setSectionFilter] = useState("");
   const [parentDirectory, setParentDirectory] = useState([]);
   const [parentSearchTerm, setParentSearchTerm] = useState("");
+  const [editSelectedAcademicYearId, setEditSelectedAcademicYearId] = useState("");
   const [selectedExistingParent, setSelectedExistingParent] = useState(null);
 
   // View modal state
   const [showViewModal, setShowViewModal] = useState(false);
+  const [editSelectedSectionId, setEditSelectedSectionId] = useState("");
   const [viewStudent, setViewStudent] = useState(null);
   const [viewAttendance, setViewAttendance] = useState([]);
   const [viewFees, setViewFees] = useState([]);
@@ -1157,6 +1161,7 @@ const Students = ({ setShowAdminHeader }) => {
       (item) => String(item.id) === String(nextClassId)
     );
     setSelectedClassId(nextClassId);
+    setSelectedSectionId("");
     setNewStudent((prev) => ({
       ...prev,
       class: selectedClass?.name || "",
@@ -1260,6 +1265,9 @@ const Students = ({ setShowAdminHeader }) => {
         remarks: newStudent.remarks,
       };
 
+      payload.academicYearId = selectedAcademicYearId;
+      payload.classId = selectedClassId;
+      payload.sectionId = selectedSectionId;
       const res = await fetch(`${API_BASE}/api/student/auth/register`, {
         method: "POST",
         headers: {
@@ -1301,7 +1309,9 @@ const Students = ({ setShowAdminHeader }) => {
       setShowAddForm(false);
       setParentSearchTerm("");
       setSelectedExistingParent(null);
+      setSelectedAcademicYearId("");
       setSelectedClassId("");
+      setSelectedSectionId("");
       setNewStudent({
         name: "",
         email: "",
@@ -1787,6 +1797,9 @@ const Students = ({ setShowAdminHeader }) => {
         birthCertificateNo: editingStudent.birthCertificateNo,
         remarks: editingStudent.remarks,
       };
+      payload.academicYearId = editSelectedAcademicYearId;
+      payload.classId = editSelectedClassId;
+      payload.sectionId = editSelectedSectionId;
       const res = await fetch(
         `${API_BASE}/api/admin/users/students/${editingStudent._id}`,
         {
@@ -1804,6 +1817,8 @@ const Students = ({ setShowAdminHeader }) => {
         setShowDetailModal(false);
         setEditingStudent(null);
         setEditSelectedClassId("");
+        setEditSelectedAcademicYearId("");
+        setEditSelectedSectionId("");
         Swal.fire({
           title: "Success!",
           text: "Student details updated successfully",
@@ -1835,6 +1850,14 @@ const Students = ({ setShowAdminHeader }) => {
         String(normalizedStudent?.class || normalizedStudent?.grade || "").trim()
     );
     setEditSelectedClassId(matchedClass ? String(matchedClass._id) : "");
+    const matchedYear = academicYears.find((y) => String(y.name).trim() === String(normalizedStudent.academicYear || "").trim());
+    setEditSelectedAcademicYearId(matchedYear ? String(matchedYear._id) : "");
+    const matchedSection = academicSections.find(
+      (s) =>
+        String(s.classId) === (matchedClass ? String(matchedClass._id) : "") &&
+        String(s.name || "").trim() === String(normalizedStudent.section || "").trim()
+    );
+    setEditSelectedSectionId(matchedSection ? String(matchedSection._id) : "");
     setShowDetailModal(true);
 
     try {
@@ -1858,6 +1881,14 @@ const Students = ({ setShowAdminHeader }) => {
             String(normalizedFresh?.class || normalizedFresh?.grade || "").trim()
         );
         setEditSelectedClassId(matchedFreshClass ? String(matchedFreshClass._id) : "");
+        const freshMatchedYear = academicYears.find((y) => String(y.name).trim() === String(normalizedFresh.academicYear || "").trim());
+        setEditSelectedAcademicYearId(freshMatchedYear ? String(freshMatchedYear._id) : "");
+        const freshMatchedSection = academicSections.find(
+          (s) =>
+            String(s.classId) === (matchedFreshClass ? String(matchedFreshClass._id) : "") &&
+            String(s.name || "").trim() === String(normalizedFresh.section || "").trim()
+        );
+        setEditSelectedSectionId(freshMatchedSection ? String(freshMatchedSection._id) : "");
       }
     } catch (err) {
       console.error("Failed to fetch student details:", err);
@@ -1872,8 +1903,20 @@ const Students = ({ setShowAdminHeader }) => {
     );
     if (matchedClass) {
       setEditSelectedClassId(String(matchedClass._id));
+      const sectionName = String(editingStudent.section || "").trim();
+      const yearName = String(editingStudent.academicYear || "").trim();
+      if (yearName) {
+        const matchedYear = academicYears.find((y) => String(y.name).trim() === yearName);
+        if (matchedYear) setEditSelectedAcademicYearId(String(matchedYear._id));
+      }
+      if (sectionName) {
+        const matchedSection = academicSections.find(
+          (s) => String(s.classId) === String(matchedClass._id) && String(s.name || "").trim() === sectionName
+        );
+        if (matchedSection) setEditSelectedSectionId(String(matchedSection._id));
+      }
     }
-  }, [editingStudent, academicClasses]);
+  }, [editingStudent, academicClasses, academicYears, academicSections]);
 
   const openViewModal = useCallback(async (student) => {
     if (!student?._id) return;
@@ -3996,7 +4039,7 @@ const Students = ({ setShowAdminHeader }) => {
                             className="w-full border border-gray-300 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-yellow-500"
                           />
                           <div className="absolute right-3 top-1/2 -translate-y-1/2">
-                            <Calendar className="w-4 h-4 text-gray-400" />
+                            {/* <Calendar className="w-4 h-4 text-gray-400" /> */}
                           </div>
                         </div>
                       </div>
@@ -4022,7 +4065,12 @@ const Students = ({ setShowAdminHeader }) => {
                         <select
                           name="academicYear"
                           value={newStudent.academicYear}
-                          onChange={handleAddStudentChange}
+                          onChange={(e) => {
+                            const yearName = e.target.value;
+                            const selectedYear = academicYears.find(y => y.name === yearName);
+                            setNewStudent(prev => ({ ...prev, academicYear: yearName }));
+                            setSelectedAcademicYearId(selectedYear?._id || '');
+                          }}
                           className="w-full border border-gray-300 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-yellow-500 appearance-none bg-white"
                         >
                           <option value="">Select Session</option>
@@ -4067,17 +4115,20 @@ const Students = ({ setShowAdminHeader }) => {
                         </label>
                         <select
                           name="section"
-                          value={newStudent.section}
-                          onChange={(e) =>
-                            setNewStudent((prev) => ({ ...prev, section: e.target.value }))
-                          }
+                          value={selectedSectionId}
+                          onChange={(e) => {
+                            const nextSectionId = e.target.value;
+                            const selectedSection = addFormSectionOptions.find(s => s.id === nextSectionId);
+                            setSelectedSectionId(nextSectionId);
+                            setNewStudent(prev => ({ ...prev, section: selectedSection?.name || '' }));
+                          }}
                           required
                           disabled={!selectedClassId}
                           className="w-full border border-gray-300 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-yellow-500 appearance-none bg-white"
                         >
                           <option value="">Select Section</option>
                           {addFormSectionOptions.map((section) => (
-                            <option key={section.id} value={section.name}>
+                            <option key={section.id} value={section.id}>
                               {section.name}
                             </option>
                           ))}
@@ -4916,17 +4967,20 @@ const Students = ({ setShowAdminHeader }) => {
                           Section <span className="text-red-500">*</span>
                         </label>
                         <select
-                          value={editingStudent.section || ""}
-                          onChange={(e) =>
-                            setEditingStudent({ ...editingStudent, section: e.target.value })
-                          }
+                          value={editSelectedSectionId}
+                          onChange={(e) => {
+                            const nextSectionId = e.target.value;
+                            const selectedSection = editFormSectionOptions.find(s => s.id === nextSectionId);
+                            setEditSelectedSectionId(nextSectionId);
+                            setEditingStudent(prev => ({ ...prev, section: selectedSection?.name || '' }));
+                          }}
                           className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:outline-none"
                           disabled={!editSelectedClassId}
                           required
                         >
                           <option value="">Select Section</option>
                           {editFormSectionOptions.map((section) => (
-                            <option key={section.id} value={section.name}>
+                            <option key={section.id} value={section.id}>
                               {section.name}
                             </option>
                           ))}
@@ -4951,9 +5005,12 @@ const Students = ({ setShowAdminHeader }) => {
                         </label>
                         <select
                           value={editingStudent.academicYear || ""}
-                          onChange={(e) =>
-                            setEditingStudent({ ...editingStudent, academicYear: e.target.value })
-                          }
+                          onChange={(e) => {
+                            const yearName = e.target.value;
+                            const selectedYear = academicYears.find(y => y.name === yearName);
+                            setEditingStudent({ ...editingStudent, academicYear: yearName });
+                            setEditSelectedAcademicYearId(selectedYear?._id || '');
+                          }}
                           className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:outline-none"
                         >
                           <option value="">Select Academic Year</option>

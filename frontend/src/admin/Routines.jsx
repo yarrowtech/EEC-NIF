@@ -184,6 +184,7 @@ const Routines = ({ setShowAdminHeader }) => {
   const [formYearId, setFormYearId]         = useState('');
   const [showAdvanced, setShowAdvanced]     = useState(false);
   const [selectedCopyRoutine, setSelectedCopyRoutine] = useState('');
+  const [wizardStep, setWizardStep]         = useState(1);
 
   /* conflicts */
   const [conflicts, setConflicts]               = useState([]);
@@ -221,7 +222,7 @@ const Routines = ({ setShowAdminHeader }) => {
 
   useEffect(() => { setShowAdminHeader?.(false); }, []);
   useEffect(() => { loadInitialData(); }, []);
-  useEffect(() => { if (!isModalOpen) { setSelectedCopyRoutine(''); setShowAdvanced(false); } }, [isModalOpen]);
+  useEffect(() => { if (!isModalOpen) { setSelectedCopyRoutine(''); setShowAdvanced(false); setWizardStep(1); } }, [isModalOpen]);
   useEffect(() => {
     if (!isModalOpen) return;
     if (formYearId) return;
@@ -311,6 +312,22 @@ const Routines = ({ setShowAdminHeader }) => {
   );
   const selectedClassName = selectedClassDocByFilter?.name || '';
   const selectedSectionName = selectedSectionDocByFilter?.name || '';
+  const selectedYearName = useMemo(
+    () => years.find((y) => String(y._id) === String(selectedYearId))?.name || '',
+    [years, selectedYearId]
+  );
+
+  useEffect(() => {
+    if (selectedYearId && selectedClassId && selectedSectionId) {
+      console.groupCollapsed(
+        `[Admin Routine View] Viewing routine for: ${selectedYearName} / ${selectedClassName} / ${selectedSectionName}`
+      );
+      console.log('Session ID:', selectedYearId);
+      console.log('Class ID:', selectedClassId);
+      console.log('Section ID:', selectedSectionId);
+      console.groupEnd();
+    }
+  }, [selectedYearId, selectedClassId, selectedSectionId, selectedYearName, selectedClassName, selectedSectionName]);
 
   const getRoutineForDay = (day, classId = selectedClassId, sectionId = selectedSectionId) =>
     routines.find(
@@ -369,6 +386,7 @@ const Routines = ({ setShowAdminHeader }) => {
     setFormYearId(nextYearId);
     setForm({ class: cls, section: sec, day, schedule: buildScheduleForDay(existing?.schedule || []) });
     setEditingRoutine(existing || null);
+    setWizardStep(1);
     setIsModalOpen(true);
   };
 
@@ -846,232 +864,339 @@ const Routines = ({ setShowAdminHeader }) => {
           <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setIsModalOpen(false)} />
           <div className="relative bg-white w-full sm:max-w-3xl rounded-t-3xl sm:rounded-2xl shadow-2xl max-h-[94vh] flex flex-col overflow-hidden border border-slate-200">
 
-            {/* modal header */}
-            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-white/95">
-              <div className="flex items-center gap-3">
-                <div className="h-9 w-9 rounded-xl bg-indigo-600 flex items-center justify-center shadow-sm">
-                  <Calendar size={16} className="text-white" />
-                </div>
-                <div>
-                  <h3 className="font-bold text-slate-900 text-base leading-tight">{editingRoutine ? 'Edit Routine' : 'Create Routine'}</h3>
-                  {form.class && form.section && (
+            {/* ── Wizard Header ── */}
+            <div className="px-6 pt-5 pb-0 bg-white">
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-3">
+                  <div className="h-9 w-9 rounded-xl bg-indigo-600 flex items-center justify-center shadow-sm shrink-0">
+                    <Calendar size={16} className="text-white" />
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-slate-900 text-base leading-tight">{editingRoutine ? 'Edit Routine' : 'Create New Routine'}</h3>
                     <p className="text-xs text-slate-400">
-                      {years.find((y) => String(y._id) === String(formYearId))?.name || 'Session'} · Class {form.class} – {form.section} · {form.day}
+                      {wizardStep === 1 && 'Choose session, class, section and day'}
+                      {wizardStep === 2 && 'Apply templates or copy from an existing routine'}
+                      {wizardStep === 3 && 'Fill in subjects, teachers and rooms for each period'}
                     </p>
-                  )}
+                  </div>
                 </div>
+                <button onClick={() => setIsModalOpen(false)} className="h-8 w-8 flex items-center justify-center rounded-xl text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors">
+                  <X size={16} />
+                </button>
               </div>
-              <button onClick={() => setIsModalOpen(false)} className="h-8 w-8 flex items-center justify-center rounded-xl text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors">
-                <X size={16} />
-              </button>
+
+              {/* Step indicator */}
+              <div className="flex items-center gap-0 mb-0">
+                {[
+                  { n: 1, label: 'Setup', icon: '📋' },
+                  { n: 2, label: 'Quick Tools', icon: '⚡' },
+                  { n: 3, label: 'Schedule', icon: '🗓' },
+                ].map(({ n, label, icon }, i) => {
+                  const done = wizardStep > n;
+                  const active = wizardStep === n;
+                  return (
+                    <React.Fragment key={n}>
+                      <div className={`flex items-center gap-2 px-4 py-2.5 rounded-t-xl text-xs font-semibold transition-colors border-b-2 ${
+                        active ? 'border-indigo-500 text-indigo-700 bg-indigo-50/60'
+                        : done  ? 'border-emerald-400 text-emerald-600 bg-emerald-50/40 cursor-pointer'
+                        : 'border-transparent text-slate-400 bg-transparent'
+                      }`}
+                        onClick={() => done && setWizardStep(n)}
+                      >
+                        <span className={`h-5 w-5 rounded-full text-[10px] flex items-center justify-center font-bold shrink-0 ${
+                          active ? 'bg-indigo-600 text-white'
+                          : done  ? 'bg-emerald-500 text-white'
+                          : 'bg-slate-200 text-slate-500'
+                        }`}>
+                          {done ? '✓' : n}
+                        </span>
+                        <span className="hidden sm:block">{label}</span>
+                      </div>
+                      {i < 2 && <div className={`flex-1 h-px mx-1 ${wizardStep > n ? 'bg-emerald-300' : 'bg-slate-200'}`} />}
+                    </React.Fragment>
+                  );
+                })}
+              </div>
+              <div className="border-b border-slate-100" />
             </div>
 
-            <div className="flex-1 overflow-y-auto px-6 py-5 space-y-5">
+            {/* ── Wizard Body ── */}
+            <div className="flex-1 overflow-y-auto px-6 py-5">
 
-              {/* Step 1: Session / Class / Section / Day */}
-              <div className="rounded-2xl bg-slate-50 border border-slate-100 p-4">
-                <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">Step 1 — Select Session, Class, Section & Day</p>
-                <div className="grid grid-cols-4 gap-3">
-                  <div>
-                    <label className="block text-xs font-medium text-slate-500 mb-1">Session</label>
-                    <select
-                      value={formYearId}
-                      onChange={(e) => {
-                        setFormYearId(e.target.value);
-                        setForm((f) => ({ ...f, class: '', section: '' }));
-                      }}
-                      className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-800 focus:outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100"
-                    >
-                      <option value="">Session</option>
-                      {activeYears.map((y) => (
-                        <option key={y._id} value={y._id}>{y.name}</option>
+              {/* ─── Step 1: Setup ─── */}
+              {wizardStep === 1 && (
+                <div className="space-y-5">
+                  <div className="rounded-2xl bg-indigo-50/50 border border-indigo-100 p-5">
+                    <p className="text-xs font-bold text-indigo-600 uppercase tracking-widest mb-4">Session & Class</p>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-600 mb-1.5">Academic Session <span className="text-rose-500">*</span></label>
+                        <select
+                          value={formYearId}
+                          onChange={(e) => { setFormYearId(e.target.value); setForm((f) => ({ ...f, class: '', section: '' })); }}
+                          className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-800 focus:outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100"
+                        >
+                          <option value="">— Select session —</option>
+                          {activeYears.map((y) => <option key={y._id} value={y._id}>{y.name}</option>)}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-600 mb-1.5">Class <span className="text-rose-500">*</span></label>
+                        <select
+                          value={form.class}
+                          onChange={(e) => setForm((f) => ({ ...f, class: e.target.value, section: '' }))}
+                          disabled={!formYearId}
+                          className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-800 focus:outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          <option value="">— Select class —</option>
+                          {modalClasses.map((c) => <option key={c._id} value={c.name}>{c.name}</option>)}
+                        </select>
+                        {!formYearId && <p className="text-[11px] text-slate-400 mt-1">Select a session first</p>}
+                      </div>
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-600 mb-1.5">Section</label>
+                        <select
+                          value={form.section}
+                          onChange={(e) => setForm((f) => ({ ...f, section: e.target.value }))}
+                          disabled={!form.class}
+                          className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-800 focus:outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          <option value="">— Select section —</option>
+                          {modalSections.map((s) => <option key={s._id} value={s.name}>{s.name}</option>)}
+                        </select>
+                        {!form.class && <p className="text-[11px] text-slate-400 mt-1">Select a class first</p>}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="rounded-2xl bg-slate-50 border border-slate-100 p-5">
+                    <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-4">Day of Week</p>
+                    <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
+                      {DAYS.map((day) => (
+                        <button
+                          key={day}
+                          type="button"
+                          onClick={() => setForm((f) => ({ ...f, day }))}
+                          className={`py-2.5 rounded-xl text-xs font-bold border-2 transition-all ${
+                            form.day === day
+                              ? 'border-indigo-500 bg-indigo-600 text-white shadow-md shadow-indigo-200'
+                              : 'border-slate-200 bg-white text-slate-600 hover:border-indigo-300 hover:text-indigo-600'
+                          }`}
+                        >
+                          {DAY_SHORT[day]}
+                        </button>
                       ))}
-                    </select>
+                    </div>
                   </div>
-                  <div>
-                    <label className="block text-xs font-medium text-slate-500 mb-1">Class</label>
-                    <select
-                      value={form.class}
-                      onChange={(e) => setForm((f) => ({ ...f, class: e.target.value, section: '' }))}
-                      disabled={!formYearId}
-                      className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-800 focus:outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 disabled:opacity-60"
-                    >
-                      <option value="">Class</option>
-                      {modalClasses.map((c) => <option key={c._id} value={c.name}>{c.name}</option>)}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium text-slate-500 mb-1">Section</label>
-                    <select
-                      value={form.section}
-                      onChange={(e) => setForm((f) => ({ ...f, section: e.target.value }))}
-                      disabled={!form.class}
-                      className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-800 focus:outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 disabled:opacity-60"
-                    >
-                      <option value="">Section</option>
-                      {modalSections.map((s) => <option key={s._id} value={s.name}>{s.name}</option>)}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium text-slate-500 mb-1">Day</label>
-                    <select
-                      value={form.day}
-                      onChange={(e) => setForm((f) => ({ ...f, day: e.target.value }))}
-                      className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-800 focus:outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100"
-                    >
-                      {DAYS.map((day) => <option key={day} value={day}>{day}</option>)}
-                    </select>
-                  </div>
-                </div>
-              </div>
 
-              {/* Step 2: Quick tools */}
-              <div className="rounded-2xl bg-indigo-50/60 border border-indigo-100 p-4">
-                <div className="flex items-center justify-between mb-3">
-                  <p className="text-xs font-semibold text-indigo-700 uppercase tracking-wider">Step 2 — Quick Tools</p>
-                  <button type="button" onClick={() => setShowAdvanced(p => !p)}
-                    className="text-xs text-indigo-600 font-medium flex items-center gap-1 hover:text-indigo-800">
-                    {showAdvanced ? 'Hide' : 'Show'} advanced <ChevronDown size={12} className={`transition-transform ${showAdvanced ? 'rotate-180' : ''}`} />
-                  </button>
+                  {/* Summary chip */}
+                  {formYearId && form.class && (
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="text-xs bg-indigo-50 text-indigo-700 border border-indigo-200 px-3 py-1.5 rounded-xl font-semibold">
+                        {years.find(y => String(y._id) === String(formYearId))?.name}
+                      </span>
+                      <span className="text-slate-300 text-xs">›</span>
+                      <span className="text-xs bg-violet-50 text-violet-700 border border-violet-200 px-3 py-1.5 rounded-xl font-semibold">
+                        Class {form.class}{form.section ? ` – ${form.section}` : ''}
+                      </span>
+                      <span className="text-slate-300 text-xs">›</span>
+                      <span className="text-xs bg-amber-50 text-amber-700 border border-amber-200 px-3 py-1.5 rounded-xl font-semibold">
+                        {form.day}
+                      </span>
+                    </div>
+                  )}
                 </div>
-                <div className="flex flex-wrap gap-2">
-                  {ROUTINE_TEMPLATES.map(t => (
-                    <button key={t.id} type="button" onClick={() => handleApplyTemplate(t.id)}
-                      className="px-3 py-1.5 rounded-xl bg-white border border-indigo-200 text-xs font-semibold text-indigo-700 hover:bg-indigo-100 transition-colors shadow-sm">
-                      ⚡ {t.name}
-                    </button>
-                  ))}
-                  <button type="button" onClick={handleClearSubjects}
-                    className="px-3 py-1.5 rounded-xl bg-white border border-amber-200 text-xs font-semibold text-amber-700 hover:bg-amber-50 transition-colors shadow-sm">
-                    Clear
-                  </button>
-                  <button type="button" onClick={handleResetSchedule}
-                    className="px-3 py-1.5 rounded-xl bg-white border border-slate-200 text-xs font-semibold text-slate-600 hover:bg-slate-50 transition-colors shadow-sm">
-                    Reset
-                  </button>
-                </div>
-                {showAdvanced && (
-                  <div className="mt-3 pt-3 border-t border-indigo-100 flex gap-2">
-                    <select value={selectedCopyRoutine} onChange={e => setSelectedCopyRoutine(e.target.value)}
-                      className="flex-1 rounded-xl border border-indigo-200 bg-white px-3 py-2 text-xs text-slate-700 focus:outline-none">
-                      <option value="">Copy from existing routine…</option>
-                      {copyableRoutines.map(r => <option key={r.id} value={r.id}>{r.label}</option>)}
-                    </select>
-                    <button type="button" onClick={handleCopyFromExistingRoutine} disabled={!selectedCopyRoutine}
-                      className="px-3 py-2 rounded-xl bg-indigo-600 text-white text-xs font-semibold disabled:opacity-50 flex items-center gap-1">
-                      <Copy size={12} /> Copy
-                    </button>
-                  </div>
-                )}
-              </div>
+              )}
 
-              {/* Step 3: Schedule table */}
-              <div>
-                <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">Step 3 — Configure Periods</p>
-                <div className="rounded-2xl border border-slate-200 overflow-hidden">
-                  <div className="grid grid-cols-[1fr_auto_1.5fr_1.5fr_1.2fr_auto] gap-0 bg-slate-50 border-b border-slate-200">
-                    {['Timing', 'Break', 'Subject', 'Teacher', 'Room', ''].map((h, i) => (
-                      <div key={i} className="px-3 py-2.5 text-[11px] font-semibold text-slate-500 uppercase tracking-wide">{h}</div>
-                    ))}
+              {/* ─── Step 2: Quick Tools ─── */}
+              {wizardStep === 2 && (
+                <div className="space-y-4">
+                  <div className="rounded-2xl bg-indigo-50/60 border border-indigo-100 p-5">
+                    <p className="text-xs font-bold text-indigo-700 uppercase tracking-widest mb-1">Apply a Template</p>
+                    <p className="text-xs text-slate-500 mb-4">Instantly fill all periods with a pre-set subject pattern.</p>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                      {ROUTINE_TEMPLATES.map(t => (
+                        <button key={t.id} type="button" onClick={() => { handleApplyTemplate(t.id); }}
+                          className="flex flex-col items-start gap-1 p-4 rounded-2xl bg-white border-2 border-indigo-100 hover:border-indigo-400 hover:shadow-md transition-all text-left group">
+                          <span className="text-base">⚡</span>
+                          <span className="text-sm font-bold text-slate-800 group-hover:text-indigo-700">{t.name}</span>
+                          <span className="text-[11px] text-slate-400 truncate w-full">{t.pattern.slice(0, 4).join(', ')}…</span>
+                        </button>
+                      ))}
+                    </div>
                   </div>
-                  <div className="divide-y divide-slate-50">
+
+                  <div className="rounded-2xl bg-slate-50 border border-slate-100 p-5">
+                    <p className="text-xs font-bold text-slate-600 uppercase tracking-widest mb-1">Copy from Existing Routine</p>
+                    <p className="text-xs text-slate-500 mb-3">Reuse a schedule you've already created.</p>
+                    <div className="flex gap-2">
+                      <select value={selectedCopyRoutine} onChange={e => setSelectedCopyRoutine(e.target.value)}
+                        className="flex-1 rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-700 focus:outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100">
+                        <option value="">— Pick a routine to copy from —</option>
+                        {copyableRoutines.map(r => <option key={r.id} value={r.id}>{r.label}</option>)}
+                      </select>
+                      <button type="button" onClick={handleCopyFromExistingRoutine} disabled={!selectedCopyRoutine}
+                        className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-indigo-600 text-white text-sm font-semibold disabled:opacity-50 hover:bg-indigo-700 transition-colors">
+                        <Copy size={14} /> Copy
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="rounded-2xl bg-amber-50/60 border border-amber-100 p-5">
+                    <p className="text-xs font-bold text-amber-700 uppercase tracking-widest mb-1">Reset / Clear</p>
+                    <p className="text-xs text-slate-500 mb-3">Start fresh or clear all subjects from the schedule.</p>
+                    <div className="flex gap-2">
+                      <button type="button" onClick={handleClearSubjects}
+                        className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-white border border-amber-200 text-sm font-semibold text-amber-700 hover:bg-amber-50 transition-colors">
+                        <XCircle size={14} /> Clear Subjects
+                      </button>
+                      <button type="button" onClick={handleResetSchedule}
+                        className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-white border border-slate-200 text-sm font-semibold text-slate-600 hover:bg-slate-50 transition-colors">
+                        <RotateCcw size={14} /> Reset to Default
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* ─── Step 3: Schedule ─── */}
+              {wizardStep === 3 && (
+                <div className="space-y-4">
+                  {/* Context pill */}
+                  <div className="flex items-center gap-2 flex-wrap text-xs">
+                    <span className="bg-indigo-50 text-indigo-700 border border-indigo-200 px-3 py-1.5 rounded-xl font-semibold">
+                      {years.find(y => String(y._id) === String(formYearId))?.name}
+                    </span>
+                    <span className="text-slate-300">›</span>
+                    <span className="bg-violet-50 text-violet-700 border border-violet-200 px-3 py-1.5 rounded-xl font-semibold">
+                      Class {form.class}{form.section ? ` – ${form.section}` : ''}
+                    </span>
+                    <span className="text-slate-300">›</span>
+                    <span className="bg-amber-50 text-amber-700 border border-amber-200 px-3 py-1.5 rounded-xl font-semibold">{form.day}</span>
+                    <span className="ml-auto text-slate-400">
+                      {form.schedule.filter(s => !s.isBreak && s.subject).length}/{form.schedule.filter(s => !s.isBreak).length} periods filled
+                    </span>
+                  </div>
+
+                  {/* Period cards */}
+                  <div className="space-y-2">
                     {form.schedule.map((row, idx) => (
-                      <div key={`${row.time}-${idx}`} className={`grid grid-cols-[1fr_auto_1.5fr_1.5fr_1.2fr_auto] gap-0 items-start ${row.isBreak ? 'bg-slate-50/80' : 'bg-white hover:bg-indigo-50/30'} transition-colors`}>
-                        {/* timing */}
-                        <div className="px-3 py-3">
-                          <p className="text-[11px] font-mono text-slate-500 mb-1.5 truncate">{row.time || '–'}</p>
-                          <div className="grid grid-cols-2 gap-1">
-                            <input type="time" value={row.startTime || parseTimeRange(row.time).start || ''}
-                              onChange={e => updateRowTimeField(idx, 'start', e.target.value)}
-                              className="w-full rounded-lg border border-slate-200 px-1.5 py-1 text-[11px] text-slate-700 bg-slate-50 focus:outline-none focus:border-indigo-300" />
-                            <input type="time" value={row.endTime || parseTimeRange(row.time).end || ''}
-                              onChange={e => updateRowTimeField(idx, 'end', e.target.value)}
-                              className="w-full rounded-lg border border-slate-200 px-1.5 py-1 text-[11px] text-slate-700 bg-slate-50 focus:outline-none focus:border-indigo-300" />
+                      <div key={`${row.time}-${idx}`} className={`rounded-2xl border-2 p-4 transition-all ${row.isBreak ? 'border-slate-100 bg-slate-50' : (row.subject && row.teacher) ? 'border-emerald-200 bg-emerald-50/30' : 'border-slate-200 bg-white hover:border-indigo-200'}`}>
+                        <div className="flex items-center justify-between mb-3">
+                          <div className="flex items-center gap-2">
+                            <span className={`h-6 w-6 rounded-lg text-[10px] font-bold flex items-center justify-center ${row.isBreak ? 'bg-slate-200 text-slate-500' : 'bg-indigo-100 text-indigo-700'}`}>
+                              {row.isBreak ? '☕' : idx + 1}
+                            </span>
+                            <span className="text-xs font-mono text-slate-500">{row.time || '—'}</span>
+                            {row.isBreak && <span className="text-xs font-semibold text-slate-400 bg-slate-100 px-2 py-0.5 rounded-md">Break</span>}
+                            {!row.isBreak && row.subject && row.teacher && <CheckCircle2 size={13} className="text-emerald-500" />}
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <label className="flex items-center gap-1.5 text-xs text-slate-500 cursor-pointer">
+                              <input type="checkbox" checked={row.isBreak}
+                                onChange={e => {
+                                  const ib = e.target.checked;
+                                  const next = [...form.schedule];
+                                  next[idx] = ib ? {...row, isBreak: true, subject: 'Break', teacher: '-', roomId: null, room: ''} : {...row, isBreak: false, subject: '', teacher: '', roomId: null, room: ''};
+                                  setForm(f => ({...f, schedule: next}));
+                                }}
+                                className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 h-3.5 w-3.5 cursor-pointer" />
+                              Break
+                            </label>
+                            <button type="button" onClick={() => handleRemoveTimeSlot(idx)} disabled={form.schedule.length <= 1}
+                              className="h-6 w-6 flex items-center justify-center rounded-lg text-slate-300 hover:text-red-500 hover:bg-red-50 disabled:opacity-30 transition-colors">
+                              <Trash2 size={12} />
+                            </button>
                           </div>
                         </div>
-                        {/* break checkbox */}
-                        <div className="px-3 py-3 flex items-center justify-center pt-5">
-                          <input type="checkbox" checked={row.isBreak}
-                            onChange={e => {
-                              const ib = e.target.checked;
-                              const next = [...form.schedule];
-                              next[idx] = ib ? {...row, isBreak: true, subject: 'Break', teacher: '-', roomId: null, room: ''} : {...row, isBreak: false, subject: '', teacher: '', roomId: null, room: ''};
-                              setForm(f => ({...f, schedule: next}));
-                            }}
-                            className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 h-4 w-4 cursor-pointer" />
+
+                        {/* Time pickers */}
+                        <div className="grid grid-cols-2 gap-2 mb-3">
+                          <div>
+                            <label className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide mb-1 block">Start</label>
+                            <input type="time" value={row.startTime || parseTimeRange(row.time).start || ''}
+                              onChange={e => updateRowTimeField(idx, 'start', e.target.value)}
+                              className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-700 bg-slate-50 focus:outline-none focus:border-indigo-300 focus:ring-2 focus:ring-indigo-100" />
+                          </div>
+                          <div>
+                            <label className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide mb-1 block">End</label>
+                            <input type="time" value={row.endTime || parseTimeRange(row.time).end || ''}
+                              onChange={e => updateRowTimeField(idx, 'end', e.target.value)}
+                              className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-700 bg-slate-50 focus:outline-none focus:border-indigo-300 focus:ring-2 focus:ring-indigo-100" />
+                          </div>
                         </div>
-                        {/* subject */}
-                        <div className="px-2 py-3 pt-5">
-                          {row.isBreak ? <span className="text-xs text-slate-400 italic">Break</span> : (
-                            <select value={row.subject}
-                              onChange={e => { const next = [...form.schedule]; next[idx] = {...row, subject: e.target.value}; setForm(f => ({...f, schedule: next})); }}
-                              className="w-full rounded-xl border border-slate-200 bg-slate-50 px-2 py-1.5 text-xs text-slate-700 focus:outline-none focus:border-indigo-300">
-                              <option value="">Subject</option>
-                              {classFilteredSubjects.map(s => <option key={s._id} value={s.name}>{s.name}</option>)}
-                            </select>
-                          )}
-                        </div>
-                        {/* teacher */}
-                        <div className="px-2 py-3 pt-5">
-                          {row.isBreak ? <span className="text-xs text-slate-400 italic">—</span> : (
-                            <select value={row.teacher}
-                              onChange={e => { const next = [...form.schedule]; next[idx] = {...row, teacher: e.target.value}; setForm(f => ({...f, schedule: next})); }}
-                              className="w-full rounded-xl border border-slate-200 bg-slate-50 px-2 py-1.5 text-xs text-slate-700 focus:outline-none focus:border-indigo-300">
-                              <option value="">Teacher</option>
-                              {teachers.map(t => <option key={t._id} value={t.name}>{t.name}</option>)}
-                            </select>
-                          )}
-                        </div>
-                        {/* room */}
-                        <div className="px-2 py-3 pt-5 space-y-1">
-                          {row.isBreak ? <span className="text-xs text-slate-400 italic">—</span> : (
-                            <>
+
+                        {!row.isBreak && (
+                          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                            <div>
+                              <label className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide mb-1 block">Subject</label>
+                              <select value={row.subject}
+                                onChange={e => { const next = [...form.schedule]; next[idx] = {...row, subject: e.target.value}; setForm(f => ({...f, schedule: next})); }}
+                                className={`w-full rounded-xl border px-3 py-2 text-sm focus:outline-none focus:border-indigo-300 focus:ring-2 focus:ring-indigo-100 ${row.subject ? 'border-emerald-300 bg-emerald-50/40 text-slate-800' : 'border-slate-200 bg-slate-50 text-slate-700'}`}>
+                                <option value="">— Subject —</option>
+                                {classFilteredSubjects.map(s => <option key={s._id} value={s.name}>{s.name}</option>)}
+                              </select>
+                            </div>
+                            <div>
+                              <label className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide mb-1 block">Teacher</label>
+                              <select value={row.teacher}
+                                onChange={e => { const next = [...form.schedule]; next[idx] = {...row, teacher: e.target.value}; setForm(f => ({...f, schedule: next})); }}
+                                className={`w-full rounded-xl border px-3 py-2 text-sm focus:outline-none focus:border-indigo-300 focus:ring-2 focus:ring-indigo-100 ${row.teacher ? 'border-emerald-300 bg-emerald-50/40 text-slate-800' : 'border-slate-200 bg-slate-50 text-slate-700'}`}>
+                                <option value="">— Teacher —</option>
+                                {teachers.map(t => <option key={t._id} value={t.name}>{t.name}</option>)}
+                              </select>
+                            </div>
+                            <div>
+                              <label className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide mb-1 block">Room (optional)</label>
                               <select value={row.roomId || ''}
                                 onChange={e => { const rid = e.target.value; const opt = roomOptions.find(o => String(o.id) === String(rid)); const next = [...form.schedule]; next[idx] = {...row, roomId: rid||null, room: opt?.roomNumber||row.room||''}; setForm(f => ({...f, schedule: next})); }}
-                                className="w-full rounded-xl border border-slate-200 bg-slate-50 px-2 py-1.5 text-xs text-slate-700 focus:outline-none focus:border-indigo-300">
-                                <option value="">Room</option>
+                                className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700 focus:outline-none focus:border-indigo-300 focus:ring-2 focus:ring-indigo-100">
+                                <option value="">— Room —</option>
                                 {roomOptions.map(o => <option key={o.id} value={o.id}>{o.label}</option>)}
                               </select>
-                              <input type="text" value={row.room||''} placeholder="Custom room"
-                                onChange={e => { const next = [...form.schedule]; next[idx] = {...row, roomId: null, room: e.target.value}; setForm(f => ({...f, schedule: next})); }}
-                                className="w-full rounded-xl border border-slate-200 bg-slate-50 px-2 py-1.5 text-xs text-slate-700 focus:outline-none focus:border-indigo-300" />
-                            </>
-                          )}
-                        </div>
-                        {/* remove */}
-                        <div className="px-2 py-3 pt-5 flex items-start justify-center">
-                          <button type="button" onClick={() => handleRemoveTimeSlot(idx)} disabled={form.schedule.length <= 1}
-                            className="h-7 w-7 flex items-center justify-center rounded-lg text-slate-300 hover:text-red-500 hover:bg-red-50 disabled:opacity-30 transition-colors">
-                            <Trash2 size={13} />
-                          </button>
-                        </div>
+                            </div>
+                          </div>
+                        )}
                       </div>
                     ))}
                   </div>
+
+                  <button type="button" onClick={handleAddTimeSlot}
+                    className="w-full flex items-center justify-center gap-2 py-3 rounded-2xl border-2 border-dashed border-indigo-200 text-indigo-600 text-sm font-semibold hover:bg-indigo-50 hover:border-indigo-400 transition-colors">
+                    <Plus size={15} /> Add Period
+                  </button>
                 </div>
-                <button type="button" onClick={handleAddTimeSlot}
-                  className="mt-3 flex items-center gap-2 px-4 py-2 rounded-xl border border-dashed border-indigo-300 text-indigo-600 text-xs font-semibold hover:bg-indigo-50 transition-colors">
-                  <Plus size={13} /> Add Period
-                </button>
-              </div>
+              )}
             </div>
 
-            {/* modal footer */}
-            <div className="flex items-center justify-between gap-3 px-6 py-4 border-t border-slate-100 bg-white/95">
-              <div className="text-xs text-slate-400">
-                {form.schedule.filter(s => !s.isBreak && s.subject).length} of {form.schedule.filter(s => !s.isBreak).length} periods filled
-              </div>
-              <div className="flex items-center gap-2">
-                <button onClick={() => setIsModalOpen(false)}
-                  className="px-4 py-2 rounded-xl border border-slate-200 text-sm text-slate-600 hover:bg-slate-50 transition-colors">
-                  Cancel
+            {/* ── Wizard Footer ── */}
+            <div className="flex items-center justify-between gap-3 px-6 py-4 border-t border-slate-100 bg-slate-50/80">
+              <button
+                onClick={() => wizardStep === 1 ? setIsModalOpen(false) : setWizardStep(s => s - 1)}
+                className="flex items-center gap-2 px-4 py-2 rounded-xl border border-slate-200 bg-white text-sm text-slate-600 hover:bg-slate-50 font-medium transition-colors"
+              >
+                <ChevronLeft size={15} />
+                {wizardStep === 1 ? 'Cancel' : 'Back'}
+              </button>
+
+              {wizardStep < 3 ? (
+                <button
+                  onClick={() => {
+                    if (wizardStep === 1 && !formYearId) { showToast('Please select a session', 'error'); return; }
+                    if (wizardStep === 1 && !form.class)  { showToast('Please select a class', 'error'); return; }
+                    setWizardStep(s => s + 1);
+                  }}
+                  className="flex items-center gap-2 px-5 py-2 rounded-xl bg-indigo-600 text-white text-sm font-semibold hover:bg-indigo-700 shadow-md shadow-indigo-200 transition-colors"
+                >
+                  Next <ArrowRight size={15} />
                 </button>
+              ) : (
                 <button onClick={handleSave} disabled={saving}
-                  className="flex items-center gap-2 px-5 py-2 rounded-xl bg-indigo-600 text-white text-sm font-semibold hover:bg-indigo-700 disabled:opacity-60 shadow-md shadow-indigo-200 transition-colors">
+                  className="flex items-center gap-2 px-5 py-2 rounded-xl bg-emerald-600 text-white text-sm font-semibold hover:bg-emerald-700 disabled:opacity-60 shadow-md shadow-emerald-200 transition-colors">
                   {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
                   {saving ? 'Saving…' : 'Save Routine'}
                 </button>
-              </div>
+              )}
             </div>
           </div>
         </div>

@@ -1,132 +1,234 @@
-import React, { useState } from "react";
-import { Coins } from "lucide-react";
-import ChoiceMatrix from '../tryout/choice_matrix';
-import ClozeDragDrop from '../tryout/cloze_drag_drop';
-import ClozeDropDown from '../tryout/cloze_drop_down';
-import ClozeText from '../tryout/cloze_text';
-import FileUpload from '../tryout/file_upload';
-import ImageHighlighter from '../tryout/image_highlighter';
-import MatchList from '../tryout/match_list';
-import MCQTryout from '../tryout/mcq';
-import TextEditor from '../tryout/plain_txt';
-import SortList from '../tryout/sort_list';
+import React, { useState, useMemo } from 'react';
+import { BookOpen, Check, X, Brain, ArrowLeft, ArrowRight, RefreshCw, Award, Sparkles } from 'lucide-react';
+import { questionPaper } from './questionPaper.js';
 import { addPoints, hasAward, markAwarded } from '../utils/points';
 
-const Tryout = () => {
-  const [tryoutType, setTryoutType] = useState("names");
-  const [tryoutDifficulty, setTryoutDifficulty] = useState('basic');
-  
-  const tryoutDifficultyOptions = [
-    {
-      value: 'basic',
-      label: 'Basic',
-      className: 'bg-emerald-500/15 text-emerald-700 border-emerald-200 hover:bg-emerald-500/25 hover:text-emerald-800',
-      activeClass: 'ring-emerald-400 bg-emerald-500/25 text-emerald-900'
-    },
-    {
-      value: 'intermediate',
-      label: 'Intermediate',
-      className: 'bg-amber-500/15 text-amber-700 border-amber-200 hover:bg-amber-500/25 hover:text-amber-800',
-      activeClass: 'ring-amber-400 bg-amber-500/25 text-amber-900'
-    },
-    {
-      value: 'advanced',
-      label: 'Advanced',
-      className: 'bg-rose-500/15 text-rose-700 border-rose-200 hover:bg-rose-500/25 hover:text-rose-800',
-      activeClass: 'ring-rose-400 bg-rose-500/25 text-rose-900'
-    }
-  ];
+const QuizQuestion = ({ question, questionIndex, totalQuestions, userAnswer, onAnswer, onNext, onPrev }) => {
+  const isMCQ = Array.isArray(question.o);
 
-  const baseDifficultyButtonClasses = "px-6 py-3 rounded-xl text-sm font-semibold transition-all duration-150 shadow-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-1 border ring-1 ring-transparent";
+  return (
+    <div className="p-6">
+      <p className="text-sm text-gray-500 mb-2">Question {questionIndex + 1} of {totalQuestions}</p>
+      <p className="text-lg font-semibold text-gray-800 mb-6">{question.q}</p>
+
+      {isMCQ ? (
+        <div className="space-y-3">
+          {question.o.map((option, index) => (
+            <button
+              key={index}
+              onClick={() => onAnswer(option)}
+              className={`w-full text-left p-4 rounded-lg border-2 transition-all ${
+                userAnswer === option
+                  ? 'bg-blue-100 border-blue-500 ring-2 ring-blue-200'
+                  : 'bg-white border-gray-200 hover:border-blue-300'
+              }`}
+            >
+              {option}
+            </button>
+          ))}
+        </div>
+      ) : (
+        <input
+          type="text"
+          value={userAnswer || ''}
+          onChange={(e) => onAnswer(e.target.value)}
+          className="w-full p-4 border-2 border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          placeholder="Type your answer here..."
+        />
+      )}
+
+      <div className="flex justify-between mt-8">
+        <button onClick={onPrev} disabled={questionIndex === 0} className="px-4 py-2 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50 disabled:opacity-50 flex items-center gap-2">
+          <ArrowLeft size={16} /> Prev
+        </button>
+        <button onClick={onNext} className="px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 flex items-center gap-2">
+          {questionIndex === totalQuestions - 1 ? 'Finish' : 'Next'} <ArrowRight size={16} />
+        </button>
+      </div>
+    </div>
+  );
+};
+
+const QuizResults = ({ questions, userAnswers, onTryAgain }) => {
+  const score = useMemo(() => {
+    return userAnswers.reduce((correct, answer, index) => {
+      return answer === questions[index].a ? correct + 1 : correct;
+    }, 0);
+  }, [questions, userAnswers]);
+
+  const percentage = (score / questions.length) * 100;
+
+  useEffect(() => {
+    if (percentage >= 80) {
+      const awardKey = `tryout_high_score_${new Date().toISOString().slice(0, 10)}`;
+      if (!hasAward(awardKey)) {
+        addPoints(10);
+        markAwarded(awardKey);
+        toast.success('High score! +10 points!');
+      }
+    }
+  }, [percentage]);
+
+  return (
+    <div className="p-6 text-center">
+      <Award className="w-16 h-16 text-yellow-500 mx-auto mb-4" />
+      <h2 className="text-2xl font-bold text-gray-800">Tryout Complete!</h2>
+      <p className="text-gray-600 mt-2">You scored</p>
+      <p className="text-5xl font-bold text-blue-600 my-4">{score} / {questions.length}</p>
+      <div className="w-full bg-gray-200 rounded-full h-4 mb-6">
+        <div
+          className="bg-blue-600 h-4 rounded-full"
+          style={{ width: `${percentage}%` }}
+        ></div>
+      </div>
+
+      <div className="space-y-4 text-left max-h-80 overflow-y-auto p-4 bg-gray-50 rounded-lg">
+        {questions.map((q, i) => {
+          const isCorrect = userAnswers[i] === q.a;
+          return (
+            <div key={i} className={`p-3 rounded-lg border-l-4 ${isCorrect ? 'border-green-500 bg-green-50' : 'border-red-500 bg-red-50'}`}>
+              <p className="font-semibold text-gray-700">{i + 1}. {q.q}</p>
+              <p className={`text-sm ${isCorrect ? 'text-green-700' : 'text-red-700'}`}>
+                Your answer: {userAnswers[i] || 'No answer'} {isCorrect ? <Check className="inline w-4 h-4" /> : <X className="inline w-4 h-4" />}
+              </p>
+              {!isCorrect && <p className="text-sm text-green-700">Correct answer: {q.a}</p>}
+              <p className="text-xs text-gray-500 mt-1">Explanation: {q.e}</p>
+            </div>
+          );
+        })}
+      </div>
+
+      <button onClick={onTryAgain} className="mt-8 px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2 mx-auto">
+        <RefreshCw size={16} /> Try Again
+      </button>
+    </div>
+  );
+};
+
+const Tryout = () => {
+  const [quizState, setQuizState] = useState('selection'); // 'selection', 'active', 'finished'
+  const [selectedGrade, setSelectedGrade] = useState('4');
+  const [selectedSubject, setSelectedSubject] = useState('math');
+  const [selectedType, setSelectedType] = useState('mcq');
+  const [questions, setQuestions] = useState([]);
+  const [currentQuestion, setCurrentQuestion] = useState(0);
+  const [userAnswers, setUserAnswers] = useState([]);
 
   const handleTryoutComplete = () => {
-    const awardKey = `tryout_${tryoutType}`;
+    const awardKey = `tryout_${selectedGrade}_${selectedSubject}_${selectedType}`;
     if (!hasAward(awardKey)) {
       addPoints(5);
       markAwarded(awardKey);
-      const el = document.createElement('div');
-      el.className = 'fixed top-20 right-6 bg-emerald-600 text-white px-3 py-2 rounded-lg shadow-lg flex items-center gap-2 animate-bounce z-50';
-      el.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="21" r="1"></circle><circle cx="19" cy="21" r="1"></circle><path d="M2.05 10.05a7 7 0 0 1 9.9 0l10 10"></path><path d="M13 13h8"></path></svg><span>+5 Points</span>';
-      document.body.appendChild(el);
-      setTimeout(() => document.body.removeChild(el), 1800);
+      toast.success('Tryout complete! +5 points!');
     }
   };
 
+  const startQuiz = () => {
+    const selectedQuestions = questionPaper[selectedGrade]?.[selectedSubject]?.[selectedType] || [];
+    if (selectedQuestions.length > 0) {
+      setQuestions(selectedQuestions);
+      setUserAnswers(new Array(selectedQuestions.length).fill(null));
+      setCurrentQuestion(0);
+      setQuizState('active');
+    } else {
+      alert('No questions available for this selection.');
+    }
+  };
+
+  const handleAnswer = (answer) => {
+    const newAnswers = [...userAnswers];
+    newAnswers[currentQuestion] = answer;
+    setUserAnswers(newAnswers);
+  };
+
+  const handleNext = () => {
+    if (currentQuestion < questions.length - 1) {
+      setCurrentQuestion(currentQuestion + 1);
+    } else {
+      setQuizState('finished');
+      handleTryoutComplete();
+    }
+  };
+
+  const handlePrev = () => {
+    if (currentQuestion > 0) {
+      setCurrentQuestion(currentQuestion - 1);
+    }
+  };
+
+  const handleTryAgain = () => {
+    setQuizState('selection');
+    setQuestions([]);
+    setCurrentQuestion(0);
+    setUserAnswers([]);
+  };
+
+  const availableSubjects = useMemo(() => {
+    return Object.keys(questionPaper[selectedGrade] || {});
+  }, [selectedGrade]);
+
+  useEffect(() => {
+    if (!availableSubjects.includes(selectedSubject)) {
+      setSelectedSubject(availableSubjects[0] || '');
+    }
+  }, [selectedGrade, availableSubjects, selectedSubject]);
+
   return (
-    <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 relative">
-      <div className="mb-6 flex flex-wrap items-center gap-3 justify-left">
-        <label htmlFor="tryoutType" className="font-medium text-gray-700">Tryout Type:</label>
-        <select
-          id="tryoutType"
-          value={tryoutType}
-          onChange={e => setTryoutType(e.target.value)}
-          className="border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-        >
-          <option value="choice_matrix">Choice Matrix</option>
-          <option value="cloze_drag_drop">Cloze Drag Drop</option>
-          <option value="cloze_drop_down">Cloze Drop Down</option>
-          <option value="cloze_text">Cloze Text</option>
-          <option value="file_upload">File Upload</option>
-          <option value="image_highlighter">Image Highlighter</option>
-          <option value="match_list">Match List</option>
-          <option value="mcq">MCQ</option>
-          <option value="plain_txt">Plain Text</option>
-          <option value="sort_list">Sort List</option>
-        </select>
-      </div>
-      
-      <div className="mb-6">
-        <span className="font-medium text-gray-700">Difficulty:</span>
-        <div className="mt-3 flex flex-wrap gap-3">
-          {tryoutDifficultyOptions.map(option => {
-            const isActive = tryoutDifficulty === option.value;
-            return (
-              <button
-                key={option.value}
-                type="button"
-                onClick={() => setTryoutDifficulty(option.value)}
-                className={`${baseDifficultyButtonClasses} ${option.className} ${isActive ? option.activeClass + ' ring-2' : ''}`}
-                aria-pressed={isActive}
-              >
-                {option.label}
-              </button>
-            );
-          })}
+    <div className="p-4 sm:p-6">
+      <div className="max-w-4xl mx-auto bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden">
+        <div className="p-6 bg-gradient-to-r from-blue-500 to-indigo-600 text-white">
+          <h1 className="text-2xl font-bold flex items-center gap-3"><Brain className="w-8 h-8" /> Tryouts & Practice</h1>
+          <p className="text-blue-100 mt-1">Test your knowledge with interactive quizzes.</p>
         </div>
-      </div>
-      
-      <div>
-        {tryoutType === 'choice_matrix' && <ChoiceMatrix />}
-        {tryoutType === 'cloze_drag_drop' && <ClozeDragDrop />}
-        {tryoutType === 'cloze_drop_down' && <ClozeDropDown />}
-        {tryoutType === 'cloze_text' && <ClozeText />}
-        {tryoutType === 'file_upload' && <FileUpload />}
-        {tryoutType === 'image_highlighter' && <ImageHighlighter />}
-        {tryoutType === 'match_list' && <MatchList />}
-        {tryoutType === 'mcq' && <MCQTryout />}
-        {tryoutType === 'plain_txt' && <TextEditor />}
-        {tryoutType === 'sort_list' && <SortList />}
-        {tryoutType === 'names' && (
-          <div className="text-gray-500 text-center py-8">Select The Tryout From The Drop Down Menu.</div>
+
+        {quizState === 'selection' && (
+          <div className="p-6 space-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Grade</label>
+                <select value={selectedGrade} onChange={e => setSelectedGrade(e.target.value)} className="w-full p-3 border border-gray-300 rounded-lg">
+                  {Object.keys(questionPaper).map(grade => <option key={grade} value={grade}>Grade {grade}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Subject</label>
+                <select value={selectedSubject} onChange={e => setSelectedSubject(e.target.value)} className="w-full p-3 border border-gray-300 rounded-lg">
+                  {availableSubjects.map(subject => <option key={subject} value={subject}>{subject.charAt(0).toUpperCase() + subject.slice(1)}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Question Type</label>
+                <select value={selectedType} onChange={e => setSelectedType(e.target.value)} className="w-full p-3 border border-gray-300 rounded-lg">
+                  <option value="mcq">Multiple Choice</option>
+                  <option value="blank">Fill in the Blanks</option>
+                </select>
+              </div>
+            </div>
+            <button onClick={startQuiz} className="w-full py-3 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 transition flex items-center justify-center gap-2">
+              <Sparkles size={18} /> Start Tryout
+            </button>
+          </div>
         )}
-        {tryoutType === 'rich_text' && (
-          <div className="text-gray-500 text-center py-8">Rich Text tryout is not available. Please check the file name or implementation.</div>
+
+        {quizState === 'active' && (
+          <QuizQuestion
+            question={questions[currentQuestion]}
+            questionIndex={currentQuestion}
+            totalQuestions={questions.length}
+            userAnswer={userAnswers[currentQuestion]}
+            onAnswer={handleAnswer}
+            onNext={handleNext}
+            onPrev={handlePrev}
+          />
         )}
-        {![
-          'choice_matrix','cloze_drag_drop','cloze_drop_down','cloze_text','file_upload','image_highlighter','match_list','mcq','plain_txt','rich_text','sort_list','names'
-        ].includes(tryoutType) && (
-          <div className="text-gray-500 text-center py-8">Select a tryout type to begin.</div>
+
+        {quizState === 'finished' && (
+          <QuizResults
+            questions={questions}
+            userAnswers={userAnswers}
+            onTryAgain={handleTryAgain}
+          />
         )}
-      </div>
-      
-      <div className="mt-6">
-        <button
-          onClick={handleTryoutComplete}
-          className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-amber-500 hover:bg-amber-600 text-white shadow"
-        >
-          <Coins className="w-4 h-4" />
-          Mark Tryout Completed & Collect +5
-        </button>
       </div>
     </div>
   );

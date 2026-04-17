@@ -22,7 +22,7 @@ const readCache = (key) => {
 };
 
 const writeCache = (key, data) => {
-  try { localStorage.setItem(key, JSON.stringify({ ts: Date.now(), data })); } catch {}
+  try { localStorage.setItem(key, JSON.stringify({ ts: Date.now(), data })); } catch { /* ignore cache write errors */ }
 };
 
 // ── Static config ──────────────────────────────────────────────────────────────
@@ -91,6 +91,9 @@ const TeacherFeedbackPortal = () => {
   const [feedbackError, setFeedbackError]   = useState('');
   const [search, setSearch]                 = useState('');
   const [ratingFilter, setRatingFilter]     = useState('all');
+  const [subjectFilter, setSubjectFilter]   = useState('all');
+  const [classFilter, setClassFilter]       = useState('all');
+  const [sectionFilter, setSectionFilter]   = useState('all');
 
   // Complaints state
   const [complaints, setComplaints]             = useState([]);
@@ -201,6 +204,34 @@ const TeacherFeedbackPortal = () => {
   }, [fetchComplaints]);
 
   // ── Filtered lists ───────────────────────────────────────────────────────────
+  const subjectOptions = useMemo(() => {
+    const unique = new Set(
+      feedback
+        .map((item) => String(item?.subjectName || '').trim())
+        .filter(Boolean)
+    );
+    return Array.from(unique).sort((a, b) => a.localeCompare(b));
+  }, [feedback]);
+
+  const classOptions = useMemo(() => {
+    const unique = new Set(
+      feedback
+        .map((item) => String(item?.className || '').trim())
+        .filter(Boolean)
+    );
+    return Array.from(unique).sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+  }, [feedback]);
+
+  const sectionOptions = useMemo(() => {
+    const unique = new Set(
+      feedback
+        .filter((item) => classFilter === 'all' || String(item?.className || '').trim() === classFilter)
+        .map((item) => String(item?.sectionName || '').trim())
+        .filter(Boolean)
+    );
+    return Array.from(unique).sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+  }, [feedback, classFilter]);
+
   const filteredFeedback = useMemo(() => {
     const q = search.trim().toLowerCase();
     return feedback.filter((item) => {
@@ -208,12 +239,19 @@ const TeacherFeedbackPortal = () => {
         !q ||
         item.subjectName?.toLowerCase().includes(q) ||
         item.studentName?.toLowerCase().includes(q) ||
-        item.className?.toLowerCase().includes(q);
+        item.className?.toLowerCase().includes(q) ||
+        item.sectionName?.toLowerCase().includes(q);
       const matchRating =
         ratingFilter === 'all' || Number(item.overallRating || 0) >= Number(ratingFilter);
-      return matchSearch && matchRating;
+      const matchSubject =
+        subjectFilter === 'all' || String(item.subjectName || '').trim() === subjectFilter;
+      const matchClass =
+        classFilter === 'all' || String(item.className || '').trim() === classFilter;
+      const matchSection =
+        sectionFilter === 'all' || String(item.sectionName || '').trim() === sectionFilter;
+      return matchSearch && matchRating && matchSubject && matchClass && matchSection;
     });
-  }, [feedback, search, ratingFilter]);
+  }, [feedback, search, ratingFilter, subjectFilter, classFilter, sectionFilter]);
 
   const filteredComplaints = useMemo(() => {
     const q = complaintSearch.trim().toLowerCase();
@@ -358,6 +396,48 @@ const TeacherFeedbackPortal = () => {
                     <option value="4">4★ and above</option>
                     <option value="3">3★ and above</option>
                     <option value="2">2★ and above</option>
+                  </select>
+                </div>
+                <div className="flex items-center gap-2">
+                  <BookOpen size={13} className="text-gray-400 shrink-0" />
+                  <select
+                    value={subjectFilter}
+                    onChange={(e) => setSubjectFilter(e.target.value)}
+                    className="text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-amber-400 bg-white"
+                  >
+                    <option value="all">All subjects</option>
+                    {subjectOptions.map((subject) => (
+                      <option key={subject} value={subject}>{subject}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Users size={13} className="text-gray-400 shrink-0" />
+                  <select
+                    value={classFilter}
+                    onChange={(e) => {
+                      setClassFilter(e.target.value);
+                      setSectionFilter('all');
+                    }}
+                    className="text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-amber-400 bg-white"
+                  >
+                    <option value="all">All classes</option>
+                    {classOptions.map((className) => (
+                      <option key={className} value={className}>{className}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Filter size={13} className="text-gray-400 shrink-0" />
+                  <select
+                    value={sectionFilter}
+                    onChange={(e) => setSectionFilter(e.target.value)}
+                    className="text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-amber-400 bg-white"
+                  >
+                    <option value="all">All sections</option>
+                    {sectionOptions.map((sectionName) => (
+                      <option key={sectionName} value={sectionName}>{sectionName}</option>
+                    ))}
                   </select>
                 </div>
               </div>

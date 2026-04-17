@@ -31,6 +31,7 @@ import AdminSettings from './pages/AdminSettings';
 import StudentPromotion from './pages/StudentPromotion';
 import ReportCardManagement from './pages/ReportCardManagement';
 import HolidayList from './pages/HolidayList';
+import TeacherFeedbackOverview from './pages/TeacherFeedbackOverview';
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ADMIN_MENU_ITEMS } from './adminConstants';
@@ -249,6 +250,7 @@ const AdminApp = () => {
       'Academic Setup',
       // 'Subjects',
       'Teachers',
+      'Teacher Feedback',
       'Routine Management',
       'Students',
       'Promotion & Leave',
@@ -334,6 +336,7 @@ const AdminApp = () => {
           <Route path="school-registrations" element={<SuperAdminOnly><SchoolRegistrations setShowAdminHeader={setShowAdminHeader} /></SuperAdminOnly>} />
 
           <Route path="teachers" element={<Teachers setShowAdminHeader={setShowAdminHeader} />} />
+          <Route path="teacher-feedback" element={<TeacherFeedbackOverview setShowAdminHeader={setShowAdminHeader} />} />
           <Route path="students" element={<Students setShowAdminHeader={setShowAdminHeader} />} />
           <Route path="wellbeing" element={<Wellbeing setShowAdminHeader={setShowAdminHeader} />} />
           {/* Canonical route is /routines; /routine redirects to it */}

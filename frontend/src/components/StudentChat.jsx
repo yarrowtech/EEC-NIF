@@ -1422,9 +1422,9 @@ const StudentChat = () => {
               )}
               {syncingThreads && filteredThreads.length > 0 && (
                 <div className="px-4 py-2 border-t border-gray-100 bg-white/90 backdrop-blur-sm">
-                  <div className="inline-flex items-center gap-1.5 text-[11px] text-gray-500">
+                  <div className="w-full inline-flex items-center justify-center gap-1.5 text-[11px] text-gray-500">
                     <Loader2 className="h-3.5 w-3.5 animate-spin text-amber-400" />
-                    Syncing latest chats...
+                    <span className='text-center'>Syncing latest chats...</span>
                   </div>
                 </div>
               )}

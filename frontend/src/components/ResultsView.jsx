@@ -160,10 +160,6 @@ const ResultsView = () => {
     }
   };
 
-  const selectedExamGroupStatus = String(
-    (examGroups.find((group) => String(group?._id) === String(selectedExamGroupId))?.status || '')
-  ).toLowerCase();
-  const hideDownloadButton = selectedExamGroupStatus === 'completed';
   const hasResults = examCards.length > 0;
 
   if (loading) {
@@ -308,7 +304,7 @@ const ResultsView = () => {
               exam={exam}
               onDownload={handleDownloadReportCard}
               downloadingReportCard={downloadingReportCard}
-              showDownload={!hideDownloadButton}
+              showDownload={hasResults}
             />
           ))
         )}
@@ -409,7 +405,7 @@ const ExamCard = ({ exam, onDownload, downloadingReportCard, showDownload }) => 
               className="ml-auto flex items-center gap-1 text-xs text-gray-500 border border-gray-200 rounded-full px-3 py-1 hover:bg-gray-50 transition-colors disabled:opacity-60"
             >
               <Download size={12} />
-              {downloadingReportCard ? 'Downloading...' : 'Download'}
+              {downloadingReportCard ? 'Downloading...' : 'Download Grade Card'}
             </button>
           )}
         </div>

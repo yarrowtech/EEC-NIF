@@ -1536,24 +1536,33 @@ router.get('/schedule', authStudent, async (req, res) => {
     }
 
     // Load timetables for class and resolve section by student credential
-    const timetableFilter = {
+    const timetableBaseFilter = {
       schoolId: student.schoolId,
       classId: classDoc._id,
     };
     if (student.campusId) {
-      timetableFilter.campusId = student.campusId;
+      timetableBaseFilter.campusId = student.campusId;
     }
-    if (classDoc.academicYearId) {
-      timetableFilter.academicYearId = classDoc.academicYearId;
-    } else if (activeYear?._id) {
-      timetableFilter.academicYearId = activeYear._id;
-    }
+    const preferredAcademicYearId = classDoc.academicYearId || activeYear?._id || null;
+    const filters = preferredAcademicYearId
+      ? [
+          { ...timetableBaseFilter, academicYearId: preferredAcademicYearId },
+          timetableBaseFilter,
+        ]
+      : [timetableBaseFilter];
 
-    const timetables = await Timetable.find(timetableFilter)
-      .populate('sectionId', 'name')
-      .populate('entries.subjectId', 'name')
-      .populate('entries.teacherId', 'name')
-      .lean();
+    let timetables = [];
+    for (const filter of filters) {
+      const found = await Timetable.find(filter)
+        .populate('sectionId', 'name')
+        .populate('entries.subjectId', 'name')
+        .populate('entries.teacherId', 'name')
+        .lean();
+      if (Array.isArray(found) && found.length > 0) {
+        timetables = found;
+        break;
+      }
+    }
 
     if (!Array.isArray(timetables) || timetables.length === 0) {
       logStudentPortalEvent(req, {
@@ -1776,12 +1785,12 @@ router.post('/teacher-feedback', authStudent, async (req, res) => {
       return res.status(404).json({ error: 'Student not found' });
     }
 
-    const { teacherId, subjectId, subjectName, ratings = {}, comments = '', anonymous = false } = req.body || {};
+    const { teacherId, subjectId, subjectName, ratings = {}, comments = '' } = req.body || {};
     if (!teacherId || !subjectName) {
       return res.status(400).json({ error: 'Teacher and subject are required' });
     }
     const normalizedSubjectName = normalizeString(subjectName);
-    const isAnonymous = Boolean(anonymous);
+    const isAnonymous = true;
 
     const normalizedRatings = {};
     Object.entries(ratings || {}).forEach(([key, value]) => {
@@ -1828,7 +1837,7 @@ router.post('/teacher-feedback', authStudent, async (req, res) => {
       schoolId: student.schoolId,
       campusId: student.campusId || req.campusId || null,
       studentId: req.user.id,
-      studentName: isAnonymous ? '' : student.name || '',
+      studentName: '',
       isAnonymous,
       classId: selectedContext.classId || classDoc?._id || null,
       className: selectedContext.className || student.grade || '',

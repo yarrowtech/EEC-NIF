@@ -45,7 +45,6 @@ import ClassNotes from './ClassNotes';
 import PracticeQuestions from './PracticeQuestions';
 import TeacherFeedbackPortal from './TeacherFeedbackPortal';
 import ExcuseLetters from './ExcuseLetters';
-import ExamManagement from './ExamManagement';
 import ResultManagement from './ResultManagement';
 import HolidayList from './HolidayList';
 import { AUTH_NOTICE, logoutAndRedirect } from '../utils/authSession';
@@ -92,7 +91,6 @@ const menuSections = [
     label: 'Assessment',
     icon: GraduationCap,
     children: [
-      { icon: Calendar, label: 'Exam Management', path: `${PORTAL_BASE}/exams` },
       { icon: ClipboardCheck, label: 'Result Management', path: `${PORTAL_BASE}/result-management` },
     ],
   },
@@ -104,7 +102,7 @@ const menuSections = [
       { icon: MessageSquare, label: 'Chat', path: `${PORTAL_BASE}/chat` },
       { icon: Calendar, label: 'Parent Meetings', path: `${PORTAL_BASE}/parent-meetings` },
       { icon: FileText, label: 'Excuse Letters', path: `${PORTAL_BASE}/excuse-letters` },
-      { icon: ThumbsUp, label: 'Feedback', path: `${PORTAL_BASE}/feedback` },
+      { icon: ThumbsUp, label: 'Student Feedback', path: `${PORTAL_BASE}/feedback` },
     ],
   },
 ];
@@ -548,7 +546,7 @@ const TeacherPortal = () => {
               <Route path="chat" element={<TeacherChat />} />
               <Route path="lesson-plans" element={<LessonPlanDashboard />} />
               <Route path="class-notes" element={<ClassNotes />} />
-              <Route path="exams" element={<ExamManagement />} />
+              <Route path="exams" element={<Navigate to="/teacher/result-management" replace />} />
               <Route path="result-management" element={<ResultManagement />} />
               <Route path="results" element={<Navigate to="/teacher/result-management" replace />} />
               <Route path="excuse-letters" element={<ExcuseLetters />} />

@@ -139,6 +139,15 @@ const ResultManagement = () => {
   );
 
   useEffect(() => {
+    if (!selectedExamId) return;
+    if (loading) return;
+    if (selectedExam) return;
+    setSelectedExamId('');
+    setSelectedClass('');
+    setSelectedSection('');
+  }, [loading, selectedExam, selectedExamId]);
+
+  useEffect(() => {
     if (!selectedExamId || !selectedExam) return;
     setSelectedClass(selectedExam?.classId?.name || selectedExam?.grade || '');
     setSelectedSection(selectedExam?.sectionId?.name || selectedExam?.section || '');
@@ -345,6 +354,9 @@ const ResultManagement = () => {
         <div className="relative">
           <h1 className="text-xl sm:text-2xl font-bold tracking-tight">Result Management</h1>
           <p className="mt-1 text-sm text-slate-300">Create, update, publish, and maintain student results</p>
+          <p className="mt-1 text-xs text-slate-400">
+            Teachers can upload marks only for allocated subject, class, and section exams.
+          </p>
         </div>
       </div>
 

@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { Toaster } from "react-hot-toast";
 import "./App.css";
+import Tryout from "./components/Tryout";
 import LoginForm from "./components/LoginForm";
 import SignupForm from "./components/SignupForm";
 import Dashboard from "./components/Dashboard";
@@ -45,7 +46,6 @@ const studentSections = [
   "assignments",
   "assignments-journal",
   "assignments-academic-alcove",
-  "tryouts",
   "results",
   "schedule",
   "exams",
@@ -97,7 +97,24 @@ function App() {
         />
         <Route path="/meet-the-developer" element={<MeetTheDeveloper />} />
 
-        {/* Student module */}
+        {/* Student module - More specific routes first */}
+        <Route
+          path="/student/games"
+          element={withAuth([ROLES.STUDENT], <GamesPage />)}
+        />
+        <Route
+          path="/student/games/:gameKey"
+          element={withAuth([ROLES.STUDENT], <GamesPage />)}
+        />
+        <Route
+          path="/dashboard/games"
+          element={withAuth([ROLES.STUDENT], <GamesPage />)}
+        />
+        <Route
+          path="/dashboard/games/:gameKey"
+          element={withAuth([ROLES.STUDENT], <GamesPage />)}
+        />
+        {/* General student dashboard routes */}
         {studentDashboardPaths.map((path) => (
           <Route
             key={path}
@@ -106,31 +123,15 @@ function App() {
           />
         ))}
         <Route
-          path="/student/games"
-          element={
-            withAuth([ROLES.STUDENT], <GamesPage />)
-          }
-        />
-        <Route
-          path="/student/games/:gameKey"
-          element={
-            withAuth([ROLES.STUDENT], <GamesPage />)
-          }
-        />
-        <Route
-          path="/dashboard/games"
-          element={
-            withAuth([ROLES.STUDENT], <GamesPage />)
-          }
-        />
-        <Route
-          path="/dashboard/games/:gameKey"
-          element={
-            withAuth([ROLES.STUDENT], <GamesPage />)
-          }
+          path="/student/tryouts"
+          element={withAuth([ROLES.STUDENT], <Tryout />)}
         />
 
-        {/* School admin module */}
+        {/* School admin module - More specific routes first */}
+        <Route
+          path="/admin/archived-students"
+          element={withAuth([ROLES.SCHOOL_ADMIN], <ArchivedStudents />)}
+        />
         <Route
           path="/admin/*"
           element={withAuth([ROLES.SCHOOL_ADMIN], <AdminApp />)}
@@ -138,10 +139,6 @@ function App() {
         <Route
           path="/school-admin/*"
           element={withAuth([ROLES.SCHOOL_ADMIN], <AdminApp />)}
-        />
-        <Route
-          path="/admin/archived-students"
-          element={withAuth([ROLES.SCHOOL_ADMIN], <ArchivedStudents />)}
         />
         <Route
           path="/principal/*"

@@ -29,6 +29,7 @@ logger.info('Pino logger initialized');
 // console.log(`[auth] JWT_EXPIRES_IN=${process.env.JWT_EXPIRES_IN || '24h (default)'}`);
 
 const adminAuthRoutes = require('./routes/adminRoutes');
+const adminFeedbackRoutes = require('./routes/adminFeedbackRoutes');
 const teacherAuthRoutes = require('./routes/teacherRoute');
 const teacherDashboardRoutes = require('./routes/teacherDashboardRoutes');
 const staffAuthRoutes = require('./routes/staffRoutes');
@@ -319,6 +320,7 @@ app.get("/health", (req, res) => {
 app.use('/api/admin/users', adminActionLogger, adminUserManagementRoutes);
 app.use('/api/promotion', promotionRoutes);
 app.use('/api/admin/auth', adminActionLogger, adminAuthRoutes);
+app.use('/api/admin/feedback', adminActionLogger, adminFeedbackRoutes);
 app.use('/api/teacher/auth', teacherAuthRoutes);
 app.use('/api/teacher/dashboard', teacherDashboardRoutes);
 app.use('/api/staff/auth', staffAuthRoutes);

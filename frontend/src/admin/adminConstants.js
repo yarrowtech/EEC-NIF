@@ -95,6 +95,11 @@ export const ADMIN_MENU_ITEMS = [
     path: '/admin/teachers'
   },
   {
+    icon: UserSearch,
+    label: 'Teacher Feedback',
+    path: '/admin/teacher-feedback'
+  },
+  {
     icon: Calendar,
     label: 'Routine Management',
     path: '/admin/routines',

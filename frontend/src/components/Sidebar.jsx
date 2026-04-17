@@ -69,7 +69,7 @@ const Sidebar = ({ activeView, isOpen, setIsOpen, onNavigateIntent }) => {
     : '';
 
   useEffect(() => {
-    console.log('[Student Sidebar] Class Teacher:', classTeacherName || '(not found)');
+    // console.log('[Student Sidebar] Class Teacher:', classTeacherName || '(not found)');
   }, [classTeacherName]);
 
   // Helper function to navigate to a page
@@ -118,6 +118,7 @@ const Sidebar = ({ activeView, isOpen, setIsOpen, onNavigateIntent }) => {
         { id: 'assignments', name: 'Assignments', icon: FileText },
         { id: 'assignments-journal', name: 'Journal', icon: File },
         { id: 'assignments-academic-alcove', name: 'The Wall', icon: Target },
+        { id: 'tryouts', name: 'Tryouts', icon: Brain },
         { id: 'study-materials', name: 'Study Materials', icon: BookOpen },
         { id: 'results', name: 'Results', icon: BarChart3 },
       ]

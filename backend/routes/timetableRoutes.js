@@ -268,17 +268,24 @@ router.post('/', adminAuth, async (req, res) => {
     }
     const normalizedEntries = normalizeEntriesWithRooms(entries, roomMap);
 
+    const resolvedAcademicYearId = academicYearId || classDoc.academicYearId || undefined;
+
     const payload = {
       schoolId,
       campusId: campusId || null,
       classId,
       sectionId: resolveSectionId(sectionId) || undefined,
-      academicYearId: academicYearId || undefined,
+      academicYearId: resolvedAcademicYearId,
       entries: normalizedEntries,
     };
 
     const updated = await Timetable.findOneAndUpdate(
-      { ...buildCampusFilter(schoolId, campusId), classId, sectionId: resolveSectionId(sectionId) },
+      {
+        ...buildCampusFilter(schoolId, campusId),
+        classId,
+        sectionId: resolveSectionId(sectionId),
+        ...(resolvedAcademicYearId ? { academicYearId: resolvedAcademicYearId } : {}),
+      },
       payload,
       { new: true, upsert: true }
     );
@@ -298,10 +305,13 @@ router.post('/day', adminAuth, async (req, res) => {
     if (!schoolId) return;
     if (!ensureSchoolAdmin(req, res)) return;
     const campusId = resolveCampusId(req);
-    const { classId, sectionId, dayOfWeek, entries } = req.body || {};
+    const { classId, sectionId, dayOfWeek, entries, academicYearId } = req.body || {};
 
     if (!classId || !mongoose.isValidObjectId(classId)) {
       return res.status(400).json({ error: 'Valid classId is required' });
+    }
+    if (academicYearId && !mongoose.isValidObjectId(academicYearId)) {
+      return res.status(400).json({ error: 'Invalid academicYearId' });
     }
 
     const normalizedDay = resolveDayOfWeek(dayOfWeek);
@@ -337,6 +347,7 @@ router.post('/day', adminAuth, async (req, res) => {
     }
 
     const normalizedSectionId = resolveSectionId(sectionId);
+    const resolvedAcademicYearId = academicYearId || classDoc.academicYearId || undefined;
     const dayEntries = normalizeEntriesWithRooms(entries, roomMap).map((entry) => ({
       ...entry,
       dayOfWeek: normalizedDay,
@@ -346,6 +357,7 @@ router.post('/day', adminAuth, async (req, res) => {
       ...buildCampusFilter(schoolId, campusId),
       classId,
       sectionId: normalizedSectionId,
+      ...(resolvedAcademicYearId ? { academicYearId: resolvedAcademicYearId } : {}),
     });
 
     if (!existing) {
@@ -354,6 +366,7 @@ router.post('/day', adminAuth, async (req, res) => {
         campusId: campusId || null,
         classId,
         sectionId: normalizedSectionId || undefined,
+        academicYearId: resolvedAcademicYearId,
         entries: dayEntries,
       });
       await syncTimetableGroupThreads({ schoolId, campusId: campusId || null });
