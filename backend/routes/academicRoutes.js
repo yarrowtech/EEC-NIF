@@ -1,6 +1,7 @@
 const express = require('express');
 const mongoose = require('mongoose');
 const adminAuth = require('../middleware/adminAuth');
+const teacherAuth = require('../middleware/authTeacher');
 
 const AcademicYear = require('../models/AcademicYear');
 const ClassModel = require('../models/Class');
@@ -160,6 +161,19 @@ const generateInvoicesForAcademicYear = async ({ schoolId, campusId, academicYea
 };
 
 // Academic Years
+// Active academic year — accessible by both teachers and admins
+router.get('/active-year', teacherAuth, async (req, res) => {
+  try {
+    const schoolId = req.schoolId || req.admin?.schoolId || null;
+    if (!schoolId) return res.status(400).json({ error: 'schoolId is required' });
+    const activeYear = await AcademicYear.findOne({ schoolId, isActive: true }).select('name startDate endDate').lean();
+    if (!activeYear) return res.status(404).json({ error: 'No active academic year found' });
+    res.json(activeYear);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 router.post('/years', adminAuth, async (req, res) => {
   // #swagger.tags = ['Academics']
   try {

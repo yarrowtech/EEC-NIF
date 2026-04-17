@@ -1125,14 +1125,22 @@ router.get("/results/me", authStudent, async (req, res) => {
     }
 });
 
-// Bulk upload results via CSV
-router.post("/results/bulk-upload", adminAuth, upload.single('file'), async (req, res) => {
+// Bulk upload results via Excel (admin/teacher)
+router.post("/results/bulk-upload", adminOrTeacherAuth, upload.single('file'), async (req, res) => {
     const filePath = req.file?.path;
 
     try {
-        const schoolId = resolveSchoolId(req, res);
-        if (!schoolId) return;
-        const campusId = resolveCampusId(req);
+        const schoolId = req.schoolId || req.user?.schoolId || req.admin?.schoolId || null;
+        if (!schoolId) return res.status(400).json({ error: 'schoolId is required' });
+        const campusId = req.campusId || null;
+        const isTeacherUser = req.userType === 'teacher';
+        const teacherScopeKeys = isTeacherUser
+          ? await getTeacherScopeKeys({
+              schoolId,
+              campusId,
+              teacherId: req.user?.id || null,
+            })
+          : new Set();
         
         if (!filePath) {
             return res.status(400).json({ error: 'Excel file is required' });
@@ -1165,10 +1173,25 @@ router.post("/results/bulk-upload", adminAuth, upload.single('file'), async (req
                         errorCount++;
                         continue;
                     }
+                    if (campusId && exam.campusId && String(exam.campusId) !== String(campusId)) {
+                        errors.push(`Sheet "${sheetName}", Row ${i + 2}: Exam does not belong to this campus`);
+                        errorCount++;
+                        continue;
+                    }
+                    if (isTeacherUser && !canTeacherManageExam(teacherScopeKeys, exam)) {
+                        errors.push(`Sheet "${sheetName}", Row ${i + 2}: You are not allocated for this exam`);
+                        errorCount++;
+                        continue;
+                    }
 
                     const student = await StudentUser.findById(studentId).lean();
                     if (!student || String(student.schoolId) !== String(schoolId)) {
                         errors.push(`Sheet "${sheetName}", Row ${i + 2}: Student not found`);
+                        errorCount++;
+                        continue;
+                    }
+                    if (campusId && student.campusId && String(student.campusId) !== String(campusId)) {
+                        errors.push(`Sheet "${sheetName}", Row ${i + 2}: Student does not belong to this campus`);
                         errorCount++;
                         continue;
                     }
@@ -1233,7 +1256,7 @@ router.post("/results/bulk-upload", adminAuth, upload.single('file'), async (req
                         grade: calculatedGrade,
                         remarks: finalRemarks,
                         status: scoreResult.status,
-                        createdBy: req.admin?.id || null,
+                        createdBy: req.user?.id || req.admin?.id || null,
                         },
                         { new: true, upsert: true, runValidators: true }
                     );
