@@ -115,6 +115,17 @@ export const useNotifications = () => {
   }, [notifications]);
 
   const markAllAsRead = useCallback(async () => {
+    const previousNotifications = notifications;
+    const hadUnread = previousNotifications.some((notification) => !notification.isRead);
+
+    if (!hadUnread) {
+      return true;
+    }
+
+    // Clear the badge immediately when the notification center is opened.
+    setNotifications((prev) => prev.map((notification) => ({ ...notification, isRead: true })));
+    setUnreadCount(0);
+
     try {
       const token = localStorage.getItem('token');
 
@@ -133,16 +144,14 @@ export const useNotifications = () => {
         throw new Error('Failed to mark all as read');
       }
 
-      // Update local state
-      setNotifications(prev => prev.map(n => ({ ...n, isRead: true })));
-      setUnreadCount(0);
-
       return true;
     } catch (err) {
       console.error('Failed to mark all as read:', err);
+      setNotifications(previousNotifications);
+      setUnreadCount(previousNotifications.filter((notification) => !notification.isRead).length);
       return false;
     }
-  }, []);
+  }, [notifications]);
 
   // Start polling on mount
   useEffect(() => {

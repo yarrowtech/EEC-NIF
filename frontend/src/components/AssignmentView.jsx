@@ -206,7 +206,7 @@ const AssignmentView = forwardRef(({ defaultType = "school" }, ref) => {
       {/* Type Tabs (non-journal) */}
       {assignmentType !== "journal" && (
         <div className="flex gap-1 overflow-x-auto rounded-xl bg-gray-100 p-1">
-          {typeTabs.map((t) => (
+          {typeTabs.filter(t => t.key !== 'tryout' && t.key !== 'flashcard' && t.key !== 'lab').map((t) => (
             <button key={t.key} onClick={() => {
               if (t.key === 'tryout') {
                 navigate('/student/tryouts');
