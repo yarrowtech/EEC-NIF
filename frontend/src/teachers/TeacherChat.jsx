@@ -491,12 +491,13 @@ const ChatMessage = ({ msg, isMine, myId, theme }) => {
 };
 
 // ── ConversationItem component ─────────────────────────────────────────────────
-const ConversationItem = ({ thread, isActive, onClick, isTyping, theme }) => {
+const ConversationItem = ({ thread, isActive, onClick, typingName, theme }) => {
   const t      = theme || THEMES.blue;
   const other  = thread.otherParticipant;
   const name   = other?.name || 'Unknown';
   const initials = getInitials(name);
   const unread = thread.unreadCount || 0;
+  const isTyping = Boolean(typingName);
 
   return (
     <button
@@ -525,7 +526,7 @@ const ConversationItem = ({ thread, isActive, onClick, isTyping, theme }) => {
             className="text-xs truncate"
             style={isTyping ? { color: t.color, fontWeight: 500, fontStyle: 'italic' } : { color: '#6b7280' }}
           >
-            {isTyping ? 'typing...' : (thread.lastMessage || 'No messages yet')}
+            {isTyping ? `${typingName} is typing...` : (thread.lastMessage || 'No messages yet')}
           </span>
           {unread > 0 && (
             <span
@@ -1327,7 +1328,7 @@ const TeacherChat = () => {
     ? presenceByUser[String(activeThread.otherParticipant.userId)]
     : null;
   const activeParticipantStatus = isTypingInActive
-    ? 'typing...'
+    ? `${isTypingInActive} is typing...`
     : activeParticipantPresence?.online
     ? 'online'
     : activeParticipantPresence?.lastSeen
@@ -1576,7 +1577,7 @@ const TeacherChat = () => {
                   key={t._id}
                   thread={t}
                   isActive={String(t._id) === activeThreadId}
-                  isTyping={Boolean(typingUsers[String(t._id)])}
+                  typingName={typingUsers[String(t._id)] || ''}
                   onClick={() => selectThread(String(t._id))}
                   theme={theme}
                 />

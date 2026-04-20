@@ -478,11 +478,22 @@ io.on('connection', (socket) => {
       ...(user.campusId ? { campusId: user.campusId } : {}),
       'participants.userId': userId,
     })
-      .select('participants.userId')
+      .select('participants.userId participants.name')
       .lean();
     if (!thread) return;
 
-    const payload = { threadId, userId, userName: socket.user.userType, isTyping: Boolean(isTyping) };
+    const myParticipant = (thread.participants || []).find(
+      (participant) => String(participant?.userId || '') === userId
+    );
+    const fallbackName =
+      socket.user?.name ||
+      socket.user?.fullName ||
+      socket.user?.username ||
+      (socket.user?.email ? String(socket.user.email).split('@')[0] : '') ||
+      socket.user?.userType ||
+      'User';
+    const userName = String(myParticipant?.name || fallbackName || 'User').trim();
+    const payload = { threadId, userId, userName, isTyping: Boolean(isTyping) };
     for (const participant of thread.participants || []) {
       const participantId = String(participant?.userId || '');
       if (!participantId || participantId === userId) continue;
