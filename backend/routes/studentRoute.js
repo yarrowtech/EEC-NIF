@@ -977,6 +977,7 @@ router.get('/dashboard', authStudent, async (req, res) => {
     const totalAttendance = student.attendance?.length || 0;
     const presentDays = student.attendance?.filter(a => a.status === 'present').length || 0;
     const attendancePercentage = totalAttendance > 0 ? Math.round((presentDays / totalAttendance) * 100) : 0;
+    const totalAchievements = Array.isArray(student.achievements) ? student.achievements.length : 0;
 
     const resolvedGrade = student.grade || '';
     const resolvedSection = student.section || '';
@@ -1013,7 +1014,7 @@ router.get('/dashboard', authStudent, async (req, res) => {
         presentDays,
         absentDays: totalAttendance - presentDays,
         activeCourses: courseInfo ? 1 : 0,
-        achievements: 0, // Can be enhanced later
+        achievements: totalAchievements,
         studyHours: 0, // Can be enhanced later
         overallProgress: attendancePercentage, // Use attendance as proxy for now
       },
