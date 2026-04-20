@@ -49,6 +49,11 @@ const isThreadCacheUsable = (items) =>
   Array.isArray(items) &&
   items.every((thread) => thread && thread._id && thread.otherParticipant && thread.otherParticipant.name);
 
+const isEncryptedPreviewPlaceholder = (value = '') => {
+  const normalized = String(value || '').trim().toLowerCase();
+  return normalized === '[encrypted message]' || normalized === '[encrypted msg]';
+};
+
 const formatLastSeen = (ts) => {
   if (!ts) return '';
   const d = new Date(ts);
@@ -607,18 +612,22 @@ const ChatMessage = ({ msg, isMine, myId, theme }) => {
     : fullText;
   const textParts = useMemo(() => linkifyMessageText(visibleText), [visibleText]);
   const links = useMemo(() => extractMessageLinks(fullText).slice(0, 2), [fullText]);
+  const senderLabel = isMine ? 'You' : (msg?.senderName || 'User');
 
   return (
   <div className={`flex ${isMine ? 'justify-end' : 'justify-start'} mb-3`}>
     <div
-      className={`relative max-w-[78%] w-fit min-w-22 rounded-2xl px-4 pt-2.5 pb-6 text-sm shadow-sm
+      className={`relative max-w-[78%] w-fit rounded-2xl px-4 py-2.5 text-sm shadow-sm
         ${isMine ? 'text-white rounded-br-sm' : 'bg-white text-gray-800 rounded-bl-sm'}`}
       style={isMine ? { backgroundColor: t.color } : {}}
     >
-      {!isMine && (
-        <div className="text-xs font-semibold mb-1" style={{ color: t.color }}>{msg.senderName}</div>
-      )}
-      <div className="whitespace-pre-wrap leading-relaxed wrap-break-word">
+      <div
+        className="text-xs font-semibold mb-1"
+        style={isMine ? { color: 'rgba(255,255,255,0.85)' } : { color: t.color }}
+      >
+        {senderLabel}
+      </div>
+      <div className="whitespace-pre-wrap leading-relaxed break-words">
         {textParts.map((part, index) => (
           part.type === 'link' ? (
             <a
@@ -635,6 +644,17 @@ const ChatMessage = ({ msg, isMine, myId, theme }) => {
             <React.Fragment key={`text-${index}`}>{part.value}</React.Fragment>
           )
         ))}
+        <span
+          className={`inline-flex items-center gap-1 ml-2 text-[11px] whitespace-nowrap align-baseline ${!isMine ? 'text-gray-400' : ''}`}
+          style={isMine ? { color: 'rgba(255,255,255,0.75)' } : {}}
+        >
+          <span>{formatMessageTime(msg.createdAt || msg.ts)}</span>
+          {isMine && (
+            <span style={{ color: seen ? '#7dd3fc' : 'rgba(255,255,255,0.75)' }} className="inline-flex items-center">
+              {seen || delivered ? <CheckCheck className="h-3.5 w-3.5" /> : <Check className="h-3.5 w-3.5" />}
+            </span>
+          )}
+        </span>
       </div>
       {links.map((url) => (
         <MessageLinkPreview key={url} url={url} isMine={isMine} theme={t} />
@@ -649,29 +669,19 @@ const ChatMessage = ({ msg, isMine, myId, theme }) => {
           {expanded ? 'Read less' : 'Read more'}
         </button>
       )}
-      <div
-        className={`absolute bottom-1 right-3 text-xs flex items-center gap-1 ${!isMine ? 'text-gray-400' : ''}`}
-        style={isMine ? { color: 'rgba(255,255,255,0.75)' } : {}}
-      >
-        <span>{formatMessageTime(msg.createdAt || msg.ts)}</span>
-        {isMine && (
-          <span style={{ color: seen ? '#7dd3fc' : 'rgba(255,255,255,0.75)' }} className="inline-flex items-center">
-            {seen || delivered ? <CheckCheck className="h-3.5 w-3.5" /> : <Check className="h-3.5 w-3.5" />}
-          </span>
-        )}
-      </div>
     </div>
   </div>
   );
 };
 
 // ── ConversationItem ──────────────────────────────────────────────────────────
-const ConversationItem = ({ thread, isActive, onClick, isTyping, theme }) => {
+const ConversationItem = ({ thread, isActive, onClick, typingName, theme }) => {
   const t       = theme || THEMES.amber;
   const other   = thread.otherParticipant;
   const name    = other?.name || 'Unknown';
   const img     = pickImg(other);
   const unread  = thread.unreadCount || 0;
+  const isTyping = Boolean(typingName);
 
   return (
     <button
@@ -694,7 +704,7 @@ const ConversationItem = ({ thread, isActive, onClick, isTyping, theme }) => {
             className="text-xs truncate"
             style={isTyping ? { color: t.color, fontWeight: 500, fontStyle: 'italic' } : { color: '#6b7280' }}
           >
-            {isTyping ? 'typing...' : (thread.lastMessage || 'No messages yet')}
+            {isTyping ? `${typingName} is typing...` : (thread.lastMessage || 'No messages yet')}
           </span>
           {unread > 0 && (
             <span
@@ -785,7 +795,12 @@ const StudentChat = () => {
       myId: meRef.current?.id,
       privateKeyBase64: privateKeyRef.current,
     });
-    return { ...thread, lastMessage: preview || thread.lastMessage || '' };
+    const safePreview = String(preview || '').trim();
+    if (safePreview && !isEncryptedPreviewPlaceholder(safePreview)) {
+      return { ...thread, lastMessage: safePreview };
+    }
+    const fallback = String(thread.lastMessage || '').trim();
+    return { ...thread, lastMessage: isEncryptedPreviewPlaceholder(fallback) ? '' : fallback };
   }, []);
 
   // ── Bootstrap ─────────────────────────────────────────────────────────────
@@ -830,8 +845,20 @@ const StudentChat = () => {
         const threadsData = await apiFetch('/api/chat/threads');
         if (!mounted) return;
         const hydratedThreads = await Promise.all((Array.isArray(threadsData) ? threadsData : []).map((thread) => decryptThreadPreview(thread)));
-        setThreads(hydratedThreads);
-        writeChatCache(threadsCacheKey, hydratedThreads);
+        const cachedById = new Map(
+          (Array.isArray(cachedThreads) ? cachedThreads : []).map((thread) => [String(thread?._id || ''), thread])
+        );
+        const mergedThreads = hydratedThreads.map((thread) => {
+          const threadId = String(thread?._id || '');
+          const cachedThread = cachedById.get(threadId);
+          const currentPreview = String(thread?.lastMessage || '').trim();
+          if (!isEncryptedPreviewPlaceholder(currentPreview)) return thread;
+          const cachedPreview = String(cachedThread?.lastMessage || '').trim();
+          if (!cachedPreview || isEncryptedPreviewPlaceholder(cachedPreview)) return thread;
+          return { ...thread, lastMessage: cachedPreview };
+        });
+        setThreads(mergedThreads);
+        writeChatCache(threadsCacheKey, mergedThreads);
       } catch { /* ignore */ } finally {
         if (mounted) {
           setLoadingThreads(false);
@@ -1193,7 +1220,7 @@ const StudentChat = () => {
   const activeTeacher = activeThread?.otherParticipant || null;
   const activePresence = activeTeacher?.userId ? presenceByUser[String(activeTeacher.userId)] : null;
   const activeStatusText = isTypingInActive
-    ? 'typing...'
+    ? `${isTypingInActive} is typing...`
     : activePresence?.online
     ? 'online'
     : activePresence?.lastSeen
@@ -1420,7 +1447,7 @@ const StudentChat = () => {
                     key={t._id}
                     thread={t}
                     isActive={String(t._id) === activeThreadId}
-                    isTyping={Boolean(typingUsers[String(t._id)])}
+                    typingName={typingUsers[String(t._id)] || ''}
                     onClick={() => selectThread(String(t._id))}
                     theme={theme}
                   />

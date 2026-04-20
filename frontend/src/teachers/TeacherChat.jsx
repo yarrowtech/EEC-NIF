@@ -47,6 +47,11 @@ const isThreadCacheUsable = (items) =>
   Array.isArray(items) &&
   items.every((thread) => thread && thread._id && thread.otherParticipant && thread.otherParticipant.name);
 
+const isEncryptedPreviewPlaceholder = (value = '') => {
+  const normalized = String(value || '').trim().toLowerCase();
+  return normalized === '[encrypted message]' || normalized === '[encrypted msg]';
+};
+
 const formatLastSeen = (ts) => {
   if (!ts) return '';
   const d = new Date(ts);
@@ -431,6 +436,7 @@ const ChatMessage = ({ msg, isMine, myId, theme }) => {
     : fullText;
   const textParts = useMemo(() => linkifyMessageText(visibleText), [visibleText]);
   const links = useMemo(() => extractMessageLinks(fullText).slice(0, 2), [fullText]);
+  const senderLabel = isMine ? 'You' : (msg?.senderName || 'User');
 
   return (
   <div className={`flex ${isMine ? 'justify-end' : 'justify-start'} mb-3`}>
@@ -439,10 +445,13 @@ const ChatMessage = ({ msg, isMine, myId, theme }) => {
         ${isMine ? 'text-white rounded-br-sm' : 'bg-white text-gray-800 rounded-bl-sm'}`}
       style={isMine ? { backgroundColor: t.color } : {}}
     >
-      {!isMine && (
-        <div className="text-xs font-semibold mb-1" style={{ color: t.color }}>{msg.senderName}</div>
-      )}
-      <div className="whitespace-pre-wrap leading-relaxed wrap-break-word">
+      <div
+        className="text-xs font-semibold mb-1"
+        style={isMine ? { color: 'rgba(255,255,255,0.85)' } : { color: t.color }}
+      >
+        {senderLabel}
+      </div>
+      <div className="whitespace-pre-wrap leading-relaxed break-words">
         {textParts.map((part, index) => (
           part.type === 'link' ? (
             <a
@@ -459,7 +468,17 @@ const ChatMessage = ({ msg, isMine, myId, theme }) => {
             <React.Fragment key={`text-${index}`}>{part.value}</React.Fragment>
           )
         ))}
-        <span className="inline-block w-14" aria-hidden="true" />
+        <span
+          className={`inline-flex items-center gap-1 ml-2 text-[11px] whitespace-nowrap align-baseline ${!isMine ? 'text-gray-400' : ''}`}
+          style={isMine ? { color: 'rgba(255,255,255,0.75)' } : {}}
+        >
+          <span>{formatMessageTime(msg.createdAt || msg.ts)}</span>
+          {isMine && (
+            <span style={{ color: seen ? '#7dd3fc' : 'rgba(255,255,255,0.75)' }} className="inline-flex items-center">
+              {seen || delivered ? <CheckCheck className="h-3.5 w-3.5" /> : <Check className="h-3.5 w-3.5" />}
+            </span>
+          )}
+        </span>
       </div>
       {links.map((url) => (
         <MessageLinkPreview key={url} url={url} isMine={isMine} theme={t} />
@@ -474,17 +493,6 @@ const ChatMessage = ({ msg, isMine, myId, theme }) => {
           {expanded ? 'Read less' : 'Read more'}
         </button>
       )}
-      <div
-        className={`text-xs flex items-center justify-end gap-1 -mt-4 ${!isMine ? 'text-gray-400' : ''}`}
-        style={isMine ? { color: 'rgba(255,255,255,0.75)' } : {}}
-      >
-        <span>{formatMessageTime(msg.createdAt || msg.ts)}</span>
-        {isMine && (
-          <span style={{ color: seen ? '#7dd3fc' : 'rgba(255,255,255,0.75)' }} className="inline-flex items-center">
-            {seen || delivered ? <CheckCheck className="h-3.5 w-3.5" /> : <Check className="h-3.5 w-3.5" />}
-          </span>
-        )}
-      </div>
     </div>
   </div>
   );
@@ -816,7 +824,12 @@ const TeacherChat = () => {
       myId: meRef.current?.id,
       privateKeyBase64: privateKeyRef.current,
     });
-    return { ...thread, lastMessage: preview || thread.lastMessage || '' };
+    const safePreview = String(preview || '').trim();
+    if (safePreview && !isEncryptedPreviewPlaceholder(safePreview)) {
+      return { ...thread, lastMessage: safePreview };
+    }
+    const fallback = String(thread.lastMessage || '').trim();
+    return { ...thread, lastMessage: isEncryptedPreviewPlaceholder(fallback) ? '' : fallback };
   }, []);
 
   const openStudentProfile = useCallback(async () => {
@@ -888,8 +901,20 @@ const TeacherChat = () => {
         const threadsData = await apiFetch('/api/chat/threads');
         if (!mounted) return;
         const hydratedThreads = await Promise.all((Array.isArray(threadsData) ? threadsData : []).map((thread) => decryptThreadPreview(thread)));
-        setThreads(hydratedThreads);
-        writeChatCache(threadsCacheKey, hydratedThreads);
+        const cachedById = new Map(
+          (Array.isArray(cachedThreads) ? cachedThreads : []).map((thread) => [String(thread?._id || ''), thread])
+        );
+        const mergedThreads = hydratedThreads.map((thread) => {
+          const threadId = String(thread?._id || '');
+          const cachedThread = cachedById.get(threadId);
+          const currentPreview = String(thread?.lastMessage || '').trim();
+          if (!isEncryptedPreviewPlaceholder(currentPreview)) return thread;
+          const cachedPreview = String(cachedThread?.lastMessage || '').trim();
+          if (!cachedPreview || isEncryptedPreviewPlaceholder(cachedPreview)) return thread;
+          return { ...thread, lastMessage: cachedPreview };
+        });
+        setThreads(mergedThreads);
+        writeChatCache(threadsCacheKey, mergedThreads);
       } catch {
         // ignore
       } finally {
@@ -1169,8 +1194,20 @@ const TeacherChat = () => {
       try {
         const threadsData = await apiFetch('/api/chat/threads');
         const hydratedThreads = await Promise.all((Array.isArray(threadsData) ? threadsData : []).map((thread) => decryptThreadPreview(thread)));
-        setThreads(hydratedThreads);
-        const fallbackThread = findDirectThread(hydratedThreads);
+        const cachedById = new Map(
+          (Array.isArray(threads) ? threads : []).map((thread) => [String(thread?._id || ''), thread])
+        );
+        const mergedThreads = hydratedThreads.map((thread) => {
+          const threadId = String(thread?._id || '');
+          const cachedThread = cachedById.get(threadId);
+          const currentPreview = String(thread?.lastMessage || '').trim();
+          if (!isEncryptedPreviewPlaceholder(currentPreview)) return thread;
+          const cachedPreview = String(cachedThread?.lastMessage || '').trim();
+          if (!cachedPreview || isEncryptedPreviewPlaceholder(cachedPreview)) return thread;
+          return { ...thread, lastMessage: cachedPreview };
+        });
+        setThreads(mergedThreads);
+        const fallbackThread = findDirectThread(mergedThreads);
         if (fallbackThread?._id) {
           setShowContacts(false);
           setContactQuery('');
