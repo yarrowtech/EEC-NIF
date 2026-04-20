@@ -43,9 +43,12 @@ const normalizeViewFromPath = (pathname) => {
 const Dashboard = () => {
   const location = useLocation();
   const navigate = useNavigate();
-  const [sidebarOpen, setSidebarOpen] = useState(false); // default to closed on mobile
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [viewOverride, setViewOverride] = useState(null);
   const journalRef = useRef(null);
+  const wasDesktopRef = useRef(
+    typeof window !== 'undefined' ? window.innerWidth >= 768 : false
+  );
 
   useEffect(() => {
     if (!location.pathname.startsWith('/dashboard')) return;
@@ -59,6 +62,30 @@ const Dashboard = () => {
   useEffect(() => {
     setViewOverride(null);
   }, [location.pathname]);
+
+  useEffect(() => {
+    const syncSidebarForViewport = () => {
+      if (typeof window === 'undefined') return;
+      const isDesktop = window.innerWidth >= 768;
+
+      // Set initial state by viewport after login/mount.
+      if (!wasDesktopRef.current && !isDesktop) {
+        setSidebarOpen(false);
+      }
+      if (wasDesktopRef.current && isDesktop) {
+        setSidebarOpen(true);
+      }
+
+      // Only force toggle when crossing breakpoint.
+      if (wasDesktopRef.current !== isDesktop) {
+        setSidebarOpen(isDesktop);
+        wasDesktopRef.current = isDesktop;
+      }
+    };
+    syncSidebarForViewport();
+    window.addEventListener('resize', syncSidebarForViewport);
+    return () => window.removeEventListener('resize', syncSidebarForViewport);
+  }, []);
 
   // Function to handle navigation
   const setActiveView = (view) => {

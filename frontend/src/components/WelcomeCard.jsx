@@ -1,373 +1,221 @@
 import React, { useState, useEffect } from 'react';
-import { Sun, Moon, Cloud, Lightbulb, Target, Star, Zap, Heart, Trophy, BookOpen, Rocket, Play, Pause, ChevronLeft, ChevronRight } from 'lucide-react';
+import {
+  Sun, Moon, Cloud, Lightbulb, Target, Star, Zap, Heart, Trophy,
+  BookOpen, Rocket, Play, Pause, ChevronLeft, ChevronRight,
+  Hash, MapPin, GraduationCap, Sparkles,
+} from 'lucide-react';
 import { useStudentDashboard } from './StudentDashboardContext';
+
+const quickTips = [
+  { text: "Success is the sum of small efforts repeated day in and day out.", emoji: "🚀", icon: Rocket },
+  { text: "The future belongs to those who believe in the beauty of their dreams.", emoji: "✨", icon: Star },
+  { text: "Learning never exhausts the mind. Every new thing makes you stronger!", emoji: "📚", icon: BookOpen },
+  { text: "Your potential is endless. Go do what you were created to do!", emoji: "⚡", icon: Zap },
+  { text: "Believe in yourself and all that you are. You're capable of amazing things!", emoji: "💪", icon: Heart },
+  { text: "Champions are made from desire, dream, and vision!", emoji: "🏆", icon: Trophy },
+  { text: "Every expert was once a beginner. Keep learning every day!", emoji: "🌟", icon: Target },
+  { text: "Innovation distinguishes between a leader and a follower. Think differently!", emoji: "💡", icon: Lightbulb },
+  { text: "Don't watch the clock; do what it does — keep going!", emoji: "⏰", icon: Zap },
+  { text: "The beautiful thing about learning is nobody can take it away from you!", emoji: "🧠", icon: BookOpen },
+];
+
+const getGreeting = () => {
+  const h = new Date().getHours();
+  if (h < 12) return { text: 'Good Morning', icon: Sun };
+  if (h < 18) return { text: 'Good Afternoon', icon: Cloud };
+  return { text: 'Good Evening', icon: Moon };
+};
 
 const WelcomeCard = () => {
   const { profile, loading } = useStudentDashboard();
+
   const studentData = profile || {
-    name: 'Student',
-    username: '',
-    grade: '',
-    section: '',
-    roll: '',
-    className: '',
-    sectionName: '',
-    rollNumber: '',
-    campusName: '',
-    campusType: '',
-    schoolName: '',
-    schoolLogo: null,
-    profilePic: null,
+    name: 'Student', username: '', grade: '', section: '', roll: '',
+    className: '', sectionName: '', rollNumber: '', campusName: '',
+    campusType: '', schoolName: '', schoolLogo: null, profilePic: null,
   };
-  const displayClass = studentData.className || studentData.grade;
+
+  const displayClass   = studentData.className  || studentData.grade;
   const displaySection = studentData.sectionName || studentData.section;
-  const displayRoll = studentData.rollNumber || studentData.roll;
-  const displayCampus = studentData.campusName
+  const displayRoll    = studentData.rollNumber  || studentData.roll;
+  const displayCampus  = studentData.campusName
     ? studentData.campusType
       ? `${studentData.campusName} (${studentData.campusType})`
       : studentData.campusName
     : '';
-  const profileImage = studentData.profilePic || studentData.avatar || '';
+
+  const profileImage   = studentData.profilePic || studentData.avatar || '';
   const hasProfileImage = typeof profileImage === 'string' && profileImage.trim() !== '';
-  const nameParts = (studentData.name || '').trim().split(/\s+/).filter(Boolean);
-  const initials = nameParts.length >= 2
+  const nameParts  = (studentData.name || '').trim().split(/\s+/).filter(Boolean);
+  const initials   = nameParts.length >= 2
     ? `${nameParts[0][0]}${nameParts[nameParts.length - 1][0]}`
     : (nameParts[0]?.[0] || 'S');
-  const initialsLabel = initials.toUpperCase();
 
-  const getGreeting = () => {
-    const hour = new Date().getHours();
-    if (hour < 12) return { text: 'Good Morning', icon: Sun };
-    if (hour < 18) return { text: 'Good Afternoon', icon: Cloud };
-    return { text: 'Good Evening', icon: Moon };
-  };
-
-  const greeting = getGreeting();
+  const greeting    = getGreeting();
   const GreetingIcon = greeting.icon;
 
-  // Dynamic Quick Tips Collection
-  const quickTips = [
-    {
-      text: "Success is the sum of small efforts repeated day in and day out. Keep up the great work!",
-      emoji: "🚀",
-      icon: Rocket,
-      color: "text-yellow-200"
-    },
-    {
-      text: "The future belongs to those who believe in the beauty of their dreams. Dream big today!",
-      emoji: "✨",
-      icon: Star,
-      color: "text-purple-200"
-    },
-    {
-      text: "Learning never exhausts the mind. Every new thing you discover makes you stronger!",
-      emoji: "📚",
-      icon: BookOpen,
-      color: "text-blue-200"
-    },
-    {
-      text: "Your potential is endless. Go do what you were created to do!",
-      emoji: "⚡",
-      icon: Zap,
-      color: "text-orange-200"
-    },
-    {
-      text: "Believe in yourself and all that you are. You're capable of amazing things!",
-      emoji: "💪",
-      icon: Heart,
-      color: "text-pink-200"
-    },
-    {
-      text: "Champions are made from something deep inside them - desire, dream, and vision!",
-      emoji: "🏆",
-      icon: Trophy,
-      color: "text-gold-200"
-    },
-    {
-      text: "Every expert was once a beginner. Every pro was once an amateur. Keep learning!",
-      emoji: "🌟",
-      icon: Target,
-      color: "text-green-200"
-    },
-    {
-      text: "The only way to do great work is to love what you do. Find your passion!",
-      emoji: "💝",
-      icon: Heart,
-      color: "text-red-200"
-    },
-    {
-      text: "Innovation distinguishes between a leader and a follower. Think differently!",
-      emoji: "💡",
-      icon: Lightbulb,
-      color: "text-yellow-200"
-    },
-    {
-      text: "Don't watch the clock; do what it does. Keep going and make every moment count!",
-      emoji: "⏰",
-      icon: Zap,
-      color: "text-cyan-200"
-    },
-    {
-      text: "The beautiful thing about learning is nobody can take it away from you!",
-      emoji: "🧠",
-      icon: BookOpen,
-      color: "text-indigo-200"
-    },
-    {
-      text: "Your limitation—it's only your imagination. Break through and achieve more!",
-      emoji: "🦋",
-      icon: Star,
-      color: "text-violet-200"
-    }
-  ];
-
-  // State for current tip and controls
   const [currentTip, setCurrentTip] = useState(0);
-  const [isPaused, setIsPaused] = useState(false);
-  const [isAnimating, setIsAnimating] = useState(false);
+  const [isPaused, setIsPaused]     = useState(false);
+  const [animOut, setAnimOut]       = useState(false);
 
-  // Change tip every 10 seconds for dynamic experience
+  const changeTip = (dir) => {
+    setAnimOut(true);
+    setTimeout(() => {
+      setCurrentTip(p => (p + dir + quickTips.length) % quickTips.length);
+      setAnimOut(false);
+    }, 180);
+  };
+
   useEffect(() => {
     if (isPaused) return;
-    
-    const interval = setInterval(() => {
-      setIsAnimating(true);
-      setTimeout(() => {
-        setCurrentTip(prev => (prev + 1) % quickTips.length);
-        setIsAnimating(false);
-      }, 200);
-    }, 10000); // Change every 10 seconds
-
-    return () => clearInterval(interval);
+    const id = setInterval(() => changeTip(1), 9000);
+    return () => clearInterval(id);
   }, [isPaused]);
 
-  // Manual tip navigation
-  const nextTip = () => {
-    setIsAnimating(true);
-    setTimeout(() => {
-      setCurrentTip(prev => (prev + 1) % quickTips.length);
-      setIsAnimating(false);
-    }, 200);
-  };
-
-  const previousTip = () => {
-    setIsAnimating(true);
-    setTimeout(() => {
-      setCurrentTip(prev => (prev - 1 + quickTips.length) % quickTips.length);
-      setIsAnimating(false);
-    }, 200);
-  };
-
-  const togglePause = () => {
-    setIsPaused(!isPaused);
-  };
-
-  // Get current tip to display
-  const tipToShow = quickTips[currentTip];
-  const TipIcon = tipToShow.icon;
+  const tip    = quickTips[currentTip];
+  const TipIcon = tip.icon;
 
   if (loading) {
     return (
-      <div className="bg-gradient-to-r from-yellow-200 via-amber-200 to-orange-200 rounded-2xl p-6 text-white animate-pulse">
-        <div className="h-6 bg-white/40 rounded w-1/3 mb-4"></div>
-        <div className="h-16 bg-white/20 rounded mb-4"></div>
-        <div className="h-24 bg-white/30 rounded"></div>
+      <div className="animate-pulse rounded-3xl bg-linear-to-br from-amber-300 via-yellow-400 to-orange-400 p-6 shadow-lg shadow-amber-200/60">
+        <div className="flex items-center gap-4 mb-5">
+          <div className="h-16 w-16 rounded-2xl bg-white/30" />
+          <div className="flex-1 space-y-2">
+            <div className="h-4 w-28 bg-white/30 rounded-full" />
+            <div className="h-6 w-40 bg-white/40 rounded-full" />
+            <div className="h-3 w-32 bg-white/20 rounded-full" />
+          </div>
+        </div>
+        <div className="h-20 rounded-xl bg-white/20" />
       </div>
     );
   }
 
   return (
-    <div className="bg-gradient-to-r from-yellow-400 via-amber-500 to-orange-500 rounded-2xl p-6 text-white relative overflow-hidden">
-      {/* Background Pattern */}
-      <div className="absolute inset-0 opacity-10">
-        <div className="absolute top-4 right-4 w-32 h-32 bg-white rounded-full"></div>
-        <div className="absolute bottom-4 left-4 w-24 h-24 bg-white rounded-full"></div>
-        <div className="absolute top-1/2 left-1/2 w-16 h-16 bg-white rounded-full transform -translate-x-1/2 -translate-y-1/2"></div>
-      </div>
+    <div className="relative overflow-hidden rounded-3xl bg-linear-to-br from-amber-400 via-yellow-400 to-orange-500 shadow-lg shadow-amber-300/50">
 
-      <div className="relative z-10">
-        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-          <div className="flex items-center space-x-4">
-            <div className="relative">
-              {hasProfileImage ? (
-                <img
-                  src={profileImage}
-                  alt="Profile"
-                  className="w-16 h-16 rounded-full border-4 border-white/20 shadow-lg object-cover"
-                  onError={(e) => {
-                    e.target.src = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='64' height='64' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2'%3E%3C/path%3E%3Ccircle cx='12' cy='7' r='4'%3E%3C/circle%3E%3C/svg%3E";
-                  }}
-                />
-              ) : (
-                <div className="w-16 h-16 rounded-full border-4 border-white/20 shadow-lg bg-white/20 text-white flex items-center justify-center text-xl font-semibold">
-                  {initialsLabel}
-                </div>
-              )}
-              <div className="absolute bottom-1 right-1 w-4 h-4 bg-green-400 border-2 border-white rounded-full"></div>
-            </div>
-            
-            <div>
-              <div className="flex items-center space-x-2 mb-1">
-                <GreetingIcon size={20} className="text-yellow-100" />
-                <span className="text-lg font-medium opacity-90">{greeting.text},</span>
+      {/* Decorative circles */}
+      <div className="pointer-events-none absolute -right-10 -top-10 h-44 w-44 rounded-full bg-white/10" />
+      <div className="pointer-events-none absolute -bottom-12 -left-8 h-36 w-36 rounded-full bg-white/10" />
+      <div className="pointer-events-none absolute bottom-6 right-24 h-20 w-20 rounded-full bg-white/[0.07]" />
+      <div className="pointer-events-none absolute top-1/2 right-10 h-32 w-px -translate-y-1/2 bg-white/20" />
+
+      <div className="relative z-10 p-5 sm:p-6">
+
+        {/* ── Top row ── */}
+        <div className="flex items-start gap-4">
+
+          {/* Avatar */}
+          <div className="relative shrink-0">
+            {hasProfileImage ? (
+              <img
+                src={profileImage} alt="Profile"
+                className="h-16 w-16 rounded-2xl border-4 border-white/30 object-cover shadow-xl"
+                onError={(e) => { e.target.style.display = 'none'; }}
+              />
+            ) : (
+              <div className="h-16 w-16 rounded-2xl border-4 border-white/30 bg-white/25 shadow-xl flex items-center justify-center">
+                <span className="text-2xl font-black text-white">{initials.toUpperCase()}</span>
               </div>
-              <h1 className="text-xl sm:text-2xl font-bold mb-1">{studentData.name}!</h1>
-              <p className="text-yellow-100 text-sm">
-                {studentData.username && `Student ID: ${studentData.username}`}
-                {displayClass && displaySection && ` • ${displayClass} - Section ${displaySection}`}
-                {displayCampus && ` • ${displayCampus}`}
-              </p>
-              <div className="mt-3 flex flex-wrap gap-3 text-xs text-white/80">
-                {displayClass && (
-                  <div className="px-3 py-1 rounded-full bg-white/20 border border-white/30">
-                    Class {displayClass}{displaySection ? ` • Section ${displaySection}` : ''}
-                  </div>
-                )}
-                {displayRoll && (
-                  <div className="px-3 py-1 rounded-full bg-white/20 border border-white/30">
-                    Roll No: {displayRoll}
-                  </div>
-                )}
-                {displayCampus && (
-                  <div className="px-3 py-1 rounded-full bg-white/20 border border-white/30">
-                    Campus: {displayCampus}
-                  </div>
-                )}
-              </div>
-            </div>
+            )}
+            <span className="absolute -bottom-1 -right-1 h-4 w-4 rounded-full border-2 border-white bg-emerald-400 shadow" />
           </div>
 
-          <div className="flex flex-col gap-3 items-start md:items-end">
-            {/* {(studentData.schoolLogo || studentData.schoolName) && (
-              <div className="flex items-center gap-3 bg-white/10 border border-white/20 rounded-xl px-4 py-2 shadow-sm backdrop-blur-sm">
-                <div className="w-10 h-10 rounded-full bg-white/30 flex items-center justify-center overflow-hidden border border-white/30">
-                  {studentData.schoolLogo ? (
-                    <img
-                      src={studentData.schoolLogo}
-                      alt="School Logo"
-                      className="w-full h-full object-cover"
-                      onError={(e) => { e.target.style.display = 'none'; }}
-                    />
-                  ) : (
-                    <div className="text-white/80">
-                      <School size={18} />
-                    </div>
-                  )}
-                </div>
-                <div className="text-sm text-white">
-                  <p className="text-xs uppercase tracking-wide text-white/70">School</p>
-                  <p className="font-semibold">{studentData.schoolName || 'Not assigned'}</p>
-                </div>
-              </div>
-            )} */}
-
-            <div className="text-right">
-              <p className="text-yellow-100 text-sm mb-1">Today's Date</p>
-              <p className="text-xl font-semibold">
-                {new Date().toLocaleDateString('en-US', { 
-                  weekday: 'short', 
-                  month: 'short', 
-                  day: 'numeric' 
-                })}
-              </p>
+          {/* Greeting + name */}
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-1.5 mb-0.5">
+              <GreetingIcon size={15} className="text-white/75 shrink-0" />
+              <span className="text-sm text-white/80 font-medium">{greeting.text}</span>
             </div>
+            <h1 className="text-xl sm:text-2xl font-black text-white leading-tight truncate">
+              {studentData.name}!
+            </h1>
+            {studentData.username && (
+              <p className="text-xs text-white/60 mt-0.5">ID: {studentData.username}</p>
+            )}
+          </div>
+
+          {/* Date block */}
+          <div className="shrink-0 rounded-2xl border border-white/25 bg-white/15 px-3 py-2 text-center backdrop-blur-sm">
+            <p className="text-[10px] font-bold uppercase tracking-widest text-white/60">Today</p>
+            <p className="text-2xl font-black text-white leading-none mt-0.5">
+              {new Date().toLocaleDateString('en-US', { day: 'numeric' })}
+            </p>
+            <p className="text-[11px] font-semibold text-white/80">
+              {new Date().toLocaleDateString('en-US', { month: 'short' })}
+            </p>
+            <p className="text-[10px] text-white/60 mt-0.5">
+              {new Date().toLocaleDateString('en-US', { weekday: 'short' })}
+            </p>
           </div>
         </div>
 
-        <div className="mt-6 p-4 bg-white/10 backdrop-blur-sm rounded-xl border border-white/20 relative overflow-hidden group hover:bg-white/15 transition-all duration-300">
-          {/* Animated Background Glow */}
-          <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent -skew-x-12 transform translate-x-full animate-pulse"></div>
-          
-          <div className="relative z-10">
-            <div className="flex items-center justify-between mb-3">
-              <div className="flex items-center gap-2">
-                <TipIcon size={16} className={`${tipToShow.color} transition-colors duration-300`} />
-                <p className="text-sm text-yellow-100 font-semibold">Quick Tip</p>
-                <span className="text-xs bg-white/20 px-2 py-1 rounded-full text-white/80">
-                  {currentTip + 1}/{quickTips.length}
-                </span>
-              </div>
-              
-              {/* Control Buttons */}
-              <div className="flex items-center gap-1 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity duration-300">
-                <button
-                  onClick={previousTip}
-                  className="p-1 hover:bg-white/20 rounded-full transition-colors"
-                  title="Previous tip"
-                >
-                  <ChevronLeft size={14} className="text-white/80" />
-                </button>
-                
-                <button
-                  onClick={togglePause}
-                  className="p-1 hover:bg-white/20 rounded-full transition-colors"
-                  title={isPaused ? "Resume auto-change" : "Pause auto-change"}
-                >
-                  {isPaused ? (
-                    <Play size={14} className="text-white/80" />
-                  ) : (
-                    <Pause size={14} className="text-white/80" />
-                  )}
-                </button>
-                
-                <button
-                  onClick={nextTip}
-                  className="p-1 hover:bg-white/20 rounded-full transition-colors"
-                  title="Next tip"
-                >
-                  <ChevronRight size={14} className="text-white/80" />
-                </button>
-              </div>
-            </div>
-            
-            <div className="flex items-start gap-3">
-              <div 
-                key={currentTip} // Key for animation reset
-                className={`flex-1 transition-all duration-500 ${
-                  isAnimating ? 'opacity-0 translate-x-2' : 'opacity-100 translate-x-0'
-                }`}
-              >
-                <p className="text-white font-medium leading-relaxed">
-                  "{tipToShow.text}" {tipToShow.emoji}
-                </p>
-              </div>
-            </div>
+        {/* ── Info chips ── */}
+        {(displayClass || displaySection || displayRoll || displayCampus) && (
+          <div className="mt-4 flex flex-wrap gap-2">
+            {displayClass && (
+              <span className="inline-flex items-center gap-1.5 rounded-full border border-white/30 bg-white/20 px-3 py-1 text-xs font-semibold text-white backdrop-blur-sm">
+                <GraduationCap size={11} />
+                Class {displayClass}{displaySection ? ` · ${displaySection}` : ''}
+              </span>
+            )}
+            {displayRoll && (
+              <span className="inline-flex items-center gap-1.5 rounded-full border border-white/30 bg-white/20 px-3 py-1 text-xs font-semibold text-white backdrop-blur-sm">
+                <Hash size={11} />
+                Roll {displayRoll}
+              </span>
+            )}
+            {displayCampus && (
+              <span className="inline-flex items-center gap-1.5 rounded-full border border-white/30 bg-white/20 px-3 py-1 text-xs font-semibold text-white backdrop-blur-sm">
+                <MapPin size={11} />
+                {displayCampus}
+              </span>
+            )}
+          </div>
+        )}
 
-            {/* Progress Bar */}
-            <div className="mt-3">
-              <div className="w-full bg-white/20 rounded-full h-1.5">
-                <div 
-                  className={`bg-gradient-to-r from-white/60 to-white/80 h-1.5 rounded-full transition-all duration-500 ${
-                    isPaused ? '' : 'animate-pulse'
-                  }`}
-                  style={{ 
-                    width: `${((currentTip + 1) / quickTips.length) * 100}%` 
-                  }}
-                ></div>
+        {/* ── Quote / Tip ── */}
+        <div className="group mt-4 rounded-2xl border border-white/20 bg-white/10 p-4 backdrop-blur-sm">
+          <div className="flex items-center justify-between mb-2.5">
+            <div className="flex items-center gap-2">
+              <div className="flex h-6 w-6 items-center justify-center rounded-lg bg-white/20">
+                <Sparkles size={12} className="text-white" />
               </div>
-              <div className="flex justify-between items-center mt-1">
-                <p className="text-xs text-white/60">
-                  {isPaused ? 'Auto-change paused' : 'Changes every 10 seconds'}
-                </p>
-                <div className="flex flex-wrap gap-1">
-                  {quickTips.map((_, index) => (
-                    <div
-                      key={index}
-                      className={`w-1.5 h-1.5 rounded-full transition-all duration-300 ${
-                        index === currentTip ? 'bg-white/80 scale-125' : 'bg-white/30'
-                      }`}
-                    ></div>
-                  ))}
-                </div>
-              </div>
+              <span className="text-xs font-bold text-white/80 uppercase tracking-wide">Daily Boost</span>
+              <span className="rounded-full bg-white/20 px-1.5 py-0.5 text-[10px] font-bold text-white/70">
+                {currentTip + 1}/{quickTips.length}
+              </span>
+            </div>
+            <div className="flex items-center gap-0.5 opacity-60 group-hover:opacity-100 transition-opacity">
+              <button onClick={() => changeTip(-1)} className="rounded-full p-1 hover:bg-white/20 transition-colors">
+                <ChevronLeft size={13} className="text-white" />
+              </button>
+              <button onClick={() => setIsPaused(p => !p)} className="rounded-full p-1 hover:bg-white/20 transition-colors">
+                {isPaused ? <Play size={13} className="text-white" /> : <Pause size={13} className="text-white" />}
+              </button>
+              <button onClick={() => changeTip(1)} className="rounded-full p-1 hover:bg-white/20 transition-colors">
+                <ChevronRight size={13} className="text-white" />
+              </button>
             </div>
           </div>
 
-          {/* Hover Instructions */}
-          <div className="absolute top-2 right-2 hidden sm:block opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-            <div className="text-xs text-white/60 bg-black/20 px-2 py-1 rounded">
-              Hover to control
-            </div>
+          <div className={`flex items-start gap-2.5 transition-all duration-200 ${animOut ? 'opacity-0 translate-x-2' : 'opacity-100 translate-x-0'}`}>
+            <span className="text-lg leading-none mt-0.5">{tip.emoji}</span>
+            <p className="text-sm font-medium text-white/95 leading-relaxed">{tip.text}</p>
+          </div>
+
+          {/* Progress dots */}
+          <div className="mt-3 flex items-center gap-1">
+            {quickTips.map((_, i) => (
+              <button
+                key={i}
+                onClick={() => { setAnimOut(true); setTimeout(() => { setCurrentTip(i); setAnimOut(false); }, 180); }}
+                className={`rounded-full transition-all duration-300 ${i === currentTip ? 'w-4 h-1.5 bg-white' : 'w-1.5 h-1.5 bg-white/35 hover:bg-white/60'}`}
+              />
+            ))}
+            <span className="ml-auto text-[10px] text-white/50">
+              {isPaused ? 'Paused' : 'Auto'}
+            </span>
           </div>
         </div>
       </div>

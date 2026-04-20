@@ -215,8 +215,8 @@ const Sidebar = ({ activeView, isOpen, setIsOpen, onNavigateIntent }) => {
               <div className="flex items-center justify-between">
                 <div className="flex items-center space-x-3">
                   <div className="relative">
-                    <div className="w-10 h-10 bg-white/20 backdrop-blur-sm rounded-xl flex items-center justify-center shadow-lg border border-white/30">
-                      <img src={schoolLogoSrc} className="w-6 h-6 rounded-lg object-cover" alt="School Logo"/>
+                    <div className="w-10 h-10 bg-white/20 backdrop-blur-sm rounded-full flex items-center justify-center shadow-lg border border-white/30">
+                      <img src={schoolLogoSrc} className="w-8 h-8 rounded-full object-cover" alt="School Logo"/>
                     </div>
                     <div className="absolute -top-1 -right-1 w-4 h-4 bg-green-400 rounded-full border-2 border-white animate-pulse" />
                   </div>
