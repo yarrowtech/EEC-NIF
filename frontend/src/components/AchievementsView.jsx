@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Award, Calendar, Loader2, Trophy } from 'lucide-react';
+import { useLocation } from 'react-router-dom';
 import { fetchCachedJson } from '../utils/studentApiCache';
 
 const API_BASE = (import.meta.env.VITE_API_URL || 'http://localhost:5000').replace(/\/$/, '');
@@ -20,11 +21,15 @@ const categoryClass = (category = '') => {
   return 'bg-slate-100 text-slate-700';
 };
 
+const resolveAchievementId = (item, idx) => String(item?._id || item?.id || idx);
+
 const AchievementsView = () => {
+  const location = useLocation();
   const [student, setStudent] = useState(null);
   const [achievements, setAchievements] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [highlightedAchievementId, setHighlightedAchievementId] = useState('');
 
   useEffect(() => {
     const fetchAchievements = async () => {
@@ -64,6 +69,25 @@ const AchievementsView = () => {
     return formatDate(achievements[0]?.date);
   }, [achievements]);
 
+  const targetAchievementId = useMemo(
+    () => new URLSearchParams(location.search).get('achievementId') || '',
+    [location.search]
+  );
+
+  useEffect(() => {
+    if (!targetAchievementId || loading || achievements.length === 0) return;
+    const foundIndex = achievements.findIndex(
+      (item, idx) => resolveAchievementId(item, idx) === targetAchievementId
+    );
+    if (foundIndex === -1) return;
+    const element = document.getElementById(`achievement-card-${targetAchievementId}`);
+    if (!element) return;
+    element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    setHighlightedAchievementId(targetAchievementId);
+    const timeoutId = window.setTimeout(() => setHighlightedAchievementId(''), 2500);
+    return () => window.clearTimeout(timeoutId);
+  }, [achievements, loading, targetAchievementId]);
+
   return (
     <div className="min-h-screen bg-slate-50 p-4 sm:p-6">
       <div className="max-w-5xl mx-auto space-y-5">
@@ -100,8 +124,19 @@ const AchievementsView = () => {
             </div>
           ) : (
             <div className="space-y-3">
-              {achievements.map((item, idx) => (
-                <div key={item?._id || `${item?.title || 'achievement'}-${idx}`} className="rounded-xl border border-slate-200 p-4">
+              {achievements.map((item, idx) => {
+                const achievementId = resolveAchievementId(item, idx);
+                const isHighlighted = highlightedAchievementId === achievementId;
+                return (
+                <div
+                  id={`achievement-card-${achievementId}`}
+                  key={achievementId}
+                  className={`rounded-xl border p-4 transition-all ${
+                    isHighlighted
+                      ? 'border-indigo-400 ring-2 ring-indigo-200 bg-indigo-50/40'
+                      : 'border-slate-200'
+                  }`}
+                >
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
                       <p className="text-sm font-bold text-slate-900 break-words">{item?.title || 'Achievement'}</p>
@@ -116,7 +151,8 @@ const AchievementsView = () => {
                     {formatDate(item?.date)}
                   </div>
                 </div>
-              ))}
+              );
+              })}
             </div>
           )}
         </div>

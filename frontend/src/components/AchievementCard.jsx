@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Award, AlertCircle, Calendar, Loader2, Trophy, Star, Medal, Zap } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 
 const API_BASE = (import.meta.env.VITE_API_URL || 'http://localhost:5000').replace(/\/$/, '');
 
@@ -30,6 +31,7 @@ const RankBadge = ({ idx }) => {
 };
 
 const AchievementCard = () => {
+  const navigate = useNavigate();
   const [achievements, setAchievements] = useState([]);
   const [loading, setLoading]           = useState(true);
   const [error, setError]               = useState('');
@@ -113,9 +115,12 @@ const AchievementCard = () => {
             {recent.map((item, idx) => {
               const cat   = item?.category || 'Other';
               const style = categoryStyle(cat);
+              const achievementId = String(item?._id || item?.id || idx);
               return (
-                <div
+                <button
+                  type="button"
                   key={item?._id || `${item?.title}-${idx}`}
+                  onClick={() => navigate(`/student/achievements?achievementId=${encodeURIComponent(achievementId)}`)}
                   className="group flex items-start gap-3 rounded-xl border border-slate-100 bg-slate-50 p-3 transition-colors hover:border-amber-200 hover:bg-amber-50/30"
                 >
                   {/* Rank icon */}
@@ -125,7 +130,7 @@ const AchievementCard = () => {
 
                   {/* Content */}
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-bold text-slate-800 truncate">
+                    <p className="text-left text-sm font-bold text-slate-800 truncate group-hover:text-indigo-700 group-hover:underline underline-offset-2">
                       {item?.title || 'Achievement'}
                     </p>
                     <div className="mt-1.5 flex flex-wrap items-center gap-2">
@@ -146,7 +151,7 @@ const AchievementCard = () => {
                       </p>
                     )}
                   </div>
-                </div>
+                </button>
               );
             })}
 
