@@ -16,6 +16,8 @@ const STATUS = Object.freeze({
   PRESENT: 'present',
   ABSENT: 'absent',
 });
+const ATTENDANCE_OPEN_HOUR = 8;
+const ATTENDANCE_CLOSE_HOUR = 20;
 
 const parseRollForSort = (roll) => {
   if (roll === null || roll === undefined) return Number.POSITIVE_INFINITY;
@@ -29,6 +31,7 @@ const parseRollForSort = (roll) => {
 
 const AttendanceManagement = () => {
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().slice(0, 10));
+  const [nowTick, setNowTick] = useState(() => Date.now());
   const [selectedMonth, setSelectedMonth] = useState(new Date().toISOString().slice(0, 7));
   const [selectedSession, setSelectedSession] = useState('');
   const [selectedClass, setSelectedClass] = useState('');
@@ -49,16 +52,27 @@ const AttendanceManagement = () => {
   const [subjectOptions, setSubjectOptions] = useState([]);
   const [attendanceData, setAttendanceData] = useState({});
   const [lessonPlanContext, setLessonPlanContext] = useState(null);
-  const hasActiveFilters = useMemo(
-    () => Boolean(
-      selectedSession
-      || selectedClass
-      || selectedSection
-      || subject.trim()
-      || searchTerm.trim()
-    ),
-    [selectedSession, selectedClass, selectedSection, subject, searchTerm]
+  const hasRequiredHierarchyFilters = useMemo(
+    () => Boolean(selectedSession && selectedClass && selectedSection),
+    [selectedSession, selectedClass, selectedSection]
   );
+  const todayDateString = useMemo(() => new Date(nowTick).toISOString().slice(0, 10), [nowTick]);
+  const attendanceLockReason = useMemo(() => {
+    const now = new Date(nowTick);
+    const selected = new Date(`${selectedDate}T00:00:00`);
+    const isToday = (
+      selected.getFullYear() === now.getFullYear()
+      && selected.getMonth() === now.getMonth()
+      && selected.getDate() === now.getDate()
+    );
+    if (!isToday) return 'Attendance can only be marked for today.';
+    const minutes = (now.getHours() * 60) + now.getMinutes();
+    if (minutes < (ATTENDANCE_OPEN_HOUR * 60) || minutes >= (ATTENDANCE_CLOSE_HOUR * 60)) {
+      return 'Attendance can be marked only between 8:00 AM and 8:00 PM.';
+    }
+    return '';
+  }, [nowTick, selectedDate]);
+  const isAttendanceLocked = Boolean(attendanceLockReason);
 
   const loadAttendance = useCallback(async () => {
     const token = localStorage.getItem('token');
@@ -101,7 +115,7 @@ const AttendanceManagement = () => {
         if (rollA !== rollB) return rollA - rollB;
         return String(a?.name || '').localeCompare(String(b?.name || ''), undefined, { numeric: true });
       });
-      if (hasActiveFilters) {
+      if (hasRequiredHierarchyFilters) {
         setStudents(sortedStudents);
       } else {
         setStudents([]);
@@ -113,7 +127,7 @@ const AttendanceManagement = () => {
       setLessonPlanContext(data?.lessonPlanContext || null);
 
       const nextState = {};
-      (hasActiveFilters ? sortedStudents : []).forEach((student) => {
+      (hasRequiredHierarchyFilters ? sortedStudents : []).forEach((student) => {
         nextState[student._id] = student?.selectedDateRecord?.status || STATUS.ABSENT;
       });
       setAttendanceData(nextState);
@@ -122,7 +136,24 @@ const AttendanceManagement = () => {
     } finally {
       setLoading(false);
     }
-  }, [selectedMonth, selectedDate, selectedSession, selectedClass, selectedSection, subject, isSubstituteMode, searchTerm, hasActiveFilters]);
+  }, [selectedMonth, selectedDate, selectedSession, selectedClass, selectedSection, subject, isSubstituteMode, searchTerm, hasRequiredHierarchyFilters]);
+
+  useEffect(() => {
+    if (!selectedSession && sessionOptions.length > 0) {
+      setSelectedSession(sessionOptions[0]);
+    }
+  }, [selectedSession, sessionOptions]);
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setNowTick(Date.now()), 30000);
+    return () => window.clearInterval(timer);
+  }, []);
+
+  useEffect(() => {
+    if (selectedDate !== todayDateString) {
+      setSelectedDate(todayDateString);
+    }
+  }, [selectedDate, todayDateString]);
 
   useEffect(() => {
     loadAttendance();
@@ -144,6 +175,11 @@ const AttendanceManagement = () => {
   const saveAttendance = async () => {
     const token = localStorage.getItem('token');
     if (!token) return;
+    if (isAttendanceLocked) {
+      setError(attendanceLockReason);
+      setSuccess('');
+      return;
+    }
     if (isSubstituteMode && (!selectedSession || !selectedClass || !selectedSection)) {
       setError('For substitute attendance, please select session, class and section first.');
       setSuccess('');
@@ -313,6 +349,9 @@ const AttendanceManagement = () => {
               type="date"
               value={selectedDate}
               onChange={(e) => setSelectedDate(e.target.value)}
+              min={todayDateString}
+              max={todayDateString}
+              disabled
               className="pl-9 pr-3 py-2 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400 transition-colors"
             />
           </div>
@@ -336,7 +375,7 @@ const AttendanceManagement = () => {
             <button
               type="button"
               onClick={exportToPDF}
-              disabled={!hasActiveFilters || students.length === 0 || loading}
+              disabled={!hasRequiredHierarchyFilters || students.length === 0 || loading}
               className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-gray-600 bg-gray-50 border border-gray-200 rounded-xl hover:bg-gray-100 transition-colors"
             >
               <Download size={14} />
@@ -345,7 +384,7 @@ const AttendanceManagement = () => {
             <button
               type="button"
               onClick={saveAttendance}
-              disabled={saving || loading || !hasActiveFilters || students.length === 0}
+              disabled={saving || loading || isAttendanceLocked || !hasRequiredHierarchyFilters || students.length === 0}
               className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-semibold text-white bg-linear-to-r from-indigo-600 to-violet-600 rounded-xl shadow-md shadow-indigo-500/20 hover:shadow-lg disabled:opacity-50 transition-all"
             >
               {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
@@ -364,6 +403,12 @@ const AttendanceManagement = () => {
           <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-emerald-50 border border-emerald-100">
             <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" />
             <p className="text-xs text-emerald-600 font-medium">{success}</p>
+          </div>
+        )}
+        {isAttendanceLocked && (
+          <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-amber-50 border border-amber-100">
+            <div className="w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0" />
+            <p className="text-xs text-amber-700 font-medium">{attendanceLockReason}</p>
           </div>
         )}
       </div>
@@ -435,13 +480,13 @@ const AttendanceManagement = () => {
           <span className="text-[11px] text-gray-400 font-medium">{selectedDate}</span>
         </div>
         <div className="overflow-x-auto max-h-[520px] overflow-y-auto">
-          {!hasActiveFilters ? (
+          {!hasRequiredHierarchyFilters ? (
             <div className="flex flex-col items-center justify-center py-14 text-center">
               <div className="w-12 h-12 rounded-2xl bg-indigo-50 flex items-center justify-center mb-3">
                 <Search size={20} className="text-indigo-400" />
               </div>
-              <p className="text-sm font-medium text-gray-600">Select at least one filter to view students</p>
-              <p className="text-xs text-gray-400 mt-1">Use session, class, section, subject, or search</p>
+              <p className="text-sm font-medium text-gray-600">Select Class and Section in the active session to view students</p>
+              <p className="text-xs text-gray-400 mt-1">Flow: Session to Class to Section</p>
             </div>
           ) : loading ? (
             <div className="flex flex-col items-center justify-center py-14">

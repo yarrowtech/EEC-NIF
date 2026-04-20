@@ -639,6 +639,9 @@ const AssignmentPortal = () => {
             setFilterStatus={setFilterStatus}
             filterSubject={filterSubject}
             setFilterSubject={setFilterSubject}
+            filterTopic={filterTopic}
+            setFilterTopic={setFilterTopic}
+            topics={topics}
             searchTerm={searchTerm}
             setSearchTerm={setSearchTerm}
             setShowModal={setShowModal}
@@ -797,7 +800,8 @@ const ManageAssignments = ({
   loading, assignments, filteredAssignments, myClasses, subjects,
   activeAssignments, draftAssignments, totalAssignments,
   viewMode, setViewMode, filterStatus, setFilterStatus,
-  filterSubject, setFilterSubject, searchTerm, setSearchTerm,
+  filterSubject, setFilterSubject, filterTopic, setFilterTopic, topics,
+  searchTerm, setSearchTerm,
   setShowModal, openAssignmentDetail, openDeleteModal,
   getStatusColor, getAssignmentClassName, getAssignmentSectionName, getDaysUntilDue
 }) => (

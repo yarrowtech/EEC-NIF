@@ -4,6 +4,7 @@ import {
   Users,
   Activity,
   Calendar,
+  Bell,
   FileText,
   ClipboardCheck,
   Menu,
@@ -19,6 +20,7 @@ import {
   Clock,
   Eye,
   LogOut,
+  CheckCheck,
   ThumbsUp,
   ChevronDown,
   ChevronRight,
@@ -47,9 +49,10 @@ import TeacherFeedbackPortal from './TeacherFeedbackPortal';
 import ExcuseLetters from './ExcuseLetters';
 import ResultManagement from './ResultManagement';
 import HolidayList from './HolidayList';
-import { AUTH_NOTICE, logoutAndRedirect } from '../utils/authSession';
+import { AUTH_NOTICE, apiFetch, logoutAndRedirect } from '../utils/authSession';
 
 const PORTAL_BASE = '/teacher';
+const API_BASE = (import.meta.env.VITE_API_URL || 'http://localhost:5000').replace(/\/$/, '');
 
 const menuSections = [
   {
@@ -69,7 +72,7 @@ const menuSections = [
     icon: Users,
     children: [
       { icon: UserCheck, label: 'Attendance', path: `${PORTAL_BASE}/attendance` },
-      { icon: BarChart3, label: 'Student Analytics', path: `${PORTAL_BASE}/student-analytics` },
+      // { icon: BarChart3, label: 'Student Analytics', path: `${PORTAL_BASE}/student-analytics` },
       { icon: Activity, label: 'Student Health Updates', path: `${PORTAL_BASE}/health-updates` },
       { icon: Eye, label: 'Student Observations', path: `${PORTAL_BASE}/student-observations` },
     ],
@@ -167,7 +170,12 @@ const TeacherPortal = () => {
   // Teacher profile state for header
   const [teacherProfile, setTeacherProfile] = useState({ name: '', profilePic: '', department: '' });
   const [profileOpen, setProfileOpen] = useState(false);
+  const [showNotifications, setShowNotifications] = useState(false);
+  const [notifications, setNotifications] = useState([]);
+  const [notifLoading, setNotifLoading] = useState(false);
+  const [notifError, setNotifError] = useState('');
   const profileRef = useRef(null);
+  const notificationsRef = useRef(null);
 
   // Fetch teacher profile
   useEffect(() => {
@@ -195,6 +203,9 @@ const TeacherPortal = () => {
     const handler = (e) => {
       if (profileRef.current && !profileRef.current.contains(e.target)) {
         setProfileOpen(false);
+      }
+      if (notificationsRef.current && !notificationsRef.current.contains(e.target)) {
+        setShowNotifications(false);
       }
     };
     document.addEventListener('mousedown', handler);
@@ -224,6 +235,134 @@ const TeacherPortal = () => {
     : (nameParts[0]?.[0] || 'T')
   ).toUpperCase();
   const hasProfileImage = typeof teacherProfile.profilePic === 'string' && teacherProfile.profilePic.trim() !== '';
+  const unreadCount = useMemo(
+    () => notifications.filter((item) => !item?.isRead).length,
+    [notifications]
+  );
+
+  const fetchNotifs = useCallback(async () => {
+    const token = localStorage.getItem('token');
+    if (!token) {
+      setNotifications([]);
+      return;
+    }
+    setNotifLoading(true);
+    setNotifError('');
+    try {
+      const res = await apiFetch(`${API_BASE}/api/notifications/user`, {
+        cache: 'no-store',
+        headers: {
+          'Content-Type': 'application/json',
+          authorization: `Bearer ${token}`,
+        },
+      }, navigate);
+      if (res.status === 304) return;
+      const data = await res.json().catch(() => []);
+      if (!res.ok) throw new Error(data?.error || 'Failed to load notifications');
+      const all = Array.isArray(data) ? data : [];
+      setNotifications(
+        all
+          .sort((a, b) => new Date(b?.createdAt || 0) - new Date(a?.createdAt || 0))
+          .slice(0, 20)
+      );
+    } catch (err) {
+      setNotifError(err.message || 'Failed to load notifications');
+      setNotifications([]);
+    } finally {
+      setNotifLoading(false);
+    }
+  }, [navigate]);
+
+  useEffect(() => {
+    fetchNotifs();
+    const poll = setInterval(() => {
+      if (document.visibilityState === 'visible') fetchNotifs();
+    }, 15_000);
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') fetchNotifs();
+    };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => {
+      clearInterval(poll);
+      document.removeEventListener('visibilitychange', onVisible);
+    };
+  }, [fetchNotifs]);
+
+  const markRead = useCallback(async (id) => {
+    if (!id) return;
+    const token = localStorage.getItem('token');
+    if (!token) return;
+    setNotifications((prev) =>
+      prev.map((n) => (String(n?._id || n?.id || '') === String(id) ? { ...n, isRead: true } : n))
+    );
+    try {
+      const res = await apiFetch(`${API_BASE}/api/notifications/user/${id}/read`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', authorization: `Bearer ${token}` },
+      }, navigate);
+      if (!res.ok) throw new Error('Failed to mark notification as read');
+      await fetchNotifs();
+    } catch (err) {
+      setNotifError(err.message || 'Failed to mark notification as read');
+      await fetchNotifs();
+    }
+  }, [fetchNotifs, navigate]);
+
+  const markAllRead = useCallback(async () => {
+    const token = localStorage.getItem('token');
+    if (!token) return;
+    setNotifications((prev) => prev.map((item) => ({ ...item, isRead: true })));
+    try {
+      const res = await apiFetch(`${API_BASE}/api/notifications/user/read-all`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', authorization: `Bearer ${token}` },
+      }, navigate);
+      if (!res.ok) throw new Error('Failed to mark all notifications as read');
+      await fetchNotifs();
+    } catch (err) {
+      setNotifError(err.message || 'Failed to mark all as read');
+      await fetchNotifs();
+    }
+  }, [fetchNotifs, navigate]);
+
+  const handleToggleNotifications = useCallback(async () => {
+    const nextOpen = !showNotifications;
+    if (nextOpen && unreadCount > 0) {
+      await markAllRead();
+    }
+    setShowNotifications(nextOpen);
+    setProfileOpen(false);
+  }, [markAllRead, showNotifications, unreadCount]);
+
+  const timeAgo = useCallback((value) => {
+    if (!value) return '';
+    const ts = new Date(value);
+    if (Number.isNaN(ts.getTime())) return '';
+    const mins = Math.floor((Date.now() - ts.getTime()) / 60000);
+    if (mins < 1) return 'just now';
+    if (mins < 60) return `${mins}m ago`;
+    const hrs = Math.floor(mins / 60);
+    if (hrs < 24) return `${hrs}h ago`;
+    const days = Math.floor(hrs / 24);
+    if (days < 7) return `${days}d ago`;
+    return ts.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
+  }, []);
+
+  const resolveNotifPath = useCallback((notification) => {
+    const title = String(notification?.title || '').toLowerCase();
+    const message = String(notification?.message || '').toLowerCase();
+    const type = String(notification?.type || notification?.typeLabel || '').toLowerCase();
+    const blob = `${title} ${message} ${type}`;
+    if (blob.includes('substitute')) return '/teacher/attendance';
+    if (blob.includes('assignment')) return '/teacher/assignments';
+    if (blob.includes('result') || blob.includes('exam')) return '/teacher/result-management';
+    if (blob.includes('attendance')) return '/teacher/attendance';
+    if (blob.includes('meeting') || blob.includes('parent')) return '/teacher/parent-meetings';
+    if (blob.includes('feedback')) return '/teacher/feedback';
+    if (blob.includes('chat') || blob.includes('message')) return '/teacher/chat';
+    if (blob.includes('health') || blob.includes('wellbeing')) return '/teacher/health-updates';
+    return '/teacher/dashboard';
+  }, []);
 
   return (
     <div className="min-h-screen bg-slate-100 flex">
@@ -448,10 +587,94 @@ const TeacherPortal = () => {
 
               {/* Right: Profile */}
               <div className="flex items-center gap-1.5 sm:gap-2">
+                <div className="relative" ref={notificationsRef}>
+                  <button
+                    onClick={handleToggleNotifications}
+                    className="relative w-9 h-9 flex items-center justify-center rounded-xl text-gray-500 hover:bg-gray-100 border border-gray-100 transition-all"
+                    aria-label="Notifications"
+                  >
+                    <Bell size={18} />
+                    {unreadCount > 0 && (
+                      <span className="absolute -top-0.5 -right-0.5 min-w-[17px] h-[17px] px-1 bg-red-500 rounded-full text-[10px] text-white font-bold flex items-center justify-center">
+                        {unreadCount > 9 ? '9+' : unreadCount}
+                      </span>
+                    )}
+                  </button>
+
+                  {showNotifications && (
+                    <div className="absolute right-0 top-full mt-2 w-80 bg-white rounded-2xl shadow-xl border border-gray-100 z-50 overflow-hidden">
+                      <div className="flex items-center justify-between px-4 py-3 border-b border-gray-50">
+                        <div className="flex items-center gap-2">
+                          <Bell size={14} className="text-indigo-500" />
+                          <span className="text-sm font-bold text-gray-900">Notifications</span>
+                          {unreadCount > 0 && (
+                            <span className="bg-indigo-100 text-indigo-700 text-[10px] font-bold px-1.5 py-0.5 rounded-full">{unreadCount}</span>
+                          )}
+                        </div>
+                        {notifications.length > 0 && (
+                          <button
+                            type="button"
+                            onClick={markAllRead}
+                            className="inline-flex items-center gap-1 text-xs text-indigo-600 hover:text-indigo-700 font-semibold"
+                          >
+                            <CheckCheck size={12} />
+                            Mark all read
+                          </button>
+                        )}
+                      </div>
+
+                      <div className="max-h-72 overflow-y-auto divide-y divide-gray-50">
+                        {notifLoading && (
+                          <div className="px-4 py-6 text-sm text-gray-400 text-center">Loading...</div>
+                        )}
+                        {!notifLoading && notifError && (
+                          <div className="px-4 py-4 text-sm text-red-600">{notifError}</div>
+                        )}
+                        {!notifLoading && !notifError && notifications.length === 0 && (
+                          <div className="px-4 py-8 text-sm text-gray-400 text-center">
+                            <Bell size={24} className="mx-auto text-gray-200 mb-2" />
+                            No notifications yet
+                          </div>
+                        )}
+                        {!notifLoading && !notifError && notifications.map((n) => {
+                          const id = String(n?._id || n?.id || '');
+                          const isRead = Boolean(n?.isRead);
+                          return (
+                            <button
+                              key={id || n?.title}
+                              type="button"
+                              onClick={async () => {
+                                await markRead(id);
+                                setShowNotifications(false);
+                                navigate(resolveNotifPath(n));
+                              }}
+                              className={`w-full text-left px-4 py-3 hover:bg-gray-50 transition-colors ${isRead ? '' : 'bg-indigo-50/50'}`}
+                            >
+                              <div className="flex items-start gap-2">
+                                {!isRead && <span className="mt-1.5 w-1.5 h-1.5 rounded-full bg-indigo-500 shrink-0" />}
+                                <div className={!isRead ? '' : 'ml-3.5'}>
+                                  <p className="text-sm font-medium text-gray-800 line-clamp-1">{n?.title || 'Notification'}</p>
+                                  {n?.message && <p className="text-xs text-gray-500 mt-0.5 line-clamp-2">{n.message}</p>}
+                                  <p className="text-[11px] text-gray-400 mt-1">
+                                    <span>{timeAgo(n?.createdAt)}</span>
+                                  </p>
+                                </div>
+                              </div>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+                </div>
+
                 <div className="relative" ref={profileRef}>
                   <button
                     className="flex items-center gap-2 rounded-xl p-1.5 hover:bg-gray-100 active:scale-95 transition-all"
-                    onClick={toggleProfile}
+                    onClick={() => {
+                      setShowNotifications(false);
+                      toggleProfile();
+                    }}
                     aria-label="Profile menu"
                   >
                     {hasProfileImage ? (

@@ -2,7 +2,9 @@ const express = require('express');
 const router = express.Router();
 const StudentUser = require('../models/StudentUser');
 const ParentUser = require('../models/ParentUser');
+const TeacherUser = require('../models/TeacherUser');
 const Timetable = require('../models/Timetable');
+const AcademicYear = require('../models/AcademicYear');
 const LessonPlan = require('../models/LessonPlan');
 const LessonPlanCompletion = require('../models/LessonPlanCompletion');
 const Notification = require('../models/Notification');
@@ -100,6 +102,29 @@ const normalizeText = (value) => String(value || '').trim();
 const normalizeSubject = (value) => normalizeText(value).toLowerCase();
 const escapeRegex = (value) => String(value || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 const parseBoolean = (value) => ['1', 'true', 'yes', 'y'].includes(String(value || '').trim().toLowerCase());
+const ATTENDANCE_OPEN_HOUR = 8;
+const ATTENDANCE_CLOSE_HOUR = 20;
+
+const isSameLocalDate = (a, b) => (
+  a.getFullYear() === b.getFullYear()
+  && a.getMonth() === b.getMonth()
+  && a.getDate() === b.getDate()
+);
+
+const isWithinAttendanceMarkingWindow = (now = new Date()) => {
+  const minutes = (now.getHours() * 60) + now.getMinutes();
+  return minutes >= (ATTENDANCE_OPEN_HOUR * 60) && minutes < (ATTENDANCE_CLOSE_HOUR * 60);
+};
+
+const getAttendanceWindowError = (targetDate, now = new Date()) => {
+  if (!isSameLocalDate(targetDate, now)) {
+    return 'Attendance can only be marked for today.';
+  }
+  if (!isWithinAttendanceMarkingWindow(now)) {
+    return 'Attendance can be marked only between 8:00 AM and 8:00 PM.';
+  }
+  return '';
+};
 
 const normalizeSessionToken = (value) => {
   const text = normalizeText(value);
@@ -136,7 +161,11 @@ const matchesSubjectForView = ({ entrySubject, requestedSubject, substituteMode 
   return entryNormalized === encodeSubstituteSubject(requestedNormalized);
 };
 
-const resolveStudentSession = (student) => {
+const resolveStudentSession = (student, { activeSessionName = '' } = {}) => {
+  const activeSession = normalizeText(activeSessionName);
+  if (activeSession) return activeSession;
+  const studentAcademicYear = normalizeText(student?.academicYear);
+  if (studentAcademicYear) return studentAcademicYear;
   const date = parseDateValue(student?.admissionDate) || parseDateValue(student?.createdAt);
   if (!date) return '';
   const year = date.getFullYear();
@@ -144,9 +173,191 @@ const resolveStudentSession = (student) => {
   return `${year}-${next}`;
 };
 
+const resolveActiveAcademicSessionName = async (schoolId) => {
+  if (!schoolId) return '';
+  const activeYear = await AcademicYear.findOne({ schoolId, isActive: true })
+    .select('name')
+    .lean();
+  return normalizeText(activeYear?.name);
+};
+
 const resolveStudentClass = (student) => normalizeText(student?.grade);
 
 const resolveStudentSection = (student) => normalizeText(student?.section);
+
+const normalizeClassKey = (value) => normalizeText(value)
+  .toLowerCase()
+  .replace(/^class\s+/i, '')
+  .replace(/\s+/g, '');
+
+const getSubstituteRecipientTeachers = async ({
+  schoolId,
+  campusId,
+  className,
+  sectionName,
+  subjectName,
+  substituteTeacherId,
+  targetDate,
+  allowSubjectFallback = true,
+  allowCampusFallback = true,
+}) => {
+  const normalizedClass = normalizeClassKey(className);
+  const normalizedSection = normalizeText(sectionName).toLowerCase();
+  const normalizedSubject = normalizeText(subjectName).toLowerCase();
+  if (!normalizedClass || !normalizedSection) return [];
+
+  const baseFilter = { schoolId };
+  const primaryFilter = campusId ? { ...baseFilter, campusId } : baseFilter;
+  let timetables = await Timetable.find(primaryFilter)
+    .populate('classId', 'name')
+    .populate('sectionId', 'name')
+    .populate('entries.teacherId', 'name')
+    .populate('entries.subjectId', 'name')
+    .lean();
+
+  if (campusId && (!Array.isArray(timetables) || timetables.length === 0)) {
+    timetables = await Timetable.find(baseFilter)
+      .populate('classId', 'name')
+      .populate('sectionId', 'name')
+      .populate('entries.teacherId', 'name')
+      .populate('entries.subjectId', 'name')
+      .lean();
+  }
+
+  const weekday = new Date(targetDate).toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase();
+  const teacherMap = new Map();
+
+  (timetables || []).forEach((tt) => {
+    const ttClass = normalizeClassKey(tt?.classId?.name);
+    const ttSection = normalizeText(tt?.sectionId?.name).toLowerCase();
+    if (ttClass !== normalizedClass || ttSection !== normalizedSection) return;
+
+    const entries = Array.isArray(tt?.entries) ? tt.entries : [];
+    const sameDayEntries = entries.filter((entry) => normalizeText(entry?.dayOfWeek).toLowerCase() === weekday);
+    const candidateEntries = sameDayEntries.length > 0 ? sameDayEntries : entries;
+
+    candidateEntries.forEach((entry) => {
+      const teacher = entry?.teacherId;
+      const teacherId = String(teacher?._id || teacher || '');
+      if (!teacherId || teacherId === String(substituteTeacherId || '')) return;
+
+      const entrySubject = normalizeText(entry?.subjectId?.name).toLowerCase();
+      if (normalizedSubject && entrySubject && entrySubject !== normalizedSubject) return;
+
+      if (!teacherMap.has(teacherId)) {
+        teacherMap.set(teacherId, {
+          teacherId,
+          teacherName: normalizeText(teacher?.name) || 'Teacher',
+        });
+      }
+    });
+  });
+
+  // Campus fallback: some schools may keep timetable rows at school-level (no campus match).
+  if (teacherMap.size === 0 && campusId && allowCampusFallback) {
+    return getSubstituteRecipientTeachers({
+      schoolId,
+      campusId: null,
+      className,
+      sectionName,
+      subjectName,
+      substituteTeacherId,
+      targetDate,
+      allowSubjectFallback,
+      allowCampusFallback: false,
+    });
+  }
+
+  // Subject fallback: if exact subject match is unavailable, notify class/section allocated teachers.
+  if (teacherMap.size === 0 && normalizedSubject && allowSubjectFallback) {
+    return getSubstituteRecipientTeachers({
+      schoolId,
+      campusId,
+      className,
+      sectionName,
+      subjectName: '',
+      substituteTeacherId,
+      targetDate,
+      allowSubjectFallback: false,
+      allowCampusFallback,
+    });
+  }
+
+  return [...teacherMap.values()];
+};
+
+const notifyOriginalTeacherForSubstituteAttendance = async ({
+  schoolId,
+  campusId,
+  substituteTeacherId,
+  substituteTeacherName,
+  className,
+  sectionName,
+  subjectName,
+  targetDate,
+}) => {
+  const recipients = await getSubstituteRecipientTeachers({
+    schoolId,
+    campusId,
+    className,
+    sectionName,
+    subjectName,
+    substituteTeacherId,
+    targetDate,
+  });
+  if (!recipients.length) return 0;
+
+  const dateLabel = new Date(targetDate).toLocaleDateString('en-IN', {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+  });
+  const classSectionLabel = sectionName ? `${className}-${sectionName}` : className;
+  const subjectLabel = normalizeText(subjectName) ? ` (${normalizeText(subjectName)})` : '';
+  const title = 'Substitute Class Update';
+
+  let createdCount = 0;
+  for (const recipient of recipients) {
+    const message = `Your class ${classSectionLabel}${subjectLabel} was taken by ${substituteTeacherName} on ${dateLabel}.`;
+    const existing = await Notification.findOne({
+      schoolId,
+      ...(campusId ? { campusId } : {}),
+      audience: 'Teacher',
+      createdByType: 'teacher',
+      createdByTeacherId: substituteTeacherId,
+      targetUserIds: recipient.teacherId,
+      type: 'announcement',
+      typeLabel: 'substitute_attendance',
+      className: normalizeText(className),
+      sectionName: normalizeText(sectionName),
+      subjectName: normalizeText(subjectName),
+      message,
+    }).lean();
+    if (existing) continue;
+
+    await Notification.create({
+      schoolId,
+      campusId: campusId || null,
+      title,
+      message,
+      audience: 'Teacher',
+      targetUserIds: [recipient.teacherId],
+      createdByType: 'teacher',
+      createdByTeacherId: substituteTeacherId,
+      createdByName: substituteTeacherName,
+      type: 'announcement',
+      typeLabel: 'substitute_attendance',
+      category: 'academic',
+      priority: 'medium',
+      className: normalizeText(className),
+      sectionName: normalizeText(sectionName),
+      subjectName: normalizeText(subjectName),
+    });
+    createdCount += 1;
+  }
+
+  return createdCount;
+};
 
 const getTeacherAllocatedSubjects = async ({ schoolId, campusId, teacherId, className, sectionName }) => {
   const baseFilter = { schoolId, 'entries.teacherId': teacherId };
@@ -458,7 +669,7 @@ const buildStudentAttendancePayload = (
   monthRange,
   selectedDate,
   selectedSubject = '',
-  { substituteMode = false } = {}
+  { substituteMode = false, activeSessionName = '' } = {}
 ) => {
   const attendance = Array.isArray(student?.attendance) ? student.attendance : [];
   const monthEntries = attendance.filter((entry) => {
@@ -499,7 +710,7 @@ const buildStudentAttendancePayload = (
     _id: student._id,
     name: student?.name || 'Student',
     username: normalizeText(student?.username) || normalizeText(student?.studentCode),
-    session: resolveStudentSession(student),
+    session: resolveStudentSession(student, { activeSessionName }),
     className: resolveStudentClass(student),
     section: resolveStudentSection(student),
     roll: student?.roll || null,
@@ -599,6 +810,7 @@ router.get('/teacher/students', authTeacher, async (req, res) => {
 
     const baseFilter = { schoolId };
     if (campusId) baseFilter.campusId = campusId;
+    const activeSessionName = await resolveActiveAcademicSessionName(schoolId);
 
     const scopeStudents = await StudentUser.find(baseFilter)
       .select('name username studentCode grade section roll attendance admissionDate createdAt')
@@ -618,7 +830,7 @@ router.get('/teacher/students', authTeacher, async (req, res) => {
         monthRange,
         selectedDate,
         subject,
-        { substituteMode: isSubstituteMode }
+        { substituteMode: isSubstituteMode, activeSessionName }
       )
     );
 
@@ -716,10 +928,15 @@ router.post('/teacher/bulk-upsert', authTeacher, async (req, res) => {
     const substituteSection = normalizeText(req.body?.section);
 
     if (!targetDate) return res.status(400).json({ error: 'Valid date is required' });
+    const attendanceWindowError = getAttendanceWindowError(targetDate);
+    if (attendanceWindowError) {
+      return res.status(403).json({ error: attendanceWindowError });
+    }
     if (!entries.length) return res.status(400).json({ error: 'entries are required' });
     if (isSubstituteMode && (!substituteSession || !substituteClassName || !substituteSection)) {
       return res.status(400).json({ error: 'Substitute mode requires session, className and section.' });
     }
+    const activeSessionName = await resolveActiveAcademicSessionName(schoolId);
 
     const stats = { updated: 0, created: 0, skipped: 0 };
     const changedStudentIds = new Set();
@@ -757,7 +974,7 @@ router.post('/teacher/bulk-upsert', authTeacher, async (req, res) => {
         continue;
       }
       if (isSubstituteMode) {
-        const studentSession = normalizeText(resolveStudentSession(student));
+        const studentSession = normalizeText(resolveStudentSession(student, { activeSessionName }));
         const studentClass = normalizeText(resolveStudentClass(student));
         const studentSection = normalizeText(resolveStudentSection(student));
         if (
@@ -803,6 +1020,29 @@ router.post('/teacher/bulk-upsert', authTeacher, async (req, res) => {
         }
       }
       await student.save();
+    }
+
+    let substituteNotificationsSent = 0;
+    if (isSubstituteMode && (stats.updated > 0 || stats.created > 0)) {
+      let substituteTeacher = await TeacherUser.findOne({
+        _id: teacherId,
+        schoolId,
+        ...(campusId ? { campusId } : {}),
+      }).select('name').lean();
+      if (!substituteTeacher && campusId) {
+        substituteTeacher = await TeacherUser.findOne({ _id: teacherId, schoolId }).select('name').lean();
+      }
+      const substituteTeacherName = normalizeText(substituteTeacher?.name) || 'Substitute Teacher';
+      substituteNotificationsSent = await notifyOriginalTeacherForSubstituteAttendance({
+        schoolId,
+        campusId,
+        substituteTeacherId: teacherId,
+        substituteTeacherName,
+        className: substituteClassName,
+        sectionName: substituteSection,
+        subjectName: requestSubject,
+        targetDate,
+      });
     }
 
     if (isSubstituteMode || classSectionSubjectMap.size === 0) {
@@ -874,6 +1114,7 @@ router.post('/teacher/bulk-upsert', authTeacher, async (req, res) => {
       message: 'Attendance saved successfully',
       date: targetDate.toISOString(),
       substitute: isSubstituteMode,
+      substituteNotificationsSent,
       ...stats,
       ...lessonPlanMeta,
     });
@@ -1094,7 +1335,10 @@ router.get('/admin/students', adminAuth, async (req, res) => {
       .select('name username studentCode grade section roll attendance admissionDate createdAt')
       .lean();
 
-    const normalized = scopeStudents.map((student) => buildStudentAttendancePayload(student, monthRange, selectedDate));
+    const activeSessionName = await resolveActiveAcademicSessionName(schoolId);
+    const normalized = scopeStudents.map((student) => (
+      buildStudentAttendancePayload(student, monthRange, selectedDate, '', { activeSessionName })
+    ));
 
     const sessionSet = new Set(normalized.map((student) => normalizeText(student.session)).filter(Boolean));
     const classSet = new Set(normalized.map((student) => normalizeText(student.className)).filter(Boolean));
