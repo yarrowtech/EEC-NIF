@@ -24,7 +24,13 @@ const PTMPortal = () => {
     meeting?.title ||
     (meeting?.studentId?.name ? `Discussion about ${meeting.studentId.name}` : 'Parent-Teacher Meeting');
   const getMeetingTypeLabel = (meeting) => meeting?.meetingType || meeting?.type || 'In Person';
-  const getMeetingDate = (meeting) => meeting?.meetingDate || meeting?.date || '';
+  const formatMeetingDate = (value) => {
+    if (!value) return '';
+    const parsed = new Date(value);
+    if (Number.isNaN(parsed.getTime())) return String(value);
+    return parsed.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
+  };
+  const getMeetingDate = (meeting) => formatMeetingDate(meeting?.meetingDate || meeting?.date || '');
   const getMeetingTime = (meeting) => meeting?.meetingTime || meeting?.time || '';
   const getMeetingAgenda = (meeting) => meeting?.agenda || (meeting?.description ? [meeting.description] : null);
   const getStudentLabel = (meeting) => {
@@ -284,12 +290,6 @@ const PTMPortal = () => {
                             <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
                               Confirmed
                             </span>
-                            <button onClick={() => handleRescheduleRequest(meeting)} className="inline-flex items-center gap-1 text-xs px-2.5 py-1 rounded-full bg-blue-50 text-blue-700 border border-blue-200">
-                              <ArrowLeftRight className="w-3.5 h-3.5" /> Reschedule
-                            </button>
-                            <button onClick={() => openFeedback(meeting)} className="inline-flex items-center gap-1 text-xs px-2.5 py-1 rounded-full bg-yellow-50 text-yellow-700 border border-yellow-200">
-                              <Star className="w-3.5 h-3.5" /> Feedback
-                            </button>
                           </div>
                         )}
                       </div>

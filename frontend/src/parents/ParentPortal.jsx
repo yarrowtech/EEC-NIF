@@ -1,8 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { Routes, Route, Link, useNavigate, useLocation } from 'react-router-dom';
 import { 
   Users, 
   Calendar, 
+  Bell,
   BookOpen, 
   CreditCard, 
   Activity,
@@ -17,8 +18,11 @@ import {
   GraduationCap,
   Video,
   Clock,
+  User,
   ChevronLeft,
   ChevronRight,
+  ChevronDown,
+  CheckCheck,
   Home,
   Eye,
   LogOut
@@ -36,13 +40,36 @@ import ParentObservationNonAcademic from './ParentObservationNonAcademic';
 import ParentChat from './ParentChat';
 import ClassRoutine from './ClassRoutine';
 import HolidayList from './HolidayList';
-import { AUTH_NOTICE, logoutAndRedirect } from '../utils/authSession';
+import { AUTH_NOTICE, apiFetch, logoutAndRedirect } from '../utils/authSession';
+
+const MENU_ITEMS = [
+  { icon: Home, label: 'Dashboard', description: 'Overview & insights', path: '/parents' },
+  { icon: Calendar, label: 'Holiday List', description: 'School holidays', path: '/parents/holidays' },
+  { icon: Clock, label: 'Class Routine', description: 'Weekly schedule', path: '/parents/routine' },
+  { icon: Calendar, label: 'Attendance Report', description: 'Punctuality tracker', path: '/parents/attendance' },
+  { icon: BookOpen, label: 'Academic Report', description: 'Learning progress', path: '/parents/academic' },
+  { icon: CreditCard, label: 'Fees Payment', description: 'Bills & dues', path: '/parents/fees' },
+  { icon: Activity, label: 'Health Report', description: 'Wellness records', path: '/parents/health' },
+  { icon: MessageCircle, label: 'Chat', description: 'Connect with staff', path: '/parents/chat' },
+  { icon: AlertOctagon, label: 'Complaints', description: 'Issue resolution', path: '/parents/complaints' },
+  { icon: Video, label: 'Parent-Teacher Meetings', description: 'Upcoming PTMs', path: '/parents/ptm' },
+  { icon: FileEdit, label: 'Parent Observation', description: 'Share feedback', path: '/parents/parent-observation' },
+  { icon: GraduationCap, label: 'Results', description: 'Performance summary', path: '/parents/results' },
+  { icon: Award, label: 'Achievements', description: 'Celebrate wins', path: '/parents/achievements' },
+];
 
 const ParentPortal = () => {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [parentProfile, setParentProfile] = useState(null);
+  const [profileOpen, setProfileOpen] = useState(false);
+  const [showNotifications, setShowNotifications] = useState(false);
+  const [notifications, setNotifications] = useState([]);
+  const [notifLoading, setNotifLoading] = useState(false);
+  const [notifError, setNotifError] = useState('');
   const navigate = useNavigate();
   const location = useLocation();
+  const profileRef = useRef(null);
+  const notificationsRef = useRef(null);
   const API_BASE = (import.meta.env.VITE_API_URL || 'http://localhost:5000').replace(/\/$/, '');
 
   useEffect(() => {
@@ -84,21 +111,18 @@ const ParentPortal = () => {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [sidebarOpen]);
 
-  const menuItems = [
-    { icon: Home, label: 'Dashboard', description: 'Overview & insights', path: '/parents' },
-    { icon: Calendar, label: 'Holiday List', description: 'School holidays', path: '/parents/holidays' },
-    { icon: Clock, label: 'Class Routine', description: 'Weekly schedule', path: '/parents/routine' },
-    { icon: Calendar, label: 'Attendance Report', description: 'Punctuality tracker', path: '/parents/attendance' },
-    { icon: BookOpen, label: 'Academic Report', description: 'Learning progress', path: '/parents/academic' },
-    { icon: CreditCard, label: 'Fees Payment', description: 'Bills & dues', path: '/parents/fees' },
-    { icon: Activity, label: 'Health Report', description: 'Wellness records', path: '/parents/health' },
-    { icon: MessageCircle, label: 'Chat', description: 'Connect with staff', path: '/parents/chat' },
-    { icon: AlertOctagon, label: 'Complaints', description: 'Issue resolution', path: '/parents/complaints' },
-    { icon: Video, label: 'Parent-Teacher Meetings', description: 'Upcoming PTMs', path: '/parents/ptm' },
-    { icon: FileEdit, label: 'Parent Observation', description: 'Share feedback', path: '/parents/parent-observation' },
-    { icon: GraduationCap, label: 'Results', description: 'Performance summary', path: '/parents/results' },
-    { icon: Award, label: 'Achievements', description: 'Celebrate wins', path: '/parents/achievements' },
-  ];
+  useEffect(() => {
+    const handler = (event) => {
+      if (profileRef.current && !profileRef.current.contains(event.target)) {
+        setProfileOpen(false);
+      }
+      if (notificationsRef.current && !notificationsRef.current.contains(event.target)) {
+        setShowNotifications(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
 
   const normalizePath = (path) => {
     if (!path) return '/';
@@ -107,19 +131,188 @@ const ParentPortal = () => {
   };
 
   const currentPath = normalizePath(
-    location.pathname.replace(/^\/parent/, '/parents')
+    location.pathname.startsWith('/parents')
+      ? location.pathname
+      : location.pathname.replace(/^\/parent(\/|$)/, '/parents$1')
   );
+  const activePageTitle = useMemo(() => {
+    const active = MENU_ITEMS.find((item) => {
+      const targetPath = normalizePath(item.path);
+      const isRootLink = targetPath === '/parents';
+      return isRootLink
+        ? currentPath === targetPath
+        : currentPath === targetPath || currentPath.startsWith(`${targetPath}/`);
+    });
+    return active?.label || 'Parent Portal';
+  }, [currentPath]);
 
   const handleMenuClick = () => {
     if (typeof window !== 'undefined' && window.innerWidth < 1024) {
       setSidebarOpen(false);
     }
   };
+  const toggleProfile = useCallback(() => {
+    setProfileOpen((prev) => !prev);
+  }, []);
 
   const childrenCount = Array.isArray(parentProfile?.children)
     ? parentProfile.children.length
     : 0;
   const wardLabel = childrenCount === 1 ? 'ward' : 'wards';
+  const parentName = String(parentProfile?.name || 'Parent').trim();
+  const nameParts = parentName.split(/\s+/).filter(Boolean);
+  const firstName = nameParts[0] || 'Parent';
+  const initials = (nameParts.length >= 2
+    ? `${nameParts[0][0]}${nameParts[nameParts.length - 1][0]}`
+    : (nameParts[0]?.[0] || 'P')
+  ).toUpperCase();
+  const { greeting, dateLabel } = useMemo(() => {
+    const now = new Date();
+    const hour = now.getHours();
+    const g = hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening';
+    const d = now.toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' });
+    return { greeting: g, dateLabel: d };
+  }, []);
+
+  const unreadCount = useMemo(
+    () => notifications.filter((item) => !item?.isRead).length,
+    [notifications]
+  );
+
+  const fetchNotifs = useCallback(async () => {
+    const token = localStorage.getItem('token');
+    if (!token) {
+      setNotifications([]);
+      return;
+    }
+    setNotifLoading(true);
+    setNotifError('');
+    try {
+      const res = await apiFetch(`${API_BASE}/api/notifications/user`, {
+        cache: 'no-store',
+        headers: {
+          'Content-Type': 'application/json',
+          authorization: `Bearer ${token}`,
+        },
+      }, navigate);
+      if (res.status === 304) return;
+      const data = await res.json().catch(() => []);
+      if (!res.ok) throw new Error(data?.error || 'Failed to load notifications');
+      const all = Array.isArray(data) ? data : [];
+      setNotifications(
+        all
+          .sort((a, b) => new Date(b?.createdAt || 0) - new Date(a?.createdAt || 0))
+          .slice(0, 20)
+      );
+    } catch (err) {
+      setNotifError(err.message || 'Failed to load notifications');
+      setNotifications([]);
+    } finally {
+      setNotifLoading(false);
+    }
+  }, [API_BASE, navigate]);
+
+  useEffect(() => {
+    fetchNotifs();
+    const poll = setInterval(() => {
+      if (document.visibilityState === 'visible') fetchNotifs();
+    }, 15000);
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') fetchNotifs();
+    };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => {
+      clearInterval(poll);
+      document.removeEventListener('visibilitychange', onVisible);
+    };
+  }, [fetchNotifs]);
+
+  const markRead = useCallback(async (id) => {
+    if (!id) return;
+    const token = localStorage.getItem('token');
+    if (!token) return;
+    setNotifications((prev) =>
+      prev.map((n) => (String(n?._id || n?.id || '') === String(id) ? { ...n, isRead: true } : n))
+    );
+    try {
+      const res = await apiFetch(`${API_BASE}/api/notifications/user/${id}/read`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', authorization: `Bearer ${token}` },
+      }, navigate);
+      if (!res.ok) throw new Error('Failed to mark notification as read');
+      await fetchNotifs();
+    } catch (err) {
+      setNotifError(err.message || 'Failed to mark notification as read');
+      await fetchNotifs();
+    }
+  }, [API_BASE, fetchNotifs, navigate]);
+
+  const markAllRead = useCallback(async () => {
+    const token = localStorage.getItem('token');
+    if (!token) return;
+    setNotifications((prev) => prev.map((item) => ({ ...item, isRead: true })));
+    try {
+      const res = await apiFetch(`${API_BASE}/api/notifications/user/read-all`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', authorization: `Bearer ${token}` },
+      }, navigate);
+      if (!res.ok) throw new Error('Failed to mark all notifications as read');
+      await fetchNotifs();
+    } catch (err) {
+      setNotifError(err.message || 'Failed to mark all as read');
+      await fetchNotifs();
+    }
+  }, [API_BASE, fetchNotifs, navigate]);
+
+  const handleToggleNotifications = useCallback(async () => {
+    const nextOpen = !showNotifications;
+    if (nextOpen && unreadCount > 0) {
+      await markAllRead();
+    }
+    setShowNotifications(nextOpen);
+    setProfileOpen(false);
+  }, [markAllRead, showNotifications, unreadCount]);
+
+  const timeAgo = useCallback((value) => {
+    if (!value) return '';
+    const ts = new Date(value);
+    if (Number.isNaN(ts.getTime())) return '';
+    const mins = Math.floor((Date.now() - ts.getTime()) / 60000);
+    if (mins < 1) return 'just now';
+    if (mins < 60) return `${mins}m ago`;
+    const hrs = Math.floor(mins / 60);
+    if (hrs < 24) return `${hrs}h ago`;
+    const days = Math.floor(hrs / 24);
+    if (days < 7) return `${days}d ago`;
+    return ts.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
+  }, []);
+
+  const resolveNotifPath = useCallback((notification) => {
+    const title = String(notification?.title || '').toLowerCase();
+    const message = String(notification?.message || '').toLowerCase();
+    const type = String(notification?.type || notification?.typeLabel || '').toLowerCase();
+    const blob = `${title} ${message} ${type}`;
+    if (blob.includes('attendance')) return '/parents/attendance';
+    if (blob.includes('academic') || blob.includes('assignment')) return '/parents/academic';
+    if (blob.includes('fee') || blob.includes('payment')) return '/parents/fees';
+    if (blob.includes('health') || blob.includes('wellbeing')) return '/parents/health';
+    if (blob.includes('complaint') || blob.includes('issue')) return '/parents/complaints';
+    if (blob.includes('meeting') || blob.includes('ptm')) return '/parents/ptm';
+    if (blob.includes('result') || blob.includes('exam')) return '/parents/results';
+    if (blob.includes('achievement')) return '/parents/achievements';
+    if (blob.includes('chat') || blob.includes('message')) return '/parents/chat';
+    if (blob.includes('holiday')) return '/parents/holidays';
+    return '/parents';
+  }, []);
+
+  const formatNotificationMessage = useCallback((message) => {
+    if (!message) return '';
+    return String(message).replace(/\b\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z\b/g, (isoValue) => {
+      const ts = new Date(isoValue);
+      if (Number.isNaN(ts.getTime())) return isoValue;
+      return ts.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
+    });
+  }, []);
 
   return (
     <div className="min-h-screen bg-gray-100 flex relative">
@@ -217,7 +410,7 @@ const ParentPortal = () => {
         </div>
 
         <nav className={`flex-1 overflow-y-auto modern-scrollbar ${sidebarOpen ? 'px-4 py-6 space-y-2' : 'px-1 py-4 space-y-1'}`}>
-          {menuItems.map((item) => {
+          {MENU_ITEMS.map((item) => {
             const Icon = item.icon;
             const targetPath = normalizePath(item.path);
             const isRootLink = targetPath === '/parents';
@@ -279,30 +472,201 @@ const ParentPortal = () => {
         </div>
       </div>
 
-      <div className={`flex-1 overflow-y-auto h-screen bg-gray-50 transition-all duration-300 ${sidebarOpen ? '' : ''} p-2 sm:p-3`}>
-        <Routes>
-          <Route
-            path="/"
-            element={
-              <ParentDashboard
-                parentName={parentProfile?.name}
-                childrenNames={Array.isArray(parentProfile?.children) ? parentProfile.children : []}
-              />
-            }
-          />
-          <Route path="attendance" element={<AttendanceReport />} />
-          <Route path="holidays" element={<HolidayList />} />
-          <Route path="routine" element={<ClassRoutine />} />
-          <Route path="academic" element={<AcademicReport />} />
-          <Route path="fees" element={<FeesPayment />} />
-          <Route path="health" element={<HealthReport />} />
-          <Route path="complaints" element={<ComplaintManagementSystem />} />
-          <Route path="chat" element={<ParentChat />} />
-          <Route path="ptm" element={<PTMPortal />} />
-          <Route path="parent-observation" element={<ParentObservationNonAcademic />} />
-          <Route path="results" element={<ResultsView />} />
-          <Route path="achievements" element={<AchievementsView />} />
-        </Routes>
+      <div className="flex-1 min-w-0 flex flex-col h-screen bg-gray-50">
+        <header className="sticky top-0 z-20 w-full bg-white/80 backdrop-blur-xl border-b border-gray-100">
+          <div className="px-3 sm:px-5">
+            <div className="flex items-center justify-between h-14 sm:h-16 gap-2 sm:gap-4">
+              <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+                <button
+                  onClick={() => setSidebarOpen(true)}
+                  className="lg:hidden p-2 rounded-xl hover:bg-gray-100 active:scale-95 transition-all"
+                  aria-label="Open sidebar"
+                >
+                  <Menu size={20} className="text-gray-600" />
+                </button>
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold text-gray-900 truncate">
+                    {greeting}, <span className="text-amber-600">{firstName}</span>
+                  </p>
+                  <div className="flex items-center gap-1.5 text-[11px] text-gray-400">
+                    <Calendar size={12} />
+                    <span>{dateLabel}</span>
+                    <span className="text-gray-300">|</span>
+                    <span className="truncate">{activePageTitle}</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-1.5 sm:gap-2">
+                <div className="relative" ref={notificationsRef}>
+                  <button
+                    onClick={handleToggleNotifications}
+                    className="relative w-9 h-9 flex items-center justify-center rounded-xl text-gray-500 hover:bg-gray-100 border border-gray-100 transition-all"
+                    aria-label="Notifications"
+                  >
+                    <Bell size={18} />
+                    {unreadCount > 0 && (
+                      <span className="absolute -top-0.5 -right-0.5 min-w-[17px] h-[17px] px-1 bg-red-500 rounded-full text-[10px] text-white font-bold flex items-center justify-center">
+                        {unreadCount > 9 ? '9+' : unreadCount}
+                      </span>
+                    )}
+                  </button>
+
+                  {showNotifications && (
+                    <div className="absolute right-0 top-full mt-2 w-80 bg-white rounded-2xl shadow-xl border border-gray-100 z-50 overflow-hidden">
+                      <div className="flex items-center justify-between px-4 py-3 border-b border-gray-50">
+                        <div className="flex items-center gap-2">
+                          <Bell size={14} className="text-amber-500" />
+                          <span className="text-sm font-bold text-gray-900">Notifications</span>
+                          {unreadCount > 0 && (
+                            <span className="bg-amber-100 text-amber-700 text-[10px] font-bold px-1.5 py-0.5 rounded-full">{unreadCount}</span>
+                          )}
+                        </div>
+                        {notifications.length > 0 && (
+                          <button
+                            type="button"
+                            onClick={markAllRead}
+                            className="inline-flex items-center gap-1 text-xs text-amber-600 hover:text-amber-700 font-semibold"
+                          >
+                            <CheckCheck size={12} />
+                            Mark all read
+                          </button>
+                        )}
+                      </div>
+
+                      <div className="max-h-72 overflow-y-auto divide-y divide-gray-50">
+                        {notifLoading && (
+                          <div className="px-4 py-6 text-sm text-gray-400 text-center">Loading...</div>
+                        )}
+                        {!notifLoading && notifError && (
+                          <div className="px-4 py-4 text-sm text-red-600">{notifError}</div>
+                        )}
+                        {!notifLoading && !notifError && notifications.length === 0 && (
+                          <div className="px-4 py-8 text-sm text-gray-400 text-center">
+                            <Bell size={24} className="mx-auto text-gray-200 mb-2" />
+                            No notifications yet
+                          </div>
+                        )}
+                        {!notifLoading && !notifError && notifications.map((n) => {
+                          const id = String(n?._id || n?.id || '');
+                          const isRead = Boolean(n?.isRead);
+                          return (
+                            <button
+                              key={id || n?.title}
+                              type="button"
+                              onClick={async () => {
+                                await markRead(id);
+                                setShowNotifications(false);
+                                navigate(resolveNotifPath(n));
+                              }}
+                              className={`w-full text-left px-4 py-3 hover:bg-gray-50 transition-colors ${isRead ? '' : 'bg-amber-50/50'}`}
+                            >
+                              <div className="flex items-start gap-2">
+                                {!isRead && <span className="mt-1.5 w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0" />}
+                                <div className={!isRead ? '' : 'ml-3.5'}>
+                                  <p className="text-sm font-medium text-gray-800 line-clamp-1">{n?.title || 'Notification'}</p>
+                                  {n?.message && (
+                                    <p className="text-xs text-gray-500 mt-0.5 line-clamp-2">
+                                      {formatNotificationMessage(n.message)}
+                                    </p>
+                                  )}
+                                  <p className="text-[11px] text-gray-400 mt-1">
+                                    <span>{timeAgo(n?.createdAt)}</span>
+                                  </p>
+                                </div>
+                              </div>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                <div className="relative" ref={profileRef}>
+                  <button
+                    className="flex items-center gap-2 rounded-xl p-1.5 hover:bg-gray-100 active:scale-95 transition-all"
+                    onClick={() => {
+                      setShowNotifications(false);
+                      toggleProfile();
+                    }}
+                    aria-label="Profile menu"
+                  >
+                    <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-amber-500 to-yellow-500 text-white flex items-center justify-center text-xs font-bold shadow-sm">
+                      {initials}
+                    </div>
+                    <div className="hidden md:block text-left">
+                      <p className="text-xs font-semibold text-gray-800 leading-tight">{parentName}</p>
+                      <p className="text-[10px] text-gray-400">Parent</p>
+                    </div>
+                    <ChevronDown size={14} className={`hidden md:block text-gray-400 transition-transform duration-200 ${profileOpen ? 'rotate-180' : ''}`} />
+                  </button>
+
+                  {profileOpen && (
+                    <div className="absolute right-0 mt-2 w-56 bg-white border border-gray-100 rounded-2xl shadow-2xl z-50 overflow-hidden">
+                      <div className="px-4 py-3 bg-gradient-to-br from-amber-50 to-yellow-50 border-b border-gray-100">
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-amber-500 to-yellow-500 text-white flex items-center justify-center text-sm font-bold shadow-sm">
+                            {initials}
+                          </div>
+                          <div className="min-w-0">
+                            <p className="text-sm font-bold text-gray-900 truncate">{parentName}</p>
+                            <p className="text-[11px] text-gray-500">Parent</p>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="py-1">
+                        <button
+                          className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                          onClick={() => { setProfileOpen(false); navigate('/parents'); }}
+                        >
+                          <User size={15} className="text-gray-400" />
+                          Dashboard
+                        </button>
+                      </div>
+                      <div className="border-t border-gray-100 py-1">
+                        <button
+                          onClick={handleLogout}
+                          className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 transition-colors"
+                        >
+                          <LogOut size={15} className="text-red-400" />
+                          Sign out
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        </header>
+
+        <div className="flex-1 overflow-y-auto p-2 sm:p-3">
+          <Routes>
+            <Route
+              path="/"
+              element={
+                <ParentDashboard
+                  parentName={parentProfile?.name}
+                  childrenNames={Array.isArray(parentProfile?.children) ? parentProfile.children : []}
+                />
+              }
+            />
+            <Route path="attendance" element={<AttendanceReport />} />
+            <Route path="holidays" element={<HolidayList />} />
+            <Route path="routine" element={<ClassRoutine />} />
+            <Route path="academic" element={<AcademicReport />} />
+            <Route path="fees" element={<FeesPayment />} />
+            <Route path="health" element={<HealthReport />} />
+            <Route path="complaints" element={<ComplaintManagementSystem />} />
+            <Route path="chat" element={<ParentChat />} />
+            <Route path="ptm" element={<PTMPortal />} />
+            <Route path="parent-observation" element={<ParentObservationNonAcademic />} />
+            <Route path="results" element={<ResultsView />} />
+            <Route path="achievements" element={<AchievementsView />} />
+          </Routes>
+        </div>
       </div>
     </div>
   );

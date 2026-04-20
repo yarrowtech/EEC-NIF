@@ -21,7 +21,7 @@ const notificationSchema = new mongoose.Schema(
     // Notification metadata
     type: {
       type: String,
-      enum: ['notice', 'class_note', 'assignment', 'exam', 'result', 'fee', 'general', 'announcement', 'other'],
+      enum: ['notice', 'class_note', 'assignment', 'exam', 'result', 'fee', 'meeting', 'general', 'announcement', 'other'],
       default: 'general',
       index: true
     },
@@ -40,7 +40,7 @@ const notificationSchema = new mongoose.Schema(
 
     // Related entity reference
     relatedEntity: {
-      entityType: { type: String, enum: ['assignment', 'exam', 'fee', 'result', null] },
+      entityType: { type: String, enum: ['assignment', 'exam', 'fee', 'result', 'meeting', null] },
       entityId: { type: mongoose.Schema.Types.ObjectId }
     },
     attachments: [

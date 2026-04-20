@@ -5,7 +5,8 @@ const authTeacher = require('../middleware/authTeacher');
 const authParent = require('../middleware/authParent');
 const StudentUser = require('../models/StudentUser');
 const ParentUser = require('../models/ParentUser');
-const NotificationService = require('../utils/notificationService');
+const AcademicYear = require('../models/AcademicYear');
+const Notification = require('../models/Notification');
 
 // ========== TEACHER ROUTES ==========
 
@@ -15,19 +16,77 @@ router.get('/teacher/students', authTeacher, async (req, res) => {
     const schoolId = req.schoolId || req.teacher?.schoolId || null;
     if (!schoolId) return res.status(400).json({ error: 'schoolId is required' });
 
+    const requestedSession = String(req.query?.session || '').trim();
+    const requestedClass = String(req.query?.className || req.query?.class || '').trim();
+    const requestedSection = String(req.query?.section || '').trim();
+    const search = String(req.query?.search || '').trim().toLowerCase();
+
     const campusId = req.campusId || null;
     const filter = { schoolId };
     if (campusId) {
       filter.campusId = campusId;
     }
 
-    // Get all students from the school/campus
-    const students = await StudentUser.find(filter)
-      .select('name grade section roll')
+    const activeYear = await AcademicYear.findOne({ schoolId, isActive: true })
+      .select('name')
+      .lean();
+    const activeSession = String(activeYear?.name || '').trim();
+
+    // Get all students from the school/campus.
+    const allStudents = await StudentUser.find(filter)
+      .select('name grade section roll academicYear')
       .sort({ grade: 1, section: 1, roll: 1 })
       .lean();
 
-    res.json(students);
+    const sessionOptionsSet = new Set(
+      allStudents.map((student) => String(student?.academicYear || '').trim()).filter(Boolean)
+    );
+    if (activeSession) sessionOptionsSet.add(activeSession);
+    const sessions = [...sessionOptionsSet].sort((a, b) => b.localeCompare(a, undefined, { numeric: true }));
+    const selectedSession = requestedSession || activeSession || sessions[0] || '';
+
+    const inSelectedSession = allStudents.filter((student) => {
+      const studentSession = String(student?.academicYear || '').trim();
+      if (!selectedSession) return true;
+      return studentSession.toLowerCase() === selectedSession.toLowerCase();
+    });
+
+    const classes = [...new Set(inSelectedSession.map((student) => String(student?.grade || '').trim()).filter(Boolean))]
+      .sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+    const selectedClass = requestedClass;
+
+    const sections = [...new Set(
+      inSelectedSession
+        .filter((student) => !selectedClass || String(student?.grade || '').trim().toLowerCase() === selectedClass.toLowerCase())
+        .map((student) => String(student?.section || '').trim())
+        .filter(Boolean)
+    )].sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+
+    const students = inSelectedSession.filter((student) => {
+      const className = String(student?.grade || '').trim();
+      const section = String(student?.section || '').trim();
+      const name = String(student?.name || '').trim().toLowerCase();
+
+      if (selectedClass && className.toLowerCase() !== selectedClass.toLowerCase()) return false;
+      if (requestedSection && section.toLowerCase() !== requestedSection.toLowerCase()) return false;
+      if (search && !name.includes(search)) return false;
+      return true;
+    });
+
+    res.json({
+      activeSession,
+      filters: {
+        session: selectedSession,
+        className: selectedClass,
+        section: requestedSection,
+      },
+      options: {
+        sessions,
+        classes,
+        sections,
+      },
+      students,
+    });
   } catch (err) {
     console.error('Error fetching students:', err);
     res.status(500).json({ error: err.message });
@@ -117,13 +176,26 @@ router.post('/teacher/create', authTeacher, async (req, res) => {
 
     await meeting.save();
 
-    // Send notification to parent
+    // Send notification to parent (explicit insert so it always appears in header bell feed).
     try {
-      await NotificationService.notifyParentMeetingScheduled({
+      const meetingDateLabel = meeting.meetingDate
+        ? new Date(meeting.meetingDate).toLocaleDateString()
+        : 'TBA';
+      await Notification.create({
         schoolId,
-        campusId: req.campusId || null,
-        meeting,
-        createdBy: teacherId
+        campusId: null,
+        title: 'Parent-Teacher Meeting Scheduled',
+        message: `A meeting has been scheduled with your child's teacher on ${meetingDateLabel} at ${meeting.meetingTime}. Topic: ${meeting.topic}. Type: ${meeting.meetingType}.`,
+        audience: 'Parent',
+        targetUserIds: [parentId],
+        createdByType: 'teacher',
+        createdByTeacherId: teacherId,
+        type: 'announcement',
+        typeLabel: 'parent_teacher_meeting',
+        category: 'general',
+        priority: 'high',
+        className: String(student.grade || '').trim(),
+        sectionName: String(student.section || '').trim(),
       });
     } catch (notifErr) {
       console.error('Failed to create meeting notification:', notifErr);

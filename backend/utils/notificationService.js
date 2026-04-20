@@ -13,6 +13,7 @@ class NotificationService {
     type = 'general',
     priority = 'medium',
     category = 'general',
+    targetUserIds = [],
     classId = null,
     sectionId = null,
     createdBy = null,
@@ -26,6 +27,7 @@ class NotificationService {
         title,
         message,
         audience,
+        targetUserIds: Array.isArray(targetUserIds) ? targetUserIds : [],
         type,
         priority,
         category,
@@ -144,18 +146,16 @@ class NotificationService {
 
     return await this.createNotification({
       schoolId,
-      campusId,
+      campusId: null,
       title: `Parent-Teacher Meeting Scheduled`,
       message: `A meeting has been scheduled with your child's teacher on ${meetingDate} at ${meetingTime}. Topic: ${meeting.topic}. Type: ${meeting.meetingType}.`,
       audience: 'Parent',
-      type: 'meeting',
+      targetUserIds: meeting?.parentId ? [meeting.parentId] : [],
+      type: 'announcement',
       priority: 'high',
       category: 'general',
       createdBy,
-      relatedEntity: {
-        entityType: 'meeting',
-        entityId: meeting._id
-      }
+      relatedEntity: null
     });
   }
 }

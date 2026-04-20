@@ -397,6 +397,7 @@ router.get('/user', authAnyUser, async (req, res) => {
     const campusId = req.campusId || null;
     const userType = req.userType;
     const userId = req.user?.id;
+    const normalizedUserId = toObjectIdIfPossible(userId);
     const normalizedAudience = userType
       ? userType.charAt(0).toUpperCase() + userType.slice(1)
       : 'unknown';
@@ -410,7 +411,7 @@ router.get('/user', authAnyUser, async (req, res) => {
           $or: [
             { targetUserIds: { $exists: false } },
             { targetUserIds: { $size: 0 } },
-            { targetUserIds: userId },
+            { targetUserIds: { $in: [normalizedUserId, userId] } },
           ],
         },
         { $or: [{ audience: 'All' }, { audience: normalizedAudience }] },
@@ -520,16 +521,24 @@ router.get('/user', authAnyUser, async (req, res) => {
 
       filter.$and.push({
         $or: [
-          { classId: { $exists: false } },
-          { classId: null },
-          classIds.length ? { classId: { $in: classIds } } : null,
-          classNames.length ? { className: { $in: classNames } } : null,
-        ].filter(Boolean),
+          // Always allow direct, targeted notifications for this parent.
+          { targetUserIds: { $in: [normalizedUserId, userId] } },
+          {
+            $or: [
+              { classId: { $exists: false } },
+              { classId: null },
+              classIds.length ? { classId: { $in: classIds } } : null,
+              classNames.length ? { className: { $in: classNames } } : null,
+            ].filter(Boolean),
+          },
+        ],
       });
 
       if (sectionNames.length) {
         filter.$and.push({
           $or: [
+            // Always allow direct, targeted notifications for this parent.
+            { targetUserIds: { $in: [normalizedUserId, userId] } },
             { sectionId: { $exists: false } },
             { sectionId: null },
             { sectionName: { $in: sectionNames } },
