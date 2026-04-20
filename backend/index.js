@@ -72,6 +72,7 @@ const promotionRoutes = require('./routes/promotionRoutes');
 const holidayRoutes = require('./routes/holidayRoutes');
 const departmentRoutes = require('./routes/departmentRoutes');
 const chatRoutes = require('./routes/chatRoutes');
+const achievementRoutes = require('./routes/achievementRoutes');
 const ChatThread = require('./models/ChatThread');
 const ChatMessage = require('./models/ChatMessage');
 const StudentUser = require('./models/StudentUser');
@@ -364,6 +365,7 @@ app.use('/api/lesson-plans', lessonPlanRoutes);
 app.use('/api/holidays', holidayRoutes);
 app.use('/api/departments', departmentRoutes);
 app.use('/api/chat', chatRoutes);
+app.use('/api/achievements', achievementRoutes);
 
 app.use("/api/uploads", uploadRoutes);
 

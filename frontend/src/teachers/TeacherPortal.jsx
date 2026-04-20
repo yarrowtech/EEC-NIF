@@ -27,6 +27,7 @@ import {
   User,
   CalendarDays,
   GraduationCap,
+  Award,
 } from 'lucide-react';
 
 import HealthUpdatesAdvanced from './HealthUpdatesAdvanced';
@@ -49,6 +50,7 @@ import TeacherFeedbackPortal from './TeacherFeedbackPortal';
 import ExcuseLetters from './ExcuseLetters';
 import ResultManagement from './ResultManagement';
 import HolidayList from './HolidayList';
+import TeacherAchievements from './TeacherAchievements';
 import { AUTH_NOTICE, apiFetch, logoutAndRedirect } from '../utils/authSession';
 
 const PORTAL_BASE = '/teacher';
@@ -72,6 +74,7 @@ const menuSections = [
     icon: Users,
     children: [
       { icon: UserCheck, label: 'Attendance', path: `${PORTAL_BASE}/attendance` },
+      { icon: Award, label: 'Achievements', path: `${PORTAL_BASE}/achievements` },
       // { icon: BarChart3, label: 'Student Analytics', path: `${PORTAL_BASE}/student-analytics` },
       { icon: Activity, label: 'Student Health Updates', path: `${PORTAL_BASE}/health-updates` },
       { icon: Eye, label: 'Student Observations', path: `${PORTAL_BASE}/student-observations` },
@@ -114,6 +117,7 @@ const TeacherPortal = () => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [openGroups, setOpenGroups] = useState({});
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const location = useLocation();
   const navigate = useNavigate();
   const isChatRoute = location.pathname.startsWith('/teacher/chat');
@@ -164,6 +168,11 @@ const TeacherPortal = () => {
   }, [location.pathname, menuItems]);
 
   const handleLogout = () => {
+    setShowLogoutConfirm(true);
+  };
+
+  const confirmLogout = () => {
+    setShowLogoutConfirm(false);
     logoutAndRedirect({ navigate, notice: AUTH_NOTICE.LOGGED_OUT });
   };
 
@@ -366,6 +375,36 @@ const TeacherPortal = () => {
 
   return (
     <div className="min-h-screen bg-slate-100 flex">
+      {showLogoutConfirm && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+          <div className="w-full max-w-sm rounded-2xl bg-white shadow-2xl overflow-hidden">
+            <div className="h-1 bg-linear-to-r from-red-400 to-rose-400" />
+            <div className="p-6">
+              <div className="w-12 h-12 rounded-2xl bg-red-50 flex items-center justify-center mx-auto mb-4">
+                <LogOut className="w-6 h-6 text-red-500" />
+              </div>
+              <h3 className="text-base font-bold text-gray-900 text-center">Confirm Logout</h3>
+              <p className="text-sm text-gray-500 text-center mt-1">
+                Are you sure you want to log out? Any unsaved changes will be lost.
+              </p>
+              <div className="mt-5 flex gap-3">
+                <button
+                  onClick={() => setShowLogoutConfirm(false)}
+                  className="flex-1 py-2.5 rounded-xl border border-gray-200 text-sm font-semibold text-gray-600 hover:bg-gray-50 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={confirmLogout}
+                  className="flex-1 py-2.5 rounded-xl bg-red-500 hover:bg-red-600 text-white text-sm font-bold transition-colors"
+                >
+                  Logout
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
       {sidebarOpen && (
         <div
           className="fixed inset-0 bg-black/40 z-30 lg:hidden"
@@ -755,6 +794,7 @@ const TeacherPortal = () => {
               <Route path="class-routine" element={<ClassRoutine />} />
               <Route path="holidays" element={<HolidayList />} />
               <Route path="attendance" element={<AttendanceManagement />} />
+              <Route path="achievements" element={<TeacherAchievements />} />
               <Route path="student-analytics" element={<StudentAnalyticsPortal />} />
               <Route path="progress" element={<Navigate to="/teacher/student-analytics" replace />} />
               <Route path="weak-students" element={<Navigate to="/teacher/student-analytics" replace />} />

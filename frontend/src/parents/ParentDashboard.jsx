@@ -319,9 +319,9 @@ const ParentDashboard = ({ parentName }) => {
               <p className="text-indigo-100 text-xs font-medium leading-relaxed">
                 Our support team is available 24/7 to help you with portal navigation or student records.
               </p>
-              <button className="w-full bg-white text-indigo-600 py-3 rounded-xl text-xs font-black uppercase tracking-widest hover:bg-indigo-50 transition-all active:scale-95 shadow-lg shadow-indigo-900/20">
+              <Link to="/parents/complaints" className="block text-center w-full bg-white text-indigo-600 py-3 rounded-xl text-xs font-black uppercase tracking-widest hover:bg-indigo-50 transition-all active:scale-95 shadow-lg shadow-indigo-900/20">
                 Open Support Ticket
-              </button>
+              </Link>
             </div>
           </section>
         </div>

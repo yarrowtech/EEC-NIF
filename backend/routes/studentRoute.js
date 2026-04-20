@@ -734,6 +734,34 @@ router.get('/profile', authStudent, async (req, res) => {
   }
 });
 
+// Get achievements for logged-in student
+router.get('/achievements', authStudent, async (req, res) => {
+  try {
+    const student = await StudentUser.findById(req.user.id)
+      .select('name grade section achievements')
+      .lean();
+
+    if (!student) {
+      return res.status(404).json({ error: 'Student not found' });
+    }
+
+    const achievements = Array.isArray(student.achievements) ? student.achievements : [];
+    achievements.sort((a, b) => new Date(b?.date || 0) - new Date(a?.date || 0));
+
+    res.json({
+      student: {
+        id: student._id,
+        name: student.name || '',
+        grade: student.grade || '',
+        section: student.section || '',
+      },
+      achievements,
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message || 'Unable to load achievements' });
+  }
+});
+
 // Get class teacher for logged-in student
 router.get('/class-teacher', authStudent, async (req, res) => {
   // #swagger.tags = ['Students']
