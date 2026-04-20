@@ -21,6 +21,7 @@ import {
   X,
   AlertCircle
 } from 'lucide-react';
+import { clearStudentApiCacheByUrl, fetchCachedJson } from '../utils/studentApiCache';
 
 const STAR_LABELS = ['', 'Poor', 'Fair', 'Good', 'Very Good', 'Excellent'];
 
@@ -57,6 +58,10 @@ const TeacherFeedback = () => {
   const [submittedContext, setSubmittedContext] = useState(null);
 
   const API_BASE_URL = (import.meta.env.VITE_API_URL || 'http://localhost:5000').replace(/\/$/, '');
+  const FEEDBACK_CONTEXT_ENDPOINT = `${API_BASE_URL}/api/student/auth/teacher-feedback/context`;
+  const FEEDBACK_HISTORY_ENDPOINT = `${API_BASE_URL}/api/student/auth/teacher-feedback`;
+  const FEEDBACK_CONTEXT_CACHE_TTL_MS = 5 * 60 * 1000;
+  const FEEDBACK_HISTORY_CACHE_TTL_MS = 2 * 60 * 1000;
   const placeholderAvatar = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='40' height='40' viewBox='0 0 24 24' fill='none' stroke='%236B7280' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2'%3E%3C/path%3E%3Ccircle cx='12' cy='7' r='4'%3E%3C/circle%3E%3C/svg%3E";
 
   const ratingCategories = [
@@ -81,15 +86,17 @@ const TeacherFeedback = () => {
       setLoading(true);
       try {
         const headers = { Authorization: `Bearer ${token}` };
-        const [contextRes, historyRes] = await Promise.all([
-          fetch(`${API_BASE_URL}/api/student/auth/teacher-feedback/context`, { headers }),
-          fetch(`${API_BASE_URL}/api/student/auth/teacher-feedback`, { headers })
+        const [{ data: contextData }, { data: historyData }] = await Promise.all([
+          fetchCachedJson(FEEDBACK_CONTEXT_ENDPOINT, {
+            ttlMs: FEEDBACK_CONTEXT_CACHE_TTL_MS,
+            fetchOptions: { headers }
+          }),
+          fetchCachedJson(FEEDBACK_HISTORY_ENDPOINT, {
+            ttlMs: FEEDBACK_HISTORY_CACHE_TTL_MS,
+            fetchOptions: { headers }
+          })
         ]);
-        const contextData = await contextRes.json();
-        if (!contextRes.ok) throw new Error(contextData.error || 'Unable to load teacher data');
         setTeacherSubjects(Array.isArray(contextData.teachers) ? contextData.teachers : []);
-        const historyData = await historyRes.json();
-        if (!historyRes.ok) throw new Error(historyData.error || 'Unable to load feedback history');
         setPreviousFeedback(Array.isArray(historyData) ? historyData : []);
       } catch (err) {
         console.error('Teacher feedback fetch error:', err);
@@ -101,7 +108,12 @@ const TeacherFeedback = () => {
       }
     };
     fetchData();
-  }, [API_BASE_URL]);
+  }, [
+    FEEDBACK_CONTEXT_ENDPOINT,
+    FEEDBACK_HISTORY_ENDPOINT,
+    FEEDBACK_CONTEXT_CACHE_TTL_MS,
+    FEEDBACK_HISTORY_CACHE_TTL_MS,
+  ]);
 
   const selectedContext = useMemo(
     () => teacherSubjects.find(s => s.contextId === selectedSubject),
@@ -174,7 +186,7 @@ const TeacherFeedback = () => {
     if (!token) { setSubmitError('Student session not found. Please login again.'); return; }
     setSubmittingFeedback(true);
     try {
-      const response = await fetch(`${API_BASE_URL}/api/student/auth/teacher-feedback`, {
+      const response = await fetch(FEEDBACK_HISTORY_ENDPOINT, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({
@@ -188,6 +200,8 @@ const TeacherFeedback = () => {
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || 'Failed to submit feedback');
+      clearStudentApiCacheByUrl(FEEDBACK_HISTORY_ENDPOINT);
+      clearStudentApiCacheByUrl(FEEDBACK_CONTEXT_ENDPOINT);
       if (data.feedback) setPreviousFeedback(prev => [data.feedback, ...prev]);
       setSubmittedContext(context);
       setIsSubmitted(true);

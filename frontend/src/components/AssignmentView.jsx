@@ -7,6 +7,7 @@ import {
 import PointsBadge from "./PointsBadge";
 import Assignment from "./Assignment";
 import Tryout from "./Tryout";
+import { fetchCachedJson, clearStudentApiCacheByUrl } from "../utils/studentApiCache";
 
 /* ═══════════════ TOUR STEPS CONFIG ═══════════════ */
 const TOUR_STEPS = [
@@ -23,6 +24,8 @@ const TOUR_STORAGE_KEY = "journal_tour_completed";
 
 const AssignmentView = forwardRef(({ defaultType = "school" }, ref) => {
   const API_BASE = (import.meta.env.VITE_API_URL || "http://localhost:5000").replace(/\/$/, "");
+  const JOURNAL_ENDPOINT = `${API_BASE}/api/student/auth/journal`;
+  const JOURNAL_CACHE_TTL_MS = 2 * 60 * 1000;
   const navigate = useNavigate();
   const [filter, setFilter] = useState("all");
   const [assignmentType, setAssignmentType] = useState(defaultType);
@@ -79,14 +82,16 @@ const AssignmentView = forwardRef(({ defaultType = "school" }, ref) => {
     updatedAt: entry?.updatedAt,
   });
 
-  const loadJournalEntries = async () => {
+  const loadJournalEntries = async ({ forceRefresh = false } = {}) => {
     const headers = getAuthHeaders();
     if (!headers) { setAutosaveLabel("Login required"); setJournalEntries([]); return; }
     setJournalLoading(true);
     try {
-      const res = await fetch(`${API_BASE}/api/student/auth/journal`, { headers });
-      if (!res.ok) { const d = await res.json().catch(() => ({})); throw new Error(d?.error || "Unable to load"); }
-      const payload = await res.json();
+      const { data: payload } = await fetchCachedJson(JOURNAL_ENDPOINT, {
+        ttlMs: JOURNAL_CACHE_TTL_MS,
+        forceRefresh,
+        fetchOptions: { headers },
+      });
       setJournalEntries((Array.isArray(payload?.entries) ? payload.entries : []).map(normalizeEntry));
       setAutosaveLabel("Saved");
     } catch (err) {
@@ -118,6 +123,7 @@ const AssignmentView = forwardRef(({ defaultType = "school" }, ref) => {
         setJournalEntries((prev) => [entry, ...prev]);
         setSelectedEntryId(entry.id);
       }
+      clearStudentApiCacheByUrl(JOURNAL_ENDPOINT);
       setAutosaveLabel("Saved");
     } catch (err) { console.error("Journal save error:", err); setAutosaveLabel("Not saved"); }
   };
@@ -129,6 +135,7 @@ const AssignmentView = forwardRef(({ defaultType = "school" }, ref) => {
       const res = await fetch(`${API_BASE}/api/student/auth/journal/${id}`, { method: "DELETE", headers });
       if (!res.ok) { const d = await res.json().catch(() => ({})); throw new Error(d?.error || "Unable to delete"); }
       setJournalEntries((prev) => prev.filter((e) => e.id !== id));
+      clearStudentApiCacheByUrl(JOURNAL_ENDPOINT);
       if (selectedEntryId === id) resetJournalForm();
     } catch (err) { console.error("Journal delete error:", err); }
   };

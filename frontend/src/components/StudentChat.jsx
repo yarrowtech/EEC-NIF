@@ -796,6 +796,11 @@ const StudentChat = () => {
 
     const hintedMeId = localStorage.getItem(LAST_STUDENT_CHAT_ME_KEY);
     if (hintedMeId) {
+      const hintedCachedMe = readChatCache(chatCacheKeys.me(hintedMeId), THREADS_CACHE_TTL_MS);
+      if (hintedCachedMe?.id) {
+        setMe(hintedCachedMe);
+        meRef.current = hintedCachedMe;
+      }
       const hintedCachedThreads = readChatCache(chatCacheKeys.threads(hintedMeId), THREADS_CACHE_TTL_MS);
       if (isThreadCacheUsable(hintedCachedThreads)) {
         setThreads(hintedCachedThreads);
@@ -812,6 +817,7 @@ const StudentChat = () => {
         meRef.current = meData;
         if (meData?.id) {
           localStorage.setItem(LAST_STUDENT_CHAT_ME_KEY, String(meData.id));
+          writeChatCache(chatCacheKeys.me(meData.id), meData);
         }
         const identity = await ensureE2EEIdentity({ userId: meData?.id, apiFetch });
         privateKeyRef.current = identity?.privateKey || '';

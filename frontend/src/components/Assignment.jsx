@@ -27,6 +27,7 @@ import { addPoints, hasAward, markAwarded } from '../utils/points';
 import axios from 'axios';
 import { useLocation } from 'react-router-dom';
 import Swal from 'sweetalert2';
+import { fetchCachedJson, clearStudentApiCacheByUrl } from '../utils/studentApiCache';
 
 const labModelUrl = (file) => new URL(`../models/${file}`, import.meta.url).href;
 
@@ -273,6 +274,8 @@ const Assignment = ({ assignmentType, filter, setFilter }) => {
     .replace(/\/$/, '')
     .replace(/\/api$/, '');
   const API_BASE_URL = `${API_BASE}`;
+  const ASSIGNMENTS_CACHE_TTL_MS = 2 * 60 * 1000;
+  const ASSIGNMENTS_ENDPOINT = `${API_BASE_URL}/api/assignment/student/assignments`;
 
   // Flashcard state
   const [flashDeck, setFlashDeck] = useState([]);
@@ -333,19 +336,23 @@ const Assignment = ({ assignmentType, filter, setFilter }) => {
     }
   }, [assignmentType, location.search, schoolSearch]);
 
-  const fetchAssignments = async () => {
+  const fetchAssignments = async ({ forceRefresh = false } = {}) => {
     try {
       setLoading(true);
       const token = localStorage.getItem('token');
-      const response = await axios.get(`${API_BASE_URL}/api/assignment/student/assignments`, {
-        headers: { Authorization: `Bearer ${token}` }
+      const { data } = await fetchCachedJson(ASSIGNMENTS_ENDPOINT, {
+        ttlMs: ASSIGNMENTS_CACHE_TTL_MS,
+        forceRefresh,
+        fetchOptions: {
+          headers: { Authorization: `Bearer ${token}` }
+        },
       });
 
       // Transform API data to match component structure
-      const assignmentsPayload = Array.isArray(response.data)
-        ? response.data
-        : Array.isArray(response.data?.assignments)
-          ? response.data.assignments
+      const assignmentsPayload = Array.isArray(data)
+        ? data
+        : Array.isArray(data?.assignments)
+          ? data.assignments
           : [];
       const transformedAssignments = assignmentsPayload.map((assignment) => {
         const state = getAssignmentState(assignment);
@@ -444,7 +451,8 @@ const closeDetail = () => {
       setSubmissionFileUrl('');
       setSubmissionFileName('');
       // Refresh list so card status updates
-      await fetchAssignments();
+      clearStudentApiCacheByUrl(ASSIGNMENTS_ENDPOINT);
+      await fetchAssignments({ forceRefresh: true });
       // Update the open modal card too
       setSelectedAssignment((prev) => {
         if (!prev) return prev;

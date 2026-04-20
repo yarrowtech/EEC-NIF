@@ -4,7 +4,7 @@ import {
   Clock, ChevronRight, X, Loader2, AlertTriangle, Plus, History,
   Phone, Mail, Hash, BookOpen,
 } from 'lucide-react';
-import { fetchCachedJson } from '../utils/studentApiCache';
+import { clearStudentApiCacheByUrl, fetchCachedJson } from '../utils/studentApiCache';
 
 const STATUS_MAP = {
   approved: { label: 'Approved', bg: 'bg-emerald-50', text: 'text-emerald-700', border: 'border-emerald-200', icon: CheckCircle, dot: 'bg-emerald-500' },
@@ -47,6 +47,8 @@ const ExcuseLetter = () => {
     () => (import.meta.env.VITE_API_URL || 'http://localhost:5000').replace(/\/$/, '').replace(/\/api$/, ''),
     []
   );
+  const EXCUSE_LETTERS_ENDPOINT = `${API_BASE}/api/excuse-letters/student`;
+  const EXCUSE_LETTERS_CACHE_TTL_MS = 2 * 60 * 1000;
 
   const [formData, setFormData] = useState({
     studentName: '', rollNumber: '', className: '', sectionName: '',
@@ -101,7 +103,9 @@ const ExcuseLetter = () => {
         parentEmail: data?.guardianEmail || data?.email || '',
         parentPhone: data?.guardianPhone || data?.fatherPhone || data?.motherPhone || '',
       }));
-    } catch (_) { }
+    } catch {
+      // ignore profile prefill errors
+    }
   };
 
   const loadLetters = async () => {
@@ -109,11 +113,13 @@ const ExcuseLetter = () => {
       setLoading(true);
       const token = localStorage.getItem('token');
       if (!token) return;
-      const res = await fetch(`${API_BASE}/api/excuse-letters/student`, {
-        headers: { Authorization: `Bearer ${token}` },
+      const { data } = await fetchCachedJson(EXCUSE_LETTERS_ENDPOINT, {
+        ttlMs: EXCUSE_LETTERS_CACHE_TTL_MS,
+        fetchOptions: {
+          headers: { Authorization: `Bearer ${token}` },
+        },
       });
-      const data = await res.json().catch(() => []);
-      if (res.ok) setSubmittedLetters(Array.isArray(data) ? data : []);
+      setSubmittedLetters(Array.isArray(data) ? data : []);
     } finally {
       setLoading(false);
     }
@@ -133,13 +139,14 @@ const ExcuseLetter = () => {
         reason: formData.reason, reasonType: formData.reasonType,
         additionalNotes: formData.additionalNotes, emergencyContact: formData.emergencyContact,
       };
-      const res = await fetch(`${API_BASE}/api/excuse-letters/student`, {
+      const res = await fetch(EXCUSE_LETTERS_ENDPOINT, {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data?.error || 'Unable to submit');
+      clearStudentApiCacheByUrl(EXCUSE_LETTERS_ENDPOINT);
       await loadLetters();
       setFormData((prev) => ({
         ...prev, dateFrom: '', dateTo: '', reason: '', reasonType: 'illness',

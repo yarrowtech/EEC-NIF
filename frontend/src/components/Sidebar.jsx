@@ -1,383 +1,387 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
-  Home,
-  Calendar,
-  Users,
-  FileText,
-  BookOpen,
-  Settings,
-  LogOut,
-  ChevronDown,
-  ChevronRight,
-  User,
-  File,
-  Trophy,
-  Bell,
-  MessageCircle,
-  MessageSquare,
-  Brain,
-  X,
-  GraduationCap,
-  BarChart3,
-  Heart,
-  Zap,
-  Star,
-  Target,
-  CreditCard
+  Home, Calendar, Users, FileText, BookOpen, LogOut,
+  ChevronDown, ChevronRight, ChevronLeft, File, Trophy, Bell,
+  MessageCircle, MessageSquare, Brain, X, GraduationCap, BarChart3,
+  Heart, Star, Target, PanelLeft,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useStudentDashboard } from './StudentDashboardContext';
 import { AUTH_NOTICE, logoutAndRedirect } from '../utils/authSession';
 
+/* ── Menu definition ─────────────────────────────────────────── */
+const MENU_ITEMS = [
+  {
+    id: 'dashboard', name: 'Dashboard', icon: Home,
+    iconColor: 'text-blue-600', iconBg: 'bg-blue-100',
+  },
+  {
+    id: 'ai-learning', name: 'AI Learning', icon: Brain,
+    iconColor: 'text-violet-600', iconBg: 'bg-violet-100',
+    children: [
+      { id: 'ai-learning-courses', name: 'AI Courses',  icon: GraduationCap },
+      { id: 'ai-learning-tutor',   name: 'AI Tutor',    icon: Brain },
+    ],
+  },
+  {
+    id: 'academics', name: 'Academics', icon: BookOpen,
+    iconColor: 'text-emerald-600', iconBg: 'bg-emerald-100',
+    children: [
+      { id: 'assignments',                  name: 'Assignments',     icon: FileText  },
+      { id: 'assignments-journal',          name: 'Journal',         icon: File      },
+      { id: 'assignments-academic-alcove',  name: 'The Wall',        icon: Target    },
+      { id: 'tryouts',                      name: 'Tryouts',         icon: Brain     },
+      { id: 'study-materials',             name: 'Study Materials',  icon: BookOpen  },
+      { id: 'results',                      name: 'Results',         icon: BarChart3 },
+    ],
+  },
+  {
+    id: 'schedule', name: 'Schedule', icon: Calendar,
+    iconColor: 'text-orange-600', iconBg: 'bg-orange-100',
+    children: [
+      { id: 'routine',             name: 'Weekly Routine',  icon: Calendar  },
+      { id: 'exams',               name: 'Exams',           icon: FileText  },
+      { id: 'holidays',            name: 'Holiday List',    icon: Bell      },
+      { id: 'attendance',          name: 'Attendance',      icon: Users     },
+      { id: 'lesson-plan-status',  name: 'Syllabus Status', icon: BookOpen  },
+    ],
+  },
+  {
+    id: 'communication', name: 'Communication', icon: MessageSquare,
+    iconColor: 'text-indigo-600', iconBg: 'bg-indigo-100',
+    children: [
+      { id: 'chat',           name: 'Messages',        icon: MessageCircle },
+      { id: 'teacherfeedback',name: 'Teacher Feedback',icon: Star          },
+      { id: 'excuse-letter',  name: 'Excuse Letter',   icon: FileText      },
+      { id: 'noticeboard',    name: 'Notice Board',    icon: Bell          },
+    ],
+  },
+  {
+    id: 'wellness', name: 'Wellness', icon: Heart,
+    iconColor: 'text-pink-600', iconBg: 'bg-pink-100',
+    children: [
+      { id: 'wellbeing',    name: 'Emotional Wellbeing', icon: Heart  },
+      { id: 'achievements', name: 'Achievements',         icon: Trophy },
+    ],
+  },
+];
+
+/* ── Tooltip (collapsed mode) ────────────────────────────────── */
+const Tooltip = ({ label, sub, visible }) => (
+  <div
+    className={`pointer-events-none absolute left-full top-1/2 -translate-y-1/2 ml-3 z-[999] transition-all duration-150 ${
+      visible ? 'opacity-100 translate-x-0' : 'opacity-0 -translate-x-1'
+    }`}
+  >
+    <div className="bg-slate-900 text-white rounded-xl px-3 py-2 shadow-2xl whitespace-nowrap min-w-max">
+      <p className="text-xs font-bold">{label}</p>
+      {sub && <p className="text-[10px] text-slate-400 mt-0.5">{sub}</p>}
+      {/* Arrow */}
+      <div className="absolute right-full top-1/2 -translate-y-1/2 border-4 border-transparent border-r-slate-900" />
+    </div>
+  </div>
+);
+
+/* ── Main Component ──────────────────────────────────────────── */
 const Sidebar = ({ activeView, isOpen, setIsOpen, onNavigateIntent }) => {
-  const navigate = useNavigate();
+  const navigate   = useNavigate();
   const [openGroups, setOpenGroups] = useState({});
-  const collapsed = !isOpen;
-  const { profile, classTeacher } = useStudentDashboard();
+  const [hoverId, setHoverId]       = useState(null);
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+  const { profile, classTeacher }   = useStudentDashboard();
+
+  const collapsed = !isOpen; // desktop icon-only state
+
   const studentData = profile || {
-    name: 'Student',
-    username: '',
-    grade: '',
-    section: '',
-    roll: '',
-    className: '',
-    sectionName: '',
-    rollNumber: '',
-    campusName: '',
-    campusType: '',
-    schoolName: '',
-    schoolLogo: null,
+    name: 'Student', username: '', grade: '', section: '', roll: '',
+    className: '', sectionName: '', rollNumber: '', campusName: '',
+    campusType: '', schoolName: '', schoolLogo: null,
   };
-  const resolveTeacherName = (teacher, profileData) => {
-    if (typeof teacher === 'string' && teacher.trim()) return teacher.trim();
-    const direct = teacher?.name || teacher?.teacherName || teacher?.fullName || teacher?.displayName;
-    if (direct) return String(direct).trim();
-    const nested = teacher?.user?.name || teacher?.userId?.name || teacher?.teacher?.name;
-    if (nested) return String(nested).trim();
-    const fromProfile = profileData?.classTeacherName || profileData?.classTeacher?.name || profileData?.classTeacher?.teacherName;
-    if (fromProfile) return String(fromProfile).trim();
-    return '';
-  };
-  const displayClass = studentData.className || studentData.grade;
+
+  /* helpers */
+  const displayClass   = studentData.className  || studentData.grade;
   const displaySection = studentData.sectionName || studentData.section;
-  const displayRoll = studentData.rollNumber || studentData.roll;
-  const classTeacherName = resolveTeacherName(classTeacher, studentData);
-  const displayCampus = studentData.campusName
+  const displayRoll    = studentData.rollNumber  || studentData.roll;
+  const displayCampus  = studentData.campusName
     ? studentData.campusType
       ? `${studentData.campusName} (${studentData.campusType})`
       : studentData.campusName
     : '';
 
-  useEffect(() => {
-    // console.log('[Student Sidebar] Class Teacher:', classTeacherName || '(not found)');
-  }, [classTeacherName]);
-
-  // Helper function to navigate to a page
-  const navigateToPage = (pageId) => {
-    const path = pageId === 'dashboard' ? '/student' : `/student/${pageId}`;
-    navigate(path);
+  const resolveTeacherName = (t, p) => {
+    if (typeof t === 'string' && t.trim()) return t.trim();
+    const d = t?.name || t?.teacherName || t?.fullName || t?.displayName;
+    if (d) return String(d).trim();
+    const n = t?.user?.name || t?.userId?.name || t?.teacher?.name;
+    if (n) return String(n).trim();
+    const f = p?.classTeacherName || p?.classTeacher?.name;
+    if (f) return String(f).trim();
+    return '';
   };
+  const classTeacherName = resolveTeacherName(classTeacher, studentData);
+
+  const nameParts   = (studentData.name || '').trim().split(/\s+/).filter(Boolean);
+  const initials    = nameParts.length >= 2
+    ? `${nameParts[0][0]}${nameParts[nameParts.length - 1][0]}`
+    : (nameParts[0]?.[0] || 'S');
+  const profileImage   = studentData.profilePic || studentData.avatar || '';
+  const hasProfileImage = typeof profileImage === 'string' && profileImage.trim() !== '';
+  const schoolLogoSrc  = studentData.schoolLogo || '/harrow-hall-school.png';
 
   const handleNavigation = (pageId) => {
     const path = pageId === 'dashboard' ? '/student' : `/student/${pageId}`;
     onNavigateIntent?.(pageId === 'dashboard' ? 'dashboard' : pageId);
     navigate(path);
-    if (typeof window !== 'undefined' && window.innerWidth < 768) {
-      setIsOpen(false);
-    }
+    if (typeof window !== 'undefined' && window.innerWidth < 768) setIsOpen(false);
   };
 
-  const schoolLogoSrc = studentData.schoolLogo || '/harrow-hall-school.png';
-
-  const menuItems = [
-    { 
-      id: 'dashboard', 
-      name: 'Dashboard', 
-      icon: Home,
-      gradient: 'from-blue-500 to-blue-600',
-      description: 'Overview & Analytics'
-    },
-    { 
-      id: 'ai-learning', 
-      name: 'AI Learning', 
-      icon: Brain,
-      gradient: 'from-purple-500 to-purple-600',
-      description: 'Smart Learning Hub',
-      children: [
-        { id: 'ai-learning-courses', name: 'AI Courses', icon: GraduationCap },
-        { id: 'ai-learning-tutor', name: 'AI Tutor', icon: Brain },
-      ]
-    },
-    {
-      id: 'academics',
-      name: 'Academics',
-      icon: BookOpen,
-      gradient: 'from-emerald-500 to-emerald-600',
-      description: 'Learning Materials',
-      children: [
-        { id: 'assignments', name: 'Assignments', icon: FileText },
-        { id: 'assignments-journal', name: 'Journal', icon: File },
-        { id: 'assignments-academic-alcove', name: 'The Wall', icon: Target },
-        { id: 'tryouts', name: 'Tryouts', icon: Brain },
-        { id: 'study-materials', name: 'Study Materials', icon: BookOpen },
-        { id: 'results', name: 'Results', icon: BarChart3 },
-      ]
-    },
-    { 
-      id: 'schedule', 
-      name: 'Schedule', 
-      icon: Calendar,
-      gradient: 'from-orange-500 to-orange-600',
-      description: 'Time Management',
-      children: [
-        { id: 'routine', name: 'Weekly Routine', icon: Calendar },
-        { id: 'exams', name: 'Exams', icon: FileText },
-        { id: 'holidays', name: 'Holiday List', icon: Bell },
-        { id: 'attendance', name: 'Attendance', icon: Users },
-        { id: 'lesson-plan-status', name: 'Syllabus Status', icon: BookOpen },
-      ]
-    },
-    { 
-      id: 'communication', 
-      name: 'Communication', 
-      icon: MessageSquare,
-      gradient: 'from-indigo-500 to-indigo-600',
-      description: 'Connect & Collaborate',
-      children: [
-        { id: 'chat', name: 'Messages', icon: MessageCircle },
-        { id: 'teacherfeedback', name: 'Teacher Feedback', icon: Star },
-        { id: 'excuse-letter', name: 'Excuse Letter', icon: FileText },
-        { id: 'noticeboard', name: 'Notice Board', icon: Bell },
-      ]
-    },
-    {
-      id: 'wellness',
-      name: 'Wellness',
-      icon: Heart,
-      gradient: 'from-pink-500 to-pink-600',
-      description: 'Health & Wellbeing',
-      children: [
-        { id: 'wellbeing', name: 'Emotional Wellbeing', icon: Heart },
-        { id: 'achievements', name: 'Achievements', icon: Trophy },
-      ]
-    },
-    // {
-    //   id: 'id-card',
-    //   name: 'My ID Card',
-    //   icon: CreditCard,
-    //   gradient: 'from-violet-500 to-violet-600',
-    //   description: 'Download your ID card',
-    // },
-  ];
-
-  const handleLogout = () => {
+  const handleLogout = () => setShowLogoutConfirm(true);
+  const confirmLogout = () => {
+    setShowLogoutConfirm(false);
     logoutAndRedirect({ navigate, notice: AUTH_NOTICE.LOGGED_OUT });
   };
 
-  // Close sidebar on mobile when clicking outside
+  /* Close sidebar on outside click (mobile) */
   useEffect(() => {
-    const handleClickOutside = (event) => {
-      if (window.innerWidth < 768 && isOpen && !event.target.closest('.sidebar')) {
-        setIsOpen(false);
-      }
+    const handler = (e) => {
+      if (window.innerWidth < 768 && isOpen && !e.target.closest('.sidebar')) setIsOpen(false);
     };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
   }, [isOpen, setIsOpen]);
 
   return (
     <>
-      {/* Mobile backdrop */}
-      {isOpen && (
-        <div 
-          className="fixed inset-0 bg-black/20 backdrop-blur-sm z-40 md:hidden transition-opacity duration-300" 
-          onClick={() => setIsOpen(false)} 
-        />
-      )}
-      
-      <div
-        className={`sidebar fixed md:relative h-screen bg-white shadow-2xl transition-all duration-500 ease-in-out z-50 flex flex-col border-r border-gray-200 overflow-x-hidden ${
-          isOpen ? 'w-80' : 'w-20'
-        } ${isOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'} ${!isOpen ? 'overflow-hidden' : ''}`}
-        style={{
-          transitionProperty: 'width, transform, box-shadow',
-          transitionDuration: '0.4s',
-          transitionTimingFunction: 'cubic-bezier(0.4, 0, 0.2, 1)'
-        }}
-        aria-label="Sidebar"
-      >
-        {/* Redesigned Header with Smooth Transitions */}
-        <div className="relative overflow-hidden">
-          <div className={`transition-all duration-400 ease-in-out ${isOpen ? 'opacity-100 transform translate-x-0' : 'opacity-0 transform -translate-x-4 pointer-events-none absolute inset-0'}`}>
-            {/* Expanded Header with Gradient */}
-            <div className="absolute inset-0 bg-gradient-to-br from-yellow-600 via-yellow-600 to-yellow-500 opacity-90" />
-            <div className="relative p-3">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center space-x-3">
-                  <div className="relative">
-                    <div className="w-10 h-10 bg-white/20 backdrop-blur-sm rounded-full flex items-center justify-center shadow-lg border border-white/30">
-                      <img src={schoolLogoSrc} className="w-8 h-8 rounded-full object-cover" alt="School Logo"/>
-                    </div>
-                    <div className="absolute -top-1 -right-1 w-4 h-4 bg-green-400 rounded-full border-2 border-white animate-pulse" />
-                  </div>
-                  <div className="text-white">
-                    <div className="font-bold text-lg leading-tight">
-                      {studentData.schoolName || studentData.name}
-                    </div>
-                    <div className="text-white/80 text-xs">
-                      {displayClass
-                        ? `Class ${displayClass}${displaySection ? ` | Section ${displaySection}` : ''}`
-                        : `${studentData.name}'s Portal`}
-                    </div>
-                    {displayRoll && (
-                      <div className="text-white/80 text-[11px]">Roll No: {displayRoll}</div>
-                    )}
-                    {displayCampus && (
-                      <div className="text-white/80 text-[11px]">Campus: {displayCampus}</div>
-                    )}
-                    {classTeacherName && (
-                      <div className="text-white/90 text-[11px]">
-                        Class Teacher: {classTeacherName}
-                      </div>
-                    )}
-                  </div>
-                </div>
-                
-                {/* Mobile menu toggle */}
+      {showLogoutConfirm && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+          <div className="w-full max-w-sm rounded-2xl bg-white shadow-2xl overflow-hidden">
+            <div className="h-1 bg-linear-to-r from-red-400 to-rose-400" />
+            <div className="p-6">
+              <div className="w-12 h-12 rounded-2xl bg-red-50 flex items-center justify-center mx-auto mb-4">
+                <LogOut className="w-6 h-6 text-red-500" />
+              </div>
+              <h3 className="text-base font-bold text-slate-900 text-center">Confirm Logout</h3>
+              <p className="text-sm text-slate-500 text-center mt-1">
+                Are you sure you want to log out? Any unsaved changes will be lost.
+              </p>
+              <div className="mt-5 flex gap-3">
                 <button
-                  onClick={() => setIsOpen(!isOpen)}
-                  className="md:hidden p-2 rounded-lg bg-white/20 backdrop-blur-sm text-white hover:bg-white/30 transition-colors border border-white/30"
+                  onClick={() => setShowLogoutConfirm(false)}
+                  className="flex-1 py-2.5 rounded-xl border border-slate-200 text-sm font-semibold text-slate-600 hover:bg-slate-50 transition-colors"
                 >
-                  <X size={20} />
+                  Cancel
+                </button>
+                <button
+                  onClick={confirmLogout}
+                  className="flex-1 py-2.5 rounded-xl bg-red-500 hover:bg-red-600 text-white text-sm font-bold transition-colors"
+                >
+                  Logout
                 </button>
               </div>
             </div>
           </div>
+        </div>
+      )}
 
-          <div className={`transition-all duration-400 ease-in-out ${!isOpen ? 'opacity-100 transform translate-x-0' : 'opacity-0 transform translate-x-4 pointer-events-none absolute inset-0'}`}>
-            {/* Collapsed Header - Clean & Minimal */}
-            <div className="p-2 border-b border-gray-200">
-              <div className="flex flex-col items-center space-y-3">
-                {/* Logo */}
-                <div className="relative">
-                  <div className="w-10 h-10 bg-gradient-to-br from-yellow-500 to-yellow-600 rounded-xl flex items-center justify-center shadow-md">
-                    <img src={schoolLogoSrc} className="w-6 h-6 rounded-lg object-cover" alt="School Logo"/>
+      {/* ── Mobile backdrop ── */}
+      {isOpen && (
+        <div
+          className="fixed inset-0 bg-black/40 backdrop-blur-sm z-40 md:hidden"
+          onClick={() => setIsOpen(false)}
+        />
+      )}
+
+      {/* ── Sidebar shell ── */}
+      <div
+        className={`sidebar fixed md:relative h-screen bg-white shadow-xl z-50 flex flex-col border-r border-slate-200 transition-all duration-300 ease-in-out overflow-hidden select-none
+          ${isOpen ? 'w-64' : 'w-16'}
+          ${isOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}
+        `}
+      >
+
+        {/* ════════════════════════════════
+            HEADER
+        ════════════════════════════════ */}
+        <div className={`relative shrink-0 overflow-hidden bg-linear-to-br from-amber-400 via-yellow-400 to-orange-500 ${isOpen ? 'p-4' : 'py-4 px-0'}`}>
+          {/* Decorative circle */}
+          <div className="pointer-events-none absolute -right-6 -top-6 h-20 w-20 rounded-full bg-white/10" />
+
+          {isOpen ? (
+            /* ── Expanded header ── */
+            <div className="relative z-10">
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-2.5">
+                  <div className="relative">
+                    <div className="h-9 w-9 rounded-xl bg-white/25 border border-white/40 flex items-center justify-center shadow-sm overflow-hidden">
+                      <img src={schoolLogoSrc} alt="School" className="h-7 w-7 object-cover rounded-lg" />
+                    </div>
+                    <span className="absolute -top-0.5 -right-0.5 h-3 w-3 rounded-full bg-emerald-400 border-2 border-white" />
                   </div>
-                  <div className="absolute -top-1 -right-1 w-3 h-3 bg-green-400 rounded-full border-2 border-white" />
-                </div>
-                
-                {/* Divider */}
-                <div className="w-8 h-px bg-gray-300" />
-                {classTeacherName && (
-                  <div className="w-full px-1">
-                    <p
-                      className="text-[9px] leading-tight text-gray-500 text-center break-words"
-                      title={`Class Teacher: ${classTeacherName}`}
-                    >
-                      CT: {classTeacherName}
+                  <div className="min-w-0">
+                    <p className="text-sm font-black text-white leading-tight truncate max-w-[130px]">
+                      {studentData.schoolName || 'Student Portal'}
                     </p>
+                    {displayClass && (
+                      <p className="text-[10px] text-white/75 leading-none mt-0.5">
+                        Class {displayClass}{displaySection ? ` · ${displaySection}` : ''}
+                      </p>
+                    )}
                   </div>
+                </div>
+
+                {/* Mobile close */}
+                <button
+                  onClick={() => setIsOpen(false)}
+                  className="md:hidden flex h-7 w-7 items-center justify-center rounded-lg bg-white/20 hover:bg-white/30 transition-colors border border-white/30"
+                >
+                  <X size={14} className="text-white" />
+                </button>
+
+                {/* Desktop collapse toggle */}
+                <button
+                  onClick={() => setIsOpen(false)}
+                  className="hidden md:flex h-7 w-7 items-center justify-center rounded-lg bg-white/20 hover:bg-white/35 transition-colors border border-white/30"
+                  title="Collapse sidebar"
+                >
+                  <ChevronLeft size={14} className="text-white" />
+                </button>
+              </div>
+
+              {/* Student chips */}
+              <div className="flex flex-wrap gap-1.5 justify-center">
+                {/* {displayRoll && (
+                  <span className="rounded-full bg-white/20 border border-white/30 px-2 py-0.5 text-[10px] font-semibold text-white">
+                    Roll {displayRoll}
+                  </span>
+                )}
+                {displayCampus && (
+                  <span className="rounded-full bg-white/20 border border-white/30 px-2 py-0.5 text-[10px] font-semibold text-white truncate max-w-[140px]">
+                    {displayCampus}
+                  </span>
+                )} */}
+                {classTeacherName && (
+                  <span className="rounded-full bg-white/20 border border-white/30 px-2 py-0.5 text-[10px] font-semibold text-white truncate max-w-[160px]">
+                    Class Teacher: {classTeacherName}
+                  </span>
                 )}
               </div>
             </div>
-          </div>
+          ) : (
+            /* ── Collapsed header ── */
+            <div className="relative z-10 flex flex-col items-center gap-2">
+              <div className="relative">
+                <div className="h-9 w-9 rounded-xl bg-white/25 border border-white/40 flex items-center justify-center overflow-hidden shadow-sm">
+                  <img src={schoolLogoSrc} alt="School" className="h-7 w-7 object-cover rounded-lg" />
+                </div>
+                <span className="absolute -top-0.5 -right-0.5 h-2.5 w-2.5 rounded-full bg-emerald-400 border-2 border-white" />
+              </div>
+              {/* Expand toggle */}
+              <button
+                onClick={() => setIsOpen(true)}
+                className="hidden md:flex h-6 w-6 items-center justify-center rounded-lg bg-white/20 hover:bg-white/35 transition-colors border border-white/30"
+                title="Expand sidebar"
+              >
+                <ChevronRight size={12} className="text-white" />
+              </button>
+            </div>
+          )}
         </div>
-        {/* Completely Redesigned Navigation */}
-        <nav className={`flex-1 overflow-y-auto overflow-x-hidden modern-scrollbar ${!isOpen ? 'px-1 py-2' : 'px-4 py-6'}`}>
-          <div className={`${isOpen ? 'space-y-2' : 'space-y-1'}`}>
-            {menuItems.map((item) => {
-              const Icon = item.icon;
+
+        {/* ════════════════════════════════
+            NAV
+        ════════════════════════════════ */}
+        <nav className={`flex-1 overflow-y-auto overflow-x-hidden ${collapsed ? 'px-2 py-3' : 'px-3 py-4'}`}
+          style={{ scrollbarWidth: 'none' }}
+        >
+          <div className={collapsed ? 'space-y-1' : 'space-y-0.5'}>
+            {MENU_ITEMS.map((item) => {
+              const Icon       = item.icon;
               const hasChildren = !!item.children?.length;
-              const isActive =
-                activeView === item.id ||
-                (hasChildren && activeView.startsWith(`${item.id}-`)) ||
-                (hasChildren && item.children?.some((c) => c.id === activeView));
-              const defaultExpanded = hasChildren && isActive;
-              const expanded = openGroups[item.id] === undefined ? defaultExpanded : openGroups[item.id];
-              const showSubmenu = hasChildren && expanded && !collapsed;
+              const isActive   = activeView === item.id ||
+                (hasChildren && item.children?.some(c => c.id === activeView));
+              const expanded   = openGroups[item.id] === undefined
+                ? (hasChildren && isActive)
+                : openGroups[item.id];
+              const showSub = hasChildren && expanded && !collapsed;
 
-              const handleItemClick = (e) => {
-                e.preventDefault();
+              const onItemClick = (e) => {
                 e.stopPropagation();
-
                 if (hasChildren) {
                   if (collapsed) {
-                    handleNavigation(item.id);
-                    return;
+                    handleNavigation(item.children[0].id);
+                  } else {
+                    setOpenGroups(prev => ({ ...prev, [item.id]: !expanded }));
                   }
-
-                  setOpenGroups((prev) => ({ ...prev, [item.id]: !expanded }));
                 } else {
                   handleNavigation(item.id);
                 }
               };
 
               return (
-                <div key={item.id} className="mb-1">
-                  <button
-                    onClick={handleItemClick}
-                    className={`
-                      ${hasChildren 
-                        ? 'w-full flex items-center space-x-3 px-3 py-3 rounded-lg' 
-                        : 'w-full flex items-center space-x-3 px-4 py-3 rounded-lg'
-                      }
-                      group transition-all duration-300 ease-out transform
-                      ${hasChildren
-                        ? 'text-gray-600 hover:bg-gradient-to-r hover:from-blue-50 hover:to-yellow-50 hover:text-gray-900 hover:shadow-md hover:scale-105 active:scale-95'
-                        : isActive 
-                          ? 'bg-gradient-to-r from-yellow-100 to-yellow-50 text-yellow-700 shadow-md border-l-4 border-yellow-500'
-                          : 'text-gray-600 hover:bg-gradient-to-r hover:from-blue-50 hover:to-yellow-50 hover:text-gray-900 hover:shadow-md hover:scale-105 active:scale-95 hover:border-l-4 hover:border-blue-300'
-                      }
-                    `}
-                  >
-                    <Icon
-                      size={20}
-                      className={`flex-shrink-0 transition-all duration-300 ${
-                        !hasChildren && isActive
-                          ? 'text-yellow-600'
-                          : 'text-gray-600 group-hover:text-blue-600 group-hover:scale-110'
-                      }`}
-                    />
-                    {!collapsed && (
-                      <span className="font-medium flex-1 text-left transition-all duration-300">
-                        {item.name}
-                      </span>
-                    )}
-                    {!collapsed && hasChildren && (
-                      showSubmenu ? (
-                        <ChevronDown size={16} className="text-gray-400 group-hover:text-blue-600 transition-all duration-300 group-hover:rotate-180" />
-                      ) : (
-                        <ChevronRight size={16} className="text-gray-400 group-hover:text-blue-600 transition-all duration-300 group-hover:translate-x-1" />
-                      )
-                    )}
-                  </button>
+                <div key={item.id}>
+                  {/* ── Parent button ── */}
+                  <div className="relative" onMouseEnter={() => collapsed && setHoverId(item.id)} onMouseLeave={() => collapsed && setHoverId(null)}>
+                    <button
+                      onClick={onItemClick}
+                      className={`group relative flex w-full items-center rounded-xl transition-all duration-200
+                        ${collapsed ? 'h-10 justify-center' : 'gap-3 px-3 py-2.5'}
+                        ${isActive && !hasChildren
+                          ? 'bg-amber-50 text-amber-700 border border-amber-200 shadow-sm'
+                          : isActive && hasChildren
+                          ? 'bg-amber-50 text-amber-700'
+                          : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'}
+                      `}
+                    >
+                      {/* Icon */}
+                      <div className={`flex shrink-0 items-center justify-center rounded-lg transition-all duration-200
+                        ${collapsed ? 'h-8 w-8' : 'h-7 w-7'}
+                        ${isActive ? `${item.iconBg} ${item.iconColor}` : `bg-slate-100 text-slate-500 group-hover:${item.iconBg} group-hover:${item.iconColor}`}
+                      `}>
+                        <Icon size={collapsed ? 16 : 15} />
+                      </div>
 
-                  {showSubmenu && (
-                    <div className="ml-6 mt-1 space-y-1">
+                      {/* Label */}
+                      {!collapsed && (
+                        <>
+                          <span className="flex-1 text-left text-sm font-semibold">{item.name}</span>
+                          {hasChildren && (
+                            <ChevronDown
+                              size={14}
+                              className={`shrink-0 bg-gray-200 p-0.5 rounded-full text-slate-400 transition-transform duration-200 ${expanded ? 'rotate-180' : ''}`}
+                            />
+                          )}
+                        </>
+                      )}
+
+                      {/* Active dot (collapsed) */}
+                      {collapsed && isActive && (
+                        <span className="absolute right-0.5 top-0.5 h-2 w-2 rounded-full bg-amber-400 border border-white" />
+                      )}
+                    </button>
+
+                    {/* Tooltip (collapsed only) */}
+                    {collapsed && <Tooltip label={item.name} visible={hoverId === item.id} />}
+                  </div>
+
+                  {/* ── Sub-items ── */}
+                  {showSub && (
+                    <div className="ml-3 mt-0.5 space-y-0.5 border-l-2 border-slate-100 pl-3">
                       {item.children.map((child) => {
-                        const ChildIcon = child.icon;
+                        const ChildIcon  = child.icon;
                         const childActive = activeView === child.id;
                         return (
                           <button
                             key={child.id}
-                            onClick={(e) => {
-                              e.preventDefault();
-                              e.stopPropagation();
-                              handleNavigation(child.id);
-                            }}
-                            className={`
-                              w-full flex items-center space-x-3 px-4 py-2 rounded-lg
-                              group transition-all duration-300 ease-out transform
-                              ${childActive 
-                                ? 'bg-gradient-to-r from-yellow-100 to-yellow-50 text-yellow-700 border-l-2 border-yellow-500 shadow-sm' 
-                                : 'text-gray-500 hover:bg-gradient-to-r hover:from-gray-50 hover:to-blue-50 hover:text-gray-700 hover:shadow-sm hover:scale-105 active:scale-95 hover:border-l-2 hover:border-blue-200'}
+                            onClick={(e) => { e.stopPropagation(); handleNavigation(child.id); }}
+                            className={`group flex w-full items-center gap-2.5 rounded-xl px-2.5 py-2 text-left transition-all duration-200
+                              ${childActive
+                                ? 'bg-amber-50 text-amber-700 border border-amber-200 font-semibold'
+                                : 'text-slate-500 hover:bg-slate-100 hover:text-slate-800'}
                             `}
                           >
-                            <ChildIcon
-                              size={16}
-                              className={`flex-shrink-0 transition-all duration-300 ${childActive ? 'text-yellow-600' : 'group-hover:text-blue-600 group-hover:scale-110'}`}
-                            />
-                            <span className="text-sm font-medium transition-all duration-300">{child.name}</span>
+                            <ChildIcon size={13} className={childActive ? 'text-amber-600' : 'text-slate-400 group-hover:text-slate-600'} />
+                            <span className="text-xs font-medium">{child.name}</span>
+                            {childActive && <span className="ml-auto h-1.5 w-1.5 rounded-full bg-amber-400 shrink-0" />}
                           </button>
                         );
                       })}
@@ -388,84 +392,59 @@ const Sidebar = ({ activeView, isOpen, setIsOpen, onNavigateIntent }) => {
             })}
           </div>
         </nav>
-        {/* Redesigned Bottom Section - Matches New Style */}
-        <div className={`border-t border-gray-200 ${!isOpen ? 'p-2' : 'p-4'}`}>
-          <div className={`${isOpen ? 'space-y-2' : 'space-y-1'}`}>
-            {/* Settings Button */}
-            {/* {!isOpen ? (
-              <button
-                onClick={() => handleNavigation('themecustomizer')}
-                className="group relative w-full h-12 flex items-center justify-center rounded-xl text-gray-600 hover:bg-gradient-to-r hover:from-blue-50 hover:to-yellow-50 hover:scale-105 hover:shadow-md hover:text-gray-900 transition-all duration-300 ease-out transform active:scale-95"
-              >
-                <div className="relative flex items-center justify-center w-6 h-6 transition-all duration-300 text-gray-600 group-hover:text-blue-600 group-hover:scale-110">
-                  <Settings size={18} strokeWidth={1.8} className="flex-shrink-0 transition-all duration-300" />
-                </div>
-                <div className="absolute left-full ml-3 opacity-0 group-hover:opacity-100 transition-all duration-300 ease-out transform translate-x-2 group-hover:translate-x-0 pointer-events-none z-50">
-                  <div className="bg-gray-900 text-white px-4 py-3 rounded-xl shadow-2xl border border-gray-700 min-w-max">
-                    <div className="font-semibold text-sm">Settings</div>
-                    <div className="text-xs text-gray-300 mt-1">Preferences & Config</div>
-                    <div className="absolute left-0 top-1/2 transform -translate-x-1 -translate-y-1/2">
-                      <div className="w-2 h-2 bg-gray-900 border-l border-t border-gray-700 rotate-45" />
-                    </div>
+
+        {/* ════════════════════════════════
+            FOOTER
+        ════════════════════════════════ */}
+        <div className={`shrink-0 border-t border-slate-100 mb-16 md:mb-0 ${collapsed ? 'px-2 py-3' : 'px-3 py-3'}`}>
+
+          {/* Profile strip (expanded only) */}
+          {!collapsed && (
+            <div className="mb-2 flex items-center gap-2.5 rounded-xl bg-slate-50 border border-slate-100 px-3 py-2.5">
+              <div className="shrink-0">
+                {hasProfileImage ? (
+                  <img src={profileImage} alt="You"
+                    className="h-8 w-8 rounded-xl object-cover border border-slate-200"
+                    onError={e => e.target.style.display = 'none'} />
+                ) : (
+                  <div className="h-8 w-8 rounded-xl bg-linear-to-br from-amber-400 to-yellow-500 flex items-center justify-center shadow-sm">
+                    <span className="text-xs font-black text-white">{initials.toUpperCase()}</span>
                   </div>
+                )}
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="text-xs font-bold text-slate-800 truncate">{studentData.name}</p>
+                <p className="text-[10px] text-slate-400 truncate">
+                  {displayClass ? `Class ${displayClass}` : 'Student'}
+                  {displaySection ? ` · ${displaySection}` : ''}
+                </p>
+              </div>
+            </div>
+          )}
+
+          {/* Logout */}
+          <div
+            className="relative"
+            onMouseEnter={() => collapsed && setHoverId('__logout')}
+            onMouseLeave={() => collapsed && setHoverId(null)}
+          >
+            <button
+              onClick={handleLogout}
+              className={`group flex w-full items-center rounded-xl transition-all duration-200 text-red-500 hover:bg-red-50 hover:text-red-600
+                ${collapsed ? 'h-10 justify-center' : 'gap-3 px-3 py-2.5'}
+              `}
+            >
+              <div className={`flex shrink-0 items-center justify-center rounded-lg bg-red-50 group-hover:bg-red-100 transition-colors ${collapsed ? 'h-8 w-8' : 'h-7 w-7'}`}>
+                <LogOut size={collapsed ? 15 : 14} className="text-red-500" />
+              </div>
+              {!collapsed && (
+                <div className="text-left">
+                  <p className="text-sm font-semibold">Logout</p>
+                  <p className="text-[10px] text-red-400">Sign out securely</p>
                 </div>
-                
-                <div className="absolute inset-0 rounded-xl ring-1 ring-transparent group-hover:ring-gray-300/30 transition-all duration-300" />
-              </button>
-            ) : (
-              <button
-                onClick={() => handleNavigation('themecustomizer')}
-                className="group relative w-full flex items-center px-4 py-3 rounded-xl text-gray-600 hover:bg-gradient-to-r hover:from-blue-50 hover:to-yellow-50 hover:text-gray-900 hover:shadow-md hover:scale-105 transition-all duration-300 ease-out transform active:scale-95"
-              >
-                <div className="flex items-center justify-center w-10 h-10 rounded-lg bg-gray-100 text-gray-600 group-hover:bg-blue-100 group-hover:text-blue-600 group-hover:scale-110 transition-all duration-300">
-                  <Settings size={20} className="flex-shrink-0 transition-all duration-300" />
-                </div>
-                <div className="ml-3">
-                  <div className="font-medium text-sm transition-all duration-300">Settings</div>
-                  <div className="text-xs text-gray-500 group-hover:text-blue-600 transition-all duration-300">Preferences & Config</div>
-                </div>
-              </button>
-            )} */}
-            
-            {!isOpen ? (
-              <button
-                onClick={handleLogout}
-                className="group relative w-full h-12 flex items-center justify-center rounded-xl text-red-500 hover:bg-gradient-to-r hover:from-red-50 hover:to-pink-50 hover:scale-105 hover:shadow-md hover:text-red-600 transition-all duration-300 ease-out transform active:scale-95"
-              >
-                <div className="relative flex items-center justify-center w-6 h-6 transition-all duration-300 text-red-500 group-hover:text-red-600 group-hover:scale-110">
-                  <LogOut size={18} strokeWidth={1.8} className="flex-shrink-0 transition-all duration-300" />
-                </div>
-                
-                {/* Enhanced Tooltip */}
-                <div className="absolute left-full ml-3 opacity-0 group-hover:opacity-100 transition-all duration-300 ease-out transform translate-x-2 group-hover:translate-x-0 pointer-events-none z-50">
-                  <div className="bg-gray-900 text-white px-4 py-3 rounded-xl shadow-2xl border border-gray-700 min-w-max">
-                    <div className="font-semibold text-sm">Logout</div>
-                    <div className="text-xs text-gray-300 mt-1">Sign out securely</div>
-                    
-                    {/* Modern Arrow */}
-                    <div className="absolute left-0 top-1/2 transform -translate-x-1 -translate-y-1/2">
-                      <div className="w-2 h-2 bg-gray-900 border-l border-t border-gray-700 rotate-45" />
-                    </div>
-                  </div>
-                </div>
-                
-                {/* Subtle Hover Ring */}
-                <div className="absolute inset-0 rounded-xl ring-1 ring-transparent group-hover:ring-red-300/30 transition-all duration-300" />
-              </button>
-            ) : (
-              <button
-                onClick={handleLogout}
-                className="group relative w-full flex items-center px-4 py-3 rounded-xl text-red-600 hover:bg-gradient-to-r hover:from-red-50 hover:to-pink-50 hover:text-red-700 hover:shadow-md hover:scale-105 transition-all duration-300 ease-out transform active:scale-95"
-              >
-                <div className="flex items-center justify-center w-10 h-10 rounded-lg bg-red-100 text-red-600 group-hover:bg-red-200 group-hover:scale-110 transition-all duration-300">
-                  <LogOut size={20} className="flex-shrink-0 transition-all duration-300" />
-                </div>
-                <div className="ml-3">
-                  <div className="font-medium text-sm transition-all duration-300">Logout</div>
-                  <div className="text-xs text-red-500 group-hover:text-red-600 transition-all duration-300">Sign out securely</div>
-                </div>
-              </button>
-            )}
+              )}
+            </button>
+            {collapsed && <Tooltip label="Logout" sub="Sign out securely" visible={hoverId === '__logout'} />}
           </div>
         </div>
       </div>

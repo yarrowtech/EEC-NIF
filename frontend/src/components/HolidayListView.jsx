@@ -5,6 +5,8 @@ import { useStudentDashboard } from './StudentDashboardContext';
 import { fetchCachedJson } from '../utils/studentApiCache';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+const STUDENT_HOLIDAYS_ENDPOINT = `${API_BASE}/api/holidays/student`;
+const STUDENT_HOLIDAYS_CACHE_TTL_MS = 10 * 60 * 1000;
 
 const formatDate = (value) => {
   const dt = new Date(value);
@@ -125,11 +127,18 @@ const HolidayListView = () => {
       setError('');
       try {
         const token = localStorage.getItem('token');
-        const { data } = await fetchCachedJson(`${API_BASE}/api/holidays/student`, {
-          ttlMs: 10 * 60 * 1000,
+        const userType = localStorage.getItem('userType');
+        if (!token || userType !== 'Student') {
+          setHolidays([]);
+          setError('Please login as student.');
+          return;
+        }
+
+        const { data } = await fetchCachedJson(STUDENT_HOLIDAYS_ENDPOINT, {
+          ttlMs: STUDENT_HOLIDAYS_CACHE_TTL_MS,
           fetchOptions: {
             headers: {
-              authorization: `Bearer ${token}`,
+              Authorization: `Bearer ${token}`,
             },
           },
         });

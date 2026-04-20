@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import {
   Bell,
   Search,
@@ -109,7 +109,6 @@ const SkeletonCard = () => (
 
 /* ─── Notice row ─── */
 const NoticeCard = ({ notice, onOpen }) => {
-  const noticeId = resolveId(notice);
   const priority = resolvePriority(notice);
   const meta = PRIORITY_META[priority] || PRIORITY_META.general;
   const author = resolveAuthor(notice);
@@ -198,24 +197,35 @@ const NoticeDetailsView = ({ notice, onBack }) => {
 };
 
 /* ─── Stat card ─── */
-const StatCard = ({ icon: Icon, iconBg, iconColor, value, label }) => (
+const StatCard = ({ icon, iconBg, iconColor, value, label }) => {
+  const IconComp = icon;
+  return (
   <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 flex items-center gap-3">
     <div className={`p-2.5 rounded-xl ${iconBg}`}>
-      <Icon className={`w-5 h-5 ${iconColor}`} />
+      <IconComp className={`w-5 h-5 ${iconColor}`} />
     </div>
     <div>
       <div className="text-xl font-bold text-gray-900">{value}</div>
       <div className="text-xs text-gray-500">{label}</div>
     </div>
   </div>
-);
+  );
+};
 
 /* ─── Main ─── */
 const NoticeBoard = () => {
+  const API_BASE = (import.meta.env.VITE_API_URL || 'http://localhost:5000')
+    .replace(/\/$/, '')
+    .replace(/\/api$/, '');
+  const NOTICEBOARD_NOTICES_ENDPOINT = `${API_BASE}/api/notifications/user`;
+  const NOTICEBOARD_CLASS_TEACHER_ENDPOINT = `${API_BASE}/api/student/auth/class-teacher`;
+  const NOTICEBOARD_NOTICES_CACHE_TTL_MS = 2 * 60 * 1000;
+  const NOTICEBOARD_CLASS_TEACHER_CACHE_TTL_MS = 5 * 60 * 1000;
+
   const [searchQuery, setSearchQuery] = useState('');
   const [filterPriority, setFilterPriority] = useState('all');
   const [filterCategory, setFilterCategory] = useState('all');
-  const [bookmarkedNotices, setBookmarkedNotices] = useState([]);
+  const [bookmarkedNotices] = useState([]);
   const [notices, setNotices] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -225,30 +235,38 @@ const NoticeBoard = () => {
   const [selectedNotice, setSelectedNotice] = useState(null);
   const [expandedCategories, setExpandedCategories] = useState({});
   const [expandedTypes, setExpandedTypes] = useState({});
+  const [refreshing, setRefreshing] = useState(false);
 
-  useEffect(() => {
-    const fetchNotices = async () => {
+  const loadNoticeBoardData = useCallback(async ({ forceRefresh = false } = {}) => {
       try {
-        setLoading(true);
+        if (forceRefresh) setRefreshing(true);
+        else setLoading(true);
         setError(null);
         const token = localStorage.getItem('token');
         const userType = localStorage.getItem('userType');
-        if (!token || userType !== 'Student') { setLoading(false); return; }
+        if (!token || userType !== 'Student') {
+          setNotices([]);
+          setClassTeacher(null);
+          return;
+        }
 
-        const API_BASE = (import.meta.env.VITE_API_URL || 'http://localhost:5000')
-          .replace(/\/$/, '').replace(/\/api$/, '');
-
-        const { data } = await fetchCachedJson(`${API_BASE}/api/notifications/user`, {
-          ttlMs: 2 * 60 * 1000,
-          fetchOptions: { headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' } },
+        const { data } = await fetchCachedJson(NOTICEBOARD_NOTICES_ENDPOINT, {
+          ttlMs: NOTICEBOARD_NOTICES_CACHE_TTL_MS,
+          forceRefresh,
+          fetchOptions: {
+            headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+          },
         });
         setNotices(Array.isArray(data) ? data : []);
         setLastUpdated(new Date());
 
         setTeacherLoading(true);
-        const { data: teacherData } = await fetchCachedJson(`${API_BASE}/api/student/auth/class-teacher`, {
-          ttlMs: 5 * 60 * 1000,
-          fetchOptions: { headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' } },
+        const { data: teacherData } = await fetchCachedJson(NOTICEBOARD_CLASS_TEACHER_ENDPOINT, {
+          ttlMs: NOTICEBOARD_CLASS_TEACHER_CACHE_TTL_MS,
+          forceRefresh,
+          fetchOptions: {
+            headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+          },
         });
         setClassTeacher(teacherData?.teacher || null);
       } catch (err) {
@@ -257,10 +275,18 @@ const NoticeBoard = () => {
       } finally {
         setLoading(false);
         setTeacherLoading(false);
+        setRefreshing(false);
       }
-    };
-    fetchNotices();
-  }, []);
+  }, [
+    NOTICEBOARD_CLASS_TEACHER_CACHE_TTL_MS,
+    NOTICEBOARD_CLASS_TEACHER_ENDPOINT,
+    NOTICEBOARD_NOTICES_CACHE_TTL_MS,
+    NOTICEBOARD_NOTICES_ENDPOINT,
+  ]);
+
+  useEffect(() => {
+    loadNoticeBoardData({ forceRefresh: false });
+  }, [loadNoticeBoardData]);
 
   const filteredNotices = notices.filter(notice => {
     const q = searchQuery.toLowerCase();
@@ -274,8 +300,8 @@ const NoticeBoard = () => {
   });
 
   const sortedNotices = [...filteredNotices].sort((a, b) => {
-    if (Boolean(a.pinned) && !Boolean(b.pinned)) return -1;
-    if (!Boolean(a.pinned) && Boolean(b.pinned)) return 1;
+    if (a.pinned && !b.pinned) return -1;
+    if (!a.pinned && b.pinned) return 1;
     return new Date(resolveDate(b) || 0) - new Date(resolveDate(a) || 0);
   });
 
@@ -375,6 +401,14 @@ const NoticeBoard = () => {
           <div className="bg-white/15 backdrop-blur-sm rounded-2xl px-5 py-4 text-center min-w-[90px] shrink-0">
             <div className="text-3xl font-bold">{loading ? '—' : notices.length}</div>
             <div className="text-xs text-indigo-200 mt-0.5">Total</div>
+            <button
+              type="button"
+              onClick={() => loadNoticeBoardData({ forceRefresh: true })}
+              disabled={refreshing || loading}
+              className="mt-2 inline-flex items-center rounded-lg border border-white/30 bg-white/10 px-2.5 py-1 text-[11px] font-semibold text-white hover:bg-white/20 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {refreshing ? 'Refreshing…' : 'Refresh'}
+            </button>
           </div>
         </div>
 

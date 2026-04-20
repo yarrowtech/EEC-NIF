@@ -18,6 +18,7 @@ import {
   NotebookPen,
   ArrowUpRight,
 } from 'lucide-react';
+import { fetchCachedJson } from '../utils/studentApiCache';
 
 const StudyMaterials = () => {
   const [materials, setMaterials] = useState([]);
@@ -26,12 +27,17 @@ const StudyMaterials = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedSubject, setSelectedSubject] = useState('all');
   const [expandedMaterial, setExpandedMaterial] = useState(null);
+  const API_BASE = (import.meta.env.VITE_API_URL || 'http://localhost:5000')
+    .replace(/\/$/, '')
+    .replace(/\/api$/, '');
+  const STUDY_MATERIALS_ENDPOINT = `${API_BASE}/api/notifications/user`;
+  const STUDY_MATERIALS_CACHE_TTL_MS = 2 * 60 * 1000;
 
   useEffect(() => {
     fetchMaterials();
   }, []);
 
-  const fetchMaterials = async () => {
+  const fetchMaterials = async ({ forceRefresh = false } = {}) => {
     try {
       setLoading(true);
       setError('');
@@ -43,22 +49,16 @@ const StudyMaterials = () => {
         return;
       }
 
-      const API_BASE = (import.meta.env.VITE_API_URL || 'http://localhost:5000')
-        .replace(/\/$/, '')
-        .replace(/\/api$/, '');
-
-      const response = await fetch(`${API_BASE}/api/notifications/user`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'application/json',
+      const { data } = await fetchCachedJson(STUDY_MATERIALS_ENDPOINT, {
+        ttlMs: STUDY_MATERIALS_CACHE_TTL_MS,
+        forceRefresh,
+        fetchOptions: {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
         },
       });
-
-      if (!response.ok) {
-        throw new Error('Unable to load study materials');
-      }
-
-      const data = await response.json();
       const classMaterials = Array.isArray(data)
         ? data.filter((item) => item.type === 'class_note')
         : [];
@@ -384,7 +384,7 @@ const StudyMaterials = () => {
                   Showing {filteredMaterials.length} material{filteredMaterials.length !== 1 ? 's' : ''} from {materials.length} total
                 </span>
                 <button
-                  onClick={fetchMaterials}
+                  onClick={() => fetchMaterials({ forceRefresh: true })}
                   className="font-semibold text-sky-700 transition hover:text-sky-800"
                 >
                   Refresh materials

@@ -2,9 +2,10 @@ import React, { useCallback, useEffect, useState } from 'react';
 import {
   Home, BookOpen, Calendar, MessageCircle, User,
   X, FileText, File, Target, BarChart3, Users,
-  Bell, Heart, Trophy, Star, Brain, Save,
+  Bell, Heart, Trophy, Star, Brain, Save, LogOut,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { AUTH_NOTICE, logoutAndRedirect } from '../utils/authSession';
 
 /* ─── Sub-menu definitions ─────────────────────────────────────────────── */
 const subMenus = {
@@ -39,6 +40,7 @@ const navItems = [
   { id: 'schedule',  label: 'Schedule',  icon: Calendar,      subMenu: 'schedule' },
   { id: 'chat',      label: 'Messages',  icon: MessageCircle, path: '/student/chat' },
   { id: 'profile',   label: 'Profile',   icon: User,          path: '/student/profile' },
+  { id: 'logout',    label: 'Logout',    icon: LogOut,        action: 'logout' },
 ];
 
 /* ─── Helper ─────────────────────────────────────────────────────────────── */
@@ -97,6 +99,13 @@ const MobileBottomNav = ({ activeView, onSaveJournal }) => {
   }, [loadChatUnreadCount]);
 
   const handleTabPress = (item) => {
+    if (item.action === 'logout') {
+      const shouldLogout = window.confirm('Do you want to logout?');
+      if (!shouldLogout) return;
+      logoutAndRedirect({ navigate, notice: AUTH_NOTICE.LOGGED_OUT });
+      return;
+    }
+
     if (item.subMenu) {
       setOpenMenu((prev) => (prev === item.subMenu ? null : item.subMenu));
     } else {

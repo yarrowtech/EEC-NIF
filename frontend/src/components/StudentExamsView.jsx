@@ -3,8 +3,11 @@ import { jsPDF } from 'jspdf';
 import { Calendar, FileText, Loader2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useStudentDashboard } from './StudentDashboardContext';
+import { fetchCachedJson } from '../utils/studentApiCache';
 
 const API_BASE = (import.meta.env.VITE_API_URL || 'http://localhost:5000').replace(/\/$/, '');
+const STUDENT_EXAMS_ENDPOINT = `${API_BASE}/api/exam/groups/student-schedule`;
+const STUDENT_EXAMS_CACHE_TTL_MS = 2 * 60 * 1000;
 
 const TERM_OPTIONS = ['all', 'Class Test', 'Unit Test', 'Monthly Test', 'Term 1', 'Term 2', 'Term 3', 'Half Yearly', 'Annual', 'Final'];
 const STATUS_OPTIONS = ['all', 'scheduled', 'completed'];
@@ -187,14 +190,15 @@ const StudentExamsView = () => {
       setLoading(true);
       setError('');
       try {
-        const res = await fetch(`${API_BASE}/api/exam/groups/student-schedule`, {
-          headers: {
-            Authorization: `Bearer ${token}`,
-            'Content-Type': 'application/json',
+        const { data } = await fetchCachedJson(STUDENT_EXAMS_ENDPOINT, {
+          ttlMs: STUDENT_EXAMS_CACHE_TTL_MS,
+          fetchOptions: {
+            headers: {
+              Authorization: `Bearer ${token}`,
+              'Content-Type': 'application/json',
+            },
           },
         });
-        const data = await res.json().catch(() => []);
-        if (!res.ok) throw new Error(data?.error || 'Failed to load exam schedule');
         setGroups(Array.isArray(data) ? data : []);
       } catch (err) {
         setError(err.message || 'Failed to load exam schedule');

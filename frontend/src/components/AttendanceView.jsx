@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import { useLocation } from 'react-router-dom';
 import { clearCacheEntry, readCacheEntry, writeCacheEntry } from '../utils/studentCache';
+import { fetchCachedJson } from '../utils/studentApiCache';
 
 const STATUS_COLORS = {
   present: 'bg-emerald-500',
@@ -117,6 +118,9 @@ const TabBtn = ({ active, icon: Icon, label, onClick }) => (
 
 const ATTENDANCE_CACHE_KEY = 'studentAttendanceCacheV1';
 const ATTENDANCE_CACHE_TTL_MS = 5 * 60 * 1000;
+const ATTENDANCE_API_CACHE_TTL_MS = 5 * 60 * 1000;
+const MATERIALS_API_CACHE_TTL_MS = 2 * 60 * 1000;
+const LESSON_PLAN_API_CACHE_TTL_MS = 2 * 60 * 1000;
 const EMPTY_STATS = { totalClasses: 0, attended: 0, absent: 0, percentage: 0 };
 
 const AttendanceView = () => {
@@ -148,7 +152,7 @@ const AttendanceView = () => {
     }
   }, [location.search]);
 
-  const fetchAttendance = useCallback(async ({ silent = false } = {}) => {
+  const fetchAttendance = useCallback(async ({ silent = false, forceRefresh = false } = {}) => {
     try {
       if (silent) setSilentRefreshing(true);
       else setLoading(true);
@@ -159,12 +163,16 @@ const AttendanceView = () => {
         clearCacheEntry(ATTENDANCE_CACHE_KEY);
         throw new Error('Student session not found. Please login again.');
       }
-      const response = await fetch(
+      const { data } = await fetchCachedJson(
         `${import.meta.env.VITE_API_URL}/api/student/auth/attendance`,
-        { headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' } },
+        {
+          ttlMs: ATTENDANCE_API_CACHE_TTL_MS,
+          forceRefresh,
+          fetchOptions: {
+            headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+          },
+        }
       );
-      const data = await response.json();
-      if (!response.ok) throw new Error(data?.error || 'Failed to fetch attendance');
 
       const summary = data?.summary || {};
       const normalizedRecords = Array.isArray(data?.attendance)
@@ -210,7 +218,7 @@ const AttendanceView = () => {
       setLastSynced(new Date(cachedEntry.timestamp));
       setLoading(false);
     }
-    fetchAttendance({ silent: Boolean(cachedEntry) });
+    fetchAttendance({ silent: Boolean(cachedEntry), forceRefresh: false });
   }, [fetchAttendance]);
 
   /* ─── Derived data ─── */
@@ -375,19 +383,18 @@ const AttendanceView = () => {
       const token = localStorage.getItem('token');
       if (!token) return;
 
-      const response = await fetch(
+      const { data } = await fetchCachedJson(
         `${import.meta.env.VITE_API_URL}/api/notifications/user`,
         {
-          headers: {
-            Authorization: `Bearer ${token}`,
-            'Content-Type': 'application/json',
+          ttlMs: MATERIALS_API_CACHE_TTL_MS,
+          fetchOptions: {
+            headers: {
+              Authorization: `Bearer ${token}`,
+              'Content-Type': 'application/json',
+            },
           },
         }
       );
-
-      if (!response.ok) throw new Error('Failed to fetch materials');
-
-      const data = await response.json();
       const allNotices = Array.isArray(data) ? data : [];
 
       // Filter notices for the selected date
@@ -412,17 +419,18 @@ const AttendanceView = () => {
     try {
       const token = localStorage.getItem('token');
       if (!token) return;
-      const response = await fetch(
+      const { data } = await fetchCachedJson(
         `${import.meta.env.VITE_API_URL}/api/lesson-plans/student/status?fromDate=${dateStr}&toDate=${dateStr}`,
         {
-          headers: {
-            Authorization: `Bearer ${token}`,
-            'Content-Type': 'application/json',
+          ttlMs: LESSON_PLAN_API_CACHE_TTL_MS,
+          fetchOptions: {
+            headers: {
+              Authorization: `Bearer ${token}`,
+              'Content-Type': 'application/json',
+            },
           },
         }
       );
-      if (!response.ok) throw new Error('Failed to fetch lesson plan status');
-      const data = await response.json();
       setLessonPlanStatuses(Array.isArray(data) ? data : []);
     } catch (err) {
       console.error('Failed to fetch lesson plan status:', err);
@@ -494,7 +502,7 @@ const AttendanceView = () => {
             </p>
             <button
               type="button"
-              onClick={() => fetchAttendance({ silent: true })}
+              onClick={() => fetchAttendance({ silent: true, forceRefresh: true })}
               disabled={silentRefreshing}
               className="inline-flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-1.5 font-semibold text-slate-600 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
             >

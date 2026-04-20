@@ -3,6 +3,7 @@ import { jsPDF } from 'jspdf';
 import { Calendar, Clock, MapPin, BookOpen, AlertCircle, RefreshCcw, Download } from 'lucide-react';
 import { useStudentDashboard } from './StudentDashboardContext';
 import { clearCacheEntry, readCacheEntry, writeCacheEntry } from '../utils/studentCache';
+import { fetchCachedJson } from '../utils/studentApiCache';
 
 const dayOrder = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
 const dayLabels = {
@@ -17,6 +18,7 @@ const dayLabels = {
 
 const ROUTINE_CACHE_KEY = 'studentRoutineCacheV1';
 const ROUTINE_CACHE_TTL_MS = 10 * 60 * 1000;
+const ROUTINE_FETCH_CACHE_TTL_MS = 2 * 60 * 1000;
 
 const normalizeDay = (value) => {
   if (!value) return null;
@@ -204,7 +206,7 @@ const RoutineView = () => {
   const [lastUpdated, setLastUpdated] = useState(null);
   const [silentRefreshing, setSilentRefreshing] = useState(false);
 
-  const fetchSchedule = useCallback(async ({ silent = false } = {}) => {
+  const fetchSchedule = useCallback(async ({ silent = false, forceRefresh = false } = {}) => {
     try {
       if (silent) setSilentRefreshing(true);
       else setLoading(true);
@@ -225,20 +227,27 @@ const RoutineView = () => {
         Authorization: `Bearer ${token}`,
         'Content-Type': 'application/json',
       };
+      const fetchRoutinePayload = async (endpoint) => {
+        const { data } = await fetchCachedJson(`${import.meta.env.VITE_API_URL}${endpoint}`, {
+          ttlMs: ROUTINE_FETCH_CACHE_TTL_MS,
+          forceRefresh,
+          fetchOptions: { headers },
+        });
+        return data;
+      };
 
       let normalized = null;
 
       // Attempt 1: Fetch schedule specific to the authenticated student.
       // This is the ideal endpoint as it requires no parameters.
       try {
-        const studentScheduleResponse = await fetch(`${import.meta.env.VITE_API_URL}/api/student/auth/schedule`, { headers });
-        if (studentScheduleResponse.ok) {
-          const studentScheduleData = await studentScheduleResponse.json().catch(() => null);
-          if (studentScheduleData) {
-            const tempNormalized = normalizeSchedule(studentScheduleData.schedule || studentScheduleData.routine || studentScheduleData.data?.schedule);
-            if (hasScheduleEntries(tempNormalized)) {
-              normalized = tempNormalized;
-            }
+        const studentScheduleData = await fetchRoutinePayload('/api/student/auth/schedule');
+        if (studentScheduleData) {
+          const tempNormalized = normalizeSchedule(
+            studentScheduleData.schedule || studentScheduleData.routine || studentScheduleData.data?.schedule
+          );
+          if (hasScheduleEntries(tempNormalized)) {
+            normalized = tempNormalized;
           }
         }
       } catch (e) {
@@ -254,15 +263,13 @@ const RoutineView = () => {
 
         for (const endpoint of studentEndpoints) {
           try {
-            const res = await fetch(`${import.meta.env.VITE_API_URL}${endpoint}`, { headers });
-            if (res.ok) {
-              const data = await res.json().catch(() => null);
-              if (data) {
-                const tempNormalized = normalizeTimetablePayload(data) || normalizeSchedule(data.schedule || data.routine || data.data?.schedule);
-                if (hasScheduleEntries(tempNormalized)) {
-                  normalized = tempNormalized;
-                  break;
-                }
+            const data = await fetchRoutinePayload(endpoint);
+            if (data) {
+              const tempNormalized =
+                normalizeTimetablePayload(data) || normalizeSchedule(data.schedule || data.routine || data.data?.schedule);
+              if (hasScheduleEntries(tempNormalized)) {
+                normalized = tempNormalized;
+                break;
               }
             }
           } catch (e) {
@@ -298,13 +305,10 @@ const RoutineView = () => {
               }
             }
 
-            const timetableResponse = await fetch(
-              `${import.meta.env.VITE_API_URL}/api/timetable?${params.toString()}`,
-              { headers }
+            const timetableData = await fetchRoutinePayload(
+              `/api/timetable?${params.toString()}`
             );
-
-            if (timetableResponse.ok) {
-              const timetableData = await timetableResponse.json().catch(() => null);
+            if (timetableData) {
               const tempNormalized = normalizeTimetablePayload(timetableData);
               if (hasScheduleEntries(tempNormalized)) {
                 normalized = tempNormalized;
@@ -356,7 +360,7 @@ const RoutineView = () => {
       setLastUpdated(cachedDate);
       setLoading(false);
     }
-    fetchSchedule({ silent: Boolean(cachedEntry?.data?.schedule) });
+    fetchSchedule({ silent: Boolean(cachedEntry?.data?.schedule), forceRefresh: false });
   }, [fetchSchedule]);
 
   const studentClassValues = useMemo(
@@ -771,7 +775,7 @@ const RoutineView = () => {
               </button>
               <button
                 type="button"
-                onClick={() => fetchSchedule({ silent: true })}
+                onClick={() => fetchSchedule({ silent: true, forceRefresh: true })}
                 disabled={silentRefreshing}
                 className="inline-flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
               >

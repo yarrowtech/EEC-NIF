@@ -19,8 +19,10 @@ import {
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { downloadSingleReportCardPdf } from '../utils/reportCardPdf';
+import { fetchCachedJson } from '../utils/studentApiCache';
 
 const API_BASE = import.meta.env.VITE_API_URL || '';
+const RESULTS_CACHE_TTL_MS = 2 * 60 * 1000;
 
 const toNumber = (value, fallback = 0) => {
   const num = Number(value);
@@ -45,7 +47,7 @@ const ResultsView = () => {
   const [lastUpdated, setLastUpdated] = useState(null);
   const [downloadingReportCard, setDownloadingReportCard] = useState(false);
 
-  const fetchExamWiseReport = useCallback(async (examGroupId = '') => {
+  const fetchExamWiseReport = useCallback(async (examGroupId = '', { forceRefresh = false } = {}) => {
     const token = localStorage.getItem('token');
     const userType = localStorage.getItem('userType');
     if (!token || userType !== 'Student') {
@@ -60,17 +62,17 @@ const ResultsView = () => {
       const query = new URLSearchParams();
       if (examGroupId) query.set('examGroupId', examGroupId);
 
-      const res = await fetch(
-        `${API_BASE}/api/reports/report-cards/me${query.toString() ? `?${query.toString()}` : ''}`,
-        {
+      const endpoint = `${API_BASE}/api/reports/report-cards/me${query.toString() ? `?${query.toString()}` : ''}`;
+      const { data } = await fetchCachedJson(endpoint, {
+        ttlMs: RESULTS_CACHE_TTL_MS,
+        forceRefresh,
+        fetchOptions: {
           headers: {
             Authorization: `Bearer ${token}`,
             'Content-Type': 'application/json',
           },
-        }
-      );
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data?.error || 'Unable to load exam results');
+        },
+      });
 
       setTemplate(data?.template || null);
       setReportCard(data?.reportCard || null);

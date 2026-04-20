@@ -1,7 +1,10 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { BookOpenCheck, Calendar, Search, CheckCircle2, Clock, Circle, BookOpen, ChevronRight, Sparkles, Layers3 } from 'lucide-react';
+import { fetchCachedJson } from '../utils/studentApiCache';
 
 const API_BASE = (import.meta.env.VITE_API_URL || 'http://localhost:5000').replace(/\/$/, '');
+const STUDENT_LESSON_PLAN_STATUS_ENDPOINT = `${API_BASE}/api/lesson-plans/student/status`;
+const STUDENT_LESSON_PLAN_STATUS_CACHE_TTL_MS = 2 * 60 * 1000;
 
 const STATUS_CONFIG = {
   completed:   { label: 'Completed',   tone: 'bg-emerald-100 text-emerald-700 border-emerald-200', dot: 'bg-emerald-500',  icon: CheckCircle2 },
@@ -49,11 +52,19 @@ const LessonPlanStatusView = () => {
       setLoading(true);
       setError('');
       const token = localStorage.getItem('token');
-      const res = await fetch(`${API_BASE}/api/lesson-plans/student/status`, {
-        headers: { 'Content-Type': 'application/json', authorization: `Bearer ${token}` },
+      const userType = localStorage.getItem('userType');
+      if (!token || userType !== 'Student') {
+        setItems([]);
+        setError('Please login as student.');
+        return;
+      }
+
+      const { data } = await fetchCachedJson(STUDENT_LESSON_PLAN_STATUS_ENDPOINT, {
+        ttlMs: STUDENT_LESSON_PLAN_STATUS_CACHE_TTL_MS,
+        fetchOptions: {
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        },
       });
-      const data = await res.json().catch(() => []);
-      if (!res.ok) throw new Error(data?.error || 'Failed to load syllabus status');
       setItems(Array.isArray(data) ? data : []);
     } catch (err) {
       setError(err.message || 'Failed to load syllabus status');

@@ -1,7 +1,10 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Award, Calendar, Loader2, Trophy } from 'lucide-react';
+import { fetchCachedJson } from '../utils/studentApiCache';
 
 const API_BASE = (import.meta.env.VITE_API_URL || 'http://localhost:5000').replace(/\/$/, '');
+const STUDENT_ACHIEVEMENTS_ENDPOINT = `${API_BASE}/api/student/auth/achievements`;
+const STUDENT_ACHIEVEMENTS_CACHE_TTL_MS = 2 * 60 * 1000;
 
 const formatDate = (value) => {
   if (!value) return 'N/A';
@@ -31,14 +34,15 @@ const AchievementsView = () => {
         const token = localStorage.getItem('token');
         if (!token) throw new Error('Please login again.');
 
-        const res = await fetch(`${API_BASE}/api/student/auth/achievements`, {
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${token}`,
+        const { data } = await fetchCachedJson(STUDENT_ACHIEVEMENTS_ENDPOINT, {
+          ttlMs: STUDENT_ACHIEVEMENTS_CACHE_TTL_MS,
+          fetchOptions: {
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${token}`,
+            },
           },
         });
-        const data = await res.json().catch(() => ({}));
-        if (!res.ok) throw new Error(data?.error || 'Unable to load achievements');
 
         setStudent(data?.student || null);
         setAchievements(Array.isArray(data?.achievements) ? data.achievements : []);
@@ -122,4 +126,3 @@ const AchievementsView = () => {
 };
 
 export default AchievementsView;
-

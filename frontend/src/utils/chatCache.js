@@ -17,6 +17,7 @@ const makeKey = (kind, userId, threadId = '') => {
 };
 
 export const chatCacheKeys = {
+  me: (userId) => makeKey('me', userId),
   threads: (userId) => makeKey('threads', userId),
   contacts: (userId) => makeKey('contacts', userId),
   messages: (userId, threadId) => makeKey('messages', userId, threadId),
@@ -41,4 +42,3 @@ export const writeChatCache = (key, data) => {
     // ignore quota/storage errors
   }
 };
-
