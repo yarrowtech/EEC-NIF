@@ -442,7 +442,11 @@ router.get('/', authTeacher, async (req, res) => {
 // Get teacher allocations (classes/sections/subjects)
 router.get('/allocations', authTeacher, async (req, res) => {
   try {
-    if (req.user?.userType !== 'teacher') {
+    const isTeacherUser =
+      String(req.user?.userType || '').toLowerCase() === 'teacher' ||
+      String(req.user?.type || '').toLowerCase() === 'teacher' ||
+      String(req.userType || '').toLowerCase() === 'teacher';
+    if (!isTeacherUser) {
       return res.status(403).json({ error: 'Forbidden - not a teacher' });
     }
     const schoolId = req.schoolId;
@@ -460,7 +464,7 @@ router.get('/allocations', authTeacher, async (req, res) => {
       teacherId,
     })
       .populate('subjectId', 'name code classId')
-      .populate('classId', 'name')
+      .populate('classId', 'name academicYearId')
       .populate('sectionId', 'name classId')
       .sort({ createdAt: -1 })
       .lean();
@@ -472,7 +476,7 @@ router.get('/allocations', authTeacher, async (req, res) => {
         ...(campusId ? { campusId } : {}),
       };
       const timetables = await Timetable.find(timetableFilter)
-        .populate('classId', 'name')
+        .populate('classId', 'name academicYearId')
         .populate('sectionId', 'name classId')
         .populate('entries.subjectId', 'name code classId')
         .lean();

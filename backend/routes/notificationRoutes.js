@@ -69,6 +69,32 @@ const markNotificationsViewed = async ({ notificationIds = [], userId }) => {
   );
 };
 
+const buildCampusVisibilityFilter = (campusId) => (
+  campusId
+    ? { $or: [{ campusId }, { campusId: null }, { campusId: { $exists: false } }] }
+    : {}
+);
+
+const normalizeAudienceFromUserType = (userType) => (
+  userType
+    ? userType.charAt(0).toUpperCase() + userType.slice(1)
+    : 'unknown'
+);
+
+const toComparableId = (value) => String(value?._id || value || '');
+
+const hasUserEntry = (entries, userId) => (
+  Array.isArray(entries)
+    ? entries.some((entry) => toComparableId(entry?.userId) === toComparableId(userId))
+    : false
+);
+
+const toObjectIdIfPossible = (value) => (
+  mongoose.isValidObjectId(value) ? new mongoose.Types.ObjectId(value) : value
+);
+
+const ADMIN_SELF_HIDDEN_TYPES = ['notice', 'announcement'];
+
 // Admin creates a notification
 router.post('/', adminAuth, async (req, res) => {
   // #swagger.tags = ['Notifications']
@@ -377,9 +403,7 @@ router.get('/user', authAnyUser, async (req, res) => {
 
     const filter = {
       schoolId,
-      ...(campusId
-        ? { $or: [{ campusId }, { campusId: null }, { campusId: { $exists: false } }] }
-        : {}),
+      ...buildCampusVisibilityFilter(campusId),
       'dismissedBy.userId': { $ne: userId },
       $and: [
         {
@@ -408,7 +432,7 @@ router.get('/user', authAnyUser, async (req, res) => {
           {
             $and: [
               { createdBy: userId },
-              { type: { $nin: ['notice', 'exam', 'announcement'] } },
+              { type: { $nin: ADMIN_SELF_HIDDEN_TYPES } },
             ],
           },
           { createdBy: { $ne: userId } },
@@ -534,7 +558,7 @@ router.get('/user', authAnyUser, async (req, res) => {
     // Add isRead flag for each notification
     const itemsWithReadStatus = items.map(item => ({
       ...item,
-      isRead: item.readBy?.some(r => r.userId.toString() === userId) || false
+      isRead: hasUserEntry(item.readBy, userId)
     }));
 
     res.json(itemsWithReadStatus);
@@ -566,26 +590,64 @@ router.patch('/user/:id/read', authAnyUser, async (req, res) => {
   try {
     const { id } = req.params;
     const userId = req.user?.id;
+    const schoolId = req.schoolId;
+    const campusId = req.campusId || null;
+    const userType = req.userType;
 
     if (!userId) {
       return res.status(401).json({ error: 'User not authenticated' });
     }
+    if (!mongoose.isValidObjectId(id)) {
+      return res.status(400).json({ error: 'Invalid notification id' });
+    }
 
-    const notification = await Notification.findById(id);
+    const normalizedAudience = normalizeAudienceFromUserType(userType);
+    const normalizedUserId = toObjectIdIfPossible(userId);
+    const filter = {
+      _id: id,
+      schoolId,
+      ...buildCampusVisibilityFilter(campusId),
+      $and: [
+        {
+          $or: [
+            { targetUserIds: { $exists: false } },
+            { targetUserIds: { $size: 0 } },
+            { targetUserIds: normalizedUserId },
+          ],
+        },
+      ],
+      $or: [{ audience: 'All' }, { audience: normalizedAudience }],
+      'dismissedBy.userId': { $ne: normalizedUserId },
+    };
+
+    if (normalizedAudience === 'Admin') {
+      filter.$and.push({
+        $or: [
+          { createdBy: { $exists: false } },
+          { createdBy: null },
+          {
+            $and: [
+              { createdBy: normalizedUserId },
+              { type: { $nin: ADMIN_SELF_HIDDEN_TYPES } },
+            ],
+          },
+          { createdBy: { $ne: normalizedUserId } },
+        ],
+      });
+    }
+
+    const notification = await Notification.findOne(filter);
     if (!notification) {
       return res.status(404).json({ error: 'Notification not found' });
     }
 
-    const viewedBy = Array.isArray(notification.viewedBy) ? notification.viewedBy : [];
-    const readBy = Array.isArray(notification.readBy) ? notification.readBy : [];
-    const alreadyViewed = viewedBy.some(v => v.userId.toString() === userId);
+    const alreadyViewed = hasUserEntry(notification.viewedBy, userId);
     if (!alreadyViewed) {
       notification.viewedBy.push({ userId, viewedAt: new Date() });
       notification.views = Number(notification.views || 0) + 1;
     }
 
-    // Check if already read by this user
-    const alreadyRead = readBy.some(r => r.userId.toString() === userId);
+    const alreadyRead = hasUserEntry(notification.readBy, userId);
     if (!alreadyRead) {
       notification.readBy.push({ userId, readAt: new Date() });
     }
@@ -639,30 +701,45 @@ router.post('/user/read-all', authAnyUser, async (req, res) => {
       return res.status(401).json({ error: 'User not authenticated' });
     }
 
-    const normalizedAudience = userType
-      ? userType.charAt(0).toUpperCase() + userType.slice(1)
-      : 'unknown';
+    const normalizedAudience = normalizeAudienceFromUserType(userType);
+    const normalizedUserId = toObjectIdIfPossible(userId);
 
     const filter = {
       schoolId,
-      ...(campusId ? { campusId } : {}),
+      ...buildCampusVisibilityFilter(campusId),
       $and: [
         {
           $or: [
             { targetUserIds: { $exists: false } },
             { targetUserIds: { $size: 0 } },
-            { targetUserIds: userId },
+            { targetUserIds: normalizedUserId },
           ],
         },
       ],
       $or: [{ audience: 'All' }, { audience: normalizedAudience }],
-      'readBy.userId': { $ne: userId },
-      'dismissedBy.userId': { $ne: userId }
+      'readBy.userId': { $ne: normalizedUserId },
+      'dismissedBy.userId': { $ne: normalizedUserId }
     };
+
+    if (normalizedAudience === 'Admin') {
+      filter.$and.push({
+        $or: [
+          { createdBy: { $exists: false } },
+          { createdBy: null },
+          {
+            $and: [
+              { createdBy: normalizedUserId },
+              { type: { $nin: ADMIN_SELF_HIDDEN_TYPES } },
+            ],
+          },
+          { createdBy: { $ne: normalizedUserId } },
+        ],
+      });
+    }
 
     await Notification.updateMany(
       filter,
-      { $push: { readBy: { userId, readAt: new Date() } } }
+      { $addToSet: { readBy: { userId: normalizedUserId } } }
     );
 
     res.json({ success: true });
@@ -700,26 +777,41 @@ router.get('/user/unread-count', authAnyUser, async (req, res) => {
       return res.status(401).json({ error: 'User not authenticated' });
     }
 
-    const normalizedAudience = userType
-      ? userType.charAt(0).toUpperCase() + userType.slice(1)
-      : 'unknown';
+    const normalizedAudience = normalizeAudienceFromUserType(userType);
+    const normalizedUserId = toObjectIdIfPossible(userId);
 
     const filter = {
       schoolId,
-      ...(campusId ? { campusId } : {}),
+      ...buildCampusVisibilityFilter(campusId),
       $and: [
         {
           $or: [
             { targetUserIds: { $exists: false } },
             { targetUserIds: { $size: 0 } },
-            { targetUserIds: userId },
+            { targetUserIds: normalizedUserId },
           ],
         },
       ],
       $or: [{ audience: 'All' }, { audience: normalizedAudience }],
-      'readBy.userId': { $ne: userId },
-      'dismissedBy.userId': { $ne: userId }
+      'readBy.userId': { $ne: normalizedUserId },
+      'dismissedBy.userId': { $ne: normalizedUserId }
     };
+
+    if (normalizedAudience === 'Admin') {
+      filter.$and.push({
+        $or: [
+          { createdBy: { $exists: false } },
+          { createdBy: null },
+          {
+            $and: [
+              { createdBy: normalizedUserId },
+              { type: { $nin: ADMIN_SELF_HIDDEN_TYPES } },
+            ],
+          },
+          { createdBy: { $ne: normalizedUserId } },
+        ],
+      });
+    }
 
     const count = await Notification.countDocuments(filter);
     res.json({ count });

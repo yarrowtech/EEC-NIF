@@ -46,35 +46,39 @@ const AdminHeader = ({ adminUser, onOpenMobileSidebar, onLogoutRequest }) => {
     return () => clearInterval(t);
   }, []);
 
+  const fetchNotifs = useCallback(async () => {
+    const token = localStorage.getItem('token');
+    if (!token) { setNotifications([]); return; }
+    setNotifLoading(true);
+    setNotifError('');
+    try {
+      const res  = await apiFetch(`${API_BASE}/api/notifications/user`, {
+        cache: 'no-store',
+        headers: { 'Content-Type': 'application/json', authorization: `Bearer ${token}` },
+      }, navigate);
+      if (res.status === 304) return;
+      const data = await res.json().catch(() => []);
+      if (!res.ok) throw new Error(data?.error || 'Failed to load notifications');
+      const all = Array.isArray(data) ? data : [];
+      const filtered = all
+        .filter((n) => {
+          if (isSuperAdmin) return true;
+          const aud = String(n?.audience || 'All').toLowerCase();
+          return aud === 'all' || aud === 'admin' || aud === 'school_admin' || aud === 'school admin';
+        })
+        .sort((a, b) => new Date(b?.createdAt || 0) - new Date(a?.createdAt || 0))
+        .slice(0, 20);
+      setNotifications(filtered);
+    } catch (err) {
+      setNotifError(err.message || 'Failed to load');
+      setNotifications([]);
+    } finally {
+      setNotifLoading(false);
+    }
+  }, [isSuperAdmin, navigate]);
+
   /* Fetch notifications — idle-aware: pause polling when tab is hidden */
   useEffect(() => {
-    const fetchNotifs = async () => {
-      const token = localStorage.getItem('token');
-      if (!token) { setNotifications([]); return; }
-      setNotifLoading(true);
-      setNotifError('');
-      try {
-        const res  = await apiFetch(`${API_BASE}/api/notifications/user`, {
-          headers: { 'Content-Type': 'application/json', authorization: `Bearer ${token}` },
-        }, navigate);
-        const data = await res.json().catch(() => []);
-        if (!res.ok) throw new Error(data?.error || 'Failed to load notifications');
-        const all = Array.isArray(data) ? data : [];
-        const filtered = all
-          .filter((n) => {
-            if (isSuperAdmin) return true;
-            const aud = String(n?.audience || 'All').toLowerCase();
-            return aud === 'all' || aud === 'admin' || aud === 'school_admin' || aud === 'school admin';
-          })
-          .sort((a, b) => new Date(b?.createdAt || 0) - new Date(a?.createdAt || 0))
-          .slice(0, 20);
-        setNotifications(filtered);
-      } catch (err) {
-        setNotifError(err.message || 'Failed to load');
-        setNotifications([]);
-      } finally { setNotifLoading(false); }
-    };
-
     fetchNotifs();
 
     // Poll every 15s but skip when the tab is hidden (saves bandwidth when idle)
@@ -90,10 +94,10 @@ const AdminHeader = ({ adminUser, onOpenMobileSidebar, onLogoutRequest }) => {
       clearInterval(poll);
       document.removeEventListener('visibilitychange', onVisible);
     };
-  }, [isSuperAdmin, navigate]);
+  }, [fetchNotifs]);
 
   const unreadCount = useMemo(
-    () => notifications.filter((n) => !Boolean(n?.isRead)).length,
+    () => notifications.filter((n) => !n?.isRead).length,
     [notifications]
   );
 
@@ -113,6 +117,7 @@ const AdminHeader = ({ adminUser, onOpenMobileSidebar, onLogoutRequest }) => {
         headers: { 'Content-Type': 'application/json', authorization: `Bearer ${token}` },
       }, navigate);
       if (!res.ok) throw new Error('Failed to mark notification as read');
+      await fetchNotifs();
     } catch (err) {
       // Revert optimistic change on failure.
       setNotifications((prev) =>
@@ -120,7 +125,7 @@ const AdminHeader = ({ adminUser, onOpenMobileSidebar, onLogoutRequest }) => {
       );
       setNotifError(err.message || 'Failed to mark notification as read');
     }
-  }, [navigate]);
+  }, [fetchNotifs, navigate]);
 
   const markAllRead = useCallback(async () => {
     const token = localStorage.getItem('token');
@@ -133,10 +138,21 @@ const AdminHeader = ({ adminUser, onOpenMobileSidebar, onLogoutRequest }) => {
         headers: { 'Content-Type': 'application/json', authorization: `Bearer ${token}` },
       }, navigate);
       if (!res.ok) throw new Error('Failed to mark all notifications as read');
+      await fetchNotifs();
     } catch (err) {
       setNotifError(err.message || 'Failed to mark all as read');
+      await fetchNotifs();
     }
-  }, [navigate]);
+  }, [fetchNotifs, navigate]);
+
+  const handleToggleNotifications = useCallback(async () => {
+    const nextOpen = !showNotifications;
+    if (nextOpen && unreadCount > 0) {
+      await markAllRead();
+    }
+    setShowNotifications(nextOpen);
+    setShowProfileMenu(false);
+  }, [markAllRead, showNotifications, unreadCount]);
 
   const resolveNotifPath = (n) => {
     const title = String(n?.title || '').toLowerCase();
@@ -437,7 +453,7 @@ const AdminHeader = ({ adminUser, onOpenMobileSidebar, onLogoutRequest }) => {
           {/* Notification bell */}
           <div className="relative" data-dropdown>
             <button
-              onClick={() => { setShowNotifications((p) => !p); setShowProfileMenu(false); }}
+              onClick={handleToggleNotifications}
               className="relative w-9 h-9 flex items-center justify-center rounded-xl text-gray-500 hover:bg-gray-100 border border-gray-100 transition-all"
               aria-label="Notifications"
             >
@@ -495,7 +511,11 @@ const AdminHeader = ({ adminUser, onOpenMobileSidebar, onLogoutRequest }) => {
                       <button
                         key={id || n?.title}
                         type="button"
-                        onClick={() => { markRead(id); setShowNotifications(false); navigate(resolveNotifPath(n)); }}
+                        onClick={async () => {
+                          await markRead(id);
+                          setShowNotifications(false);
+                          navigate(resolveNotifPath(n));
+                        }}
                         className={`w-full text-left px-4 py-3 hover:bg-gray-50 transition-colors ${isRead ? '' : 'bg-indigo-50/50'}`}
                       >
                         <div className="flex items-start gap-2">

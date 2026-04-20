@@ -69,13 +69,18 @@ const dispatchUpcomingHolidayReminders = async () => {
     const existing = await Notification.findOne({
       schoolId: holiday.schoolId,
       ...(holiday.campusId ? { campusId: holiday.campusId } : {}),
-      audience: 'Student',
       typeLabel,
     })
-      .select('_id')
+      .select('_id audience')
       .lean();
 
     if (existing) {
+      if (String(existing.audience || '').toLowerCase() !== 'all') {
+        await Notification.updateOne(
+          { _id: existing._id },
+          { $set: { audience: 'All' } }
+        );
+      }
       skipped += 1;
       continue;
     }
@@ -88,7 +93,7 @@ const dispatchUpcomingHolidayReminders = async () => {
       campusId: holiday.campusId || null,
       title: `Upcoming Holiday: ${holidayName}`,
       message: `Upcoming holiday on ${dateLabel}. Reason: ${holidayName}.`,
-      audience: 'Student',
+      audience: 'All',
       type: 'announcement',
       typeLabel,
       priority: 'medium',

@@ -135,7 +135,18 @@ const canTeacherManageExam = (scopeKeys, examDoc) => {
   const classId = toIdString(examDoc.classId);
   const sectionId = toIdString(examDoc.sectionId);
   const subjectId = toIdString(examDoc.subjectId);
-  if (!classId || !sectionId || !subjectId) return false;
+  if (!classId || !sectionId) return false;
+
+  // Legacy compatibility: some historical exams may not have subjectId populated.
+  // In that case, fall back to class+section allocation scope.
+  if (!subjectId) {
+    if (scopeKeys.has(buildScopeKey(classId, sectionId, '*'))) return true;
+    for (const key of scopeKeys) {
+      if (String(key).startsWith(`${classId}_${sectionId}_`)) return true;
+    }
+    return false;
+  }
+
   return (
     scopeKeys.has(buildScopeKey(classId, sectionId, subjectId)) ||
     scopeKeys.has(buildScopeKey(classId, sectionId, '*'))
@@ -942,7 +953,7 @@ router.get("/results/exam-options", adminOrTeacherAuth, async (req, res) => {
 
     let exams = await Exam.find({ schoolId, ...(campusId ? { campusId } : {}) })
       .select('title subject term date time marks grade section status classId sectionId subjectId roomId venue')
-      .populate('classId', 'name')
+      .populate('classId', 'name academicYearId')
       .populate('sectionId', 'name classId')
       .populate('subjectId', 'name code classId')
       .populate({
@@ -980,7 +991,7 @@ router.get("/results/exam-students", adminOrTeacherAuth, async (req, res) => {
     }
 
     const exam = await Exam.findOne({ _id: examId, schoolId, ...(campusId ? { campusId } : {}) })
-      .populate('classId', 'name')
+      .populate('classId', 'name academicYearId')
       .populate('sectionId', 'name classId')
       .populate('subjectId', 'name code classId')
       .lean();
@@ -1654,7 +1665,7 @@ router.get('/teacher/manage', teacherAuth, async (req, res) => {
 
     const scopeKeys = await getTeacherScopeKeys({ schoolId, campusId, teacherId });
     let exams = await Exam.find({ schoolId, ...(campusId ? { campusId } : {}) })
-      .populate('classId', 'name')
+      .populate('classId', 'name academicYearId')
       .populate('sectionId', 'name classId')
       .populate('subjectId', 'name code classId')
       .sort({ date: -1, createdAt: -1 })

@@ -49,6 +49,16 @@ const AttendanceManagement = () => {
   const [subjectOptions, setSubjectOptions] = useState([]);
   const [attendanceData, setAttendanceData] = useState({});
   const [lessonPlanContext, setLessonPlanContext] = useState(null);
+  const hasActiveFilters = useMemo(
+    () => Boolean(
+      selectedSession
+      || selectedClass
+      || selectedSection
+      || subject.trim()
+      || searchTerm.trim()
+    ),
+    [selectedSession, selectedClass, selectedSection, subject, searchTerm]
+  );
 
   const loadAttendance = useCallback(async () => {
     const token = localStorage.getItem('token');
@@ -91,7 +101,11 @@ const AttendanceManagement = () => {
         if (rollA !== rollB) return rollA - rollB;
         return String(a?.name || '').localeCompare(String(b?.name || ''), undefined, { numeric: true });
       });
-      setStudents(sortedStudents);
+      if (hasActiveFilters) {
+        setStudents(sortedStudents);
+      } else {
+        setStudents([]);
+      }
       setSessionOptions(Array.isArray(data?.options?.sessions) ? data.options.sessions : []);
       setClassOptions(Array.isArray(data?.options?.classes) ? data.options.classes : []);
       setSectionOptions(Array.isArray(data?.options?.sections) ? data.options.sections : []);
@@ -99,7 +113,7 @@ const AttendanceManagement = () => {
       setLessonPlanContext(data?.lessonPlanContext || null);
 
       const nextState = {};
-      sortedStudents.forEach((student) => {
+      (hasActiveFilters ? sortedStudents : []).forEach((student) => {
         nextState[student._id] = student?.selectedDateRecord?.status || STATUS.ABSENT;
       });
       setAttendanceData(nextState);
@@ -108,7 +122,7 @@ const AttendanceManagement = () => {
     } finally {
       setLoading(false);
     }
-  }, [selectedMonth, selectedDate, selectedSession, selectedClass, selectedSection, subject, isSubstituteMode, searchTerm]);
+  }, [selectedMonth, selectedDate, selectedSession, selectedClass, selectedSection, subject, isSubstituteMode, searchTerm, hasActiveFilters]);
 
   useEffect(() => {
     loadAttendance();
@@ -185,7 +199,6 @@ const AttendanceManagement = () => {
   const exportToPDF = () => {
     const pdf = new jsPDF();
     const pageWidth = pdf.internal.pageSize.width;
-    const currentDate = new Date().toLocaleDateString();
 
     pdf.setFontSize(18);
     pdf.setFont(undefined, 'bold');
@@ -323,6 +336,7 @@ const AttendanceManagement = () => {
             <button
               type="button"
               onClick={exportToPDF}
+              disabled={!hasActiveFilters || students.length === 0 || loading}
               className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-gray-600 bg-gray-50 border border-gray-200 rounded-xl hover:bg-gray-100 transition-colors"
             >
               <Download size={14} />
@@ -331,7 +345,7 @@ const AttendanceManagement = () => {
             <button
               type="button"
               onClick={saveAttendance}
-              disabled={saving || loading || students.length === 0}
+              disabled={saving || loading || !hasActiveFilters || students.length === 0}
               className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-semibold text-white bg-linear-to-r from-indigo-600 to-violet-600 rounded-xl shadow-md shadow-indigo-500/20 hover:shadow-lg disabled:opacity-50 transition-all"
             >
               {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
@@ -421,7 +435,15 @@ const AttendanceManagement = () => {
           <span className="text-[11px] text-gray-400 font-medium">{selectedDate}</span>
         </div>
         <div className="overflow-x-auto max-h-[520px] overflow-y-auto">
-          {loading ? (
+          {!hasActiveFilters ? (
+            <div className="flex flex-col items-center justify-center py-14 text-center">
+              <div className="w-12 h-12 rounded-2xl bg-indigo-50 flex items-center justify-center mb-3">
+                <Search size={20} className="text-indigo-400" />
+              </div>
+              <p className="text-sm font-medium text-gray-600">Select at least one filter to view students</p>
+              <p className="text-xs text-gray-400 mt-1">Use session, class, section, subject, or search</p>
+            </div>
+          ) : loading ? (
             <div className="flex flex-col items-center justify-center py-14">
               <Loader2 size={24} className="animate-spin text-indigo-500 mb-3" />
               <p className="text-sm text-gray-500">Loading students...</p>

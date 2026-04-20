@@ -24,8 +24,39 @@ const EMPTY_BULK_ENTRY_FORM = {
 
 const STATUS_OPTIONS = ['pass', 'fail', 'absent'];
 
-const normalizeClass = (value = '') => String(value).trim().toLowerCase();
+const normalizeClass = (value = '') => {
+  const text = String(value).trim();
+  const digits = text.match(/\d+/);
+  if (digits?.[0]) return digits[0];
+  return text.replace(/^class\s+/i, '').trim().toLowerCase();
+};
 const normalizeSection = (value = '') => String(value).trim().toLowerCase();
+const getExamAcademicYearId = (exam = {}) =>
+  String(exam?.classId?.academicYearId?._id || exam?.classId?.academicYearId || '').trim();
+const getExamClassName = (exam = {}) =>
+  String(exam?.classId?.name || exam?.grade || exam?.className || exam?.class || '').trim();
+const getExamSectionName = (exam = {}) =>
+  String(exam?.sectionId?.name || exam?.section || exam?.sectionName || '').trim();
+const getAllocationAcademicYearId = (allocation = {}) =>
+  String(allocation?.classId?.academicYearId?._id || allocation?.classId?.academicYearId || '').trim();
+const getAllocationClassName = (allocation = {}) =>
+  String(allocation?.classId?.name || allocation?.className || allocation?.grade || '').trim();
+const getAllocationSectionName = (allocation = {}) =>
+  String(allocation?.sectionId?.name || allocation?.sectionName || allocation?.section || '').trim();
+const getRoutineClassName = (entry = {}) =>
+  String(entry?.className || entry?.class || entry?.grade || '').trim();
+const getRoutineSectionName = (entry = {}) =>
+  String(entry?.sectionName || entry?.section || '').trim();
+const getEntityId = (value) => String(value?._id || value || '').trim();
+const isExamWithinRange = (exam = {}, startDate, endDate) => {
+  const examTime = exam?.date ? new Date(exam.date).getTime() : NaN;
+  const startTime = startDate ? new Date(startDate).getTime() : NaN;
+  const endTime = endDate ? new Date(endDate).getTime() : NaN;
+  if (!Number.isFinite(examTime)) return false;
+  if (Number.isFinite(startTime) && examTime < startTime) return false;
+  if (Number.isFinite(endTime) && examTime > endTime) return false;
+  return true;
+};
 
 const deriveGradeFromPercentage = (percentage) => {
   if (!Number.isFinite(percentage)) return '';
@@ -48,6 +79,8 @@ const ResultManagement = () => {
 
   const [results, setResults] = useState([]);
   const [exams, setExams] = useState([]);
+  const [allocations, setAllocations] = useState([]);
+  const [routineScopes, setRoutineScopes] = useState([]);
   const [examStudentsByExamId, setExamStudentsByExamId] = useState({});
 
   const [selectedExamId, setSelectedExamId] = useState('');
@@ -65,6 +98,9 @@ const ResultManagement = () => {
   const [bulkEntryLoading, setBulkEntryLoading] = useState(false);
   const [bulkEntrySubmitting, setBulkEntrySubmitting] = useState(false);
   const [activeSession, setActiveSession] = useState('');
+  const [activeSessionId, setActiveSessionId] = useState('');
+  const [activeSessionStartDate, setActiveSessionStartDate] = useState('');
+  const [activeSessionEndDate, setActiveSessionEndDate] = useState('');
 
   const [showBulkUpload, setShowBulkUpload] = useState(false);
   const [bulkExamId, setBulkExamId] = useState('');
@@ -115,20 +151,63 @@ const ResultManagement = () => {
     setLoading(true);
     setError('');
     try {
-      const [examData, activeYearResponse] = await Promise.all([
+      const [examData, teacherManageExamData, activeYearResponse, allocationData, routineData] = await Promise.all([
         apiFetch('/api/exam/results/exam-options'),
+        apiFetch('/api/exam/teacher/manage').catch(() => []),
         fetch(`${API_BASE}/api/academic/active-year`, {
           headers: { Authorization: `Bearer ${token}` },
         }).catch(() => null),
+        apiFetch('/api/teacher/dashboard/allocations').catch(() => []),
+        apiFetch('/api/teacher/dashboard/routine').catch(() => null),
       ]);
       const examItems = Array.isArray(examData) ? examData : [];
-      setExams(examItems);
+      const teacherManageExamItems = Array.isArray(teacherManageExamData) ? teacherManageExamData : [];
+      const mergedExamMap = new Map();
+      [...examItems, ...teacherManageExamItems].forEach((exam) => {
+        const id = String(exam?._id || '');
+        if (!id) return;
+        mergedExamMap.set(id, exam);
+      });
+      setExams(Array.from(mergedExamMap.values()));
+      const allocationItems = Array.isArray(allocationData) ? allocationData : [];
+      setAllocations(allocationItems);
+      const routineSchedule = routineData?.schedule && typeof routineData.schedule === 'object' ? routineData.schedule : {};
+      const routineEntries = Object.values(routineSchedule).flatMap((entries) => (Array.isArray(entries) ? entries : []));
+      const scopeMap = new Map();
+      routineEntries.forEach((entry) => {
+        const className = getRoutineClassName(entry);
+        if (!className) return;
+        const sectionName = getRoutineSectionName(entry);
+        const key = `${normalizeClass(className)}::${normalizeSection(sectionName)}`;
+        if (!scopeMap.has(key)) {
+          scopeMap.set(key, { className, sectionName });
+        }
+      });
+      setRoutineScopes(Array.from(scopeMap.values()));
 
       if (activeYearResponse?.ok) {
         const activeYear = await activeYearResponse.json().catch(() => null);
-        if (activeYear?.name) {
-          setActiveSession(String(activeYear.name));
+        const activeYearName =
+          activeYear?.name ||
+          activeYear?.academicYear ||
+          activeYear?.activeYear ||
+          activeYear?.data?.name ||
+          '';
+        const activeYearId = String(
+          activeYear?._id ||
+          activeYear?.id ||
+          activeYear?.data?._id ||
+          activeYear?.data?.id ||
+          ''
+        ).trim();
+        if (activeYearName) {
+          setActiveSession(String(activeYearName));
         }
+        if (activeYearId) {
+          setActiveSessionId(activeYearId);
+        }
+        setActiveSessionStartDate(String(activeYear?.startDate || activeYear?.data?.startDate || ''));
+        setActiveSessionEndDate(String(activeYear?.endDate || activeYear?.data?.endDate || ''));
       }
     } catch (err) {
       setError(err.message || 'Failed to load result setup data');
@@ -187,9 +266,58 @@ const ResultManagement = () => {
     loadResults();
   }, [loadResults]);
 
+  const activeAllocationScopeKeys = useMemo(() => {
+    if (!activeSessionId) return new Set();
+    const keys = new Set();
+    allocations
+      .filter((allocation) => getAllocationAcademicYearId(allocation) === activeSessionId)
+      .forEach((allocation) => {
+        const classKey = normalizeClass(getAllocationClassName(allocation));
+        const sectionKey = normalizeSection(getAllocationSectionName(allocation));
+        if (classKey && sectionKey) {
+          keys.add(`${classKey}::${sectionKey}`);
+        }
+      });
+    return keys;
+  }, [activeSessionId, allocations]);
+
+  const scopedExams = useMemo(() => {
+    if (!activeSessionId) return exams;
+    return exams.filter((exam) => {
+      const examAcademicYearId = getExamAcademicYearId(exam);
+      if (examAcademicYearId) return examAcademicYearId === activeSessionId;
+      if (isExamWithinRange(exam, activeSessionStartDate, activeSessionEndDate)) return true;
+
+      // Legacy exam fallback: no academic year/date on exam, but scope matches active-session allocations.
+      const classKey = normalizeClass(getExamClassName(exam));
+      const sectionKey = normalizeSection(getExamSectionName(exam));
+      if (classKey && sectionKey && activeAllocationScopeKeys.size) {
+        return activeAllocationScopeKeys.has(`${classKey}::${sectionKey}`);
+      }
+      return false;
+    });
+  }, [activeAllocationScopeKeys, activeSessionEndDate, activeSessionId, activeSessionStartDate, exams]);
+
+  const scopedAllocations = useMemo(() => {
+    if (!activeSessionId) return allocations;
+    return allocations.filter((allocation) => getAllocationAcademicYearId(allocation) === activeSessionId);
+  }, [activeSessionId, allocations]);
+
+  const activeAllocationIdScopeKeys = useMemo(() => {
+    const keys = new Set();
+    scopedAllocations.forEach((allocation) => {
+      const classId = getEntityId(allocation?.classId);
+      const sectionId = getEntityId(allocation?.sectionId);
+      if (classId && sectionId) {
+        keys.add(`${classId}::${sectionId}`);
+      }
+    });
+    return keys;
+  }, [scopedAllocations]);
+
   const selectedExam = useMemo(
-    () => exams.find((exam) => String(exam._id) === String(selectedExamId)) || null,
-    [exams, selectedExamId]
+    () => scopedExams.find((exam) => String(exam._id) === String(selectedExamId)) || null,
+    [scopedExams, selectedExamId]
   );
 
   useEffect(() => {
@@ -203,33 +331,62 @@ const ResultManagement = () => {
 
   useEffect(() => {
     if (!selectedExamId || !selectedExam) return;
-    setSelectedClass(selectedExam?.classId?.name || selectedExam?.grade || '');
-    setSelectedSection(selectedExam?.sectionId?.name || selectedExam?.section || '');
+    setSelectedClass(getExamClassName(selectedExam));
+    setSelectedSection(getExamSectionName(selectedExam));
   }, [selectedExam, selectedExamId]);
 
   const classOptions = useMemo(() => {
     const values = new Set();
-    exams.forEach((exam) => {
-      const className = exam?.classId?.name || exam?.grade;
+    scopedExams.forEach((exam) => {
+      const className = getExamClassName(exam);
       if (className) values.add(String(className));
     });
+    scopedAllocations.forEach((allocation) => {
+      const className = getAllocationClassName(allocation);
+      if (className) values.add(String(className));
+    });
+    routineScopes.forEach((scope) => {
+      const className = String(scope?.className || '').trim();
+      if (className) values.add(className);
+    });
+    if (selectedClass) values.add(String(selectedClass));
     return Array.from(values).sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
-  }, [exams]);
+  }, [routineScopes, scopedAllocations, scopedExams, selectedClass]);
 
   const sectionOptions = useMemo(() => {
     const values = new Set();
-    exams
+    scopedExams
       .filter((exam) => {
         if (!selectedClass) return true;
-        const className = exam?.classId?.name || exam?.grade || '';
+        const className = getExamClassName(exam);
         return String(className) === String(selectedClass);
       })
       .forEach((exam) => {
-        const sectionName = exam?.sectionId?.name || exam?.section;
+        const sectionName = getExamSectionName(exam);
         if (sectionName) values.add(String(sectionName));
       });
+    scopedAllocations
+      .filter((allocation) => {
+        if (!selectedClass) return true;
+        const className = getAllocationClassName(allocation);
+        return String(className) === String(selectedClass);
+      })
+      .forEach((allocation) => {
+        const sectionName = getAllocationSectionName(allocation);
+        if (sectionName) values.add(String(sectionName));
+      });
+    routineScopes
+      .filter((scope) => {
+        if (!selectedClass) return true;
+        return normalizeClass(scope?.className || '') === normalizeClass(selectedClass);
+      })
+      .forEach((scope) => {
+        const sectionName = String(scope?.sectionName || '').trim();
+        if (sectionName) values.add(sectionName);
+      });
+    if (selectedSection) values.add(String(selectedSection));
     return Array.from(values).sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
-  }, [exams, selectedClass]);
+  }, [routineScopes, scopedAllocations, scopedExams, selectedClass, selectedSection]);
 
   const visibleResults = useMemo(() => {
     const query = search.trim().toLowerCase();
@@ -244,8 +401,8 @@ const ResultManagement = () => {
   }, [results, search]);
 
   const formExam = useMemo(
-    () => exams.find((exam) => String(exam._id) === String(form.examId)) || null,
-    [exams, form.examId]
+    () => scopedExams.find((exam) => String(exam._id) === String(form.examId)) || null,
+    [scopedExams, form.examId]
   );
 
   const formStudents = useMemo(() => {
@@ -272,41 +429,121 @@ const ResultManagement = () => {
 
   const bulkClassOptions = useMemo(() => {
     const values = new Set();
-    exams.forEach((exam) => {
-      const className = exam?.classId?.name || exam?.grade;
+    scopedExams.forEach((exam) => {
+      const className = getExamClassName(exam);
       if (className) values.add(String(className));
     });
+    scopedAllocations.forEach((allocation) => {
+      const className = getAllocationClassName(allocation);
+      if (className) values.add(String(className));
+    });
+    routineScopes.forEach((scope) => {
+      const className = String(scope?.className || '').trim();
+      if (className) values.add(className);
+    });
+    if (bulkEntryForm.className) values.add(String(bulkEntryForm.className));
     return Array.from(values).sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
-  }, [exams]);
+  }, [bulkEntryForm.className, routineScopes, scopedAllocations, scopedExams]);
 
   const bulkSectionOptions = useMemo(() => {
     const values = new Set();
-    exams
+    scopedExams
       .filter((exam) => {
         if (!bulkEntryForm.className) return true;
-        const className = exam?.classId?.name || exam?.grade || '';
+        const className = getExamClassName(exam);
         return normalizeClass(className) === normalizeClass(bulkEntryForm.className);
       })
       .forEach((exam) => {
-        const sectionName = exam?.sectionId?.name || exam?.section;
+        const sectionName = getExamSectionName(exam);
         if (sectionName) values.add(String(sectionName));
       });
+    scopedAllocations
+      .filter((allocation) => {
+        if (!bulkEntryForm.className) return true;
+        const className = getAllocationClassName(allocation);
+        return normalizeClass(className) === normalizeClass(bulkEntryForm.className);
+      })
+      .forEach((allocation) => {
+        const sectionName = getAllocationSectionName(allocation);
+        if (sectionName) values.add(String(sectionName));
+      });
+    routineScopes
+      .filter((scope) => {
+        if (!bulkEntryForm.className) return true;
+        return normalizeClass(scope?.className || '') === normalizeClass(bulkEntryForm.className);
+      })
+      .forEach((scope) => {
+        const sectionName = String(scope?.sectionName || '').trim();
+        if (sectionName) values.add(sectionName);
+      });
+    if (bulkEntryForm.sectionName) values.add(String(bulkEntryForm.sectionName));
     return Array.from(values).sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
-  }, [bulkEntryForm.className, exams]);
+  }, [bulkEntryForm.className, bulkEntryForm.sectionName, routineScopes, scopedAllocations, scopedExams]);
 
   const bulkExamOptions = useMemo(() => {
-    return exams.filter((exam) => {
-      const examClass = exam?.classId?.name || exam?.grade || '';
-      const examSection = exam?.sectionId?.name || exam?.section || '';
+    const isCompleted = (exam) => String(exam?.status || '').trim().toLowerCase() === 'completed';
+    const matchesSelection = (exam) => {
+      const examClass = getExamClassName(exam);
+      const examSection = getExamSectionName(exam);
       const classMatch = !bulkEntryForm.className || normalizeClass(examClass) === normalizeClass(bulkEntryForm.className);
       const sectionMatch = !bulkEntryForm.sectionName || normalizeSection(examSection) === normalizeSection(bulkEntryForm.sectionName);
       return classMatch && sectionMatch;
-    });
-  }, [bulkEntryForm.className, bulkEntryForm.sectionName, exams]);
+    };
+
+    const primary = scopedExams.filter(matchesSelection);
+    const primaryCompleted = primary.filter(isCompleted);
+    if (primaryCompleted.length) return primaryCompleted;
+    if (primary.length) return primary;
+
+    const idScoped = activeAllocationIdScopeKeys.size
+      ? exams.filter((exam) => {
+      const examScopeKey = `${getEntityId(exam?.classId)}::${getEntityId(exam?.sectionId)}`;
+      if (!activeAllocationIdScopeKeys.has(examScopeKey)) return false;
+      return matchesSelection(exam);
+        })
+      : [];
+    const idScopedCompleted = idScoped.filter(isCompleted);
+    if (idScopedCompleted.length) return idScopedCompleted;
+    if (idScoped.length) return idScoped;
+
+    // Final fallback: selected allocation pair IDs -> exams (handles legacy exams with missing class/section text fields).
+    const selectedAllocationPairKeys = new Set(
+      scopedAllocations
+        .filter((allocation) => {
+          if (!bulkEntryForm.className || !bulkEntryForm.sectionName) return false;
+          return (
+            normalizeClass(getAllocationClassName(allocation)) === normalizeClass(bulkEntryForm.className) &&
+            normalizeSection(getAllocationSectionName(allocation)) === normalizeSection(bulkEntryForm.sectionName)
+          );
+        })
+        .map((allocation) => `${getEntityId(allocation?.classId)}::${getEntityId(allocation?.sectionId)}`)
+        .filter((key) => key !== '::')
+    );
+
+    const pairScoped = selectedAllocationPairKeys.size
+      ? exams.filter((exam) => selectedAllocationPairKeys.has(`${getEntityId(exam?.classId)}::${getEntityId(exam?.sectionId)}`))
+      : [];
+    const pairScopedCompleted = pairScoped.filter(isCompleted);
+    if (pairScopedCompleted.length) return pairScopedCompleted;
+    return pairScoped;
+  }, [activeAllocationIdScopeKeys, bulkEntryForm.className, bulkEntryForm.sectionName, exams, scopedAllocations, scopedExams]);
+
+  useEffect(() => {
+    if (!showForm || addResultMode !== 'bulk') return;
+    if (bulkEntryForm.className || bulkClassOptions.length !== 1) return;
+    setBulkEntryForm((prev) => ({ ...prev, className: bulkClassOptions[0] || '' }));
+  }, [addResultMode, bulkClassOptions, bulkEntryForm.className, showForm]);
+
+  useEffect(() => {
+    if (!showForm || addResultMode !== 'bulk') return;
+    if (!bulkEntryForm.className) return;
+    if (bulkEntryForm.sectionName || bulkSectionOptions.length !== 1) return;
+    setBulkEntryForm((prev) => ({ ...prev, sectionName: bulkSectionOptions[0] || '' }));
+  }, [addResultMode, bulkEntryForm.className, bulkEntryForm.sectionName, bulkSectionOptions, showForm]);
 
   const loadBulkEntryRows = useCallback(
-    async ({ examId, className, sectionName, session }) => {
-      if (!examId || !className || !sectionName || !session) {
+    async ({ examId, className, sectionName }) => {
+      if (!examId || !className || !sectionName) {
         setBulkEntryRows([]);
         return;
       }
@@ -484,7 +721,7 @@ const ResultManagement = () => {
     setBulkEntryRows((prev) =>
       prev.map((row) => {
         if (row.studentId !== studentId) return row;
-        const selectedBulkExam = exams.find((exam) => String(exam._id) === String(bulkEntryForm.examId));
+        const selectedBulkExam = scopedExams.find((exam) => String(exam._id) === String(bulkEntryForm.examId));
         const parsed = value === '' ? NaN : Number(value);
         const maxMarks = Number(selectedBulkExam?.marks);
         const percentage = Number.isFinite(parsed) && Number.isFinite(maxMarks) && maxMarks > 0
@@ -503,7 +740,7 @@ const ResultManagement = () => {
 
   const handleBulkMarksUpload = async (e) => {
     e.preventDefault();
-    const selectedBulkExam = exams.find((exam) => String(exam._id) === String(bulkEntryForm.examId));
+    const selectedBulkExam = scopedExams.find((exam) => String(exam._id) === String(bulkEntryForm.examId));
     if (!selectedBulkExam?._id) {
       setError('Select exam subject');
       return;
@@ -649,7 +886,7 @@ const ResultManagement = () => {
     setSuccess('');
     try {
       const students = await ensureExamStudents(bulkExamId);
-      const targetExam = exams.find((item) => String(item._id) === String(bulkExamId));
+      const targetExam = scopedExams.find((item) => String(item._id) === String(bulkExamId));
       if (!targetExam) {
         throw new Error('Selected exam not found in your allocation');
       }
@@ -705,7 +942,7 @@ const ResultManagement = () => {
   const inputClass =
     'w-full px-3 py-2 text-sm rounded-lg border border-gray-200 bg-gray-50 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-500/20';
 
-  const selectedBulkExam = exams.find((exam) => String(exam._id) === String(bulkEntryForm.examId));
+  const selectedBulkExam = scopedExams.find((exam) => String(exam._id) === String(bulkEntryForm.examId));
 
   return (
     <div className="space-y-4">
@@ -748,7 +985,7 @@ const ResultManagement = () => {
             className={`${inputClass} max-w-[280px]`}
           >
             <option value="">All Exams</option>
-            {exams.map((exam) => (
+            {scopedExams.map((exam) => (
               <option key={exam._id} value={exam._id}>
                 {exam.title} {exam.subject ? `(${exam.subject})` : ''}
               </option>
@@ -966,7 +1203,7 @@ const ResultManagement = () => {
                       required
                     >
                       <option value="">Select exam</option>
-                      {exams.map((exam) => (
+                      {scopedExams.map((exam) => (
                         <option key={exam._id} value={exam._id}>
                           {exam.title} {exam.subject ? `(${exam.subject})` : ''}
                         </option>
@@ -1076,7 +1313,7 @@ const ResultManagement = () => {
                     <div>
                       <label className="mb-1.5 block text-sm font-semibold text-slate-500 uppercase tracking-wide">Active Session</label>
                       <input
-                        value={activeSession || 'Loading...'}
+                        value={bulkEntryForm.session || activeSession || 'Not set'}
                         readOnly
                         className={`${inputClass} bg-slate-100 text-slate-700`}
                       />
@@ -1087,7 +1324,6 @@ const ResultManagement = () => {
                         value={bulkEntryForm.className}
                         onChange={(e) => setBulkEntryForm((prev) => ({ ...prev, className: e.target.value, sectionName: '', examId: '' }))}
                         className={inputClass}
-                        disabled={!activeSession}
                       >
                         <option value="">Select class</option>
                         {bulkClassOptions.map((item) => (
@@ -1252,8 +1488,8 @@ const ResultManagement = () => {
                   className={inputClass}
                 >
                   <option value="">Choose exam</option>
-                  {exams
-                    .filter((exam) => String(exam?.status || '').toLowerCase() === 'completed')
+                  {scopedExams
+                    .filter((exam) => String(exam?.status || '').trim().toLowerCase() === 'completed')
                     .map((exam) => (
                       <option key={exam._id} value={exam._id}>
                         {exam.title} - {exam.subject || exam?.subjectId?.name || '-'}

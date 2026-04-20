@@ -49,6 +49,12 @@ const deriveGradeFromPercentage = (percentage) => {
   if (percentage >= 50) return 'D';
   return 'F';
 };
+const normalizeSession = (value = '') => String(value).trim();
+const getStudentSession = (student = {}) => normalizeSession(student?.academicYear || student?.session || '');
+const getExamClassName = (exam = {}) =>
+  String(exam?.classId?.name || exam?.grade || exam?.className || exam?.class || '').trim();
+const getExamSectionName = (exam = {}) =>
+  String(exam?.sectionId?.name || exam?.section || exam?.sectionName || '').trim();
 
 /* ── modal shell ── */
 const Modal = ({ show, onClose, title, subtitle, icon: Icon, iconColor = 'bg-indigo-600', children, maxWidth = 'sm:max-w-2xl' }) => {
@@ -95,7 +101,7 @@ const StatCard = ({ label, value, icon: Icon, bg, text, border }) => (
         <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide">{label}</p>
         <p className={`text-2xl font-bold mt-1 ${text}`}>{value}</p>
       </div>
-      <Icon size={28} className={`${text} opacity-60`} />
+      {React.createElement(Icon, { size: 28, className: `${text} opacity-60` })}
     </div>
   </div>
 );
@@ -108,9 +114,14 @@ const Result = ({ setShowAdminHeader }) => {
   const [exams, setExams]       = useState([]);
   const [examGroups, setExamGroups] = useState([]);
   const [students, setStudents] = useState([]);
+  const [, setAcademicYears] = useState([]);
+  const [classes, setClasses] = useState([]);
+  const [sections, setSections] = useState([]);
+  const [activeAcademicYearId, setActiveAcademicYearId] = useState('');
+  const [activeAcademicYearName, setActiveAcademicYearName] = useState('');
 
   const [loading, setLoading]           = useState(true);
-  const [loadingExams, setLoadingExams] = useState(false);
+  const [, setLoadingExams] = useState(false);
   const [, setLoadingExamGroups] = useState(false);
   const [loadingStudents, setLoadingStudents] = useState(false);
 
@@ -178,6 +189,56 @@ const Result = ({ setShowAdminHeader }) => {
     }
   };
 
+  const fetchAcademicSetup = async () => {
+    try {
+      const [yearsRes, classesRes, sectionsRes, activeYearRes] = await Promise.all([
+        fetch(`${API_BASE}/api/academic/years`, { headers: authH() }),
+        fetch(`${API_BASE}/api/academic/classes`, { headers: authH() }),
+        fetch(`${API_BASE}/api/academic/sections`, { headers: authH() }),
+        fetch(`${API_BASE}/api/academic/active-year`, { headers: authH() }).catch(() => null),
+      ]);
+
+      const yearsData = yearsRes.ok ? await yearsRes.json().catch(() => []) : [];
+      const classesData = classesRes.ok ? await classesRes.json().catch(() => []) : [];
+      const sectionsData = sectionsRes.ok ? await sectionsRes.json().catch(() => []) : [];
+      const activeYearData = activeYearRes?.ok ? await activeYearRes.json().catch(() => null) : null;
+
+      const yearItems = Array.isArray(yearsData) ? yearsData : [];
+      setAcademicYears(yearItems);
+      setClasses(Array.isArray(classesData) ? classesData : []);
+      setSections(Array.isArray(sectionsData) ? sectionsData : []);
+
+      const activeFromList = yearItems.find((year) => Boolean(year?.isActive));
+      const activeName =
+        normalizeSession(
+          activeYearData?.name ||
+          activeYearData?.academicYear ||
+          activeYearData?.activeYear ||
+          activeYearData?.data?.name ||
+          activeFromList?.name ||
+          ''
+        );
+      const activeId = String(
+        activeYearData?._id ||
+        activeYearData?.id ||
+        activeYearData?.data?._id ||
+        activeYearData?.data?.id ||
+        activeFromList?._id ||
+        activeFromList?.id ||
+        ''
+      ).trim();
+
+      setActiveAcademicYearName(activeName);
+      setActiveAcademicYearId(activeId);
+    } catch {
+      setAcademicYears([]);
+      setClasses([]);
+      setSections([]);
+      setActiveAcademicYearId('');
+      setActiveAcademicYearName('');
+    }
+  };
+
   const normalizeClass = (v = '') => { const s = String(v).trim(); const n = s.match(/\d+/); return n ? n[0] : s.replace(/^class\s+/i,'').trim().toLowerCase(); };
   const normSec = (v = '') => String(v).trim().toLowerCase();
 
@@ -206,7 +267,7 @@ const Result = ({ setShowAdminHeader }) => {
     finally { setLoadingStudents(false); }
   };
 
-  useEffect(() => { fetchResults(); fetchExams(); fetchExamGroups(); }, []);
+  useEffect(() => { fetchResults(); fetchExams(); fetchExamGroups(); fetchAcademicSetup(); }, []);
   useEffect(() => { if (selectedClass) fetchStudentsByClass(); }, [selectedClass, selectedSection]);
 
   const handleTogglePublish = async (id, val) => {
@@ -303,8 +364,13 @@ const Result = ({ setShowAdminHeader }) => {
 
     setBulkEntryLoading(true);
     try {
+      const selectedSession = normalizeSession(session);
+      const activeSession = normalizeSession(activeAcademicYearName);
       const scopedStudents = students
-        .filter((s) => String(s.academicYear || s.session || '').trim() === String(session).trim())
+        .filter((s) => {
+          const studentSession = getStudentSession(s);
+          return studentSession === selectedSession || (!studentSession && activeSession && selectedSession === activeSession);
+        })
         .filter((s) => normalizeClass(s.grade || s.class || '') === normalizeClass(className))
         .filter((s) => normSec(s.section || '') === normSec(sectionName))
         .sort((a, b) => {
@@ -694,44 +760,70 @@ const Result = ({ setShowAdminHeader }) => {
       setForm({ ...form, marks, grade: newGrade });
     };
 
-    const availableSessions = [...new Set(
+    const activeSession = normalizeSession(activeAcademicYearName);
+    const availableSessionsFromStudents = [...new Set(
       students
-        .map((s) => String(s.academicYear || s.session || '').trim())
+        .map((s) => getStudentSession(s))
         .filter(Boolean)
     )].sort();
+    const availableSessions = activeSession
+      ? [activeSession]
+      : availableSessionsFromStudents;
     const sessionOptions = form.session && !availableSessions.includes(String(form.session).trim())
       ? [String(form.session).trim(), ...availableSessions]
       : availableSessions;
 
     const sessionScopedStudents = students.filter((s) => {
       if (!form.session) return true;
-      const studentSession = String(s.academicYear || s.session || '').trim();
-      return studentSession === String(form.session).trim();
+      const selectedSession = String(form.session).trim();
+      const studentSession = getStudentSession(s);
+      return studentSession === selectedSession || (!studentSession && activeSession && selectedSession === activeSession);
     });
 
-    const availableClasses = [...new Set(
+    const yearScopedClassNames = [...new Set(
+      classes
+        .filter((c) => !activeAcademicYearId || String(c.academicYearId || '') === String(activeAcademicYearId))
+        .map((c) => String(c.name || '').trim())
+        .filter(Boolean)
+    )].sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+    const studentScopedClassNames = [...new Set(
       sessionScopedStudents
         .map((s) => String(s.grade || s.class || '').trim())
         .filter(Boolean)
-    )].sort();
+    )].sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+    const availableClasses = (form.session && activeSession && String(form.session).trim() === activeSession && yearScopedClassNames.length)
+      ? yearScopedClassNames
+      : studentScopedClassNames;
     const classOptions = form.className && !availableClasses.includes(String(form.className).trim())
       ? [String(form.className).trim(), ...availableClasses]
       : availableClasses;
 
-    const availableSections = [...new Set(
+    const selectedClassIds = classes
+      .filter((c) => String(c.name || '').trim() === String(form.className || '').trim())
+      .filter((c) => !activeAcademicYearId || String(c.academicYearId || '') === String(activeAcademicYearId))
+      .map((c) => String(c._id || c.id || ''))
+      .filter(Boolean);
+    const masterSections = [...new Set(
+      sections
+        .filter((s) => !selectedClassIds.length || selectedClassIds.includes(String(s.classId || '')))
+        .map((s) => String(s.name || '').trim())
+        .filter(Boolean)
+    )].sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+    const studentSections = [...new Set(
       sessionScopedStudents
         .filter((s) => !form.className || normalizeClass(s.grade || s.class || '') === normalizeClass(form.className))
         .map((s) => String(s.section || '').trim())
         .filter(Boolean)
-    )].sort();
+    )].sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+    const availableSections = (form.className && masterSections.length) ? masterSections : studentSections;
     const sectionOptions = form.sectionName && !availableSections.includes(String(form.sectionName).trim())
       ? [String(form.sectionName).trim(), ...availableSections]
       : availableSections;
 
     const filteredStudents = students.filter(s => {
-      const studentSession = String(s.academicYear || s.session || '').trim();
+      const studentSession = getStudentSession(s);
       const formSession = String(form.session || '').trim();
-      const matchSession = !formSession || studentSession === formSession;
+      const matchSession = !formSession || studentSession === formSession || (!studentSession && activeSession && formSession === activeSession);
       const matchClass = !form.className || normalizeClass(s.grade || s.class || '') === normalizeClass(form.className);
       const matchSection = !form.sectionName || normSec(s.section || '') === normSec(form.sectionName);
       return matchSession && matchClass && matchSection;
@@ -754,9 +846,11 @@ const Result = ({ setShowAdminHeader }) => {
               });
             }}
             className={inp}
-            disabled={lockScope}
+            disabled={lockScope || Boolean(activeSession)}
           >
-            <option value="">{lockScope ? 'Session not available' : 'Select session'}</option>
+            <option value="">
+              {lockScope ? 'Session not available' : activeSession ? activeSession : 'Select session'}
+            </option>
             {sessionOptions.map(y => (
               <option key={y} value={y}>{y}</option>
             ))}
@@ -834,26 +928,52 @@ const Result = ({ setShowAdminHeader }) => {
   };
 
   const renderBulkEntryFields = () => {
-    const availableSessions = [...new Set(
-      students.map((s) => String(s.academicYear || s.session || '').trim()).filter(Boolean)
+    const activeSession = normalizeSession(activeAcademicYearName);
+    const availableSessionsFromStudents = [...new Set(
+      students.map((s) => getStudentSession(s)).filter(Boolean)
     )].sort();
+    const availableSessions = activeSession ? [activeSession] : availableSessionsFromStudents;
     const sessionScopedStudents = students.filter((s) =>
       !bulkEntryForm.session ||
-      String(s.academicYear || s.session || '').trim() === String(bulkEntryForm.session).trim()
+      getStudentSession(s) === String(bulkEntryForm.session).trim() ||
+      (!getStudentSession(s) && activeSession && String(bulkEntryForm.session).trim() === activeSession)
     );
-    const availableClasses = [...new Set(
+    const yearScopedClassNames = [...new Set(
+      classes
+        .filter((c) => !activeAcademicYearId || String(c.academicYearId || '') === String(activeAcademicYearId))
+        .map((c) => String(c.name || '').trim())
+        .filter(Boolean)
+    )].sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+    const studentScopedClassNames = [...new Set(
       sessionScopedStudents.map((s) => String(s.grade || s.class || '').trim()).filter(Boolean)
-    )].sort();
-    const availableSections = [...new Set(
+    )].sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+    const availableClasses = (bulkEntryForm.session && activeSession && String(bulkEntryForm.session).trim() === activeSession && yearScopedClassNames.length)
+      ? yearScopedClassNames
+      : studentScopedClassNames;
+    const selectedClassIds = classes
+      .filter((c) => String(c.name || '').trim() === String(bulkEntryForm.className || '').trim())
+      .filter((c) => !activeAcademicYearId || String(c.academicYearId || '') === String(activeAcademicYearId))
+      .map((c) => String(c._id || c.id || ''))
+      .filter(Boolean);
+    const availableSectionsFromMaster = [...new Set(
+      sections
+        .filter((s) => !selectedClassIds.length || selectedClassIds.includes(String(s.classId || '')))
+        .map((s) => String(s.name || '').trim())
+        .filter(Boolean)
+    )].sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+    const availableSectionsFromStudents = [...new Set(
       sessionScopedStudents
         .filter((s) => !bulkEntryForm.className || normalizeClass(s.grade || s.class || '') === normalizeClass(bulkEntryForm.className))
         .map((s) => String(s.section || '').trim())
         .filter(Boolean)
-    )].sort();
+    )].sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+    const availableSections = (bulkEntryForm.className && availableSectionsFromMaster.length)
+      ? availableSectionsFromMaster
+      : availableSectionsFromStudents;
 
     const examOptions = exams.filter((exam) => {
-      const examClass = String(exam?.classId?.name || exam?.grade || '').trim();
-      const examSection = String(exam?.sectionId?.name || exam?.section || '').trim();
+      const examClass = getExamClassName(exam);
+      const examSection = getExamSectionName(exam);
       const matchClass = !bulkEntryForm.className || normalizeClass(examClass) === normalizeClass(bulkEntryForm.className);
       const matchSection = !bulkEntryForm.sectionName || normSec(examSection) === normSec(bulkEntryForm.sectionName);
       return matchClass && matchSection;
@@ -882,8 +1002,9 @@ const Result = ({ setShowAdminHeader }) => {
               value={bulkEntryForm.session}
               onChange={(e) => onFilterChange({ session: e.target.value, className: '', sectionName: '', examId: '' })}
               className={inp}
+              disabled={Boolean(activeSession)}
             >
-              <option value="">Select session</option>
+              <option value="">{activeSession || 'Select session'}</option>
               {availableSessions.map((session) => (
                 <option key={session} value={session}>{session}</option>
               ))}
@@ -1041,9 +1162,11 @@ const Result = ({ setShowAdminHeader }) => {
   };
 
   const openAddResultModal = async () => {
-    await Promise.all([fetchExams(), fetchStudentsByClass(true)]);
+    await Promise.all([fetchExams(), fetchStudentsByClass(true), fetchAcademicSetup()]);
+    const defaultSession = normalizeSession(activeAcademicYearName);
     setAddResultMode('bulk');
-    setBulkEntryForm({ session: '', className: '', sectionName: '', examId: '' });
+    setResultForm((prev) => ({ ...prev, session: defaultSession || prev.session || '' }));
+    setBulkEntryForm({ session: defaultSession || '', className: '', sectionName: '', examId: '' });
     setBulkEntryRows([]);
     setShowAddResult(true);
   };
@@ -1057,6 +1180,14 @@ const Result = ({ setShowAdminHeader }) => {
     setBulkEntryLoading(false);
     setBulkEntrySubmitting(false);
   };
+
+  useEffect(() => {
+    if (!showAddResult) return;
+    const activeSession = normalizeSession(activeAcademicYearName);
+    if (!activeSession) return;
+    setResultForm((prev) => (prev.session ? prev : { ...prev, session: activeSession }));
+    setBulkEntryForm((prev) => (prev.session ? prev : { ...prev, session: activeSession }));
+  }, [activeAcademicYearName, showAddResult]);
 
   /* ════════════ RENDER ════════════ */
   return (

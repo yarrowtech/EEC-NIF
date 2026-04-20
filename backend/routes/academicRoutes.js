@@ -166,7 +166,7 @@ router.get('/active-year', teacherAuth, async (req, res) => {
   try {
     const schoolId = req.schoolId || req.admin?.schoolId || null;
     if (!schoolId) return res.status(400).json({ error: 'schoolId is required' });
-    const activeYear = await AcademicYear.findOne({ schoolId, isActive: true }).select('name startDate endDate').lean();
+    const activeYear = await AcademicYear.findOne({ schoolId, isActive: true }).select('_id name startDate endDate').lean();
     if (!activeYear) return res.status(404).json({ error: 'No active academic year found' });
     res.json(activeYear);
   } catch (err) {

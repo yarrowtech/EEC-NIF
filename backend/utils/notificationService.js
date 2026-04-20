@@ -81,7 +81,7 @@ class NotificationService {
       campusId,
       title: `Exam Scheduled: ${exam.title}`,
       message: `${exam.subject} exam has been scheduled for ${examDate} ${examTime}. Venue: ${exam.venue || 'TBA'}`,
-      audience: 'Student',
+      audience: 'All',
       type: 'exam',
       priority: 'high',
       category: 'academic',
