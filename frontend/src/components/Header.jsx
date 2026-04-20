@@ -304,8 +304,11 @@ const Header = ({ sidebarOpen, setSidebarOpen, onOpenProfile }) => {
     // Navigate based on notification type
     const type = notification.type?.toLowerCase();
     const relatedEntity = notification.relatedEntity?.entityType?.toLowerCase();
+    const notificationText = `${notification?.title || ''} ${notification?.message || ''} ${notification?.typeLabel || ''}`.toLowerCase();
 
-    if (relatedEntity === 'assignment' || type === 'assignment') {
+    if (notificationText.includes('achievement')) {
+      navigate('/student/achievements');
+    } else if (relatedEntity === 'assignment' || type === 'assignment') {
       navigate('/student/assignments');
     } else if (relatedEntity === 'exam' || type === 'exam') {
       navigate('/student/exams');

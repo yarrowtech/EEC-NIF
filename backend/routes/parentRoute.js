@@ -134,6 +134,21 @@ const findClassTeacherForStudent = async ({ student, schoolId }) => {
   return allocation?.teacherId || null;
 };
 
+const withTeacherIssuer = ({ achievement, teacherName }) => {
+  const rawIssuer = String(achievement?.issuer || '').trim();
+  if (!rawIssuer || !teacherName) return achievement;
+
+  // Legacy records may only store "Class Teacher"; append the actual teacher name.
+  if (/^class\s*teacher$/i.test(rawIssuer)) {
+    return {
+      ...achievement,
+      issuer: `${teacherName} (Class Teacher)`,
+    };
+  }
+
+  return achievement;
+};
+
 const formatComplaintResponse = (complaint) => {
   if (!complaint) return null;
   const assignedTo =
@@ -1026,15 +1041,22 @@ router.get('/achievements', authParent, async (req, res) => {
       console.log(`[parent-achievements] No children found for parent ${parent._id} (${parent.name})`);
     }
 
-    const childrenAchievements = students.map(student => ({
-      studentId: student._id,
-      studentName: student.name || 'Student',
-      studentCode: student.studentCode || '',
-      username: student.username || '',
-      roll: student.roll || null,
-      grade: student.grade || '',
-      section: student.section || '',
-      achievements: Array.isArray(student.achievements) ? student.achievements : []
+    const childrenAchievements = await Promise.all(students.map(async (student) => {
+      const teacher = await findClassTeacherForStudent({ student, schoolId });
+      const teacherName = String(teacher?.name || '').trim();
+      const achievements = (Array.isArray(student.achievements) ? student.achievements : [])
+        .map((achievement) => withTeacherIssuer({ achievement, teacherName }));
+
+      return {
+        studentId: student._id,
+        studentName: student.name || 'Student',
+        studentCode: student.studentCode || '',
+        username: student.username || '',
+        roll: student.roll || null,
+        grade: student.grade || '',
+        section: student.section || '',
+        achievements,
+      };
     }));
 
     res.json({

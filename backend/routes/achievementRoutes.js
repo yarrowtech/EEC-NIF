@@ -2,6 +2,9 @@ const express = require('express');
 const mongoose = require('mongoose');
 const authTeacher = require('../middleware/authTeacher');
 const StudentUser = require('../models/StudentUser');
+const ParentUser = require('../models/ParentUser');
+const Notification = require('../models/Notification');
+const TeacherUser = require('../models/TeacherUser');
 const TeacherAllocation = require('../models/TeacherAllocation');
 const ClassModel = require('../models/Class');
 const Section = require('../models/Section');
@@ -65,6 +68,76 @@ const resolveClassTeacherAuthorization = async ({ schoolId, campusId, teacherId,
   }
 
   return { classDoc, sectionDoc, allocation };
+};
+
+const resolveLinkedParentIds = async ({ schoolId, campusId, student }) => {
+  const studentName = normalize(student?.name);
+  const guardianNames = [student?.fatherName, student?.motherName, student?.guardianName]
+    .map((value) => normalize(value))
+    .filter(Boolean);
+  const parentFilter = {
+    schoolId,
+    ...(campusId ? { campusId } : {}),
+    $or: [
+      { childrenIds: student?._id },
+      ...(studentName ? [{ children: studentName }] : []),
+      ...(guardianNames.length ? [{ name: { $in: guardianNames } }] : []),
+    ],
+  };
+  const parents = await ParentUser.find(parentFilter).select('_id').lean();
+  return Array.from(new Set(parents.map((item) => String(item?._id)).filter(Boolean)));
+};
+
+const createAchievementNotifications = async ({
+  schoolId,
+  campusId,
+  teacherId,
+  teacherName,
+  student,
+  achievementTitle,
+  achievementCategory,
+}) => {
+  const studentName = normalize(student?.name) || 'Student';
+  const safeTeacherName = normalize(teacherName) || 'Class Teacher';
+  const safeCategory = normalize(achievementCategory) || 'Achievement';
+  const sharedMeta = {
+    schoolId,
+    campusId: campusId || null,
+    createdByType: 'teacher',
+    createdByTeacherId: teacherId,
+    createdByName: safeTeacherName,
+    type: 'announcement',
+    typeLabel: 'Achievement',
+    priority: 'medium',
+    category: 'academic',
+    className: normalize(student?.grade),
+    sectionName: normalize(student?.section),
+  };
+
+  const notifications = [
+    {
+      ...sharedMeta,
+      title: 'New Achievement Unlocked',
+      message: `New achievement unlocked: "${achievementTitle}" (${safeCategory}).`,
+      audience: 'Student',
+      targetUserIds: [student._id],
+    },
+  ];
+
+  const parentIds = await resolveLinkedParentIds({ schoolId, campusId, student });
+  if (parentIds.length) {
+    notifications.push({
+      ...sharedMeta,
+      title: 'Your Child Got an Achievement',
+      message: `${studentName} got an achievement: "${achievementTitle}" (${safeCategory}).`,
+      audience: 'Parent',
+      targetUserIds: parentIds,
+    });
+  }
+
+  if (notifications.length) {
+    await Notification.insertMany(notifications, { ordered: false });
+  }
 };
 
 router.get('/teacher/list', authTeacher, async (req, res) => {
@@ -192,6 +265,9 @@ router.post('/teacher/upload', authTeacher, async (req, res) => {
       return res.status(authz.statusCode || 400).json({ error: authz.error });
     }
 
+    const teacherDoc = await TeacherUser.findById(teacherId).select('name').lean();
+    const teacherDisplayName = normalize(teacherDoc?.name || req.teacher?.name || req.teacher?.username);
+
     student.achievements = Array.isArray(student.achievements) ? student.achievements : [];
     const achievement = {
       title,
@@ -199,10 +275,24 @@ router.post('/teacher/upload', authTeacher, async (req, res) => {
       description,
       category: ['Academic', 'Extra-Curricular', 'Sports', 'Other'].includes(category) ? category : 'Academic',
       awardType: 'Achievement',
-      issuer: 'Class Teacher',
+      issuer: teacherDisplayName ? `Class Teacher - ${teacherDisplayName}` : 'Class Teacher',
     };
     student.achievements.push(achievement);
     await student.save();
+
+    try {
+      await createAchievementNotifications({
+        schoolId,
+        campusId,
+        teacherId,
+        teacherName: teacherDisplayName,
+        student,
+        achievementTitle: title,
+        achievementCategory: achievement.category,
+      });
+    } catch (notificationErr) {
+      console.error('Achievement notification creation error:', notificationErr);
+    }
 
     const created = student.achievements[student.achievements.length - 1];
     res.status(201).json({

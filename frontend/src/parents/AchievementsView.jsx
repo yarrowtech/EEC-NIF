@@ -299,7 +299,9 @@ const AchievementsView = () => {
                       </div>
                       <div className="flex items-center gap-2 px-3 py-1 bg-white border border-slate-100 rounded-full shadow-sm">
                         <User size={12} className="text-slate-400" />
-                        <span className="text-[10px] font-bold text-slate-500 uppercase">Issuer: {achievement.issuer || 'Academy Administration'}</span>
+                        <span className="text-[10px] font-bold text-slate-500 uppercase">
+                          Uploaded By: {achievement.issuer || 'Academy Administration'}
+                        </span>
                       </div>
                     </div>
                   </div>

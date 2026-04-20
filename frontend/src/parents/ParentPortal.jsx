@@ -298,6 +298,7 @@ const ParentPortal = () => {
     const message = String(notification?.message || '').toLowerCase();
     const type = String(notification?.type || notification?.typeLabel || '').toLowerCase();
     const blob = `${title} ${message} ${type}`;
+    if (blob.includes('achievement')) return '/parents/achievements';
     if (blob.includes('attendance')) return '/parents/attendance';
     if (blob.includes('academic') || blob.includes('assignment')) return '/parents/academic';
     if (blob.includes('fee') || blob.includes('payment')) return '/parents/fees';
@@ -305,7 +306,6 @@ const ParentPortal = () => {
     if (blob.includes('complaint') || blob.includes('issue')) return '/parents/complaints';
     if (blob.includes('meeting') || blob.includes('ptm')) return '/parents/ptm';
     if (blob.includes('result') || blob.includes('exam')) return '/parents/results';
-    if (blob.includes('achievement')) return '/parents/achievements';
     if (blob.includes('chat') || blob.includes('message')) return '/parents/chat';
     if (blob.includes('holiday')) return '/parents/holidays';
     return '/parents';
