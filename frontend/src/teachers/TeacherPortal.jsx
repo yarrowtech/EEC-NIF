@@ -51,6 +51,7 @@ import ExcuseLetters from './ExcuseLetters';
 import ResultManagement from './ResultManagement';
 import HolidayList from './HolidayList';
 import TeacherAchievements from './TeacherAchievements';
+import TeacherAlcove from './TeacherAlcove';
 import { AUTH_NOTICE, apiFetch, logoutAndRedirect } from '../utils/authSession';
 
 const PORTAL_BASE = '/teacher';
@@ -86,6 +87,7 @@ const menuSections = [
     icon: BookOpen,
     children: [
       { icon: Brain, label: 'AI Powered Teaching', path: `${PORTAL_BASE}/ai-powered-teaching` },
+      { icon: BookOpen, label: "Teacher's Wall", path: `${PORTAL_BASE}/academic-alcove` },
       { icon: FileText, label: 'Assignments', path: `${PORTAL_BASE}/assignments` },
       { icon: FileText, label: 'Practice Questions', path: `${PORTAL_BASE}/practice-questions` },
       { icon: BookOpen, label: 'Lesson Plans', path: `${PORTAL_BASE}/lesson-plans` },
@@ -368,6 +370,7 @@ const TeacherPortal = () => {
     if (blob.includes('attendance')) return '/teacher/attendance';
     if (blob.includes('meeting') || blob.includes('parent')) return '/teacher/parent-meetings';
     if (blob.includes('feedback')) return '/teacher/feedback';
+    if (blob.includes('wall') || blob.includes('alcove') || blob.includes('problem library')) return '/teacher/academic-alcove';
     if (blob.includes('chat') || blob.includes('message')) return '/teacher/chat';
     if (blob.includes('health') || blob.includes('wellbeing')) return '/teacher/health-updates';
     return '/teacher/dashboard';
@@ -799,6 +802,7 @@ const TeacherPortal = () => {
               <Route path="progress" element={<Navigate to="/teacher/student-analytics" replace />} />
               <Route path="weak-students" element={<Navigate to="/teacher/student-analytics" replace />} />
               <Route path="ai-powered-teaching" element={<AIPoweredTeaching />} />
+              <Route path="academic-alcove" element={<TeacherAlcove />} />
               <Route path="ai-learning/:studentId/:subject" element={<AILearningPath />} />
               <Route path="health-updates" element={<HealthUpdatesAdvanced />} />
               <Route path="student-observations" element={<StudentObservationOverview />} />

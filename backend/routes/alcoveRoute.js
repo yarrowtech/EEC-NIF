@@ -4,6 +4,8 @@ const AlcovePost = require('../models/AlcovePost');
 const AlcoveComment = require('../models/AlcoveComment');
 const AlcoveSubmission = require('../models/AlcoveSubmission');
 const StudentUser = require('../models/StudentUser');
+const TeacherUser = require('../models/TeacherUser');
+const ParentUser = require('../models/ParentUser');
 const teacherAuth = require('../middleware/authTeacher');
 const authAnyUser = require('../middleware/authAnyUser');
 const authStudent = require('../middleware/authStudent');
@@ -18,6 +20,87 @@ const resolveSchoolId = (req, res) => {
   return schoolId;
 };
 
+const normalizeUserType = (value) => String(value || '').toLowerCase();
+const buildActorKey = (req) => `${normalizeUserType(req.userType || req.user?.userType || req.user?.type) || 'user'}:${String(req.user?.id || '')}`;
+
+const resolveAuthorName = async (req, fallback = 'Anonymous') => {
+  const userId = req.user?.id;
+  if (!userId) return fallback;
+
+  const userType = normalizeUserType(req.userType || req.user?.userType || req.user?.type);
+  if (userType === 'student') {
+    const student = await StudentUser.findById(userId).select('name username studentCode').lean();
+    return (student?.name || student?.username || student?.studentCode || fallback).trim();
+  }
+  if (userType === 'teacher') {
+    const teacher = await TeacherUser.findById(userId).select('name username employeeCode').lean();
+    return (teacher?.name || teacher?.username || teacher?.employeeCode || fallback).trim();
+  }
+  return String(req.user?.username || fallback).trim();
+};
+
+const resolveViewerProfiles = async (viewerKeys = []) => {
+  const studentIds = [];
+  const teacherIds = [];
+  const parentIds = [];
+
+  viewerKeys.forEach((raw) => {
+    const [type, id] = String(raw || '').split(':');
+    if (!id) return;
+    const normalizedType = normalizeUserType(type);
+    if (normalizedType === 'student') studentIds.push(id);
+    else if (normalizedType === 'teacher') teacherIds.push(id);
+    else if (normalizedType === 'parent') parentIds.push(id);
+  });
+
+  const [students, teachers, parents] = await Promise.all([
+    studentIds.length ? StudentUser.find({ _id: { $in: studentIds } }).select('_id name username').lean() : [],
+    teacherIds.length ? TeacherUser.find({ _id: { $in: teacherIds } }).select('_id name username employeeCode').lean() : [],
+    parentIds.length ? ParentUser.find({ _id: { $in: parentIds } }).select('_id name username').lean() : [],
+  ]);
+
+  const studentMap = new Map(students.map((item) => [String(item._id), item]));
+  const teacherMap = new Map(teachers.map((item) => [String(item._id), item]));
+  const parentMap = new Map(parents.map((item) => [String(item._id), item]));
+
+  return viewerKeys
+    .map((raw) => {
+      const [type, id] = String(raw || '').split(':');
+      if (!id) return null;
+      const normalizedType = normalizeUserType(type);
+      if (normalizedType === 'student') {
+        const student = studentMap.get(id);
+        return {
+          id,
+          userType: 'student',
+          name: student?.name || student?.username || 'Student',
+        };
+      }
+      if (normalizedType === 'teacher') {
+        const teacher = teacherMap.get(id);
+        return {
+          id,
+          userType: 'teacher',
+          name: teacher?.name || teacher?.username || teacher?.employeeCode || 'Teacher',
+        };
+      }
+      if (normalizedType === 'parent') {
+        const parent = parentMap.get(id);
+        return {
+          id,
+          userType: 'parent',
+          name: parent?.name || parent?.username || 'Parent',
+        };
+      }
+      return {
+        id,
+        userType: normalizedType || 'user',
+        name: 'User',
+      };
+    })
+    .filter(Boolean);
+};
+
 // Create a new post (Teacher only)
 router.post('/posts', teacherAuth, async (req, res) => {
   // #swagger.tags = ['Alcove']
@@ -25,6 +108,7 @@ router.post('/posts', teacherAuth, async (req, res) => {
     const schoolId = resolveSchoolId(req, res);
     if (!schoolId) return;
     const { title, subject, chapter, difficulty = 'medium', problemText, solutionText, tags = [], highlighted = false } = req.body;
+    const teacherName = await resolveAuthorName(req, 'Teacher');
     const post = await AlcovePost.create({
       schoolId,
       title,
@@ -32,10 +116,49 @@ router.post('/posts', teacherAuth, async (req, res) => {
       chapter,
       difficulty,
       problemText,
-      solutionText,
+      solutionText: solutionText || '',
       tags,
       highlighted,
       author: req.user?.id || undefined,
+      authorUserId: String(req.user?.id || ''),
+      authorType: 'teacher',
+      authorName: teacherName || 'Teacher',
+      isStudentPosted: false,
+    });
+    res.status(201).json(post);
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+// Create a new post (Student problem upload)
+router.post('/posts/student', authStudent, async (req, res) => {
+  // #swagger.tags = ['Alcove']
+  try {
+    const schoolId = resolveSchoolId(req, res);
+    if (!schoolId) return;
+    const { title, subject, chapter, difficulty = 'medium', problemText, tags = [] } = req.body;
+    if (!title || !subject || !chapter || !problemText) {
+      return res.status(400).json({ error: 'title, subject, chapter and problemText are required' });
+    }
+    const student = await StudentUser.findById(req.user?.id).select('name username grade section').lean();
+    const studentName = (student?.name || student?.username || await resolveAuthorName(req, 'Student') || 'Student').trim();
+    const post = await AlcovePost.create({
+      schoolId,
+      title: String(title).trim(),
+      subject: String(subject).trim(),
+      chapter: String(chapter).trim(),
+      difficulty,
+      problemText: String(problemText).trim(),
+      solutionText: '',
+      tags: Array.isArray(tags) ? tags : [],
+      highlighted: false,
+      authorUserId: String(req.user?.id || ''),
+      authorType: 'student',
+      authorName: studentName || 'Student',
+      authorGrade: String(student?.grade || ''),
+      authorSection: String(student?.section || ''),
+      isStudentPosted: true,
     });
     res.status(201).json(post);
   } catch (err) {
@@ -57,7 +180,7 @@ router.get('/posts', authAnyUser, async (req, res) => {
     });
     const schoolId = resolveSchoolId(req, res);
     if (!schoolId) return;
-    const { subject, chapter, difficulty, q, page = 1, limit = 20 } = req.query;
+    const { subject, chapter, difficulty, q, mine, page = 1, limit = 20 } = req.query;
     const filter = { schoolId };
     if (subject) filter.subject = subject;
     if (chapter) filter.chapter = chapter;
@@ -73,11 +196,60 @@ router.get('/posts', authAnyUser, async (req, res) => {
         { subject: regex },
       ];
     }
+    if (String(mine || '').toLowerCase() === 'true') {
+      const currentUserType = normalizeUserType(req.userType || req.user?.userType || req.user?.type);
+      if (currentUserType === 'teacher') {
+        filter.author = req.user?.id;
+      } else {
+        filter.authorUserId = String(req.user?.id || '');
+      }
+    }
+
     const skip = (Number(page) - 1) * Number(limit);
-    const [items, total] = await Promise.all([
-      AlcovePost.find(filter).sort({ highlighted: -1, createdAt: -1 }).skip(skip).limit(Number(limit)),
+    const [posts, total] = await Promise.all([
+      AlcovePost.find(filter)
+        .populate('author', 'name username employeeCode')
+        .sort({ highlighted: -1, createdAt: -1 })
+        .skip(skip)
+        .limit(Number(limit))
+        .lean(),
       AlcovePost.countDocuments(filter),
     ]);
+    const actorKey = buildActorKey(req);
+    const stats = await Promise.all(
+      posts.map(async (post) => {
+        const [commentCount, submissionCount] = await Promise.all([
+          AlcoveComment.countDocuments({ post: post._id, schoolId }),
+          AlcoveSubmission.countDocuments({ postId: post._id, schoolId }),
+        ]);
+        return {
+          postId: String(post._id),
+          commentCount,
+          submissionCount,
+        };
+      })
+    );
+    const statsByPostId = new Map(stats.map((entry) => [entry.postId, entry]));
+    const items = posts.map((post) => {
+      const stat = statsByPostId.get(String(post._id)) || { commentCount: 0, submissionCount: 0 };
+      const likedBy = Array.isArray(post.likedBy) ? post.likedBy : [];
+      return {
+        ...post,
+        authorName:
+          post?.authorName
+          || post?.author?.name
+          || post?.author?.username
+          || post?.author?.employeeCode
+          || 'Teacher',
+        authorType: post?.authorType || 'teacher',
+        isStudentPosted: Boolean(post?.isStudentPosted),
+        commentCount: stat.commentCount,
+        submissionCount: stat.submissionCount,
+        likeCount: likedBy.length,
+        isLiked: likedBy.includes(actorKey),
+        viewCount: Number(post.viewCount) || 0,
+      };
+    });
     res.json({ items, total, page: Number(page), limit: Number(limit) });
     logStudentPortalEvent(req, {
       feature: 'academic_alcove',
@@ -108,9 +280,111 @@ router.get('/posts/:id', authAnyUser, async (req, res) => {
   try {
     const schoolId = resolveSchoolId(req, res);
     if (!schoolId) return;
+    const post = await AlcovePost.findOne({ _id: req.params.id, schoolId })
+      .populate('author', 'name username employeeCode')
+      .lean();
+    if (!post) return res.status(404).json({ error: 'Not found' });
+    const [commentCount, submissionCount] = await Promise.all([
+      AlcoveComment.countDocuments({ post: req.params.id, schoolId }),
+      AlcoveSubmission.countDocuments({ postId: req.params.id, schoolId }),
+    ]);
+    const likedBy = Array.isArray(post.likedBy) ? post.likedBy : [];
+    const actorKey = buildActorKey(req);
+    res.json({
+      ...post,
+      authorName:
+        post?.authorName
+        || post?.author?.name
+        || post?.author?.username
+        || post?.author?.employeeCode
+        || 'Teacher',
+      authorType: post?.authorType || 'teacher',
+      isStudentPosted: Boolean(post?.isStudentPosted),
+      commentCount,
+      submissionCount,
+      likeCount: likedBy.length,
+      isLiked: likedBy.includes(actorKey),
+      viewCount: Number(post.viewCount) || 0,
+    });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+// Track a post view (any authenticated user)
+router.post('/posts/:id/view', authAnyUser, async (req, res) => {
+  // #swagger.tags = ['Alcove']
+  try {
+    const schoolId = resolveSchoolId(req, res);
+    if (!schoolId) return;
     const post = await AlcovePost.findOne({ _id: req.params.id, schoolId });
     if (!post) return res.status(404).json({ error: 'Not found' });
-    res.json(post);
+
+    const actorKey = buildActorKey(req);
+    const viewedBy = Array.isArray(post.viewedBy) ? post.viewedBy : [];
+    let changed = false;
+    if (!viewedBy.includes(actorKey)) {
+      viewedBy.push(actorKey);
+      post.viewedBy = viewedBy;
+      post.viewCount = viewedBy.length;
+      changed = true;
+    }
+    if (changed) await post.save();
+
+    res.json({ viewCount: Number(post.viewCount) || 0 });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+// Get viewers for a post (any authenticated user)
+router.get('/posts/:id/viewers', authAnyUser, async (req, res) => {
+  // #swagger.tags = ['Alcove']
+  try {
+    const schoolId = resolveSchoolId(req, res);
+    if (!schoolId) return;
+    const post = await AlcovePost.findOne({ _id: req.params.id, schoolId }).lean();
+    if (!post) return res.status(404).json({ error: 'Not found' });
+
+    const viewedBy = Array.isArray(post.viewedBy) ? post.viewedBy : [];
+    const viewers = await resolveViewerProfiles(viewedBy);
+    res.json({
+      count: viewers.length,
+      viewers,
+    });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+// Toggle like for a post (any authenticated user)
+router.post('/posts/:id/like', authAnyUser, async (req, res) => {
+  // #swagger.tags = ['Alcove']
+  try {
+    const schoolId = resolveSchoolId(req, res);
+    if (!schoolId) return;
+    const post = await AlcovePost.findOne({ _id: req.params.id, schoolId });
+    if (!post) return res.status(404).json({ error: 'Not found' });
+
+    const actorKey = buildActorKey(req);
+    const likedBy = Array.isArray(post.likedBy) ? post.likedBy : [];
+    const existingIndex = likedBy.indexOf(actorKey);
+    let liked = false;
+
+    if (existingIndex >= 0) {
+      likedBy.splice(existingIndex, 1);
+      liked = false;
+    } else {
+      likedBy.push(actorKey);
+      liked = true;
+    }
+    post.likedBy = likedBy;
+    await post.save();
+
+    res.json({
+      liked,
+      likeCount: likedBy.length,
+    });
   } catch (err) {
     res.status(400).json({ error: err.message });
   }
@@ -156,8 +430,36 @@ router.get('/posts/:id/comments', authAnyUser, async (req, res) => {
   try {
     const schoolId = resolveSchoolId(req, res);
     if (!schoolId) return;
-    const items = await AlcoveComment.find({ post: req.params.id, schoolId }).sort({ createdAt: 1 });
-    res.json(items);
+    const items = await AlcoveComment.find({ post: req.params.id, schoolId }).sort({ createdAt: 1 }).lean();
+
+    const missingStudentMetaIds = [...new Set(
+      items
+        .filter((comment) => (
+          String(comment?.authorType || '').toLowerCase() === 'student'
+          && comment?.authorId
+          && (!comment?.authorGrade || !comment?.authorSection)
+        ))
+        .map((comment) => String(comment.authorId))
+    )];
+
+    const students = missingStudentMetaIds.length
+      ? await StudentUser.find({ _id: { $in: missingStudentMetaIds } }).select('_id grade section').lean()
+      : [];
+    const studentMeta = new Map(students.map((student) => [String(student._id), student]));
+
+    const enrichedItems = items.map((comment) => {
+      if (String(comment?.authorType || '').toLowerCase() !== 'student') return comment;
+      if (comment?.authorGrade && comment?.authorSection) return comment;
+      const profile = studentMeta.get(String(comment.authorId));
+      if (!profile) return comment;
+      return {
+        ...comment,
+        authorGrade: String(comment.authorGrade || profile.grade || ''),
+        authorSection: String(comment.authorSection || profile.section || ''),
+      };
+    });
+
+    res.json(enrichedItems);
     logStudentPortalEvent(req, {
       feature: 'academic_alcove',
       action: 'comments.fetch',
@@ -165,7 +467,7 @@ router.get('/posts/:id/comments', authAnyUser, async (req, res) => {
       statusCode: 200,
       targetType: 'alcove_post',
       targetId: req.params.id,
-      resultCount: Array.isArray(items) ? items.length : 0,
+      resultCount: Array.isArray(enrichedItems) ? enrichedItems.length : 0,
     });
   } catch (err) {
     logStudentPortalError(req, {
@@ -188,13 +490,20 @@ router.post('/posts/:id/comments', authAnyUser, async (req, res) => {
     if (!schoolId) return;
     const { text, authorName } = req.body;
     if (!text || !text.trim()) return res.status(400).json({ error: 'Text is required' });
+    const resolvedAuthorName = authorName?.trim() || await resolveAuthorName(req);
+    const isStudentAuthor = String(req.userType || '').toLowerCase() === 'student';
+    const studentMeta = isStudentAuthor
+      ? await StudentUser.findById(req.user?.id).select('grade section').lean()
+      : null;
     const comment = await AlcoveComment.create({
       schoolId,
       post: req.params.id,
       text: text.trim(),
       authorId: req.user?.id || undefined,
       authorType: req.userType || 'unknown',
-      authorName: authorName?.trim() || 'Anonymous',
+      authorName: resolvedAuthorName || 'Anonymous',
+      authorGrade: String(studentMeta?.grade || ''),
+      authorSection: String(studentMeta?.section || ''),
     });
     res.status(201).json(comment);
     logStudentPortalEvent(req, {
@@ -434,4 +743,3 @@ router.get('/teacher/submissions', teacherAuth, async (req, res) => {
 });
 
 module.exports = router;
-

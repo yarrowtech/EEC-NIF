@@ -7,10 +7,11 @@ const AlcoveCommentSchema = new mongoose.Schema(
     authorId: { type: String },
     authorType: { type: String, enum: ['student', 'teacher', 'parent', 'unknown'], default: 'unknown' },
     authorName: { type: String, default: 'Anonymous' },
+    authorGrade: { type: String, default: '' },
+    authorSection: { type: String, default: '' },
     text: { type: String, required: true, trim: true },
   },
   { timestamps: true }
 );
 
 module.exports = mongoose.model('AlcoveComment', AlcoveCommentSchema);
-

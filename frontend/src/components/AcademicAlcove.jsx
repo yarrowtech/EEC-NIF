@@ -1,917 +1,904 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { BookOpen, Filter, Search as SearchIcon, Star, MessageSquare, Calendar as CalendarIcon, Layers, Users, Award, TrendingUp, Send, Heart, ThumbsUp, User, PlusCircle, Check } from 'lucide-react';
+import {
+  BookOpen, Search, Star, MessageSquare, Calendar, Layers, Users,
+  Award, TrendingUp, Send, User, Check, X, ChevronLeft, ChevronRight, Heart,
+  Filter, RefreshCw, Sparkles, FileText, Eye, EyeOff, Loader2, AlertCircle,
+} from 'lucide-react';
 import Swal from 'sweetalert2';
 
 const API = import.meta.env.VITE_API_URL;
 
-export default function AcademicAlcove() {
-  const [items, setItems] = useState([]);
-  const [total, setTotal] = useState(0);
-  const [page, setPage] = useState(1);
-  const [limit] = useState(12);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(null);
+/* ── helpers ─────────────────────────────────────────────────── */
+const diffBadge = (d) => {
+  if (d === 'easy')   return 'bg-emerald-50 text-emerald-700 border-emerald-200';
+  if (d === 'medium') return 'bg-amber-50 text-amber-700 border-amber-200';
+  if (d === 'hard')   return 'bg-red-50 text-red-600 border-red-200';
+  return 'bg-slate-50 text-slate-600 border-slate-200';
+};
 
-  const [subject, setSubject] = useState('');
-  const [chapter, setChapter] = useState('');
+const timeAgo = (date) => {
+  const diff = Math.floor((Date.now() - new Date(date)) / 60000);
+  if (diff < 60)   return `${diff}m ago`;
+  if (diff < 1440) return `${Math.floor(diff / 60)}h ago`;
+  return `${Math.floor(diff / 1440)}d ago`;
+};
+
+const Avatar = ({ name = '?', size = 'sm', gradient = 'from-amber-400 to-orange-500' }) => {
+  const s = size === 'lg' ? 'h-12 w-12 text-base' : size === 'md' ? 'h-10 w-10 text-sm' : 'h-8 w-8 text-xs';
+  return (
+    <div className={`${s} rounded-xl bg-linear-to-br ${gradient} flex items-center justify-center font-black text-white shrink-0 shadow-sm`}>
+      {String(name)[0].toUpperCase()}
+    </div>
+  );
+};
+
+/* ── Main ────────────────────────────────────────────────────── */
+export default function AcademicAlcove() {
+  const [items, setItems]       = useState([]);
+  const [total, setTotal]       = useState(0);
+  const [page, setPage]         = useState(1);
+  const [limit]                 = useState(12);
+  const [loading, setLoading]   = useState(false);
+  const [error, setError]       = useState(null);
+
+  const [subject, setSubject]       = useState('');
+  const [chapter, setChapter]       = useState('');
   const [difficulty, setDifficulty] = useState('');
-  const [q, setQ] = useState('');
-  const [selected, setSelected] = useState(null); // selected post for modal
-  const [comments, setComments] = useState([]);
-  const [commentText, setCommentText] = useState('');
+  const [q, setQ]                   = useState('');
+  const [showCreateProblem, setShowCreateProblem] = useState(false);
+  const [creatingProblem, setCreatingProblem] = useState(false);
+  const [newProblem, setNewProblem] = useState({
+    title: '',
+    subject: '',
+    chapter: '',
+    difficulty: 'medium',
+    problemText: '',
+  });
+
+  const [selected, setSelected]         = useState(null);
+  const [comments, setComments]         = useState([]);
+  const [commentText, setCommentText]   = useState('');
   const [postingComment, setPostingComment] = useState(false);
 
-  // Wall of chats state
-  const [viewMode, setViewMode] = useState('problems'); // 'problems' | 'wall'
-  const [wallPosts, setWallPosts] = useState([]);
-  const [newPostText, setNewPostText] = useState('');
-  const [newPostSubject, setNewPostSubject] = useState('');
-  const [newPostDifficulty, setNewPostDifficulty] = useState('medium');
-  const [showNewPostForm, setShowNewPostForm] = useState(false);
-  const [postingWall, setPostingWall] = useState(false);
+  const [viewMode, setViewMode]     = useState('problems');
+  const [wallPosts, setWallPosts]   = useState([]);
+  const [wallLoading, setWallLoading] = useState(false);
+  const [wallError, setWallError]   = useState(null);
 
-  // Submission state
-  const [submissions, setSubmissions] = useState([]);
-  const [mySubmission, setMySubmission] = useState(null);
-  const [answerText, setAnswerText] = useState('');
-  const [submitting, setSubmitting] = useState(false);
-  const [showSubmissions, setShowSubmissions] = useState(false);
+  const [submissions, setSubmissions]         = useState([]);
+  const [mySubmission, setMySubmission]       = useState(null);
+  const [answerText, setAnswerText]           = useState('');
+  const [submitting, setSubmitting]           = useState(false);
+  const [modalTab, setModalTab]               = useState('problem'); // 'problem'|'answer'|'discuss'
 
+  const auth = () => {
+    const t = localStorage.getItem('token');
+    return t ? { Authorization: `Bearer ${t}` } : {};
+  };
+
+  /* ── fetch problems ─────────────────────────────────────────── */
   const fetchItems = async () => {
-    setLoading(true);
-    setError(null);
+    setLoading(true); setError(null);
     try {
-      const params = new URLSearchParams();
-      if (subject) params.append('subject', subject);
-      if (chapter) params.append('chapter', chapter);
-      if (difficulty) params.append('difficulty', difficulty);
-      if (q) params.append('q', q);
-      params.append('page', String(page));
-      params.append('limit', String(limit));
-      const res = await fetch(`${API}/api/alcove/posts?${params.toString()}`);
+      const p = new URLSearchParams();
+      if (subject)    p.append('subject', subject);
+      if (chapter)    p.append('chapter', chapter);
+      if (difficulty) p.append('difficulty', difficulty);
+      if (q)          p.append('q', q);
+      p.append('page', page); p.append('limit', limit);
+      const res = await fetch(`${API}/api/alcove/posts?${p}`, { headers: auth() });
       if (!res.ok) throw new Error('Failed to load posts');
       const data = await res.json();
-      setItems(data.items || []);
-      setTotal(data.total || 0);
-    } catch (e) {
-      setError(e.message || 'Error');
-    } finally {
-      setLoading(false);
-    }
+      setItems(data.items || []); setTotal(data.total || 0);
+    } catch (e) { setError(e.message || 'Error'); }
+    finally { setLoading(false); }
   };
 
-  useEffect(() => {
-    fetchItems();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [subject, chapter, difficulty, q, page, limit]);
+  useEffect(() => { fetchItems(); }, [subject, chapter, difficulty, q, page]);
 
-  const uniqueSubjects = useMemo(() => Array.from(new Set(items.map(i => i.subject))).filter(Boolean), [items]);
-  const uniqueChapters = useMemo(() => Array.from(new Set(items.map(i => i.chapter))).filter(Boolean), [items]);
+  const uniqueSubjects = useMemo(() => [...new Set(items.map(i => i.subject))].filter(Boolean), [items]);
+  const uniqueChapters = useMemo(() => [...new Set(items.map(i => i.chapter))].filter(Boolean), [items]);
+  const totalPages     = Math.max(1, Math.ceil(total / limit));
 
+  /* ── open post modal ────────────────────────────────────────── */
   const openPost = async (post) => {
-    setSelected(post);
-    setComments([]);
-    setSubmissions([]);
-    setMySubmission(null);
-    setAnswerText('');
-    setShowSubmissions(false);
-
+    let selectedPost = post;
+    setSelected(post); setComments([]); setSubmissions([]);
+    setMySubmission(null); setAnswerText('');
+    setModalTab('problem');
     try {
-      // Fetch comments (existing)
-      const commentsRes = await fetch(`${API}/api/alcove/posts/${post._id}/comments`, {
-        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+      const viewRes = await fetch(`${API}/api/alcove/posts/${post._id}/view`, {
+        method: 'POST',
+        headers: auth(),
       });
-      if (commentsRes.ok) {
-        setComments(await commentsRes.json());
+      if (viewRes.ok) {
+        const data = await viewRes.json();
+        selectedPost = { ...post, viewCount: Number(data.viewCount) || 0 };
+        setSelected(selectedPost);
+        const updateView = (entry) => (
+          entry._id === post._id
+            ? { ...entry, viewCount: Number(data.viewCount) || 0 }
+            : entry
+        );
+        setItems((prev) => prev.map(updateView));
+        setWallPosts((prev) => prev.map(updateView));
       }
 
-      // Fetch submissions (NEW)
-      const submissionsRes = await fetch(`${API}/api/alcove/posts/${post._id}/submissions`, {
-        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
-      });
-      if (submissionsRes.ok) {
-        const subs = await submissionsRes.json();
+      const [cRes, sRes] = await Promise.all([
+        fetch(`${API}/api/alcove/posts/${post._id}/comments`,    { headers: auth() }),
+        fetch(`${API}/api/alcove/posts/${post._id}/submissions`, { headers: auth() }),
+      ]);
+      if (cRes.ok) setComments(await cRes.json());
+      if (sRes.ok) {
+        const subs = await sRes.json();
         setSubmissions(subs);
-
-        // Find current student's submission
-        const userData = localStorage.getItem('user');
-        const myId = userData ? JSON.parse(userData)?.id : null;
+        const myId = (() => { try { return JSON.parse(localStorage.getItem('user'))?.id; } catch { return null; } })();
         const mine = subs.find(s => s.studentId === myId);
-        if (mine) {
-          setMySubmission(mine);
-          setAnswerText(mine.answerText);
-        }
+        if (mine) { setMySubmission(mine); setAnswerText(mine.answerText); }
       }
-    } catch (err) {
-      console.error('Error loading post details:', err);
+    } catch {
+      setSelected(selectedPost);
     }
   };
 
+  /* ── submit comment ─────────────────────────────────────────── */
   const submitComment = async () => {
     if (!selected || !commentText.trim()) return;
     setPostingComment(true);
     try {
       const res = await fetch(`${API}/api/alcove/posts/${selected._id}/comments`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          // If auth is available in localStorage, include it
-          ...(localStorage.getItem('token') ? { Authorization: `Bearer ${localStorage.getItem('token')}` } : {}),
-        },
-        body: JSON.stringify({ text: commentText, authorName: localStorage.getItem('username') || undefined }),
+        headers: { 'Content-Type': 'application/json', ...auth() },
+        body: JSON.stringify({ text: commentText }),
       });
       if (!res.ok) throw new Error('Failed to post comment');
-      const data = await res.json();
-      setComments((prev) => [...prev, data]);
+      const newComment = await res.json();
+      setComments(p => [...p, newComment]);
       setCommentText('');
     } catch (e) {
-      await Swal.fire({
-        icon: 'error',
-        title: 'Comment failed',
-        text: e.message || 'Could not post comment',
-      });
-    } finally {
-      setPostingComment(false);
-    }
+      await Swal.fire({ icon: 'error', title: 'Comment failed', text: e.message });
+    } finally { setPostingComment(false); }
   };
 
+  /* ── submit answer ──────────────────────────────────────────── */
   const submitAnswer = async () => {
     if (!selected || !answerText.trim()) return;
-
     setSubmitting(true);
     try {
       const res = await fetch(`${API}/api/alcove/posts/${selected._id}/submissions`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${localStorage.getItem('token')}`
-        },
-        body: JSON.stringify({ answerText })
+        headers: { 'Content-Type': 'application/json', ...auth() },
+        body: JSON.stringify({ answerText }),
       });
-
-      if (!res.ok) {
-        const error = await res.json();
-        throw new Error(error.error || 'Failed to submit answer');
-      }
-
+      if (!res.ok) { const e = await res.json(); throw new Error(e.error || 'Failed'); }
       const data = await res.json();
       setMySubmission(data.submission);
-
-      // Refresh submissions to show the new one
-      const refreshRes = await fetch(`${API}/api/alcove/posts/${selected._id}/submissions`, {
-        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
-      });
-      if (refreshRes.ok) {
-        setSubmissions(await refreshRes.json());
-      }
-
-      await Swal.fire({
-        icon: 'success',
-        title: 'Answer submitted',
-        text: 'Answer submitted successfully!',
-      });
+      const r = await fetch(`${API}/api/alcove/posts/${selected._id}/submissions`, { headers: auth() });
+      if (r.ok) setSubmissions(await r.json());
+      await Swal.fire({ icon: 'success', title: 'Answer submitted!', text: 'Your answer has been saved.' });
     } catch (e) {
-      await Swal.fire({
-        icon: 'error',
-        title: 'Submission failed',
-        text: e.message || 'Could not submit answer',
+      await Swal.fire({ icon: 'error', title: 'Submission failed', text: e.message });
+    } finally { setSubmitting(false); }
+  };
+
+  const submitStudentProblem = async () => {
+    if (!newProblem.title.trim() || !newProblem.subject.trim() || !newProblem.chapter.trim() || !newProblem.problemText.trim()) {
+      await Swal.fire({ icon: 'warning', title: 'Missing details', text: 'Please fill title, subject, chapter and problem.' });
+      return;
+    }
+    setCreatingProblem(true);
+    try {
+      const res = await fetch(`${API}/api/alcove/posts/student`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...auth() },
+        body: JSON.stringify({
+          title: newProblem.title.trim(),
+          subject: newProblem.subject.trim(),
+          chapter: newProblem.chapter.trim(),
+          difficulty: newProblem.difficulty,
+          problemText: newProblem.problemText.trim(),
+        }),
       });
+      if (!res.ok) {
+        const error = await res.json().catch(() => ({}));
+        throw new Error(error.error || 'Failed to post problem');
+      }
+      await Swal.fire({ icon: 'success', title: 'Problem posted', text: 'Your problem is now visible to teachers and students.' });
+      setNewProblem({ title: '', subject: '', chapter: '', difficulty: 'medium', problemText: '' });
+      setShowCreateProblem(false);
+      setPage(1);
+      fetchItems();
+    } catch (e) {
+      await Swal.fire({ icon: 'error', title: 'Post failed', text: e.message || 'Could not post your problem' });
     } finally {
-      setSubmitting(false);
+      setCreatingProblem(false);
     }
   };
 
-  const totalPages = Math.max(1, Math.ceil(total / limit));
+  /* ── wall ───────────────────────────────────────────────────── */
+  const fetchWallPosts = async () => {
+    setWallLoading(true); setWallError(null);
+    try {
+      const res = await fetch(`${API}/api/alcove/posts?page=1&limit=25`, { headers: auth() });
+      if (!res.ok) throw new Error('Failed to load wall');
+      const data = await res.json();
+      setWallPosts(data.items || []);
+    } catch (e) { setWallError(e.message); }
+    finally { setWallLoading(false); }
+  };
 
-  // Mock wall posts data - would be fetched from API in real implementation
-  useEffect(() => {
-    if (viewMode === 'wall') {
-      setWallPosts([
-        {
-          id: 1,
-          teacherName: "Prof. Sarah Johnson",
-          teacherAvatar: "SJ",
-          subject: "Mathematics",
-          difficulty: "hard",
-          content: "Looking for creative ways to explain quadratic equations to my Grade 10 students. Anyone have interactive methods that worked well? The traditional approach isn't clicking with this batch.",
-          timestamp: new Date(Date.now() - 2 * 60 * 60 * 1000), // 2 hours ago
-          likes: 12,
-          comments: 5,
-          isLiked: false
-        },
-        {
-          id: 2,
-          teacherName: "Dr. Michael Chen",
-          teacherAvatar: "MC",
-          subject: "Physics",
-          difficulty: "medium",
-          content: "Just solved an interesting projectile motion problem involving a basketball shot. The trajectory calculation shows some beautiful parabolic curves. Would love to share this with the community!",
-          timestamp: new Date(Date.now() - 4 * 60 * 60 * 1000), // 4 hours ago
-          likes: 18,
-          comments: 8,
-          isLiked: true
-        },
-        {
-          id: 3,
-          teacherName: "Ms. Emily Rodriguez",
-          teacherAvatar: "ER",
-          subject: "Chemistry",
-          difficulty: "easy",
-          content: "Created a simple experiment to demonstrate chemical reactions using household items. Students were amazed by the color changes! Perfect for remote learning setups.",
-          timestamp: new Date(Date.now() - 6 * 60 * 60 * 1000), // 6 hours ago
-          likes: 25,
-          comments: 12,
-          isLiked: false
-        },
-        {
-          id: 4,
-          teacherName: "Prof. David Kumar",
-          teacherAvatar: "DK",
-          subject: "Biology",
-          difficulty: "medium",
-          content: "Working on a challenging genetics problem involving multiple alleles and inheritance patterns. The Punnett squares are getting complex, but the results are fascinating!",
-          timestamp: new Date(Date.now() - 8 * 60 * 60 * 1000), // 8 hours ago
-          likes: 15,
-          comments: 6,
-          isLiked: true
-        },
-        {
-          id: 5,
-          teacherName: "Ms. Lisa Thompson",
-          teacherAvatar: "LT",
-          subject: "English",
-          difficulty: "hard",
-          content: "Exploring Shakespeare's use of metaphors in Hamlet. Found some incredible linguistic patterns that connect to modern literature. Anyone interested in collaborating on a cross-curricular approach?",
-          timestamp: new Date(Date.now() - 12 * 60 * 60 * 1000), // 12 hours ago
-          likes: 20,
-          comments: 15,
-          isLiked: false
-        }
-      ]);
+  useEffect(() => { if (viewMode === 'wall') fetchWallPosts(); }, [viewMode]);
+
+  const handleLikePost = async (postId) => {
+    try {
+      const res = await fetch(`${API}/api/alcove/posts/${postId}/like`, {
+        method: 'POST',
+        headers: auth(),
+      });
+      if (!res.ok) throw new Error('Failed to update like');
+      const data = await res.json();
+      const applyLike = (entry) => (
+        entry._id === postId
+          ? { ...entry, likeCount: Number(data.likeCount) || 0, isLiked: Boolean(data.liked) }
+          : entry
+      );
+      setItems((prev) => prev.map(applyLike));
+      setWallPosts((prev) => prev.map(applyLike));
+      setSelected((prev) => (prev && prev._id === postId
+        ? { ...prev, likeCount: Number(data.likeCount) || 0, isLiked: Boolean(data.liked) }
+        : prev));
+    } catch (e) {
+      await Swal.fire({ icon: 'error', title: 'Like failed', text: e.message || 'Could not update like' });
     }
-  }, [viewMode]);
-
-  const handleLikePost = (postId) => {
-    setWallPosts(prev => prev.map(post =>
-      post.id === postId
-        ? { ...post, isLiked: !post.isLiked, likes: post.isLiked ? post.likes - 1 : post.likes + 1 }
-        : post
-    ));
   };
 
-  const handleNewWallPost = () => {
-    if (!newPostText.trim()) return;
-    setPostingWall(true);
-
-    const newPost = {
-      id: Date.now(),
-      teacherName: localStorage.getItem('username') || 'Anonymous Teacher',
-      teacherAvatar: (localStorage.getItem('username') || 'AT')[0].toUpperCase() + (localStorage.getItem('username') || 'AT')[1]?.toUpperCase() || '',
-      subject: newPostSubject || 'General',
-      difficulty: newPostDifficulty,
-      content: newPostText,
-      timestamp: new Date(),
-      likes: 0,
-      comments: 0,
-      isLiked: false
-    };
-
-    setTimeout(() => {
-      setWallPosts(prev => [newPost, ...prev]);
-      setNewPostText('');
-      setNewPostSubject('');
-      setNewPostDifficulty('medium');
-      setShowNewPostForm(false);
-      setPostingWall(false);
-    }, 1000);
-  };
-
-  const formatTimeAgo = (date) => {
-    const now = new Date();
-    const diffInMinutes = Math.floor((now - date) / (1000 * 60));
-
-    if (diffInMinutes < 60) return `${diffInMinutes}m ago`;
-    if (diffInMinutes < 1440) return `${Math.floor(diffInMinutes / 60)}h ago`;
-    return `${Math.floor(diffInMinutes / 1440)}d ago`;
-  };
-
+  /* ════════════════════════════════════════════════════════════
+     RENDER
+  ════════════════════════════════════════════════════════════ */
   return (
-    <>
-      <div className="w-full min-h-screen px-2 sm:px-4 md:px-8 py-4 sm:py-6" style={{ background: 'linear-gradient(135deg, #f3e8d7 0%, #e8dcc6 50%, #ddd0bb 100%)' }}>
-        <div className="relative bg-white rounded-2xl shadow-2xl p-6 sm:p-8 mb-6 overflow-hidden" style={{ backgroundColor: '#fefcf8', border: '3px solid #8B7355' }}>
-          <div className="absolute inset-0 opacity-5" style={{
-            backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23d4af37' fill-opacity='0.1'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")`
-          }}></div>
+    <div className="min-h-screen bg-slate-50">
 
-          <div className="relative">
-            <div className="text-center mb-6">
-              <h1 className="text-3xl sm:text-4xl lg:text-5xl font-bold mb-3" style={{ color: '#8B4513', fontFamily: 'Georgia, serif' }}>
-                The Wall
-              </h1>
-              <div className="w-32 h-1 bg-amber-600 mx-auto mb-4 rounded"></div>
-              <p className="text-lg text-gray-700 max-w-2xl mx-auto leading-relaxed" style={{ color: '#8B7355' }}>
+      {/* ── Hero header ── */}
+      <div className="bg-linear-to-br from-amber-400 via-yellow-400 to-orange-500 px-5 py-7 shadow-md shadow-amber-200/60 relative overflow-hidden">
+        <div className="pointer-events-none absolute -right-10 -top-10 h-48 w-48 rounded-full bg-white/10" />
+        <div className="pointer-events-none absolute -bottom-8 left-8 h-32 w-32 rounded-full bg-white/[0.07]" />
+
+        <div className="relative max-w-6xl mx-auto">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div>
+              <div className="flex items-center gap-2.5 mb-1">
+                <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-white/20 border border-white/30">
+                  <Sparkles size={18} className="text-white" />
+                </div>
+                <h1 className="text-2xl sm:text-3xl font-black text-white tracking-tight">The Wall</h1>
+              </div>
+              <p className="text-sm text-white/75 max-w-md">
                 {viewMode === 'problems'
-                  ? 'Discover challenging problems and detailed solutions curated by expert educators.'
-                  : 'Connect with fellow educators, share insights, and collaborate on academic challenges.'
-                }
+                  ? 'Explore curated problems and expert solutions from your teachers.'
+                  : 'Browse teacher posts, submit answers, and join discussions.'}
               </p>
-
-              <div className="flex justify-center mt-6">
-                <div className="bg-white rounded-full p-2 shadow-lg border-2" style={{ borderColor: '#D97706' }}>
-                  <button
-                    onClick={() => setViewMode('problems')}
-                    className={`px-6 py-2 rounded-full font-semibold transition-all ${viewMode === 'problems'
-                        ? 'bg-gradient-to-r from-amber-500 to-orange-500 text-white shadow-lg'
-                        : 'text-amber-700 hover:bg-amber-50'
-                      }`}
-                  >
-                    <BookOpen className="w-4 h-4 inline mr-2" />
-                    Problem Library
-                  </button>
-                  <button
-                    onClick={() => setViewMode('wall')}
-                    className={`px-6 py-2 rounded-full font-semibold transition-all ${viewMode === 'wall'
-                        ? 'bg-gradient-to-r from-amber-500 to-orange-500 text-white shadow-lg'
-                        : 'text-amber-700 hover:bg-amber-50'
-                      }`}
-                  >
-                    <MessageSquare className="w-4 h-4 inline mr-2" />
-                    Teacher's Wall
-                  </button>
-                </div>
-              </div>
             </div>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
-              <div className="bg-gradient-to-br from-amber-50 to-orange-50 rounded-xl p-4 border-2" style={{ borderColor: '#F59E0B' }}>
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm font-medium text-amber-800">Total Problems</p>
-                    <p className="text-2xl font-bold text-amber-900">{total || '---'}</p>
-                  </div>
-                  <BookOpen className="w-8 h-8 text-amber-600" />
+
+            {/* Stats */}
+            <div className="flex gap-3">
+              {[
+                { label: 'Problems', value: total || '—', icon: FileText },
+                { label: 'This Page', value: items.length || '—', icon: Award },
+                { label: 'Discussions', value: Math.floor(total * 0.3) || '—', icon: MessageSquare },
+              ].map((stat) => (
+                <div key={stat.label} className="rounded-xl bg-white/15 border border-white/25 px-3 py-2 text-center backdrop-blur-sm min-w-17.5">
+                  {React.createElement(stat.icon, { size: 13, className: 'text-white/70 mx-auto mb-0.5' })}
+                  <p className="text-lg font-black text-white leading-none">{stat.value}</p>
+                  <p className="text-[10px] text-white/65 font-medium mt-0.5">{stat.label}</p>
                 </div>
-              </div>
-              <div className="bg-gradient-to-br from-yellow-50 to-amber-50 rounded-xl p-4 border-2" style={{ borderColor: '#EAB308' }}>
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm font-medium text-yellow-800">Expert Solutions</p>
-                    <p className="text-2xl font-bold text-yellow-900">{items.length || '---'}</p>
-                  </div>
-                  <Award className="w-8 h-8 text-yellow-600" />
-                </div>
-              </div>
-              <div className="bg-gradient-to-br from-orange-50 to-red-50 rounded-xl p-4 border-2" style={{ borderColor: '#F97316' }}>
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm font-medium text-orange-800">Active Discussions</p>
-                    <p className="text-2xl font-bold text-orange-900">{Math.floor(total * 0.3) || '---'}</p>
-                  </div>
-                  <Users className="w-8 h-8 text-orange-600" />
-                </div>
-              </div>
+              ))}
             </div>
           </div>
+
+          {/* View toggle */}
+          <div className="mt-5 inline-flex rounded-xl bg-white/15 border border-white/25 p-1 gap-1 backdrop-blur-sm">
+            {[
+              { id: 'problems', label: 'Problem Library', icon: BookOpen },
+              { id: 'wall',     label: "Teacher's Wall",  icon: MessageSquare },
+            ].map((entry) => (
+              <button
+                key={entry.id}
+                onClick={() => setViewMode(entry.id)}
+                className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold transition-all duration-200
+                  ${viewMode === entry.id ? 'bg-white text-amber-700 shadow-sm' : 'text-white/80 hover:text-white hover:bg-white/10'}`}
+              >
+                {React.createElement(entry.icon, { size: 14 })}
+                {entry.label}
+              </button>
+            ))}
+          </div>
         </div>
+      </div>
 
+      <div className="max-w-6xl mx-auto px-4 py-6">
+
+        {/* ── Filter bar (problems) ── */}
         {viewMode === 'problems' && (
-          <div className="bg-white rounded-2xl shadow-lg p-4 sm:p-6 mb-6 border-2" style={{ backgroundColor: '#fefcf8', borderColor: '#B8860B' }}>
-            <div className="flex flex-col space-y-4">
-
-              <div className="relative">
-                <SearchIcon className="w-5 h-5 text-amber-600 absolute left-4 top-1/2 -translate-y-1/2" />
+          <div className="mb-6 rounded-2xl bg-white border border-slate-200 shadow-sm p-4">
+            <div className="flex flex-col sm:flex-row gap-3">
+              {/* Search */}
+              <div className="relative flex-1">
+                <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
                 <input
                   value={q}
-                  onChange={(e) => { setPage(1); setQ(e.target.value); }}
-                  placeholder="Search for problems, solutions, or topics..."
-                  className="w-full pl-12 pr-4 py-3 rounded-xl border-2 text-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 transition-all"
-                  style={{
-                    borderColor: '#D97706',
-                    backgroundColor: '#fffbeb',
-                    color: '#8B4513'
-                  }}
+                  onChange={e => { setPage(1); setQ(e.target.value); }}
+                  placeholder="Search problems, topics…"
+                  className="w-full pl-9 pr-3 py-2.5 rounded-xl border border-slate-200 bg-slate-50 text-sm text-slate-800 placeholder:text-slate-400 focus:border-amber-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-amber-100 transition"
                 />
               </div>
 
-              <div className="flex flex-wrap gap-3">
-                <div className="flex items-center gap-2 bg-gradient-to-r from-amber-50 to-yellow-50 px-4 py-2 rounded-full border-2" style={{ borderColor: '#F59E0B' }}>
-                  <BookOpen className="w-4 h-4 text-amber-700" />
-                  <select
-                    value={subject}
-                    onChange={(e) => { setPage(1); setSubject(e.target.value) }}
-                    className="bg-transparent border-0 text-amber-800 font-medium focus:ring-0 cursor-pointer"
-                  >
-                    <option value="">All Subjects</option>
-                    {uniqueSubjects.map(s => <option key={s} value={s}>{s}</option>)}
-                  </select>
-                </div>
+              {/* Subject */}
+              <div className="flex items-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 min-w-35">
+                <BookOpen size={13} className="text-amber-500 shrink-0" />
+                <select value={subject} onChange={e => { setPage(1); setSubject(e.target.value); }}
+                  className="flex-1 bg-transparent text-xs font-semibold text-slate-700 focus:outline-none cursor-pointer">
+                  <option value="">All Subjects</option>
+                  {uniqueSubjects.map(s => <option key={s} value={s}>{s}</option>)}
+                </select>
+              </div>
 
-                <div className="flex items-center gap-2 bg-gradient-to-r from-orange-50 to-amber-50 px-4 py-2 rounded-full border-2" style={{ borderColor: '#F97316' }}>
-                  <Layers className="w-4 h-4 text-orange-700" />
-                  <select
-                    value={chapter}
-                    onChange={(e) => { setPage(1); setChapter(e.target.value) }}
-                    className="bg-transparent border-0 text-orange-800 font-medium focus:ring-0 cursor-pointer"
-                  >
-                    <option value="">All Chapters</option>
-                    {uniqueChapters.map(c => <option key={c} value={c}>{c}</option>)}
-                  </select>
-                </div>
+              {/* Chapter */}
+              <div className="flex items-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 min-w-35">
+                <Layers size={13} className="text-orange-500 shrink-0" />
+                <select value={chapter} onChange={e => { setPage(1); setChapter(e.target.value); }}
+                  className="flex-1 bg-transparent text-xs font-semibold text-slate-700 focus:outline-none cursor-pointer">
+                  <option value="">All Chapters</option>
+                  {uniqueChapters.map(c => <option key={c} value={c}>{c}</option>)}
+                </select>
+              </div>
 
-                <div className="flex items-center gap-2 bg-gradient-to-r from-yellow-50 to-orange-50 px-4 py-2 rounded-full border-2" style={{ borderColor: '#EAB308' }}>
-                  <TrendingUp className="w-4 h-4 text-yellow-700" />
+              {/* Difficulty */}
+              <div className="flex items-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 min-w-32.5">
+                <TrendingUp size={13} className="text-violet-500 shrink-0" />
+                <select value={difficulty} onChange={e => { setPage(1); setDifficulty(e.target.value); }}
+                  className="flex-1 bg-transparent text-xs font-semibold text-slate-700 focus:outline-none cursor-pointer">
+                  <option value="">All Levels</option>
+                  <option value="easy">Easy</option>
+                  <option value="medium">Medium</option>
+                  <option value="hard">Hard</option>
+                </select>
+              </div>
+
+              {/* Clear filters */}
+              {(subject || chapter || difficulty || q) && (
+                <button
+                  onClick={() => { setSubject(''); setChapter(''); setDifficulty(''); setQ(''); setPage(1); }}
+                  className="flex items-center gap-1.5 rounded-xl border border-red-200 bg-red-50 px-3 py-2.5 text-xs font-semibold text-red-600 hover:bg-red-100 transition shrink-0"
+                >
+                  <X size={12} /> Clear
+                </button>
+              )}
+
+              <button
+                onClick={() => setShowCreateProblem((prev) => !prev)}
+                className="flex items-center gap-1.5 rounded-xl border border-indigo-200 bg-indigo-50 px-3 py-2.5 text-xs font-semibold text-indigo-600 hover:bg-indigo-100 transition shrink-0"
+              >
+                <FileText size={12} /> {showCreateProblem ? 'Close' : 'Post Problem'}
+              </button>
+            </div>
+
+            {showCreateProblem && (
+              <div className="mt-4 rounded-xl border border-indigo-200 bg-indigo-50/40 p-4 space-y-3">
+                <p className="text-xs font-bold uppercase tracking-wide text-indigo-600">Post Your Problem</p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <input
+                    value={newProblem.title}
+                    onChange={(e) => setNewProblem((prev) => ({ ...prev, title: e.target.value }))}
+                    placeholder="Problem title"
+                    className="rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-800 focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-100"
+                  />
+                  <input
+                    value={newProblem.subject}
+                    onChange={(e) => setNewProblem((prev) => ({ ...prev, subject: e.target.value }))}
+                    placeholder="Subject"
+                    className="rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-800 focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-100"
+                  />
+                  <input
+                    value={newProblem.chapter}
+                    onChange={(e) => setNewProblem((prev) => ({ ...prev, chapter: e.target.value }))}
+                    placeholder="Chapter / topic"
+                    className="rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-800 focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-100"
+                  />
                   <select
-                    value={difficulty}
-                    onChange={(e) => { setPage(1); setDifficulty(e.target.value) }}
-                    className="bg-transparent border-0 text-yellow-800 font-medium focus:ring-0 cursor-pointer"
+                    value={newProblem.difficulty}
+                    onChange={(e) => setNewProblem((prev) => ({ ...prev, difficulty: e.target.value }))}
+                    className="rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-800 focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-100"
                   >
-                    <option value="">All Levels</option>
                     <option value="easy">Easy</option>
                     <option value="medium">Medium</option>
                     <option value="hard">Hard</option>
                   </select>
                 </div>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {viewMode === 'wall' && (
-          <div className="bg-white rounded-2xl shadow-lg p-4 sm:p-6 mb-6 border-2" style={{ backgroundColor: '#fefcf8', borderColor: '#B8860B' }}>
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-xl font-bold text-amber-800" style={{ fontFamily: 'Georgia, serif' }}>Teacher's Discussion Wall</h3>
-              <button
-                onClick={() => setShowNewPostForm(!showNewPostForm)}
-                className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-amber-500 to-orange-500 text-white rounded-full hover:from-amber-600 hover:to-orange-600 transition-all font-medium shadow-lg hover:scale-105"
-              >
-                <PlusCircle className="w-4 h-4" />
-                Share Problem
-              </button>
-            </div>
-
-            {showNewPostForm && (
-              <div className="bg-gradient-to-br from-amber-50 to-orange-50 rounded-xl p-5 border-2 mb-4" style={{ borderColor: '#F59E0B' }}>
-                <div className="space-y-4">
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-sm font-semibold text-amber-800 mb-2">Subject</label>
-                      <input
-                        value={newPostSubject}
-                        onChange={(e) => setNewPostSubject(e.target.value)}
-                        placeholder="e.g., Mathematics, Physics..."
-                        className="w-full px-3 py-2 border-2 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
-                        style={{ borderColor: '#F59E0B', backgroundColor: '#fffbeb' }}
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-semibold text-amber-800 mb-2">Difficulty</label>
-                      <select
-                        value={newPostDifficulty}
-                        onChange={(e) => setNewPostDifficulty(e.target.value)}
-                        className="w-full px-3 py-2 border-2 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
-                        style={{ borderColor: '#F59E0B', backgroundColor: '#fffbeb' }}
-                      >
-                        <option value="easy">Easy</option>
-                        <option value="medium">Medium</option>
-                        <option value="hard">Hard</option>
-                      </select>
-                    </div>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-semibold text-amber-800 mb-2">Problem or Discussion</label>
-                    <textarea
-                      value={newPostText}
-                      onChange={(e) => setNewPostText(e.target.value)}
-                      placeholder="Share an interesting problem, ask for help, or start a discussion..."
-                      rows={4}
-                      className="w-full px-3 py-2 border-2 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 resize-none"
-                      style={{ borderColor: '#F59E0B', backgroundColor: '#fffbeb' }}
-                    />
-                  </div>
-                  <div className="flex justify-end gap-3">
-                    <button
-                      onClick={() => setShowNewPostForm(false)}
-                      className="px-4 py-2 rounded-lg border-2 border-amber-300 text-amber-800 hover:bg-amber-50 font-medium transition-all"
-                    >
-                      Cancel
-                    </button>
-                    <button
-                      onClick={handleNewWallPost}
-                      disabled={postingWall || !newPostText.trim()}
-                      className={`px-6 py-2 rounded-lg font-medium transition-all flex items-center gap-2 ${postingWall || !newPostText.trim()
-                          ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                          : 'bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white shadow-lg hover:scale-105'
-                        }`}
-                    >
-                      {postingWall ? (
-                        <>
-                          <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                          Posting...
-                        </>
-                      ) : (
-                        <>
-                          <Send className="w-4 h-4" />
-                          Post to Wall
-                        </>
-                      )}
-                    </button>
-                  </div>
+                <textarea
+                  value={newProblem.problemText}
+                  onChange={(e) => setNewProblem((prev) => ({ ...prev, problemText: e.target.value }))}
+                  placeholder="Describe your problem..."
+                  rows={4}
+                  className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-800 focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-100 resize-none"
+                />
+                <div className="flex justify-end">
+                  <button
+                    onClick={submitStudentProblem}
+                    disabled={creatingProblem}
+                    className={`rounded-xl px-4 py-2.5 text-sm font-bold transition-all ${creatingProblem
+                      ? 'bg-slate-100 text-slate-400 cursor-not-allowed'
+                      : 'bg-indigo-600 hover:bg-indigo-700 text-white'
+                    }`}
+                  >
+                    {creatingProblem ? 'Posting…' : 'Post Problem'}
+                  </button>
                 </div>
               </div>
             )}
           </div>
         )}
 
-        {error && (
-          <div className="mb-4 p-4 rounded-xl bg-red-50 border-2 border-red-200 text-red-800 font-medium">
+        {/* ── Wall toolbar ── */}
+        {viewMode === 'wall' && (
+          <div className="mb-6 flex items-center justify-between rounded-2xl bg-white border border-slate-200 shadow-sm px-5 py-3.5">
             <div className="flex items-center gap-2">
-              <div className="w-2 h-2 bg-red-500 rounded-full"></div>
-              {error}
+              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-indigo-100">
+                <MessageSquare size={14} className="text-indigo-600" />
+              </div>
+              <div>
+                <p className="text-sm font-black text-slate-800">Teacher's Discussion Wall</p>
+                <p className="text-[11px] text-slate-400">{wallPosts.length} posts loaded</p>
+              </div>
             </div>
+            <button
+              onClick={fetchWallPosts}
+              className="flex items-center gap-1.5 rounded-xl bg-indigo-50 border border-indigo-200 px-3 py-2 text-xs font-bold text-indigo-600 hover:bg-indigo-100 transition"
+            >
+              <RefreshCw size={12} className={wallLoading ? 'animate-spin' : ''} />
+              Refresh
+            </button>
           </div>
         )}
 
+        {/* ── Error ── */}
+        {(error || wallError) && (
+          <div className="mb-5 flex items-center gap-2.5 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">
+            <AlertCircle size={15} className="shrink-0" />
+            {error || wallError}
+          </div>
+        )}
 
+        {/* ══════════════════════════════
+            PROBLEM CARDS
+        ══════════════════════════════ */}
         {viewMode === 'problems' && (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-            {loading && Array.from({ length: 6 }).map((_, i) => (
-              <div key={i} className="h-64 rounded-2xl border-2 animate-pulse" style={{ backgroundColor: '#f3e8d7', borderColor: '#D97706' }} />
-            ))}
+          <>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+              {loading && Array.from({ length: 6 }).map((_, i) => (
+                <div key={i} className="h-60 rounded-2xl bg-white border border-slate-200 animate-pulse" />
+              ))}
 
-            {!loading && items.map((p) => (
-              <div key={p._id} className="group bg-white rounded-2xl border-2 shadow-lg overflow-hidden hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1" style={{ backgroundColor: '#fefcf8', borderColor: '#D97706' }}>
+              {!loading && items.map((p) => (
+                <div
+                  key={p._id}
+                  className="group flex flex-col rounded-2xl bg-white border border-slate-200 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 overflow-hidden"
+                >
+                  {/* Card accent top */}
+                  <div className="h-1.5 w-full bg-linear-to-r from-amber-400 to-orange-500" />
 
-                <div className="bg-gradient-to-r from-amber-500 to-orange-500 p-4 relative overflow-hidden">
-                  <div className="absolute inset-0 bg-black/5"></div>
-                  <div className="relative flex items-start justify-between gap-2">
-                    <h3 className="font-bold text-white text-lg line-clamp-2 leading-tight" style={{ fontFamily: 'Georgia, serif' }}>{p.title}</h3>
-                    {p.highlighted && (
-                      <div className="flex-shrink-0 bg-yellow-300 rounded-full p-1">
-                        <Star className="w-4 h-4 text-yellow-800" title="Highlighted" />
-                      </div>
-                    )}
+                  <div className="flex flex-col flex-1 p-5">
+                    {/* Badges */}
+                    <div className="flex flex-wrap items-center gap-1.5 mb-3">
+                      {p.subject && (
+                        <span className="rounded-full bg-amber-50 border border-amber-200 px-2.5 py-0.5 text-[10px] font-bold text-amber-700">{p.subject}</span>
+                      )}
+                      {p.chapter && (
+                        <span className="rounded-full bg-orange-50 border border-orange-200 px-2.5 py-0.5 text-[10px] font-bold text-orange-700">{p.chapter}</span>
+                      )}
+                      {p.difficulty && (
+                        <span className={`rounded-full border px-2.5 py-0.5 text-[10px] font-bold capitalize ${diffBadge(p.difficulty)}`}>{p.difficulty}</span>
+                      )}
+                      {p.highlighted && (
+                        <span className="ml-auto flex items-center gap-1 rounded-full bg-yellow-50 border border-yellow-300 px-2 py-0.5 text-[10px] font-bold text-yellow-700">
+                          <Star size={9} className="fill-yellow-500 text-yellow-500" /> Featured
+                        </span>
+                      )}
+                    </div>
+
+                    {/* Title */}
+                    <h3 className="text-sm font-black text-slate-800 leading-snug line-clamp-2 mb-2 group-hover:text-amber-700 transition-colors">
+                      {p.title}
+                    </h3>
+                    <p className="text-[11px] text-slate-500 mb-2">
+                      {p.authorName || 'Unknown'}
+                      {String(p.authorType || '').toLowerCase() === 'student' && (p.authorGrade || p.authorSection) && (
+                        <span className="ml-1 font-semibold text-indigo-700">
+                          • Class {p.authorGrade || '-'} • Sec {p.authorSection || '-'}
+                        </span>
+                      )}
+                    </p>
+
+                    {/* Problem preview */}
+                    <p className="text-xs text-slate-500 leading-relaxed line-clamp-3 flex-1">
+                      {p.problemText}
+                    </p>
+
+                    {/* Footer */}
+                    <div className="mt-4 flex items-center justify-between pt-3 border-t border-slate-100">
+                      <span className="inline-flex items-center gap-1 text-[11px] text-slate-400">
+                        <Calendar size={10} />
+                        {new Date(p.createdAt).toLocaleDateString()}
+                      </span>
+                      <button
+                        onClick={() => openPost(p)}
+                        className="flex items-center gap-1.5 rounded-xl bg-amber-50 border border-amber-200 px-3 py-1.5 text-xs font-bold text-amber-700 hover:bg-amber-100 transition group-hover:bg-amber-500 group-hover:text-white group-hover:border-amber-500"
+                      >
+                        Explore <ChevronRight size={11} />
+                      </button>
+                    </div>
                   </div>
                 </div>
+              ))}
+
+              {!loading && items.length === 0 && (
+                <div className="col-span-full flex flex-col items-center justify-center gap-3 py-16 text-center">
+                  <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-slate-100">
+                    <BookOpen size={28} className="text-slate-300" />
+                  </div>
+                  <p className="text-sm font-bold text-slate-600">No problems found</p>
+                  <p className="text-xs text-slate-400">Try adjusting your filters</p>
+                </div>
+              )}
+            </div>
+
+            {/* Pagination */}
+            {totalPages > 1 && (
+              <div className="mt-8 flex items-center justify-center gap-2">
+                <button
+                  disabled={page <= 1}
+                  onClick={() => setPage(p => Math.max(1, p - 1))}
+                  className="flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition"
+                >
+                  <ChevronLeft size={13} /> Prev
+                </button>
+                <span className="rounded-xl bg-amber-500 px-4 py-2 text-xs font-black text-white shadow-sm shadow-amber-200">
+                  {page} / {totalPages}
+                </span>
+                <button
+                  disabled={page >= totalPages}
+                  onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                  className="flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition"
+                >
+                  Next <ChevronRight size={13} />
+                </button>
+              </div>
+            )}
+          </>
+        )}
+
+        {/* ══════════════════════════════
+            WALL POSTS
+        ══════════════════════════════ */}
+        {viewMode === 'wall' && (
+          <div className="max-w-3xl mx-auto space-y-4">
+            {wallLoading && Array.from({ length: 3 }).map((_, i) => (
+              <div key={i} className="h-40 rounded-2xl bg-white border border-slate-200 animate-pulse" />
+            ))}
+
+            {!wallLoading && wallPosts.map((post) => (
+              <div key={post._id} className="rounded-2xl bg-white border border-slate-200 shadow-sm hover:shadow-md transition-all overflow-hidden">
+                {/* Accent */}
+                <div className="h-1 w-full bg-linear-to-r from-indigo-400 to-violet-500" />
 
                 <div className="p-5">
-                  <div className="flex flex-wrap gap-2 mb-4">
-                    <span className="px-3 py-1 rounded-full text-xs font-semibold bg-amber-100 text-amber-800 border border-amber-300">{p.subject}</span>
-                    <span className="px-3 py-1 rounded-full text-xs font-semibold bg-orange-100 text-orange-800 border border-orange-300">{p.chapter}</span>
-                    <span className={`px-3 py-1 rounded-full text-xs font-semibold capitalize border ${p.difficulty === 'easy' ? 'bg-green-100 text-green-800 border-green-300' :
-                        p.difficulty === 'medium' ? 'bg-yellow-100 text-yellow-800 border-yellow-300' :
-                          'bg-red-100 text-red-800 border-red-300'
-                      }`}>{p.difficulty}</span>
-                  </div>
-
-                  <p className="text-gray-700 line-clamp-4 leading-relaxed mb-4 text-sm">{p.problemText}</p>
-
-                  <div className="flex items-center justify-between pt-4 border-t border-amber-200">
-                    <div className="flex items-center gap-2 text-xs text-amber-700">
-                      <CalendarIcon className="w-3 h-3" />
-                      {new Date(p.createdAt).toLocaleDateString()}
-                    </div>
-                    <button
-                      onClick={() => openPost(p)}
-                      className="px-4 py-2 bg-gradient-to-r from-amber-500 to-orange-500 text-white rounded-full hover:from-amber-600 hover:to-orange-600 transition-all font-medium text-sm group-hover:scale-105"
-                    >
-                      Explore Solution
-                    </button>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-
-        {viewMode === 'wall' && (
-          <div className="max-w-3xl mx-auto space-y-6">
-            {wallPosts.map((post) => (
-              <div key={post.id} className="bg-white rounded-2xl border-2 shadow-lg hover:shadow-xl transition-all duration-300" style={{ backgroundColor: '#fefcf8', borderColor: '#D97706' }}>
-
-                <div className="p-6 border-b border-amber-200">
-                  <div className="flex items-start gap-4">
-                    <div className="w-12 h-12 bg-gradient-to-r from-amber-500 to-orange-500 rounded-full flex items-center justify-center text-white font-bold text-lg shadow-lg">
-                      {post.teacherAvatar}
-                    </div>
-                    <div className="flex-1">
-                      <div className="flex items-start justify-between gap-4">
-                        <div>
-                          <h4 className="font-bold text-amber-800 text-lg" style={{ fontFamily: 'Georgia, serif' }}>
-                            {post.teacherName}
-                          </h4>
-                          <div className="flex items-center gap-2 mt-1">
-                            <span className="px-3 py-1 rounded-full text-xs font-semibold bg-amber-100 text-amber-800 border border-amber-300">
-                              {post.subject}
-                            </span>
-                            <span className={`px-3 py-1 rounded-full text-xs font-semibold capitalize border ${post.difficulty === 'easy' ? 'bg-green-100 text-green-800 border-green-300' :
-                                post.difficulty === 'medium' ? 'bg-yellow-100 text-yellow-800 border-yellow-300' :
-                                  'bg-red-100 text-red-800 border-red-300'
-                              }`}>
-                              {post.difficulty}
-                            </span>
-                            <span className="text-xs text-gray-500">
-                              {formatTimeAgo(post.timestamp)}
-                            </span>
-                          </div>
-                        </div>
+                  <div className="flex items-start gap-3 mb-3">
+                    <Avatar name={post.authorName || 'T'} size="md" gradient="from-indigo-400 to-violet-500" />
+                    <div className="flex-1 min-w-0">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="text-sm font-black text-slate-800">{post.authorName || 'Teacher'}</span>
+                        {String(post.authorType || '').toLowerCase() === 'student' && (post.authorGrade || post.authorSection) && (
+                          <span className="rounded-full bg-indigo-50 border border-indigo-200 px-2 py-0.5 text-[10px] font-bold text-indigo-700">
+                            Class {post.authorGrade || '-'} • Sec {post.authorSection || '-'}
+                          </span>
+                        )}
+                        {post.subject && (
+                          <span className="rounded-full bg-indigo-50 border border-indigo-200 px-2 py-0.5 text-[10px] font-bold text-indigo-700">{post.subject}</span>
+                        )}
+                        {post.difficulty && (
+                          <span className={`rounded-full border px-2 py-0.5 text-[10px] font-bold capitalize ${diffBadge(post.difficulty)}`}>{post.difficulty}</span>
+                        )}
+                        <span className="ml-auto text-[11px] text-slate-400">{timeAgo(post.createdAt)}</span>
                       </div>
+                      <p className="text-xs text-slate-500 mt-0.5 font-medium">{post.chapter || ''}</p>
                     </div>
                   </div>
-                </div>
-                <div className="p-6">
-                  <p className="text-gray-800 leading-relaxed whitespace-pre-wrap text-base">
-                    {post.content}
-                  </p>
-                </div>
 
-                <div className="px-6 pb-6 flex items-center justify-between border-t border-amber-200 pt-4">
-                  <div className="flex items-center gap-4">
-                    <button
-                      onClick={() => handleLikePost(post.id)}
-                      className={`flex items-center gap-2 px-4 py-2 rounded-full transition-all font-medium ${post.isLiked
-                          ? 'bg-red-100 text-red-600 border-2 border-red-300'
-                          : 'bg-gray-100 text-gray-600 border-2 border-gray-300 hover:bg-red-50 hover:text-red-500'
+                  <p className="text-sm text-slate-700 leading-relaxed line-clamp-4 mb-4">{post.problemText}</p>
+
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => handleLikePost(post._id)}
+                        className={`inline-flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-semibold border transition ${post.isLiked
+                          ? 'bg-rose-50 border-rose-200 text-rose-600'
+                          : 'bg-slate-100 border-slate-200 text-slate-600 hover:bg-slate-200'
                         }`}
-                    >
-                      <Heart className={`w-4 h-4 ${post.isLiked ? 'fill-current' : ''}`} />
-                      {post.likes}
-                    </button>
-                    <button className="flex items-center gap-2 px-4 py-2 rounded-full bg-blue-100 text-blue-600 border-2 border-blue-300 hover:bg-blue-50 transition-all font-medium">
-                      <MessageSquare className="w-4 h-4" />
-                      {post.comments}
-                    </button>
-                  </div>
-                  <div className="text-xs text-gray-500">
-                    <CalendarIcon className="w-3 h-3 inline mr-1" />
-                    {post.timestamp.toLocaleDateString()}
+                      >
+                        <Heart size={11} className={post.isLiked ? 'fill-current' : ''} /> {post.likeCount || 0} Likes
+                      </button>
+                      <button
+                        onClick={() => openPost(post)}
+                        className="inline-flex items-center gap-1.5 rounded-xl bg-slate-100 border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-200 transition"
+                      >
+                        <MessageSquare size={11} /> {post.commentCount || 0} Comments
+                      </button>
+                      <button
+                        onClick={() => openPost(post)}
+                        className="inline-flex items-center gap-1.5 rounded-xl bg-violet-50 border border-violet-200 px-3 py-1.5 text-xs font-semibold text-violet-600 hover:bg-violet-100 transition"
+                      >
+                        <Users size={11} /> {post.submissionCount || 0} Answers
+                      </button>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-slate-500">
+                        <Eye size={11} /> {post.viewCount || 0}
+                      </span>
+                      <button
+                        onClick={() => openPost(post)}
+                        className="flex items-center gap-1 text-xs font-bold text-amber-600 hover:text-amber-800 transition"
+                      >
+                        Open <ChevronRight size={12} />
+                      </button>
+                    </div>
                   </div>
                 </div>
               </div>
             ))}
 
-            {wallPosts.length === 0 && (
-              <div className="text-center py-12">
-                <MessageSquare className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-                <h3 className="text-lg font-medium text-gray-900 mb-2">No posts yet</h3>
-                <p className="text-gray-600">Be the first to share a problem or start a discussion!</p>
+            {!wallLoading && wallPosts.length === 0 && (
+              <div className="flex flex-col items-center justify-center gap-3 py-16 text-center">
+                <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-slate-100">
+                  <MessageSquare size={28} className="text-slate-300" />
+                </div>
+                <p className="text-sm font-bold text-slate-600">No posts yet</p>
+                <p className="text-xs text-slate-400">Check back later for teacher posts</p>
               </div>
             )}
           </div>
         )}
+      </div>
 
-        {viewMode === 'problems' && totalPages > 1 && (
-          <div className="mt-8 flex items-center justify-center gap-3">
-            <button
-              disabled={page <= 1}
-              onClick={() => setPage(p => Math.max(1, p - 1))}
-              className={`px-6 py-3 rounded-full font-medium transition-all ${page <= 1
-                  ? 'text-gray-400 border-2 border-gray-200 bg-gray-50'
-                  : 'text-amber-800 border-2 border-amber-300 bg-amber-50 hover:bg-amber-100 hover:scale-105'
-                }`}
-            >
-              Previous
-            </button>
-            <div className="px-6 py-3 rounded-full bg-gradient-to-r from-amber-500 to-orange-500 text-white font-bold shadow-lg">
-              Page {page} of {totalPages}
-            </div>
-            <button
-              disabled={page >= totalPages}
-              onClick={() => setPage(p => Math.min(totalPages, p + 1))}
-              className={`px-6 py-3 rounded-full font-medium transition-all ${page >= totalPages
-                  ? 'text-gray-400 border-2 border-gray-200 bg-gray-50'
-                  : 'text-amber-800 border-2 border-amber-300 bg-amber-50 hover:bg-amber-100 hover:scale-105'
-                }`}
-            >
-              Next
-            </button>
-          </div>
-        )}
-
-        {selected && (
-          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setSelected(null)}>
-            <div className="bg-white w-full max-w-5xl rounded-2xl shadow-2xl overflow-hidden border-4" style={{ backgroundColor: '#fefcf8', borderColor: '#8B7355' }} onClick={(e) => e.stopPropagation()}>
-
-              <div className="bg-gradient-to-r from-amber-500 to-orange-500 p-6 relative overflow-hidden">
-                <div className="absolute inset-0 bg-black/10"></div>
-                <div className="relative flex items-start justify-between gap-4">
-                  <div className="flex-1">
-                    <h3 className="text-2xl font-bold text-white mb-3 leading-tight" style={{ fontFamily: 'Georgia, serif' }}>{selected.title}</h3>
-                    <div className="flex flex-wrap gap-2">
-                      <span className="px-3 py-1 rounded-full text-sm font-semibold bg-amber-200 text-amber-800 border border-amber-400">{selected.subject}</span>
-                      <span className="px-3 py-1 rounded-full text-sm font-semibold bg-orange-200 text-orange-800 border border-orange-400">{selected.chapter}</span>
-                      <span className={`px-3 py-1 rounded-full text-sm font-semibold capitalize border ${selected.difficulty === 'easy' ? 'bg-green-200 text-green-800 border-green-400' :
-                          selected.difficulty === 'medium' ? 'bg-yellow-200 text-yellow-800 border-yellow-400' :
-                            'bg-red-200 text-red-800 border-red-400'
-                        }`}>{selected.difficulty}</span>
-                    </div>
+      {/* ══════════════════════════════════════════════════════════
+          MODAL
+      ══════════════════════════════════════════════════════════ */}
+      {selected && (
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/50 backdrop-blur-sm"
+          onClick={() => setSelected(null)}>
+          <div
+            className="relative bg-white w-full sm:max-w-3xl max-h-[95vh] sm:max-h-[88vh] rounded-t-3xl sm:rounded-3xl shadow-2xl flex flex-col overflow-hidden"
+            onClick={e => e.stopPropagation()}
+          >
+            {/* Modal header */}
+            <div className="bg-linear-to-br from-amber-400 to-orange-500 px-5 py-5 relative overflow-hidden shrink-0">
+              <div className="pointer-events-none absolute -right-6 -top-6 h-24 w-24 rounded-full bg-white/10" />
+              <div className="relative">
+                <div className="flex items-start justify-between gap-3 mb-3">
+                  <div className="flex-1 min-w-0">
+                    <h3 className="text-lg font-black text-white leading-snug line-clamp-2">{selected.title}</h3>
                   </div>
+                  <button onClick={() => setSelected(null)}
+                    className="shrink-0 flex h-8 w-8 items-center justify-center rounded-xl bg-white/20 hover:bg-white/35 transition border border-white/30">
+                    <X size={14} className="text-white" />
+                  </button>
+                </div>
+                <div className="flex flex-wrap gap-1.5">
+                  {selected.authorName && (
+                    <span className="rounded-full bg-white/25 border border-white/35 px-2.5 py-0.5 text-[10px] font-bold text-white">
+                      {selected.authorName}
+                      {String(selected.authorType || '').toLowerCase() === 'student' && (selected.authorGrade || selected.authorSection)
+                        ? ` • Class ${selected.authorGrade || '-'} • Sec ${selected.authorSection || '-'}`
+                        : ''}
+                    </span>
+                  )}
+                  {selected.subject && (
+                    <span className="rounded-full bg-white/25 border border-white/35 px-2.5 py-0.5 text-[10px] font-bold text-white">{selected.subject}</span>
+                  )}
+                  {selected.chapter && (
+                    <span className="rounded-full bg-white/25 border border-white/35 px-2.5 py-0.5 text-[10px] font-bold text-white">{selected.chapter}</span>
+                  )}
+                  {selected.difficulty && (
+                    <span className="rounded-full bg-white/25 border border-white/35 px-2.5 py-0.5 text-[10px] font-bold text-white capitalize">{selected.difficulty}</span>
+                  )}
                   {selected.highlighted && (
-                    <div className="flex-shrink-0 bg-yellow-300 rounded-full p-2 shadow-lg">
-                      <Star className="w-6 h-6 text-yellow-800" />
-                    </div>
+                    <span className="rounded-full bg-yellow-300/80 border border-yellow-400/50 px-2.5 py-0.5 text-[10px] font-bold text-yellow-900 flex items-center gap-1">
+                      <Star size={9} className="fill-yellow-700" /> Featured
+                    </span>
                   )}
                 </div>
               </div>
 
-              <div className="p-6 grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* Tab bar */}
+              <div className="mt-3 flex gap-1 bg-white/15 rounded-xl p-1">
+                {[
+                  { id: 'problem', label: 'Problem',    count: null },
+                  { id: 'answer',  label: 'My Answer',  count: null },
+                  { id: 'discuss', label: 'Discussion', count: comments.length },
+                  { id: 'peers',   label: 'Peers',      count: submissions.length },
+                ].map(({ id, label, count }) => (
+                  <button
+                    key={id}
+                    onClick={() => setModalTab(id)}
+                    className={`flex-1 flex items-center justify-center gap-1 rounded-lg py-1.5 text-[11px] font-bold transition-all
+                      ${modalTab === id ? 'bg-white text-amber-700 shadow-sm' : 'text-white/75 hover:text-white hover:bg-white/10'}`}
+                  >
+                    {label}
+                    {count !== null && count > 0 && (
+                      <span className={`rounded-full px-1.5 py-0.5 text-[9px] font-black leading-none ${modalTab === id ? 'bg-amber-100 text-amber-700' : 'bg-white/25 text-white'}`}>
+                        {count}
+                      </span>
+                    )}
+                  </button>
+                ))}
+              </div>
+            </div>
 
-                <div className="bg-gradient-to-br from-amber-50 to-orange-50 rounded-xl p-5 border-2" style={{ borderColor: '#F59E0B' }}>
-                  <div className="flex items-center gap-2 mb-4">
-                    <div className="w-3 h-3 bg-amber-500 rounded-full"></div>
-                    <h4 className="text-lg font-bold text-amber-800" style={{ fontFamily: 'Georgia, serif' }}>Problem Statement</h4>
+            {/* Modal body */}
+            <div className="flex-1 overflow-y-auto">
+
+              {/* ── Problem + Solution tab ── */}
+              {modalTab === 'problem' && (
+                <div className="p-5 space-y-4">
+                  <div className="rounded-xl border border-amber-200 bg-amber-50/50 p-4">
+                    <p className="text-[11px] font-bold uppercase tracking-wide text-amber-600 mb-2">Problem Statement</p>
+                    <p className="text-sm text-slate-800 leading-relaxed whitespace-pre-wrap">{selected.problemText}</p>
                   </div>
-                  <div className="prose prose-sm max-w-none text-gray-800 leading-relaxed whitespace-pre-wrap bg-white rounded-lg p-4 border border-amber-200 shadow-sm">
-                    {selected.problemText}
-                  </div>
+                  {selected.solutionText && (
+                    <div className="rounded-xl border border-emerald-200 bg-emerald-50/50 p-4">
+                      <p className="text-[11px] font-bold uppercase tracking-wide text-emerald-600 mb-2">Expert Solution</p>
+                      <p className="text-sm text-slate-800 leading-relaxed whitespace-pre-wrap">{selected.solutionText}</p>
+                    </div>
+                  )}
                 </div>
+              )}
 
-                <div className="bg-gradient-to-br from-green-50 to-emerald-50 rounded-xl p-5 border-2" style={{ borderColor: '#10B981' }}>
-                  <div className="flex items-center gap-2 mb-4">
-                    <div className="w-3 h-3 bg-green-500 rounded-full"></div>
-                    <h4 className="text-lg font-bold text-green-800" style={{ fontFamily: 'Georgia, serif' }}>Expert Solution</h4>
-                  </div>
-                  <div className="prose prose-sm max-w-none text-gray-800 leading-relaxed whitespace-pre-wrap bg-white rounded-lg p-4 border border-green-200 shadow-sm">
-                    {selected.solutionText}
-                  </div>
-                </div>
-
-                {/* Submission Section - NEW */}
-                <div className="col-span-1 lg:col-span-2 bg-gradient-to-br from-blue-50 to-indigo-50 rounded-xl p-5 border-2" style={{ borderColor: '#3B82F6' }}>
-                  <div className="flex items-center gap-2 mb-4">
-                    <div className="w-3 h-3 bg-blue-500 rounded-full"></div>
-                    <h4 className="text-lg font-bold text-blue-800" style={{ fontFamily: 'Georgia, serif' }}>
-                      Your Answer
-                    </h4>
-                  </div>
-
+              {/* ── My Answer tab ── */}
+              {modalTab === 'answer' && (
+                <div className="p-5">
                   {mySubmission ? (
-                    <div className="bg-white rounded-lg p-4 border border-blue-200 shadow-sm">
-                      <div className="flex items-center gap-2 mb-3 text-sm text-green-600">
-                        <Check className="w-4 h-4" />
-                        <span className="font-semibold">Submitted on {new Date(mySubmission.submittedAt).toLocaleString()}</span>
+                    <div className="rounded-xl border border-emerald-200 bg-emerald-50/50 p-4">
+                      <div className="flex items-center justify-between mb-3">
+                        <div className="flex items-center gap-2 text-xs font-bold text-emerald-700">
+                          <Check size={13} className="text-emerald-600" />
+                          Submitted {new Date(mySubmission.submittedAt).toLocaleString()}
+                        </div>
+                        <button
+                          onClick={() => { setMySubmission(null); setAnswerText(''); }}
+                          className="text-xs font-bold text-blue-600 hover:text-blue-800 transition"
+                        >
+                          Edit
+                        </button>
                       </div>
-                      <div className="prose prose-sm max-w-none text-gray-800 leading-relaxed whitespace-pre-wrap mb-4">
-                        {mySubmission.answerText}
-                      </div>
-                      <button
-                        onClick={() => {
-                          setMySubmission(null);
-                          setAnswerText('');
-                        }}
-                        className="text-sm text-blue-600 hover:text-blue-800 font-medium"
-                      >
-                        Edit Answer
-                      </button>
+                      <p className="text-sm text-slate-800 leading-relaxed whitespace-pre-wrap">{mySubmission.answerText}</p>
                     </div>
                   ) : (
-                    <>
+                    <div className="space-y-3">
+                      <p className="text-[11px] font-bold uppercase tracking-wide text-slate-500">Write your answer</p>
                       <textarea
                         value={answerText}
-                        onChange={(e) => setAnswerText(e.target.value)}
-                        placeholder="Write your answer here..."
-                        rows={6}
-                        className="w-full px-4 py-3 border-2 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-none mb-3"
-                        style={{ borderColor: '#3B82F6', backgroundColor: '#eff6ff' }}
+                        onChange={e => setAnswerText(e.target.value)}
+                        placeholder="Type your answer here…"
+                        rows={8}
+                        className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-800 placeholder:text-slate-400 focus:border-amber-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-amber-100 resize-none transition"
                       />
                       <button
                         onClick={submitAnswer}
                         disabled={submitting || !answerText.trim()}
-                        className={`px-6 py-3 rounded-lg font-semibold transition-all flex items-center gap-2 ${
-                          submitting || !answerText.trim()
-                            ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                            : 'bg-gradient-to-r from-blue-500 to-indigo-500 hover:from-blue-600 hover:to-indigo-600 text-white shadow-lg hover:scale-105'
-                        }`}
+                        className={`flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-bold transition-all
+                          ${submitting || !answerText.trim()
+                            ? 'bg-slate-100 text-slate-400 cursor-not-allowed'
+                            : 'bg-amber-500 hover:bg-amber-600 text-white shadow-sm shadow-amber-200'}`}
                       >
-                        {submitting ? (
-                          <>
-                            <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                            Submitting...
-                          </>
-                        ) : (
-                          <>
-                            <Send className="w-4 h-4" />
-                            Submit Answer
-                          </>
-                        )}
+                        {submitting ? <><Loader2 size={14} className="animate-spin" /> Submitting…</> : <><Send size={14} /> Submit Answer</>}
                       </button>
-                    </>
+                    </div>
                   )}
                 </div>
+              )}
 
-                {/* Submissions from Other Students - NEW */}
-                <div className="col-span-1 lg:col-span-2 bg-gradient-to-br from-purple-50 to-pink-50 rounded-xl p-5 border-2" style={{ borderColor: '#A855F7' }}>
-                  <div className="flex items-center justify-between mb-4">
-                    <div className="flex items-center gap-2">
-                      <Users className="w-5 h-5 text-purple-600" />
-                      <h4 className="text-lg font-bold text-purple-800" style={{ fontFamily: 'Georgia, serif' }}>
-                        Student Submissions ({submissions.length})
-                      </h4>
+              {/* ── Discussion tab ── */}
+              {modalTab === 'discuss' && (
+                <div className="p-5 flex flex-col gap-4">
+                  {/* Comment list */}
+                  <div className="space-y-3 max-h-64 overflow-y-auto">
+                  {comments.length === 0 ? (
+                    <div className="flex flex-col items-center gap-2 py-8 text-center">
+                      <MessageSquare size={24} className="text-slate-300" />
+                      <p className="text-xs text-slate-400">No comments yet — be the first!</p>
                     </div>
-                    <button
-                      onClick={() => setShowSubmissions(!showSubmissions)}
-                      className="text-sm font-medium text-purple-600 hover:text-purple-800"
-                    >
-                      {showSubmissions ? 'Hide' : 'Show'} All
-                    </button>
-                  </div>
-
-                  {showSubmissions && (
-                    <div className="max-h-96 overflow-y-auto space-y-3">
-                      {submissions.length === 0 ? (
-                        <div className="text-center py-8 text-gray-500">
-                          <Users className="w-12 h-12 text-gray-300 mx-auto mb-2" />
-                          <p>No submissions yet. Be the first to submit!</p>
-                        </div>
-                      ) : (
-                        submissions.map((sub) => (
-                          <div key={sub._id} className="bg-white rounded-lg p-4 border-2 border-purple-200 shadow-sm">
-                            <div className="flex items-start gap-3">
-                              <div className="w-10 h-10 bg-gradient-to-r from-purple-400 to-pink-400 rounded-full flex items-center justify-center text-white font-bold text-sm flex-shrink-0">
-                                {sub.studentName[0].toUpperCase()}
-                              </div>
-                              <div className="flex-1">
-                                <div className="flex items-center gap-2 mb-2">
-                                  <span className="font-semibold text-purple-800">{sub.studentName}</span>
-                                  {sub.grade && sub.section && (
-                                    <span className="text-xs px-2 py-1 bg-purple-100 text-purple-700 rounded-full">
-                                      {sub.grade} - {sub.section}
-                                    </span>
-                                  )}
-                                  <span className="text-xs text-gray-500 ml-auto">
-                                    {new Date(sub.submittedAt).toLocaleDateString()}
-                                  </span>
-                                </div>
-                                <div className="text-gray-800 whitespace-pre-wrap leading-relaxed text-sm">
-                                  {sub.answerText}
-                                </div>
-                              </div>
-                            </div>
+                  ) : comments.map(c => {
+                    const byId = c?.authorId && selected?.authorUserId && String(c.authorId) === String(selected.authorUserId);
+                    const byType = String(c?.authorType || '').toLowerCase() === String(selected?.authorType || '').toLowerCase();
+                    const byName = String(c?.authorName || '').trim().toLowerCase() === String(selected?.authorName || '').trim().toLowerCase();
+                    const isPostAuthor = (byId && byType) || byName;
+                    return (
+                      <div key={c._id} className="flex items-start gap-3">
+                        <Avatar name={c.authorName || 'A'} size="sm" gradient="from-slate-400 to-slate-600" />
+                        <div className="flex-1 min-w-0 rounded-xl bg-slate-50 border border-slate-200 px-3 py-2.5">
+                          <div className="flex items-center gap-2 mb-1">
+                            <span className="text-xs font-black text-slate-800">
+                              {c.authorName || 'Anonymous'}
+                              {isPostAuthor && <span className="ml-1 text-[10px] text-amber-600">(Author)</span>}
+                            </span>
+                            <span className="text-[10px] text-slate-400">{new Date(c.createdAt).toLocaleString()}</span>
                           </div>
-                        ))
-                      )}
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              <div className="border-t-4 border-amber-200 bg-gradient-to-br from-orange-50 to-amber-50 p-6">
-                <div className="flex items-center gap-3 mb-4">
-                  <MessageSquare className="w-6 h-6 text-orange-600" />
-                  <h4 className="text-xl font-bold text-orange-800" style={{ fontFamily: 'Georgia, serif' }}>Discussion Forum</h4>
-                </div>
-
-                <div className="max-h-64 overflow-y-auto space-y-3 mb-4 bg-white rounded-xl p-4 border-2 border-orange-200">
-                  {comments.length === 0 && (
-                    <div className="text-center py-8 text-gray-500">
-                      <MessageSquare className="w-12 h-12 text-gray-300 mx-auto mb-2" />
-                      <p>No comments yet. Be the first to ask or share insight!</p>
-                    </div>
-                  )}
-                  {comments.map(c => (
-                    <div key={c._id} className="bg-gradient-to-r from-amber-50 to-orange-50 border-2 border-amber-200 rounded-xl p-4 shadow-sm">
-                      <div className="flex items-center gap-2 mb-2">
-                        <div className="w-8 h-8 bg-gradient-to-r from-amber-400 to-orange-400 rounded-full flex items-center justify-center text-white font-bold text-sm">
-                          {(c.authorName || 'A')[0].toUpperCase()}
-                        </div>
-                        <div>
-                          <div className="font-semibold text-amber-800">{c.authorName || 'Anonymous'}</div>
-                          <div className="text-xs text-amber-600">{new Date(c.createdAt).toLocaleString()}</div>
+                          <p className="text-xs text-slate-700 leading-relaxed whitespace-pre-wrap">{c.text}</p>
                         </div>
                       </div>
-                      <div className="text-gray-800 whitespace-pre-wrap leading-relaxed">{c.text}</div>
-                    </div>
-                  ))}
-                </div>
+                    );
+                  })}
+                  </div>
 
-                <div className="flex gap-3">
-                  <input
-                    value={commentText}
-                    onChange={(e) => setCommentText(e.target.value)}
-                    placeholder="Share your thoughts or ask a question..."
-                    className="flex-1 px-4 py-3 border-2 rounded-xl focus:ring-2 focus:ring-amber-500 focus:border-amber-500 transition-all text-lg"
-                    style={{ borderColor: '#F59E0B', backgroundColor: '#fffbeb' }}
-                  />
-                  <button
-                    disabled={postingComment || !commentText.trim()}
-                    onClick={submitComment}
-                    className={`px-6 py-3 rounded-xl font-semibold transition-all ${postingComment || !commentText.trim()
-                        ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                        : 'bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white shadow-lg hover:scale-105'
-                      }`}
-                  >
-                    {postingComment ? 'Posting...' : 'Post Comment'}
-                  </button>
-                  <button
-                    onClick={() => setSelected(null)}
-                    className="px-6 py-3 rounded-xl border-2 border-amber-300 text-amber-800 hover:bg-amber-50 font-semibold transition-all hover:scale-105"
-                  >
-                    Close
-                  </button>
+                  {/* Comment input */}
+                  <div className="flex gap-2 border-t border-slate-100 pt-3">
+                    <input
+                      value={commentText}
+                      onChange={e => setCommentText(e.target.value)}
+                      onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); submitComment(); } }}
+                      placeholder="Share a thought or question…"
+                      className="flex-1 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-800 placeholder:text-slate-400 focus:border-amber-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-amber-100 transition"
+                    />
+                    <button
+                      onClick={submitComment}
+                      disabled={postingComment || !commentText.trim()}
+                      className={`flex items-center gap-1.5 rounded-xl px-4 py-2.5 text-sm font-bold transition-all shrink-0
+                        ${postingComment || !commentText.trim()
+                          ? 'bg-slate-100 text-slate-400 cursor-not-allowed'
+                          : 'bg-amber-500 hover:bg-amber-600 text-white shadow-sm'}`}
+                    >
+                      {postingComment ? <Loader2 size={13} className="animate-spin" /> : <Send size={13} />}
+                      {postingComment ? '' : 'Post'}
+                    </button>
+                  </div>
                 </div>
-              </div>
+              )}
+
+              {/* ── Peers tab ── */}
+              {modalTab === 'peers' && (
+                <div className="p-5">
+                  {submissions.length === 0 ? (
+                    <div className="flex flex-col items-center gap-2 py-8 text-center">
+                      <Users size={24} className="text-slate-300" />
+                      <p className="text-xs text-slate-400">No submissions yet</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      {submissions.map(sub => (
+                        <div key={sub._id} className="flex items-start gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3.5">
+                          <Avatar name={sub.studentName} size="sm" gradient="from-violet-400 to-purple-500" />
+                          <div className="flex-1 min-w-0">
+                            <div className="flex flex-wrap items-center gap-2 mb-1.5">
+                              <span className="text-xs font-black text-slate-800">{sub.studentName}</span>
+                              {sub.grade && sub.section && (
+                                <span className="rounded-full bg-violet-50 border border-violet-200 px-2 py-0.5 text-[10px] font-bold text-violet-700">
+                                  {sub.grade} – {sub.section}
+                                </span>
+                              )}
+                              <span className="ml-auto text-[10px] text-slate-400">
+                                {new Date(sub.submittedAt).toLocaleDateString()}
+                              </span>
+                            </div>
+                            <p className="text-xs text-slate-700 leading-relaxed whitespace-pre-wrap">{sub.answerText}</p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           </div>
-        )}
-      </div>
-    </>
+        </div>
+      )}
+    </div>
   );
 }
