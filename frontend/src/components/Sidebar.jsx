@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Home, Calendar, Users, FileText, BookOpen, LogOut,
   ChevronDown, ChevronRight, ChevronLeft, File, Trophy, Bell,
@@ -8,6 +8,8 @@ import {
 import { useNavigate } from 'react-router-dom';
 import { useStudentDashboard } from './StudentDashboardContext';
 import { AUTH_NOTICE, logoutAndRedirect } from '../utils/authSession';
+
+const API_URL = (import.meta.env.VITE_API_URL || 'http://localhost:5000').replace(/\/$/, '');
 
 /* ── Menu definition ─────────────────────────────────────────── */
 const MENU_ITEMS = [
@@ -88,6 +90,7 @@ const Sidebar = ({ activeView, isOpen, setIsOpen, onNavigateIntent }) => {
   const [openGroups, setOpenGroups] = useState({});
   const [hoverId, setHoverId]       = useState(null);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+  const [unreadChatCount, setUnreadChatCount] = useState(0);
   const { profile, classTeacher }   = useStudentDashboard();
 
   const collapsed = !isOpen; // desktop icon-only state
@@ -101,13 +104,6 @@ const Sidebar = ({ activeView, isOpen, setIsOpen, onNavigateIntent }) => {
   /* helpers */
   const displayClass   = studentData.className  || studentData.grade;
   const displaySection = studentData.sectionName || studentData.section;
-  const displayRoll    = studentData.rollNumber  || studentData.roll;
-  const displayCampus  = studentData.campusName
-    ? studentData.campusType
-      ? `${studentData.campusName} (${studentData.campusType})`
-      : studentData.campusName
-    : '';
-
   const resolveTeacherName = (t, p) => {
     if (typeof t === 'string' && t.trim()) return t.trim();
     const d = t?.name || t?.teacherName || t?.fullName || t?.displayName;
@@ -127,6 +123,7 @@ const Sidebar = ({ activeView, isOpen, setIsOpen, onNavigateIntent }) => {
   const profileImage   = studentData.profilePic || studentData.avatar || '';
   const hasProfileImage = typeof profileImage === 'string' && profileImage.trim() !== '';
   const schoolLogoSrc  = studentData.schoolLogo || '/harrow-hall-school.png';
+  const unreadLabel = unreadChatCount > 99 ? '99+' : String(unreadChatCount);
 
   const handleNavigation = (pageId) => {
     const path = pageId === 'dashboard' ? '/student' : `/student/${pageId}`;
@@ -149,6 +146,46 @@ const Sidebar = ({ activeView, isOpen, setIsOpen, onNavigateIntent }) => {
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
   }, [isOpen, setIsOpen]);
+
+  const fetchUnreadChatCount = async () => {
+    const token = localStorage.getItem('token');
+    if (!token) {
+      setUnreadChatCount(0);
+      return;
+    }
+    try {
+      const res = await fetch(`${API_URL}/api/chat/threads`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+      if (!res.ok) return;
+      const data = await res.json();
+      const total = (Array.isArray(data) ? data : []).reduce(
+        (sum, thread) => sum + Math.max(0, Number(thread?.unreadCount || 0)),
+        0
+      );
+      setUnreadChatCount(total);
+    } catch {
+      // ignore polling/network errors
+    }
+  };
+
+  useEffect(() => {
+    fetchUnreadChatCount();
+    const timer = setInterval(fetchUnreadChatCount, 15000);
+    const onFocus = () => fetchUnreadChatCount();
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') fetchUnreadChatCount();
+    };
+    window.addEventListener('focus', onFocus);
+    document.addEventListener('visibilitychange', onVisible);
+    return () => {
+      clearInterval(timer);
+      window.removeEventListener('focus', onFocus);
+      document.removeEventListener('visibilitychange', onVisible);
+    };
+  }, []);
 
   return (
     <>
@@ -297,6 +334,8 @@ const Sidebar = ({ activeView, isOpen, setIsOpen, onNavigateIntent }) => {
             {MENU_ITEMS.map((item) => {
               const Icon       = item.icon;
               const hasChildren = !!item.children?.length;
+              const isCommunicationItem = item.id === 'communication';
+              const hasUnreadCommunication = isCommunicationItem && unreadChatCount > 0;
               const isActive   = activeView === item.id ||
                 (hasChildren && item.children?.some(c => c.id === activeView));
               const expanded   = openGroups[item.id] === undefined
@@ -344,6 +383,14 @@ const Sidebar = ({ activeView, isOpen, setIsOpen, onNavigateIntent }) => {
                       {!collapsed && (
                         <>
                           <span className="flex-1 text-left text-sm font-semibold">{item.name}</span>
+                          {hasUnreadCommunication && (
+                            <span
+                              className="mr-1 h-5 min-w-[20px] px-1.5 rounded-full bg-red-500 text-white text-[10px] font-semibold flex items-center justify-center shrink-0"
+                              title={`${unreadLabel} unread messages`}
+                            >
+                              {unreadLabel}
+                            </span>
+                          )}
                           {hasChildren && (
                             <ChevronDown
                               size={14}
@@ -357,6 +404,14 @@ const Sidebar = ({ activeView, isOpen, setIsOpen, onNavigateIntent }) => {
                       {collapsed && isActive && (
                         <span className="absolute right-0.5 top-0.5 h-2 w-2 rounded-full bg-amber-400 border border-white" />
                       )}
+                      {collapsed && hasUnreadCommunication && (
+                        <span
+                          className="absolute -right-0.5 -top-0.5 h-4 min-w-[16px] px-1 rounded-full bg-red-500 text-white text-[9px] font-semibold flex items-center justify-center border border-white"
+                          title={`${unreadLabel} unread messages`}
+                        >
+                          {unreadChatCount > 9 ? '9+' : unreadLabel}
+                        </span>
+                      )}
                     </button>
 
                     {/* Tooltip (collapsed only) */}
@@ -369,6 +424,7 @@ const Sidebar = ({ activeView, isOpen, setIsOpen, onNavigateIntent }) => {
                       {item.children.map((child) => {
                         const ChildIcon  = child.icon;
                         const childActive = activeView === child.id;
+                        const isMessagesChild = child.id === 'chat';
                         return (
                           <button
                             key={child.id}
@@ -381,7 +437,14 @@ const Sidebar = ({ activeView, isOpen, setIsOpen, onNavigateIntent }) => {
                           >
                             <ChildIcon size={13} className={childActive ? 'text-amber-600' : 'text-slate-400 group-hover:text-slate-600'} />
                             <span className="text-xs font-medium">{child.name}</span>
-                            {childActive && <span className="ml-auto h-1.5 w-1.5 rounded-full bg-amber-400 shrink-0" />}
+                            {isMessagesChild && unreadChatCount > 0 && (
+                              <span className="ml-auto h-5 min-w-[20px] px-1.5 rounded-full bg-red-500 text-white text-[10px] font-semibold flex items-center justify-center">
+                                {unreadLabel}
+                              </span>
+                            )}
+                            {childActive && (!isMessagesChild || unreadChatCount <= 0) && (
+                              <span className="ml-auto h-1.5 w-1.5 rounded-full bg-amber-400 shrink-0" />
+                            )}
                           </button>
                         );
                       })}
