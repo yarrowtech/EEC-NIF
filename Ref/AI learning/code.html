@@ -1,0 +1,341 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Scholarly Curator - Student Learning Hub</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;700;800&amp;family=Lexend:wght@300;400;500;600;700&amp;family=Work+Sans:wght@400;500;600&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "on-error": "#ffffff",
+                        "surface-container-highest": "#e1e3e4",
+                        "surface": "#f8f9fa",
+                        "primary-fixed": "#cbe6ff",
+                        "on-primary-fixed": "#001e30",
+                        "surface-container-high": "#e7e8e9",
+                        "surface-container-lowest": "#ffffff",
+                        "primary-fixed-dim": "#8ecdff",
+                        "on-error-container": "#93000a",
+                        "inverse-primary": "#8ecdff",
+                        "background": "#f8f9fa",
+                        "on-primary": "#ffffff",
+                        "secondary-container": "#aeeecb",
+                        "secondary": "#2c694e",
+                        "surface-dim": "#d9dadb",
+                        "on-tertiary": "#ffffff",
+                        "surface-variant": "#e1e3e4",
+                        "on-surface-variant": "#40484f",
+                        "on-secondary": "#ffffff",
+                        "secondary-fixed": "#b1f0ce",
+                        "on-secondary-fixed": "#002114",
+                        "on-tertiary-container": "#ffd386",
+                        "tertiary-container": "#7d5800",
+                        "on-surface": "#191c1d",
+                        "on-secondary-container": "#316e52",
+                        "inverse-surface": "#2e3132",
+                        "tertiary-fixed-dim": "#ffba27",
+                        "on-tertiary-fixed-variant": "#5e4100",
+                        "primary-container": "#006494",
+                        "tertiary": "#5f4200",
+                        "surface-container-low": "#f3f4f5",
+                        "on-primary-container": "#b6ddff",
+                        "on-background": "#191c1d",
+                        "secondary-fixed-dim": "#95d4b3",
+                        "outline": "#707880",
+                        "inverse-on-surface": "#f0f1f2",
+                        "error": "#ba1a1a",
+                        "tertiary-fixed": "#ffdea9",
+                        "surface-tint": "#006494",
+                        "surface-bright": "#f8f9fa",
+                        "primary": "#004b71",
+                        "on-tertiary-fixed": "#271900",
+                        "on-primary-fixed-variant": "#004b71",
+                        "error-container": "#ffdad6",
+                        "surface-container": "#edeeef",
+                        "outline-variant": "#c0c7d0",
+                        "on-secondary-fixed-variant": "#0e5138"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.125rem",
+                        "lg": "0.25rem",
+                        "xl": "0.5rem",
+                        "full": "0.75rem"
+                    },
+                    "fontFamily": {
+                        "headline": ["Manrope"],
+                        "body": ["Lexend"],
+                        "label": ["Work Sans"]
+                    }
+                },
+            },
+        }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .tonal-layering {
+            background: linear-gradient(to bottom, #f8f9fa, #f3f4f5);
+        }
+        .editorial-shadow {
+            box-shadow: 0 20px 40px rgba(25, 28, 29, 0.05);
+        }
+    </style>
+</head>
+<body class="bg-background font-body text-on-surface overflow-hidden">
+<!-- SideNavBar Shell -->
+<aside class="fixed left-0 top-0 h-full w-64 z-50 bg-slate-50 flex flex-col h-full py-6 px-4 font-lexend font-medium no-border tonal-layering">
+<!-- Brand Header -->
+<div class="mb-10 px-4">
+<div class="flex items-center gap-3">
+<div class="w-10 h-10 rounded-lg bg-primary flex items-center justify-center text-white">
+<span class="material-symbols-outlined" data-icon="auto_stories">auto_stories</span>
+</div>
+<div>
+<h1 class="text-lg font-black text-sky-900 tracking-tight leading-none">Learning Portal</h1>
+<p class="text-[10px] uppercase tracking-widest text-slate-500 font-label font-bold mt-1">Academic Excellence</p>
+</div>
+</div>
+</div>
+<!-- Navigation Groups -->
+<nav class="flex-1 space-y-1">
+<div class="px-4 py-2">
+<p class="text-[11px] font-label font-bold text-slate-400 uppercase tracking-widest mb-3">Menu</p>
+<div class="space-y-1">
+<a class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-slate-600 hover:bg-sky-50 transition-all ease-in-out group" href="#">
+<span class="material-symbols-outlined text-slate-400 group-hover:text-sky-700" data-icon="dashboard">dashboard</span>
+<span class="text-sm">Dashboard</span>
+</a>
+<!-- AI Learning Active -->
+<div class="space-y-1">
+<a class="flex items-center justify-between gap-3 px-3 py-2.5 rounded-lg text-sky-800 border-r-4 border-sky-700 font-bold bg-sky-50/50 transition-all ease-in-out group" href="#">
+<div class="flex items-center gap-3">
+<span class="material-symbols-outlined text-sky-700" data-icon="auto_awesome" style="font-variation-settings: 'FILL' 1;">auto_awesome</span>
+<span class="text-sm">AI Learning</span>
+</div>
+<span class="material-symbols-outlined text-sm" data-icon="expand_more">expand_more</span>
+</a>
+<div class="pl-11 space-y-1 mt-1">
+<a class="block text-xs py-2 text-sky-700 font-semibold border-l-2 border-sky-700 pl-4" href="#">AI Courses</a>
+<a class="block text-xs py-2 text-slate-500 hover:text-sky-700 pl-4 transition-colors" href="#">AI Tutor</a>
+</div>
+</div>
+<a class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-slate-600 hover:bg-sky-50 transition-all ease-in-out group" href="#">
+<span class="material-symbols-outlined text-slate-400 group-hover:text-sky-700" data-icon="school">school</span>
+<span class="text-sm">Academics</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-slate-600 hover:bg-sky-50 transition-all ease-in-out group" href="#">
+<span class="material-symbols-outlined text-slate-400 group-hover:text-sky-700" data-icon="calendar_month">calendar_month</span>
+<span class="text-sm">Schedule</span>
+</a>
+</div>
+</div>
+</nav>
+<!-- CTA & Footer -->
+<div class="mt-auto px-4 space-y-6">
+<button class="w-full bg-gradient-to-r from-primary to-primary-container text-white rounded-lg py-3 px-4 font-label font-bold text-sm shadow-md hover:scale-95 duration-150 flex items-center justify-center gap-2">
+<span class="material-symbols-outlined text-lg" data-icon="bolt">bolt</span>
+                Generate Plan
+            </button>
+<div class="space-y-1 border-t border-slate-200 pt-6">
+<a class="flex items-center gap-3 px-3 py-2 rounded-lg text-slate-600 hover:bg-sky-50 transition-all ease-in-out" href="#">
+<span class="material-symbols-outlined text-slate-400" data-icon="settings">settings</span>
+<span class="text-sm">Settings</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 rounded-lg text-slate-600 hover:bg-sky-50 transition-all ease-in-out" href="#">
+<span class="material-symbols-outlined text-slate-400" data-icon="logout">logout</span>
+<span class="text-sm">Logout</span>
+</a>
+</div>
+</div>
+</aside>
+<!-- Main Wrapper -->
+<main class="ml-64 min-h-screen relative">
+<!-- TopAppBar Shell -->
+<header class="fixed top-0 right-0 left-64 z-40 bg-white/80 backdrop-blur-md flex justify-between items-center px-8 py-4 w-auto shadow-sm font-manrope tracking-tight">
+<div class="flex flex-col">
+<h2 class="text-xl font-extrabold text-sky-900 leading-tight">Good evening, Neha</h2>
+<p class="text-xs font-label text-slate-500 font-medium">Monday, 12 June 2023</p>
+</div>
+<div class="flex items-center gap-6">
+<!-- Search Bar -->
+<div class="relative hidden lg:block">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xl" data-icon="search">search</span>
+<input class="bg-surface-container-high border-none rounded-full py-2 pl-10 pr-4 w-64 text-sm focus:ring-2 focus:ring-primary/20 placeholder:text-slate-400 font-label" placeholder="Search lessons, tutors..." type="text"/>
+</div>
+<div class="flex items-center gap-3">
+<button class="p-2 rounded-full hover:bg-slate-100 transition-colors text-slate-500 relative">
+<span class="material-symbols-outlined" data-icon="notifications">notifications</span>
+<span class="absolute top-2 right-2 w-2 h-2 bg-error rounded-full border-2 border-white"></span>
+</button>
+<button class="p-2 rounded-full hover:bg-slate-100 transition-colors text-slate-500">
+<span class="material-symbols-outlined" data-icon="help">help</span>
+</button>
+<div class="h-8 w-[1px] bg-slate-200 mx-1"></div>
+<div class="flex items-center gap-3 cursor-pointer group">
+<div class="text-right hidden sm:block">
+<p class="text-sm font-bold text-sky-900 leading-none">Neha Sharma</p>
+<p class="text-[10px] font-label text-slate-500 mt-0.5">Premium Student</p>
+</div>
+<img alt="Student avatar" class="w-10 h-10 rounded-full object-cover border-2 border-primary-container group-hover:scale-105 transition-transform" data-alt="portrait of a young indian female student with glasses smiling softly in a professional library setting" src="https://lh3.googleusercontent.com/aida-public/AB6AXuA2lpvdDXvWk7v2CFEsCrZ0et8qxgxv76hAXg5Dts7VMzzQqaoeE4vh5K0Zt4XzyalKk1S8mFy7fm1m_lNzLKLy03hMD3YMRjYaukdthaTvhaCw6b5_7anvkVKdgnHzS2qtVWpxZ0vzAxnh3Qsc0D984-cuWv-8cPOSslF4YLKopu6jbGrspI9JVCirk3QckOPmr6Dx-R9xA5gsu60Z7VUf-90I39lU_q-vysvsanRrOTrAwJBHYDKZq_ssGReRPoZwI1BFnScl-PXT"/>
+</div>
+</div>
+</div>
+</header>
+<!-- Content Canvas -->
+<div class="pt-24 px-8 pb-12 overflow-y-auto h-full">
+<!-- Hero Announcement Area -->
+<section class="mb-12">
+<div class="relative overflow-hidden rounded-xl bg-slate-900 h-[320px] flex items-center px-12 group">
+<!-- Background Image with Overlay -->
+<div class="absolute inset-0 z-0">
+<img alt="background" class="w-full h-full object-cover opacity-40 group-hover:scale-105 transition-transform duration-700" data-alt="abstract dark blue flowing lines and geometric shapes with a soft glowing technological atmosphere" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAt_wL0DL9PU4mMe8GyILLguDx1wRKyl7HEkKfmVEw1d1KNmj2zzPi3S3mWYU-cTUSGhT6CpDPO344OfYHFfWp1gL7EJ1PdRMYJIIGY-31b6wUqjpL9-hD7Ty-9prquyXTMD19O4CXbRMmU6MK6gi4ZUcF6TVylBlmUKJvvjJ2uZsClXkKJAagIlm_wGFzVa6KADKvV0N24_-cjlQXsL73YiX7uf-11rxE6uoZlyob3pOlqpmQVlxARIhWRyR0eOXqDxpziyIyYVjPS"/>
+<div class="absolute inset-0 bg-gradient-to-r from-slate-950 via-slate-900/60 to-transparent"></div>
+</div>
+<div class="relative z-10 max-w-xl">
+<div class="inline-flex items-center gap-2 bg-sky-500/20 backdrop-blur-sm border border-sky-400/30 rounded-full px-3 py-1 mb-6">
+<span class="material-symbols-outlined text-sky-400 text-sm" data-icon="star" style="font-variation-settings: 'FILL' 1;">star</span>
+<span class="text-[10px] font-label font-bold text-sky-300 uppercase tracking-widest">New Feature</span>
+</div>
+<h1 class="text-4xl lg:text-5xl font-extrabold text-white font-headline leading-[1.1] mb-4 tracking-tight">AI Courses <br/><span class="text-sky-400">coming soon!</span></h1>
+<p class="text-slate-300 text-lg font-light leading-relaxed mb-8">Personalized, curriculum-aligned courses generated in seconds by your Scholarly Curator. Join the waitlist to be the first to experience the future of learning.</p>
+<div class="flex items-center gap-4">
+<button class="bg-white text-slate-900 px-8 py-3 rounded-lg font-bold text-sm hover:bg-sky-100 transition-colors editorial-shadow">
+                                Notify Me
+                            </button>
+<button class="text-white border border-white/20 px-8 py-3 rounded-lg font-bold text-sm hover:bg-white/10 transition-colors backdrop-blur-sm">
+                                View Roadmap
+                            </button>
+</div>
+</div>
+<!-- Decorative Element -->
+<div class="absolute right-12 top-1/2 -translate-y-1/2 hidden xl:block">
+<div class="relative w-64 h-64 border-2 border-sky-500/20 rounded-full animate-pulse flex items-center justify-center">
+<div class="w-48 h-48 border border-sky-500/30 rounded-full flex items-center justify-center">
+<span class="material-symbols-outlined text-sky-500/40 text-7xl" data-icon="auto_awesome">auto_awesome</span>
+</div>
+</div>
+</div>
+</div>
+</section>
+<!-- Bento Preview Section -->
+<section class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12">
+<!-- Bento Item 1: Featured Module -->
+<div class="md:col-span-2 bg-surface-container-low rounded-xl p-8 flex flex-col justify-between relative overflow-hidden group">
+<div class="relative z-10">
+<span class="inline-block bg-tertiary-fixed text-on-tertiary-fixed-variant px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider mb-6">Current Progress</span>
+<h3 class="text-2xl font-bold text-sky-900 mb-2">Organic Chemistry II</h3>
+<p class="text-slate-500 max-w-sm mb-8 font-body">Continue where you left off in Module 4: Synthesis of Carbonyl Compounds.</p>
+</div>
+<div class="relative z-10 flex items-end justify-between">
+<div class="flex-1 max-w-xs">
+<div class="flex justify-between text-xs font-bold mb-2">
+<span class="text-slate-600">Module Completion</span>
+<span class="text-sky-700">68%</span>
+</div>
+<div class="w-full bg-slate-200 h-2 rounded-full overflow-hidden">
+<div class="bg-sky-600 h-full w-[68%] rounded-full"></div>
+</div>
+</div>
+<button class="w-12 h-12 bg-white rounded-full flex items-center justify-center text-sky-800 shadow-md hover:scale-110 transition-transform">
+<span class="material-symbols-outlined" data-icon="play_arrow" style="font-variation-settings: 'FILL' 1;">play_arrow</span>
+</button>
+</div>
+<!-- Decor -->
+<div class="absolute -right-10 -top-10 w-48 h-48 bg-sky-100/50 rounded-full blur-3xl group-hover:bg-sky-200/50 transition-colors"></div>
+</div>
+<!-- Bento Item 2: Quick Action Card -->
+<div class="bg-secondary-container rounded-xl p-8 flex flex-col justify-between text-on-secondary-container relative overflow-hidden">
+<div>
+<span class="material-symbols-outlined text-4xl mb-4" data-icon="history_edu">history_edu</span>
+<h3 class="text-xl font-extrabold leading-tight">Quick Lesson <br/>Generator</h3>
+</div>
+<p class="text-xs opacity-80 mb-6 leading-relaxed">Turn any PDF or note into a structured study guide instantly.</p>
+<button class="bg-on-secondary-container text-white py-3 rounded-lg text-xs font-bold flex items-center justify-center gap-2 hover:opacity-90 transition-opacity">
+<span class="material-symbols-outlined text-sm" data-icon="upload_file">upload_file</span>
+                        Upload File
+                    </button>
+</div>
+</section>
+<!-- Bottom Editorial Section -->
+<div class="flex flex-col lg:flex-row gap-12">
+<div class="flex-1">
+<div class="flex items-center justify-between mb-8">
+<h4 class="text-xl font-bold text-slate-800">Learning Insights</h4>
+<button class="text-sky-700 text-xs font-bold font-label hover:underline">View All Activities</button>
+</div>
+<!-- Tonal Layered List -->
+<div class="space-y-4">
+<div class="bg-surface-container-lowest p-5 rounded-lg flex items-center gap-5 editorial-shadow">
+<div class="w-12 h-12 rounded-lg bg-tertiary-fixed flex items-center justify-center text-on-tertiary-fixed">
+<span class="material-symbols-outlined" data-icon="lightbulb">lightbulb</span>
+</div>
+<div class="flex-1">
+<h5 class="text-sm font-bold text-slate-800">Concept Mastery: Quantum Mechanics</h5>
+<p class="text-[11px] text-slate-500 font-label">You spent 2 hours on this yesterday. Good progress!</p>
+</div>
+<div class="text-right">
+<span class="text-xs font-bold text-secondary">+12 XP</span>
+</div>
+</div>
+<div class="bg-surface-container-lowest p-5 rounded-lg flex items-center gap-5 editorial-shadow">
+<div class="w-12 h-12 rounded-lg bg-primary-fixed flex items-center justify-center text-on-primary-fixed">
+<span class="material-symbols-outlined" data-icon="quiz">quiz</span>
+</div>
+<div class="flex-1">
+<h5 class="text-sm font-bold text-slate-800">Quiz Perfection: Calculus I</h5>
+<p class="text-[11px] text-slate-500 font-label">Scored 100% on the Derivatives mock test.</p>
+</div>
+<div class="text-right">
+<span class="text-xs font-bold text-secondary">+50 XP</span>
+</div>
+</div>
+</div>
+</div>
+<!-- Sidebar Content (Teacher's Toolkit / Schedule) -->
+<div class="w-full lg:w-80">
+<div class="bg-surface-container-highest p-8 rounded-xl h-full border border-white">
+<div class="flex items-center gap-3 mb-6">
+<span class="material-symbols-outlined text-sky-800" data-icon="event_note">event_note</span>
+<h4 class="text-sm font-black text-sky-900 uppercase tracking-widest">Upcoming Deadlines</h4>
+</div>
+<div class="space-y-6">
+<div class="relative pl-6 border-l-2 border-sky-300">
+<div class="absolute -left-[5px] top-0 w-2 h-2 rounded-full bg-sky-600"></div>
+<p class="text-[10px] font-bold text-slate-500 font-label mb-1">TOMORROW, 09:00 AM</p>
+<p class="text-sm font-bold text-slate-800">Comparative Literature Essay</p>
+</div>
+<div class="relative pl-6 border-l-2 border-slate-200">
+<div class="absolute -left-[5px] top-0 w-2 h-2 rounded-full bg-slate-300"></div>
+<p class="text-[10px] font-bold text-slate-400 font-label mb-1">15 JUNE, 02:00 PM</p>
+<p class="text-sm font-bold text-slate-800">Physics Lab Submission</p>
+</div>
+<div class="relative pl-6 border-l-2 border-slate-200">
+<div class="absolute -left-[5px] top-0 w-2 h-2 rounded-full bg-slate-300"></div>
+<p class="text-[10px] font-bold text-slate-400 font-label mb-1">20 JUNE, 11:30 AM</p>
+<p class="text-sm font-bold text-slate-800">Mathematics Midterm Exam</p>
+</div>
+</div>
+<div class="mt-10 p-4 bg-sky-900 rounded-lg text-white">
+<p class="text-[10px] font-bold text-sky-300 uppercase tracking-widest mb-2">Tutor Tip</p>
+<p class="text-xs leading-relaxed italic opacity-90">"Focus on spatial derivatives today to master the next module faster."</p>
+</div>
+</div>
+</div>
+</div>
+</div>
+<!-- Floating Progress Rail (Contextual) -->
+<div class="fixed right-6 bottom-6 flex flex-col gap-4 z-40">
+<button class="w-14 h-14 bg-surface-bright/80 backdrop-blur-xl rounded-full shadow-2xl flex items-center justify-center text-primary hover:scale-110 transition-transform border border-white/50">
+<span class="material-symbols-outlined" data-icon="chat_bubble" style="font-variation-settings: 'FILL' 1;">chat_bubble</span>
+</button>
+</div>
+</main>
+</body></html>
