@@ -4,7 +4,7 @@ import {
   MessageSquare, Send, Search, ChevronLeft,
   PlusCircle, X, Loader2, Eye, Mail, BookOpen,
   GraduationCap, Phone, User, Check, CheckCheck,
-  Info, Palette, Lock, Link2, ExternalLink
+  Info, Palette, Lock, Link2, ExternalLink, Pencil
 } from 'lucide-react';
 import { decryptChatMessage, encryptChatMessage, ensureE2EEIdentity } from '../utils/chatE2EE';
 import { chatCacheKeys, readChatCache, writeChatCache } from '../utils/chatCache';
@@ -13,6 +13,7 @@ const API_URL = (import.meta.env.VITE_API_URL || 'http://localhost:5000').replac
 const THREADS_CACHE_TTL_MS = 15 * 60 * 1000;
 const MESSAGES_CACHE_TTL_MS = 15 * 60 * 1000;
 const CONTACTS_CACHE_TTL_MS = 5 * 60 * 1000;
+const CHAT_EDIT_WINDOW_MS = Math.max(1000, Number(import.meta.env.VITE_CHAT_EDIT_WINDOW_MS || 15 * 60 * 1000));
 const LAST_STUDENT_CHAT_ME_KEY = 'student_chat_me_id_v1';
 
 const authHeader = () => ({ Authorization: `Bearer ${localStorage.getItem('token')}` });
@@ -51,7 +52,26 @@ const isThreadCacheUsable = (items) =>
 
 const isEncryptedPreviewPlaceholder = (value = '') => {
   const normalized = String(value || '').trim().toLowerCase();
-  return normalized === '[encrypted message]' || normalized === '[encrypted msg]';
+  if (!normalized) return false;
+  if (normalized === '[encrypted message]' || normalized === '[encrypted msg]') return true;
+  return normalized.includes('encrypted message') || normalized.includes('encrypted msg');
+};
+
+const normalizeId = (value) => {
+  if (value == null) return '';
+  if (typeof value === 'string' || typeof value === 'number') return String(value);
+  if (typeof value === 'object') {
+    if (value._id != null) return String(value._id);
+    if (value.id != null) return String(value.id);
+    if (value.$oid != null) return String(value.$oid);
+  }
+  return '';
+};
+
+const isSameId = (left, right) => {
+  const a = normalizeId(left);
+  const b = normalizeId(right);
+  return Boolean(a && b && a === b);
 };
 
 const formatLastSeen = (ts) => {
@@ -548,7 +568,18 @@ const TeacherModal = ({ teacher, onClose }) => {
 // ── ChatMessage ────────────────────────────────────────────────────────────────
 const isSeenByOther = (msg, myId) =>
   Array.isArray(msg?.seenBy) &&
-  msg.seenBy.some((entry) => String(entry?.userId) !== String(myId));
+  msg.seenBy.some((entry) => !isSameId(entry?.userId, myId));
+
+const canEditOwnMessage = (msg, myId) => {
+  if (!msg || !myId) return false;
+  if (msg?._optimistic === true) return false;
+  if (String(msg?.senderType || '').toLowerCase() === 'system') return false;
+  if (!isSameId(msg?.senderId, myId)) return false;
+  const createdAt = msg?.createdAt || msg?.ts;
+  if (!createdAt) return false;
+  const ageMs = Date.now() - new Date(createdAt).getTime();
+  return Number.isFinite(ageMs) && ageMs >= 0 && ageMs <= CHAT_EDIT_WINDOW_MS;
+};
 
 const MessageLinkPreview = ({ url, isMine, theme }) => {
   const t = theme || THEMES.amber;
@@ -588,7 +619,20 @@ const MessageLinkPreview = ({ url, isMine, theme }) => {
   );
 };
 
-const ChatMessage = ({ msg, isMine, myId, theme }) => {
+const ChatMessage = ({
+  msg,
+  isMine,
+  myId,
+  theme,
+  canEdit = false,
+  isEditing = false,
+  editDraft = '',
+  editSaving = false,
+  onEditDraftChange = () => {},
+  onEditCancel = () => {},
+  onEditSave = () => {},
+  onStartEdit = () => {},
+}) => {
   const t = theme || THEMES.amber;
   const isSystem = String(msg?.senderType || '').toLowerCase() === 'system';
   if (isSystem) {
@@ -627,47 +671,113 @@ const ChatMessage = ({ msg, isMine, myId, theme }) => {
       >
         {senderLabel}
       </div>
-      <div className="whitespace-pre-wrap leading-relaxed break-words">
-        {textParts.map((part, index) => (
-          part.type === 'link' ? (
-            <a
-              key={`${part.href}-${index}`}
-              href={part.href}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="underline break-all"
-              style={{ color: isMine ? 'rgba(255,255,255,0.96)' : t.color }}
+      {isEditing ? (
+        <div className="space-y-2">
+          <textarea
+            rows={3}
+            value={editDraft}
+            onChange={(e) => onEditDraftChange(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                onEditSave();
+              }
+              if (e.key === 'Escape') onEditCancel();
+            }}
+            className={`w-full rounded-lg border px-2 py-1.5 text-sm resize-none focus:outline-none focus:ring-2 ${
+              isMine
+                ? 'bg-white/15 border-white/30 text-white placeholder-white/70 focus:ring-white/40'
+                : 'bg-white border-gray-200 text-gray-800 placeholder-gray-400 focus:ring-amber-200'
+            }`}
+            placeholder="Edit message..."
+          />
+          <div className="flex items-center justify-end gap-2">
+            <button
+              type="button"
+              onClick={onEditCancel}
+              className={`text-xs font-medium px-2.5 py-1 rounded-md ${
+                isMine ? 'text-white/90 hover:bg-white/15' : 'text-gray-600 hover:bg-gray-100'
+              }`}
+              disabled={editSaving}
             >
-              {part.label}
-            </a>
-          ) : (
-            <React.Fragment key={`text-${index}`}>{part.value}</React.Fragment>
-          )
-        ))}
-        <span
-          className={`inline-flex items-center gap-1 ml-2 text-[11px] whitespace-nowrap align-baseline ${!isMine ? 'text-gray-400' : ''}`}
-          style={isMine ? { color: 'rgba(255,255,255,0.75)' } : {}}
-        >
-          <span>{formatMessageTime(msg.createdAt || msg.ts)}</span>
-          {isMine && (
-            <span style={{ color: seen ? '#7dd3fc' : 'rgba(255,255,255,0.75)' }} className="inline-flex items-center">
-              {seen || delivered ? <CheckCheck className="h-3.5 w-3.5" /> : <Check className="h-3.5 w-3.5" />}
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={onEditSave}
+              className={`text-xs font-semibold px-2.5 py-1 rounded-md ${
+                isMine ? 'bg-white/20 text-white hover:bg-white/30' : 'bg-amber-100 text-amber-700 hover:bg-amber-200'
+              } disabled:opacity-50`}
+              disabled={editSaving || !String(editDraft || '').trim()}
+            >
+              {editSaving ? 'Saving...' : 'Save'}
+            </button>
+          </div>
+        </div>
+      ) : (
+        <>
+          <div className="whitespace-pre-wrap leading-relaxed break-words">
+            {textParts.map((part, index) => (
+              part.type === 'link' ? (
+                <a
+                  key={`${part.href}-${index}`}
+                  href={part.href}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="underline break-all"
+                  style={{ color: isMine ? 'rgba(255,255,255,0.96)' : t.color }}
+                >
+                  {part.label}
+                </a>
+              ) : (
+                <React.Fragment key={`text-${index}`}>{part.value}</React.Fragment>
+              )
+            ))}
+            <span
+              className={`inline-flex items-center gap-1 ml-2 text-[11px] whitespace-nowrap align-baseline ${!isMine ? 'text-gray-400' : ''}`}
+              style={isMine ? { color: 'rgba(255,255,255,0.75)' } : {}}
+            >
+              {msg?.isEdited && <span>(edited)</span>}
+              <span>{formatMessageTime(msg.createdAt || msg.ts)}</span>
+              {isMine && (
+                <span style={{ color: seen ? '#7dd3fc' : 'rgba(255,255,255,0.75)' }} className="inline-flex items-center">
+                  {seen || delivered ? <CheckCheck className="h-3.5 w-3.5" /> : <Check className="h-3.5 w-3.5" />}
+                </span>
+              )}
             </span>
+          </div>
+          {links.map((url) => (
+            <MessageLinkPreview key={url} url={url} isMine={isMine} theme={t} />
+          ))}
+          {isLongMessage && (
+            <button
+              type="button"
+              onClick={() => setExpanded((prev) => !prev)}
+              className="mt-1 text-xs font-semibold hover:underline"
+              style={{ color: isMine ? 'rgba(255,255,255,0.8)' : t.color }}
+            >
+              {expanded ? 'Read less' : 'Read more'}
+            </button>
           )}
-        </span>
-      </div>
-      {links.map((url) => (
-        <MessageLinkPreview key={url} url={url} isMine={isMine} theme={t} />
-      ))}
-      {isLongMessage && (
-        <button
-          type="button"
-          onClick={() => setExpanded((prev) => !prev)}
-          className="mt-1 text-xs font-semibold hover:underline"
-          style={{ color: isMine ? 'rgba(255,255,255,0.8)' : t.color }}
-        >
-          {expanded ? 'Read less' : 'Read more'}
-        </button>
+          {canEdit && (
+            <div className="mt-2 flex justify-end">
+              <button
+                type="button"
+                onClick={onStartEdit}
+                className={`inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-xs font-semibold transition-colors focus:outline-none focus:ring-2 ${
+                  isMine
+                    ? 'text-white/90 hover:bg-white/15 focus:ring-white/40'
+                    : 'text-amber-700 hover:bg-amber-100 focus:ring-amber-200'
+                }`}
+                title="Edit this message"
+                aria-label="Edit this message"
+              >
+                <Pencil className="h-3.5 w-3.5" />
+                <span>Edit</span>
+              </button>
+            </div>
+          )}
+        </>
       )}
     </div>
   </div>
@@ -760,6 +870,9 @@ const StudentChat = () => {
   const [wallpaperKey, setWallpaperKey]     = useState(() => localStorage.getItem('chat_wallpaper') || 'doodle');
   const [themeKey, setThemeKey]             = useState(() => localStorage.getItem('chat_theme')     || 'amber');
   const [showChatSettings, setShowChatSettings] = useState(false);
+  const [editingMessageId, setEditingMessageId] = useState('');
+  const [editDraft, setEditDraft] = useState('');
+  const [editSaving, setEditSaving] = useState(false);
 
   const socketRef          = useRef(null);
   const activeThreadIdRef  = useRef(null);
@@ -803,6 +916,35 @@ const StudentChat = () => {
     return { ...thread, lastMessage: isEncryptedPreviewPlaceholder(fallback) ? '' : fallback };
   }, []);
 
+  const hydrateEncryptedThreadPreviews = useCallback(async (threadList) => {
+    if (!Array.isArray(threadList) || threadList.length === 0) return threadList;
+    const candidates = threadList.filter((thread) => {
+      const preview = String(thread?.lastMessage || '').trim();
+      const hasPayload = Boolean(thread?.lastMessagePayload);
+      return isEncryptedPreviewPlaceholder(preview) || (!preview && !hasPayload && Boolean(thread?.lastMessageAt));
+    });
+    if (candidates.length === 0) return threadList;
+    const recovered = await Promise.all(
+      candidates.map(async (thread) => {
+        try {
+          const msgs = await apiFetch(`/api/chat/threads/${thread._id}/messages`);
+          const latest = (Array.isArray(msgs) ? msgs : []).slice(-1)[0];
+          if (!latest) return [String(thread._id), null];
+          const decrypted = await decryptForUI(latest);
+          const text = String(decrypted?.text || '').trim();
+          return [String(thread._id), text && !isEncryptedPreviewPlaceholder(text) ? text : null];
+        } catch {
+          return [String(thread._id), null];
+        }
+      })
+    );
+    const recoveredMap = new Map(recovered.filter((entry) => Array.isArray(entry)));
+    return threadList.map((thread) => {
+      const text = recoveredMap.get(String(thread._id));
+      return text ? { ...thread, lastMessage: text } : thread;
+    });
+  }, [decryptForUI]);
+
   // ── Bootstrap ─────────────────────────────────────────────────────────────
   useEffect(() => {
     const token = localStorage.getItem('token');
@@ -845,10 +987,11 @@ const StudentChat = () => {
         const threadsData = await apiFetch('/api/chat/threads');
         if (!mounted) return;
         const hydratedThreads = await Promise.all((Array.isArray(threadsData) ? threadsData : []).map((thread) => decryptThreadPreview(thread)));
+        const hydratedWithFallback = await hydrateEncryptedThreadPreviews(hydratedThreads);
         const cachedById = new Map(
           (Array.isArray(cachedThreads) ? cachedThreads : []).map((thread) => [String(thread?._id || ''), thread])
         );
-        const mergedThreads = hydratedThreads.map((thread) => {
+        const mergedThreads = hydratedWithFallback.map((thread) => {
           const threadId = String(thread?._id || '');
           const cachedThread = cachedById.get(threadId);
           const currentPreview = String(thread?.lastMessage || '').trim();
@@ -880,10 +1023,10 @@ const StudentChat = () => {
       const msg = await decryptForUI(rawMsg);
       const threadId = String(msg.threadId);
       const isActiveThread = String(activeThreadIdRef.current) === threadId;
-      const isIncomingForMe = String(msg.senderId) !== String(meRef.current?.id);
+      const isIncomingForMe = !isSameId(msg.senderId, meRef.current?.id);
       setMessages(prev => {
         if (activeThreadIdRef.current !== threadId) return prev;
-        if (String(msg.senderId) === String(meRef.current?.id)) {
+        if (isSameId(msg.senderId, meRef.current?.id)) {
           const optIdx = prev.findLastIndex(m => m._optimistic);
           if (optIdx !== -1) {
             const next = [...prev];
@@ -926,9 +1069,25 @@ const StudentChat = () => {
       }
       setThreads(prev => prev.map(t =>
         String(t._id) === threadId
-          ? { ...t, lastMessage: resolvedLastMessage, lastMessageAt, unreadCount: activeThreadIdRef.current === threadId ? 0 : (t.unreadCount || 0) + 1 }
+          ? {
+              ...t,
+              lastMessage: resolvedLastMessage,
+              lastMessageAt,
+              unreadCount: activeThreadIdRef.current === threadId
+                ? 0
+                : (isSameId(message?.senderId, meRef.current?.id) ? (t.unreadCount || 0) : (t.unreadCount || 0) + 1),
+            }
           : t
       ));
+    });
+
+    socket.on('message-edited', async ({ threadId, message }) => {
+      if (!message || !threadId) return;
+      const decrypted = await decryptForUI(message);
+      if (String(activeThreadIdRef.current) !== String(threadId)) return;
+      setMessages((prev) =>
+        prev.map((msg) => (String(msg._id) === String(decrypted._id) ? { ...msg, ...decrypted } : msg))
+      );
     });
 
     socket.on('typing', ({ threadId, isTyping: typing, userName }) => {
@@ -967,8 +1126,8 @@ const StudentChat = () => {
       if (String(activeThreadIdRef.current) !== String(threadId)) return;
       setMessages((prev) =>
         prev.map((msg) => {
-          if (String(msg.senderId) !== String(meRef.current?.id)) return msg;
-          if (Array.isArray(msg.seenBy) && msg.seenBy.some((entry) => String(entry?.userId) === String(userId))) {
+          if (!isSameId(msg.senderId, meRef.current?.id)) return msg;
+          if (Array.isArray(msg.seenBy) && msg.seenBy.some((entry) => isSameId(entry?.userId, userId))) {
             return msg;
           }
           return {
@@ -983,7 +1142,7 @@ const StudentChat = () => {
       mounted = false;
       socket.disconnect();
     };
-  }, [decryptForUI, decryptThreadPreview]);
+  }, [decryptForUI, decryptThreadPreview, hydrateEncryptedThreadPreviews]);
 
   useEffect(() => {
     const check = () => setIsMobileView(window.innerWidth < 768);
@@ -1019,6 +1178,9 @@ const StudentChat = () => {
 
   // ── Thread actions ─────────────────────────────────────────────────────────
   const selectThread = useCallback(async (threadId) => {
+    setEditingMessageId('');
+    setEditDraft('');
+    setEditSaving(false);
     const socket = socketRef.current;
     if (activeThreadIdRef.current && activeThreadIdRef.current !== threadId) {
       socket?.emit('leave-thread', { threadId: activeThreadIdRef.current });
@@ -1169,6 +1331,60 @@ const StudentChat = () => {
       socketRef.current?.emit('typing-stop', { threadId: activeThreadId });
     }
   }, [draft, activeThreadId, me, decryptForUI]);
+
+  const startEditMessage = useCallback((msg) => {
+    if (!canEditOwnMessage(msg, me?.id)) return;
+    setEditingMessageId(String(msg._id || ''));
+    setEditDraft(String(msg?.text || ''));
+  }, [me?.id]);
+
+  const cancelEditMessage = useCallback(() => {
+    setEditingMessageId('');
+    setEditDraft('');
+    setEditSaving(false);
+  }, []);
+
+  const saveEditedMessage = useCallback(async () => {
+    const messageId = String(editingMessageId || '');
+    const text = String(editDraft || '').trim();
+    if (!messageId || !activeThreadId || !text) return;
+    const current = messages.find((m) => String(m._id) === messageId);
+    if (!canEditOwnMessage(current, me?.id)) {
+      cancelEditMessage();
+      return;
+    }
+    setEditSaving(true);
+    try {
+      const encrypted = await encryptChatMessage({
+        threadId: activeThreadId,
+        text,
+        myId: me?.id,
+        apiFetch,
+      });
+      const updated = await apiFetch(`/api/chat/threads/${activeThreadId}/messages/${messageId}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ text: encrypted ? '' : text, encrypted: encrypted || undefined }),
+      });
+      const decrypted = await decryptForUI(updated);
+      setMessages((prev) =>
+        prev.map((msg) => (String(msg._id) === messageId ? { ...msg, ...decrypted } : msg))
+      );
+      setThreads((prev) =>
+        prev.map((thread) =>
+          String(thread?._id) === String(activeThreadId) &&
+          isSameId(thread?.lastSenderId, me?.id)
+            ? { ...thread, lastMessage: decrypted?.text || thread.lastMessage }
+            : thread
+        )
+      );
+      setEditingMessageId('');
+      setEditDraft('');
+    } catch {
+      // keep draft for retry
+    } finally {
+      setEditSaving(false);
+    }
+  }, [editingMessageId, editDraft, activeThreadId, messages, me?.id, decryptForUI, cancelEditMessage]);
 
   const handleDraftChange = useCallback((val) => {
     setDraft(val);
@@ -1576,9 +1792,17 @@ const StudentChat = () => {
                             )}
                             <ChatMessage
                               msg={msg}
-                              isMine={String(msg.senderId) === String(me?.id)}
+                              isMine={isSameId(msg.senderId, me?.id)}
                               myId={me?.id}
                               theme={theme}
+                              canEdit={canEditOwnMessage(msg, me?.id)}
+                              isEditing={String(editingMessageId) === String(msg._id)}
+                              editDraft={editDraft}
+                              editSaving={editSaving}
+                              onEditDraftChange={setEditDraft}
+                              onEditCancel={cancelEditMessage}
+                              onEditSave={saveEditedMessage}
+                              onStartEdit={() => startEditMessage(msg)}
                             />
                           </React.Fragment>
                         );

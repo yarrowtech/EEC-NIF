@@ -19,6 +19,7 @@ const { logStudentPortalEvent, logStudentPortalError } = require('../utils/stude
 const router = express.Router();
 router.use(authAnyUser);
 const GROUP_SYNC_MIN_INTERVAL_MS = 2 * 60 * 1000;
+const CHAT_EDIT_WINDOW_MS = Math.max(1000, Number(process.env.CHAT_EDIT_WINDOW_MS || 15 * 60 * 1000));
 const groupSyncState = new Map();
 
 const escapeRegex = (value = '') => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -1411,6 +1412,124 @@ router.post('/threads/:threadId/messages', async (req, res) => {
       targetId: req.params.threadId,
     });
     res.status(500).json({ error: err.message });
+  }
+});
+
+// PATCH /api/chat/threads/:threadId/messages/:messageId — edit own message within fixed time window
+router.patch('/threads/:threadId/messages/:messageId', async (req, res) => {
+  try {
+    const userId = new mongoose.Types.ObjectId(req.user.id);
+    const { schoolId } = req.user;
+    const campusId = (req.campusId ?? req.user?.campusId) ?? null;
+    const { threadId, messageId } = req.params;
+    const { text, encrypted } = req.body || {};
+    const plainText = String(text || '').trim();
+    const hasEncrypted =
+      encrypted &&
+      typeof encrypted === 'object' &&
+      String(encrypted.ciphertext || '').trim() &&
+      String(encrypted.iv || '').trim() &&
+      Array.isArray(encrypted.keys) &&
+      encrypted.keys.length > 0;
+
+    if (!plainText && !hasEncrypted) {
+      return res.status(400).json({ error: 'Encrypted payload or text is required' });
+    }
+
+    const thread = await ChatThread.findOne({
+      _id: threadId,
+      schoolId,
+      ...(campusId !== null ? { campusId } : {}),
+      'participants.userId': userId,
+    }).lean();
+    if (!thread) return res.status(404).json({ error: 'Thread not found' });
+
+    const allowed = await ensureTeacherAccessToThread(req, thread);
+    if (!allowed) return res.status(403).json({ error: 'Access denied' });
+
+    const message = await ChatMessage.findOne({
+      _id: messageId,
+      threadId,
+      schoolId,
+      ...(campusId !== null ? { campusId } : {}),
+    });
+    if (!message) return res.status(404).json({ error: 'Message not found' });
+
+    if (String(message.senderId || '') !== String(userId)) {
+      return res.status(403).json({ error: 'You can edit only your own messages' });
+    }
+
+    const ageMs = Date.now() - new Date(message.createdAt).getTime();
+    if (ageMs > CHAT_EDIT_WINDOW_MS) {
+      return res.status(403).json({ error: 'Edit window expired' });
+    }
+
+    message.text = plainText;
+    message.encrypted = hasEncrypted
+      ? {
+          algorithm: String(encrypted.algorithm || 'AES-GCM'),
+          iv: String(encrypted.iv || ''),
+          ciphertext: String(encrypted.ciphertext || ''),
+          keys: encrypted.keys
+            .filter((k) => k && k.userId && k.wrappedKey)
+            .map((k) => ({ userId: k.userId, wrappedKey: String(k.wrappedKey) })),
+          version: String(encrypted.version || 'v1'),
+        }
+      : {
+          algorithm: '',
+          iv: '',
+          ciphertext: '',
+          keys: [],
+          version: 'v1',
+        };
+    message.isEdited = true;
+    message.editedAt = new Date();
+    await message.save();
+
+    const latestMsg = await ChatMessage.findOne({
+      threadId,
+      schoolId,
+      ...(campusId !== null ? { campusId } : {}),
+    })
+      .sort({ createdAt: -1, _id: -1 })
+      .select('_id')
+      .lean();
+    const isLatestThreadMessage = String(latestMsg?._id || '') === String(message._id);
+
+    if (isLatestThreadMessage) {
+      await ChatThread.updateOne(
+        { _id: threadId },
+        {
+          $set: {
+            lastMessage: message.text || '[Encrypted message]',
+            lastMessageAt: message.createdAt,
+            lastSenderId: message.senderId,
+          },
+        }
+      );
+    }
+
+    const io = req.app.get('io');
+    const payload = message.toObject();
+    if (io) {
+      io.to(`thread:${threadId}`).emit('message-edited', { threadId, message: payload });
+      if (isLatestThreadMessage) {
+        for (const participant of thread.participants || []) {
+          const participantId = String(participant?.userId || '');
+          if (!participantId) continue;
+          io.to(`user:${participantId}`).emit('thread-updated', {
+            threadId,
+            lastMessage: message.text || '[Encrypted message]',
+            lastMessageAt: message.createdAt,
+            message: payload,
+          });
+        }
+      }
+    }
+
+    return res.json(payload);
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
   }
 });
 

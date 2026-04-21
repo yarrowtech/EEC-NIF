@@ -27,6 +27,8 @@ const chatMessageSchema = new mongoose.Schema({
     version: { type: String, default: 'v1' },
   },
   seenBy: [seenBySchema],
+  isEdited: { type: Boolean, default: false },
+  editedAt: { type: Date, default: null },
   schoolId: { type: mongoose.Schema.Types.ObjectId, ref: 'School', required: true },
   campusId: { type: String, required: true },
 }, { timestamps: true });

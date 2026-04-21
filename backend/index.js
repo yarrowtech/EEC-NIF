@@ -406,6 +406,7 @@ const io = new SocketServer(httpServer, {
     methods: ['GET', 'POST'],
   },
 });
+app.set('io', io);
 
 // Socket.io auth middleware
 io.use((socket, next) => {
