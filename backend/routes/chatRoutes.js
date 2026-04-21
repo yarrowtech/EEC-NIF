@@ -10,6 +10,7 @@ const Principal = require('../models/Principal');
 const Timetable = require('../models/Timetable');
 const ClassModel = require('../models/Class');
 const Section = require('../models/Section');
+const AcademicYear = require('../models/AcademicYear');
 const TeacherAllocation = require('../models/TeacherAllocation');
 const ChatKey = require('../models/ChatKey');
 const { getPresenceSnapshot } = require('../utils/chatPresence');
@@ -24,6 +25,36 @@ const groupSyncState = new Map();
 
 const escapeRegex = (value = '') => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 const normalizeValue = (value = '') => String(value || '').trim();
+const normalizeAcademicYearKey = (value = '') =>
+  String(value || '')
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, '')
+    .replace(/[^a-z0-9]/g, '');
+const extractYearTokens = (value = '') =>
+  String(value || '').match(/\d{2,4}/g) || [];
+const isAcademicYearMatch = (studentAcademicYear, comboAcademicYear) => {
+  const comboKey = normalizeAcademicYearKey(comboAcademicYear);
+  if (!comboKey) return true;
+
+  const studentKey = normalizeAcademicYearKey(studentAcademicYear);
+  // If student profile doesn't carry an academic year, don't block allocation-based access.
+  if (!studentKey) return true;
+  if (studentKey === comboKey) return true;
+  if (studentKey.includes(comboKey) || comboKey.includes(studentKey)) return true;
+
+  const studentTokens = extractYearTokens(studentAcademicYear);
+  const comboTokens = extractYearTokens(comboAcademicYear);
+  if (studentTokens.length && comboTokens.length) {
+    const studentFirst = studentTokens[0];
+    const comboFirst = comboTokens[0];
+    const studentLast = studentTokens[studentTokens.length - 1];
+    const comboLast = comboTokens[comboTokens.length - 1];
+    if (studentFirst === comboFirst && studentLast === comboLast) return true;
+  }
+
+  return false;
+};
 const isTeacherRequest = (req) => (req.user?.userType || '').toLowerCase() === 'teacher';
 const buildCampusCondition = (campusId) => (
   campusId
@@ -56,26 +87,41 @@ const findTeacherAllocations = async ({ teacherId, schoolId, campusId }) => {
   }
 
   const allocations = await TeacherAllocation.find(allocationFilter)
-    .populate('classId', 'name')
+    .populate('classId', 'name academicYearId')
     .populate('sectionId', 'name')
     .lean();
+
+  const allocationYearIds = Array.from(
+    new Set(
+      allocations
+        .map((alloc) => String(alloc?.classId?.academicYearId || '').trim())
+        .filter(Boolean)
+    )
+  );
+  let yearNameById = new Map();
+  if (allocationYearIds.length > 0) {
+    const yearDocs = await AcademicYear.find({ _id: { $in: allocationYearIds }, schoolId })
+      .select('_id name')
+      .lean();
+    yearNameById = new Map(yearDocs.map((doc) => [String(doc._id), normalizeValue(doc.name)]));
+  }
 
   const combosMap = new Map();
   allocations.forEach((alloc) => {
     const className = normalizeValue(alloc.classId?.name);
     if (!className) return;
     const sectionName = normalizeValue(alloc.sectionId?.name);
-    const key = `${className.toLowerCase()}|${sectionName.toLowerCase()}`;
+    const academicYear = normalizeValue(yearNameById.get(String(alloc?.classId?.academicYearId || '')) || '');
+    const key = `${className.toLowerCase()}|${sectionName.toLowerCase()}|${academicYear.toLowerCase()}`;
     combosMap.set(
       key,
       combosMap.get(key) || {
         grade: className,
         section: sectionName || '',
+        academicYear,
       }
     );
   });
-
-  if (combosMap.size > 0) return Array.from(combosMap.values());
 
   const timetableFilter = {
     schoolId,
@@ -90,20 +136,40 @@ const findTeacherAllocations = async ({ teacherId, schoolId, campusId }) => {
   }
 
   const timetables = await Timetable.find(timetableFilter)
-    .select('classId sectionId')
-    .populate('classId', 'name')
+    .select('classId sectionId academicYearId')
+    .populate('classId', 'name academicYearId')
     .populate('sectionId', 'name')
     .lean();
+
+  const timetableYearIds = Array.from(
+    new Set(
+      timetables
+        .map((tt) => String(tt?.academicYearId || tt?.classId?.academicYearId || '').trim())
+        .filter(Boolean)
+    )
+  );
+  if (timetableYearIds.length > 0) {
+    const yearDocs = await AcademicYear.find({ _id: { $in: timetableYearIds }, schoolId })
+      .select('_id name')
+      .lean();
+    yearDocs.forEach((doc) => {
+      const id = String(doc._id);
+      if (!yearNameById.has(id)) yearNameById.set(id, normalizeValue(doc.name));
+    });
+  }
 
   timetables.forEach((tt) => {
     const className = normalizeValue(tt.classId?.name);
     if (!className) return;
     const sectionName = normalizeValue(tt.sectionId?.name);
-    const key = `${className.toLowerCase()}|${sectionName.toLowerCase()}`;
+    const yearId = String(tt?.academicYearId || tt?.classId?.academicYearId || '').trim();
+    const academicYear = normalizeValue(yearNameById.get(yearId) || '');
+    const key = `${className.toLowerCase()}|${sectionName.toLowerCase()}|${academicYear.toLowerCase()}`;
     if (!combosMap.has(key)) {
       combosMap.set(key, {
         grade: className,
         section: sectionName || '',
+        academicYear,
       });
     }
   });
@@ -156,22 +222,83 @@ const fetchParentStudents = async ({ parent, schoolId, campusId }) => {
   return students || [];
 };
 
-const findClassTeacherForStudent = async ({ student, schoolId }) => {
-  if (!student || !schoolId) return null;
+const resolveStudentClassContext = async ({ student, schoolId, campusId }) => {
+  if (!student || !schoolId) return { classDoc: null, sectionDoc: null, preferredAcademicYearId: null };
 
-  const classDoc = student.grade
-    ? await ClassModel.findOne({ schoolId, name: student.grade }).lean()
-    : null;
-  if (!classDoc) return null;
+  const grade = normalizeValue(student.grade);
+  if (!grade) return { classDoc: null, sectionDoc: null, preferredAcademicYearId: null };
+
+  const resolvedCampusId = normalizeValue(campusId || student.campusId);
+  const classFilter = {
+    schoolId,
+    name: { $regex: `^${escapeRegex(grade)}$`, $options: 'i' },
+  };
+  if (resolvedCampusId) classFilter.campusId = resolvedCampusId;
+
+  const classCandidates = await ClassModel.find(classFilter)
+    .sort({ createdAt: -1 })
+    .lean();
+  if (!classCandidates.length) {
+    return { classDoc: null, sectionDoc: null, preferredAcademicYearId: null };
+  }
+
+  const candidateYearIds = classCandidates.map((doc) => doc.academicYearId).filter(Boolean);
+  const studentYearKey = normalizeValue(student.academicYear).toLowerCase();
+
+  let yearNameById = new Map();
+  let activeYearId = null;
+  if (candidateYearIds.length) {
+    const yearDocs = await AcademicYear.find({
+      _id: { $in: candidateYearIds },
+      schoolId,
+    })
+      .select('_id name isActive')
+      .lean();
+    yearNameById = new Map(
+      yearDocs.map((doc) => [String(doc._id), normalizeValue(doc.name).toLowerCase()])
+    );
+    const activeYearDoc = yearDocs.find((doc) => doc.isActive);
+    activeYearId = activeYearDoc?._id ? String(activeYearDoc._id) : null;
+  }
+
+  let classDoc = null;
+  if (studentYearKey) {
+    classDoc = classCandidates.find((doc) =>
+      yearNameById.get(String(doc.academicYearId || '')) === studentYearKey
+    ) || null;
+  }
+
+  if (!classDoc && activeYearId) {
+    classDoc = classCandidates.find((doc) => String(doc.academicYearId || '') === activeYearId) || null;
+  }
+
+  if (!classDoc) classDoc = classCandidates[0];
 
   let sectionDoc = null;
-  if (student.section) {
-    sectionDoc = await Section.findOne({
+  const section = normalizeValue(student.section);
+  if (section) {
+    const sectionFilter = {
       schoolId,
       classId: classDoc._id,
-      name: student.section,
-    }).lean();
+      name: { $regex: `^${escapeRegex(section)}$`, $options: 'i' },
+    };
+    if (resolvedCampusId) sectionFilter.campusId = resolvedCampusId;
+    sectionDoc = await Section.findOne(sectionFilter).lean();
   }
+
+  const preferredAcademicYearId = classDoc?.academicYearId ? String(classDoc.academicYearId) : activeYearId;
+
+  return { classDoc, sectionDoc, preferredAcademicYearId };
+};
+
+const findClassTeacherForStudent = async ({ student, schoolId }) => {
+  if (!student || !schoolId) return null;
+  const { classDoc, sectionDoc, preferredAcademicYearId } = await resolveStudentClassContext({
+    student,
+    schoolId,
+    campusId: student?.campusId,
+  });
+  if (!classDoc) return null;
 
   const baseFilter = {
     schoolId,
@@ -202,6 +329,7 @@ const findClassTeacherForStudent = async ({ student, schoolId }) => {
     schoolId,
     classId: classDoc._id,
     ...(sectionDoc ? { sectionId: sectionDoc._id } : {}),
+    ...(preferredAcademicYearId ? { academicYearId: preferredAcademicYearId } : {}),
   })
     .populate('entries.teacherId', 'name subject employeeCode profilePic email')
     .lean();
@@ -218,24 +346,17 @@ const findClassTeacherForStudent = async ({ student, schoolId }) => {
 
 const getStudentTeachers = async ({ student, schoolId }) => {
   if (!student || !schoolId) return [];
-
-  const classDoc = student.grade
-    ? await ClassModel.findOne({ schoolId, name: student.grade }).lean()
-    : null;
+  const { classDoc, sectionDoc, preferredAcademicYearId } = await resolveStudentClassContext({
+    student,
+    schoolId,
+    campusId: student?.campusId,
+  });
   if (!classDoc) return [];
-
-  let sectionDoc = null;
-  if (student.section) {
-    sectionDoc = await Section.findOne({
-      schoolId,
-      classId: classDoc._id,
-      name: student.section,
-    }).lean();
-  }
 
   const timetableFilter = {
     schoolId,
     classId: classDoc._id,
+    ...(preferredAcademicYearId ? { academicYearId: preferredAcademicYearId } : {}),
   };
   if (sectionDoc) {
     timetableFilter.sectionId = sectionDoc._id;
@@ -327,15 +448,17 @@ const studentMatchesCombos = (student, combos = []) => {
   const studentGrade = normalizeValue(student?.grade);
   if (!studentGrade) return false;
   const studentSection = normalizeValue(student?.section);
+  const studentAcademicYear = normalizeValue(student?.academicYear);
   const studentGradeLower = studentGrade.toLowerCase();
 
-  return combos.some(({ grade, section }) => {
+  return combos.some(({ grade, section, academicYear }) => {
     const comboGrade = normalizeValue(grade);
     if (!comboGrade) return false;
     if (studentGradeLower !== comboGrade.toLowerCase()) return false;
     const comboSection = normalizeValue(section);
-    if (!comboSection) return true;
-    return studentSection && studentSection.toLowerCase() === comboSection.toLowerCase();
+    const sectionMatches = !comboSection || (studentSection && studentSection.toLowerCase() === comboSection.toLowerCase());
+    if (!sectionMatches) return false;
+    return isAcademicYearMatch(studentAcademicYear, academicYear);
   });
 };
 
@@ -349,7 +472,7 @@ const ensureTeacherCanAccessStudent = async (req, studentOrId) => {
     const studentId = studentOrId?._id || studentOrId;
     if (!studentId) return false;
     studentDoc = await StudentUser.findById(studentId)
-      .select('_id grade section campusId')
+      .select('_id grade section campusId academicYear')
       .lean();
   }
   if (!studentDoc) return false;
@@ -693,16 +816,57 @@ router.get('/contacts', async (req, res) => {
     const campusId = (req.campusId ?? req.user?.campusId) ?? null;
 
     if (userType === 'student') {
-      const teachers = await TeacherUser.find({ schoolId, campusId })
-        .select('_id name subject employeeCode profilePic')
+      const student = await StudentUser.findOne({
+        _id: req.user.id,
+        schoolId,
+        ...(campusId ? { campusId } : {}),
+      })
+        .select('_id grade section campusId academicYear')
         .lean();
-      return res.json(teachers.map(t => ({
-        _id: t._id,
-        name: t.name || t.employeeCode || 'Teacher',
-        subtitle: t.subject || 'Teacher',
+
+      if (!student) return res.json([]);
+
+      const teacherMap = new Map();
+      const allocatedTeachers = await getStudentTeachers({ student, schoolId });
+
+      (allocatedTeachers || []).forEach(({ teacher, subjects }) => {
+        if (!teacher?._id) return;
+        const teacherId = String(teacher._id);
+        if (!teacherMap.has(teacherId)) {
+          teacherMap.set(teacherId, {
+            teacher,
+            subjects: new Set(),
+          });
+        }
+        const entry = teacherMap.get(teacherId);
+        (subjects ? Array.from(subjects) : []).forEach((subjectName) => {
+          if (subjectName) entry.subjects.add(subjectName);
+        });
+      });
+
+      if (teacherMap.size === 0) {
+        const classTeacher = await findClassTeacherForStudent({ student, schoolId });
+        if (classTeacher?._id) {
+          teacherMap.set(String(classTeacher._id), {
+            teacher: classTeacher,
+            subjects: new Set(),
+          });
+        }
+      }
+
+      const classLabel = student.grade
+        ? `Class ${student.grade}${student.section ? ` - ${student.section}` : ''}`
+        : 'Allocated teacher';
+
+      const contacts = Array.from(teacherMap.values()).map(({ teacher, subjects }) => ({
+        _id: teacher._id,
+        name: teacher.name || teacher.employeeCode || 'Teacher',
+        subtitle: subjects.size ? Array.from(subjects).join(', ') : classLabel,
         userType: 'teacher',
-        avatar: t.profilePic || null,
-      })));
+        avatar: teacher.profilePic || null,
+      }));
+
+      return res.json(contacts);
     }
 
     if (userType === 'parent') {
@@ -785,10 +949,11 @@ router.get('/contacts', async (req, res) => {
       else filter.$and = andConditions;
 
       const students = await StudentUser.find(filter)
-        .select('_id name username studentCode profilePic grade section campusId')
+        .select('_id name username studentCode profilePic grade section campusId academicYear')
         .lean();
 
-      const items = students.map(s => ({
+      const filteredStudents = students.filter((student) => studentMatchesCombos(student, combos));
+      const items = filteredStudents.map(s => ({
         _id: s._id,
         name: s.name || s.username || s.studentCode || 'Student',
         subtitle: s.grade ? `Grade ${s.grade}${s.section ? ' - ' + s.section : ''}` : 'Student',
@@ -1006,7 +1171,7 @@ router.get('/threads', async (req, res) => {
     let studentMap = new Map();
     if (studentIds.length) {
       const students = await StudentUser.find({ _id: { $in: studentIds } })
-        .select('_id grade section')
+        .select('_id grade section academicYear')
         .lean();
       studentMap = new Map(students.map(s => [String(s._id), s]));
     }

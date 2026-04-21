@@ -4,7 +4,7 @@ import {
   MessageSquare, Send, Search, ChevronLeft,
   PlusCircle, X, Loader2, Eye, Mail, BookOpen,
   GraduationCap, Phone, User, Check, CheckCheck,
-  Info, Palette, Lock, Link2, ExternalLink, Pencil
+  Info, Palette, Lock, Link2, ExternalLink, Pencil, ChevronDown
 } from 'lucide-react';
 import { decryptChatMessage, encryptChatMessage, ensureE2EEIdentity } from '../utils/chatE2EE';
 import { chatCacheKeys, readChatCache, writeChatCache } from '../utils/chatCache';
@@ -873,15 +873,18 @@ const StudentChat = () => {
   const [editingMessageId, setEditingMessageId] = useState('');
   const [editDraft, setEditDraft] = useState('');
   const [editSaving, setEditSaving] = useState(false);
+  const [showScrollToBottom, setShowScrollToBottom] = useState(false);
 
   const socketRef          = useRef(null);
   const activeThreadIdRef  = useRef(null);
+  const messagesContainerRef = useRef(null);
   const messagesEndRef     = useRef(null);
   const typingTimers       = useRef({});
   const typingDebounce     = useRef(null);
   const isTyping           = useRef(false);
   const meRef              = useRef(null);
   const privateKeyRef      = useRef('');
+  const shouldAutoScrollRef = useRef(true);
 
   const activeThread = useMemo(
     () => threads.find(t => String(t._id) === activeThreadId),
@@ -1151,9 +1154,37 @@ const StudentChat = () => {
     return () => window.removeEventListener('resize', check);
   }, []);
 
+  const isNearBottom = useCallback(() => {
+    const container = messagesContainerRef.current;
+    if (!container) return true;
+    const distance = container.scrollHeight - container.scrollTop - container.clientHeight;
+    return distance < 120;
+  }, []);
+
+  const scrollToBottom = useCallback((behavior = 'smooth') => {
+    messagesEndRef.current?.scrollIntoView({ behavior });
+    shouldAutoScrollRef.current = true;
+    setShowScrollToBottom(false);
+  }, []);
+
+  const handleMessagesScroll = useCallback(() => {
+    const nearBottom = isNearBottom();
+    shouldAutoScrollRef.current = nearBottom;
+    setShowScrollToBottom(!nearBottom);
+  }, [isNearBottom]);
+
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
+    if (shouldAutoScrollRef.current || isNearBottom()) {
+      scrollToBottom('smooth');
+    } else {
+      setShowScrollToBottom(true);
+    }
+  }, [messages, isNearBottom, scrollToBottom]);
+
+  useEffect(() => {
+    shouldAutoScrollRef.current = true;
+    setShowScrollToBottom(false);
+  }, [activeThreadId]);
 
   useEffect(() => {
     const userId = me?.id;
@@ -1252,23 +1283,21 @@ const StudentChat = () => {
   }, [selectThread]);
 
   const openContacts = useCallback(async () => {
-    if (contacts.length === 0) {
-      const userId = meRef.current?.id || me?.id;
-      const cachedContacts = userId
-        ? readChatCache(chatCacheKeys.contacts(userId), CONTACTS_CACHE_TTL_MS)
-        : null;
+    const userId = meRef.current?.id || me?.id;
+    const cachedContacts = userId
+      ? readChatCache(chatCacheKeys.contacts(userId), CONTACTS_CACHE_TTL_MS)
+      : null;
+    try {
+      const data = await apiFetch('/api/chat/contacts');
+      setContacts(data);
+      if (userId) writeChatCache(chatCacheKeys.contacts(userId), data);
+    } catch {
       if (Array.isArray(cachedContacts)) {
         setContacts(cachedContacts);
-      } else {
-        try {
-          const data = await apiFetch('/api/chat/contacts');
-          setContacts(data);
-          if (userId) writeChatCache(chatCacheKeys.contacts(userId), data);
-        } catch { /* ignore */ }
       }
     }
     setShowContacts(true);
-  }, [contacts, me?.id]);
+  }, [me?.id]);
 
   const sendMessage = useCallback(() => {
     const text = draft.trim();
@@ -1755,7 +1784,12 @@ const StudentChat = () => {
                 </div>
 
                 {/* Messages */}
-                <div className="flex-1 min-h-0 overflow-y-auto px-4 py-4" style={wallpaperStyle}>
+                <div
+                  ref={messagesContainerRef}
+                  onScroll={handleMessagesScroll}
+                  className="relative flex-1 min-h-0 overflow-y-auto px-4 py-4"
+                  style={wallpaperStyle}
+                >
                   <div className="flex justify-center mb-3">
                     <span className="inline-flex items-center gap-1.5 text-[11px] px-3 py-1 rounded-full bg-amber-100 text-amber-700 font-medium">
                       <Lock className="h-3 w-3" />
@@ -1820,6 +1854,17 @@ const StudentChat = () => {
                       )}
                       <div ref={messagesEndRef} />
                     </>
+                  )}
+                  {showScrollToBottom && messages.length > 0 && !loadingMessages && (
+                    <button
+                      type="button"
+                      onClick={() => scrollToBottom('smooth')}
+                      className="absolute bottom-4 right-4 h-9 w-9 rounded-full shadow-md border border-gray-200 bg-white text-gray-700 hover:bg-gray-50 flex items-center justify-center z-10"
+                      title="Scroll to latest messages"
+                      aria-label="Scroll to latest messages"
+                    >
+                      <ChevronDown className="h-4 w-4" />
+                    </button>
                   )}
                 </div>
 

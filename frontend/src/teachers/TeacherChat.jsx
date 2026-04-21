@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { io } from 'socket.io-client';
 import {
   MessageSquare, Send, Search, ChevronLeft,
-  Info, PlusCircle, X, Loader2, GraduationCap, Check, CheckCheck, User, Users, Palette, Lock, Link2, ExternalLink, Pencil
+  Info, PlusCircle, X, Loader2, GraduationCap, Check, CheckCheck, User, Users, Palette, Lock, Link2, ExternalLink, Pencil, ChevronDown
 } from 'lucide-react';
 import { decryptChatMessage, encryptChatMessage, ensureE2EEIdentity } from '../utils/chatE2EE';
 import { chatCacheKeys, readChatCache, writeChatCache } from '../utils/chatCache';
@@ -905,15 +905,18 @@ const TeacherChat = () => {
   const [editingMessageId, setEditingMessageId] = useState('');
   const [editDraft, setEditDraft] = useState('');
   const [editSaving, setEditSaving] = useState(false);
+  const [showScrollToBottom, setShowScrollToBottom] = useState(false);
 
   const socketRef = useRef(null);
   const activeThreadIdRef = useRef(null);
+  const messagesContainerRef = useRef(null);
   const messagesEndRef = useRef(null);
   const typingTimers = useRef({});
   const typingDebounce = useRef(null);
   const isTyping = useRef(false);
   const meRef = useRef(null);
   const privateKeyRef = useRef('');
+  const shouldAutoScrollRef = useRef(true);
 
   const activeThread = useMemo(() => threads.find(t => String(t._id) === activeThreadId), [threads, activeThreadId]);
 
@@ -1223,9 +1226,37 @@ const TeacherChat = () => {
   }, []);
 
   // ── Scroll to bottom ──────────────────────────────────────────────────────
+  const isNearBottom = useCallback(() => {
+    const container = messagesContainerRef.current;
+    if (!container) return true;
+    const distance = container.scrollHeight - container.scrollTop - container.clientHeight;
+    return distance < 120;
+  }, []);
+
+  const scrollToBottom = useCallback((behavior = 'smooth') => {
+    messagesEndRef.current?.scrollIntoView({ behavior });
+    shouldAutoScrollRef.current = true;
+    setShowScrollToBottom(false);
+  }, []);
+
+  const handleMessagesScroll = useCallback(() => {
+    const nearBottom = isNearBottom();
+    shouldAutoScrollRef.current = nearBottom;
+    setShowScrollToBottom(!nearBottom);
+  }, [isNearBottom]);
+
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
+    if (shouldAutoScrollRef.current || isNearBottom()) {
+      scrollToBottom('smooth');
+    } else {
+      setShowScrollToBottom(true);
+    }
+  }, [messages, isNearBottom, scrollToBottom]);
+
+  useEffect(() => {
+    shouldAutoScrollRef.current = true;
+    setShowScrollToBottom(false);
+  }, [activeThreadId]);
 
   useEffect(() => {
     const userId = me?.id;
@@ -1916,7 +1947,12 @@ const TeacherChat = () => {
               </div>
 
               {/* Messages */}
-              <div className="flex-1 overflow-y-auto px-4 py-4" style={wallpaperStyle}>
+              <div
+                ref={messagesContainerRef}
+                onScroll={handleMessagesScroll}
+                className="relative flex-1 overflow-y-auto px-4 py-4"
+                style={wallpaperStyle}
+              >
                 <div className="flex justify-center mb-3">
                   <span className="inline-flex items-center gap-1.5 text-[11px] px-3 py-1 rounded-full bg-blue-100 text-blue-700 font-medium">
                     <Lock className="h-3 w-3" />
@@ -1979,6 +2015,17 @@ const TeacherChat = () => {
                     )}
                     <div ref={messagesEndRef} />
                   </>
+                )}
+                {showScrollToBottom && messages.length > 0 && !loadingMessages && (
+                  <button
+                    type="button"
+                    onClick={() => scrollToBottom('smooth')}
+                    className="absolute bottom-4 right-4 h-9 w-9 rounded-full shadow-md border border-gray-200 bg-white text-gray-700 hover:bg-gray-50 flex items-center justify-center z-10"
+                    title="Scroll to latest messages"
+                    aria-label="Scroll to latest messages"
+                  >
+                    <ChevronDown className="h-4 w-4" />
+                  </button>
                 )}
               </div>
 
