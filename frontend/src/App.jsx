@@ -1,7 +1,6 @@
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { Toaster } from "react-hot-toast";
 import "./App.css";
-import Tryout from "./components/Tryout";
 import LoginForm from "./components/LoginForm";
 import SignupForm from "./components/SignupForm";
 import Dashboard from "./components/Dashboard";
@@ -39,9 +38,11 @@ const AUTHENTICATED_ROLES = Object.values(ROLES);
 
 const studentSections = [
   "home",
-  "ai-learning",
-  "ai-learning-courses",
-  "ai-learning-tutor",
+  "smart-learning",
+  "smart-learning/*",
+  "smart-learning-courses",
+  "smart-learning-courses-reference",
+  "smart-learning-tutor",
   "academics",
   "assignments",
   "assignments-journal",
@@ -68,8 +69,8 @@ const studentSections = [
 const studentBasePaths = ["/student", "/dashboard"];
 const studentDashboardPaths = studentBasePaths.flatMap((basePath) => [
   basePath,
-  `${basePath}/*`,
   ...studentSections.map((section) => `${basePath}/${section}`),
+  `${basePath}/*`,
 ]);
 
 function App() {
@@ -122,11 +123,6 @@ function App() {
             element={withAuth([ROLES.STUDENT], <Dashboard />)}
           />
         ))}
-        <Route
-          path="/student/tryouts"
-          element={withAuth([ROLES.STUDENT], <Tryout />)}
-        />
-
         {/* School admin module - More specific routes first */}
         <Route
           path="/admin/archived-students"

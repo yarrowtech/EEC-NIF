@@ -29,7 +29,10 @@
       "Bash(npm run test:coverage:*)",
       "Bash(lsof:*)",
       "Bash(curl:*)",
-      "Bash(xargs:*)"
+      "Bash(xargs:*)",
+      "Bash(npx eslint:*)",
+      "Bash(node -c:*)",
+      "Bash(npm run dev:*)"
     ]
   }
 }

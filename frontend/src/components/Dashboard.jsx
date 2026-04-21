@@ -16,6 +16,8 @@ import TeacherFeedback from './TeacherFeedback';
 import StudentChat from './StudentChat';
 import ExcuseLetter from './ExcuseLetter';
 import AILearningDashboard from './AILearningDashboard';
+import AILearningCoursesLanding from './AILearningCoursesLanding';
+import AILearningCoursesReference from './AILearningCoursesReference';
 import AcademicAlcove from './AcademicAlcove';
 import StudentWellbeing from './StudentWellbeing';
 import LessonPlanStatusView from './LessonPlanStatusView';
@@ -23,7 +25,6 @@ import StudyMaterials from './StudyMaterials';
 import StudentExamsView from './StudentExamsView';
 import { StudentDashboardProvider } from './StudentDashboardContext';
 import MobileBottomNav from './MobileBottomNav';
-import AdventureTryouts from './AdventureTryouts';
 import HolidayListView from './HolidayListView';
 
 const normalizeViewFromPath = (pathname) => {
@@ -104,9 +105,10 @@ const Dashboard = () => {
   const viewComponents = {
     dashboard: (props) => <DashboardHome {...props} setActiveView={setActiveView} />,
     home: (props) => <DashboardHome {...props} setActiveView={setActiveView} />,
-    'ai-learning': AILearningDashboard,
-    'ai-learning-courses': CoursesView,
-    'ai-learning-tutor': AILearningDashboard,
+    'smart-learning': AILearningCoursesLanding,
+    'smart-learning-courses': CoursesView,
+    'smart-learning-courses-reference': AILearningCoursesReference,
+    'smart-learning-tutor': AILearningDashboard,
     academics: (props) => <AssignmentView {...props} defaultType="school" />,
     attendance: AttendanceView,
     routine: RoutineView,
@@ -128,7 +130,6 @@ const Dashboard = () => {
     wellness: StudentWellbeing,
     wellbeing: StudentWellbeing,
     achievements: AchievementsView,
-    tryouts: AdventureTryouts,
     profile: ProfileUpdate,
     themecustomizer: ThemeCustomizer,
   };

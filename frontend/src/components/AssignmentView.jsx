@@ -2,11 +2,10 @@ import React, { useEffect, useState, useRef, useCallback, useMemo, forwardRef, u
 import { useNavigate } from "react-router-dom";
 import {
   Plus, Trash2, BookOpen, FlaskConical, Layers, PenLine, GraduationCap,
-  Gamepad2, ChevronRight, ChevronLeft, X, Sparkles, Save, Clock,
+  ChevronRight, ChevronLeft, X, Sparkles, Save, Clock,
 } from "lucide-react";
 import PointsBadge from "./PointsBadge";
 import Assignment from "./Assignment";
-import Tryout from "./Tryout";
 import { fetchCachedJson, clearStudentApiCacheByUrl } from "../utils/studentApiCache";
 
 /* ═══════════════ TOUR STEPS CONFIG ═══════════════ */
@@ -169,7 +168,6 @@ const AssignmentView = forwardRef(({ defaultType = "school" }, ref) => {
   const typeTabs = [
     { key: "school", label: "School", icon: BookOpen },
     { key: "eec", label: "Practice", icon: GraduationCap },
-    { key: "tryout", label: "Tryout", icon: Gamepad2 },
     { key: "lab", label: "Lab", icon: FlaskConical },
     { key: "flashcard", label: "FlashCard", icon: Layers },
   ];
@@ -214,13 +212,7 @@ const AssignmentView = forwardRef(({ defaultType = "school" }, ref) => {
       {assignmentType !== "journal" && (
         <div className="flex gap-1 overflow-x-auto rounded-xl bg-gray-100 p-1">
           {typeTabs.filter(t => t.key !== 'tryout' && t.key !== 'flashcard' && t.key !== 'lab').map((t) => (
-            <button key={t.key} onClick={() => {
-              if (t.key === 'tryout') {
-                navigate('/student/tryouts');
-                return;
-              }
-              setAssignmentType(t.key);
-            }}
+            <button key={t.key} onClick={() => { setAssignmentType(t.key); }}
               className={`flex items-center gap-2 whitespace-nowrap rounded-lg px-4 py-2 text-sm font-medium transition ${assignmentType === t.key ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-700"
                 }`}>
               <t.icon className="h-4 w-4" /> {t.label}
@@ -756,7 +748,6 @@ const AssignmentView = forwardRef(({ defaultType = "school" }, ref) => {
       {["school", "eec", "lab", "flashcard"].includes(assignmentType) && (
         <Assignment assignmentType={assignmentType} filter={filter} setFilter={setFilter} />
       )}
-      {assignmentType === "tryout" && <Tryout />}
     </div>
   );
 });

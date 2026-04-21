@@ -18,11 +18,11 @@ const MENU_ITEMS = [
     iconColor: 'text-blue-600', iconBg: 'bg-blue-100',
   },
   {
-    id: 'ai-learning', name: 'AI Learning', icon: Brain,
+    id: 'smart-learning', name: 'Learning', icon: Brain,
     iconColor: 'text-violet-600', iconBg: 'bg-violet-100',
     children: [
-      { id: 'ai-learning-courses', name: 'AI Courses',  icon: GraduationCap },
-      { id: 'ai-learning-tutor',   name: 'AI Tutor',    icon: Brain },
+      { id: 'smart-learning-courses', name: 'Smart Learning',  icon: GraduationCap },
+      { id: 'smart-learning-tutor',   name: 'AI Tutor',    icon: Brain },
     ],
   },
   {
@@ -32,7 +32,6 @@ const MENU_ITEMS = [
       { id: 'assignments',                  name: 'Assignments',     icon: FileText  },
       { id: 'assignments-journal',          name: 'Journal',         icon: File      },
       { id: 'assignments-academic-alcove',  name: 'The Wall',        icon: Target    },
-      { id: 'tryouts',                      name: 'Tryouts',         icon: Brain     },
       { id: 'study-materials',             name: 'Study Materials',  icon: BookOpen  },
       { id: 'results',                      name: 'Results',         icon: BarChart3 },
     ],
@@ -349,6 +348,8 @@ const Sidebar = ({ activeView, isOpen, setIsOpen, onNavigateIntent }) => {
                   if (collapsed) {
                     handleNavigation(item.children[0].id);
                   } else {
+                    // Navigate to parent item and toggle submenu
+                    handleNavigation(item.id);
                     setOpenGroups(prev => ({ ...prev, [item.id]: !expanded }));
                   }
                 } else {
