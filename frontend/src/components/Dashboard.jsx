@@ -106,7 +106,7 @@ const Dashboard = () => {
     dashboard: (props) => <DashboardHome {...props} setActiveView={setActiveView} />,
     home: (props) => <DashboardHome {...props} setActiveView={setActiveView} />,
     'smart-learning': AILearningCoursesLanding,
-    'smart-learning-courses': CoursesView,
+    'smart-learning-courses': AILearningCoursesLanding,
     'smart-learning-courses-reference': AILearningCoursesReference,
     'smart-learning-tutor': AILearningDashboard,
     academics: (props) => <AssignmentView {...props} defaultType="school" />,
