@@ -6,4 +6,5 @@ frontend/.env
 # build output
 frontend/dist/
 backend/logs/
-
+frontend/coverage/
+coverage/

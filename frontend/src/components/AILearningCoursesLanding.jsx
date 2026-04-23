@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { AlertCircle, ArrowLeft, BookOpen, ChevronDown, ChevronUp, FlaskConical, Globe, GraduationCap, Info, PlayCircle, Sparkles } from 'lucide-react';
+import { AlertCircle, ArrowLeft, BookOpen, ChevronDown, ChevronUp, FlaskConical, Globe, GraduationCap, Info, Sparkles } from 'lucide-react';
 import AILearningCoursesReference from './AILearningCoursesReference';
 
 const API_BASE = (import.meta.env.VITE_API_URL || 'http://localhost:5000').replace(/\/$/, '');
@@ -247,7 +247,6 @@ const SubjectTopicsView = ({ subject, onBack }) => {
                 }}
                 className="mt-4 w-full rounded-xl bg-gradient-to-r from-[#e0b92c] to-[#d4a520] px-6 py-3 font-bold text-white hover:from-[#d4a520] hover:to-[#c99a1e] transition-all duration-200 shadow-lg hover:shadow-xl flex items-center justify-center gap-2"
               >
-                <PlayCircle size={20} />
                 Continue Learning: {nextIncompleteTopic.title}
               </button>
             )}
@@ -350,7 +349,7 @@ const SubjectTopicsView = ({ subject, onBack }) => {
                               <polyline points="20 6 9 17 4 12"></polyline>
                             </svg>
                           ) : (
-                            <PlayCircle size={24} />
+                            <BookOpen size={24} />
                           )}
                         </span>
                         <div className="flex-1 min-w-0">
@@ -398,7 +397,6 @@ const SubjectTopicsView = ({ subject, onBack }) => {
                         >
                           <span className="relative z-10 flex items-center gap-2 whitespace-nowrap">
                             {isInProgress ? 'Continue' : isFullyCompleted ? 'Learn' : 'Start Learning'}
-                            <PlayCircle className="opacity-0 group-hover/btn:opacity-100 transition-opacity duration-300" size={18} />
                           </span>
                           <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full group-hover/btn:translate-x-full transition-transform duration-700 ease-in-out"></div>
                         </button>
@@ -612,9 +610,9 @@ const AILearningCoursesLanding = () => {
                         <p className="text-sm text-slate-600 line-clamp-2">Assigned in your timetable. Start this subject quest now.</p>
                         <button
                           onClick={() => navigate(`/student/smart-learning-courses/subject/${encodeURIComponent(subject.key)}`)}
-                          className="flex w-full items-center justify-center gap-2 rounded-lg bg-[#e7c555] py-3 font-bold text-slate-900 transition-all group-hover:scale-[1.02] hover:bg-[#e7c555]/90"
+                          className="flex w-full items-center justify-center gap-2 rounded-lg bg-[#e7c555] py-3 font-bold text-slate-900 transition-all duration-200 ease-out group-hover:scale-[1.01] hover:-translate-y-0.5 hover:bg-[#e7c555]/90 hover:shadow-md active:translate-y-0 active:scale-[0.99]"
                         >
-                          Start <PlayCircle size={18} />
+                          Start
                         </button>
                       </div>
                     </div>

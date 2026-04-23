@@ -108,209 +108,220 @@ const AILearningCoursesReference = () => {
           <div className="h-1 w-32 bg-[#006494]"></div>
         </section>
 
-        {/* Attendance & Mentor Stats */}
-        <section className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <div className="p-8 rounded-xl bg-[#f3f4f5] border border-slate-200">
-            <div className="flex items-center gap-3 mb-4">
-              <div className="w-12 h-12 rounded-lg bg-[#ffd386] flex items-center justify-center">
-                <CheckCircle2 className="text-[#5f4200]" size={24} />
-              </div>
-              <h2 className="text-2xl font-['Manrope',sans-serif] font-bold text-[#191c1d]">Attendance Progress</h2>
+
+        {/* SECTION 1: Description Module with Learning Objective */}
+        <section className="space-y-8 bg-white p-10 rounded-2xl shadow-sm border border-[#e1e3e4]">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-lg bg-[#cbe6ff] flex items-center justify-center">
+              <BookOpen className="text-[#004b71]" size={20} />
             </div>
-            <div className="space-y-3">
-              <div className="flex justify-between items-end">
-                <div>
-                  <p className="text-sm text-[#40484f] font-['Work_Sans',sans-serif]">Classes Attended</p>
-                  <p className="text-3xl font-bold text-[#004b71]">{present}/{total}</p>
+            <h2 className="text-3xl font-['Manrope',sans-serif] font-bold text-[#191c1d]">Learning Objective</h2>
+          </div>
+
+          {/* Instructional Flow Timeline */}
+          <div className="space-y-12">
+            {/* Step 1 */}
+            <div className="relative pl-10 border-l-2 border-[#8ecdff]/30 pb-8">
+              <div className="absolute -left-[11px] top-0 w-5 h-5 rounded-full bg-[#004b71] ring-4 ring-white"></div>
+              <div className="space-y-3">
+                <div className="flex justify-between items-center flex-wrap gap-2">
+                  <h3 className="text-xl font-bold text-[#004b71] font-['Manrope',sans-serif]">Introduction & Overview</h3>
+                  <span className="text-sm font-['Work_Sans',sans-serif] font-bold text-[#40484f]">10 MIN</span>
                 </div>
-                <div className="text-right">
-                  <p className="text-sm text-[#40484f] font-['Work_Sans',sans-serif]">Percentage</p>
-                  <p className="text-3xl font-bold text-[#2c694e]">{attendancePct}%</p>
+                <p className="text-[#40484f] leading-relaxed">
+                  Begin with a brief overview of the topic. Understand the core concepts and how they connect to real-world applications. Review prerequisite knowledge to ensure a strong foundation.
+                </p>
+              </div>
+            </div>
+
+            {/* Step 2 */}
+            <div className="relative pl-10 border-l-2 border-[#8ecdff]/30 pb-8">
+              <div className="absolute -left-[11px] top-0 w-5 h-5 rounded-full bg-[#004b71] ring-4 ring-white"></div>
+              <div className="space-y-3">
+                <div className="flex justify-between items-center flex-wrap gap-2">
+                  <h3 className="text-xl font-bold text-[#004b71] font-['Manrope',sans-serif]">Core Concepts & Theory</h3>
+                  <span className="text-sm font-['Work_Sans',sans-serif] font-bold text-[#40484f]">25 MIN</span>
+                </div>
+                <p className="text-[#40484f] leading-relaxed">
+                  Dive deep into the fundamental principles. Learn key definitions, formulas, and theorems. Use visual aids and mindmaps to connect different concepts and build a comprehensive understanding.
+                </p>
+                <div className="p-4 bg-[#cbe6ff]/20 rounded-lg border-l-4 border-[#004b71] mt-4">
+                  <p className="text-xs font-['Work_Sans',sans-serif] uppercase font-bold text-[#004b71] mb-1">Key Insight</p>
+                  <p className="text-sm italic text-[#40484f]">
+                    Understanding the 'why' behind each concept is just as important as knowing the 'how'.
+                  </p>
                 </div>
               </div>
-              <div className="w-full bg-slate-200 h-3 rounded-full overflow-hidden">
-                <div
-                  className="bg-gradient-to-r from-[#2c694e] to-[#aeeecb] h-full rounded-full transition-all duration-500"
-                  style={{ width: `${attendancePct}%` }}
-                />
+            </div>
+
+            {/* Step 3 */}
+            <div className="relative pl-10 border-l-2 border-[#8ecdff]/30 pb-8">
+              <div className="absolute -left-[11px] top-0 w-5 h-5 rounded-full bg-[#004b71] ring-4 ring-white"></div>
+              <div className="space-y-3">
+                <div className="flex justify-between items-center flex-wrap gap-2">
+                  <h3 className="text-xl font-bold text-[#004b71] font-['Manrope',sans-serif]">Practice & Application</h3>
+                  <span className="text-sm font-['Work_Sans',sans-serif] font-bold text-[#40484f]">30 MIN</span>
+                </div>
+                <p className="text-[#40484f] leading-relaxed">
+                  Work through example problems step-by-step. Apply the concepts you've learned to solve various exercises. Use worksheets and tryout quizzes to reinforce your understanding.
+                </p>
+              </div>
+            </div>
+
+            {/* Step 4 */}
+            <div className="relative pl-10">
+              <div className="absolute -left-[11px] top-0 w-5 h-5 rounded-full bg-[#004b71] ring-4 ring-white"></div>
+              <div className="space-y-3">
+                <div className="flex justify-between items-center flex-wrap gap-2">
+                  <h3 className="text-xl font-bold text-[#004b71] font-['Manrope',sans-serif]">Review & Self-Assessment</h3>
+                  <span className="text-sm font-['Work_Sans',sans-serif] font-bold text-[#40484f]">15 MIN</span>
+                </div>
+                <p className="text-[#40484f] leading-relaxed">
+                  Test your knowledge with flashcards and quick quizzes. Review any challenging areas and revisit study materials as needed. Track your progress and identify areas for improvement.
+                </p>
               </div>
             </div>
           </div>
-
-          {/*<div className="p-8 rounded-xl bg-[#cbe6ff]/20 border border-[#8ecdff]/30">
-            <div className="flex items-center gap-3 mb-4">
-              <div className="w-12 h-12 rounded-lg bg-[#8ecdff] flex items-center justify-center">
-                <Users className="text-[#004b71]" size={24} />
-              </div>
-              <h2 className="text-2xl font-['Manrope',sans-serif] font-bold text-[#191c1d]">Assigned Mentors</h2>
-            </div>
-            <p className="text-[#40484f] mb-4 leading-relaxed">
-              {assignedMentors.length} teacher{assignedMentors.length !== 1 ? 's' : ''} guiding you through your learning journey.
-            </p>
-            <div className="flex flex-wrap gap-2">
-              {assignedMentors.slice(0, 3).map((mentor, idx) => (
-                <span key={idx} className="px-3 py-1.5 bg-white rounded-full text-sm font-semibold text-[#004b71] border border-[#c0c7d0]">
-                  {mentor}
-                </span>
-              ))}
-              {assignedMentors.length > 3 && (
-                <span className="px-3 py-1.5 bg-white rounded-full text-sm font-semibold text-[#40484f] border border-[#c0c7d0]">
-                  +{assignedMentors.length - 3} more
-                </span>
-              )}
-            </div> 
-          </div> */}
         </section>
 
-        {/* Bento Content Grid */}
-        <div className="grid grid-cols-12 gap-8">
-          {/* Learning Resources: Left Column */}
-          <div className="col-span-12 lg:col-span-5 space-y-8">
-            <div className="space-y-6">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-lg bg-[#ffd386] flex items-center justify-center">
-                  <Target className="text-[#5f4200]" size={20} />
+        {/* SECTION 2: Practice Papers */}
+        <section className="space-y-8 bg-white p-10 rounded-2xl shadow-sm border border-[#e1e3e4]">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-lg bg-[#ffd386] flex items-center justify-center">
+              <FileText className="text-[#5f4200]" size={20} />
+            </div>
+            <h2 className="text-3xl font-['Manrope',sans-serif] font-bold text-[#191c1d]">Practice Papers</h2>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {/* Practice Paper 1 */}
+            <div className="group relative overflow-hidden rounded-xl bg-white border-2 border-[#e1e3e4] p-6 cursor-pointer hover:border-rose-300 hover:shadow-lg transition-all duration-300 hover:-translate-y-1">
+              <div className="flex items-start justify-between mb-4">
+                <div className="w-12 h-12 rounded-lg bg-gradient-to-br from-rose-500 to-pink-600 flex items-center justify-center group-hover:scale-110 transition-transform">
+                  <FileText className="text-white" size={20} />
                 </div>
-                <h2 className="text-2xl font-['Manrope',sans-serif] font-bold text-[#191c1d]">Learning Resources</h2>
+                <span className="text-xs px-2.5 py-1 rounded-full bg-[#fff3e0] text-[#e65100] font-bold font-['Work_Sans',sans-serif]">EASY</span>
               </div>
+              <h3 className="font-bold text-[#191c1d] font-['Manrope',sans-serif] mb-2 text-lg">Basic Concepts</h3>
+              <p className="text-sm text-[#40484f] font-['Work_Sans',sans-serif] leading-relaxed mb-4">10 questions • 20 minutes</p>
+              <button className="w-full py-2 px-3 rounded-lg bg-[#f3f4f5] text-[#004b71] font-semibold text-sm hover:bg-[#e8eaed] transition-colors">
+                Start Practice
+              </button>
+            </div>
 
-              {/* Grid Layout for Resources */}
-              <div className="grid grid-cols-2 gap-4">
-                {/* Tryout - Large Featured Card */}
-                <div className="col-span-2 group relative overflow-hidden rounded-2xl bg-gradient-to-br from-purple-500 to-indigo-600 p-6 cursor-pointer hover:shadow-2xl transition-all duration-300 hover:scale-[1.02]">
-                  <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full -mr-16 -mt-16"></div>
-                  <div className="absolute bottom-0 left-0 w-24 h-24 bg-white/10 rounded-full -ml-12 -mb-12"></div>
-                  <div className="relative z-10">
-                    <div className="w-14 h-14 rounded-xl bg-white/20 backdrop-blur-sm flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
-                      <Flame className="text-white" size={28} />
-                    </div>
-                    <h3 className="text-xl font-bold text-white font-['Manrope',sans-serif] mb-2">Tryout</h3>
-                    <p className="text-sm text-white/90 font-['Work_Sans',sans-serif] leading-relaxed">Test your knowledge with quick practice quizzes and challenges</p>
-                  </div>
+            {/* Practice Paper 2 */}
+            <div className="group relative overflow-hidden rounded-xl bg-white border-2 border-[#e1e3e4] p-6 cursor-pointer hover:border-amber-300 hover:shadow-lg transition-all duration-300 hover:-translate-y-1">
+              <div className="flex items-start justify-between mb-4">
+                <div className="w-12 h-12 rounded-lg bg-gradient-to-br from-amber-500 to-orange-600 flex items-center justify-center group-hover:scale-110 transition-transform">
+                  <FileText className="text-white" size={20} />
                 </div>
-
-                {/* Worksheet */}
-                <div className="group relative overflow-hidden rounded-xl bg-white border-2 border-[#e1e3e4] p-5 cursor-pointer hover:border-rose-300 hover:shadow-lg transition-all duration-300 hover:-translate-y-1">
-                  <div className="w-12 h-12 rounded-lg bg-gradient-to-br from-rose-500 to-pink-600 flex items-center justify-center mb-3 group-hover:scale-110 transition-transform">
-                    <FileText className="text-white" size={20} />
-                  </div>
-                  <h3 className="font-bold text-[#191c1d] font-['Manrope',sans-serif] mb-1">Worksheet</h3>
-                  <p className="text-xs text-[#40484f] font-['Work_Sans',sans-serif] leading-relaxed">Practice exercises</p>
-                </div>
-
-                {/* Mindmap */}
-                <div className="group relative overflow-hidden rounded-xl bg-white border-2 border-[#e1e3e4] p-5 cursor-pointer hover:border-cyan-300 hover:shadow-lg transition-all duration-300 hover:-translate-y-1">
-                  <div className="w-12 h-12 rounded-lg bg-gradient-to-br from-cyan-500 to-blue-600 flex items-center justify-center mb-3 group-hover:scale-110 transition-transform">
-                    <Brain className="text-white" size={20} />
-                  </div>
-                  <h3 className="font-bold text-[#191c1d] font-['Manrope',sans-serif] mb-1">Mindmap</h3>
-                  <p className="text-xs text-[#40484f] font-['Work_Sans',sans-serif] leading-relaxed">Visual concepts</p>
-                </div>
-
-                {/* Flashcard */}
-                <div className="group relative overflow-hidden rounded-xl bg-[#aeeecb]/30 border-2 border-[#2c694e]/20 p-5 cursor-pointer hover:bg-[#aeeecb]/50 hover:border-[#2c694e]/40 hover:shadow-lg transition-all duration-300">
-                  <div className="w-12 h-12 rounded-lg bg-gradient-to-br from-lime-500 to-green-600 flex items-center justify-center mb-3 group-hover:scale-110 transition-transform">
-                    <Layers className="text-white" size={20} />
-                  </div>
-                  <h3 className="font-bold text-[#191c1d] font-['Manrope',sans-serif] mb-1">Flashcard</h3>
-                  <p className="text-xs text-[#40484f] font-['Work_Sans',sans-serif] leading-relaxed">Quick revision</p>
-                </div>
-
-                {/* Study Material */}
-                <div className="group relative overflow-hidden rounded-xl bg-[#cbe6ff]/30 border-2 border-[#004b71]/20 p-5 cursor-pointer hover:bg-[#cbe6ff]/50 hover:border-[#004b71]/40 hover:shadow-lg transition-all duration-300">
-                  <div className="w-12 h-12 rounded-lg bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center mb-3 group-hover:scale-110 transition-transform">
-                    <BookOpen className="text-white" size={20} />
-                  </div>
-                  <h3 className="font-bold text-[#191c1d] font-['Manrope',sans-serif] mb-1">Study Material</h3>
-                  <p className="text-xs text-[#40484f] font-['Work_Sans',sans-serif] leading-relaxed">Detailed notes</p>
-                </div>
+                <span className="text-xs px-2.5 py-1 rounded-full bg-[#e3f2fd] text-[#1565c0] font-bold font-['Work_Sans',sans-serif]">MEDIUM</span>
               </div>
+              <h3 className="font-bold text-[#191c1d] font-['Manrope',sans-serif] mb-2 text-lg">Applied Problems</h3>
+              <p className="text-sm text-[#40484f] font-['Work_Sans',sans-serif] leading-relaxed mb-4">15 questions • 30 minutes</p>
+              <button className="w-full py-2 px-3 rounded-lg bg-[#f3f4f5] text-[#004b71] font-semibold text-sm hover:bg-[#e8eaed] transition-colors">
+                Start Practice
+              </button>
+            </div>
 
-              {/* Additional Info Card */}
-              <div className="p-5 rounded-xl bg-[#f3f4f5] border-l-4 border-[#006494]">
-                <div className="flex items-start gap-3">
-                  <Lightbulb className="text-[#5f4200] flex-shrink-0 mt-0.5" size={18} />
-                  <div>
-                    <p className="text-xs font-bold text-[#191c1d] font-['Work_Sans',sans-serif] uppercase tracking-wider mb-1">Pro Tip</p>
-                    <p className="text-sm text-[#40484f] leading-relaxed">Start with the Tryout to assess your current understanding, then use resources based on your needs.</p>
-                  </div>
+            {/* Practice Paper 3 */}
+            <div className="group relative overflow-hidden rounded-xl bg-white border-2 border-[#e1e3e4] p-6 cursor-pointer hover:border-red-300 hover:shadow-lg transition-all duration-300 hover:-translate-y-1">
+              <div className="flex items-start justify-between mb-4">
+                <div className="w-12 h-12 rounded-lg bg-gradient-to-br from-red-500 to-red-600 flex items-center justify-center group-hover:scale-110 transition-transform">
+                  <FileText className="text-white" size={20} />
                 </div>
+                <span className="text-xs px-2.5 py-1 rounded-full bg-[#fce4ec] text-[#c2185b] font-bold font-['Work_Sans',sans-serif]">HARD</span>
               </div>
+              <h3 className="font-bold text-[#191c1d] font-['Manrope',sans-serif] mb-2 text-lg">Challenge Questions</h3>
+              <p className="text-sm text-[#40484f] font-['Work_Sans',sans-serif] leading-relaxed mb-4">20 questions • 45 minutes</p>
+              <button className="w-full py-2 px-3 rounded-lg bg-[#f3f4f5] text-[#004b71] font-semibold text-sm hover:bg-[#e8eaed] transition-colors">
+                Start Practice
+              </button>
+            </div>
+          </div>
+        </section>
+
+        {/* SECTION 3: Learning Resources */}
+        <section className="space-y-8">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-lg bg-[#ffd386] flex items-center justify-center">
+              <Target className="text-[#5f4200]" size={20} />
+            </div>
+            <h2 className="text-3xl font-['Manrope',sans-serif] font-bold text-[#191c1d]">Learning Resources</h2>
+          </div>
+
+          {/* Grid Layout for Resources */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {/* Tryout - Featured Card */}
+            <div className="col-span-1 group relative overflow-hidden rounded-2xl bg-gradient-to-br from-purple-500 to-indigo-600 p-8 cursor-pointer hover:shadow-2xl transition-all duration-300 hover:scale-[1.02]">
+              <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full -mr-16 -mt-16"></div>
+              <div className="absolute bottom-0 left-0 w-24 h-24 bg-white/10 rounded-full -ml-12 -mb-12"></div>
+              <div className="relative z-10">
+                <div className="w-14 h-14 rounded-xl bg-white/20 backdrop-blur-sm flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
+                  <Flame className="text-white" size={28} />
+                </div>
+                <h3 className="text-2xl font-bold text-white font-['Manrope',sans-serif] mb-2">Tryout</h3>
+                <p className="text-sm text-white/90 font-['Work_Sans',sans-serif] leading-relaxed">Test your knowledge with quick practice quizzes and challenges</p>
+              </div>
+            </div>
+
+            {/* Flashcard */}
+            <div className="group relative overflow-hidden rounded-xl bg-[#aeeecb]/30 border-2 border-[#2c694e]/20 p-6 cursor-pointer hover:bg-[#aeeecb]/50 hover:border-[#2c694e]/40 hover:shadow-lg transition-all duration-300">
+              <div className="w-12 h-12 rounded-lg bg-gradient-to-br from-lime-500 to-green-600 flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
+                <Layers className="text-white" size={20} />
+              </div>
+              <h3 className="font-bold text-[#191c1d] font-['Manrope',sans-serif] mb-2 text-lg">Flashcard</h3>
+              <p className="text-sm text-[#40484f] font-['Work_Sans',sans-serif] leading-relaxed">Quick revision and memorization</p>
+            </div>
+
+            {/* Mindmap */}
+            <div className="group relative overflow-hidden rounded-xl bg-white border-2 border-[#e1e3e4] p-6 cursor-pointer hover:border-cyan-300 hover:shadow-lg transition-all duration-300 hover:-translate-y-1">
+              <div className="w-12 h-12 rounded-lg bg-gradient-to-br from-cyan-500 to-blue-600 flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
+                <Brain className="text-white" size={20} />
+              </div>
+              <h3 className="font-bold text-[#191c1d] font-['Manrope',sans-serif] mb-2 text-lg">Mindmap</h3>
+              <p className="text-sm text-[#40484f] font-['Work_Sans',sans-serif] leading-relaxed">Visual concepts and connections</p>
+            </div>
+
+            {/* Study Material */}
+            <div className="group relative overflow-hidden rounded-xl bg-[#cbe6ff]/30 border-2 border-[#004b71]/20 p-6 cursor-pointer hover:bg-[#cbe6ff]/50 hover:border-[#004b71]/40 hover:shadow-lg transition-all duration-300">
+              <div className="w-12 h-12 rounded-lg bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
+                <BookOpen className="text-white" size={20} />
+              </div>
+              <h3 className="font-bold text-[#191c1d] font-['Manrope',sans-serif] mb-2 text-lg">Study Material</h3>
+              <p className="text-sm text-[#40484f] font-['Work_Sans',sans-serif] leading-relaxed">Detailed notes and explanations</p>
+            </div>
+
+            {/* Worksheet */}
+            <div className="group relative overflow-hidden rounded-xl bg-white border-2 border-[#e1e3e4] p-6 cursor-pointer hover:border-rose-300 hover:shadow-lg transition-all duration-300 hover:-translate-y-1">
+              <div className="w-12 h-12 rounded-lg bg-gradient-to-br from-rose-500 to-pink-600 flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
+                <FileText className="text-white" size={20} />
+              </div>
+              <h3 className="font-bold text-[#191c1d] font-['Manrope',sans-serif] mb-2 text-lg">Worksheet</h3>
+              <p className="text-sm text-[#40484f] font-['Work_Sans',sans-serif] leading-relaxed">Extra practice exercises</p>
+            </div>
+
+            {/* Additional Notes */}
+            <div className="group relative overflow-hidden rounded-xl bg-white border-2 border-[#e1e3e4] p-6 cursor-pointer hover:border-green-300 hover:shadow-lg transition-all duration-300 hover:-translate-y-1">
+              <div className="w-12 h-12 rounded-lg bg-gradient-to-br from-green-500 to-emerald-600 flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
+                <ListChecks className="text-white" size={20} />
+              </div>
+              <h3 className="font-bold text-[#191c1d] font-['Manrope',sans-serif] mb-2 text-lg">Summary Notes</h3>
+              <p className="text-sm text-[#40484f] font-['Work_Sans',sans-serif] leading-relaxed">Quick reference guide</p>
             </div>
           </div>
 
-          {/* Instructional Flow: Main Narrative Column */}
-          <div className="col-span-12 lg:col-span-7 space-y-12 bg-white p-10 rounded-2xl shadow-sm border border-[#e1e3e4]">
-            <h2 className="text-3xl font-['Manrope',sans-serif] font-bold text-[#191c1d] border-b border-[#e7e8e9] pb-4">
-              Instructional Flow to Learn
-            </h2>
-
-            {/* Timeline Steps */}
-            <div className="space-y-12">
-              {/* Step 1 */}
-              <div className="relative pl-10 border-l-2 border-[#8ecdff]/30 pb-8">
-                <div className="absolute -left-[11px] top-0 w-5 h-5 rounded-full bg-[#004b71] ring-4 ring-white"></div>
-                <div className="space-y-3">
-                  <div className="flex justify-between items-center flex-wrap gap-2">
-                    <h3 className="text-xl font-bold text-[#004b71] font-['Manrope',sans-serif]">Introduction & Overview</h3>
-                    <span className="text-sm font-['Work_Sans',sans-serif] font-bold text-[#40484f]">10 MIN</span>
-                  </div>
-                  <p className="text-[#40484f] leading-relaxed">
-                    Begin with a brief overview of the topic. Understand the core concepts and how they connect to real-world applications. Review prerequisite knowledge to ensure a strong foundation.
-                  </p>
-                </div>
-              </div>
-
-              {/* Step 2 */}
-              <div className="relative pl-10 border-l-2 border-[#8ecdff]/30 pb-8">
-                <div className="absolute -left-[11px] top-0 w-5 h-5 rounded-full bg-[#004b71] ring-4 ring-white"></div>
-                <div className="space-y-3">
-                  <div className="flex justify-between items-center flex-wrap gap-2">
-                    <h3 className="text-xl font-bold text-[#004b71] font-['Manrope',sans-serif]">Core Concepts & Theory</h3>
-                    <span className="text-sm font-['Work_Sans',sans-serif] font-bold text-[#40484f]">25 MIN</span>
-                  </div>
-                  <p className="text-[#40484f] leading-relaxed">
-                    Dive deep into the fundamental principles. Learn key definitions, formulas, and theorems. Use visual aids and mindmaps to connect different concepts and build a comprehensive understanding.
-                  </p>
-                  <div className="p-4 bg-[#cbe6ff]/20 rounded-lg border-l-4 border-[#004b71] mt-4">
-                    <p className="text-xs font-['Work_Sans',sans-serif] uppercase font-bold text-[#004b71] mb-1">Key Insight</p>
-                    <p className="text-sm italic text-[#40484f]">
-                      Understanding the 'why' behind each concept is just as important as knowing the 'how'.
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              {/* Step 3 */}
-              <div className="relative pl-10 border-l-2 border-[#8ecdff]/30 pb-8">
-                <div className="absolute -left-[11px] top-0 w-5 h-5 rounded-full bg-[#004b71] ring-4 ring-white"></div>
-                <div className="space-y-3">
-                  <div className="flex justify-between items-center flex-wrap gap-2">
-                    <h3 className="text-xl font-bold text-[#004b71] font-['Manrope',sans-serif]">Practice & Application</h3>
-                    <span className="text-sm font-['Work_Sans',sans-serif] font-bold text-[#40484f]">30 MIN</span>
-                  </div>
-                  <p className="text-[#40484f] leading-relaxed">
-                    Work through example problems step-by-step. Apply the concepts you've learned to solve various exercises. Use worksheets and tryout quizzes to reinforce your understanding.
-                  </p>
-                </div>
-              </div>
-
-              {/* Step 4 */}
-              <div className="relative pl-10">
-                <div className="absolute -left-[11px] top-0 w-5 h-5 rounded-full bg-[#004b71] ring-4 ring-white"></div>
-                <div className="space-y-3">
-                  <div className="flex justify-between items-center flex-wrap gap-2">
-                    <h3 className="text-xl font-bold text-[#004b71] font-['Manrope',sans-serif]">Review & Self-Assessment</h3>
-                    <span className="text-sm font-['Work_Sans',sans-serif] font-bold text-[#40484f]">15 MIN</span>
-                  </div>
-                  <p className="text-[#40484f] leading-relaxed">
-                    Test your knowledge with flashcards and quick quizzes. Review any challenging areas and revisit study materials as needed. Track your progress and identify areas for improvement.
-                  </p>
-                </div>
+          {/* Pro Tip Card */}
+          <div className="p-6 rounded-xl bg-[#f3f4f5] border-l-4 border-[#006494]">
+            <div className="flex items-start gap-3">
+              <Lightbulb className="text-[#5f4200] flex-shrink-0 mt-0.5" size={20} />
+              <div>
+                <p className="text-xs font-bold text-[#191c1d] font-['Work_Sans',sans-serif] uppercase tracking-wider mb-1">Pro Tip</p>
+                <p className="text-sm text-[#40484f] leading-relaxed">Start with the Learning Objective section to understand what you'll learn, then attempt the Practice Papers. Use other resources (Flashcards, Mindmaps) to reinforce areas where you need help.</p>
               </div>
             </div>
           </div>
-        </div>
+        </section>
 
         {/* Footer Meta 
         <footer className="pt-8 border-t border-[#e7e8e9] flex flex-col md:flex-row justify-between items-center text-[#40484f] text-sm font-['Work_Sans',sans-serif]">
