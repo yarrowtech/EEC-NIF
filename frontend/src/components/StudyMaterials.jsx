@@ -6,7 +6,7 @@ import {
   File,
   Image as ImageIcon,
   Paperclip,
-  Loader2,
+  Loader,
   Search,
   Filter,
   Calendar,
@@ -18,7 +18,7 @@ import {
   NotebookPen,
   ArrowUpRight,
 } from 'lucide-react';
-import { fetchCachedJson } from '../utils/studentApiCache';
+import toast from 'react-hot-toast';
 
 const StudyMaterials = () => {
   const [materials, setMaterials] = useState([]);
@@ -30,43 +30,48 @@ const StudyMaterials = () => {
   const API_BASE = (import.meta.env.VITE_API_URL || 'http://localhost:5000')
     .replace(/\/$/, '')
     .replace(/\/api$/, '');
-  const STUDY_MATERIALS_ENDPOINT = `${API_BASE}/api/notifications/user`;
+  const STUDY_MATERIALS_ENDPOINT = `${API_BASE}/api/student/materials`;
   const STUDY_MATERIALS_CACHE_TTL_MS = 2 * 60 * 1000;
 
+  const token = localStorage.getItem('token');
+
   useEffect(() => {
-    fetchMaterials();
-  }, []);
+    const debounceTimer = setTimeout(() => {
+      fetchMaterials();
+    }, 300);
+    return () => clearTimeout(debounceTimer);
+  }, [searchQuery, selectedSubject]);
 
   const fetchMaterials = async ({ forceRefresh = false } = {}) => {
     try {
       setLoading(true);
       setError('');
-      const token = localStorage.getItem('token');
-      const userType = localStorage.getItem('userType');
 
-      if (!token || userType !== 'Student') {
+      if (!token) {
         setLoading(false);
         return;
       }
 
-      const { data } = await fetchCachedJson(STUDY_MATERIALS_ENDPOINT, {
-        ttlMs: STUDY_MATERIALS_CACHE_TTL_MS,
-        forceRefresh,
-        fetchOptions: {
-          headers: {
-            Authorization: `Bearer ${token}`,
-            'Content-Type': 'application/json',
-          },
+      const params = new URLSearchParams();
+      if (selectedSubject !== 'all') params.append('subject', selectedSubject);
+      if (searchQuery) params.append('search', searchQuery);
+
+      const url = `${STUDY_MATERIALS_ENDPOINT}?${params}`;
+      const response = await fetch(url, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
         },
       });
-      const classMaterials = Array.isArray(data)
-        ? data.filter((item) => item.type === 'class_note')
-        : [];
 
-      setMaterials(classMaterials);
+      if (!response.ok) throw new Error('Failed to fetch materials');
+
+      const data = await response.json();
+      setMaterials(data.materials || []);
     } catch (err) {
       console.error('Failed to fetch materials:', err);
       setError(err.message);
+      toast.error('Failed to load study materials');
     } finally {
       setLoading(false);
     }
@@ -93,6 +98,38 @@ const StudyMaterials = () => {
       day: 'numeric',
       year: 'numeric',
     });
+  };
+
+  // Track when a student views a material
+  const trackMaterialView = async (materialId) => {
+    try {
+      await fetch(`${API_BASE}/api/student/materials/${materialId}/view`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ timeSpent: 0 })
+      });
+    } catch (err) {
+      console.error('Error tracking view:', err);
+    }
+  };
+
+  // Track when a student downloads a file
+  const trackDownload = async (materialId, attachmentName) => {
+    try {
+      await fetch(`${API_BASE}/api/student/materials/${materialId}/download`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ attachmentName })
+      });
+    } catch (err) {
+      console.error('Error tracking download:', err);
+    }
   };
 
   // Get unique subjects for filter
@@ -325,7 +362,12 @@ const StudyMaterials = () => {
                       {attachments.length > 0 && (
                         <div className="mt-5 border-t border-slate-100 pt-4">
                           <button
-                            onClick={() => setExpandedMaterial(isExpanded ? null : material._id)}
+                            onClick={() => {
+                              if (!isExpanded) {
+                                trackMaterialView(material._id);
+                              }
+                              setExpandedMaterial(isExpanded ? null : material._id);
+                            }}
                             className="inline-flex items-center gap-2 rounded-full border border-sky-200 bg-sky-50 px-4 py-2 text-sm font-semibold text-sky-700 transition hover:bg-sky-100"
                           >
                             <Paperclip className="h-4 w-4" />
@@ -346,6 +388,7 @@ const StudyMaterials = () => {
                                     href={attachment?.url || '#'}
                                     target="_blank"
                                     rel="noopener noreferrer"
+                                    onClick={() => trackDownload(material._id, attachment.name)}
                                     className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 transition hover:border-sky-200 hover:bg-sky-50"
                                   >
                                     <div className="rounded-xl bg-white p-2 shadow-sm">

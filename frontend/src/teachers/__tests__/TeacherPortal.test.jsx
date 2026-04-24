@@ -21,7 +21,7 @@ const componentMocks = {
   '../LessonPlanDashboard': 'Lesson Plans',
   '../TeacherChat': 'Teacher Chat',
   '../AILearningPath': 'AI Learning',
-  '../AIPoweredTeaching': 'AI Powered Teaching',
+  '../AIPoweredTeaching': 'Smart Teaching',
   '../StudentObservationOverview': 'Student Observations',
   '../ClassNotes': 'Class Notes',
   '../PracticeQuestions': 'Practice Questions',

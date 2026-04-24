@@ -22,6 +22,7 @@ import AcademicAlcove from './AcademicAlcove';
 import StudentWellbeing from './StudentWellbeing';
 import LessonPlanStatusView from './LessonPlanStatusView';
 import StudyMaterials from './StudyMaterials';
+import PracticePapersPortal from './PracticePapersPortal';
 import StudentExamsView from './StudentExamsView';
 import { StudentDashboardProvider } from './StudentDashboardContext';
 import MobileBottomNav from './MobileBottomNav';
@@ -120,6 +121,7 @@ const Dashboard = () => {
     'assignments-journal': (props) => <AssignmentView {...props} ref={journalRef} defaultType="journal" />,
     'assignments-academic-alcove': (props) => <AcademicAlcove {...props} />,
     'study-materials': StudyMaterials,
+    'practice-papers': PracticePapersPortal,
     courses: CoursesView,
     results: ResultsView,
     communication: StudentChat,

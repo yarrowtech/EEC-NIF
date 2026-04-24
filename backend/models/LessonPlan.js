@@ -17,6 +17,10 @@ const lessonPlanSchema = new mongoose.Schema(
     learningObjectives: [{ type: String, trim: true }],
     materialsNeeded: [{ type: String, trim: true }],
     additionalNotes: { type: String, default: '' },
+    plannerContent: {
+      type: mongoose.Schema.Types.Mixed,
+      default: () => ({ chapters: [] })
+    },
     createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'Admin' },
     updatedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'Admin' }
   },
@@ -24,4 +28,3 @@ const lessonPlanSchema = new mongoose.Schema(
 );
 
 module.exports = mongoose.model('LessonPlan', lessonPlanSchema);
-

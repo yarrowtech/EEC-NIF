@@ -1,0 +1,382 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Lexend:wght@100..900&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "on-tertiary-fixed": "#380d00",
+                        "outline-variant": "#c4c5d5",
+                        "outline": "#757684",
+                        "on-primary-fixed": "#001453",
+                        "tertiary": "#611e00",
+                        "tertiary-fixed": "#ffdbce",
+                        "surface": "#f8f9ff",
+                        "error": "#ba1a1a",
+                        "tertiary-fixed-dim": "#ffb59a",
+                        "on-surface": "#121c28",
+                        "tertiary-container": "#872d00",
+                        "surface-container-lowest": "#ffffff",
+                        "primary-fixed": "#dde1ff",
+                        "on-background": "#121c28",
+                        "on-tertiary-fixed-variant": "#802a00",
+                        "surface-dim": "#d1dbec",
+                        "primary-fixed-dim": "#b8c4ff",
+                        "primary-container": "#1e40af",
+                        "inverse-surface": "#27313e",
+                        "on-secondary-fixed": "#002114",
+                        "secondary-container": "#82f5c1",
+                        "surface-container": "#e5eeff",
+                        "surface-tint": "#3755c3",
+                        "on-secondary-fixed-variant": "#005137",
+                        "surface-variant": "#d9e3f4",
+                        "inverse-primary": "#b8c4ff",
+                        "surface-bright": "#f8f9ff",
+                        "on-primary": "#ffffff",
+                        "primary": "#00288e",
+                        "on-secondary": "#ffffff",
+                        "on-primary-fixed-variant": "#173bab",
+                        "on-surface-variant": "#444653",
+                        "on-error": "#ffffff",
+                        "on-primary-container": "#a8b8ff",
+                        "secondary-fixed": "#85f8c4",
+                        "secondary": "#006c4a",
+                        "inverse-on-surface": "#eaf1ff",
+                        "secondary-fixed-dim": "#68dba9",
+                        "on-tertiary": "#ffffff",
+                        "on-error-container": "#93000a",
+                        "surface-container-low": "#eef4ff",
+                        "error-container": "#ffdad6",
+                        "surface-container-high": "#dfe9fa",
+                        "surface-container-highest": "#d9e3f4",
+                        "on-tertiary-container": "#ffa583",
+                        "background": "#f8f9ff",
+                        "on-secondary-container": "#00714e"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.125rem",
+                        "lg": "0.25rem",
+                        "xl": "0.5rem",
+                        "full": "0.75rem"
+                    },
+                    "spacing": {
+                        "md": "1.5rem",
+                        "lg": "2rem",
+                        "xs": "0.5rem",
+                        "margin": "2rem",
+                        "xl": "3rem",
+                        "base": "4px",
+                        "gutter": "1.5rem",
+                        "max_width": "1440px",
+                        "sm": "1rem"
+                    },
+                    "fontFamily": {
+                        "body-md": ["Lexend"],
+                        "label-sm": ["Lexend"],
+                        "body-lg": ["Lexend"],
+                        "h2": ["Lexend"],
+                        "label-md": ["Lexend"],
+                        "h1": ["Lexend"],
+                        "h3": ["Lexend"]
+                    },
+                    "fontSize": {
+                        "body-md": ["1rem", {"lineHeight": "1.5rem", "fontWeight": "400"}],
+                        "label-sm": ["0.75rem", {"lineHeight": "1rem", "fontWeight": "600"}],
+                        "body-lg": ["1.125rem", {"lineHeight": "1.75rem", "fontWeight": "400"}],
+                        "h2": ["1.875rem", {"lineHeight": "2.25rem", "letterSpacing": "-0.01em", "fontWeight": "600"}],
+                        "label-md": ["0.875rem", {"lineHeight": "1.25rem", "letterSpacing": "0.01em", "fontWeight": "500"}],
+                        "h1": ["2.25rem", {"lineHeight": "2.75rem", "letterSpacing": "-0.02em", "fontWeight": "600"}],
+                        "h3": ["1.5rem", {"lineHeight": "2rem", "fontWeight": "500"}]
+                    }
+                }
+            }
+        }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        body { font-family: 'Lexend', sans-serif; }
+    </style>
+</head>
+<body class="bg-background text-on-background">
+<!-- TopAppBar Shell -->
+<header class="flex justify-between items-center h-16 px-6 w-full sticky top-0 z-50 bg-white border-b border-gray-200">
+<div class="flex items-center gap-4">
+<span class="text-xl font-bold text-blue-800">EduAdmin</span>
+<div class="relative hidden lg:block">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-outline">search</span>
+<input class="pl-10 pr-4 py-2 bg-surface-container-low border-none rounded-xl text-label-md focus:ring-2 focus:ring-primary-container" placeholder="Search curriculum..." type="text"/>
+</div>
+</div>
+<div class="flex items-center gap-4">
+<div class="flex gap-2">
+<button class="p-2 hover:bg-gray-50 transition-colors cursor-pointer active:opacity-80 rounded-full">
+<span class="material-symbols-outlined text-gray-500">notifications</span>
+</button>
+<button class="p-2 hover:bg-gray-50 transition-colors cursor-pointer active:opacity-80 rounded-full">
+<span class="material-symbols-outlined text-gray-500">help</span>
+</button>
+<button class="p-2 hover:bg-gray-50 transition-colors cursor-pointer active:opacity-80 rounded-full">
+<span class="material-symbols-outlined text-gray-500">settings</span>
+</button>
+</div>
+<div class="h-8 w-8 rounded-full bg-primary-container overflow-hidden border border-outline-variant">
+<img alt="Teacher Profile" class="w-full h-full object-cover" data-alt="professional headshot of a female educator with a friendly smile, clean studio background, soft lighting" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBFXG-5g-0rGMzaEaCft-YfGHi-PFJQRDz92-M-79Pdg47tHl5BZJfYxeE7hcwLKtMnz0eNsT6VJEEmK1jkYHRZtEUPP8G2ySfzLoJwIiIUdpZo6dZBNXf66M3BsoLpsnAxugFgaR100KVrh_2zNTiZzTsIEIcSk_4XpuKKJhMYhw9zX8ve3Yl-OXqX3m0LeovzketBHkxiEA69RzEr5jwGwJsLPy8azQ49edPXs0bbzuUjwJnJhoeIetdWBTveKHditIoZ6ZRlQcGk"/>
+</div>
+</div>
+</header>
+<div class="flex min-h-[calc(100vh-64px)]">
+<!-- SideNavBar Shell -->
+<aside class="flex flex-col fixed left-0 top-16 h-[calc(100vh-64px)] w-64 z-40 bg-gray-50 border-r border-gray-200">
+<div class="p-6 flex items-center gap-3">
+<div class="w-10 h-10 bg-primary-container rounded-lg flex items-center justify-center">
+<span class="material-symbols-outlined text-white" data-icon="account_balance">account_balance</span>
+</div>
+<div>
+<h2 class="text-label-md font-bold text-blue-800 leading-tight">EduAdmin Pro</h2>
+<p class="text-[10px] text-gray-500 uppercase tracking-wider">Academic Management</p>
+</div>
+</div>
+<nav class="flex-1 px-4 space-y-1">
+<a class="flex items-center gap-3 px-3 py-3 rounded-xl text-gray-600 hover:bg-gray-100 transition-all scale-98 active:opacity-80" href="#">
+<span class="material-symbols-outlined" data-icon="dashboard">dashboard</span>
+<span class="font-label-md text-label-md">Dashboard</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-3 rounded-xl text-blue-800 font-bold bg-blue-50 transition-all scale-98 active:opacity-80" href="#">
+<span class="material-symbols-outlined" data-icon="account_tree">account_tree</span>
+<span class="font-label-md text-label-md">Curriculum</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-3 rounded-xl text-gray-600 hover:bg-gray-100 transition-all scale-98 active:opacity-80" href="#">
+<span class="material-symbols-outlined" data-icon="quiz">quiz</span>
+<span class="font-label-md text-label-md">Assessments</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-3 rounded-xl text-gray-600 hover:bg-gray-100 transition-all scale-98 active:opacity-80" href="#">
+<span class="material-symbols-outlined" data-icon="group">group</span>
+<span class="font-label-md text-label-md">Students</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-3 rounded-xl text-gray-600 hover:bg-gray-100 transition-all scale-98 active:opacity-80" href="#">
+<span class="material-symbols-outlined" data-icon="folder_open">folder_open</span>
+<span class="font-label-md text-label-md">Resources</span>
+</a>
+</nav>
+<div class="p-4 px-6 border-t border-gray-200">
+<button class="w-full bg-primary-container text-white py-3 rounded-xl font-label-md flex items-center justify-center gap-2 hover:bg-primary transition-colors">
+<span class="material-symbols-outlined text-[20px]" data-icon="add">add</span>
+<span>Create New Lesson</span>
+</button>
+</div>
+<div class="p-4 px-4 mb-4">
+<a class="flex items-center gap-3 px-3 py-2 rounded-xl text-gray-600 hover:bg-gray-100 transition-all text-label-md" href="#">
+<span class="material-symbols-outlined" data-icon="contact_support">contact_support</span>
+<span>Support</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 rounded-xl text-gray-600 hover:bg-gray-100 transition-all text-label-md" href="#">
+<span class="material-symbols-outlined" data-icon="logout">logout</span>
+<span>Logout</span>
+</a>
+</div>
+</aside>
+<!-- Main Content Canvas -->
+<main class="ml-64 flex-1 p-8 max-w-[1440px] mx-auto">
+<!-- Breadcrumbs & Header -->
+<div class="mb-8">
+<nav class="flex items-center gap-2 text-label-md text-outline mb-2">
+<a class="hover:text-primary transition-colors" href="#">Subjects</a>
+<span class="material-symbols-outlined text-[16px]">chevron_right</span>
+<span class="text-on-surface font-medium">Advanced Physics II</span>
+</nav>
+<div class="flex justify-between items-end">
+<div>
+<h1 class="font-h1 text-h1 text-on-surface">Inline Lesson Planner</h1>
+<p class="font-body-md text-body-md text-on-surface-variant mt-1">Manage your quantum mechanics curriculum and resources in one place.</p>
+</div>
+<div class="flex gap-3">
+<button class="px-4 py-2 border border-outline-variant rounded-xl text-label-md font-medium text-on-surface hover:bg-surface-container-low transition-colors">
+                            Preview Portal
+                        </button>
+<button class="px-6 py-2 bg-primary text-white rounded-xl text-label-md font-bold shadow-md hover:shadow-lg transition-all">
+                            Publish Changes
+                        </button>
+</div>
+</div>
+</div>
+<!-- Bento Layout for Content Management -->
+<div class="grid grid-cols-12 gap-gutter">
+<!-- Main Hierarchical List (9 Columns) -->
+<div class="col-span-12 lg:col-span-9 space-y-6">
+<!-- Chapter 1 -->
+<div class="bg-white border border-outline-variant rounded-xl shadow-sm overflow-hidden">
+<div class="p-4 bg-surface-container-low flex items-center justify-between border-b border-outline-variant">
+<div class="flex items-center gap-3">
+<span class="material-symbols-outlined text-primary-container" data-icon="menu_book">menu_book</span>
+<h3 class="font-h3 text-h3 text-blue-800">Chapter 1: Quantum Mechanics</h3>
+</div>
+<div class="flex gap-2">
+<button class="p-1 hover:bg-surface-variant rounded transition-colors"><span class="material-symbols-outlined text-outline">drag_indicator</span></button>
+<button class="p-1 hover:bg-surface-variant rounded transition-colors"><span class="material-symbols-outlined text-outline">expand_more</span></button>
+</div>
+</div>
+<!-- Topics Container -->
+<div class="p-6 space-y-8">
+<!-- Topic 1.1 -->
+<div class="relative pl-6 border-l-2 border-primary-fixed">
+<div class="flex items-start justify-between mb-4">
+<div>
+<span class="text-[10px] font-bold text-primary tracking-widest uppercase mb-1 block">Topic 1.1</span>
+<h4 class="font-h3 text-lg font-semibold text-on-surface">Wave-Particle Duality</h4>
+</div>
+<span class="px-2 py-1 bg-secondary-container text-on-secondary-container rounded-full text-[10px] font-bold">ACTIVE</span>
+</div>
+<!-- Existing Content Items -->
+<div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+<div class="flex items-center gap-4 p-3 bg-white border border-outline-variant rounded-lg hover:border-primary transition-colors cursor-pointer">
+<div class="w-10 h-10 bg-error-container rounded flex items-center justify-center">
+<span class="material-symbols-outlined text-error" data-icon="picture_as_pdf">picture_as_pdf</span>
+</div>
+<div class="flex-1">
+<p class="text-label-md font-bold text-on-surface truncate">intro_to_quantum.pdf</p>
+<p class="text-[11px] text-outline">2.4 MB • PDF Document</p>
+</div>
+<span class="material-symbols-outlined text-outline text-[18px]">more_vert</span>
+</div>
+<div class="flex items-center gap-4 p-3 bg-white border border-outline-variant rounded-lg hover:border-primary transition-colors cursor-pointer">
+<div class="w-10 h-10 bg-primary-fixed rounded flex items-center justify-center">
+<span class="material-symbols-outlined text-primary" data-icon="quiz">quiz</span>
+</div>
+<div class="flex-1">
+<p class="text-label-md font-bold text-on-surface truncate">Photoelectric Effect Quiz</p>
+<p class="text-[11px] text-outline">15 Questions • 20 Mins</p>
+</div>
+<span class="material-symbols-outlined text-outline text-[18px]">more_vert</span>
+</div>
+</div>
+<!-- Add Content Area -->
+<div class="bg-gray-50/50 rounded-xl p-6 border-2 border-dashed border-primary-fixed-dim">
+<p class="text-label-md font-semibold text-on-surface-variant mb-4 flex items-center gap-2">
+<span class="material-symbols-outlined text-[18px]">add_circle</span>
+                                        Add Content to Topic 1.1
+                                    </p>
+<div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+<button class="flex flex-col items-center gap-2 p-3 bg-white border border-outline-variant rounded-xl hover:border-primary-container hover:bg-blue-50 transition-all group">
+<span class="material-symbols-outlined text-outline group-hover:text-primary-container" data-icon="upload_file">upload_file</span>
+<span class="text-[11px] font-bold text-on-surface-variant group-hover:text-primary-container">Upload PDF</span>
+</button>
+<button class="flex flex-col items-center gap-2 p-3 bg-white border border-outline-variant rounded-xl hover:border-primary-container hover:bg-blue-50 transition-all group">
+<span class="material-symbols-outlined text-outline group-hover:text-primary-container" data-icon="assignment">assignment</span>
+<span class="text-[11px] font-bold text-on-surface-variant group-hover:text-primary-container">Add Worksheet</span>
+</button>
+<button class="flex flex-col items-center gap-2 p-3 bg-white border border-outline-variant rounded-xl hover:border-primary-container hover:bg-blue-50 transition-all group">
+<span class="material-symbols-outlined text-outline group-hover:text-primary-container" data-icon="hub">hub</span>
+<span class="text-[11px] font-bold text-on-surface-variant group-hover:text-primary-container">Add Mind Map</span>
+</button>
+<button class="flex flex-col items-center gap-2 p-3 bg-white border border-outline-variant rounded-xl hover:border-primary-container hover:bg-blue-50 transition-all group">
+<span class="material-symbols-outlined text-outline group-hover:text-primary-container" data-icon="add_task">add_task</span>
+<span class="text-[11px] font-bold text-on-surface-variant group-hover:text-primary-container">Create Assessment</span>
+</button>
+</div>
+</div>
+</div>
+<hr class="border-outline-variant/30"/>
+<!-- Topic 1.2 -->
+<div class="relative pl-6 border-l-2 border-outline-variant">
+<div class="flex items-start justify-between mb-4 opacity-70">
+<div>
+<span class="text-[10px] font-bold text-outline tracking-widest uppercase mb-1 block">Topic 1.2</span>
+<h4 class="font-h3 text-lg font-semibold text-on-surface">Schrödinger Equation</h4>
+</div>
+<span class="px-2 py-1 bg-surface-container-highest text-on-surface-variant rounded-full text-[10px] font-bold">DRAFT</span>
+</div>
+<button class="flex items-center gap-2 text-primary font-bold text-label-md hover:underline">
+<span class="material-symbols-outlined text-[18px]">add</span>
+                                    Build Curriculum
+                                </button>
+</div>
+</div>
+</div>
+<!-- Chapter 2 (Collapsed Example) -->
+<div class="bg-white border border-outline-variant rounded-xl shadow-sm overflow-hidden">
+<div class="p-4 bg-white flex items-center justify-between">
+<div class="flex items-center gap-3">
+<span class="material-symbols-outlined text-outline" data-icon="menu_book">menu_book</span>
+<h3 class="font-h3 text-lg font-semibold text-outline">Chapter 2: Thermodynamics</h3>
+</div>
+<div class="flex gap-2">
+<span class="text-label-sm text-outline px-3">4 Topics</span>
+<button class="p-1 hover:bg-surface-variant rounded transition-colors"><span class="material-symbols-outlined text-outline">expand_more</span></button>
+</div>
+</div>
+</div>
+</div>
+<!-- Sidebar Contextual Area (3 Columns) -->
+<div class="hidden lg:col-span-3 lg:flex flex-col gap-6">
+<!-- Progress Card -->
+<div class="bg-white border border-outline-variant rounded-xl p-5 shadow-sm">
+<h4 class="text-label-md font-bold text-on-surface mb-4">Curriculum Status</h4>
+<div class="space-y-4">
+<div>
+<div class="flex justify-between text-[11px] font-bold mb-1">
+<span class="text-on-surface-variant uppercase">Chapter 1 Completion</span>
+<span class="text-primary">65%</span>
+</div>
+<div class="w-full bg-surface-container-high h-2 rounded-full overflow-hidden">
+<div class="bg-primary h-full" style="width: 65%"></div>
+</div>
+</div>
+<div class="grid grid-cols-2 gap-4 pt-2">
+<div class="text-center p-3 bg-surface rounded-lg border border-outline-variant/30">
+<p class="text-h2 font-black text-primary">12</p>
+<p class="text-[10px] text-outline font-bold uppercase">Resources</p>
+</div>
+<div class="text-center p-3 bg-surface rounded-lg border border-outline-variant/30">
+<p class="text-h2 font-black text-secondary">04</p>
+<p class="text-[10px] text-outline font-bold uppercase">Quizzes</p>
+</div>
+</div>
+</div>
+</div>
+<!-- Recent Activity -->
+<div class="bg-white border border-outline-variant rounded-xl p-5 shadow-sm">
+<h4 class="text-label-md font-bold text-on-surface mb-4">Recent Edits</h4>
+<div class="space-y-4">
+<div class="flex gap-3">
+<div class="w-2 h-2 rounded-full bg-primary mt-2"></div>
+<div>
+<p class="text-label-sm font-semibold text-on-surface">PDF Uploaded</p>
+<p class="text-[11px] text-outline">2 hours ago in Chapter 1</p>
+</div>
+</div>
+<div class="flex gap-3">
+<div class="w-2 h-2 rounded-full bg-secondary mt-2"></div>
+<div>
+<p class="text-label-sm font-semibold text-on-surface">Quiz Updated</p>
+<p class="text-[11px] text-outline">Yesterday by Assistant</p>
+</div>
+</div>
+</div>
+</div>
+<!-- Quick Preview Card -->
+<div class="relative group h-48 rounded-xl overflow-hidden cursor-pointer shadow-lg">
+<img alt="Quantum Physics Visual" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" data-alt="abstract 3d visualization of quantum particle wave function with glowing neon lines on a deep black background" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAnkf8Utl-aNsbPjLJmZglVS0QAgChhHW8x9hRQAfpYFtBIjYVFN0zIMVDSWXfYsrko2rpkSXNAH1nCbXeen6RXEVjVmdLglNK1V7vK-lq4BnQVsDTree9ctIXi8KIGSbG3b7Dqj0060tRAJO6w_TObhthL5gtajnKK9Mk2TiWIeStfc-5HcTgajpiqDz94m3iUhNqVfUBb2SR63vhMaAq8DMRH2P9yD1G9JX1rmqoXWmT8qhDdSRgUlKiuqvqh4ceMYrf05GU15YDR"/>
+<div class="absolute inset-0 bg-gradient-to-t from-primary-container/80 to-transparent flex flex-col justify-end p-4">
+<h5 class="text-white font-bold text-label-md">Student View Preview</h5>
+<p class="text-primary-fixed text-[10px] uppercase font-bold">Updated today at 10:15 AM</p>
+</div>
+</div>
+</div>
+</div>
+<!-- Floating Action Button (Contextual for Lesson Planner) -->
+<button class="fixed bottom-10 right-10 w-14 h-14 bg-primary text-white rounded-full shadow-xl flex items-center justify-center hover:scale-110 active:scale-95 transition-all z-50">
+<span class="material-symbols-outlined text-[32px]">add</span>
+</button>
+</main>
+</div>
+</body></html>

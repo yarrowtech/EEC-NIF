@@ -141,7 +141,7 @@ const TeacherDashboard = () => {
     { id: 3, label: 'Parent Meetings', desc: 'Schedule meetings', icon: Calendar, gradient: 'from-violet-500 to-purple-600', path: '/teacher/parent-meetings' },
     { id: 4, label: 'Student Progress', desc: 'Performance tracking', icon: BarChart3, gradient: 'from-cyan-500 to-blue-600', path: '/teacher/progress' },
     { id: 5, label: 'Weak Students', desc: 'AI-powered insight', icon: AlertTriangle, gradient: 'from-rose-500 to-red-600', path: '/teacher/weak-students' },
-    { id: 6, label: 'AI Teaching', desc: 'Smart tools', icon: Sparkles, gradient: 'from-amber-500 to-orange-600', path: '/teacher/ai-powered-teaching' },
+    { id: 6, label: 'Smart Teaching', desc: 'Smart tools', icon: Sparkles, gradient: 'from-amber-500 to-orange-600', path: '/teacher/smart-teaching' },
     { id: 7, label: 'Student Feedback', desc: 'Subject/Class/Section view', icon: ThumbsUp, gradient: 'from-fuchsia-500 to-pink-600', path: '/teacher/feedback' },
   ];
 

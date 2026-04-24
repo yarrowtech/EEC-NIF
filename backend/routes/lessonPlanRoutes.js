@@ -14,6 +14,43 @@ const { logStudentPortalEvent, logStudentPortalError } = require('../utils/stude
 const normalizeString = (value) => String(value || '').trim();
 const normalizeLower = (value) => String(value || '').trim().toLowerCase();
 const escapeRegex = (value) => String(value || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+const normalizeStringList = (value) =>
+  Array.isArray(value) ? value.map((item) => normalizeString(item)).filter(Boolean) : [];
+
+const sanitizePlannerContent = (value) => {
+  if (!value || typeof value !== 'object') return { chapters: [] };
+  const chapters = Array.isArray(value.chapters) ? value.chapters : [];
+
+  return {
+    chapters: chapters.map((chapter, chapterIndex) => {
+      const topics = Array.isArray(chapter?.topics) ? chapter.topics : [];
+      return {
+        id: normalizeString(chapter?.id) || `chapter-${chapterIndex + 1}`,
+        title: normalizeString(chapter?.title),
+        topics: topics.map((topic, topicIndex) => {
+          const subTopics = Array.isArray(topic?.subTopics) ? topic.subTopics : [];
+          return {
+            id: normalizeString(topic?.id) || `topic-${chapterIndex + 1}-${topicIndex + 1}`,
+            title: normalizeString(topic?.title),
+            subTopics: subTopics.map((subTopic, subTopicIndex) => ({
+              id: normalizeString(subTopic?.id) || `subtopic-${chapterIndex + 1}-${topicIndex + 1}-${subTopicIndex + 1}`,
+              title: normalizeString(subTopic?.title),
+              learningPaths: normalizeStringList(subTopic?.learningPaths),
+              studyMaterials: normalizeStringList(subTopic?.studyMaterials),
+              mindMaps: normalizeStringList(subTopic?.mindMaps),
+              worksheets: normalizeStringList(subTopic?.worksheets),
+              questionPapers: {
+                basic: normalizeString(subTopic?.questionPapers?.basic),
+                intermediate: normalizeString(subTopic?.questionPapers?.intermediate),
+                advanced: normalizeString(subTopic?.questionPapers?.advanced),
+              },
+            })),
+          };
+        }),
+      };
+    }),
+  };
+};
 
 const resolveSchoolId = (req) => req.schoolId || req.admin?.schoolId || req.user?.schoolId || null;
 
@@ -134,6 +171,7 @@ const resolvePlanPayload = async ({ schoolId, campusId, payload, forcedTeacherId
     learningObjectives,
     materialsNeeded,
     additionalNotes,
+    plannerContent,
   } = payload || {};
 
   const teacherId = forcedTeacherId || incomingTeacherId;
@@ -186,6 +224,7 @@ const resolvePlanPayload = async ({ schoolId, campusId, payload, forcedTeacherId
         ? materialsNeeded.map((item) => normalizeString(item)).filter(Boolean)
         : [],
       additionalNotes: normalizeString(additionalNotes),
+      plannerContent: sanitizePlannerContent(plannerContent),
     },
   };
 };

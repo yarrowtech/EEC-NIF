@@ -26,7 +26,34 @@ const emptyForm = {
   learningObjectives: [''],
   materialsNeeded: [''],
   additionalNotes: '',
+  plannerContent: { chapters: [] },
 };
+
+const createEmptySubTopic = () => ({
+  id: `subtopic-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+  title: '',
+  learningPaths: [''],
+  studyMaterials: [''],
+  mindMaps: [''],
+  worksheets: [''],
+  questionPapers: {
+    basic: '',
+    intermediate: '',
+    advanced: '',
+  },
+});
+
+const createEmptyTopic = () => ({
+  id: `topic-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+  title: '',
+  subTopics: [createEmptySubTopic()],
+});
+
+const createEmptyChapter = () => ({
+  id: `chapter-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+  title: '',
+  topics: [createEmptyTopic()],
+});
 
 const emptyStatusForm = {
   date: '',
@@ -48,7 +75,8 @@ const prettifyStatus = (value) => {
   return 'Pending';
 };
 
-const LessonPlanDashboard = () => {
+const LessonPlanDashboard = ({ variant = 'default' }) => {
+  const isSmartVariant = variant === 'smart-teaching';
   const [lessonPlans, setLessonPlans] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -166,6 +194,45 @@ const LessonPlanDashboard = () => {
     [filteredPlans, selectedPlanId]
   );
 
+  const sanitizePlannerContent = (value) => {
+    const chapters = Array.isArray(value?.chapters) ? value.chapters : [];
+    return {
+      chapters: chapters.map((chapter) => ({
+        id: chapter?.id || `chapter-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+        title: chapter?.title || '',
+        topics: Array.isArray(chapter?.topics) && chapter.topics.length
+          ? chapter.topics.map((topic) => ({
+              id: topic?.id || `topic-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+              title: topic?.title || '',
+              subTopics: Array.isArray(topic?.subTopics) && topic.subTopics.length
+                ? topic.subTopics.map((subTopic) => ({
+                    id: subTopic?.id || `subtopic-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+                    title: subTopic?.title || '',
+                    learningPaths: Array.isArray(subTopic?.learningPaths) && subTopic.learningPaths.length
+                      ? subTopic.learningPaths
+                      : [''],
+                    studyMaterials: Array.isArray(subTopic?.studyMaterials) && subTopic.studyMaterials.length
+                      ? subTopic.studyMaterials
+                      : [''],
+                    mindMaps: Array.isArray(subTopic?.mindMaps) && subTopic.mindMaps.length
+                      ? subTopic.mindMaps
+                      : [''],
+                    worksheets: Array.isArray(subTopic?.worksheets) && subTopic.worksheets.length
+                      ? subTopic.worksheets
+                      : [''],
+                    questionPapers: {
+                      basic: subTopic?.questionPapers?.basic || '',
+                      intermediate: subTopic?.questionPapers?.intermediate || '',
+                      advanced: subTopic?.questionPapers?.advanced || '',
+                    },
+                  }))
+                : [createEmptySubTopic()],
+            }))
+          : [createEmptyTopic()],
+      })),
+    };
+  };
+
   const updateArrayField = (field, index, value) => {
     setForm((prev) => {
       const next = [...prev[field]];
@@ -184,6 +251,88 @@ const LessonPlanDashboard = () => {
       return { ...prev, [field]: next.length ? next : [''] };
     });
   };
+
+  const updatePlanner = (updater) => {
+    setForm((prev) => {
+      const nextPlanner = sanitizePlannerContent(prev.plannerContent);
+      updater(nextPlanner);
+      return { ...prev, plannerContent: nextPlanner };
+    });
+  };
+
+  const addChapter = () => updatePlanner((planner) => planner.chapters.push(createEmptyChapter()));
+  const removeChapter = (chapterIndex) =>
+    updatePlanner((planner) => {
+      planner.chapters = planner.chapters.filter((_, idx) => idx !== chapterIndex);
+    });
+  const updateChapterField = (chapterIndex, value) =>
+    updatePlanner((planner) => {
+      if (!planner.chapters[chapterIndex]) return;
+      planner.chapters[chapterIndex].title = value;
+    });
+
+  const addTopic = (chapterIndex) =>
+    updatePlanner((planner) => {
+      planner.chapters[chapterIndex]?.topics?.push(createEmptyTopic());
+    });
+  const removeTopic = (chapterIndex, topicIndex) =>
+    updatePlanner((planner) => {
+      const chapter = planner.chapters[chapterIndex];
+      if (!chapter) return;
+      chapter.topics = chapter.topics.filter((_, idx) => idx !== topicIndex);
+      if (!chapter.topics.length) chapter.topics = [createEmptyTopic()];
+    });
+  const updateTopicField = (chapterIndex, topicIndex, value) =>
+    updatePlanner((planner) => {
+      const topic = planner.chapters[chapterIndex]?.topics?.[topicIndex];
+      if (!topic) return;
+      topic.title = value;
+    });
+
+  const addSubTopic = (chapterIndex, topicIndex) =>
+    updatePlanner((planner) => {
+      planner.chapters[chapterIndex]?.topics?.[topicIndex]?.subTopics?.push(createEmptySubTopic());
+    });
+  const removeSubTopic = (chapterIndex, topicIndex, subTopicIndex) =>
+    updatePlanner((planner) => {
+      const topic = planner.chapters[chapterIndex]?.topics?.[topicIndex];
+      if (!topic) return;
+      topic.subTopics = topic.subTopics.filter((_, idx) => idx !== subTopicIndex);
+      if (!topic.subTopics.length) topic.subTopics = [createEmptySubTopic()];
+    });
+  const updateSubTopicField = (chapterIndex, topicIndex, subTopicIndex, field, value) =>
+    updatePlanner((planner) => {
+      const subTopic = planner.chapters[chapterIndex]?.topics?.[topicIndex]?.subTopics?.[subTopicIndex];
+      if (!subTopic) return;
+      subTopic[field] = value;
+    });
+
+  const addSubTopicArrayItem = (chapterIndex, topicIndex, subTopicIndex, field) =>
+    updatePlanner((planner) => {
+      const arr = planner.chapters[chapterIndex]?.topics?.[topicIndex]?.subTopics?.[subTopicIndex]?.[field];
+      if (!Array.isArray(arr)) return;
+      arr.push('');
+    });
+  const updateSubTopicArrayItem = (chapterIndex, topicIndex, subTopicIndex, field, itemIndex, value) =>
+    updatePlanner((planner) => {
+      const arr = planner.chapters[chapterIndex]?.topics?.[topicIndex]?.subTopics?.[subTopicIndex]?.[field];
+      if (!Array.isArray(arr) || !arr[itemIndex] && arr[itemIndex] !== '') return;
+      arr[itemIndex] = value;
+    });
+  const removeSubTopicArrayItem = (chapterIndex, topicIndex, subTopicIndex, field, itemIndex) =>
+    updatePlanner((planner) => {
+      const subTopic = planner.chapters[chapterIndex]?.topics?.[topicIndex]?.subTopics?.[subTopicIndex];
+      if (!subTopic || !Array.isArray(subTopic[field])) return;
+      subTopic[field] = subTopic[field].filter((_, idx) => idx !== itemIndex);
+      if (!subTopic[field].length) subTopic[field] = [''];
+    });
+
+  const updateQuestionPaperLevel = (chapterIndex, topicIndex, subTopicIndex, level, value) =>
+    updatePlanner((planner) => {
+      const subTopic = planner.chapters[chapterIndex]?.topics?.[topicIndex]?.subTopics?.[subTopicIndex];
+      if (!subTopic?.questionPapers) return;
+      subTopic.questionPapers[level] = value;
+    });
 
   const openCreateModal = async () => {
     setEditingPlanId('');
@@ -214,6 +363,7 @@ const LessonPlanDashboard = () => {
           ? plan.materialsNeeded
           : [''],
       additionalNotes: plan?.additionalNotes || '',
+      plannerContent: sanitizePlannerContent(plan?.plannerContent),
     });
 
     setShowModal(true);
@@ -313,6 +463,7 @@ const LessonPlanDashboard = () => {
         learningObjectives: form.learningObjectives.map((v) => String(v || '').trim()).filter(Boolean),
         materialsNeeded: form.materialsNeeded.map((v) => String(v || '').trim()).filter(Boolean),
         additionalNotes: form.additionalNotes,
+        plannerContent: sanitizePlannerContent(form.plannerContent),
       };
 
       const isEdit = Boolean(editingPlanId);
@@ -410,16 +561,22 @@ const LessonPlanDashboard = () => {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 p-6 space-y-6">
-      <div className="bg-white border-[2.5px] border-purple-300 rounded-2xl p-6 shadow-sm">
+    <div className={isSmartVariant ? 'bg-transparent p-0 space-y-6' : 'min-h-screen bg-slate-50 p-6 space-y-6'}>
+      <div className={`border-[2.5px] border-purple-300 rounded-2xl p-6 shadow-sm ${isSmartVariant ? 'bg-white/95 backdrop-blur-sm' : 'bg-white'}`}>
         <div className="flex items-center justify-between gap-4">
           <div className="flex items-center gap-3">
             <div className="p-2 bg-blue-100 rounded-lg">
               <BookOpen className="w-6 h-6 text-blue-600" />
             </div>
             <div>
-              <h1 className="text-2xl font-bold text-gray-900">My Lesson Plans</h1>
-              <p className="text-sm text-gray-500">Manage your own lesson plans</p>
+              <h1 className="text-2xl font-bold text-gray-900">
+                {isSmartVariant ? 'Smart Teaching Lesson Planner' : 'My Lesson Plans'}
+              </h1>
+              <p className="text-sm text-gray-500">
+                {isSmartVariant
+                  ? 'Assigned Subject → Chapter → Topic → Sub Topic → Learning Path → Materials → Assessments'
+                  : 'Manage your own lesson plans'}
+              </p>
             </div>
           </div>
 
@@ -439,7 +596,7 @@ const LessonPlanDashboard = () => {
               className="inline-flex items-center gap-2 px-3 py-2 rounded-xl border-[2px] border-purple-400 text-purple-700 text-sm hover:bg-purple-50"
             >
               <Plus className="w-4 h-4" />
-              Add Plan
+              {isSmartVariant ? 'Create Planner' : 'Add Plan'}
             </button>
           </div>
         </div>
@@ -548,6 +705,43 @@ const LessonPlanDashboard = () => {
                   Additional Notes
                 </h3>
                 <p className="text-sm text-gray-700">{selectedPlan.additionalNotes || '—'}</p>
+              </div>
+
+              <div className="rounded-xl border-[2px] border-purple-200 bg-purple-50 p-4">
+                <h3 className="font-medium text-purple-800 mb-3">Lesson Planner Structure</h3>
+                {Array.isArray(selectedPlan?.plannerContent?.chapters) && selectedPlan.plannerContent.chapters.length ? (
+                  <div className="space-y-3">
+                    {selectedPlan.plannerContent.chapters.map((chapter, chapterIndex) => (
+                      <div key={chapter.id || chapterIndex} className="rounded-lg border border-purple-200 bg-white p-3">
+                        <p className="text-sm font-semibold text-slate-800">
+                          Chapter {chapterIndex + 1}: {chapter.title || 'Untitled Chapter'}
+                        </p>
+                        <div className="mt-2 space-y-2">
+                          {(chapter.topics || []).map((topic, topicIndex) => (
+                            <div key={topic.id || topicIndex} className="rounded-md border border-slate-200 p-2">
+                              <p className="text-xs font-semibold text-slate-700">
+                                Topic {chapterIndex + 1}.{topicIndex + 1}: {topic.title || 'Untitled Topic'}
+                              </p>
+                              <div className="mt-1 space-y-1">
+                                {(topic.subTopics || []).map((subTopic, subTopicIndex) => (
+                                  <p key={subTopic.id || subTopicIndex} className="text-xs text-gray-600">
+                                    Sub Topic {chapterIndex + 1}.{topicIndex + 1}.{subTopicIndex + 1}: {subTopic.title || 'Untitled'} •
+                                    LP: {(subTopic.learningPaths || []).filter(Boolean).length} •
+                                    Materials: {(subTopic.studyMaterials || []).filter(Boolean).length} •
+                                    Mind Maps: {(subTopic.mindMaps || []).filter(Boolean).length} •
+                                    Worksheets: {(subTopic.worksheets || []).filter(Boolean).length}
+                                  </p>
+                                ))}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-sm text-gray-600">No chapter/topic structure added yet.</p>
+                )}
               </div>
 
               <div className="rounded-xl border-[2.5px] border-purple-300 bg-purple-50/60 p-4">
@@ -772,6 +966,183 @@ const LessonPlanDashboard = () => {
                 >
                   + Add Material
                 </button>
+              </div>
+
+              <div className="rounded-2xl border-[2px] border-purple-300 bg-purple-50/40 p-4 space-y-4">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <h3 className="text-sm font-semibold text-slate-900">
+                      Structured Lesson Planner
+                    </h3>
+                    <p className="text-xs text-gray-600">
+                      Assigned Subject: {form.subject || 'Select allocated subject first'}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={addChapter}
+                    className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg border border-purple-300 text-purple-700 bg-white text-xs"
+                  >
+                    <Plus className="w-3 h-3" />
+                    Add Chapter
+                  </button>
+                </div>
+
+                {sanitizePlannerContent(form.plannerContent).chapters.length === 0 ? (
+                  <p className="text-xs text-gray-600">No chapters added yet.</p>
+                ) : (
+                  <div className="space-y-3">
+                    {sanitizePlannerContent(form.plannerContent).chapters.map((chapter, chapterIndex) => (
+                      <div key={chapter.id || chapterIndex} className="rounded-xl border border-purple-200 bg-white p-3 space-y-3">
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="text"
+                            value={chapter.title}
+                            onChange={(e) => updateChapterField(chapterIndex, e.target.value)}
+                            className="flex-1 border border-purple-200 rounded-lg px-3 py-2 text-sm"
+                            placeholder={`Chapter ${chapterIndex + 1}`}
+                          />
+                          <button
+                            type="button"
+                            onClick={() => addTopic(chapterIndex)}
+                            className="px-2 py-1 text-xs rounded border border-blue-200 text-blue-700"
+                          >
+                            + Topic
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => removeChapter(chapterIndex)}
+                            className="px-2 py-1 text-xs rounded border border-red-200 text-red-700"
+                          >
+                            Remove
+                          </button>
+                        </div>
+
+                        {(chapter.topics || []).map((topic, topicIndex) => (
+                          <div key={topic.id || topicIndex} className="rounded-lg border border-slate-200 p-3 space-y-3">
+                            <div className="flex items-center gap-2">
+                              <input
+                                type="text"
+                                value={topic.title}
+                                onChange={(e) => updateTopicField(chapterIndex, topicIndex, e.target.value)}
+                                className="flex-1 border border-slate-200 rounded-lg px-3 py-2 text-sm"
+                                placeholder={`Topic ${chapterIndex + 1}.${topicIndex + 1}`}
+                              />
+                              <button
+                                type="button"
+                                onClick={() => addSubTopic(chapterIndex, topicIndex)}
+                                className="px-2 py-1 text-xs rounded border border-blue-200 text-blue-700"
+                              >
+                                + Sub Topic
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => removeTopic(chapterIndex, topicIndex)}
+                                className="px-2 py-1 text-xs rounded border border-red-200 text-red-700"
+                              >
+                                Remove
+                              </button>
+                            </div>
+
+                            {(topic.subTopics || []).map((subTopic, subTopicIndex) => (
+                              <div key={subTopic.id || subTopicIndex} className="rounded-lg border border-slate-200 bg-slate-50 p-3 space-y-2">
+                                <div className="flex items-center gap-2">
+                                  <input
+                                    type="text"
+                                    value={subTopic.title}
+                                    onChange={(e) => updateSubTopicField(chapterIndex, topicIndex, subTopicIndex, 'title', e.target.value)}
+                                    className="flex-1 border border-slate-200 rounded-lg px-3 py-2 text-sm bg-white"
+                                    placeholder={`Sub Topic ${chapterIndex + 1}.${topicIndex + 1}.${subTopicIndex + 1}`}
+                                  />
+                                  <button
+                                    type="button"
+                                    onClick={() => removeSubTopic(chapterIndex, topicIndex, subTopicIndex)}
+                                    className="px-2 py-1 text-xs rounded border border-red-200 text-red-700 bg-white"
+                                  >
+                                    Remove
+                                  </button>
+                                </div>
+
+                                {[
+                                  ['learningPaths', 'Learning Path'],
+                                  ['studyMaterials', 'Study Material (upload/link/text)'],
+                                  ['mindMaps', 'Mind Map'],
+                                  ['worksheets', 'Worksheet'],
+                                ].map(([field, label]) => (
+                                  <div key={field} className="rounded-md border border-slate-200 bg-white p-2">
+                                    <p className="text-xs font-medium text-slate-700 mb-2">{label}</p>
+                                    {(subTopic[field] || ['']).map((entry, entryIndex) => (
+                                      <div key={`${field}-${entryIndex}`} className="flex gap-2 mb-2 last:mb-0">
+                                        <input
+                                          type="text"
+                                          value={entry}
+                                          onChange={(e) =>
+                                            updateSubTopicArrayItem(
+                                              chapterIndex,
+                                              topicIndex,
+                                              subTopicIndex,
+                                              field,
+                                              entryIndex,
+                                              e.target.value
+                                            )
+                                          }
+                                          className="flex-1 border border-slate-200 rounded px-2 py-1 text-xs"
+                                          placeholder={`Add ${label.toLowerCase()}`}
+                                        />
+                                        <button
+                                          type="button"
+                                          onClick={() =>
+                                            removeSubTopicArrayItem(chapterIndex, topicIndex, subTopicIndex, field, entryIndex)
+                                          }
+                                          className="px-2 py-1 text-xs rounded border border-red-200 text-red-700"
+                                        >
+                                          -
+                                        </button>
+                                      </div>
+                                    ))}
+                                    <button
+                                      type="button"
+                                      onClick={() => addSubTopicArrayItem(chapterIndex, topicIndex, subTopicIndex, field)}
+                                      className="text-xs text-blue-700"
+                                    >
+                                      + Add {label}
+                                    </button>
+                                  </div>
+                                ))}
+
+                                <div className="rounded-md border border-slate-200 bg-white p-2">
+                                  <p className="text-xs font-medium text-slate-700 mb-2">Question Paper Builder</p>
+                                  <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+                                    {['basic', 'intermediate', 'advanced'].map((level) => (
+                                      <div key={level}>
+                                        <label className="block text-[11px] text-slate-600 mb-1 capitalize">{level}</label>
+                                        <textarea
+                                          rows={2}
+                                          value={subTopic.questionPapers?.[level] || ''}
+                                          onChange={(e) =>
+                                            updateQuestionPaperLevel(
+                                              chapterIndex,
+                                              topicIndex,
+                                              subTopicIndex,
+                                              level,
+                                              e.target.value
+                                            )
+                                          }
+                                          className="w-full border border-slate-200 rounded px-2 py-1 text-xs"
+                                          placeholder={`Add ${level} question paper outline`}
+                                        />
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        ))}
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
 
               <div>

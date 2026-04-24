@@ -1076,8 +1076,8 @@ Before deployment, ensure:
 ### Deployment Platforms
 
 **Recommended:**
-- **Frontend:** Vercel, Netlify, AWS S3 + CloudFront
-- **Backend:** Heroku, AWS EC2, DigitalOcean, Railway
+- **Frontend:**AWS S3 + CloudFront
+- **Backend:** AWS EC2,
 - **Database:** MongoDB Atlas (already configured)
 - **File Storage:** Cloudinary (already configured)
 

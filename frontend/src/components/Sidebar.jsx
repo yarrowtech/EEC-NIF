@@ -3,7 +3,7 @@ import {
   Home, Calendar, Users, FileText, BookOpen, LogOut,
   ChevronDown, ChevronRight, ChevronLeft, File, Trophy, Bell,
   MessageCircle, MessageSquare, Brain, X, GraduationCap, BarChart3,
-  Heart, Star, Target, PanelLeft,
+  Heart, Star, Target, PanelLeft, ClipboardList,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useStudentDashboard } from './StudentDashboardContext';
@@ -33,6 +33,7 @@ const MENU_ITEMS = [
       { id: 'assignments-journal',          name: 'Journal',         icon: File      },
       { id: 'assignments-academic-alcove',  name: 'The Wall',        icon: Target    },
       { id: 'study-materials',             name: 'Study Materials',  icon: BookOpen  },
+      { id: 'practice-papers',             name: 'Practice Papers',  icon: ClipboardList },
       { id: 'results',                      name: 'Results',         icon: BarChart3 },
     ],
   },

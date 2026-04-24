@@ -1,2399 +1,615 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
-  Brain,
-  BookOpen,
-  Users,
-  Target,
-  TrendingUp,
-  Clock,
-  Award,
-  Lightbulb,
-  BarChart3,
-  Play,
-  Pause,
-  RotateCcw,
-  ArrowRight,
-  Star,
-  Zap,
-  CheckCircle,
-  AlertCircle,
-  Globe,
-  PenTool,
-  FileText,
-  MessageSquare,
-  Bot,
-  Settings,
-  Download,
-  Upload,
-  Eye,
-  Edit,
-  Trash2,
-  Plus,
-  Copy,
-  Shuffle
+  Plus, Search, Trash2, FileText, Loader,
+  BookOpen, Users, FileCheck, Zap, Grid, List as ListIcon, ClipboardList
 } from 'lucide-react';
+import RichTextMaterialEditor from './components/RichTextMaterialEditor';
+import PracticePaperBuilder from './components/PracticePaperBuilder';
+import toast from 'react-hot-toast';
 
 const AIPoweredTeaching = () => {
-  const [activeTab, setActiveTab] = useState('dashboard');
-  const [teachingStats] = useState({
-    studentsHelped: 156,
-    quizzesCreated: 43,
-    flashcardsCreated: 67,
-    averageEngagement: 94
-  });
+  const navigate = useNavigate();
+  const API_BASE = (import.meta.env.VITE_API_URL || 'http://localhost:5000').replace(/\/$/, '');
 
-  const tabs = [
-    { id: 'dashboard', name: 'Dashboard', icon: BarChart3 },
-    { id: 'quiz-creator', name: 'Quiz Creator', icon: Target },
-    { id: 'content-summarizer', name: 'Content Summarizer', icon: PenTool },
-    { id: 'flashcard-generator', name: 'Flashcard Generator', icon: Star },
-    { id: 'tryout-generator', name: 'Tryout Generator', icon: FileText },
-    { id: 'student-analyzer', name: 'Student Analyzer', icon: Users },
-    { id: 'teaching-assistant', name: 'AI Assistant', icon: Bot }
-  ];
+  // State
+  const [loading, setLoading] = useState(true);
+  const [allocations, setAllocations] = useState([]);
+  const [materials, setMaterials] = useState([]);
+  const [papers, setPapers] = useState([]);
 
-  const renderContent = () => {
-    switch (activeTab) {
-      case 'quiz-creator':
-        return <QuizCreator />;
-      case 'content-summarizer':
-        return <ContentSummarizer />;
-      case 'flashcard-generator':
-        return <FlashcardGenerator />;
-      case 'tryout-generator':
-        return <TryoutGenerator />;
-      case 'student-analyzer':
-        return <StudentAnalyzer />;
-      case 'teaching-assistant':
-        return <TeachingAssistant />;
-      default:
-        return <TeachingDashboard onNavigate={setActiveTab} />;
-    }
-  };
+  const [searchQuery, setSearchQuery] = useState('');
+  const [statusFilter, setStatusFilter] = useState('all');
+  const [subjectFilter, setSubjectFilter] = useState('all');
+  const [viewMode, setViewMode] = useState('grid'); // grid or list
 
-  return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 p-6">
-      <div className="max-w-7xl mx-auto space-y-6">
-        {/* Header */}
-        <div className="bg-white rounded-2xl shadow-xl p-8 border border-indigo-100">
-          <div className="flex items-center justify-between mb-6">
-            <div className="flex items-center gap-4">
-              <div className="h-16 w-16 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-2xl flex items-center justify-center">
-                <Brain className="h-8 w-8 text-white" />
-              </div>
-              <div>
-                <h1 className="text-3xl font-bold text-gray-800">AI Powered Teaching</h1>
-                <p className="text-gray-600">Intelligent tools to enhance your teaching experience</p>
-              </div>
-            </div>
-            <div className="flex items-center gap-4">
-              <div className="text-right">
-                <div className="text-2xl font-bold text-indigo-600">{teachingStats.averageEngagement}%</div>
-                <div className="text-sm text-gray-600">Student Engagement 📈</div>
-              </div>
-            </div>
-          </div>
+  const [activeTab, setActiveTab] = useState('materials'); // materials or papers
+  const [showEditor, setShowEditor] = useState(false);
+  const [showPaperBuilder, setShowPaperBuilder] = useState(false);
+  const [editingMaterial, setEditingMaterial] = useState(null);
+  const [selectedClassId, setSelectedClassId] = useState('');
+  const [selectedSectionId, setSelectedSectionId] = useState('');
 
-          {/* Stats */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
-            <div className="bg-gradient-to-br from-blue-50 to-blue-100 p-4 rounded-xl">
-              <div className="flex items-center gap-3">
-                <div className="h-10 w-10 bg-blue-500 rounded-lg flex items-center justify-center">
-                  <Users className="h-5 w-5 text-white" />
-                </div>
-                <div>
-                  <div className="text-2xl font-bold text-blue-700">{teachingStats.studentsHelped}</div>
-                  <div className="text-sm text-blue-600">Students Helped</div>
-                </div>
-              </div>
-            </div>
+  // Get auth token
+  const token = localStorage.getItem('token');
+  const authHeaders = useMemo(() => ({
+    'Authorization': `Bearer ${token}`,
+    'Content-Type': 'application/json'
+  }), [token]);
 
-            <div className="bg-gradient-to-br from-green-50 to-green-100 p-4 rounded-xl">
-              <div className="flex items-center gap-3">
-                <div className="h-10 w-10 bg-green-500 rounded-lg flex items-center justify-center">
-                  <Star className="h-5 w-5 text-white" />
-                </div>
-                <div>
-                  <div className="text-2xl font-bold text-green-700">{teachingStats.flashcardsCreated}</div>
-                  <div className="text-sm text-green-600">Flashcards Created</div>
-                </div>
-              </div>
-            </div>
+  // Fetch teacher allocations
+  useEffect(() => {
+    const fetchAllocations = async () => {
+      try {
+        const response = await fetch(`${API_BASE}/api/teacher/dashboard/allocations`, {
+          headers: authHeaders
+        });
+        if (!response.ok) throw new Error('Failed to fetch allocations');
 
-            <div className="bg-gradient-to-br from-purple-50 to-purple-100 p-4 rounded-xl">
-              <div className="flex items-center gap-3">
-                <div className="h-10 w-10 bg-purple-500 rounded-lg flex items-center justify-center">
-                  <Target className="h-5 w-5 text-white" />
-                </div>
-                <div>
-                  <div className="text-2xl font-bold text-purple-700">{teachingStats.quizzesCreated}</div>
-                  <div className="text-sm text-purple-600">Quizzes Created</div>
-                </div>
-              </div>
-            </div>
+        const data = await response.json();
+        setAllocations(data.data || []);
 
-            <div className="bg-gradient-to-br from-yellow-50 to-yellow-100 p-4 rounded-xl">
-              <div className="flex items-center gap-3">
-                <div className="h-10 w-10 bg-yellow-500 rounded-lg flex items-center justify-center">
-                  <TrendingUp className="h-5 w-5 text-white" />
-                </div>
-                <div>
-                  <div className="text-2xl font-bold text-yellow-700">4.9</div>
-                  <div className="text-sm text-yellow-600">AI Rating</div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Navigation Tabs */}
-        <div className="bg-white rounded-2xl shadow-xl border border-indigo-100 overflow-hidden">
-          <div className="flex overflow-x-auto">
-            {tabs.map(tab => (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
-                className={`flex items-center gap-2 px-6 py-4 font-medium text-sm whitespace-nowrap border-b-2 transition-colors ${
-                  activeTab === tab.id
-                    ? 'border-indigo-500 text-indigo-600 bg-indigo-50'
-                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50'
-                }`}
-              >
-                <tab.icon className="h-4 w-4" />
-                <span>{tab.name}</span>
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* Content Area */}
-        <div className="bg-white rounded-2xl shadow-xl p-8 border border-indigo-100">
-          {renderContent()}
-        </div>
-      </div>
-    </div>
-  );
-};
-
-const TeachingDashboard = ({ onNavigate }) => {
-  const quickActions = [
-    {
-      title: 'Create Smart Quiz',
-      description: 'Generate adaptive quizzes',
-      icon: Target,
-      color: 'bg-green-500',
-      action: 'quiz-creator'
-    },
-    {
-      title: 'Generate Flashcards',
-      description: 'Interactive learning flashcards',
-      icon: Star,
-      color: 'bg-yellow-500',
-      action: 'flashcard-generator'
-    },
-    {
-      title: 'Create Tryouts',
-      description: 'Multi-format assessment tests',
-      icon: FileText,
-      color: 'bg-indigo-500',
-      action: 'tryout-generator'
-    },
-    {
-      title: 'Summarize Content',
-      description: 'AI-powered content summaries',
-      icon: PenTool,
-      color: 'bg-purple-500',
-      action: 'content-summarizer'
-    },
-    {
-      title: 'Analyze Students',
-      description: 'Get insights on student performance',
-      icon: Users,
-      color: 'bg-orange-500',
-      action: 'student-analyzer'
-    }
-  ];
-
-  const recentGenerations = [
-    {
-      type: 'summary',
-      title: 'Quadratic Equations - Key Concepts',
-      subject: 'Mathematics',
-      timestamp: '2 hours ago',
-      status: 'completed'
-    },
-    {
-      type: 'flashcards',
-      title: 'Chemistry Periodic Table Cards',
-      subject: 'Chemistry',
-      timestamp: '4 hours ago',
-      status: 'completed'
-    },
-    {
-      type: 'tryout',
-      title: 'History World War I Assessment',
-      subject: 'History',
-      timestamp: '6 hours ago',
-      status: 'completed'
-    },
-    {
-      type: 'quiz',
-      title: 'Physics Motion Quiz',
-      subject: 'Physics',
-      timestamp: '1 day ago',
-      status: 'completed'
-    },
-    {
-      type: 'summary',
-      title: 'Cell Biology Overview',
-      subject: 'Biology',
-      timestamp: '2 days ago',
-      status: 'completed'
-    }
-  ];
-
-  return (
-    <div className="space-y-6">
-      {/* Quick Actions */}
-      <div>
-        <h2 className="text-xl font-bold text-gray-800 mb-4 flex items-center gap-2">
-          <Zap className="h-5 w-5 text-yellow-500" />
-          Quick Actions
-        </h2>
-        <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-          {quickActions.map((action, index) => (
-            <button
-              key={index}
-              onClick={() => onNavigate && onNavigate(action.action)}
-              className="p-6 rounded-xl border-2 border-gray-100 hover:border-indigo-200 hover:shadow-lg transition-all duration-200 group text-left"
-            >
-              <div className={`h-12 w-12 ${action.color} rounded-lg flex items-center justify-center mb-4 group-hover:scale-110 transition-transform`}>
-                <action.icon className="h-6 w-6 text-white" />
-              </div>
-              <h3 className="font-semibold text-gray-800 mb-1">{action.title}</h3>
-              <p className="text-sm text-gray-600">{action.description}</p>
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* Recent Generations */}
-      <div>
-        <h2 className="text-xl font-bold text-gray-800 mb-4 flex items-center gap-2">
-          <Clock className="h-5 w-5 text-green-500" />
-          Recent AI Generations
-        </h2>
-        <div className="space-y-3">
-          {recentGenerations.map((item, index) => (
-            <div key={index} className="flex items-center justify-between p-4 rounded-xl border border-gray-100 hover:bg-gray-50 transition-colors">
-              <div className="flex items-center gap-3">
-                <div className="h-10 w-10 bg-indigo-100 rounded-lg flex items-center justify-center">
-                  {item.type === 'quiz' && <Target className="h-5 w-5 text-indigo-600" />}
-                  {item.type === 'flashcards' && <Star className="h-5 w-5 text-indigo-600" />}
-                  {item.type === 'tryout' && <FileText className="h-5 w-5 text-indigo-600" />}
-                  {item.type === 'summary' && <PenTool className="h-5 w-5 text-indigo-600" />}
-                </div>
-                <div>
-                  <h3 className="font-medium text-gray-800">{item.title}</h3>
-                  <p className="text-sm text-gray-600">{item.subject} • {item.timestamp}</p>
-                </div>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="px-2 py-1 bg-green-100 text-green-700 rounded-full text-xs font-medium">
-                  {item.status}
-                </span>
-                <button className="p-1 hover:bg-gray-100 rounded">
-                  <Eye className="h-4 w-4 text-gray-500" />
-                </button>
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-    </div>
-  );
-};
-
-
-const QuizCreator = () => {
-  const [formData, setFormData] = useState({
-    subject: '',
-    topic: '',
-    grade: '',
-    questionCount: '10',
-    difficulty: 'medium',
-    questionTypes: ['multiple-choice'],
-    timeLimit: '30'
-  });
-  const [generatedQuiz, setGeneratedQuiz] = useState(null);
-  const [loading, setLoading] = useState(false);
-
-
-  const handleGenerateQuiz = async () => {
-    if (!formData.subject || !formData.topic) return;
-    
-    setLoading(true);
-    setTimeout(() => {
-      const mockQuiz = {
-        title: `${formData.topic} Quiz - Grade ${formData.grade}`,
-        subject: formData.subject,
-        difficulty: formData.difficulty,
-        timeLimit: formData.timeLimit,
-        questions: Array.from({ length: parseInt(formData.questionCount) }, (_, i) => ({
-          id: i + 1,
-          question: `Sample question ${i + 1} about ${formData.topic}`,
-          type: formData.questionTypes[0],
-          options: formData.questionTypes[0] === 'multiple-choice' ? [
-            'Option A',
-            'Option B', 
-            'Option C',
-            'Option D'
-          ] : null,
-          correct: formData.questionTypes[0] === 'multiple-choice' ? 0 : 'Sample answer',
-          explanation: 'This is the explanation for the correct answer.'
-        }))
-      };
-      setGeneratedQuiz(mockQuiz);
-      setLoading(false);
-    }, 2000);
-  };
-
-  return (
-    <div className="space-y-6">
-      <div className="flex items-center gap-2 mb-4">
-        <Target className="h-6 w-6 text-green-500" />
-        <h2 className="text-2xl font-bold text-gray-800">AI Quiz Creator</h2>
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Quiz Configuration */}
-        <div className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Subject</label>
-            <select
-              value={formData.subject}
-              onChange={(e) => setFormData({...formData, subject: e.target.value})}
-              className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500"
-            >
-              <option value="">Select Subject</option>
-              <option value="mathematics">Mathematics</option>
-              <option value="physics">Physics</option>
-              <option value="chemistry">Chemistry</option>
-              <option value="biology">Biology</option>
-              <option value="english">English</option>
-              <option value="history">History</option>
-            </select>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Topic</label>
-            <input
-              type="text"
-              value={formData.topic}
-              onChange={(e) => setFormData({...formData, topic: e.target.value})}
-              placeholder="Enter the quiz topic"
-              className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500"
-            />
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Grade Level</label>
-              <select
-                value={formData.grade}
-                onChange={(e) => setFormData({...formData, grade: e.target.value})}
-                className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500"
-              >
-                <option value="">Select Grade</option>
-                {[...Array(12)].map((_, i) => (
-                  <option key={i} value={i + 1}>Grade {i + 1}</option>
-                ))}
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Number of Questions</label>
-              <select
-                value={formData.questionCount}
-                onChange={(e) => setFormData({...formData, questionCount: e.target.value})}
-                className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500"
-              >
-                <option value="5">5 Questions</option>
-                <option value="10">10 Questions</option>
-                <option value="15">15 Questions</option>
-                <option value="20">20 Questions</option>
-              </select>
-            </div>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Difficulty Level</label>
-            <select
-              value={formData.difficulty}
-              onChange={(e) => setFormData({...formData, difficulty: e.target.value})}
-              className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500"
-            >
-              <option value="easy">Easy</option>
-              <option value="medium">Medium</option>
-              <option value="hard">Hard</option>
-            </select>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Time Limit (minutes)</label>
-            <input
-              type="number"
-              value={formData.timeLimit}
-              onChange={(e) => setFormData({...formData, timeLimit: e.target.value})}
-              min="5"
-              max="120"
-              className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500"
-            />
-          </div>
-
-          <button
-            onClick={handleGenerateQuiz}
-            disabled={loading || !formData.subject || !formData.topic}
-            className="w-full py-3 px-6 bg-green-500 text-white rounded-lg hover:bg-green-600 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-          >
-            {loading ? (
-              <>
-                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                Generating Quiz...
-              </>
-            ) : (
-              <>
-                <Target className="h-4 w-4" />
-                Generate Quiz
-              </>
-            )}
-          </button>
-        </div>
-
-        {/* Generated Quiz Preview */}
-        <div>
-          {generatedQuiz ? (
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h3 className="text-xl font-bold text-gray-800">{generatedQuiz.title}</h3>
-                  <p className="text-gray-600">{generatedQuiz.questions.length} questions • {generatedQuiz.timeLimit} minutes</p>
-                </div>
-                <div className="flex gap-2">
-                  <button className="p-2 text-gray-500 hover:bg-gray-100 rounded">
-                    <Download className="h-4 w-4" />
-                  </button>
-                  <button className="p-2 text-gray-500 hover:bg-gray-100 rounded">
-                    <Edit className="h-4 w-4" />
-                  </button>
-                </div>
-              </div>
-
-              <div className="bg-green-50 p-4 rounded-lg">
-                <h4 className="font-semibold text-green-800 mb-2">Quiz Settings</h4>
-                <div className="grid grid-cols-2 gap-4 text-sm">
-                  <div>
-                    <span className="text-green-700">Subject:</span> {generatedQuiz.subject}
-                  </div>
-                  <div>
-                    <span className="text-green-700">Difficulty:</span> {generatedQuiz.difficulty}
-                  </div>
-                  <div>
-                    <span className="text-green-700">Time Limit:</span> {generatedQuiz.timeLimit} min
-                  </div>
-                  <div>
-                    <span className="text-green-700">Questions:</span> {generatedQuiz.questions.length}
-                  </div>
-                </div>
-              </div>
-
-              <div className="space-y-3 max-h-96 overflow-y-auto">
-                <h4 className="font-semibold text-gray-800">Preview Questions</h4>
-                {generatedQuiz.questions.slice(0, 3).map((question, index) => (
-                  <div key={index} className="border border-gray-200 rounded-lg p-4">
-                    <h5 className="font-medium text-gray-800 mb-2">
-                      Question {question.id}: {question.question}
-                    </h5>
-                    {question.options && (
-                      <div className="space-y-1">
-                        {question.options.map((option, optIndex) => (
-                          <div key={optIndex} className={`text-sm p-2 rounded ${optIndex === question.correct ? 'bg-green-100 text-green-800' : 'text-gray-600'}`}>
-                            {String.fromCharCode(65 + optIndex)}. {option}
-                            {optIndex === question.correct && <CheckCircle className="h-4 w-4 inline ml-2" />}
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                    <p className="text-xs text-gray-500 mt-2 italic">{question.explanation}</p>
-                  </div>
-                ))}
-                {generatedQuiz.questions.length > 3 && (
-                  <p className="text-center text-gray-500 text-sm">
-                    +{generatedQuiz.questions.length - 3} more questions...
-                  </p>
-                )}
-              </div>
-            </div>
-          ) : (
-            <div className="flex items-center justify-center h-64 text-gray-500">
-              <div className="text-center">
-                <Target className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                <p>Configure your quiz settings to generate questions</p>
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-};
-
-const ContentSummarizer = () => {
-  const [formData, setFormData] = useState({
-    subject: '',
-    topic: '',
-    grade: '',
-    summaryType: 'overview',
-    length: 'medium',
-    inputText: ''
-  });
-  const [generatedSummary, setGeneratedSummary] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [copied, setCopied] = useState(false);
-
-  const summaryTypes = [
-    { value: 'overview', label: 'Topic Overview', description: 'General introduction to the topic' },
-    { value: 'key-points', label: 'Key Points', description: 'Main concepts and important details' },
-    { value: 'study-guide', label: 'Study Guide', description: 'Structured learning material' },
-    { value: 'revision', label: 'Revision Notes', description: 'Quick review material' }
-  ];
-
-  const lengthOptions = [
-    { value: 'short', label: 'Short', description: '1-2 paragraphs' },
-    { value: 'medium', label: 'Medium', description: '3-4 paragraphs' },
-    { value: 'detailed', label: 'Detailed', description: '5+ paragraphs' }
-  ];
-
-  const handleGenerateSummary = async () => {
-    if (!formData.topic) return;
-    
-    setLoading(true);
-    setTimeout(() => {
-      const mockSummary = `# ${formData.topic} Summary
-
-## Overview
-This is an AI-generated summary of ${formData.topic} in ${formData.subject} for Grade ${formData.grade} students.
-
-## Key Concepts
-• Important concept 1: Detailed explanation of the first key concept
-• Important concept 2: Detailed explanation of the second key concept  
-• Important concept 3: Detailed explanation of the third key concept
-
-## Examples
-Real-world applications and examples that help students understand the topic better.
-
-## Important Points to Remember
-- Critical point 1
-- Critical point 2
-- Critical point 3
-
-## Practice Questions
-1. Sample question about the topic
-2. Another practice question
-3. Advanced application question
-
-This summary has been optimized for ${formData.length} reading and covers the essential points students need to understand about ${formData.topic}.`;
-      
-      setGeneratedSummary(mockSummary);
-      setLoading(false);
-    }, 2000);
-  };
-
-  const handleCopy = async () => {
-    await navigator.clipboard.writeText(generatedSummary);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
-
-  const downloadSummary = () => {
-    const element = document.createElement('a');
-    const file = new Blob([generatedSummary], { type: 'text/plain' });
-    element.href = URL.createObjectURL(file);
-    element.download = `${formData.topic}_summary.txt`;
-    document.body.appendChild(element);
-    element.click();
-    document.body.removeChild(element);
-  };
-
-  return (
-    <div className="space-y-6">
-      <div className="flex items-center gap-2 mb-4">
-        <PenTool className="h-6 w-6 text-purple-500" />
-        <h2 className="text-2xl font-bold text-gray-800">Content Summarizer</h2>
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Summary Configuration */}
-        <div className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Subject</label>
-            <select
-              value={formData.subject}
-              onChange={(e) => setFormData({...formData, subject: e.target.value})}
-              className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500"
-            >
-              <option value="">Select Subject</option>
-              <option value="mathematics">Mathematics</option>
-              <option value="physics">Physics</option>
-              <option value="chemistry">Chemistry</option>
-              <option value="biology">Biology</option>
-              <option value="english">English</option>
-              <option value="history">History</option>
-            </select>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Topic</label>
-            <input
-              type="text"
-              value={formData.topic}
-              onChange={(e) => setFormData({...formData, topic: e.target.value})}
-              placeholder="Enter the topic to summarize"
-              className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500"
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Grade Level</label>
-            <select
-              value={formData.grade}
-              onChange={(e) => setFormData({...formData, grade: e.target.value})}
-              className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500"
-            >
-              <option value="">Select Grade</option>
-              {[...Array(12)].map((_, i) => (
-                <option key={i} value={i + 1}>Grade {i + 1}</option>
-              ))}
-            </select>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Summary Type</label>
-            <div className="space-y-2">
-              {summaryTypes.map(type => (
-                <label key={type.value} className="flex items-center">
-                  <input
-                    type="radio"
-                    value={type.value}
-                    checked={formData.summaryType === type.value}
-                    onChange={(e) => setFormData({...formData, summaryType: e.target.value})}
-                    className="mr-3"
-                  />
-                  <div>
-                    <div className="font-medium">{type.label}</div>
-                    <div className="text-sm text-gray-600">{type.description}</div>
-                  </div>
-                </label>
-              ))}
-            </div>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Summary Length</label>
-            <select
-              value={formData.length}
-              onChange={(e) => setFormData({...formData, length: e.target.value})}
-              className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500"
-            >
-              {lengthOptions.map(option => (
-                <option key={option.value} value={option.value}>
-                  {option.label} - {option.description}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Additional Context (Optional)</label>
-            <textarea
-              value={formData.inputText}
-              onChange={(e) => setFormData({...formData, inputText: e.target.value})}
-              placeholder="Paste content to summarize or provide additional context..."
-              rows={4}
-              className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500"
-            />
-          </div>
-
-          <button
-            onClick={handleGenerateSummary}
-            disabled={loading || !formData.topic}
-            className="w-full py-3 px-6 bg-purple-500 text-white rounded-lg hover:bg-purple-600 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-          >
-            {loading ? (
-              <>
-                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                Generating Summary...
-              </>
-            ) : (
-              <>
-                <PenTool className="h-4 w-4" />
-                Generate Summary
-              </>
-            )}
-          </button>
-        </div>
-
-        {/* Generated Summary */}
-        <div>
-          {generatedSummary ? (
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <h3 className="text-xl font-bold text-gray-800">Generated Summary</h3>
-                <div className="flex gap-2">
-                  <button
-                    onClick={handleCopy}
-                    className="p-2 text-gray-500 hover:bg-gray-100 rounded flex items-center gap-1"
-                  >
-                    {copied ? <CheckCircle className="h-4 w-4 text-green-500" /> : <FileText className="h-4 w-4" />}
-                    {copied ? 'Copied!' : 'Copy'}
-                  </button>
-                  <button
-                    onClick={downloadSummary}
-                    className="p-2 text-gray-500 hover:bg-gray-100 rounded"
-                  >
-                    <Download className="h-4 w-4" />
-                  </button>
-                </div>
-              </div>
-
-              <div className="bg-purple-50 p-4 rounded-lg">
-                <div className="grid grid-cols-2 gap-4 text-sm">
-                  <div>
-                    <span className="text-purple-700 font-medium">Type:</span> {summaryTypes.find(t => t.value === formData.summaryType)?.label}
-                  </div>
-                  <div>
-                    <span className="text-purple-700 font-medium">Length:</span> {formData.length}
-                  </div>
-                  <div>
-                    <span className="text-purple-700 font-medium">Subject:</span> {formData.subject}
-                  </div>
-                  <div>
-                    <span className="text-purple-700 font-medium">Grade:</span> {formData.grade}
-                  </div>
-                </div>
-              </div>
-
-              <div className="border border-gray-200 rounded-lg p-4 max-h-96 overflow-y-auto">
-                <pre className="whitespace-pre-wrap text-gray-800 text-sm leading-relaxed">
-                  {generatedSummary}
-                </pre>
-              </div>
-            </div>
-          ) : (
-            <div className="flex items-center justify-center h-64 text-gray-500">
-              <div className="text-center">
-                <PenTool className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                <p>Configure your settings to generate a summary</p>
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-};
-
-const StudentAnalyzer = () => {
-  const [selectedClass, setSelectedClass] = useState('');
-  const [selectedSubject, setSelectedSubject] = useState('');
-  const [analysisType, setAnalysisType] = useState('performance');
-  const [analysisResults, setAnalysisResults] = useState(null);
-  const [loading, setLoading] = useState(false);
-  const [selectedStudent, setSelectedStudent] = useState(null);
-  const [showPersonalizedContent, setShowPersonalizedContent] = useState(false);
-  const [contentType, setContentType] = useState('flashcards');
-  const [generatingContent, setGeneratingContent] = useState(false);
-  const [generatedContent, setGeneratedContent] = useState(null);
-
-  const classes = ['Grade 9A', 'Grade 9B', 'Grade 10A', 'Grade 10B', 'Grade 11A', 'Grade 11B'];
-  const subjects = ['Mathematics', 'Physics', 'Chemistry', 'Biology', 'English', 'History'];
-
-  const analysisTypes = [
-    { value: 'performance', label: 'Performance Analysis', description: 'Overall academic performance insights' },
-    { value: 'engagement', label: 'Engagement Patterns', description: 'Student participation and engagement levels' },
-    { value: 'learning-gaps', label: 'Learning Gaps', description: 'Identify knowledge gaps and weak areas' },
-    { value: 'progress', label: 'Progress Tracking', description: 'Monitor student improvement over time' },
-    { value: 'weak-students', label: 'Weak Student Identification', description: 'Identify students needing intervention' }
-  ];
-
-  const personalizedContentTypes = [
-    { value: 'flashcards', label: 'Personalized Flashcards', icon: Star, description: 'Custom flashcards for weak areas' },
-    { value: 'quiz', label: 'Targeted Quiz', icon: Target, description: 'Quiz focusing on problem areas' },
-    { value: 'summary', label: 'Concept Summary', icon: PenTool, description: 'Simplified explanations of difficult topics' }
-  ];
-
-  const handleAnalyze = async () => {
-    if (!selectedClass || !selectedSubject) return;
-    
-    setLoading(true);
-    setTimeout(() => {
-      let mockResults;
-      
-      if (analysisType === 'weak-students') {
-        mockResults = {
-          classOverview: {
-            totalStudents: 28,
-            averageScore: 78.5,
-            improvementRate: '+12%',
-            atRiskStudents: 4
-          },
-          weakStudents: [
-            { 
-              id: '1',
-              name: 'Alex Thompson', 
-              grade: selectedClass.split(' ')[1], 
-              section: selectedClass.slice(-1),
-              roll: 15,
-              interventionLevel: 'critical',
-              consistencyScore: 25,
-              focusSubject: selectedSubject,
-              weakAreas: ['Basic Concepts', 'Problem Solving', 'Consistency in Performance'],
-              recommendedTopics: ['Number Systems', 'Basic Operations', 'Word Problems'],
-              hasAIPath: false,
-              lastAssessment: '2 days ago',
-              averageScore: 45
-            },
-            { 
-              id: '2',
-              name: 'Sarah Wilson', 
-              grade: selectedClass.split(' ')[1], 
-              section: selectedClass.slice(-1),
-              roll: 8,
-              interventionLevel: 'high',
-              consistencyScore: 45,
-              focusSubject: selectedSubject,
-              weakAreas: ['Conceptual Understanding', 'Formula Application'],
-              recommendedTopics: ['Fundamentals', 'Practical Applications'],
-              hasAIPath: true,
-              lastAssessment: '1 day ago',
-              averageScore: 52
-            },
-            { 
-              id: '3',
-              name: 'Mike Johnson', 
-              grade: selectedClass.split(' ')[1], 
-              section: selectedClass.slice(-1),
-              roll: 22,
-              interventionLevel: 'medium',
-              consistencyScore: 55,
-              focusSubject: selectedSubject,
-              weakAreas: ['Advanced Topics', 'Time Management'],
-              recommendedTopics: ['Practice Problems', 'Speed Techniques'],
-              hasAIPath: false,
-              lastAssessment: '3 days ago',
-              averageScore: 58
-            }
-          ],
-          interventionStats: {
-            critical: 1,
-            high: 1,
-            medium: 2,
-            withAIPath: 1
-          },
-          insights: [
-            'Critical students need immediate intervention',
-            '25% of at-risk students have personalized AI learning paths',
-            'Focus on foundational concepts for critical-level students',
-            'Regular monitoring recommended for high-priority students'
-          ]
-        };
-      } else {
-        mockResults = {
-          classOverview: {
-            totalStudents: 28,
-            averageScore: 78.5,
-            improvementRate: '+12%',
-            atRiskStudents: 4
-          },
-          topPerformers: [
-            { name: 'Alice Johnson', score: 95, improvement: '+8%' },
-            { name: 'Bob Smith', score: 92, improvement: '+5%' },
-            { name: 'Carol Davis', score: 89, improvement: '+12%' }
-          ],
-          strugglingStudents: [
-            { name: 'David Wilson', score: 45, issues: ['Algebra concepts', 'Problem solving'], recommendation: 'Extra practice sessions' },
-            { name: 'Emma Brown', score: 52, issues: ['Basic operations', 'Word problems'], recommendation: 'Peer tutoring' }
-          ],
-          insights: [
-            'Class shows strong improvement in algebraic thinking',
-            '15% of students need additional support with word problems',
-            'Overall engagement has increased by 18% this semester'
-          ]
-        };
+        // Set default class and section
+        if (data.data && data.data.length > 0) {
+          const firstAllocation = data.data[0];
+          const resolvedClassId = firstAllocation.classId?._id || firstAllocation.classId || '';
+          const resolvedSectionId = firstAllocation.sectionId?._id || firstAllocation.sectionId || '';
+          setSelectedClassId(resolvedClassId);
+          setSelectedSectionId(resolvedSectionId);
+        }
+      } catch (err) {
+        console.error('Error fetching allocations:', err);
+        toast.error('Failed to load class allocations');
       }
-      
-      setAnalysisResults(mockResults);
-      setLoading(false);
-    }, 2000);
-  };
-
-  const generatePersonalizedContent = async (student, type) => {
-    setGeneratingContent(true);
-    setContentType(type);
-    
-    setTimeout(() => {
-      let content;
-      
-      switch (type) {
-        case 'flashcards':
-          content = {
-            type: 'flashcards',
-            title: `Personalized Flashcards for ${student.name}`,
-            description: `Targeting weak areas: ${student.weakAreas.join(', ')}`,
-            cards: student.weakAreas.slice(0, 10).map((area, index) => ({
-              id: index + 1,
-              front: `What is the key concept in ${area}?`,
-              back: `A personalized explanation of ${area} tailored for ${student.name}'s learning level.`,
-              difficulty: student.interventionLevel
-            }))
-          };
-          break;
-        case 'quiz':
-          content = {
-            type: 'quiz',
-            title: `Targeted Assessment for ${student.name}`,
-            description: `Focused on improving: ${student.weakAreas.join(', ')}`,
-            questions: student.weakAreas.slice(0, 8).map((area, index) => ({
-              id: index + 1,
-              question: `Question ${index + 1} about ${area}`,
-              options: ['Option A', 'Option B', 'Option C', 'Option D'],
-              correct: 0,
-              difficulty: student.interventionLevel
-            }))
-          };
-          break;
-        case 'summary':
-          content = {
-            type: 'summary',
-            title: `Concept Summary for ${student.name}`,
-            description: `Simplified explanations for: ${student.weakAreas.join(', ')}`,
-            content: student.weakAreas.map(area => ({
-              topic: area,
-              summary: `A clear, simplified explanation of ${area} designed specifically for ${student.name}'s current understanding level.`,
-              keyPoints: [
-                `Key point 1 about ${area}`,
-                `Key point 2 about ${area}`,
-                `Key point 3 about ${area}`
-              ]
-            }))
-          };
-          break;
-      }
-      
-      setGeneratedContent(content);
-      setGeneratingContent(false);
-    }, 2000);
-  };
-
-  const getInterventionColor = (level) => {
-    switch (level) {
-      case 'critical': return 'text-red-600 bg-red-100 border-red-200';
-      case 'high': return 'text-orange-600 bg-orange-100 border-orange-200';
-      case 'medium': return 'text-yellow-600 bg-yellow-100 border-yellow-200';
-      default: return 'text-blue-600 bg-blue-100 border-blue-200';
-    }
-  };
-
-  const getInterventionIcon = (level) => {
-    switch (level) {
-      case 'critical': return <AlertCircle className="w-4 h-4" />;
-      case 'high': return <AlertCircle className="w-4 h-4" />;
-      case 'medium': return <AlertTriangle className="w-4 w-4" />;
-      default: return <CheckCircle className="w-4 h-4" />;
-    }
-  };
-
-  return (
-    <div className="space-y-6">
-      <div className="flex items-center gap-2 mb-4">
-        <Users className="h-6 w-6 text-orange-500" />
-        <h2 className="text-2xl font-bold text-gray-800">Student Performance Analyzer</h2>
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Analysis Configuration */}
-        <div className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Select Class</label>
-            <select
-              value={selectedClass}
-              onChange={(e) => setSelectedClass(e.target.value)}
-              className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500"
-            >
-              <option value="">Choose Class</option>
-              {classes.map(cls => (
-                <option key={cls} value={cls}>{cls}</option>
-              ))}
-            </select>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Subject</label>
-            <select
-              value={selectedSubject}
-              onChange={(e) => setSelectedSubject(e.target.value)}
-              className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500"
-            >
-              <option value="">Choose Subject</option>
-              {subjects.map(subject => (
-                <option key={subject} value={subject}>{subject}</option>
-              ))}
-            </select>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Analysis Type</label>
-            <div className="space-y-2">
-              {analysisTypes.map(type => (
-                <label key={type.value} className="flex items-start">
-                  <input
-                    type="radio"
-                    value={type.value}
-                    checked={analysisType === type.value}
-                    onChange={(e) => setAnalysisType(e.target.value)}
-                    className="mr-3 mt-1"
-                  />
-                  <div>
-                    <div className="font-medium text-sm">{type.label}</div>
-                    <div className="text-xs text-gray-600">{type.description}</div>
-                  </div>
-                </label>
-              ))}
-            </div>
-          </div>
-
-          <button
-            onClick={handleAnalyze}
-            disabled={loading || !selectedClass || !selectedSubject}
-            className="w-full py-3 px-6 bg-orange-500 text-white rounded-lg hover:bg-orange-600 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-          >
-            {loading ? (
-              <>
-                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                Analyzing...
-              </>
-            ) : (
-              <>
-                <BarChart3 className="h-4 w-4" />
-                Analyze Students
-              </>
-            )}
-          </button>
-        </div>
-
-        {/* Analysis Results */}
-        <div className="lg:col-span-2">
-          {analysisResults ? (
-            <div className="space-y-6">
-              {/* Overview Cards */}
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <div className="bg-blue-50 p-4 rounded-lg">
-                  <div className="text-2xl font-bold text-blue-700">{analysisResults.classOverview.totalStudents}</div>
-                  <div className="text-sm text-blue-600">Total Students</div>
-                </div>
-                <div className="bg-green-50 p-4 rounded-lg">
-                  <div className="text-2xl font-bold text-green-700">{analysisResults.classOverview.averageScore}</div>
-                  <div className="text-sm text-green-600">Average Score</div>
-                </div>
-                <div className="bg-purple-50 p-4 rounded-lg">
-                  <div className="text-2xl font-bold text-purple-700">{analysisResults.classOverview.improvementRate}</div>
-                  <div className="text-sm text-purple-600">Improvement</div>
-                </div>
-                <div className="bg-orange-50 p-4 rounded-lg">
-                  <div className="text-2xl font-bold text-orange-700">{analysisResults.classOverview.atRiskStudents}</div>
-                  <div className="text-sm text-orange-600">At Risk</div>
-                </div>
-              </div>
-
-              {/* Weak Students Analysis (when analysisType is 'weak-students') */}
-              {analysisType === 'weak-students' && analysisResults.weakStudents && (
-                <>
-                  {/* Intervention Statistics */}
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-                    <div className="bg-red-50 p-4 rounded-lg border-l-4 border-red-500">
-                      <div className="text-2xl font-bold text-red-700">{analysisResults.interventionStats.critical}</div>
-                      <div className="text-sm text-red-600 flex items-center gap-1">
-                        <AlertCircle className="w-3 h-3" />
-                        Critical
-                      </div>
-                    </div>
-                    <div className="bg-orange-50 p-4 rounded-lg border-l-4 border-orange-500">
-                      <div className="text-2xl font-bold text-orange-700">{analysisResults.interventionStats.high}</div>
-                      <div className="text-sm text-orange-600 flex items-center gap-1">
-                        <AlertCircle className="w-3 h-3" />
-                        High Priority
-                      </div>
-                    </div>
-                    <div className="bg-yellow-50 p-4 rounded-lg border-l-4 border-yellow-500">
-                      <div className="text-2xl font-bold text-yellow-700">{analysisResults.interventionStats.medium}</div>
-                      <div className="text-sm text-yellow-600 flex items-center gap-1">
-                        <AlertTriangle className="w-3 h-3" />
-                        Medium Priority
-                      </div>
-                    </div>
-                    <div className="bg-blue-50 p-4 rounded-lg border-l-4 border-blue-500">
-                      <div className="text-2xl font-bold text-blue-700">{analysisResults.interventionStats.withAIPath}</div>
-                      <div className="text-sm text-blue-600 flex items-center gap-1">
-                        <Brain className="w-3 h-3" />
-                        With AI Path
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Weak Students List */}
-                  <div className="bg-white border rounded-lg">
-                    <div className="p-4 border-b bg-red-50">
-                      <h4 className="font-bold text-red-800 flex items-center gap-2">
-                        <AlertTriangle className="h-5 w-5" />
-                        Students Needing Intervention
-                      </h4>
-                    </div>
-                    <div className="p-4 space-y-4">
-                      {analysisResults.weakStudents.map((student) => (
-                        <div key={student.id} className="border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow">
-                          <div className="flex items-center justify-between mb-3">
-                            <div className="flex items-center gap-3">
-                              <div className="w-10 h-10 rounded-full bg-gradient-to-r from-red-500 to-orange-500 flex items-center justify-center text-white font-semibold text-sm">
-                                {student.name.charAt(0)}
-                              </div>
-                              <div>
-                                <h5 className="font-semibold text-gray-800">{student.name}</h5>
-                                <p className="text-sm text-gray-500">Grade {student.grade}-{student.section} • Roll {student.roll}</p>
-                              </div>
-                            </div>
-                            <div className={`px-3 py-1 rounded-full text-xs font-medium border flex items-center gap-1 ${getInterventionColor(student.interventionLevel)}`}>
-                              {getInterventionIcon(student.interventionLevel)}
-                              <span className="capitalize">{student.interventionLevel}</span>
-                            </div>
-                          </div>
-
-                          <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-3">
-                            <div className="bg-gray-50 rounded p-3">
-                              <div className="text-xs text-gray-600">Consistency Score</div>
-                              <div className="text-lg font-bold text-gray-800">{student.consistencyScore}%</div>
-                            </div>
-                            <div className="bg-gray-50 rounded p-3">
-                              <div className="text-xs text-gray-600">Average Score</div>
-                              <div className="text-lg font-bold text-gray-800">{student.averageScore}%</div>
-                            </div>
-                            <div className="bg-gray-50 rounded p-3">
-                              <div className="text-xs text-gray-600">Last Assessment</div>
-                              <div className="text-sm font-medium text-gray-800">{student.lastAssessment}</div>
-                            </div>
-                          </div>
-
-                          {/* Weak Areas */}
-                          <div className="mb-4">
-                            <div className="text-sm font-medium text-gray-700 mb-2">Weak Areas:</div>
-                            <div className="flex flex-wrap gap-2">
-                              {student.weakAreas.map((area, index) => (
-                                <span key={index} className="px-2 py-1 bg-red-100 text-red-700 rounded-full text-xs">
-                                  {area}
-                                </span>
-                              ))}
-                            </div>
-                          </div>
-
-                          {/* Action Buttons */}
-                          <div className="flex flex-wrap gap-2">
-                            <button
-                              onClick={() => {
-                                setSelectedStudent(student);
-                                setShowPersonalizedContent(true);
-                              }}
-                              className="px-3 py-1.5 bg-blue-600 text-white rounded text-xs hover:bg-blue-700 transition-colors flex items-center gap-1"
-                            >
-                              <Star className="w-3 h-3" />
-                              Generate Content
-                            </button>
-                            <button className="px-3 py-1.5 bg-green-600 text-white rounded text-xs hover:bg-green-700 transition-colors flex items-center gap-1">
-                              <Brain className="w-3 h-3" />
-                              AI Learning Path
-                            </button>
-                            <button className="px-3 py-1.5 bg-purple-600 text-white rounded text-xs hover:bg-purple-700 transition-colors flex items-center gap-1">
-                              <BarChart3 className="w-3 h-3" />
-                              Detailed Analysis
-                            </button>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                </>
-              )}
-
-              {/* Regular Analysis Results (for other analysis types) */}
-              {analysisType !== 'weak-students' && (
-                <>
-                  {/* Top Performers */}
-                  <div className="bg-green-50 p-6 rounded-lg">
-                    <h4 className="font-bold text-green-800 mb-4 flex items-center gap-2">
-                      <Award className="h-5 w-5" />
-                      Top Performers
-                    </h4>
-                    <div className="space-y-2">
-                      {analysisResults.topPerformers?.map((student, index) => (
-                        <div key={index} className="flex items-center justify-between bg-white p-3 rounded">
-                          <span className="font-medium">{student.name}</span>
-                          <div className="flex items-center gap-4">
-                            <span className="text-green-600 font-bold">{student.score}%</span>
-                            <span className="text-sm text-green-500">{student.improvement}</span>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* Struggling Students */}
-                  <div className="bg-red-50 p-6 rounded-lg">
-                    <h4 className="font-bold text-red-800 mb-4 flex items-center gap-2">
-                      <AlertCircle className="h-5 w-5" />
-                      Students Needing Support
-                    </h4>
-                    <div className="space-y-3">
-                      {analysisResults.strugglingStudents?.map((student, index) => (
-                        <div key={index} className="bg-white p-4 rounded">
-                          <div className="flex items-center justify-between mb-2">
-                            <span className="font-medium">{student.name}</span>
-                            <span className="text-red-600 font-bold">{student.score}%</span>
-                          </div>
-                          <div className="text-sm text-gray-600 mb-2">
-                            <strong>Issues:</strong> {student.issues.join(', ')}
-                          </div>
-                          <div className="text-sm text-blue-600">
-                            <strong>Recommendation:</strong> {student.recommendation}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                </>
-              )}
-
-              {/* AI Insights */}
-              <div className="bg-indigo-50 p-6 rounded-lg">
-                <h4 className="font-bold text-indigo-800 mb-4 flex items-center gap-2">
-                  <Lightbulb className="h-5 w-5" />
-                  AI Insights
-                </h4>
-                <div className="space-y-2">
-                  {analysisResults.insights.map((insight, index) => (
-                    <div key={index} className="flex items-start gap-2">
-                      <CheckCircle className="h-4 w-4 text-indigo-500 mt-0.5" />
-                      <span className="text-indigo-700">{insight}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-          ) : (
-            <div className="flex items-center justify-center h-64 text-gray-500">
-              <div className="text-center">
-                <Users className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                <p>Select class and subject to analyze student performance</p>
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* Personalized Content Generation Modal */}
-      {showPersonalizedContent && selectedStudent && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
-            <div className="p-6 border-b border-gray-200">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-4">
-                  <div className="w-12 h-12 rounded-full bg-gradient-to-r from-blue-500 to-purple-500 flex items-center justify-center text-white font-semibold">
-                    {selectedStudent.name.charAt(0)}
-                  </div>
-                  <div>
-                    <h2 className="text-xl font-bold text-gray-800">Generate Personalized Content</h2>
-                    <p className="text-gray-600">For {selectedStudent.name} - Grade {selectedStudent.grade}-{selectedStudent.section}</p>
-                  </div>
-                </div>
-                <button
-                  onClick={() => setShowPersonalizedContent(false)}
-                  className="text-gray-500 hover:text-gray-700 p-2"
-                >
-                  <X className="h-6 w-6" />
-                </button>
-              </div>
-            </div>
-
-            <div className="p-6">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-                {['flashcards', 'quiz', 'summary'].map((type) => (
-                  <button
-                    key={type}
-                    onClick={() => generatePersonalizedContent(selectedStudent, type)}
-                    disabled={generatingContent}
-                    className="p-4 border-2 border-gray-200 rounded-lg hover:border-blue-300 hover:bg-blue-50 transition-colors text-center disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    <div className="text-2xl mb-2">
-                      {type === 'flashcards' && '📚'}
-                      {type === 'quiz' && '🧪'}
-                      {type === 'summary' && '📄'}
-                    </div>
-                    <div className="text-sm font-medium capitalize">{type}</div>
-                    <div className="text-xs text-gray-500 mt-1">
-                      {type === 'flashcards' && 'Study cards for weak areas'}
-                      {type === 'quiz' && 'Targeted assessment questions'}
-                      {type === 'summary' && 'Concept explanations'}
-                    </div>
-                  </button>
-                ))}
-              </div>
-
-              {/* Student's Weak Areas */}
-              <div className="mb-6 p-4 bg-red-50 rounded-lg">
-                <h4 className="font-medium text-red-800 mb-2">Identified Weak Areas:</h4>
-                <div className="flex flex-wrap gap-2">
-                  {selectedStudent.weakAreas?.map((area, index) => (
-                    <span key={index} className="px-3 py-1 bg-red-100 text-red-700 rounded-full text-sm">
-                      {area}
-                    </span>
-                  ))}
-                </div>
-              </div>
-
-              {/* Generated Content Display */}
-              {generatingContent ? (
-                <div className="text-center py-12">
-                  <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-                  <p className="text-gray-600">Generating personalized {contentType} for {selectedStudent.name}...</p>
-                </div>
-              ) : generatedContent ? (
-                <div className="bg-gray-50 rounded-lg p-6">
-                  <div className="flex items-center justify-between mb-4">
-                    <h3 className="text-lg font-semibold text-gray-800">{generatedContent.title}</h3>
-                    <div className="flex gap-2">
-                      <button
-                        onClick={() => {
-                          const element = document.createElement('a');
-                          const file = new Blob([JSON.stringify(generatedContent, null, 2)], { type: 'text/plain' });
-                          element.href = URL.createObjectURL(file);
-                          element.download = `${generatedContent.title.replace(/\s+/g, '_')}.txt`;
-                          document.body.appendChild(element);
-                          element.click();
-                          document.body.removeChild(element);
-                        }}
-                        className="px-3 py-1.5 bg-blue-600 text-white rounded text-sm hover:bg-blue-700 transition-colors flex items-center gap-1"
-                      >
-                        <Download className="w-3 h-3" />
-                        Download
-                      </button>
-                    </div>
-                  </div>
-                  
-                  <div className="space-y-4">
-                    {generatedContent.type === 'flashcards' && generatedContent.cards && (
-                      <div className="grid gap-4">
-                        {generatedContent.cards.map((card, index) => (
-                          <div key={index} className="bg-white p-4 rounded border">
-                            <div className="font-medium text-blue-800 mb-2">Card {index + 1}</div>
-                            <div className="mb-2"><strong>Front:</strong> {card.front}</div>
-                            <div><strong>Back:</strong> {card.back}</div>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                    
-                    {generatedContent.type === 'quiz' && generatedContent.questions && (
-                      <div className="space-y-4">
-                        {generatedContent.questions.map((q, index) => (
-                          <div key={index} className="bg-white p-4 rounded border">
-                            <div className="font-medium text-green-800 mb-2">Question {index + 1}</div>
-                            <div className="mb-2">{q.question}</div>
-                            {q.options && (
-                              <div className="ml-4 space-y-1">
-                                {q.options.map((option, i) => (
-                                  <div key={i} className={`text-sm ${i === q.correct ? 'font-medium text-green-700' : ''}`}>
-                                    {String.fromCharCode(65 + i)}. {option} {i === q.correct && '✓'}
-                                  </div>
-                                ))}
-                              </div>
-                            )}
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                    
-                    
-                    {generatedContent.type === 'summary' && (
-                      <div className="bg-white p-4 rounded border">
-                        <div className="prose max-w-none text-gray-700">
-                          {generatedContent.content?.split('\n').map((paragraph, index) => (
-                            <p key={index} className="mb-3">{paragraph}</p>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              ) : (
-                <div className="text-center py-8 text-gray-500">
-                  <Star className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                  <p>Select a content type above to generate personalized materials for {selectedStudent.name}</p>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-};
-
-const TeachingAssistant = () => {
-  const [messages, setMessages] = useState([
-    {
-      id: 1,
-      type: 'ai',
-      content: 'Hello! I\'m your AI Teaching Assistant. I can help you with student assessments, educational content creation, quiz generation, and teaching strategies. What would you like assistance with today?',
-      timestamp: new Date()
-    }
-  ]);
-  const [inputMessage, setInputMessage] = useState('');
-  const [loading, setLoading] = useState(false);
-
-  const quickPrompts = [
-    'Create flashcards for quadratic equations',
-    'Suggest engagement activities for biology class',
-    'How can I help struggling students in my chemistry class?',
-    'Generate discussion questions for Shakespeare\'s Hamlet',
-    'Create a rubric for project-based assessment'
-  ];
-
-  const handleSendMessage = async () => {
-    if (!inputMessage.trim()) return;
-
-    const userMessage = {
-      id: messages.length + 1,
-      type: 'user',
-      content: inputMessage,
-      timestamp: new Date()
     };
 
-    setMessages(prev => [...prev, userMessage]);
-    setInputMessage('');
-    setLoading(true);
+    fetchAllocations();
+  }, [API_BASE, authHeaders]);
 
-    // Simulate AI response
-    setTimeout(() => {
-      const aiResponse = {
-        id: messages.length + 2,
-        type: 'ai',
-        content: `I understand you're asking about "${inputMessage}". Here's my recommendation:
+  // Fetch materials
+  useEffect(() => {
+    if (activeTab !== 'materials') return;
 
-1. **Analysis**: Based on your query, I can provide specific strategies tailored to your teaching context.
+    const fetchMaterials = async () => {
+      setLoading(true);
+      try {
+        const params = new URLSearchParams();
+        if (statusFilter !== 'all') params.append('status', statusFilter);
+        if (subjectFilter !== 'all') params.append('subjectId', subjectFilter);
+        if (searchQuery) params.append('search', searchQuery);
 
-2. **Suggestions**: I recommend implementing interactive elements, differentiated instruction approaches, and formative assessment techniques.
+        const response = await fetch(`${API_BASE}/api/teaching-materials?${params}`, {
+          headers: authHeaders
+        });
+        if (!response.ok) throw new Error('Failed to fetch materials');
 
-3. **Resources**: I can help you create materials, worksheets, and activities that align with your curriculum objectives.
+        const data = await response.json();
+        setMaterials(data.materials || []);
+      } catch (err) {
+        console.error('Error fetching materials:', err);
+        toast.error('Failed to load materials');
+      } finally {
+        setLoading(false);
+      }
+    };
 
-Would you like me to elaborate on any of these points or help you develop specific materials?`,
-        timestamp: new Date()
-      };
-      setMessages(prev => [...prev, aiResponse]);
-      setLoading(false);
-    }, 1500);
+    const debounceTimer = setTimeout(fetchMaterials, 300);
+    return () => clearTimeout(debounceTimer);
+  }, [API_BASE, authHeaders, statusFilter, subjectFilter, searchQuery, activeTab]);
+
+  // Fetch practice papers
+  useEffect(() => {
+    if (activeTab !== 'papers') return;
+
+    const fetchPapers = async () => {
+      setLoading(true);
+      try {
+        const params = new URLSearchParams();
+        if (statusFilter !== 'all') params.append('status', statusFilter);
+        if (searchQuery) params.append('search', searchQuery);
+
+        const response = await fetch(`${API_BASE}/api/practice-papers/teacher?${params}`, {
+          headers: authHeaders
+        });
+        if (!response.ok) throw new Error('Failed to fetch papers');
+
+        const data = await response.json();
+        setPapers(data.papers || []);
+      } catch (err) {
+        console.error('Error fetching papers:', err);
+        toast.error('Failed to load practice papers');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    const debounceTimer = setTimeout(fetchPapers, 300);
+    return () => clearTimeout(debounceTimer);
+  }, [API_BASE, authHeaders, statusFilter, searchQuery, activeTab]);
+
+  // Get unique subjects
+  const subjects = useMemo(() => {
+    const seen = new Set();
+    return allocations
+      .filter(a => {
+        const id = a.subjectId?._id;
+        if (seen.has(id)) return false;
+        seen.add(id);
+        return true;
+      })
+      .map(a => ({
+        id: a.subjectId?._id,
+        name: a.subjectId?.name
+      }));
+  }, [allocations]);
+
+  // Handle delete
+  const handleDelete = async (id) => {
+    if (!confirm('Are you sure you want to delete this material?')) return;
+
+    try {
+      const response = await fetch(`${API_BASE}/api/teaching-materials/${id}`, {
+        method: 'DELETE',
+        headers: authHeaders
+      });
+      if (!response.ok) throw new Error('Failed to delete');
+
+      setMaterials(prev => prev.filter(m => m._id !== id));
+      toast.success('Material deleted');
+    } catch (err) {
+      console.error('Error deleting:', err);
+      toast.error('Failed to delete material');
+    }
   };
 
-  const handleQuickPrompt = (prompt) => {
-    setInputMessage(prompt);
+  // Handle publish
+  const handlePublish = async (id) => {
+    try {
+      const response = await fetch(`${API_BASE}/api/teaching-materials/${id}/publish`, {
+        method: 'POST',
+        headers: authHeaders
+      });
+      if (!response.ok) throw new Error('Failed to publish');
+
+      setMaterials(prev =>
+        prev.map(m =>
+          m._id === id ? { ...m, status: 'published', publishedAt: new Date() } : m
+        )
+      );
+      toast.success('Material published');
+    } catch (err) {
+      console.error('Error publishing:', err);
+      toast.error('Failed to publish material');
+    }
   };
 
-  return (
-    <div className="space-y-6">
-      <div className="flex items-center gap-2 mb-4">
-        <Bot className="h-6 w-6 text-blue-500" />
-        <h2 className="text-2xl font-bold text-gray-800">AI Teaching Assistant</h2>
-      </div>
+  // Handle delete paper
+  const handleDeletePaper = async (id) => {
+    if (!confirm('Are you sure you want to delete this practice paper?')) return;
 
-      <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-        {/* Quick Prompts */}
-        <div>
-          <h3 className="font-semibold text-gray-800 mb-3">Quick Prompts</h3>
-          <div className="space-y-2">
-            {quickPrompts.map((prompt, index) => (
-              <button
-                key={index}
-                onClick={() => handleQuickPrompt(prompt)}
-                className="w-full text-left p-3 text-sm bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors"
-              >
-                {prompt}
-              </button>
-            ))}
-          </div>
-        </div>
+    try {
+      const response = await fetch(`${API_BASE}/api/practice-papers/${id}`, {
+        method: 'DELETE',
+        headers: authHeaders
+      });
+      if (!response.ok) throw new Error('Failed to delete');
 
-        {/* Chat Interface */}
-        <div className="lg:col-span-3">
-          {/* Messages */}
-          <div className="bg-white border rounded-lg h-96 overflow-y-auto p-4 mb-4">
-            <div className="space-y-4">
-              {messages.map((message) => (
-                <div key={message.id} className={`flex ${message.type === 'user' ? 'justify-end' : 'justify-start'}`}>
-                  <div className={`max-w-xs lg:max-w-md px-4 py-2 rounded-lg ${
-                    message.type === 'user' 
-                      ? 'bg-blue-500 text-white' 
-                      : 'bg-gray-100 text-gray-800'
-                  }`}>
-                    <div className="whitespace-pre-wrap">{message.content}</div>
-                    <div className={`text-xs mt-1 ${
-                      message.type === 'user' ? 'text-blue-100' : 'text-gray-500'
-                    }`}>
-                      {message.timestamp.toLocaleTimeString()}
-                    </div>
-                  </div>
-                </div>
-              ))}
-              {loading && (
-                <div className="flex justify-start">
-                  <div className="bg-gray-100 text-gray-800 px-4 py-2 rounded-lg">
-                    <div className="flex items-center gap-2">
-                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-500"></div>
-                      AI is thinking...
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
+      setPapers(prev => prev.filter(p => p._id !== id));
+      toast.success('Practice paper deleted');
+    } catch (err) {
+      console.error('Error deleting:', err);
+      toast.error('Failed to delete practice paper');
+    }
+  };
 
-          {/* Input */}
-          <div className="flex gap-2">
-            <input
-              type="text"
-              value={inputMessage}
-              onChange={(e) => setInputMessage(e.target.value)}
-              onKeyPress={(e) => e.key === 'Enter' && handleSendMessage()}
-              placeholder="Ask me anything about teaching, lesson planning, or student engagement..."
-              className="flex-1 p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-            />
+  // Handle publish paper
+  const handlePublishPaper = async (id) => {
+    try {
+      const response = await fetch(`${API_BASE}/api/practice-papers/${id}/publish`, {
+        method: 'POST',
+        headers: authHeaders
+      });
+      if (!response.ok) throw new Error('Failed to publish');
+
+      setPapers(prev =>
+        prev.map(p =>
+          p._id === id ? { ...p, status: 'published', publishedAt: new Date() } : p
+        )
+      );
+      toast.success('Practice paper published');
+    } catch (err) {
+      console.error('Error publishing:', err);
+      toast.error('Failed to publish practice paper');
+    }
+  };
+
+  // Material card component
+  const MaterialCard = ({ material }) => (
+    <div className="bg-white rounded-xl border border-slate-200 hover:border-blue-200 hover:shadow-md transition-all p-4">
+      <div className="flex items-start justify-between mb-2">
+        <h3 className="font-semibold text-[15px] text-slate-900 line-clamp-2">{material.title}</h3>
+        <div className="flex gap-2">
+          {material.status === 'draft' && (
             <button
-              onClick={handleSendMessage}
-              disabled={loading || !inputMessage.trim()}
-              className="px-6 py-3 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed"
+              onClick={() => handlePublish(material._id)}
+              className="p-1.5 text-blue-700 hover:bg-blue-50 rounded-lg transition-colors"
+              title="Publish"
             >
-              <MessageSquare className="h-4 w-4" />
+              <FileCheck className="w-4 h-4" />
             </button>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-};
-
-const FlashcardGenerator = () => {
-  const [formData, setFormData] = useState({
-    subject: '',
-    topic: '',
-    grade: '',
-    cardCount: '10',
-    difficulty: 'medium',
-    cardType: 'question-answer'
-  });
-  const [generatedFlashcards, setGeneratedFlashcards] = useState(null);
-  const [currentCard, setCurrentCard] = useState(0);
-  const [showAnswer, setShowAnswer] = useState(false);
-  const [loading, setLoading] = useState(false);
-
-  const cardTypes = [
-    { value: 'question-answer', label: 'Question & Answer', description: 'Traditional Q&A format' },
-    { value: 'term-definition', label: 'Term & Definition', description: 'Vocabulary and definitions' },
-    { value: 'concept-explanation', label: 'Concept & Explanation', description: 'Complex concepts explained' },
-    { value: 'formula-application', label: 'Formula & Application', description: 'Mathematical formulas with examples' }
-  ];
-
-  const handleGenerateFlashcards = async () => {
-    if (!formData.subject || !formData.topic) return;
-    
-    setLoading(true);
-    setTimeout(() => {
-      const mockFlashcards = {
-        title: `${formData.topic} Flashcards - Grade ${formData.grade}`,
-        subject: formData.subject,
-        topic: formData.topic,
-        cardType: formData.cardType,
-        cards: Array.from({ length: parseInt(formData.cardCount) }, (_, i) => ({
-          id: i + 1,
-          front: `${formData.cardType === 'question-answer' ? 'Question' : 'Term'} ${i + 1} about ${formData.topic}`,
-          back: `This is the ${formData.cardType === 'question-answer' ? 'answer' : 'definition'} for card ${i + 1}. It provides detailed information about ${formData.topic} in the context of ${formData.subject}.`,
-          difficulty: formData.difficulty
-        }))
-      };
-      setGeneratedFlashcards(mockFlashcards);
-      setCurrentCard(0);
-      setShowAnswer(false);
-      setLoading(false);
-    }, 2000);
-  };
-
-  const nextCard = () => {
-    if (currentCard < generatedFlashcards.cards.length - 1) {
-      setCurrentCard(currentCard + 1);
-      setShowAnswer(false);
-    }
-  };
-
-  const prevCard = () => {
-    if (currentCard > 0) {
-      setCurrentCard(currentCard - 1);
-      setShowAnswer(false);
-    }
-  };
-
-  const shuffleCards = () => {
-    const shuffled = [...generatedFlashcards.cards].sort(() => Math.random() - 0.5);
-    setGeneratedFlashcards({...generatedFlashcards, cards: shuffled});
-    setCurrentCard(0);
-    setShowAnswer(false);
-  };
-
-  const resetSession = () => {
-    setCurrentCard(0);
-    setShowAnswer(false);
-  };
-
-  const downloadFlashcards = () => {
-    const content = generatedFlashcards.cards.map((card, index) => 
-      `Card ${index + 1}:\nFront: ${card.front}\nBack: ${card.back}\n\n`
-    ).join('');
-    
-    const element = document.createElement('a');
-    const file = new Blob([content], { type: 'text/plain' });
-    element.href = URL.createObjectURL(file);
-    element.download = `${formData.topic}_flashcards.txt`;
-    document.body.appendChild(element);
-    element.click();
-    document.body.removeChild(element);
-  };
-
-  return (
-    <div className="space-y-6">
-      <div className="flex items-center gap-2 mb-4">
-        <Star className="h-6 w-6 text-yellow-500" />
-        <h2 className="text-2xl font-bold text-gray-800">Flashcard Generator</h2>
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Flashcard Configuration */}
-        <div className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Subject</label>
-            <select
-              value={formData.subject}
-              onChange={(e) => setFormData({...formData, subject: e.target.value})}
-              className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500"
-            >
-              <option value="">Select Subject</option>
-              <option value="mathematics">Mathematics</option>
-              <option value="physics">Physics</option>
-              <option value="chemistry">Chemistry</option>
-              <option value="biology">Biology</option>
-              <option value="english">English</option>
-              <option value="history">History</option>
-            </select>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Topic</label>
-            <input
-              type="text"
-              value={formData.topic}
-              onChange={(e) => setFormData({...formData, topic: e.target.value})}
-              placeholder="Enter the topic for flashcards"
-              className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500"
-            />
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Grade Level</label>
-              <select
-                value={formData.grade}
-                onChange={(e) => setFormData({...formData, grade: e.target.value})}
-                className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500"
-              >
-                <option value="">Select Grade</option>
-                {[...Array(12)].map((_, i) => (
-                  <option key={i} value={i + 1}>Grade {i + 1}</option>
-                ))}
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Number of Cards</label>
-              <select
-                value={formData.cardCount}
-                onChange={(e) => setFormData({...formData, cardCount: e.target.value})}
-                className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500"
-              >
-                <option value="5">5 Cards</option>
-                <option value="10">10 Cards</option>
-                <option value="15">15 Cards</option>
-                <option value="20">20 Cards</option>
-              </select>
-            </div>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Card Type</label>
-            <div className="space-y-2">
-              {cardTypes.map(type => (
-                <label key={type.value} className="flex items-start">
-                  <input
-                    type="radio"
-                    value={type.value}
-                    checked={formData.cardType === type.value}
-                    onChange={(e) => setFormData({...formData, cardType: e.target.value})}
-                    className="mr-3 mt-1"
-                  />
-                  <div>
-                    <div className="font-medium text-sm">{type.label}</div>
-                    <div className="text-xs text-gray-600">{type.description}</div>
-                  </div>
-                </label>
-              ))}
-            </div>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Difficulty Level</label>
-            <select
-              value={formData.difficulty}
-              onChange={(e) => setFormData({...formData, difficulty: e.target.value})}
-              className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500"
-            >
-              <option value="easy">Easy</option>
-              <option value="medium">Medium</option>
-              <option value="hard">Hard</option>
-            </select>
-          </div>
-
+          )}
           <button
-            onClick={handleGenerateFlashcards}
-            disabled={loading || !formData.subject || !formData.topic}
-            className="w-full py-3 px-6 bg-yellow-500 text-white rounded-lg hover:bg-yellow-600 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+            onClick={() => handleDelete(material._id)}
+            className="p-1.5 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+            title="Delete"
           >
-            {loading ? (
-              <>
-                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                Generating Flashcards...
-              </>
-            ) : (
-              <>
-                <Star className="h-4 w-4" />
-                Generate Flashcards
-              </>
-            )}
+            <Trash2 className="w-4 h-4" />
           </button>
         </div>
-
-        {/* Generated Flashcards Preview and Player */}
-        <div className="lg:col-span-2">
-          {generatedFlashcards ? (
-            <div className="space-y-6">
-              {/* Header */}
-              <div className="flex items-center justify-between">
-                <div>
-                  <h3 className="text-xl font-bold text-gray-800">{generatedFlashcards.title}</h3>
-                  <p className="text-gray-600">{generatedFlashcards.cards.length} cards • {formData.difficulty} difficulty</p>
-                </div>
-                <div className="flex gap-2">
-                  <button 
-                    onClick={shuffleCards}
-                    className="p-2 text-gray-500 hover:bg-gray-100 rounded"
-                    title="Shuffle cards"
-                  >
-                    <Shuffle className="h-4 w-4" />
-                  </button>
-                  <button 
-                    onClick={resetSession}
-                    className="p-2 text-gray-500 hover:bg-gray-100 rounded"
-                    title="Reset session"
-                  >
-                    <RotateCcw className="h-4 w-4" />
-                  </button>
-                  <button 
-                    onClick={downloadFlashcards}
-                    className="p-2 text-gray-500 hover:bg-gray-100 rounded"
-                    title="Download flashcards"
-                  >
-                    <Download className="h-4 w-4" />
-                  </button>
-                </div>
-              </div>
-
-              {/* Card Counter */}
-              <div className="text-center">
-                <span className="inline-block px-4 py-2 bg-yellow-100 rounded-full text-sm font-medium text-yellow-800">
-                  Card {currentCard + 1} of {generatedFlashcards.cards.length}
-                </span>
-              </div>
-
-              {/* Flashcard Display */}
-              <div className="relative max-w-2xl mx-auto">
-                <div 
-                  className="relative w-full h-80 cursor-pointer"
-                  onClick={() => setShowAnswer(!showAnswer)}
-                >
-                  <div className={`
-                    absolute inset-0 w-full h-full rounded-xl shadow-lg transform transition-all duration-500 preserve-3d
-                    ${showAnswer ? 'rotate-y-180' : ''}
-                  `}>
-                    {/* Front of card */}
-                    <div className="absolute inset-0 w-full h-full backface-hidden rounded-xl bg-gradient-to-br from-yellow-50 to-orange-50 border-2 border-yellow-200 flex items-center justify-center p-6">
-                      <div className="text-center">
-                        <div className="w-12 h-12 bg-yellow-500 rounded-full flex items-center justify-center mx-auto mb-4">
-                          <Eye className="w-6 h-6 text-white" />
-                        </div>
-                        <h3 className="text-lg font-medium text-gray-800 mb-2">
-                          {formData.cardType === 'question-answer' ? 'Question' : 'Term'}
-                        </h3>
-                        <p className="text-gray-700 leading-relaxed">
-                          {generatedFlashcards.cards[currentCard]?.front}
-                        </p>
-                        <p className="text-sm text-gray-500 mt-4">Click to reveal answer</p>
-                      </div>
-                    </div>
-
-                    {/* Back of card */}
-                    <div className="absolute inset-0 w-full h-full backface-hidden rotate-y-180 rounded-xl bg-gradient-to-br from-green-50 to-blue-50 border-2 border-green-200 flex items-center justify-center p-6">
-                      <div className="text-center">
-                        <div className="w-12 h-12 bg-green-500 rounded-full flex items-center justify-center mx-auto mb-4">
-                          <EyeOff className="w-6 h-6 text-white" />
-                        </div>
-                        <h3 className="text-lg font-medium text-gray-800 mb-2">
-                          {formData.cardType === 'question-answer' ? 'Answer' : 'Definition'}
-                        </h3>
-                        <p className="text-gray-700 leading-relaxed">
-                          {generatedFlashcards.cards[currentCard]?.back}
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Navigation */}
-                <div className="flex justify-between items-center mt-6">
-                  <button
-                    onClick={prevCard}
-                    disabled={currentCard === 0}
-                    className="flex items-center space-x-2 px-4 py-2 text-gray-600 hover:text-gray-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                  >
-                    <ArrowLeft className="w-4 h-4" />
-                    <span>Previous</span>
-                  </button>
-
-                  <div className="flex gap-2">
-                    <button
-                      onClick={() => setShowAnswer(!showAnswer)}
-                      className="px-4 py-2 bg-yellow-500 text-white rounded-lg hover:bg-yellow-600 transition-colors"
-                    >
-                      {showAnswer ? 'Show Question' : 'Show Answer'}
-                    </button>
-                  </div>
-
-                  <button
-                    onClick={nextCard}
-                    disabled={currentCard === generatedFlashcards.cards.length - 1}
-                    className="flex items-center space-x-2 px-4 py-2 text-gray-600 hover:text-gray-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                  >
-                    <span>Next</span>
-                    <ArrowRight className="w-4 h-4" />
-                  </button>
-                </div>
-              </div>
-            </div>
-          ) : (
-            <div className="flex items-center justify-center h-64 text-gray-500">
-              <div className="text-center">
-                <Star className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                <p>Configure your settings to generate flashcards</p>
-              </div>
-            </div>
-          )}
-        </div>
       </div>
 
-      <style jsx>{`
-        .preserve-3d {
-          transform-style: preserve-3d;
-        }
-        .backface-hidden {
-          backface-visibility: hidden;
-        }
-        .rotate-y-180 {
-          transform: rotateY(180deg);
-        }
-      `}</style>
+      <p className="text-sm text-slate-600 line-clamp-2 mb-3">{material.content?.replace(/<[^>]*>/g, '')}</p>
+
+      <div className="flex flex-wrap gap-2 mb-3">
+        <span className={`text-[11px] px-2 py-1 rounded-full font-semibold ${
+          material.status === 'published' ? 'bg-emerald-100 text-emerald-700' :
+          material.status === 'scheduled' ? 'bg-blue-100 text-blue-700' :
+          'bg-slate-100 text-slate-700'
+        }`}>
+          {material.status}
+        </span>
+        {material.attachments?.length > 0 && (
+          <span className="text-[11px] px-2 py-1 bg-amber-100 text-amber-700 rounded-full font-semibold">
+            {material.attachments.length} file(s)
+          </span>
+        )}
+      </div>
+
+      <div className="text-xs text-slate-500 space-y-0.5">
+        <p>{material.subjectName} • {material.className}-{material.sectionName}</p>
+        <p>{new Date(material.createdAt).toLocaleDateString()}</p>
+      </div>
     </div>
   );
-};
 
-const TryoutGenerator = () => {
-  const [formData, setFormData] = useState({
-    subject: '',
-    topic: '',
-    grade: '',
-    questionTypes: ['mcq'],
-    questionCount: '10',
-    difficulty: 'medium',
-    timeLimit: '30'
-  });
-  const [generatedTryout, setGeneratedTryout] = useState(null);
-  const [loading, setLoading] = useState(false);
-  const [previewMode, setPreviewMode] = useState(false);
-  const [generatorMode, setGeneratorMode] = useState('manual');
+  // Practice paper card component
+  const PaperCard = ({ paper }) => (
+    <div className="bg-white rounded-xl border border-slate-200 hover:border-blue-200 hover:shadow-md transition-all p-4">
+      <div className="flex items-start justify-between mb-2">
+        <h3 className="font-semibold text-[15px] text-slate-900 line-clamp-2">{paper.title}</h3>
+        <div className="flex gap-2">
+          {paper.status === 'draft' && (
+            <button
+              onClick={() => handlePublishPaper(paper._id)}
+              className="p-1.5 text-blue-700 hover:bg-blue-50 rounded-lg transition-colors"
+              title="Publish"
+            >
+              <FileCheck className="w-4 h-4" />
+            </button>
+          )}
+          <button
+            onClick={() => handleDeletePaper(paper._id)}
+            className="p-1.5 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+            title="Delete"
+          >
+            <Trash2 className="w-4 h-4" />
+          </button>
+        </div>
+      </div>
 
-  const questionTypes = [
-    { value: 'mcq', label: 'Multiple Choice Questions', description: 'Traditional A, B, C, D format' },
-    { value: 'true-false', label: 'True/False', description: 'Simple true or false questions' },
-    { value: 'fill-blank', label: 'Fill in the Blanks', description: 'Cloze-style questions' },
-    { value: 'short-answer', label: 'Short Answer', description: 'Brief written responses' },
-    { value: 'match-list', label: 'Matching', description: 'Match items from two lists' },
-    { value: 'drag-drop', label: 'Drag & Drop', description: 'Interactive sorting questions' }
-  ];
+      <div className="flex flex-wrap gap-2 mb-3 text-sm">
+        <span className="text-slate-600">{paper.totalQuestions} questions</span>
+        <span className="text-slate-500">•</span>
+        <span className="text-slate-600">{paper.totalMarks} marks</span>
+        {paper.duration > 0 && (
+          <>
+            <span className="text-slate-500">•</span>
+            <span className="text-slate-600">{paper.duration} min</span>
+          </>
+        )}
+      </div>
 
-  const handleQuestionTypeChange = (type) => {
-    setFormData(prev => ({
-      ...prev,
-      questionTypes: prev.questionTypes.includes(type)
-        ? prev.questionTypes.filter(t => t !== type)
-        : [...prev.questionTypes, type]
-    }));
-  };
+      <div className="flex flex-wrap gap-2 mb-3">
+        <span className={`text-[11px] px-2 py-1 rounded-full font-semibold ${
+          paper.status === 'published' ? 'bg-emerald-100 text-emerald-700' :
+          paper.status === 'draft' ? 'bg-slate-100 text-slate-700' :
+          'bg-amber-100 text-amber-700'
+        }`}>
+          {paper.status}
+        </span>
+        <span className={`text-[11px] px-2 py-1 rounded-full font-semibold ${
+          paper.difficulty === 'easy' ? 'bg-blue-100 text-blue-700' :
+          paper.difficulty === 'hard' ? 'bg-red-100 text-red-700' :
+          'bg-amber-100 text-amber-700'
+        }`}>
+          {paper.difficulty}
+        </span>
+      </div>
 
-  const handleGenerateTryout = async () => {
-    if (!formData.subject || !formData.topic || formData.questionTypes.length === 0) return;
-    
-    setLoading(true);
-    setTimeout(() => {
-      const mockTryout = {
-        title: `${formData.topic} Tryout - Grade ${formData.grade}`,
-        subject: formData.subject,
-        topic: formData.topic,
-        difficulty: formData.difficulty,
-        timeLimit: formData.timeLimit,
-        questionTypes: formData.questionTypes,
-        questions: generateMockQuestions(formData)
-      };
-      setGeneratedTryout(mockTryout);
-      setLoading(false);
-    }, 2000);
-  };
+      <div className="text-xs text-slate-500 space-y-0.5">
+        <p>{paper.className} - {paper.sectionName}</p>
+        <p>{new Date(paper.createdAt).toLocaleDateString()}</p>
+      </div>
+    </div>
+  );
 
-  const generateMockQuestions = (data) => {
-    const questions = [];
-    const questionsPerType = Math.ceil(parseInt(data.questionCount) / data.questionTypes.length);
-    
-    data.questionTypes.forEach((type, index) => {
-      for (let i = 0; i < questionsPerType && questions.length < parseInt(data.questionCount); i++) {
-        const questionNum = questions.length + 1;
-        
-        switch (type) {
-          case 'mcq':
-            questions.push({
-              id: questionNum,
-              type: 'mcq',
-              question: `Multiple choice question ${questionNum} about ${data.topic}`,
-              options: ['Option A', 'Option B', 'Option C', 'Option D'],
-              correct: 0,
-              points: 1
+  // Render - Material Editor
+  if (showEditor) {
+    return (
+      <div className="p-6">
+        <button
+          onClick={() => {
+            setShowEditor(false);
+            setEditingMaterial(null);
+          }}
+          className="mb-4 px-4 py-2 text-sm border rounded hover:bg-gray-50"
+        >
+          ← Back
+        </button>
+        <RichTextMaterialEditor
+          material={editingMaterial}
+          classId={selectedClassId}
+          sectionId={selectedSectionId}
+          onSave={(material) => {
+            setMaterials(prev => {
+              const idx = prev.findIndex(m => m._id === material._id);
+              if (idx >= 0) {
+                const updated = [...prev];
+                updated[idx] = material;
+                return updated;
+              }
+              return [material, ...prev];
             });
-            break;
-          case 'true-false':
-            questions.push({
-              id: questionNum,
-              type: 'true-false',
-              question: `True or false: Statement ${questionNum} about ${data.topic}`,
-              correct: true,
-              points: 1
-            });
-            break;
-          case 'fill-blank':
-            questions.push({
-              id: questionNum,
-              type: 'fill-blank',
-              question: `Complete the following sentence about ${data.topic}: "This is a _____ concept in ${data.subject}."`,
-              blanks: ['fundamental'],
-              points: 1
-            });
-            break;
-          case 'short-answer':
-            questions.push({
-              id: questionNum,
-              type: 'short-answer',
-              question: `Explain the concept ${questionNum} related to ${data.topic}`,
-              answer: 'Sample short answer explanation',
-              points: 2
-            });
-            break;
-          case 'match-list':
-            questions.push({
-              id: questionNum,
-              type: 'match-list',
-              question: `Match the following items related to ${data.topic}`,
-              leftItems: ['Item 1', 'Item 2', 'Item 3'],
-              rightItems: ['Match A', 'Match B', 'Match C'],
-              matches: {0: 0, 1: 1, 2: 2},
-              points: 3
-            });
-            break;
-          case 'drag-drop':
-            questions.push({
-              id: questionNum,
-              type: 'drag-drop',
-              question: `Arrange the following items in the correct order for ${data.topic}`,
-              items: ['Step 1', 'Step 2', 'Step 3', 'Step 4'],
-              correctOrder: [0, 1, 2, 3],
-              points: 2
-            });
-            break;
-        }
-      }
-    });
-    
-    return questions.slice(0, parseInt(data.questionCount));
-  };
+            setShowEditor(false);
+            setEditingMaterial(null);
+            toast.success('Material saved!');
+          }}
+          onCancel={() => {
+            setShowEditor(false);
+            setEditingMaterial(null);
+          }}
+        />
+      </div>
+    );
+  }
 
-  const downloadTryout = () => {
-    const content = `${generatedTryout.title}\n\nSubject: ${generatedTryout.subject}\nTopic: ${generatedTryout.topic}\nDifficulty: ${generatedTryout.difficulty}\nTime Limit: ${generatedTryout.timeLimit} minutes\nTotal Questions: ${generatedTryout.questions.length}\n\n` +
-      generatedTryout.questions.map((q, index) => {
-        let questionContent = `${index + 1}. ${q.question}\n`;
-        if (q.type === 'mcq') {
-          questionContent += q.options.map((opt, i) => `   ${String.fromCharCode(65 + i)}. ${opt}`).join('\n') + '\n';
-        }
-        return questionContent + '\n';
-      }).join('');
-    
-    const element = document.createElement('a');
-    const file = new Blob([content], { type: 'text/plain' });
-    element.href = URL.createObjectURL(file);
-    element.download = `${formData.topic}_tryout.txt`;
-    document.body.appendChild(element);
-    element.click();
-    document.body.removeChild(element);
-  };
-
-  const renderQuestionPreview = (question, index) => {
-    switch (question.type) {
-      case 'mcq':
-        return (
-          <div key={index} className="border border-gray-200 rounded-lg p-4">
-            <div className="flex items-start justify-between mb-2">
-              <h4 className="font-medium text-gray-800">Q{question.id}: {question.question}</h4>
-              <span className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded">MCQ</span>
-            </div>
-            <div className="grid grid-cols-2 gap-2 mt-3">
-              {question.options.map((option, optIndex) => (
-                <div key={optIndex} className={`text-sm p-2 rounded border ${optIndex === question.correct ? 'bg-green-50 border-green-200 text-green-800' : 'bg-gray-50 border-gray-200'}`}>
-                  {String.fromCharCode(65 + optIndex)}. {option}
-                </div>
-              ))}
-            </div>
-          </div>
-        );
-      case 'true-false':
-        return (
-          <div key={index} className="border border-gray-200 rounded-lg p-4">
-            <div className="flex items-start justify-between mb-2">
-              <h4 className="font-medium text-gray-800">Q{question.id}: {question.question}</h4>
-              <span className="text-xs bg-purple-100 text-purple-700 px-2 py-1 rounded">T/F</span>
-            </div>
-            <div className="flex gap-4 mt-3">
-              <div className={`text-sm p-2 rounded border ${question.correct ? 'bg-green-50 border-green-200 text-green-800' : 'bg-gray-50 border-gray-200'}`}>
-                True
-              </div>
-              <div className={`text-sm p-2 rounded border ${!question.correct ? 'bg-green-50 border-green-200 text-green-800' : 'bg-gray-50 border-gray-200'}`}>
-                False
-              </div>
-            </div>
-          </div>
-        );
-      case 'fill-blank':
-        return (
-          <div key={index} className="border border-gray-200 rounded-lg p-4">
-            <div className="flex items-start justify-between mb-2">
-              <h4 className="font-medium text-gray-800">Q{question.id}: {question.question}</h4>
-              <span className="text-xs bg-yellow-100 text-yellow-700 px-2 py-1 rounded">Fill Blank</span>
-            </div>
-            <div className="mt-3">
-              <span className="text-sm text-green-700 bg-green-50 px-2 py-1 rounded">Answer: {question.blanks[0]}</span>
-            </div>
-          </div>
-        );
-      default:
-        return (
-          <div key={index} className="border border-gray-200 rounded-lg p-4">
-            <div className="flex items-start justify-between mb-2">
-              <h4 className="font-medium text-gray-800">Q{question.id}: {question.question}</h4>
-              <span className="text-xs bg-gray-100 text-gray-700 px-2 py-1 rounded">{question.type}</span>
-            </div>
-          </div>
-        );
-    }
-  };
+  // Render - Practice Paper Builder
+  if (showPaperBuilder) {
+    return (
+      <div className="p-6">
+        <button
+          onClick={() => setShowPaperBuilder(false)}
+          className="mb-4 px-4 py-2 text-sm border rounded hover:bg-gray-50"
+        >
+          ← Back
+        </button>
+        <PracticePaperBuilder
+          classId={selectedClassId}
+          sectionId={selectedSectionId}
+          onSave={(paper) => {
+            setPapers(prev => [paper, ...prev]);
+            setShowPaperBuilder(false);
+            toast.success('Practice paper created!');
+          }}
+          onCancel={() => setShowPaperBuilder(false)}
+        />
+      </div>
+    );
+  }
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center gap-2 mb-4">
-        <FileText className="h-6 w-6 text-indigo-500" />
-        <h2 className="text-2xl font-bold text-gray-800">Tryout Generator</h2>
-      </div>
-
-      {/* Manual / AI sub-tabs */}
-      <div className="flex gap-1 bg-gray-100 p-1 rounded-xl w-fit">
-        <button
-          onClick={() => setGeneratorMode('manual')}
-          className={`px-5 py-2 rounded-lg text-sm font-semibold transition-all duration-150 ${
-            generatorMode === 'manual'
-              ? 'bg-white text-indigo-700 shadow'
-              : 'text-gray-500 hover:text-gray-700'
-          }`}
-        >
-          Manual
-        </button>
-        <button
-          onClick={() => setGeneratorMode('ai')}
-          className={`px-5 py-2 rounded-lg text-sm font-semibold transition-all duration-150 ${
-            generatorMode === 'ai'
-              ? 'bg-white text-indigo-700 shadow'
-              : 'text-gray-500 hover:text-gray-700'
-          }`}
-        >
-          AI
-        </button>
-      </div>
-
-      {/* AI — upcoming feature */}
-      {generatorMode === 'ai' && (
-        <div className="flex flex-col items-center justify-center py-20 gap-4 bg-indigo-50 rounded-2xl border border-indigo-100">
-          <div className="h-16 w-16 bg-gradient-to-br from-indigo-400 to-purple-500 rounded-2xl flex items-center justify-center">
-            <Brain className="h-8 w-8 text-white" />
+    <div className="min-h-screen bg-[#f8f9ff] text-[#121c28] font-['Lexend']">
+      <div className="max-w-[1440px] mx-auto px-4 md:px-8 py-6 md:py-8">
+        <div className="mb-7">
+          <nav className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-slate-400 mb-2">
+            <span>Teaching Tools</span>
+            <span>•</span>
+            <span className="text-[#00288e]">Smart Teaching</span>
+          </nav>
+          <div className="flex flex-wrap items-end justify-between gap-4">
+            <div>
+              <h1 className="text-3xl md:text-4xl font-semibold text-[#001453] flex items-center gap-2">
+                <Zap className="w-7 h-7 text-[#1e40af]" />
+                Smart Lesson Plan and Teaching
+              </h1>
+              <p className="text-sm md:text-base text-slate-600 mt-1">
+                Create, organize and publish learning materials and practice papers.
+              </p>
+            </div>
+            <div className="flex flex-wrap items-center gap-3">
+              <button
+                onClick={() => navigate('/teacher/smart-teaching/lesson-planner')}
+                className="px-4 py-2.5 border border-slate-300 bg-white text-slate-700 rounded-xl text-sm font-semibold hover:bg-slate-50 transition-colors flex items-center gap-2"
+              >
+                <BookOpen className="w-4 h-4" />
+                Lesson Planner
+              </button>
+              <button
+                onClick={() => {
+                  if (activeTab === 'materials') {
+                    setEditingMaterial(null);
+                    setShowEditor(true);
+                  } else {
+                    setShowPaperBuilder(true);
+                  }
+                }}
+                className="px-5 py-2.5 bg-[#00288e] text-white rounded-xl text-sm font-semibold hover:opacity-90 transition-opacity flex items-center gap-2"
+              >
+                <Plus className="w-4 h-4" />
+                {activeTab === 'materials' ? 'New Material' : 'New Paper'}
+              </button>
+            </div>
           </div>
-          <h3 className="text-xl font-bold text-gray-800">AI Tryout Generation</h3>
-          <p className="text-gray-500 text-sm text-center max-w-xs">
-            AI-powered tryout generation is coming soon. Stay tuned for smart, topic-aware question creation.
-          </p>
-          <span className="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-full bg-indigo-100 text-indigo-700 text-xs font-semibold">
-            <Zap className="h-3.5 w-3.5" />
-            Upcoming Feature
-          </span>
         </div>
-      )}
 
-      {/* Manual form */}
-      {generatorMode === 'manual' && <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Tryout Configuration */}
-        <div className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Subject</label>
-            <select
-              value={formData.subject}
-              onChange={(e) => setFormData({...formData, subject: e.target.value})}
-              className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
-            >
-              <option value="">Select Subject</option>
-              <option value="mathematics">Mathematics</option>
-              <option value="physics">Physics</option>
-              <option value="chemistry">Chemistry</option>
-              <option value="biology">Biology</option>
-              <option value="english">English</option>
-              <option value="history">History</option>
-            </select>
-          </div>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+          {activeTab === 'materials' ? (
+            <>
+              <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+                <p className="text-xs text-slate-500 mb-2">Materials</p>
+                <p className="text-2xl font-semibold text-[#001453]">{materials.length}</p>
+              </div>
+              <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+                <p className="text-xs text-slate-500 mb-2">Published</p>
+                <p className="text-2xl font-semibold text-[#006c4a]">{materials.filter(m => m.status === 'published').length}</p>
+              </div>
+              <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+                <p className="text-xs text-slate-500 mb-2">Classes</p>
+                <p className="text-2xl font-semibold text-[#001453]">{allocations.length}</p>
+              </div>
+              <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+                <p className="text-xs text-slate-500 mb-2">Subjects</p>
+                <p className="text-2xl font-semibold text-[#001453]">{subjects.length}</p>
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+                <p className="text-xs text-slate-500 mb-2">Papers</p>
+                <p className="text-2xl font-semibold text-[#001453]">{papers.length}</p>
+              </div>
+              <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+                <p className="text-xs text-slate-500 mb-2">Published</p>
+                <p className="text-2xl font-semibold text-[#006c4a]">{papers.filter(p => p.status === 'published').length}</p>
+              </div>
+              <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+                <p className="text-xs text-slate-500 mb-2">Total Questions</p>
+                <p className="text-2xl font-semibold text-[#001453]">{papers.reduce((sum, p) => sum + (p.totalQuestions || 0), 0)}</p>
+              </div>
+              <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+                <p className="text-xs text-slate-500 mb-2">Total Marks</p>
+                <p className="text-2xl font-semibold text-[#001453]">{papers.reduce((sum, p) => sum + (p.totalMarks || 0), 0)}</p>
+              </div>
+            </>
+          )}
+        </div>
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Topic</label>
-            <input
-              type="text"
-              value={formData.topic}
-              onChange={(e) => setFormData({...formData, topic: e.target.value})}
-              placeholder="Enter the tryout topic"
-              className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
-            />
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Grade Level</label>
-              <select
-                value={formData.grade}
-                onChange={(e) => setFormData({...formData, grade: e.target.value})}
-                className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
+        <div className="rounded-xl border border-slate-200 bg-white shadow-sm p-4 md:p-5 mb-6">
+          <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+            <div className="inline-flex items-center rounded-lg bg-[#eef4ff] p-1">
+              <button
+                onClick={() => setActiveTab('materials')}
+                className={`px-3 py-2 text-sm rounded-md font-semibold transition-colors ${
+                  activeTab === 'materials' ? 'bg-white text-[#00288e] shadow-sm' : 'text-slate-600 hover:text-[#00288e]'
+                }`}
               >
-                <option value="">Select Grade</option>
-                {[...Array(12)].map((_, i) => (
-                  <option key={i} value={i + 1}>Grade {i + 1}</option>
-                ))}
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Question Count</label>
-              <select
-                value={formData.questionCount}
-                onChange={(e) => setFormData({...formData, questionCount: e.target.value})}
-                className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
+                <FileText className="w-4 h-4 inline mr-2" />
+                Teaching Materials
+              </button>
+              <button
+                onClick={() => setActiveTab('papers')}
+                className={`px-3 py-2 text-sm rounded-md font-semibold transition-colors ${
+                  activeTab === 'papers' ? 'bg-white text-[#00288e] shadow-sm' : 'text-slate-600 hover:text-[#00288e]'
+                }`}
               >
-                <option value="10">10 Questions</option>
-                <option value="15">15 Questions</option>
-                <option value="20">20 Questions</option>
-                <option value="25">25 Questions</option>
-              </select>
+                <ClipboardList className="w-4 h-4 inline mr-2" />
+                Practice Papers
+              </button>
+            </div>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setViewMode('grid')}
+                className={`p-2 rounded-lg border transition-colors ${viewMode === 'grid' ? 'bg-[#eef4ff] border-[#b8c4ff] text-[#00288e]' : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'}`}
+              >
+                <Grid className="w-4 h-4" />
+              </button>
+              <button
+                onClick={() => setViewMode('list')}
+                className={`p-2 rounded-lg border transition-colors ${viewMode === 'list' ? 'bg-[#eef4ff] border-[#b8c4ff] text-[#00288e]' : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'}`}
+              >
+                <ListIcon className="w-4 h-4" />
+              </button>
             </div>
           </div>
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Question Types</label>
-            <div className="space-y-2 max-h-48 overflow-y-auto">
-              {questionTypes.map(type => (
-                <label key={type.value} className="flex items-start">
-                  <input
-                    type="checkbox"
-                    value={type.value}
-                    checked={formData.questionTypes.includes(type.value)}
-                    onChange={() => handleQuestionTypeChange(type.value)}
-                    className="mr-3 mt-1"
-                  />
-                  <div>
-                    <div className="font-medium text-sm">{type.label}</div>
-                    <div className="text-xs text-gray-600">{type.description}</div>
-                  </div>
-                </label>
-              ))}
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Difficulty</label>
-              <select
-                value={formData.difficulty}
-                onChange={(e) => setFormData({...formData, difficulty: e.target.value})}
-                className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
-              >
-                <option value="easy">Easy</option>
-                <option value="medium">Medium</option>
-                <option value="hard">Hard</option>
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Time Limit</label>
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+            <div className="relative md:col-span-2">
+              <Search className="absolute left-3 top-3 w-4 h-4 text-slate-400" />
               <input
-                type="number"
-                value={formData.timeLimit}
-                onChange={(e) => setFormData({...formData, timeLimit: e.target.value})}
-                min="10"
-                max="120"
-                className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
+                type="text"
+                placeholder={`Search ${activeTab === 'materials' ? 'materials' : 'papers'}...`}
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full pl-9 pr-4 py-2.5 border border-slate-200 rounded-lg text-sm bg-slate-50 focus:bg-white focus:border-[#b8c4ff] focus:outline-none focus:ring-2 focus:ring-[#dde1ff]"
               />
             </div>
-          </div>
-
-          <button
-            onClick={handleGenerateTryout}
-            disabled={loading || !formData.subject || !formData.topic || formData.questionTypes.length === 0}
-            className="w-full py-3 px-6 bg-indigo-500 text-white rounded-lg hover:bg-indigo-600 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-          >
-            {loading ? (
-              <>
-                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                Generating Tryout...
-              </>
-            ) : (
-              <>
-                <FileText className="h-4 w-4" />
-                Generate Tryout
-              </>
+            <select
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+              className="px-3 py-2.5 border border-slate-200 rounded-lg text-sm bg-slate-50 focus:bg-white focus:border-[#b8c4ff] focus:outline-none focus:ring-2 focus:ring-[#dde1ff]"
+            >
+              <option value="all">All Status</option>
+              <option value="draft">Drafts</option>
+              {activeTab === 'materials' && <option value="scheduled">Scheduled</option>}
+              <option value="published">Published</option>
+              <option value="archived">Archived</option>
+            </select>
+            {activeTab === 'materials' && (
+              <select
+                value={subjectFilter}
+                onChange={(e) => setSubjectFilter(e.target.value)}
+                className="px-3 py-2.5 border border-slate-200 rounded-lg text-sm bg-slate-50 focus:bg-white focus:border-[#b8c4ff] focus:outline-none focus:ring-2 focus:ring-[#dde1ff]"
+              >
+                <option value="all">All Subjects</option>
+                {subjects.map(s => (
+                  <option key={s.id} value={s.id}>{s.name}</option>
+                ))}
+              </select>
             )}
-          </button>
+          </div>
         </div>
 
-        {/* Generated Tryout Preview */}
-        <div className="lg:col-span-2">
-          {generatedTryout ? (
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h3 className="text-xl font-bold text-gray-800">{generatedTryout.title}</h3>
-                  <p className="text-gray-600">
-                    {generatedTryout.questions.length} questions • {generatedTryout.timeLimit} minutes • {generatedTryout.difficulty}
-                  </p>
-                </div>
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => setPreviewMode(!previewMode)}
-                    className="p-2 text-gray-500 hover:bg-gray-100 rounded"
-                  >
-                    <Eye className="h-4 w-4" />
-                  </button>
-                  <button 
-                    onClick={downloadTryout}
-                    className="p-2 text-gray-500 hover:bg-gray-100 rounded"
-                  >
-                    <Download className="h-4 w-4" />
-                  </button>
-                </div>
-              </div>
-
-              <div className="bg-indigo-50 p-4 rounded-lg">
-                <h4 className="font-semibold text-indigo-800 mb-2">Tryout Overview</h4>
-                <div className="grid grid-cols-2 gap-4 text-sm">
-                  <div><span className="text-indigo-700">Subject:</span> {generatedTryout.subject}</div>
-                  <div><span className="text-indigo-700">Topic:</span> {generatedTryout.topic}</div>
-                  <div><span className="text-indigo-700">Questions:</span> {generatedTryout.questions.length}</div>
-                  <div><span className="text-indigo-700">Total Points:</span> {generatedTryout.questions.reduce((sum, q) => sum + q.points, 0)}</div>
-                </div>
-                <div className="mt-2">
-                  <span className="text-indigo-700">Question Types:</span> {formData.questionTypes.join(', ')}
-                </div>
-              </div>
-
-              <div className="space-y-3 max-h-96 overflow-y-auto">
-                <div className="flex items-center justify-between">
-                  <h4 className="font-semibold text-gray-800">Questions Preview</h4>
-                  <span className="text-sm text-gray-500">
-                    {previewMode ? 'Detailed View' : `Showing ${Math.min(5, generatedTryout.questions.length)} of ${generatedTryout.questions.length}`}
-                  </span>
-                </div>
-                
-                {(previewMode ? generatedTryout.questions : generatedTryout.questions.slice(0, 5)).map((question, index) => 
-                  renderQuestionPreview(question, index)
-                )}
-                
-                {!previewMode && generatedTryout.questions.length > 5 && (
-                  <p className="text-center text-gray-500 text-sm">
-                    +{generatedTryout.questions.length - 5} more questions...
-                  </p>
-                )}
-              </div>
+        {loading ? (
+          <div className="flex justify-center py-16">
+            <Loader className="w-8 h-8 animate-spin text-[#1e40af]" />
+          </div>
+        ) : activeTab === 'materials' ? (
+          materials.length === 0 ? (
+            <div className="rounded-xl border border-slate-200 bg-white shadow-sm p-14 text-center">
+              <FileText className="w-11 h-11 text-slate-300 mx-auto mb-4" />
+              <p className="text-slate-600 mb-4">No materials yet</p>
+              <button
+                onClick={() => {
+                  setEditingMaterial(null);
+                  setShowEditor(true);
+                }}
+                className="px-4 py-2 bg-[#00288e] text-white rounded-lg text-sm font-semibold hover:opacity-90 transition-opacity"
+              >
+                Create First Material
+              </button>
             </div>
           ) : (
-            <div className="flex items-center justify-center h-64 text-gray-500">
-              <div className="text-center">
-                <FileText className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                <p>Configure your settings to generate a tryout</p>
-              </div>
+            <div className={viewMode === 'grid' ? 'grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4' : 'space-y-4'}>
+              {materials.map(material => (
+                <div key={material._id}>
+                  <MaterialCard material={material} />
+                </div>
+              ))}
             </div>
-          )}
-        </div>
-      </div>}
+          )
+        ) : (
+          papers.length === 0 ? (
+            <div className="rounded-xl border border-slate-200 bg-white shadow-sm p-14 text-center">
+              <ClipboardList className="w-11 h-11 text-slate-300 mx-auto mb-4" />
+              <p className="text-slate-600 mb-4">No practice papers yet</p>
+              <button
+                onClick={() => setShowPaperBuilder(true)}
+                className="px-4 py-2 bg-[#00288e] text-white rounded-lg text-sm font-semibold hover:opacity-90 transition-opacity"
+              >
+                Create First Paper
+              </button>
+            </div>
+          ) : (
+            <div className={viewMode === 'grid' ? 'grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4' : 'space-y-4'}>
+              {papers.map(paper => (
+                <div key={paper._id}>
+                  <PaperCard paper={paper} />
+                </div>
+              ))}
+            </div>
+          )
+        )}
+      </div>
     </div>
   );
 };

@@ -36,6 +36,7 @@ import AssignmentPortal from './AssignmentPortal';
 import AttendanceManagement from './AttendanceManagement';
 import TeacherDashboard from './TeacherDashboard';
 import LessonPlanDashboard from './LessonPlanDashboard';
+import SmartTeachingLessonPlanner from './SmartTeachingLessonPlanner';
 import TeacherChat from './TeacherChat';
 import StudentAnalyticsPortal from './StudentAnalyticsPortal';
 import AILearningPath from './AILearningPath';
@@ -88,7 +89,7 @@ const menuSections = [
     label: 'Teaching Tools',
     icon: BookOpen,
     children: [
-      { icon: Brain, label: 'AI Powered Teaching', path: `${PORTAL_BASE}/ai-powered-teaching` },
+      { icon: Brain, label: 'Smart Teaching', path: `${PORTAL_BASE}/smart-teaching` },
       { icon: BookOpen, label: "Teacher's Wall", path: `${PORTAL_BASE}/academic-alcove` },
       { icon: FileText, label: 'Assignments', path: `${PORTAL_BASE}/assignments` },
       { icon: FileText, label: 'Practice Questions', path: `${PORTAL_BASE}/practice-questions` },
@@ -125,6 +126,7 @@ const TeacherPortal = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const isChatRoute = location.pathname.startsWith('/teacher/chat');
+  const isSmartPlannerRoute = location.pathname.startsWith('/teacher/smart-teaching/lesson-planner');
 
   useEffect(() => {
     if (!location.pathname.startsWith('/teachers')) return;
@@ -805,7 +807,7 @@ const TeacherPortal = () => {
           </div>
         </header>
 
-        <main className={`flex-1 min-h-0 p-2 sm:p-4 ${isChatRoute ? 'overflow-hidden' : 'overflow-y-auto'}`}>
+        <main className={`flex-1 min-h-0 ${isSmartPlannerRoute ? 'p-0' : 'p-2 sm:p-4'} ${isChatRoute ? 'overflow-hidden' : 'overflow-y-auto'}`}>
           <div className={isChatRoute ? 'h-full flex flex-col' : undefined}>
             <Routes>
               <Route index element={<Navigate to="/teacher/dashboard" replace />} />
@@ -819,7 +821,9 @@ const TeacherPortal = () => {
               <Route path="student-analytics" element={<StudentAnalyticsPortal />} />
               <Route path="progress" element={<Navigate to="/teacher/student-analytics" replace />} />
               <Route path="weak-students" element={<Navigate to="/teacher/student-analytics" replace />} />
-              <Route path="ai-powered-teaching" element={<AIPoweredTeaching />} />
+              <Route path="smart-teaching" element={<AIPoweredTeaching />} />
+              <Route path="smart-teaching/lesson-planner" element={<SmartTeachingLessonPlanner />} />
+              <Route path="ai-powered-teaching" element={<Navigate to="/teacher/smart-teaching" replace />} />
               <Route path="academic-alcove" element={<TeacherAlcove />} />
               <Route path="ai-learning/:studentId/:subject" element={<AILearningPath />} />
               <Route path="health-updates" element={<HealthUpdatesAdvanced />} />

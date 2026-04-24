@@ -14,6 +14,11 @@ export default function QuillEditor({
   const [wordCount, setWordCount] = useState(0);
   const [charCount, setCharCount] = useState(0);
   const quillRef = useRef(null);
+  const onChangeRef = useRef(onChange);
+
+  useEffect(() => {
+    onChangeRef.current = onChange;
+  }, [onChange]);
 
   useEffect(() => {
     // Don't run on server
@@ -61,19 +66,12 @@ export default function QuillEditor({
 
         quillRef.current = quillInstance;
 
-        // Initialize content
-        if (value) {
-          quillInstance.root.innerHTML = value;
-          setWordCount(quillInstance.getText().trim().length ? quillInstance.getText().trim().split(/\s+/).length : 0);
-          setCharCount(Math.max(0, quillInstance.getText().length - 1));
-        }
-
         quillInstance.on('text-change', () => {
           const text = quillInstance.getText();
           const html = quillInstance.root.innerHTML;
           setWordCount(text.trim().length ? text.trim().split(/\s+/).length : 0);
           setCharCount(Math.max(0, text.length - 1));
-          onChange(html);
+          onChangeRef.current(html);
         });
       } catch {
         // If Quill fails to load, degrade gracefully (editor will remain a simple div)
@@ -90,7 +88,7 @@ export default function QuillEditor({
       }
       quillRef.current = null;
     };
-  }, [idPrefix, placeholder, onChange, value]);
+  }, [idPrefix, placeholder]);
 
   // Sync external value updates
   useEffect(() => {
@@ -102,6 +100,9 @@ export default function QuillEditor({
       quill.root.innerHTML = value || "";
       if (sel) quill.setSelection(sel);
     }
+    const text = quill.getText();
+    setWordCount(text.trim().length ? text.trim().split(/\s+/).length : 0);
+    setCharCount(Math.max(0, text.length - 1));
   }, [value]);
 
   return (
