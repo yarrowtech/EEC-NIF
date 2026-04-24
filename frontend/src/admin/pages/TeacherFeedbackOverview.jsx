@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { AlertCircle, Filter, MessageSquare, RefreshCw, Search, Star, Users } from 'lucide-react';
+import { AlertCircle, Clock, Filter, MessageSquare, RefreshCw, Search, Star, Users } from 'lucide-react';
 
 const API_BASE = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '');
 
@@ -9,6 +9,8 @@ const TeacherFeedbackOverview = ({ setShowAdminHeader }) => {
   const [stats, setStats] = useState(null);
   const [feedback, setFeedback] = useState([]);
   const [filters, setFilters] = useState({ teachers: [], classes: [], sections: [], subjects: [] });
+  const [settings, setSettings] = useState({ enabled: false, startDate: '', endDate: '' });
+  const [savingSettings, setSavingSettings] = useState(false);
   const [query, setQuery] = useState({
     teacherId: 'all',
     className: 'all',
@@ -33,11 +35,18 @@ const TeacherFeedbackOverview = ({ setShowAdminHeader }) => {
       if (query.subjectName !== 'all') params.append('subjectName', query.subjectName);
       if (query.search.trim()) params.append('search', query.search.trim());
 
-      const res = await fetch(`${API_BASE}/api/admin/feedback/teacher-feedback?${params.toString()}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.error || 'Failed to load teacher feedback');
+      const [overviewRes, settingsRes] = await Promise.all([
+        fetch(`${API_BASE}/api/admin/feedback/teacher-feedback?${params.toString()}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        }),
+        fetch(`${API_BASE}/api/admin/feedback/teacher-feedback/settings`, {
+          headers: { Authorization: `Bearer ${token}` },
+        }),
+      ]);
+      const data = await overviewRes.json().catch(() => ({}));
+      if (!overviewRes.ok) throw new Error(data.error || 'Failed to load teacher feedback');
+      const settingsData = await settingsRes.json().catch(() => ({}));
+      if (!settingsRes.ok) throw new Error(settingsData.error || 'Failed to load teacher feedback settings');
 
       setStats(data?.stats || null);
       setFeedback(Array.isArray(data?.feedback) ? data.feedback : []);
@@ -46,6 +55,11 @@ const TeacherFeedbackOverview = ({ setShowAdminHeader }) => {
         classes: Array.isArray(data?.filters?.classes) ? data.filters.classes : [],
         sections: Array.isArray(data?.filters?.sections) ? data.filters.sections : [],
         subjects: Array.isArray(data?.filters?.subjects) ? data.filters.subjects : [],
+      });
+      setSettings({
+        enabled: Boolean(settingsData?.settings?.enabled),
+        startDate: settingsData?.settings?.startDate ? new Date(settingsData.settings.startDate).toISOString().slice(0, 10) : '',
+        endDate: settingsData?.settings?.endDate ? new Date(settingsData.settings.endDate).toISOString().slice(0, 10) : '',
       });
     } catch (err) {
       setError(err.message || 'Unable to load teacher feedback');
@@ -72,6 +86,41 @@ const TeacherFeedbackOverview = ({ setShowAdminHeader }) => {
     });
   };
 
+  const saveFeedbackWindow = async () => {
+    setError('');
+    if (settings.enabled && (!settings.startDate || !settings.endDate)) {
+      setError('Start date and end date are required when feedback is enabled.');
+      return;
+    }
+    setSavingSettings(true);
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch(`${API_BASE}/api/admin/feedback/teacher-feedback/settings`, {
+        method: 'PUT',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          enabled: settings.enabled,
+          startDate: settings.startDate || null,
+          endDate: settings.endDate || null,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || 'Failed to update teacher feedback settings');
+      setSettings({
+        enabled: Boolean(data?.settings?.enabled),
+        startDate: data?.settings?.startDate ? new Date(data.settings.startDate).toISOString().slice(0, 10) : '',
+        endDate: data?.settings?.endDate ? new Date(data.settings.endDate).toISOString().slice(0, 10) : '',
+      });
+    } catch (err) {
+      setError(err.message || 'Unable to save teacher feedback settings');
+    } finally {
+      setSavingSettings(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-slate-50 p-4 sm:p-6 space-y-5">
       <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm">
@@ -91,6 +140,50 @@ const TeacherFeedbackOverview = ({ setShowAdminHeader }) => {
             Refresh
           </button>
         </div>
+      </div>
+
+      <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm space-y-4">
+        <div className="flex items-center gap-2">
+          <Clock className="w-4 h-4 text-slate-500" />
+          <p className="text-sm font-semibold text-slate-700">Student Feedback Window</p>
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
+          <label className="sm:col-span-1 inline-flex items-center gap-2 text-sm text-slate-700">
+            <input
+              type="checkbox"
+              checked={settings.enabled}
+              onChange={(e) => setSettings((prev) => ({ ...prev, enabled: e.target.checked }))}
+              className="h-4 w-4 rounded border-slate-300"
+            />
+            Enable feedback
+          </label>
+          <input
+            type="date"
+            value={settings.startDate}
+            onChange={(e) => setSettings((prev) => ({ ...prev, startDate: e.target.value }))}
+            className="rounded-xl border border-slate-200 px-3 py-2.5 text-sm"
+            disabled={!settings.enabled}
+          />
+          <input
+            type="date"
+            value={settings.endDate}
+            onChange={(e) => setSettings((prev) => ({ ...prev, endDate: e.target.value }))}
+            className="rounded-xl border border-slate-200 px-3 py-2.5 text-sm"
+            disabled={!settings.enabled}
+          />
+          <button
+            onClick={saveFeedbackWindow}
+            disabled={savingSettings}
+            className="rounded-xl bg-indigo-600 text-white text-sm font-semibold px-4 py-2.5 hover:bg-indigo-700 disabled:opacity-50"
+          >
+            {savingSettings ? 'Saving...' : 'Save Window'}
+          </button>
+        </div>
+        {!settings.enabled && (
+          <p className="text-xs text-amber-700 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2">
+            Feedback is currently disabled. Students will see “Feedback not started”.
+          </p>
+        )}
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">

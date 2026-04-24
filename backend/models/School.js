@@ -140,6 +140,11 @@ const schoolSchema = new mongoose.Schema(
     teacherLeaveSettings: {
       casualLeaveDays: { type: Number, default: 12 },
     },
+    teacherFeedbackSettings: {
+      enabled: { type: Boolean, default: false },
+      startDate: { type: Date, default: null },
+      endDate: { type: Date, default: null },
+    },
   },
   { timestamps: true }
 );

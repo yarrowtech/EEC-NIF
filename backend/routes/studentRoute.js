@@ -15,6 +15,7 @@ const StudentProgress = require('../models/StudentProgress');
 const Assignment = require('../models/Assignment');
 const TeacherUser = require('../models/TeacherUser');
 const TeacherFeedback = require('../models/TeacherFeedback');
+const School = require('../models/School');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const adminAuth = require('../middleware/adminAuth');
@@ -235,6 +236,74 @@ const buildTeacherFeedbackContext = async (studentDoc = null) => {
   return {
     classDoc,
     contexts: Array.from(comboMap.values())
+  };
+};
+
+const formatDateLabel = (value) => {
+  if (!value) return '';
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return '';
+  return d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
+};
+
+const resolveTeacherFeedbackAvailability = async (schoolId) => {
+  if (!schoolId) {
+    return {
+      isOpen: false,
+      reason: 'feedback_not_configured',
+      message: 'Teacher feedback is not available right now.',
+      settings: { enabled: false, startDate: null, endDate: null },
+    };
+  }
+
+  const school = await School.findById(schoolId).select('teacherFeedbackSettings').lean();
+  const settings = school?.teacherFeedbackSettings || {};
+  const enabled = Boolean(settings.enabled);
+  const startDate = settings.startDate ? new Date(settings.startDate) : null;
+  const endDate = settings.endDate ? new Date(settings.endDate) : null;
+  const now = new Date();
+
+  if (!enabled) {
+    return {
+      isOpen: false,
+      reason: 'feedback_disabled',
+      message: 'Teacher feedback has not been started by school admin.',
+      settings: { enabled, startDate, endDate },
+    };
+  }
+
+  if (!startDate || !endDate || Number.isNaN(startDate.getTime()) || Number.isNaN(endDate.getTime())) {
+    return {
+      isOpen: false,
+      reason: 'feedback_not_configured',
+      message: 'Teacher feedback timeframe is not configured by school admin.',
+      settings: { enabled, startDate: startDate || null, endDate: endDate || null },
+    };
+  }
+
+  if (now < startDate) {
+    return {
+      isOpen: false,
+      reason: 'feedback_not_started',
+      message: `Teacher feedback will start on ${formatDateLabel(startDate)}.`,
+      settings: { enabled, startDate, endDate },
+    };
+  }
+
+  if (now > endDate) {
+    return {
+      isOpen: false,
+      reason: 'feedback_closed',
+      message: `Teacher feedback closed on ${formatDateLabel(endDate)}.`,
+      settings: { enabled, startDate, endDate },
+    };
+  }
+
+  return {
+    isOpen: true,
+    reason: 'feedback_open',
+    message: '',
+    settings: { enabled, startDate, endDate },
   };
 };
 const rateLimit = require('../middleware/rateLimit');
@@ -1708,8 +1777,19 @@ router.get('/teacher-feedback/context', authStudent, async (req, res) => {
       return res.status(404).json({ error: 'Student not found' });
     }
 
+    const availability = await resolveTeacherFeedbackAvailability(student.schoolId);
     const { contexts } = await buildTeacherFeedbackContext(student);
-    res.json({ teachers: contexts });
+    res.json({
+      teachers: contexts,
+      feedbackWindow: {
+        isOpen: availability.isOpen,
+        reason: availability.reason,
+        message: availability.message,
+        startDate: availability.settings.startDate,
+        endDate: availability.settings.endDate,
+        enabled: availability.settings.enabled,
+      },
+    });
     logStudentPortalEvent(req, {
       feature: 'teacher_feedback',
       action: 'feedback_context.fetch',
@@ -1812,6 +1892,19 @@ router.post('/teacher-feedback', authStudent, async (req, res) => {
         targetId: req.user?.id,
       });
       return res.status(404).json({ error: 'Student not found' });
+    }
+
+    const availability = await resolveTeacherFeedbackAvailability(student.schoolId);
+    if (!availability.isOpen) {
+      return res.status(403).json({
+        error: availability.message || 'Teacher feedback is not open right now',
+        reason: availability.reason,
+        feedbackWindow: {
+          enabled: availability.settings.enabled,
+          startDate: availability.settings.startDate,
+          endDate: availability.settings.endDate,
+        },
+      });
     }
 
     const { teacherId, subjectId, subjectName, ratings = {}, comments = '' } = req.body || {};

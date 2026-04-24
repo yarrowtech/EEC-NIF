@@ -2,6 +2,7 @@ const express = require('express');
 const mongoose = require('mongoose');
 const adminAuth = require('../middleware/adminAuth');
 const TeacherFeedback = require('../models/TeacherFeedback');
+const School = require('../models/School');
 
 const router = express.Router();
 
@@ -20,6 +21,76 @@ const parseDate = (value, endOfDay = false) => {
   else d.setHours(0, 0, 0, 0);
   return d;
 };
+
+const normalizeTeacherFeedbackSettings = (schoolDoc) => {
+  const settings = schoolDoc?.teacherFeedbackSettings || {};
+  return {
+    enabled: Boolean(settings.enabled),
+    startDate: settings.startDate || null,
+    endDate: settings.endDate || null,
+  };
+};
+
+router.get('/teacher-feedback/settings', adminAuth, async (req, res) => {
+  // #swagger.tags = ['Admin Feedback']
+  try {
+    const schoolId = req.schoolId || req.admin?.schoolId || null;
+    if (!schoolId || !mongoose.isValidObjectId(schoolId)) {
+      return res.status(400).json({ error: 'Valid schoolId is required' });
+    }
+
+    const school = await School.findById(schoolId).select('teacherFeedbackSettings').lean();
+    if (!school) {
+      return res.status(404).json({ error: 'School not found' });
+    }
+
+    return res.json({ settings: normalizeTeacherFeedbackSettings(school) });
+  } catch (err) {
+    return res.status(500).json({ error: err.message || 'Failed to load teacher feedback settings' });
+  }
+});
+
+router.put('/teacher-feedback/settings', adminAuth, async (req, res) => {
+  // #swagger.tags = ['Admin Feedback']
+  try {
+    const schoolId = req.schoolId || req.admin?.schoolId || null;
+    if (!schoolId || !mongoose.isValidObjectId(schoolId)) {
+      return res.status(400).json({ error: 'Valid schoolId is required' });
+    }
+
+    const enabled = Boolean(req.body?.enabled);
+    const startDate = parseDate(req.body?.startDate, false);
+    const endDate = parseDate(req.body?.endDate, true);
+
+    if (enabled) {
+      if (!startDate || !endDate) {
+        return res.status(400).json({ error: 'Start date and end date are required when enabling teacher feedback' });
+      }
+      if (startDate > endDate) {
+        return res.status(400).json({ error: 'Start date must be before or equal to end date' });
+      }
+    }
+
+    const school = await School.findById(schoolId);
+    if (!school) {
+      return res.status(404).json({ error: 'School not found' });
+    }
+
+    school.teacherFeedbackSettings = {
+      enabled,
+      startDate: startDate || null,
+      endDate: endDate || null,
+    };
+
+    await school.save();
+    return res.json({
+      message: 'Teacher feedback settings updated',
+      settings: normalizeTeacherFeedbackSettings(school),
+    });
+  } catch (err) {
+    return res.status(500).json({ error: err.message || 'Failed to update teacher feedback settings' });
+  }
+});
 
 router.get('/teacher-feedback', adminAuth, async (req, res) => {
   // #swagger.tags = ['Admin Feedback']

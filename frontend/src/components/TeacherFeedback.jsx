@@ -56,6 +56,14 @@ const TeacherFeedback = () => {
   const [submittingFeedback, setSubmittingFeedback] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [submittedContext, setSubmittedContext] = useState(null);
+  const [feedbackWindow, setFeedbackWindow] = useState({
+    isOpen: true,
+    reason: '',
+    message: '',
+    startDate: null,
+    endDate: null,
+    enabled: true,
+  });
 
   const API_BASE_URL = (import.meta.env.VITE_API_URL || 'http://localhost:5000').replace(/\/$/, '');
   const FEEDBACK_CONTEXT_ENDPOINT = `${API_BASE_URL}/api/student/auth/teacher-feedback/context`;
@@ -97,12 +105,28 @@ const TeacherFeedback = () => {
           })
         ]);
         setTeacherSubjects(Array.isArray(contextData.teachers) ? contextData.teachers : []);
+        setFeedbackWindow({
+          isOpen: Boolean(contextData?.feedbackWindow?.isOpen ?? true),
+          reason: contextData?.feedbackWindow?.reason || '',
+          message: contextData?.feedbackWindow?.message || '',
+          startDate: contextData?.feedbackWindow?.startDate || null,
+          endDate: contextData?.feedbackWindow?.endDate || null,
+          enabled: Boolean(contextData?.feedbackWindow?.enabled ?? true),
+        });
         setPreviousFeedback(Array.isArray(historyData) ? historyData : []);
       } catch (err) {
         console.error('Teacher feedback fetch error:', err);
         setLoadError(err.message || 'Failed to load teacher feedback data.');
         setTeacherSubjects([]);
         setPreviousFeedback([]);
+        setFeedbackWindow({
+          isOpen: false,
+          reason: 'feedback_not_available',
+          message: 'Teacher feedback is not available right now.',
+          startDate: null,
+          endDate: null,
+          enabled: false,
+        });
       } finally {
         setLoading(false);
       }
@@ -180,6 +204,10 @@ const TeacherFeedback = () => {
 
   const handleSubmit = async () => {
     setSubmitError('');
+    if (!feedbackWindow.isOpen) {
+      setSubmitError(feedbackWindow.message || 'Teacher feedback is not open right now.');
+      return;
+    }
     const context = getSelectedContextOrAlert();
     if (!context) return;
     const token = localStorage.getItem('token');
@@ -228,6 +256,10 @@ const TeacherFeedback = () => {
   };
 
   const openFeedbackModal = (subject) => {
+    if (!feedbackWindow.isOpen) {
+      setSubmitError(feedbackWindow.message || 'Teacher feedback is not open right now.');
+      return;
+    }
     resetForm(true);
     setSelectedSubject(subject.contextId);
     setIsModalOpen(true);
@@ -292,6 +324,12 @@ const TeacherFeedback = () => {
             <span className="text-sm">{loadError}</span>
           </div>
         )}
+        {!loadError && !feedbackWindow.isOpen && (
+          <div className="mb-5 bg-amber-50 border border-amber-200 text-amber-800 rounded-xl p-4 flex items-center gap-3">
+            <Clock className="w-5 h-5 flex-shrink-0" />
+            <span className="text-sm">{feedbackWindow.message || 'Teacher feedback has not started yet.'}</span>
+          </div>
+        )}
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 sm:gap-8">
 
@@ -346,10 +384,13 @@ const TeacherFeedback = () => {
                       <button
                         key={subject.contextId}
                         onClick={() => openFeedbackModal(subject)}
+                        disabled={!feedbackWindow.isOpen}
                         className={`w-full text-left p-4 border-2 rounded-xl transition-all duration-200 group ${
                           isSelected
                             ? 'border-purple-400 bg-purple-50 ring-2 ring-purple-100 shadow-md'
-                            : 'border-yellow-200 bg-white hover:border-amber-300 hover:shadow-md'
+                            : feedbackWindow.isOpen
+                              ? 'border-yellow-200 bg-white hover:border-amber-300 hover:shadow-md'
+                              : 'border-slate-200 bg-slate-50 opacity-70 cursor-not-allowed'
                         }`}
                       >
                         <div className="flex items-start gap-3">
@@ -386,11 +427,13 @@ const TeacherFeedback = () => {
                           </div>
                         </div>
                         <div className={`mt-3 text-xs font-medium rounded-lg py-1.5 text-center transition-colors ${
-                          isReviewed
+                          !feedbackWindow.isOpen
+                            ? 'bg-slate-100 text-slate-500 border border-slate-200'
+                            : isReviewed
                             ? 'bg-green-50 text-green-700 border border-green-100'
                             : 'bg-amber-50 text-amber-700 border border-amber-100 group-hover:bg-amber-100'
                         }`}>
-                          {isReviewed ? 'Update your feedback' : 'Give feedback →'}
+                          {!feedbackWindow.isOpen ? 'Feedback not started' : isReviewed ? 'Update your feedback' : 'Give feedback →'}
                         </div>
                       </button>
                     );
@@ -738,7 +781,7 @@ const TeacherFeedback = () => {
                 <button
                   type="button"
                   onClick={handleSubmit}
-                  disabled={!selectedSubject || ratedCount === 0 || submittingFeedback}
+                  disabled={!feedbackWindow.isOpen || !selectedSubject || ratedCount === 0 || submittingFeedback}
                   className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-purple-600 text-white text-sm font-semibold hover:bg-purple-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
                 >
                   <Send className="w-4 h-4" />
