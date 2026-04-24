@@ -96,14 +96,14 @@ const menuSections = [
       { icon: FileText, label: 'Class Notes', path: `${PORTAL_BASE}/class-notes` },
     ],
   },
-  // {
-  //   id: 'assessment',
-  //   label: 'Assessment',
-  //   icon: GraduationCap,
-  //   children: [
-  //     { icon: ClipboardCheck, label: 'Result Management', path: `${PORTAL_BASE}/result-management` },
-  //   ],
-  // },
+  {
+    id: 'assessment',
+    label: 'Assessment',
+    icon: GraduationCap,
+    children: [
+      { icon: ClipboardCheck, label: 'Result Management', path: `${PORTAL_BASE}/result-management` },
+    ],
+  },
   {
     id: 'communication',
     label: 'Communication',

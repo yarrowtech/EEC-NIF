@@ -47,7 +47,7 @@ const getRoutineClassName = (entry = {}) =>
   String(entry?.className || entry?.class || entry?.grade || '').trim();
 const getRoutineSectionName = (entry = {}) =>
   String(entry?.sectionName || entry?.section || '').trim();
-const getEntityId = (value) => String(value?._id || value || '').trim();
+const isExamCompleted = (exam = {}) => String(exam?.status || '').trim().toLowerCase() === 'completed';
 const isExamWithinRange = (exam = {}, startDate, endDate) => {
   const examTime = exam?.date ? new Date(exam.date).getTime() : NaN;
   const startTime = startDate ? new Date(startDate).getTime() : NaN;
@@ -266,6 +266,15 @@ const ResultManagement = () => {
     loadResults();
   }, [loadResults]);
 
+  useEffect(() => {
+    if (!showForm && !showBulkUpload) return undefined;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [showForm, showBulkUpload]);
+
   const activeAllocationScopeKeys = useMemo(() => {
     if (!activeSessionId) return new Set();
     const keys = new Set();
@@ -303,27 +312,19 @@ const ResultManagement = () => {
     return allocations.filter((allocation) => getAllocationAcademicYearId(allocation) === activeSessionId);
   }, [activeSessionId, allocations]);
 
-  const activeAllocationIdScopeKeys = useMemo(() => {
-    const keys = new Set();
-    scopedAllocations.forEach((allocation) => {
-      const classId = getEntityId(allocation?.classId);
-      const sectionId = getEntityId(allocation?.sectionId);
-      if (classId && sectionId) {
-        keys.add(`${classId}::${sectionId}`);
-      }
-    });
-    return keys;
-  }, [scopedAllocations]);
-
   const selectedExam = useMemo(
     () => scopedExams.find((exam) => String(exam._id) === String(selectedExamId)) || null,
     [scopedExams, selectedExamId]
+  );
+  const completedScopedExams = useMemo(
+    () => scopedExams.filter((exam) => isExamCompleted(exam)),
+    [scopedExams]
   );
 
   useEffect(() => {
     if (!selectedExamId) return;
     if (loading) return;
-    if (selectedExam) return;
+    if (selectedExam && isExamCompleted(selectedExam)) return;
     setSelectedExamId('');
     setSelectedClass('');
     setSelectedSection('');
@@ -481,7 +482,6 @@ const ResultManagement = () => {
   }, [bulkEntryForm.className, bulkEntryForm.sectionName, routineScopes, scopedAllocations, scopedExams]);
 
   const bulkExamOptions = useMemo(() => {
-    const isCompleted = (exam) => String(exam?.status || '').trim().toLowerCase() === 'completed';
     const matchesSelection = (exam) => {
       const examClass = getExamClassName(exam);
       const examSection = getExamSectionName(exam);
@@ -490,43 +490,8 @@ const ResultManagement = () => {
       return classMatch && sectionMatch;
     };
 
-    const primary = scopedExams.filter(matchesSelection);
-    const primaryCompleted = primary.filter(isCompleted);
-    if (primaryCompleted.length) return primaryCompleted;
-    if (primary.length) return primary;
-
-    const idScoped = activeAllocationIdScopeKeys.size
-      ? exams.filter((exam) => {
-      const examScopeKey = `${getEntityId(exam?.classId)}::${getEntityId(exam?.sectionId)}`;
-      if (!activeAllocationIdScopeKeys.has(examScopeKey)) return false;
-      return matchesSelection(exam);
-        })
-      : [];
-    const idScopedCompleted = idScoped.filter(isCompleted);
-    if (idScopedCompleted.length) return idScopedCompleted;
-    if (idScoped.length) return idScoped;
-
-    // Final fallback: selected allocation pair IDs -> exams (handles legacy exams with missing class/section text fields).
-    const selectedAllocationPairKeys = new Set(
-      scopedAllocations
-        .filter((allocation) => {
-          if (!bulkEntryForm.className || !bulkEntryForm.sectionName) return false;
-          return (
-            normalizeClass(getAllocationClassName(allocation)) === normalizeClass(bulkEntryForm.className) &&
-            normalizeSection(getAllocationSectionName(allocation)) === normalizeSection(bulkEntryForm.sectionName)
-          );
-        })
-        .map((allocation) => `${getEntityId(allocation?.classId)}::${getEntityId(allocation?.sectionId)}`)
-        .filter((key) => key !== '::')
-    );
-
-    const pairScoped = selectedAllocationPairKeys.size
-      ? exams.filter((exam) => selectedAllocationPairKeys.has(`${getEntityId(exam?.classId)}::${getEntityId(exam?.sectionId)}`))
-      : [];
-    const pairScopedCompleted = pairScoped.filter(isCompleted);
-    if (pairScopedCompleted.length) return pairScopedCompleted;
-    return pairScoped;
-  }, [activeAllocationIdScopeKeys, bulkEntryForm.className, bulkEntryForm.sectionName, exams, scopedAllocations, scopedExams]);
+    return completedScopedExams.filter(matchesSelection);
+  }, [bulkEntryForm.className, bulkEntryForm.sectionName, completedScopedExams]);
 
   useEffect(() => {
     if (!showForm || addResultMode !== 'bulk') return;
@@ -600,14 +565,14 @@ const ResultManagement = () => {
     setEditingResultId(null);
     setForm({
       ...EMPTY_FORM,
-      examId: selectedExamId || '',
+      examId: selectedExamId && isExamCompleted(selectedExam) ? selectedExamId : '',
     });
     setAddResultMode('single');
     setBulkEntryForm({
       session: activeSession || sessionOptions[0] || '',
       className: selectedClass || '',
       sectionName: selectedSection || '',
-      examId: selectedExamId || '',
+      examId: selectedExamId && isExamCompleted(selectedExam) ? selectedExamId : '',
     });
     setBulkEntryRows([]);
     setShowForm(true);
@@ -721,7 +686,7 @@ const ResultManagement = () => {
     setBulkEntryRows((prev) =>
       prev.map((row) => {
         if (row.studentId !== studentId) return row;
-        const selectedBulkExam = scopedExams.find((exam) => String(exam._id) === String(bulkEntryForm.examId));
+      const selectedBulkExam = completedScopedExams.find((exam) => String(exam._id) === String(bulkEntryForm.examId));
         const parsed = value === '' ? NaN : Number(value);
         const maxMarks = Number(selectedBulkExam?.marks);
         const percentage = Number.isFinite(parsed) && Number.isFinite(maxMarks) && maxMarks > 0
@@ -740,7 +705,7 @@ const ResultManagement = () => {
 
   const handleBulkMarksUpload = async (e) => {
     e.preventDefault();
-    const selectedBulkExam = scopedExams.find((exam) => String(exam._id) === String(bulkEntryForm.examId));
+    const selectedBulkExam = completedScopedExams.find((exam) => String(exam._id) === String(bulkEntryForm.examId));
     if (!selectedBulkExam?._id) {
       setError('Select exam subject');
       return;
@@ -821,21 +786,6 @@ const ResultManagement = () => {
       await loadResults();
     } catch (err) {
       setError(err.message || 'Failed to delete result');
-    }
-  };
-
-  const handleTogglePublish = async (item) => {
-    try {
-      setError('');
-      setSuccess('');
-      await apiFetch(`/api/exam/results/${item._id}`, {
-        method: 'PUT',
-        body: JSON.stringify({ published: !item.published }),
-      });
-      setSuccess(`Result ${item.published ? 'unpublished' : 'published'} successfully`);
-      await loadResults();
-    } catch (err) {
-      setError(err.message || 'Failed to update publish status');
     }
   };
 
@@ -985,7 +935,7 @@ const ResultManagement = () => {
             className={`${inputClass} max-w-[280px]`}
           >
             <option value="">All Exams</option>
-            {scopedExams.map((exam) => (
+            {completedScopedExams.map((exam) => (
               <option key={exam._id} value={exam._id}>
                 {exam.title} {exam.subject ? `(${exam.subject})` : ''}
               </option>
@@ -1085,7 +1035,6 @@ const ResultManagement = () => {
                   <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500">Marks</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500">Grade</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500">Status</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500">Publish</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500">Actions</th>
                 </tr>
               </thead>
@@ -1105,21 +1054,6 @@ const ResultManagement = () => {
                     <td className="px-4 py-3 text-gray-800">{item?.marks ?? '-'}</td>
                     <td className="px-4 py-3 text-gray-800">{item?.grade || '-'}</td>
                     <td className="px-4 py-3 text-gray-800 capitalize">{item?.status || '-'}</td>
-                    <td className="px-4 py-3">
-                      <div className="flex items-center gap-2">
-                        <button
-                          type="button"
-                          onClick={() => handleTogglePublish(item)}
-                          title={item?.published ? 'Click to unpublish' : 'Click to publish'}
-                          className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full border-2 transition-colors duration-300 focus:outline-none ${item?.published ? 'bg-emerald-500 border-emerald-500' : 'bg-gray-200 border-gray-200'}`}
-                        >
-                          <span className={`inline-block h-4 w-4 rounded-full bg-white shadow-md transition-transform duration-300 ${item?.published ? 'translate-x-5' : 'translate-x-0.5'}`} />
-                        </button>
-                        <span className={`text-xs font-semibold ${item?.published ? 'text-emerald-600' : 'text-gray-400'}`}>
-                          {item?.published ? 'Published' : 'Unpublished'}
-                        </span>
-                      </div>
-                    </td>
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-2">
                         <button
@@ -1149,15 +1083,16 @@ const ResultManagement = () => {
       </div>
 
       {showForm && (
-        <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/40 p-4">
-          <div className="w-full max-w-4xl rounded-3xl bg-white shadow-2xl overflow-hidden">
-            <div className="flex items-center justify-between border-b border-slate-200 px-8 py-5">
+        <div className="fixed inset-0 z-[120] overflow-y-auto bg-black/40 p-3 sm:p-4">
+          <div className="mx-auto flex min-h-full w-full max-w-4xl items-center justify-center">
+          <div className="w-full max-h-[calc(100dvh-1.5rem)] sm:max-h-[calc(100dvh-2rem)] rounded-3xl bg-white shadow-2xl overflow-hidden flex flex-col">
+            <div className="flex items-center justify-between border-b border-slate-200 px-5 sm:px-8 py-4 sm:py-5 shrink-0">
               <div className="flex items-center gap-4">
                 <div className="h-12 w-12 rounded-2xl bg-indigo-600 text-white flex items-center justify-center shadow-lg shadow-indigo-200">
                   <Plus size={22} />
                 </div>
                 <div>
-                  <h2 className="text-3xl font-bold text-slate-900 leading-tight">
+                  <h2 className="text-2xl sm:text-3xl font-bold text-slate-900 leading-tight">
                     {editingResultId ? 'Edit Result' : 'Add Result'}
                   </h2>
                   <p className="text-base text-slate-400">Record a student's exam result</p>
@@ -1172,7 +1107,7 @@ const ResultManagement = () => {
               </button>
             </div>
 
-            <div className="p-8 space-y-5">
+            <div className="overflow-y-auto p-4 sm:p-8 space-y-5">
               {!editingResultId && (
                 <div className="inline-flex rounded-2xl border border-slate-200 bg-slate-50 p-1.5">
                   <button
@@ -1203,7 +1138,7 @@ const ResultManagement = () => {
                       required
                     >
                       <option value="">Select exam</option>
-                      {scopedExams.map((exam) => (
+                      {completedScopedExams.map((exam) => (
                         <option key={exam._id} value={exam._id}>
                           {exam.title} {exam.subject ? `(${exam.subject})` : ''}
                         </option>
@@ -1457,13 +1392,15 @@ const ResultManagement = () => {
               )}
             </div>
           </div>
+          </div>
         </div>
       )}
 
       {showBulkUpload && (
-        <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/40 p-4">
-          <div className="w-full max-w-lg rounded-2xl bg-white shadow-xl">
-            <div className="flex items-center justify-between border-b border-gray-100 px-4 py-3">
+        <div className="fixed inset-0 z-[120] overflow-y-auto bg-black/40 p-3 sm:p-4">
+          <div className="mx-auto flex min-h-full w-full max-w-lg items-center justify-center">
+          <div className="w-full max-h-[calc(100dvh-1.5rem)] sm:max-h-[calc(100dvh-2rem)] rounded-2xl bg-white shadow-xl overflow-hidden flex flex-col">
+            <div className="flex items-center justify-between border-b border-gray-100 px-4 py-3 shrink-0">
               <h2 className="text-base font-semibold text-gray-900">Bulk Upload Results</h2>
               <button
                 type="button"
@@ -1479,7 +1416,7 @@ const ResultManagement = () => {
               </button>
             </div>
 
-            <form onSubmit={handleBulkUpload} className="space-y-4 p-4" encType="multipart/form-data">
+            <form onSubmit={handleBulkUpload} className="space-y-4 p-4 overflow-y-auto" encType="multipart/form-data">
               <div>
                 <label className="mb-1 block text-xs font-medium text-gray-600">Select Exam (For Template)</label>
                 <select
@@ -1546,6 +1483,7 @@ const ResultManagement = () => {
                 </button>
               </div>
             </form>
+          </div>
           </div>
         </div>
       )}

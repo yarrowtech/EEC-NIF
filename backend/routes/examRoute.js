@@ -153,6 +153,63 @@ const canTeacherManageExam = (scopeKeys, examDoc) => {
   );
 };
 
+const isExamCompleted = (examDoc) =>
+  String(examDoc?.status || '').trim().toLowerCase() === 'completed';
+
+const getTeacherDisplayName = async (teacherId) => {
+  if (!teacherId) return 'Teacher';
+  const teacher = await TeacherUser.findById(teacherId).select('name employeeCode').lean();
+  return teacher?.name || teacher?.employeeCode || 'Teacher';
+};
+
+const notifyAdminTeacherResultUpload = async ({
+  schoolId,
+  campusId,
+  teacherId,
+  teacherName,
+  exam,
+  uploadedCount = 1,
+  multipleExams = false,
+}) => {
+  if (!schoolId || !teacherId) return;
+
+  const subjectName = String(exam?.subject || exam?.subjectId?.name || '').trim();
+  const className = String(getExamClassName(exam) || '').trim();
+  const sectionName = String(getExamSectionName(exam) || '').trim();
+  const examTitle = String(exam?.title || '').trim();
+  const actor = teacherName || 'Teacher';
+
+  let message = '';
+  if (multipleExams) {
+    message = `${actor} uploaded ${uploadedCount} result entries across multiple exams. Review and publish results.`;
+  } else {
+    const examBits = [examTitle, subjectName].filter(Boolean).join(' - ');
+    const classBits = [className, sectionName].filter(Boolean).join(' / ');
+    message = `${actor} uploaded ${uploadedCount} result entr${uploadedCount === 1 ? 'y' : 'ies'} for ${examBits || 'an exam'}${classBits ? ` (${classBits})` : ''}. Review and publish results.`;
+  }
+
+  await Notification.create({
+    schoolId,
+    campusId: campusId || null,
+    title: 'Teacher Uploaded Results',
+    message,
+    audience: 'Admin',
+    type: 'result',
+    priority: 'high',
+    category: 'academic',
+    classId: exam?.classId || undefined,
+    sectionId: exam?.sectionId || undefined,
+    className,
+    sectionName,
+    subjectId: exam?.subjectId || undefined,
+    subjectName,
+    relatedEntity: exam?._id ? { entityType: 'result', entityId: exam._id } : undefined,
+    createdByType: 'teacher',
+    createdByTeacherId: teacherId,
+    createdByName: actor,
+  });
+};
+
 const normalizeText = (value) => String(value || '').trim().toLowerCase();
 
 const getExamClassName = (exam) => exam?.classId?.name || exam?.grade || '';
@@ -832,6 +889,9 @@ router.post("/results", adminOrTeacherAuth, async (req, res) => {
             if (!canTeacherManageExam(scopeKeys, exam)) {
                 return res.status(403).json({ error: 'You are not allocated for this exam' });
             }
+            if (!isExamCompleted(exam)) {
+                return res.status(400).json({ error: 'Teachers can upload marks only for completed exams' });
+            }
         }
         const student = await StudentUser.findOne({ _id: studentId, schoolId, ...(campusId ? { campusId } : {}) }).lean();
         if (!student) {
@@ -868,6 +928,20 @@ router.post("/results", adminOrTeacherAuth, async (req, res) => {
             },
             { new: true, upsert: true, runValidators: true }
         );
+
+        if (req.userType === 'teacher') {
+            const teacherId = req.user?.id || null;
+            const teacherName = await getTeacherDisplayName(teacherId);
+            await notifyAdminTeacherResultUpload({
+                schoolId,
+                campusId,
+                teacherId,
+                teacherName,
+                exam,
+                uploadedCount: 1,
+                multipleExams: false,
+            });
+        }
 
         res.status(201).json(result);
     } catch (err) {
@@ -970,7 +1044,7 @@ router.get("/results/exam-options", adminOrTeacherAuth, async (req, res) => {
         campusId,
         teacherId: req.user?.id || null,
       });
-      exams = exams.filter((exam) => canTeacherManageExam(scopeKeys, exam));
+      exams = exams.filter((exam) => canTeacherManageExam(scopeKeys, exam) && isExamCompleted(exam));
     }
 
     res.status(200).json(exams);
@@ -1007,6 +1081,9 @@ router.get("/results/exam-students", adminOrTeacherAuth, async (req, res) => {
       });
       if (!canTeacherManageExam(scopeKeys, exam)) {
         return res.status(403).json({ error: 'You are not allocated for this exam' });
+      }
+      if (!isExamCompleted(exam)) {
+        return res.status(400).json({ error: 'Teachers can upload marks only for completed exams' });
       }
     }
 
@@ -1161,6 +1238,7 @@ router.post("/results/bulk-upload", adminOrTeacherAuth, upload.single('file'), a
         const errors = [];
         let successCount = 0;
         let errorCount = 0;
+        const uploadedExamMeta = new Map();
 
         for (const sheetName of workbook.SheetNames) {
             if (sheetName === 'ExamsData') continue; // Skip the data sheet
@@ -1191,6 +1269,11 @@ router.post("/results/bulk-upload", adminOrTeacherAuth, upload.single('file'), a
                     }
                     if (isTeacherUser && !canTeacherManageExam(teacherScopeKeys, exam)) {
                         errors.push(`Sheet "${sheetName}", Row ${i + 2}: You are not allocated for this exam`);
+                        errorCount++;
+                        continue;
+                    }
+                    if (isTeacherUser && !isExamCompleted(exam)) {
+                        errors.push(`Sheet "${sheetName}", Row ${i + 2}: Teachers can upload marks only for completed exams`);
                         errorCount++;
                         continue;
                     }
@@ -1273,6 +1356,7 @@ router.post("/results/bulk-upload", adminOrTeacherAuth, upload.single('file'), a
                     );
 
                     successCount++;
+                    uploadedExamMeta.set(String(exam._id), exam);
                 } catch (err) {
                     errors.push(`Sheet "${sheetName}", Row ${i + 2}: ${err.message}`);
                     errorCount++;
@@ -1282,6 +1366,22 @@ router.post("/results/bulk-upload", adminOrTeacherAuth, upload.single('file'), a
 
         // Clean up uploaded file
         fs.unlinkSync(filePath);
+
+        if (isTeacherUser && successCount > 0) {
+            const teacherId = req.user?.id || null;
+            const teacherName = await getTeacherDisplayName(teacherId);
+            const uploadedExams = Array.from(uploadedExamMeta.values());
+            const representativeExam = uploadedExams[0] || null;
+            await notifyAdminTeacherResultUpload({
+                schoolId,
+                campusId,
+                teacherId,
+                teacherName,
+                exam: representativeExam,
+                uploadedCount: successCount,
+                multipleExams: uploadedExams.length > 1,
+            });
+        }
 
         res.status(200).json({
             success: true,
@@ -1413,6 +1513,12 @@ router.put("/results/:id", adminOrTeacherAuth, async (req, res) => {
       if (!canTeacherManageExam(scopeKeys, exam)) {
         return res.status(403).json({ error: 'You are not allocated for this exam' });
       }
+      if (!isExamCompleted(exam)) {
+        return res.status(400).json({ error: 'Teachers can upload marks only for completed exams' });
+      }
+      if (published !== undefined) {
+        return res.status(403).json({ error: 'Teachers cannot publish/unpublish results' });
+      }
     }
     if (!student) return res.status(404).json({ error: 'Student not found' });
     if (!studentMatchesExamScope(student, exam)) {
@@ -1465,6 +1571,20 @@ router.put("/results/:id", adminOrTeacherAuth, async (req, res) => {
       .populate('studentId', 'name grade section roll academicYear')
       .populate('examId', 'title subject date term grade section classId sectionId subjectId')
       .lean();
+
+    if (req.userType === 'teacher') {
+      const teacherId = req.user?.id || null;
+      const teacherName = await getTeacherDisplayName(teacherId);
+      await notifyAdminTeacherResultUpload({
+        schoolId,
+        campusId,
+        teacherId,
+        teacherName,
+        exam,
+        uploadedCount: 1,
+        multipleExams: false,
+      });
+    }
 
     res.status(200).json({ message: 'Result updated successfully', result: updated });
   } catch (err) {
