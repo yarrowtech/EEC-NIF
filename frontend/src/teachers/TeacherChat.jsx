@@ -443,7 +443,7 @@ const MessageLinkPreview = ({ url, isMine, theme }) => {
           <div className={`text-[11px] truncate ${subtext}`}>{preview.host}</div>
           {preview.path && <div className={`text-[11px] truncate ${subtext}`}>{preview.path}</div>}
         </div>
-        <ExternalLink className={`h-3.5 w-3.5 mt-0.5 shrink-0 ${subtext}`} />
+        {/* <ExternalLink className={`h-3.5 w-3.5 mt-0.5 shrink-0 ${subtext}`} /> */}
       </div>
     </a>
   );
@@ -454,6 +454,7 @@ const ChatMessage = ({
   isMine,
   myId,
   fallbackSenderName = '',
+  showSenderLabel = true,
   theme,
   canEdit = false,
   isEditing = false,
@@ -493,16 +494,18 @@ const ChatMessage = ({
   return (
   <div className={`flex ${isMine ? 'justify-end' : 'justify-start'} mb-3`}>
     <div
-      className={`max-w-[78%] w-fit rounded-2xl px-4 py-2.5 text-sm shadow-sm
+      className={`max-w-[78%] w-fit rounded-xl px-4 py-1 text-sm shadow-sm
         ${isMine ? 'text-white rounded-br-sm' : 'bg-white text-gray-800 rounded-bl-sm'}`}
       style={isMine ? { backgroundColor: t.color } : {}}
     >
-      <div
-        className="text-xs font-semibold mb-1"
-        style={isMine ? { color: 'rgba(255,255,255,0.85)' } : { color: t.color }}
-      >
-        {senderLabel}
-      </div>
+      {showSenderLabel && (
+        <div
+          className="text-xs font-semibold mb-1"
+          style={isMine ? { color: 'rgba(255,255,255,0.85)' } : { color: t.color }}
+        >
+          {senderLabel}
+        </div>
+      )}
       {isEditing ? (
         <div className="space-y-2">
           <textarea
@@ -548,7 +551,10 @@ const ChatMessage = ({
         </div>
       ) : (
         <>
-          <div className="whitespace-pre-wrap leading-relaxed break-words">
+          {links.map((url) => (
+            <MessageLinkPreview key={url} url={url} isMine={isMine} theme={t} />
+          ))}
+          <div className="whitespace-pre-wrap leading-relaxed break-words flex justify-between items-end">
             {textParts.map((part, index) => (
               part.type === 'link' ? (
                 <a
@@ -578,9 +584,6 @@ const ChatMessage = ({
               )}
             </span>
           </div>
-          {links.map((url) => (
-            <MessageLinkPreview key={url} url={url} isMine={isMine} theme={t} />
-          ))}
           {isLongMessage && (
             <button
               type="button"
@@ -1678,11 +1681,14 @@ const TeacherChat = () => {
   const handleSetTheme     = (key) => { setThemeKey(key);     localStorage.setItem('teacher_chat_theme',    key); };
 
   const isTypingInActive = activeThreadId ? typingUsers[activeThreadId] : null;
+  const isGroupActiveThread = String(activeThread?.threadType || '').toLowerCase() === 'group';
   const showSidebar = !isMobileView || !activeThreadId;
   const showMain = !isMobileView || activeThreadId;
   const activeParticipantType = String(activeThread?.otherParticipant?.userType || '').toLowerCase();
   const activeParticipantLabel =
-    activeParticipantType === 'parent'
+    activeParticipantType === 'group'
+      ? 'Group'
+      : activeParticipantType === 'parent'
       ? 'Parent'
       : activeParticipantType === 'student'
       ? 'Student'
@@ -2071,6 +2077,7 @@ const TeacherChat = () => {
                             isMine={isSameId(msg.senderId, me?.id)}
                             myId={me?.id}
                             fallbackSenderName={activeThread?.otherParticipant?.name || ''}
+                            showSenderLabel={isGroupActiveThread}
                             theme={theme}
                             canEdit={canEditOwnMessage(msg, me?.id)}
                             isEditing={String(editingMessageId) === String(msg._id)}

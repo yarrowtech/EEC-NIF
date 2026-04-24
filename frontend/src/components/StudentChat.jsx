@@ -613,7 +613,7 @@ const MessageLinkPreview = ({ url, isMine, theme }) => {
           <div className={`text-[11px] truncate ${subtext}`}>{preview.host}</div>
           {preview.path && <div className={`text-[11px] truncate ${subtext}`}>{preview.path}</div>}
         </div>
-        <ExternalLink className={`h-3.5 w-3.5 mt-0.5 shrink-0 ${subtext}`} />
+        {/* <ExternalLink className={`h-3.5 w-3.5 mt-0.5 shrink-0 ${subtext}`} /> */}
       </div>
     </a>
   );
@@ -623,6 +623,7 @@ const ChatMessage = ({
   msg,
   isMine,
   myId,
+  showSenderLabel = true,
   theme,
   canEdit = false,
   isEditing = false,
@@ -661,16 +662,18 @@ const ChatMessage = ({
   return (
   <div className={`flex ${isMine ? 'justify-end' : 'justify-start'} mb-3`}>
     <div
-      className={`relative max-w-[78%] w-fit rounded-2xl px-4 py-2.5 text-sm shadow-sm
+      className={`relative max-w-[78%] w-fit rounded-xl px-4 py-1 text-sm shadow-sm
         ${isMine ? 'text-white rounded-br-sm' : 'bg-white text-gray-800 rounded-bl-sm'}`}
       style={isMine ? { backgroundColor: t.color } : {}}
     >
-      <div
-        className="text-xs font-semibold mb-1"
-        style={isMine ? { color: 'rgba(255,255,255,0.85)' } : { color: t.color }}
-      >
-        {senderLabel}
-      </div>
+      {showSenderLabel && (
+        <div
+          className="text-xs font-semibold mb-1"
+          style={isMine ? { color: 'rgba(255,255,255,0.85)' } : { color: t.color }}
+        >
+          {senderLabel}
+        </div>
+      )}
       {isEditing ? (
         <div className="space-y-2">
           <textarea
@@ -716,7 +719,10 @@ const ChatMessage = ({
         </div>
       ) : (
         <>
-          <div className="whitespace-pre-wrap leading-relaxed break-words">
+          {links.map((url) => (
+            <MessageLinkPreview key={url} url={url} isMine={isMine} theme={t} />
+          ))}
+          <div className="whitespace-pre-wrap leading-relaxed break-words flex justify-between items-end">
             {textParts.map((part, index) => (
               part.type === 'link' ? (
                 <a
@@ -746,9 +752,6 @@ const ChatMessage = ({
               )}
             </span>
           </div>
-          {links.map((url) => (
-            <MessageLinkPreview key={url} url={url} isMine={isMine} theme={t} />
-          ))}
           {isLongMessage && (
             <button
               type="button"
@@ -890,6 +893,7 @@ const StudentChat = () => {
     () => threads.find(t => String(t._id) === activeThreadId),
     [threads, activeThreadId]
   );
+  const isGroupActiveThread = String(activeThread?.threadType || '').toLowerCase() === 'group';
 
   const decryptForUI = useCallback(async (rawMsg) => {
     if (!rawMsg) return rawMsg;
@@ -1488,6 +1492,8 @@ const StudentChat = () => {
   const showMain    = !isMobileView || activeThreadId;
 
   const activeTeacher = activeThread?.otherParticipant || null;
+  const activeParticipantType = String(activeTeacher?.userType || '').toLowerCase();
+  const activeParticipantLabel = activeParticipantType === 'group' ? 'Group' : 'Teacher';
   const activePresence = activeTeacher?.userId ? presenceByUser[String(activeTeacher.userId)] : null;
   const activeStatusText = isTypingInActive
     ? `${isTypingInActive} is typing...`
@@ -1495,7 +1501,9 @@ const StudentChat = () => {
     ? 'online'
     : activePresence?.lastSeen
     ? `last seen ${formatLastSeen(activePresence.lastSeen)}`
-    : (activeTeacher?.subject || activeTeacher?.subjects?.[0] || 'Teacher');
+    : (activeParticipantType === 'group'
+      ? 'Group'
+      : (activeTeacher?.subject || activeTeacher?.subjects?.[0] || 'Teacher'));
 
   return (
     <>
@@ -1788,7 +1796,7 @@ const StudentChat = () => {
                     </button>
                     <div>
                       <div className="font-semibold text-gray-900 text-sm">
-                        {activeTeacher?.name || 'Teacher'}
+                        {activeTeacher?.name || activeParticipantLabel}
                       </div>
                       <div className="text-xs text-gray-500">
                         <span style={isTypingInActive ? { color: theme.color, fontWeight: 500 } : {}}>{activeStatusText}</span>
@@ -1830,7 +1838,7 @@ const StudentChat = () => {
                       {/* Show teacher avatar in empty state */}
                       <Avatar src={pickImg(activeTeacher)} name={activeTeacher?.name || ''} size="lg" />
                       <div className="text-center">
-                        <p className="text-sm font-semibold text-gray-700">{activeTeacher?.name || 'Teacher'}</p>
+                        <p className="text-sm font-semibold text-gray-700">{activeTeacher?.name || activeParticipantLabel}</p>
                         <p className="text-xs text-gray-400 mt-1">No messages yet — say hello!</p>
                       </div>
                     </div>
@@ -1850,11 +1858,12 @@ const StudentChat = () => {
                               </div>
                             )}
                             <ChatMessage
-                              msg={msg}
-                              isMine={isSameId(msg.senderId, me?.id)}
-                              myId={me?.id}
-                              theme={theme}
-                              canEdit={canEditOwnMessage(msg, me?.id)}
+                            msg={msg}
+                            isMine={isSameId(msg.senderId, me?.id)}
+                            myId={me?.id}
+                            showSenderLabel={isGroupActiveThread}
+                            theme={theme}
+                            canEdit={canEditOwnMessage(msg, me?.id)}
                               isEditing={String(editingMessageId) === String(msg._id)}
                               editDraft={editDraft}
                               editSaving={editSaving}
