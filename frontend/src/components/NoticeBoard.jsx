@@ -44,6 +44,23 @@ const resolveType = (notice) => {
 };
 const resolveDate = (notice) => notice?.date || notice?.createdAt || notice?.updatedAt || null;
 const resolveId = (notice) => notice?._id || notice?.id;
+const shouldHideNoticeFromNoticeboard = (notice) => {
+  const typeLabel = String(notice?.typeLabel || '').trim().toLowerCase();
+  const type = String(notice?.type || '').trim().toLowerCase();
+  const title = String(notice?.title || '').trim().toLowerCase();
+  const message = String(notice?.message || '').trim().toLowerCase();
+
+  if (typeLabel === 'attendance_marked') return true;
+  if (type === 'class_note' || typeLabel === 'class note') return true;
+  if (
+    type === 'achievement' ||
+    typeLabel === 'achievement' ||
+    title.includes('achievement') ||
+    message.includes('achievement')
+  ) return true;
+
+  return false;
+};
 
 const resolveAuthor = (notice) => {
   const rawName = notice?.createdByName || '';
@@ -257,7 +274,8 @@ const NoticeBoard = () => {
             headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
           },
         });
-        setNotices(Array.isArray(data) ? data : []);
+        const incomingNotices = Array.isArray(data) ? data : [];
+        setNotices(incomingNotices.filter((notice) => !shouldHideNoticeFromNoticeboard(notice)));
         setLastUpdated(new Date());
 
         setTeacherLoading(true);

@@ -8,6 +8,7 @@
     "test:coverage": "jest --coverage",
     "swagger:gen": "node swagger.js",
     "security:suite": "node scripts/productionSecurityAttackSuite.js",
+    "push:keys": "node scripts/generateVapidKeys.js",
     "start": "node index.js",
     "dev": "nodemon index.js"
   },
@@ -37,6 +38,7 @@
     "socket.io": "^4.8.3",
     "swagger-autogen": "^2.23.7",
     "swagger-ui-express": "^5.0.1",
+    "web-push": "^3.6.7",
     "xlsx": "^0.18.5"
   }
 }

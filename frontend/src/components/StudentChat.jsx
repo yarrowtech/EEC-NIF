@@ -1022,13 +1022,20 @@ const StudentChat = () => {
     });
     socketRef.current = socket;
 
+    socket.on('connect', () => {
+      const currentThreadId = activeThreadIdRef.current;
+      if (!currentThreadId) return;
+      socket.emit('join-thread', { threadId: currentThreadId });
+      socket.emit('mark-seen', { threadId: currentThreadId });
+    });
+
     socket.on('new-message', async (rawMsg) => {
       const msg = await decryptForUI(rawMsg);
       const threadId = String(msg.threadId);
       const isActiveThread = String(activeThreadIdRef.current) === threadId;
       const isIncomingForMe = !isSameId(msg.senderId, meRef.current?.id);
       setMessages(prev => {
-        if (activeThreadIdRef.current !== threadId) return prev;
+        if (String(activeThreadIdRef.current) !== threadId) return prev;
         if (isSameId(msg.senderId, meRef.current?.id)) {
           const optIdx = prev.findLastIndex(m => m._optimistic);
           if (optIdx !== -1) {
@@ -1063,12 +1070,10 @@ const StudentChat = () => {
 
     socket.on('thread-updated', async ({ threadId, lastMessage, lastMessageAt, message }) => {
       let resolvedLastMessage = lastMessage;
+      let decryptedMessage = null;
       if (message) {
-        resolvedLastMessage = await decryptChatMessage({
-          message,
-          myId: meRef.current?.id,
-          privateKeyBase64: privateKeyRef.current,
-        });
+        decryptedMessage = await decryptForUI(message);
+        resolvedLastMessage = decryptedMessage?.text || resolvedLastMessage;
       }
       setThreads(prev => prev.map(t =>
         String(t._id) === threadId
@@ -1082,6 +1087,26 @@ const StudentChat = () => {
             }
           : t
       ));
+
+      if (decryptedMessage && String(activeThreadIdRef.current) === String(threadId)) {
+        const isIncomingForMe = !isSameId(decryptedMessage.senderId, meRef.current?.id);
+        setMessages((prev) => {
+          if (prev.find((m) => String(m._id) === String(decryptedMessage._id))) return prev;
+          const hydrated = isIncomingForMe
+            ? {
+                ...decryptedMessage,
+                seenBy: [
+                  ...(Array.isArray(decryptedMessage.seenBy) ? decryptedMessage.seenBy : []),
+                  { userId: meRef.current?.id, seenAt: new Date().toISOString() },
+                ],
+              }
+            : decryptedMessage;
+          return [...prev, hydrated];
+        });
+        if (isIncomingForMe) {
+          socket.emit('mark-seen', { threadId: String(threadId) });
+        }
+      }
     });
 
     socket.on('message-edited', async ({ threadId, message }) => {
@@ -1329,7 +1354,7 @@ const StudentChat = () => {
       sendPayload().then((encrypted) => {
         socketRef.current.emit('send-message', {
           threadId: activeThreadId,
-          text: encrypted ? '' : text,
+          text,
           encrypted: encrypted || undefined,
         });
       }).catch(() => {
@@ -1339,7 +1364,7 @@ const StudentChat = () => {
       sendPayload().then((encrypted) => {
         return apiFetch(`/api/chat/threads/${activeThreadId}/messages`, {
           method: 'POST',
-          body: JSON.stringify({ text: encrypted ? '' : text, encrypted: encrypted || undefined }),
+          body: JSON.stringify({ text, encrypted: encrypted || undefined }),
         });
       }).then(async (msg) => {
         const decrypted = await decryptForUI(msg);
@@ -1392,7 +1417,7 @@ const StudentChat = () => {
       });
       const updated = await apiFetch(`/api/chat/threads/${activeThreadId}/messages/${messageId}`, {
         method: 'PATCH',
-        body: JSON.stringify({ text: encrypted ? '' : text, encrypted: encrypted || undefined }),
+        body: JSON.stringify({ text, encrypted: encrypted || undefined }),
       });
       const decrypted = await decryptForUI(updated);
       setMessages((prev) =>

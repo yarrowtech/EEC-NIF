@@ -13,6 +13,8 @@ import {
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { apiFetch } from '../utils/authSession';
+import { useDesktopNotificationBridge } from '../hooks/useDesktopNotificationBridge';
+import DesktopNotificationPermissionModal from '../components/DesktopNotificationPermissionModal';
 const API_BASE = (import.meta.env.VITE_API_URL || 'http://localhost:5000').replace(/\/$/, '');
 const DESKTOP_SEARCH_LISTBOX_ID = 'admin-header-search-suggestions-desktop';
 const MOBILE_SEARCH_LISTBOX_ID = 'admin-header-search-suggestions-mobile';
@@ -154,7 +156,7 @@ const AdminHeader = ({ adminUser, onOpenMobileSidebar, onLogoutRequest }) => {
     setShowProfileMenu(false);
   }, [markAllRead, showNotifications, unreadCount]);
 
-  const resolveNotifPath = (n) => {
+  const resolveNotifPath = useCallback((n) => {
     const title = String(n?.title || '').toLowerCase();
     const type  = String(n?.typeLabel || '').toLowerCase();
     if (type.includes('leave request') || title.includes('leave request')) return '/admin/hr?tab=leaves';
@@ -167,7 +169,22 @@ const AdminHeader = ({ adminUser, onOpenMobileSidebar, onLogoutRequest }) => {
       title.includes('support request resolved')
     ) return '/admin/support#recent-requests';
     return '/admin/notices';
-  };
+  }, []);
+  const {
+    showPermissionModal,
+    pendingCount,
+    syncNotifications,
+    requestPermissionFromModal,
+    dismissPermissionModal,
+  } = useDesktopNotificationBridge({
+    scopeKey: 'admin',
+    resolvePath: resolveNotifPath,
+    appName: 'Admin Portal',
+  });
+
+  useEffect(() => {
+    syncNotifications(notifications);
+  }, [notifications, syncNotifications]);
 
   const timeAgo = (val) => {
     if (!val) return '';
@@ -324,6 +341,7 @@ const AdminHeader = ({ adminUser, onOpenMobileSidebar, onLogoutRequest }) => {
   }, []);
 
   return (
+    <>
     <header className="bg-white border-b border-gray-100 shadow-sm z-30">
       <div className="flex items-center gap-3 px-4 py-3 h-[60px]">
 
@@ -678,6 +696,13 @@ const AdminHeader = ({ adminUser, onOpenMobileSidebar, onLogoutRequest }) => {
         </div>
       )}
     </header>
+    <DesktopNotificationPermissionModal
+      open={showPermissionModal}
+      onAllow={requestPermissionFromModal}
+      onLater={dismissPermissionModal}
+      pendingCount={pendingCount}
+    />
+    </>
   );
 };
 

@@ -55,6 +55,12 @@ const isEncryptedPreviewPlaceholder = (value = '') => {
   return normalized.includes('encrypted message') || normalized.includes('encrypted msg');
 };
 
+const sanitizePreviewText = (value = '') => {
+  const normalized = String(value || '').trim();
+  if (!normalized) return '';
+  return isEncryptedPreviewPlaceholder(normalized) ? '' : normalized;
+};
+
 const normalizeId = (value) => {
   if (value == null) return '';
   if (typeof value === 'string' || typeof value === 'number') return String(value);
@@ -447,6 +453,7 @@ const ChatMessage = ({
   msg,
   isMine,
   myId,
+  fallbackSenderName = '',
   theme,
   canEdit = false,
   isEditing = false,
@@ -472,7 +479,8 @@ const ChatMessage = ({
   const delivered = isMine && !optimistic;
   const seen = isMine && delivered && isSeenByOther(msg, myId);
   const LONG_MESSAGE_LIMIT = 260;
-  const fullText = String(msg?.text || '');
+  const messageText = String(msg?.text || '').trim();
+  const fullText = messageText || (msg?.encrypted ? '[Encrypted message]' : '');
   const isLongMessage = fullText.length > LONG_MESSAGE_LIMIT;
   const [expanded, setExpanded] = useState(false);
   const visibleText = isLongMessage && !expanded
@@ -480,7 +488,7 @@ const ChatMessage = ({
     : fullText;
   const textParts = useMemo(() => linkifyMessageText(visibleText), [visibleText]);
   const links = useMemo(() => extractMessageLinks(fullText).slice(0, 2), [fullText]);
-  const senderLabel = isMine ? 'You' : (msg?.senderName || 'User');
+  const senderLabel = isMine ? 'You' : (msg?.senderName || fallbackSenderName || 'User');
 
   return (
   <div className={`flex ${isMine ? 'justify-end' : 'justify-start'} mb-3`}>
@@ -613,7 +621,6 @@ const ConversationItem = ({ thread, isActive, onClick, typingName, theme }) => {
   const t      = theme || THEMES.blue;
   const other  = thread.otherParticipant;
   const name   = other?.name || 'Unknown';
-  const initials = getInitials(name);
   const unread = thread.unreadCount || 0;
   const isTyping = Boolean(typingName);
 
@@ -625,12 +632,11 @@ const ConversationItem = ({ thread, isActive, onClick, typingName, theme }) => {
       style={isActive ? { backgroundColor: t.lighter, borderLeft: `4px solid ${t.color}` } : {}}
     >
       <div className="relative shrink-0">
-        <div
-          className="h-11 w-11 rounded-full flex items-center justify-center text-white font-semibold text-sm"
-          style={{ background: `linear-gradient(135deg, ${t.color}99, ${t.color})` }}
-        >
-          {initials}
-        </div>
+        <UserAvatar
+          src={other?.avatar}
+          name={name}
+          className="h-11 w-11 text-sm"
+        />
       </div>
       <div className="flex-1 min-w-0">
         <div className="flex items-center justify-between">
@@ -916,44 +922,102 @@ const TeacherChat = () => {
   const isTyping = useRef(false);
   const meRef = useRef(null);
   const privateKeyRef = useRef('');
+  const keyRefreshInFlightRef = useRef(null);
+  const meBootstrapInFlightRef = useRef(null);
   const shouldAutoScrollRef = useRef(true);
 
   const activeThread = useMemo(() => threads.find(t => String(t._id) === activeThreadId), [threads, activeThreadId]);
 
+  const refreshIdentityIfNeeded = useCallback(async () => {
+    const myId = meRef.current?.id;
+    if (!myId) return;
+    if (keyRefreshInFlightRef.current) {
+      await keyRefreshInFlightRef.current;
+      return;
+    }
+    keyRefreshInFlightRef.current = (async () => {
+      try {
+        const identity = await ensureE2EEIdentity({ userId: myId, apiFetch });
+        privateKeyRef.current = identity?.privateKey || privateKeyRef.current || '';
+      } catch {
+        // best effort
+      }
+    })();
+    try {
+      await keyRefreshInFlightRef.current;
+    } finally {
+      keyRefreshInFlightRef.current = null;
+    }
+  }, []);
+
+  const ensureIdentityReadyForDecrypt = useCallback(async () => {
+    if (!meRef.current?.id) {
+      if (!meBootstrapInFlightRef.current) {
+        meBootstrapInFlightRef.current = (async () => {
+          try {
+            const meData = await apiFetch('/api/chat/me');
+            if (meData?.id) {
+              setMe((prev) => prev || meData);
+              meRef.current = meData;
+              localStorage.setItem(LAST_TEACHER_CHAT_ME_KEY, String(meData.id));
+            }
+          } catch {
+            // best effort
+          }
+        })();
+      }
+      try {
+        await meBootstrapInFlightRef.current;
+      } finally {
+        meBootstrapInFlightRef.current = null;
+      }
+    }
+    if (!privateKeyRef.current) {
+      await refreshIdentityIfNeeded();
+    }
+  }, [refreshIdentityIfNeeded]);
+
   const decryptForUI = useCallback(async (rawMsg) => {
     if (!rawMsg) return rawMsg;
     if (rawMsg.text && String(rawMsg.text).trim()) return rawMsg;
-    const plainText = await decryptChatMessage({
+    await ensureIdentityReadyForDecrypt();
+    let plainText = await decryptChatMessage({
       message: rawMsg,
       myId: meRef.current?.id,
       privateKeyBase64: privateKeyRef.current,
     });
+    if (!String(plainText || '').trim() && rawMsg?.encrypted) {
+      await refreshIdentityIfNeeded();
+      plainText = await decryptChatMessage({
+        message: rawMsg,
+        myId: meRef.current?.id,
+        privateKeyBase64: privateKeyRef.current,
+      });
+    }
     return { ...rawMsg, text: plainText };
-  }, []);
+  }, [refreshIdentityIfNeeded, ensureIdentityReadyForDecrypt]);
 
   const decryptThreadPreview = useCallback(async (thread) => {
     if (!thread) return thread;
     const payload = thread.lastMessagePayload;
-    if (!payload) return thread;
+    if (!payload) return { ...thread, lastMessage: sanitizePreviewText(thread.lastMessage) };
     const preview = await decryptChatMessage({
       message: payload,
       myId: meRef.current?.id,
       privateKeyBase64: privateKeyRef.current,
     });
-    const safePreview = String(preview || '').trim();
-    if (safePreview && !isEncryptedPreviewPlaceholder(safePreview)) {
+    const safePreview = sanitizePreviewText(preview);
+    if (safePreview) {
       return { ...thread, lastMessage: safePreview };
     }
-    const fallback = String(thread.lastMessage || '').trim();
-    return { ...thread, lastMessage: isEncryptedPreviewPlaceholder(fallback) ? '' : fallback };
+    return { ...thread, lastMessage: sanitizePreviewText(thread.lastMessage) };
   }, []);
 
   const hydrateEncryptedThreadPreviews = useCallback(async (threadList) => {
     if (!Array.isArray(threadList) || threadList.length === 0) return threadList;
     const candidates = threadList.filter((thread) => {
       const preview = String(thread?.lastMessage || '').trim();
-      const hasPayload = Boolean(thread?.lastMessagePayload);
-      return isEncryptedPreviewPlaceholder(preview) || (!preview && !hasPayload && Boolean(thread?.lastMessageAt));
+      return isEncryptedPreviewPlaceholder(preview) || (!preview && Boolean(thread?.lastMessageAt));
     });
     if (candidates.length === 0) return threadList;
     const recovered = await Promise.all(
@@ -963,8 +1027,8 @@ const TeacherChat = () => {
           const latest = (Array.isArray(msgs) ? msgs : []).slice(-1)[0];
           if (!latest) return [String(thread._id), null];
           const decrypted = await decryptForUI(latest);
-          const text = String(decrypted?.text || '').trim();
-          return [String(thread._id), text && !isEncryptedPreviewPlaceholder(text) ? text : null];
+          const text = sanitizePreviewText(decrypted?.text);
+          return [String(thread._id), text || null];
         } catch {
           return [String(thread._id), null];
         }
@@ -1089,16 +1153,22 @@ const TeacherChat = () => {
     socket.on('new-message', async (rawMsg) => {
       const msg = await decryptForUI(rawMsg);
       const threadId = String(msg.threadId);
+      const previewText = sanitizePreviewText(msg?.text);
       const isActiveThread = String(activeThreadIdRef.current) === threadId;
       const isIncomingForMe = !isSameId(msg.senderId, meRef.current?.id);
+      let optimisticTextForMine = '';
       setMessages(prev => {
         if (activeThreadIdRef.current !== threadId) return prev;
         // Sender already has an optimistic copy — replace it, don't append
         if (isSameId(msg.senderId, meRef.current?.id)) {
           const optIdx = prev.findLastIndex(m => m._optimistic);
           if (optIdx !== -1) {
+            optimisticTextForMine = String(prev[optIdx]?.text || '').trim();
             const next = [...prev];
-            next[optIdx] = msg;
+            const safeAckText = String(msg?.text || '').trim();
+            next[optIdx] = safeAckText
+              ? msg
+              : { ...msg, text: optimisticTextForMine };
             return next;
           }
         }
@@ -1119,7 +1189,7 @@ const TeacherChat = () => {
         String(t._id) === threadId
           ? {
               ...t,
-              lastMessage: msg.text,
+              lastMessage: previewText || optimisticTextForMine || sanitizePreviewText(t.lastMessage),
               lastMessageAt: msg.createdAt,
               unreadCount: activeThreadIdRef.current === threadId ? 0 : (t.unreadCount || 0) + 1,
             }
@@ -1132,19 +1202,16 @@ const TeacherChat = () => {
     });
 
     socket.on('thread-updated', async ({ threadId, lastMessage, lastMessageAt, message }) => {
-      let resolvedLastMessage = lastMessage;
+      let resolvedLastMessage = sanitizePreviewText(lastMessage);
       if (message) {
-        resolvedLastMessage = await decryptChatMessage({
-          message,
-          myId: meRef.current?.id,
-          privateKeyBase64: privateKeyRef.current,
-        });
+        const decrypted = await decryptForUI(message);
+        resolvedLastMessage = sanitizePreviewText(decrypted?.text) || resolvedLastMessage;
       }
       setThreads(prev => prev.map(t =>
         String(t._id) === threadId
           ? {
               ...t,
-              lastMessage: resolvedLastMessage,
+              lastMessage: resolvedLastMessage || sanitizePreviewText(t.lastMessage),
               lastMessageAt,
               unreadCount: activeThreadIdRef.current === threadId
                 ? 0
@@ -1317,16 +1384,27 @@ const TeacherChat = () => {
       }
       const msgs = await apiFetch(`/api/chat/threads/${threadId}/messages`);
       const decrypted = await Promise.all((Array.isArray(msgs) ? msgs : []).map((msg) => decryptForUI(msg)));
-      setMessages(decrypted);
+      const cachedById = new Map(
+        (Array.isArray(cachedMessages) ? cachedMessages : []).map((msg) => [String(msg?._id || ''), msg])
+      );
+      const mergedMessages = decrypted.map((msg) => {
+        const currentText = String(msg?.text || '').trim();
+        if (currentText) return msg;
+        const cachedMsg = cachedById.get(String(msg?._id || ''));
+        const cachedText = String(cachedMsg?.text || '').trim();
+        return cachedText ? { ...msg, text: cachedText } : msg;
+      });
+      setMessages(mergedMessages);
       if (userId) {
-        writeChatCache(chatCacheKeys.messages(userId, threadId), decrypted.slice(-120));
+        writeChatCache(chatCacheKeys.messages(userId, threadId), mergedMessages.slice(-120));
       }
-      const latest = decrypted[decrypted.length - 1];
+      const latest = mergedMessages[mergedMessages.length - 1];
       if (latest?.text) {
+        const safeLatestText = sanitizePreviewText(latest.text);
         setThreads((prev) =>
           prev.map((thread) =>
             String(thread._id) === String(threadId)
-              ? { ...thread, lastMessage: latest.text, lastMessageAt: latest.createdAt || thread.lastMessageAt }
+              ? { ...thread, lastMessage: safeLatestText || thread.lastMessage, lastMessageAt: latest.createdAt || thread.lastMessageAt }
               : thread
           )
         );
@@ -1469,7 +1547,7 @@ const TeacherChat = () => {
       sendPayload().then((encrypted) => {
         socketRef.current.emit('send-message', {
           threadId: activeThreadId,
-          text: encrypted ? '' : text,
+          text,
           encrypted: encrypted || undefined,
         });
       }).catch(() => {
@@ -1479,7 +1557,7 @@ const TeacherChat = () => {
       sendPayload().then((encrypted) => {
         return apiFetch(`/api/chat/threads/${activeThreadId}/messages`, {
           method: 'POST',
-          body: JSON.stringify({ text: encrypted ? '' : text, encrypted: encrypted || undefined }),
+          body: JSON.stringify({ text, encrypted: encrypted || undefined }),
         });
       }).then(async (msg) => {
         const decrypted = await decryptForUI(msg);
@@ -1489,9 +1567,9 @@ const TeacherChat = () => {
       });
     }
 
-    setThreads(prev => prev.map(t =>
-      String(t._id) === activeThreadId
-        ? { ...t, lastMessage: text, lastMessageAt: new Date().toISOString() }
+      setThreads(prev => prev.map(t =>
+        String(t._id) === activeThreadId
+        ? { ...t, lastMessage: sanitizePreviewText(text) || t.lastMessage, lastMessageAt: new Date().toISOString() }
         : t
     ));
 
@@ -1532,7 +1610,7 @@ const TeacherChat = () => {
       });
       const updated = await apiFetch(`/api/chat/threads/${activeThreadId}/messages/${messageId}`, {
         method: 'PATCH',
-        body: JSON.stringify({ text: encrypted ? '' : text, encrypted: encrypted || undefined }),
+        body: JSON.stringify({ text, encrypted: encrypted || undefined }),
       });
       const decrypted = await decryptForUI(updated);
       setMessages((prev) =>
@@ -1915,10 +1993,13 @@ const TeacherChat = () => {
                     </button>
                   )}
                   <div
-                    className="h-9 w-9 rounded-full flex items-center justify-center text-white font-semibold text-sm shrink-0"
-                    style={{ background: `linear-gradient(135deg, ${theme.color}99, ${theme.color})` }}
+                    className="shrink-0"
                   >
-                    {getInitials(activeThread?.otherParticipant?.name || '')}
+                    <UserAvatar
+                      src={activeThread?.otherParticipant?.avatar}
+                      name={activeThread?.otherParticipant?.name || activeParticipantLabel}
+                      className="h-9 w-9 text-sm"
+                    />
                   </div>
                   <div>
                     <div className="font-semibold text-gray-900 text-sm">
@@ -1989,6 +2070,7 @@ const TeacherChat = () => {
                             msg={msg}
                             isMine={isSameId(msg.senderId, me?.id)}
                             myId={me?.id}
+                            fallbackSenderName={activeThread?.otherParticipant?.name || ''}
                             theme={theme}
                             canEdit={canEditOwnMessage(msg, me?.id)}
                             isEditing={String(editingMessageId) === String(msg._id)}

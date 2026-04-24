@@ -12,6 +12,8 @@ const ClassModel = require('../models/Class');
 const Section = require('../models/Section');
 const Subject = require('../models/Subject');
 const Timetable = require('../models/Timetable');
+const PushSubscription = require('../models/PushSubscription');
+const { initializeWebPush } = require('../utils/webPushService');
 const { logStudentPortalEvent, logStudentPortalError } = require('../utils/studentPortalLogger');
 
 const router = express.Router();
@@ -80,6 +82,15 @@ const normalizeAudienceFromUserType = (userType) => (
     ? userType.charAt(0).toUpperCase() + userType.slice(1)
     : 'unknown'
 );
+const normalizePushUserType = (userType) => {
+  const normalized = String(userType || '').trim().toLowerCase();
+  if (normalized === 'admin' || normalized === 'super_admin') return 'Admin';
+  if (normalized === 'teacher') return 'Teacher';
+  if (normalized === 'student') return 'Student';
+  if (normalized === 'parent') return 'Parent';
+  if (normalized === 'principal') return 'Principal';
+  return null;
+};
 
 const toComparableId = (value) => String(value?._id || value || '');
 
@@ -94,6 +105,83 @@ const toObjectIdIfPossible = (value) => (
 );
 
 const ADMIN_SELF_HIDDEN_TYPES = ['notice', 'announcement'];
+
+router.get('/push/public-key', authAnyUser, async (_req, res) => {
+  // #swagger.tags = ['Notifications']
+  const enabled = initializeWebPush();
+  const key = process.env.WEB_PUSH_PUBLIC_KEY || '';
+  return res.json({
+    enabled: Boolean(enabled && key),
+    publicKey: enabled ? key : '',
+  });
+});
+
+router.post('/push/subscribe', authAnyUser, async (req, res) => {
+  // #swagger.tags = ['Notifications']
+  try {
+    const schoolId = req.schoolId;
+    if (!schoolId) return res.status(400).json({ error: 'schoolId is required' });
+    const userId = req.user?.id;
+    if (!userId || !mongoose.isValidObjectId(userId)) {
+      return res.status(401).json({ error: 'User not authenticated' });
+    }
+    const userType = normalizePushUserType(req.userType || req.user?.userType || req.user?.type);
+    if (!userType) {
+      return res.status(400).json({ error: 'Unsupported user type for push subscription' });
+    }
+
+    const subscription = req.body?.subscription || req.body || {};
+    const endpoint = String(subscription?.endpoint || '').trim();
+    const p256dh = String(subscription?.keys?.p256dh || '').trim();
+    const auth = String(subscription?.keys?.auth || '').trim();
+    if (!endpoint || !p256dh || !auth) {
+      return res.status(400).json({ error: 'Invalid subscription payload' });
+    }
+
+    const expirationTime = subscription?.expirationTime ? new Date(subscription.expirationTime) : null;
+    const userAgent = String(req.headers['user-agent'] || '');
+
+    const doc = await PushSubscription.findOneAndUpdate(
+      { endpoint },
+      {
+        $set: {
+          schoolId,
+          campusId: req.campusId || null,
+          userId: new mongoose.Types.ObjectId(String(userId)),
+          userType,
+          endpoint,
+          expirationTime: expirationTime && !Number.isNaN(expirationTime.getTime()) ? expirationTime : null,
+          keys: { p256dh, auth },
+          userAgent,
+          disabled: false,
+        },
+      },
+      { new: true, upsert: true, setDefaultsOnInsert: true }
+    ).lean();
+
+    return res.json({ success: true, id: doc?._id });
+  } catch (err) {
+    return res.status(500).json({ error: err.message || 'Failed to save push subscription' });
+  }
+});
+
+router.post('/push/unsubscribe', authAnyUser, async (req, res) => {
+  // #swagger.tags = ['Notifications']
+  try {
+    const endpoint = String(req.body?.endpoint || '').trim();
+    const userId = req.user?.id;
+    if (!endpoint) return res.status(400).json({ error: 'endpoint is required' });
+    if (!userId) return res.status(401).json({ error: 'User not authenticated' });
+
+    await PushSubscription.deleteOne({
+      endpoint,
+      userId: toObjectIdIfPossible(userId),
+    });
+    return res.json({ success: true });
+  } catch (err) {
+    return res.status(500).json({ error: err.message || 'Failed to remove push subscription' });
+  }
+});
 
 // Admin creates a notification
 router.post('/', adminAuth, async (req, res) => {

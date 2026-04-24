@@ -40,6 +40,8 @@ import ParentObservationNonAcademic from './ParentObservationNonAcademic';
 import ParentChat from './ParentChat';
 import ClassRoutine from './ClassRoutine';
 import HolidayList from './HolidayList';
+import { useDesktopNotificationBridge } from '../hooks/useDesktopNotificationBridge';
+import DesktopNotificationPermissionModal from '../components/DesktopNotificationPermissionModal';
 import { AUTH_NOTICE, apiFetch, logoutAndRedirect } from '../utils/authSession';
 
 const MENU_ITEMS = [
@@ -310,6 +312,21 @@ const ParentPortal = () => {
     if (blob.includes('holiday')) return '/parents/holidays';
     return '/parents';
   }, []);
+  const {
+    showPermissionModal,
+    pendingCount,
+    syncNotifications,
+    requestPermissionFromModal,
+    dismissPermissionModal,
+  } = useDesktopNotificationBridge({
+    scopeKey: 'parent',
+    resolvePath: resolveNotifPath,
+    appName: 'Parent Portal',
+  });
+
+  useEffect(() => {
+    syncNotifications(notifications);
+  }, [notifications, syncNotifications]);
 
   const formatNotificationMessage = useCallback((message) => {
     if (!message) return '';
@@ -321,6 +338,7 @@ const ParentPortal = () => {
   }, []);
 
   return (
+    <>
     <div className="min-h-screen bg-gray-100 flex relative">
       {showLogoutConfirm && (
         <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
@@ -705,6 +723,13 @@ const ParentPortal = () => {
         </div>
       </div>
     </div>
+    <DesktopNotificationPermissionModal
+      open={showPermissionModal}
+      onAllow={requestPermissionFromModal}
+      onLater={dismissPermissionModal}
+      pendingCount={pendingCount}
+    />
+    </>
   );
 };
 

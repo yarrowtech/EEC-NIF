@@ -52,6 +52,8 @@ import ResultManagement from './ResultManagement';
 import HolidayList from './HolidayList';
 import TeacherAchievements from './TeacherAchievements';
 import TeacherAlcove from './TeacherAlcove';
+import { useDesktopNotificationBridge } from '../hooks/useDesktopNotificationBridge';
+import DesktopNotificationPermissionModal from '../components/DesktopNotificationPermissionModal';
 import { AUTH_NOTICE, apiFetch, logoutAndRedirect } from '../utils/authSession';
 
 const PORTAL_BASE = '/teacher';
@@ -375,8 +377,24 @@ const TeacherPortal = () => {
     if (blob.includes('health') || blob.includes('wellbeing')) return '/teacher/health-updates';
     return '/teacher/dashboard';
   }, []);
+  const {
+    showPermissionModal,
+    pendingCount,
+    syncNotifications,
+    requestPermissionFromModal,
+    dismissPermissionModal,
+  } = useDesktopNotificationBridge({
+    scopeKey: 'teacher',
+    resolvePath: resolveNotifPath,
+    appName: 'Teacher Portal',
+  });
+
+  useEffect(() => {
+    syncNotifications(notifications);
+  }, [notifications, syncNotifications]);
 
   return (
+    <>
     <div className="min-h-screen bg-slate-100 flex">
       {showLogoutConfirm && (
         <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
@@ -823,6 +841,13 @@ const TeacherPortal = () => {
         </main>
       </div>
     </div>
+    <DesktopNotificationPermissionModal
+      open={showPermissionModal}
+      onAllow={requestPermissionFromModal}
+      onLater={dismissPermissionModal}
+      pendingCount={pendingCount}
+    />
+    </>
   );
 };
 

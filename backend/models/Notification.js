@@ -1,4 +1,5 @@
 const mongoose = require('mongoose');
+const { sendPushForNotification } = require('../utils/webPushService');
 
 const notificationSchema = new mongoose.Schema(
   {
@@ -81,5 +82,27 @@ const notificationSchema = new mongoose.Schema(
 // Add compound indexes for efficient queries
 notificationSchema.index({ schoolId: 1, audience: 1, createdAt: -1 });
 notificationSchema.index({ schoolId: 1, campusId: 1, audience: 1 });
+
+notificationSchema.pre('save', function (next) {
+  this.$locals = this.$locals || {};
+  this.$locals.wasNew = this.isNew;
+  next();
+});
+
+notificationSchema.post('save', function (doc) {
+  if (!this?.$locals?.wasNew) return;
+  setImmediate(() => {
+    sendPushForNotification(doc).catch(() => {});
+  });
+});
+
+notificationSchema.post('insertMany', function (docs = []) {
+  if (!Array.isArray(docs) || docs.length === 0) return;
+  docs.forEach((doc) => {
+    setImmediate(() => {
+      sendPushForNotification(doc).catch(() => {});
+    });
+  });
+});
 
 module.exports = mongoose.model('Notification', notificationSchema);

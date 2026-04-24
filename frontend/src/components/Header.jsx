@@ -13,6 +13,8 @@ import {
 import { useNavigate } from 'react-router-dom';
 import { useStudentDashboard } from './StudentDashboardContext';
 import { useNotifications } from '../hooks/useNotifications';
+import { useDesktopNotificationBridge } from '../hooks/useDesktopNotificationBridge';
+import DesktopNotificationPermissionModal from './DesktopNotificationPermissionModal';
 import { AUTH_NOTICE, logoutAndRedirect } from '../utils/authSession';
 
 const Header = ({ sidebarOpen, setSidebarOpen, onOpenProfile }) => {
@@ -53,6 +55,42 @@ const Header = ({ sidebarOpen, setSidebarOpen, onOpenProfile }) => {
     markAsRead,
     markAllAsRead
   } = useNotifications();
+  const resolveNotifPath = useCallback((notification) => {
+    const type = notification?.type?.toLowerCase();
+    const relatedEntity = notification?.relatedEntity?.entityType?.toLowerCase();
+    const typeLabel = String(notification?.typeLabel || '').toLowerCase();
+    const notificationText = `${notification?.title || ''} ${notification?.message || ''} ${notification?.typeLabel || ''}`.toLowerCase();
+    const isAttendanceNotification = typeLabel === 'attendance_marked'
+      || notificationText.includes('attendance')
+      || notificationText.includes('marked present')
+      || notificationText.includes('marked absent')
+      || notificationText.includes('you were marked');
+
+    if (isAttendanceNotification) return '/student/attendance';
+    if (notificationText.includes('achievement')) return '/student/achievements';
+    if (relatedEntity === 'assignment' || type === 'assignment') return '/student/assignments';
+    if (relatedEntity === 'exam' || type === 'exam') return '/student/exams';
+    if (relatedEntity === 'result' || type === 'result') return '/student/results';
+    if (relatedEntity === 'fee' || type === 'fee') return '/student/fees';
+    if (type === 'notice' || type === 'announcement') return '/student/noticeboard';
+    if (type === 'class_note') return '/student/assignments-journal';
+    return '/student/home';
+  }, []);
+  const {
+    showPermissionModal,
+    pendingCount,
+    syncNotifications,
+    requestPermissionFromModal,
+    dismissPermissionModal,
+  } = useDesktopNotificationBridge({
+    scopeKey: 'student',
+    resolvePath: resolveNotifPath,
+    appName: 'Student Portal',
+  });
+
+  useEffect(() => {
+    syncNotifications(allNotifications);
+  }, [allNotifications, syncNotifications]);
 
   // Toggle one dropdown, close the other
   const toggleNotifications = useCallback(async () => {
@@ -192,37 +230,7 @@ const Header = ({ sidebarOpen, setSidebarOpen, onOpenProfile }) => {
     // Close notification dropdown
     setShowNotifications(false);
 
-    // Navigate based on notification type
-    const type = notification.type?.toLowerCase();
-    const relatedEntity = notification.relatedEntity?.entityType?.toLowerCase();
-    const typeLabel = String(notification?.typeLabel || '').toLowerCase();
-    const notificationText = `${notification?.title || ''} ${notification?.message || ''} ${notification?.typeLabel || ''}`.toLowerCase();
-    const isAttendanceNotification = typeLabel === 'attendance_marked'
-      || notificationText.includes('attendance')
-      || notificationText.includes('marked present')
-      || notificationText.includes('marked absent')
-      || notificationText.includes('you were marked');
-
-    if (isAttendanceNotification) {
-      navigate('/student/attendance');
-    } else if (notificationText.includes('achievement')) {
-      navigate('/student/achievements');
-    } else if (relatedEntity === 'assignment' || type === 'assignment') {
-      navigate('/student/assignments');
-    } else if (relatedEntity === 'exam' || type === 'exam') {
-      navigate('/student/exams');
-    } else if (relatedEntity === 'result' || type === 'result') {
-      navigate('/student/results');
-    } else if (relatedEntity === 'fee' || type === 'fee') {
-      navigate('/student/fees');
-    } else if (type === 'notice' || type === 'announcement') {
-      navigate('/student/noticeboard');
-    } else if (type === 'class_note') {
-      navigate('/student/assignments-journal');
-    } else {
-      // For general notifications or unknown types, go to home
-      navigate('/student/home');
-    }
+    navigate(resolveNotifPath(notification));
   };
 
   // Format time ago
@@ -241,6 +249,7 @@ const Header = ({ sidebarOpen, setSidebarOpen, onOpenProfile }) => {
   };
 
   return (
+    <>
     <header className="sticky top-0 z-40 w-full bg-white/80 backdrop-blur-xl border-b border-gray-100">
       <div className="px-3 sm:px-5">
         <div className="flex items-center justify-between h-14 sm:h-16 gap-2 sm:gap-4">
@@ -522,6 +531,13 @@ const Header = ({ sidebarOpen, setSidebarOpen, onOpenProfile }) => {
         </div>
       </div>
     </header>
+    <DesktopNotificationPermissionModal
+      open={showPermissionModal}
+      onAllow={requestPermissionFromModal}
+      onLater={dismissPermissionModal}
+      pendingCount={pendingCount}
+    />
+    </>
   );
 };
 

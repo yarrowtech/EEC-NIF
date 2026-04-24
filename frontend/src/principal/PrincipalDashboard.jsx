@@ -32,6 +32,8 @@ import NotificationCenter from './NotificationCenter';
 import QuickActions from './QuickActions';
 import Communications from './Communications';
 import OverviewPage from './OverviewPage';
+import { useDesktopNotificationBridge } from '../hooks/useDesktopNotificationBridge';
+import DesktopNotificationPermissionModal from '../components/DesktopNotificationPermissionModal';
 
 const API_BASE = import.meta.env.VITE_API_URL;
 
@@ -248,6 +250,32 @@ const PrincipalDashboard = () => {
 
   const criticalNotifications = notifications;
   const resolvedSchoolName = principalProfile?.schoolName || principalProfile?.campusName || 'Electronic Educare Center';
+  const resolvePrincipalNotificationPath = useCallback((notification) => {
+    const title = String(notification?.title || '').toLowerCase();
+    const type = String(notification?.type || '').toLowerCase();
+    const department = String(notification?.department || '').toLowerCase();
+    const blob = `${title} ${type} ${department}`;
+    if (blob.includes('finance') || blob.includes('fee') || blob.includes('payment')) return '/principal/finance';
+    if (blob.includes('staff') || blob.includes('teacher') || blob.includes('hr')) return '/principal/staff';
+    if (blob.includes('academic') || blob.includes('exam') || blob.includes('result')) return '/principal/academics';
+    if (blob.includes('student') || blob.includes('attendance')) return '/principal/students';
+    return '/principal/notifications';
+  }, []);
+  const {
+    showPermissionModal,
+    pendingCount,
+    syncNotifications,
+    requestPermissionFromModal,
+    dismissPermissionModal,
+  } = useDesktopNotificationBridge({
+    scopeKey: 'principal',
+    resolvePath: resolvePrincipalNotificationPath,
+    appName: 'Principal Portal',
+  });
+
+  useEffect(() => {
+    syncNotifications(notifications);
+  }, [notifications, syncNotifications]);
 
   const recentActivities = useMemo(
     () => (Array.isArray(overview?.recentActivities) ? overview.recentActivities : []).map((item) => ({
@@ -445,6 +473,7 @@ const PrincipalDashboard = () => {
   );
 
   return (
+    <>
     <div className="min-h-screen bg-gray-50">
       {/* Backdrop for mobile */}
       {sidebarOpen && (
@@ -510,6 +539,13 @@ const PrincipalDashboard = () => {
         </main>
       </div>
     </div>
+    <DesktopNotificationPermissionModal
+      open={showPermissionModal}
+      onAllow={requestPermissionFromModal}
+      onLater={dismissPermissionModal}
+      pendingCount={pendingCount}
+    />
+    </>
   );
 };
 

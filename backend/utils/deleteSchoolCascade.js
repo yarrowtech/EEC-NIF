@@ -30,6 +30,7 @@ const ParentUser = require('../models/ParentUser');
 const PracticeAttempt = require('../models/PracticeAttempt');
 const PracticeQuestion = require('../models/PracticeQuestion');
 const Principal = require('../models/Principal');
+const PushSubscription = require('../models/PushSubscription');
 const PromotionHistory = require('../models/PromotionHistory');
 const ReportCardTemplate = require('../models/ReportCardTemplate');
 const Room = require('../models/Room');
@@ -83,6 +84,7 @@ const SCHOOL_SCOPED_COLLECTIONS = [
   { name: 'PracticeAttempt', model: PracticeAttempt },
   { name: 'PracticeQuestion', model: PracticeQuestion },
   { name: 'Principal', model: Principal },
+  { name: 'PushSubscription', model: PushSubscription },
   { name: 'PromotionHistory', model: PromotionHistory },
   { name: 'ReportCardTemplate', model: ReportCardTemplate },
   { name: 'Room', model: Room },

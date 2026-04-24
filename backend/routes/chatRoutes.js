@@ -1133,6 +1133,30 @@ router.get('/threads', async (req, res) => {
       });
     }
 
+    // Enrich student participants with profilePic for teacher chat UI avatar rendering
+    const studentParticipantIds = Array.from(
+      new Set(
+        result
+          .filter((t) => t.otherParticipant?.userType === 'student')
+          .map((t) => String(t.otherParticipant.userId))
+      )
+    );
+    if (studentParticipantIds.length) {
+      const studentDocs = await StudentUser.find({ _id: { $in: studentParticipantIds } })
+        .select('_id profilePic')
+        .lean();
+      const studentDataMap = new Map(studentDocs.map((s) => [String(s._id), s]));
+      result.forEach((t) => {
+        if (t.otherParticipant?.userType !== 'student') return;
+        const sd = studentDataMap.get(String(t.otherParticipant.userId));
+        if (!sd) return;
+        t.otherParticipant = {
+          ...t.otherParticipant,
+          avatar: sd.profilePic || t.otherParticipant.avatar || null,
+        };
+      });
+    }
+
     if (!isTeacherRequest(req)) {
       logStudentPortalEvent(req, {
         feature: 'chat',
@@ -1231,7 +1255,7 @@ router.post('/threads/direct', async (req, res) => {
     if (normalizedTargetType === 'teacher') {
       otherUser = await TeacherUser.findOne(targetLookup).select('name subject employeeCode profilePic campusId').lean();
     } else if (normalizedTargetType === 'student') {
-      otherUser = await StudentUser.findOne(targetLookup).select('name username studentCode grade section campusId').lean();
+      otherUser = await StudentUser.findOne(targetLookup).select('name username studentCode grade section profilePic campusId').lean();
     } else if (normalizedTargetType === 'parent') {
       otherUser = await ParentUser.findOne(targetLookup).select('name username campusId').lean();
     }
@@ -1323,10 +1347,16 @@ router.post('/threads/direct', async (req, res) => {
     }
 
     const other = thread.participants?.find(p => p.userId?.toString() !== myId.toString());
+    const otherWithAvatar = other
+      ? {
+          ...other,
+          avatar: otherUser?.profilePic || other?.avatar || null,
+        }
+      : null;
     res.json({
       _id: thread._id,
       participants: thread.participants,
-      otherParticipant: other || null,
+      otherParticipant: otherWithAvatar,
       lastMessage: thread.lastMessage || '',
       lastMessageAt: thread.lastMessageAt,
       unreadCount: 0,
