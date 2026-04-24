@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import {
   FileText, Calendar, Search, Plus, Clock, AlertCircle, X,
   Edit3, Trash2, Eye, Users, CheckCircle, XCircle,
-  Filter, BookOpen, MoreVertical, Download, Share2,
+  Filter, BookOpen, MoreVertical, Share2,
   ChevronDown, TrendingUp, Award, AlertTriangle, Upload, Loader,
   User, Star, ExternalLink, RefreshCcw, BarChart2, Sparkles,
   Target, ListChecks, Activity, Layers, GraduationCap
@@ -98,6 +98,20 @@ const AssignmentPortal = () => {
   // ─────────────────────────────────────────────────────────────────────────
   // COMPUTED VALUES
   // ─────────────────────────────────────────────────────────────────────────
+  const globalSubjectOptions = useMemo(() => {
+    const map = new Map();
+    myClasses.forEach((cs) => {
+      (cs.subjects || []).forEach((subject) => {
+        if (!subject?.name) return;
+        const key = String(subject.id || subject._id || subject.name);
+        if (!map.has(key)) {
+          map.set(key, { id: key, name: subject.name });
+        }
+      });
+    });
+    return Array.from(map.values());
+  }, [myClasses]);
+
   const sessionOptions = useMemo(() => {
     if (activeSessionId && activeSessionName) {
       return [{ id: activeSessionId, name: activeSessionName }];
@@ -347,6 +361,13 @@ const AssignmentPortal = () => {
   };
 
   const formatTime = (d) => d ? new Date(d).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) : '';
+
+  const getInlineDocumentUrl = (rawUrl = '') => {
+    const url = String(rawUrl || '').trim();
+    if (!url) return '';
+    if (url.includes('docs.google.com/gview')) return url;
+    return `https://docs.google.com/gview?embedded=1&url=${encodeURIComponent(url)}`;
+  };
 
   const toDateInputValue = (value) => {
     if (!value) return '';
@@ -842,6 +863,7 @@ const AssignmentPortal = () => {
             statusChip={statusChip}
             formatDate={formatDate}
             formatTime={formatTime}
+            getInlineDocumentUrl={getInlineDocumentUrl}
             getSubmissionPercentage={getSubmissionPercentage}
           />
         )}
@@ -1192,7 +1214,7 @@ const EvaluateSubmissions = ({
   pendingCount, gradedCount, lateCount, averageScore, openSubmission,
   closePanel, handleRefresh, saveGrade, evaluationMode, setEvaluationMode,
   bulkDraft, updateBulkDraft, saveBulkGrades, bulkSaving, bulkError, bulkSuccess,
-  statusChip, formatDate, formatTime, getSubmissionPercentage
+  statusChip, formatDate, formatTime, getInlineDocumentUrl, getSubmissionPercentage
 }) => {
   const uniqueAssignments = Math.max(assignmentTitles.length - 1, 0);
   const latestSubmissionDate = submissions.length
@@ -1661,26 +1683,18 @@ const EvaluateSubmissions = ({
                       </div>
                       <div>
                         <p className="text-sm font-semibold text-gray-900">Student submission</p>
-                        <p className="text-xs text-gray-600">View, download, or preview the document.</p>
+                        <p className="text-xs text-gray-600">Open in a new tab or preview the document.</p>
                       </div>
                     </div>
-                    <div className="grid grid-cols-3 gap-2">
+                    <div className="grid grid-cols-2 gap-2">
                       <a
-                        href={selected.attachmentUrl}
+                        href={getInlineDocumentUrl(selected.attachmentUrl)}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="flex items-center justify-center gap-1.5 rounded-xl border border-purple-200 bg-white px-3 py-2 text-sm font-semibold text-purple-600 hover:bg-purple-50"
                       >
                         <ExternalLink className="w-4 h-4" />
                         Open
-                      </a>
-                      <a
-                        href={selected.attachmentUrl}
-                        download
-                        className="flex items-center justify-center gap-1.5 rounded-xl border border-purple-200 bg-white px-3 py-2 text-sm font-semibold text-purple-600 hover:bg-purple-50"
-                      >
-                        <Download className="w-4 h-4" />
-                        Download
                       </a>
                       <button
                         type="button"
@@ -1694,7 +1708,7 @@ const EvaluateSubmissions = ({
                     {showPdfPreview && (
                       <div className="rounded-2xl border-2 border-purple-200 bg-white">
                         <iframe
-                          src={`${selected.attachmentUrl}#toolbar=0`}
+                          src={getInlineDocumentUrl(selected.attachmentUrl)}
                           title="PDF Preview"
                           className="w-full h-80 rounded-2xl"
                         />
@@ -2170,9 +2184,6 @@ const AssignmentDetailModal = ({
                   <Edit3 className="w-5 h-5" />
                 </button>
               )}
-              <button className="p-2 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded-lg transition-colors">
-                <Download className="w-5 h-5" />
-              </button>
               <button className="p-2 text-gray-400 hover:text-purple-600 hover:bg-purple-50 rounded-lg transition-colors">
                 <Share2 className="w-5 h-5" />
               </button>
