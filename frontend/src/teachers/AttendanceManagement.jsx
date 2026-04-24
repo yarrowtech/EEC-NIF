@@ -8,8 +8,10 @@ import {
   Save,
   Loader2,
   Download,
+  MoveRight,
 } from 'lucide-react';
 import jsPDF from 'jspdf';
+import toast from 'react-hot-toast';
 
 const API_BASE = (import.meta.env.VITE_API_URL || 'http://localhost:5000').replace(/\/$/, '');
 const STATUS = Object.freeze({
@@ -18,6 +20,21 @@ const STATUS = Object.freeze({
 });
 const ATTENDANCE_OPEN_HOUR = 8;
 const ATTENDANCE_CLOSE_HOUR = 20;
+
+const resolveLogoUrl = (logo) => {
+  if (!logo) return '';
+  if (typeof logo === 'string') return logo;
+  if (typeof logo === 'object') return logo.secure_url || logo.url || logo.path || '';
+  return '';
+};
+
+const toAbsoluteAssetUrl = (value) => {
+  const raw = String(value || '').trim();
+  if (!raw) return '';
+  if (/^(https?:)?\/\//i.test(raw) || raw.startsWith('data:') || raw.startsWith('blob:')) return raw;
+  if (raw.startsWith('/')) return `${API_BASE}${raw}`;
+  return `${API_BASE}/${raw.replace(/^\/+/, '')}`;
+};
 
 const parseRollForSort = (roll) => {
   if (roll === null || roll === undefined) return Number.POSITIVE_INFINITY;
@@ -52,6 +69,13 @@ const AttendanceManagement = () => {
   const [subjectOptions, setSubjectOptions] = useState([]);
   const [attendanceData, setAttendanceData] = useState({});
   const [lessonPlanContext, setLessonPlanContext] = useState(null);
+  const [schoolMeta, setSchoolMeta] = useState({
+    schoolName: 'School',
+    schoolAddress: '',
+    schoolLogo: '',
+    campusName: '',
+  });
+  const [schoolLogoFailed, setSchoolLogoFailed] = useState(false);
   const hasRequiredHierarchyFilters = useMemo(
     () => Boolean(selectedSession && selectedClass && selectedSection),
     [selectedSession, selectedClass, selectedSection]
@@ -165,6 +189,75 @@ const AttendanceManagement = () => {
     }
   }, [subject, subjectOptions]);
 
+  useEffect(() => {
+    const loadSchoolMeta = async () => {
+      const token = localStorage.getItem('token');
+      if (!token) return;
+
+      const trySetMetaFromPayload = (payload) => {
+        const source = payload?.teacher || payload?.profile || payload || {};
+        const schoolName = source?.schoolName || source?.school?.name || '';
+        const campusName = source?.campusName || source?.campus?.name || '';
+        const schoolAddress = source?.schoolAddress || source?.school?.address || source?.campusAddress || source?.address || '';
+        const schoolLogo = resolveLogoUrl(source?.schoolLogo) || resolveLogoUrl(source?.school?.logo) || '';
+        if (!schoolName && !campusName && !schoolAddress && !schoolLogo) return false;
+        setSchoolMeta({
+          schoolName: schoolName || 'School',
+          schoolAddress: schoolAddress || '',
+          schoolLogo: toAbsoluteAssetUrl(schoolLogo) || '',
+          campusName: campusName || '',
+        });
+        setSchoolLogoFailed(false);
+        return true;
+      };
+
+      try {
+        const routineRes = await fetch(`${API_BASE}/api/teacher/dashboard/routine`, {
+          headers: { authorization: `Bearer ${token}` },
+        });
+        if (routineRes.ok) {
+          const routineData = await routineRes.json().catch(() => ({}));
+          if (trySetMetaFromPayload(routineData)) return;
+        }
+      } catch {
+        // ignore and fallback
+      }
+
+      try {
+        const dashboardRes = await fetch(`${API_BASE}/api/teacher/dashboard`, {
+          headers: { authorization: `Bearer ${token}` },
+        });
+        if (dashboardRes.ok) {
+          const dashboardData = await dashboardRes.json().catch(() => ({}));
+          if (trySetMetaFromPayload(dashboardData)) return;
+        }
+      } catch {
+        // ignore and fallback
+      }
+
+      try {
+        const profileRes = await fetch(`${API_BASE}/api/teacher/auth/profile`, {
+          headers: { authorization: `Bearer ${token}` },
+        });
+        if (profileRes.ok) {
+          const profileData = await profileRes.json().catch(() => ({}));
+          if (trySetMetaFromPayload(profileData)) return;
+        }
+      } catch {
+        // ignore and fallback
+      }
+
+      try {
+        const localUser = JSON.parse(localStorage.getItem('user') || '{}');
+        trySetMetaFromPayload(localUser);
+      } catch {
+        // ignore local parsing issues
+      }
+    };
+
+    loadSchoolMeta();
+  }, []);
+
   const toggleStudentPresent = (studentId, checked) => {
     setAttendanceData((prev) => ({
       ...prev,
@@ -172,17 +265,31 @@ const AttendanceManagement = () => {
     }));
   };
 
+  const markAllAttendance = useCallback((statusValue) => {
+    const normalizedStatus = statusValue === STATUS.PRESENT ? STATUS.PRESENT : STATUS.ABSENT;
+    setAttendanceData((prev) => {
+      const next = { ...prev };
+      students.forEach((student) => {
+        next[student._id] = normalizedStatus;
+      });
+      return next;
+    });
+  }, [students]);
+
   const saveAttendance = async () => {
     const token = localStorage.getItem('token');
     if (!token) return;
     if (isAttendanceLocked) {
       setError(attendanceLockReason);
       setSuccess('');
+      toast.error(attendanceLockReason);
       return;
     }
     if (isSubstituteMode && (!selectedSession || !selectedClass || !selectedSection)) {
-      setError('For substitute attendance, please select session, class and section first.');
+      const message = 'For substitute attendance, please select session, class and section first.';
+      setError(message);
       setSuccess('');
+      toast.error(message);
       return;
     }
     setSaving(true);
@@ -224,9 +331,12 @@ const AttendanceManagement = () => {
         : 'No lesson plan matched for auto-completion';
       const substituteNote = isSubstituteMode ? ' Saved as substitute attendance (subject shown as General for students).' : '';
       setSuccess(`Saved (${data.created || 0} new, ${data.updated || 0} updated). ${outcome}.${substituteNote}`);
+      toast.success('Attendance record updated successfully');
       await loadAttendance();
     } catch (err) {
-      setError(err.message || 'Could not save attendance');
+      const message = err.message || 'Could not save attendance';
+      setError(message);
+      toast.error(message);
     } finally {
       setSaving(false);
     }
@@ -280,8 +390,18 @@ const AttendanceManagement = () => {
     const total = presentCount + absentCount;
     return total > 0 ? Math.round((presentCount / total) * 100) : 0;
   }, [presentCount, absentCount]);
+  const areAllMarkedPresent = useMemo(
+    () => students.length > 0 && students.every((student) => (attendanceData[student._id] || STATUS.ABSENT) === STATUS.PRESENT),
+    [students, attendanceData]
+  );
+  const areAllMarkedAbsent = useMemo(
+    () => students.length > 0 && students.every((student) => (attendanceData[student._id] || STATUS.ABSENT) === STATUS.ABSENT),
+    [students, attendanceData]
+  );
 
   const inputClass = 'w-full px-3 py-2 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400 transition-colors';
+  const schoolInitials = (schoolMeta.schoolName || 'SC').slice(0, 2).toUpperCase();
+  const canShowSchoolLogo = Boolean(schoolMeta.schoolLogo && !schoolLogoFailed);
 
   return (
     <div className="space-y-4 sm:space-y-5">
@@ -479,6 +599,41 @@ const AttendanceManagement = () => {
           <h2 className="text-sm font-bold text-gray-900">Mark Attendance</h2>
           <span className="text-[11px] text-gray-400 font-medium">{selectedDate}</span>
         </div>
+        <div className="px-4 sm:px-5 py-3 border-b border-gray-100 bg-gray-50/70">
+          <div className="flex items-center justify-center gap-3 mb-2.5">
+            <div className="h-11 w-11 rounded-xl border border-gray-200 bg-white overflow-hidden shrink-0 flex items-center justify-center">
+              {canShowSchoolLogo ? (
+                <img
+                  src={schoolMeta.schoolLogo}
+                  alt={schoolMeta.schoolName || 'School'}
+                  className="h-full w-full object-cover"
+                  onError={() => {
+                    setSchoolLogoFailed(true);
+                  }}
+                />
+              ) : (
+                <span className="text-xs font-bold text-gray-500">
+                  {schoolInitials}
+                </span>
+              )}
+            </div>
+            <div className="text-center">
+              <p className="text-base font-bold text-gray-900">{schoolMeta.schoolName || 'School'}</p>
+              {schoolMeta.campusName && (
+                <span className='text-black font-medium text-xs'>Campus: <p className="text-xs text-indigo-600 font-medium inline">{schoolMeta.campusName}</p></span>
+              )}
+              {schoolMeta.schoolAddress && (
+                <p className="text-xs text-gray-500 max-w-2xl">{schoolMeta.schoolAddress}</p>
+              )}
+            </div>
+          </div>
+          <p className="text-sm font-semibold text-gray-800 text-center">
+            Session: <span className="text-indigo-700">{selectedSession || '—'}</span>
+            {' '}| Class: <span className="text-indigo-700">{selectedClass || '—'}</span>
+            {' '}| Section: <span className="text-indigo-700">{selectedSection || '—'}</span>
+            {' '}| Subject: <span className="text-indigo-700">{subject || 'All Subjects'}</span>
+          </p>
+        </div>
         <div className="overflow-x-auto max-h-[520px] overflow-y-auto">
           {!hasRequiredHierarchyFilters ? (
             <div className="flex flex-col items-center justify-center py-14 text-center">
@@ -505,18 +660,35 @@ const AttendanceManagement = () => {
             <table className="w-full text-sm">
               <thead>
                 <tr className="bg-gray-50 border-b border-gray-100 sticky top-0 z-10">
-                  <th className="px-4 py-2.5 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-wide w-12">#</th>
                   <th className="px-4 py-2.5 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-wide">Roll No</th>
-                  <th className="px-4 py-2.5 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-wide">Username</th>
                   <th className="px-4 py-2.5 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-wide">Name</th>
-                  <th className="px-4 py-2.5 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-wide">Session</th>
-                  <th className="px-4 py-2.5 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-wide">Class</th>
-                  <th className="px-4 py-2.5 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-wide">Section</th>
-                  <th className="px-4 py-2.5 text-center text-[11px] font-semibold text-gray-500 uppercase tracking-wide">Status</th>
+                  <th className="px-4 py-2.5 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-wide"></th>
+                  <th className="px-4 py-2.5 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-wide">User ID</th>
+                  <th className="px-4 py-2.5 text-center text-[11px] font-semibold text-gray-500 uppercase tracking-wide">
+                    <div className="flex items-center justify-center gap-2">
+                      {/* <span>Status</span> */}
+                      <button
+                        type="button"
+                        onClick={() => markAllAttendance(STATUS.PRESENT)}
+                        disabled={areAllMarkedPresent}
+                        className="rounded-md border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold text-emerald-700 transition-colors hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        Check all
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => markAllAttendance(STATUS.ABSENT)}
+                        disabled={areAllMarkedAbsent}
+                        className="rounded-md border border-red-200 bg-red-50 px-2 py-0.5 text-[10px] font-semibold text-red-700 transition-colors hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        Uncheck all
+                      </button>
+                    </div>
+                  </th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50">
-                {students.map((student, index) => {
+                {students.map((student) => {
                   const status = attendanceData[student._id] || STATUS.ABSENT;
                   const isPresent = status === STATUS.PRESENT;
                   return (
@@ -524,7 +696,6 @@ const AttendanceManagement = () => {
                       key={student._id}
                       className={`transition-colors hover:bg-gray-50/60 ${isPresent ? 'bg-emerald-50/30' : ''}`}
                     >
-                      <td className="px-4 py-2.5 text-xs text-gray-400 font-medium">{index + 1}</td>
                       <td className="px-4 py-2.5">
                         <span className={`inline-flex items-center justify-center min-w-8 px-2 py-0.5 rounded-md text-xs font-bold ${
                           isPresent ? 'bg-emerald-100 text-emerald-700' : 'bg-red-50 text-red-600'
@@ -532,22 +703,31 @@ const AttendanceManagement = () => {
                           {student.roll || '—'}
                         </span>
                       </td>
-                      <td className="px-4 py-2.5 text-xs text-gray-500 font-mono">{student.username || '—'}</td>
                       <td className="px-4 py-2.5">
                         <span className="text-sm font-semibold text-gray-900">{student.name || '—'}</span>
                       </td>
-                      <td className="px-4 py-2.5 text-xs text-gray-500">{student.session || selectedSession || '—'}</td>
-                      <td className="px-4 py-2.5 text-xs text-gray-500">{student.className || student.grade || '—'}</td>
-                      <td className="px-4 py-2.5 text-xs text-gray-500">{student.section || '—'}</td>
+                      <td> <MoveRight size={20} className='text-black' /> </td>
+                      <td className="px-4 py-2.5 text-xs text-gray-500 font-mono">{student.username || '—'}</td>
                       <td className="px-4 py-2.5">
                         <div className="flex items-center justify-center gap-2">
-                          <input
-                            type="checkbox"
-                            checked={isPresent}
-                            onChange={(e) => toggleStudentPresent(student._id, e.target.checked)}
-                            className="h-4 w-4 rounded border-gray-300 text-emerald-600 focus:ring-emerald-500 cursor-pointer"
-                          />
-                          <span className={`text-[11px] font-semibold w-12 ${isPresent ? 'text-emerald-600' : 'text-red-500'}`}>
+                          <button
+                            type="button"
+                            role="switch"
+                            aria-checked={isPresent}
+                            onClick={() => toggleStudentPresent(student._id, !isPresent)}
+                            className={`relative h-6 w-11 shrink-0 overflow-hidden rounded-full border transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500/40 ${
+                              isPresent
+                                ? 'bg-emerald-500 border-emerald-500'
+                                : 'bg-gray-200 border-gray-300'
+                            }`}
+                          >
+                            <span
+                              className={`pointer-events-none absolute left-0.5 top-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform ${
+                                isPresent ? 'translate-x-5' : 'translate-x-0.5'
+                              }`}
+                            />
+                          </button>
+                          <span className={`text-[11px] font-semibold min-w-[56px] ${isPresent ? 'text-emerald-600' : 'text-red-500'}`}>
                             {isPresent ? 'Present' : 'Absent'}
                           </span>
                         </div>

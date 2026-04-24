@@ -10,6 +10,12 @@ import toast from "react-hot-toast";
 const API_BASE = import.meta.env.VITE_API_URL;
 const ACADEMIC_SETUP_CACHE_PREFIX = "academic_setup_cache_v1";
 const ACADEMIC_SETUP_CACHE_TTL_MS = 5 * 60 * 1000;
+const SENIOR_SECONDARY_STREAM_OPTIONS = [
+  { value: "science", label: "Science" },
+  { value: "commerce", label: "Commerce" },
+  { value: "arts", label: "Arts" },
+  { value: "mixed", label: "Mixed" },
+];
 
 const getAcademicCacheStorage = () => {
   try {
@@ -108,10 +114,16 @@ const AcademicSetup = ({ setShowAdminHeader }) => {
   const [classTeacherForm, setClassTeacherForm] = useState({ teacherId: "", yearId: "", classId: "", sectionId: "" });
 
   // Bulk add forms
-  const [classAddMode, setClassAddMode] = useState("range"); // "range" | "custom"
+  const [classAddMode, setClassAddMode] = useState("range"); // "range" | "custom" | "stream"
   const [classRangeForm, setClassRangeForm] = useState({ from: "1", to: "10", academicYearId: "", prefix: "" });
   const [classCustomInput, setClassCustomInput] = useState("");
   const [classCustomYear, setClassCustomYear] = useState("");
+  const [seniorSecondaryForm, setSeniorSecondaryForm] = useState({
+    standard: "11",
+    stream: "science",
+    subjectsInput: "",
+    subjectTags: [],
+  });
   const [sectionBulkForm, setSectionBulkForm] = useState({ selected: [], custom: "", classIds: [] });
   const [subjectTags, setSubjectTags] = useState([]);
   const [subjectTagInput, setSubjectTagInput] = useState("");
@@ -177,6 +189,10 @@ const AcademicSetup = ({ setShowAdminHeader }) => {
   const activeYears = useMemo(
     () => years.filter((year) => isYearActive(year)),
     [years]
+  );
+  const currentAcademicYear = useMemo(
+    () => activeYears[0] || null,
+    [activeYears]
   );
   const activeYearIdSet = useMemo(
     () => new Set(activeYears.map((year) => String(year?._id || "")).filter(Boolean)),
@@ -274,7 +290,11 @@ const AcademicSetup = ({ setShowAdminHeader }) => {
     if (!searchClass.trim()) return visibleClasses;
     const q = searchClass.toLowerCase();
     return visibleClasses.filter(
-      (c) => c.name.toLowerCase().includes(q) || c.order?.toString().includes(q)
+      (c) =>
+        c.name.toLowerCase().includes(q) ||
+        c.order?.toString().includes(q) ||
+        (c.standard ? String(c.standard).includes(q) : false) ||
+        (c.stream ? c.stream.toLowerCase().includes(q) : false)
     );
   }, [visibleClasses, searchClass]);
 
@@ -299,6 +319,7 @@ const AcademicSetup = ({ setShowAdminHeader }) => {
       return (
         s.name.toLowerCase().includes(q) ||
         (s.code && s.code.toLowerCase().includes(q)) ||
+        (s.stream && s.stream.toLowerCase().includes(q)) ||
         className.toLowerCase().includes(q)
       );
     });
@@ -621,6 +642,136 @@ const AcademicSetup = ({ setShowAdminHeader }) => {
     toast.success(`${created} class${created !== 1 ? "es" : ""} created${failed ? `, ${failed} failed` : ""}.`);
   };
 
+  const submitSeniorSecondaryStreamSetup = async (e) => {
+    e.preventDefault();
+    if (!currentAcademicYear?._id) {
+      setError("No active academic year found. Please activate a session first.");
+      return;
+    }
+
+    const standardValue = Number(seniorSecondaryForm.standard);
+    if (![11, 12].includes(standardValue)) {
+      setError("Only Class 11 or Class 12 can be added from this setup.");
+      return;
+    }
+
+    const streamValue = String(seniorSecondaryForm.stream || "").trim().toLowerCase();
+    if (!streamValue) {
+      setError("Select a stream.");
+      return;
+    }
+
+    const inlineSubjects = seniorSecondaryForm.subjectsInput
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean);
+    const allSubjects = [...new Set([...seniorSecondaryForm.subjectTags, ...inlineSubjects])];
+    if (!allSubjects.length) {
+      setError("Add at least one subject.");
+      return;
+    }
+
+    const streamLabel =
+      SENIOR_SECONDARY_STREAM_OPTIONS.find((item) => item.value === streamValue)?.label || "Stream";
+    const className = `Class ${standardValue} - ${streamLabel}`;
+
+    setIsSubmitting(true);
+    setError("");
+
+    let classId = "";
+    let classCreated = false;
+
+    try {
+      const existingClass = classes.find(
+        (item) =>
+          String(item.academicYearId || "") === String(currentAcademicYear._id) &&
+          Number(item.standard) === standardValue &&
+          String(item.stream || "").toLowerCase() === streamValue
+      );
+
+      if (existingClass?._id) {
+        classId = String(existingClass._id);
+      } else {
+        const classRes = await fetch(`${API_BASE}/api/academic/classes`, {
+          method: "POST",
+          headers: authHeaders,
+          body: JSON.stringify({
+            name: className,
+            academicYearId: currentAcademicYear._id,
+            order: standardValue,
+            standard: standardValue,
+            stream: streamValue,
+          }),
+        });
+        const classData = await classRes.json().catch(() => ({}));
+        if (!classRes.ok) {
+          throw new Error(classData.error || "Unable to create class");
+        }
+        classId = String(classData?._id || "");
+        classCreated = true;
+      }
+
+      if (!classId) throw new Error("Unable to resolve class for stream setup");
+
+      const existingSubjectNames = new Set(
+        subjects
+          .filter((item) => String(item.classId || "") === classId)
+          .map((item) => String(item.name || "").trim().toLowerCase())
+          .filter(Boolean)
+      );
+
+      let createdSubjects = 0;
+      let failedSubjects = 0;
+      let skippedSubjects = 0;
+
+      for (const subjectName of allSubjects) {
+        const key = subjectName.toLowerCase();
+        if (existingSubjectNames.has(key)) {
+          skippedSubjects += 1;
+          continue;
+        }
+        try {
+          const subjectRes = await fetch(`${API_BASE}/api/academic/subjects`, {
+            method: "POST",
+            headers: authHeaders,
+            body: JSON.stringify({
+              name: subjectName,
+              classId,
+              stream: streamValue,
+            }),
+          });
+          if (subjectRes.ok) {
+            createdSubjects += 1;
+            existingSubjectNames.add(key);
+          } else {
+            failedSubjects += 1;
+          }
+        } catch {
+          failedSubjects += 1;
+        }
+      }
+
+      await loadAcademicData();
+      setShowAddForm(false);
+      setSeniorSecondaryForm({
+        standard: "11",
+        stream: "science",
+        subjectsInput: "",
+        subjectTags: [],
+      });
+      toast.success(
+        `${classCreated ? "Class created, " : ""}${createdSubjects} subject${createdSubjects !== 1 ? "s" : ""} added` +
+        `${skippedSubjects ? `, ${skippedSubjects} skipped` : ""}` +
+        `${failedSubjects ? `, ${failedSubjects} failed` : ""}.`
+      );
+    } catch (err) {
+      setError(err.message || "Unable to complete stream setup");
+      toast.error(err.message || "Unable to complete stream setup");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   /* ─── Bulk submit: sections ─── */
   const submitSectionsBulk = async (e) => {
     e.preventDefault();
@@ -721,6 +872,8 @@ const AcademicSetup = ({ setShowAdminHeader }) => {
       name: editingClass.name,
       academicYearId: editingClass.academicYearId,
       order: editingClass.order,
+      standard: editingClass.standard,
+      stream: editingClass.stream,
     }, async () => { await loadAcademicData(); setEditingClass(null); });
   };
 
@@ -742,6 +895,7 @@ const AcademicSetup = ({ setShowAdminHeader }) => {
       name: editingSubject.name,
       code: editingSubject.code,
       classId: editingSubject.classId,
+      stream: editingSubject.stream,
     }, async () => { await loadAcademicData(); setEditingSubject(null); });
   };
 
@@ -1363,10 +1517,10 @@ const AcademicSetup = ({ setShowAdminHeader }) => {
                 <div className="flex items-center justify-between border-b border-gray-100 px-5 py-3 bg-amber-50/40">
                   <h3 className="text-sm font-semibold text-gray-800">Add Classes</h3>
                   <div className="flex rounded-lg border border-gray-200 overflow-hidden text-xs font-medium">
-                    {["range", "custom"].map((mode) => (
+                    {["range", "custom", "stream"].map((mode) => (
                       <button key={mode} type="button" onClick={() => setClassAddMode(mode)}
-                        className={`px-3 py-1.5 capitalize transition ${classAddMode === mode ? "bg-amber-500 text-white" : "text-gray-500 hover:bg-gray-50"} ${mode === "custom" ? "border-l border-gray-200" : ""}`}>
-                        {mode === "range" ? "Range (1–10)" : "Custom list"}
+                        className={`px-3 py-1.5 capitalize transition ${classAddMode === mode ? "bg-amber-500 text-white" : "text-gray-500 hover:bg-gray-50"} ${mode !== "range" ? "border-l border-gray-200" : ""}`}>
+                        {mode === "range" ? "Range (1–10)" : mode === "custom" ? "Custom list" : "11/12 + Stream"}
                       </button>
                     ))}
                   </div>
@@ -1429,7 +1583,7 @@ const AcademicSetup = ({ setShowAdminHeader }) => {
                       {isSubmitting ? "Creating…" : `Create ${classRangeCount} Classes`}
                     </button>
                   </form>
-                ) : (
+                ) : classAddMode === "custom" ? (
                   <form onSubmit={submitClassCustom} className="p-5 space-y-4">
                     <p className="text-xs text-gray-500">Type class names separated by commas — e.g. <span className="font-mono bg-gray-100 px-1 rounded">Nursery, LKG, UKG, 1, 2, 3</span></p>
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -1470,6 +1624,114 @@ const AcademicSetup = ({ setShowAdminHeader }) => {
                       {isSubmitting ? "Creating…" : `Create ${classCustomInput.split(",").filter((s) => s.trim()).length || 0} Classes`}
                     </button>
                   </form>
+                ) : (
+                  <form onSubmit={submitSeniorSecondaryStreamSetup} className="p-5 space-y-4">
+                    <p className="text-xs text-gray-500">
+                      Create Class 11 or 12 with a stream and subjects in the <span className="font-medium">current active session</span>.
+                    </p>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      <div>
+                        <label className="mb-1 block text-xs font-medium text-gray-600">Current Session</label>
+                        <input
+                          type="text"
+                          value={currentAcademicYear?.name || "No active year"}
+                          disabled
+                          className="w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-500"
+                        />
+                      </div>
+                      <div>
+                        <label className="mb-1 block text-xs font-medium text-gray-600">Class</label>
+                        <select
+                          value={seniorSecondaryForm.standard}
+                          onChange={(e) => setSeniorSecondaryForm((p) => ({ ...p, standard: e.target.value }))}
+                          className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-amber-400 focus:outline-none focus:ring-2 focus:ring-amber-100"
+                        >
+                          <option value="11">Class 11</option>
+                          <option value="12">Class 12</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="mb-1 block text-xs font-medium text-gray-600">Stream</label>
+                        <select
+                          value={seniorSecondaryForm.stream}
+                          onChange={(e) => setSeniorSecondaryForm((p) => ({ ...p, stream: e.target.value }))}
+                          className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-amber-400 focus:outline-none focus:ring-2 focus:ring-amber-100"
+                        >
+                          {SENIOR_SECONDARY_STREAM_OPTIONS.map((stream) => (
+                            <option key={stream.value} value={stream.value}>
+                              {stream.label}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="mb-1 block text-xs font-medium text-gray-600">Subjects (comma separated)</label>
+                      <div className="flex flex-wrap gap-1.5 rounded-lg border border-gray-200 px-3 py-2 min-h-11 focus-within:border-amber-400 focus-within:ring-2 focus-within:ring-amber-100">
+                        {seniorSecondaryForm.subjectTags.map((tag) => (
+                          <span key={tag} className="inline-flex items-center gap-1 pl-2.5 pr-1.5 py-0.5 rounded-full bg-amber-100 text-amber-800 text-xs font-medium border border-amber-200">
+                            {tag}
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setSeniorSecondaryForm((p) => ({
+                                  ...p,
+                                  subjectTags: p.subjectTags.filter((item) => item !== tag),
+                                }))
+                              }
+                              className="ml-0.5 rounded-full hover:bg-amber-300 w-3.5 h-3.5 flex items-center justify-center text-amber-700 font-bold"
+                            >
+                              ×
+                            </button>
+                          </span>
+                        ))}
+                        <input
+                          type="text"
+                          value={seniorSecondaryForm.subjectsInput}
+                          onChange={(e) => setSeniorSecondaryForm((p) => ({ ...p, subjectsInput: e.target.value }))}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter" || e.key === ",") {
+                              e.preventDefault();
+                              const names = seniorSecondaryForm.subjectsInput
+                                .split(",")
+                                .map((s) => s.trim())
+                                .filter(Boolean);
+                              if (!names.length) return;
+                              setSeniorSecondaryForm((p) => ({
+                                ...p,
+                                subjectTags: [...new Set([...p.subjectTags, ...names])],
+                                subjectsInput: "",
+                              }));
+                            }
+                          }}
+                          onBlur={() => {
+                            const names = seniorSecondaryForm.subjectsInput
+                              .split(",")
+                              .map((s) => s.trim())
+                              .filter(Boolean);
+                            if (!names.length) return;
+                            setSeniorSecondaryForm((p) => ({
+                              ...p,
+                              subjectTags: [...new Set([...p.subjectTags, ...names])],
+                              subjectsInput: "",
+                            }));
+                          }}
+                          className="flex-1 min-w-40 bg-transparent text-sm outline-none placeholder:text-gray-400"
+                          placeholder="Physics, Chemistry, Biology..."
+                        />
+                      </div>
+                    </div>
+
+                    <button
+                      type="submit"
+                      disabled={isSubmitting || !currentAcademicYear?._id}
+                      className="flex items-center gap-2 rounded-lg bg-amber-500 px-5 py-2 text-sm font-medium text-white hover:bg-amber-600 disabled:opacity-50"
+                    >
+                      <Plus className="h-4 w-4" />
+                      {isSubmitting ? "Saving…" : "Create Class + Stream Subjects"}
+                    </button>
+                  </form>
                 )}
               </div>
             )}
@@ -1492,6 +1754,7 @@ const AcademicSetup = ({ setShowAdminHeader }) => {
                       </th>
                       <SortableHeader label="Name" field="name" sortConfig={classSort} onSort={toggleSort(setClassSort)} />
                       <SortableHeader label="Order" field="order" sortConfig={classSort} onSort={toggleSort(setClassSort)} />
+                      <th className="bg-gray-50 px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Stream</th>
                       <th className="bg-gray-50 px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Academic Year</th>
                       <th className="bg-gray-50 px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-gray-500">Actions</th>
                     </tr>
@@ -1505,6 +1768,9 @@ const AcademicSetup = ({ setShowAdminHeader }) => {
                         </td>
                         <td className="px-4 py-3 text-sm font-medium text-gray-900">{cls.name}</td>
                         <td className="px-4 py-3 text-sm text-gray-500">{cls.order ?? 0}</td>
+                        <td className="px-4 py-3 text-sm text-gray-500">
+                          {cls.stream ? `${cls.standard ? `Class ${cls.standard} - ` : ""}${String(cls.stream).replace(/^./, (ch) => ch.toUpperCase())}` : "—"}
+                        </td>
                         <td className="px-4 py-3 text-sm text-gray-500">{yearNameById[String(cls.academicYearId || "")] || "—"}</td>
                         <td className="px-4 py-3 text-right">
                           <div className="flex items-center justify-end gap-1">
@@ -1848,6 +2114,7 @@ const AcademicSetup = ({ setShowAdminHeader }) => {
                       </th>
                       <SortableHeader label="Name" field="name" sortConfig={subjectSort} onSort={toggleSort(setSubjectSort)} />
                       {/* <SortableHeader label="Code" field="code" sortConfig={subjectSort} onSort={toggleSort(setSubjectSort)} /> */}
+                      <th className="bg-gray-50 px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Stream</th>
                       <th className="bg-gray-50 px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Class</th>
                       <th className="bg-gray-50 px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-gray-500">Actions</th>
                     </tr>
@@ -1861,6 +2128,9 @@ const AcademicSetup = ({ setShowAdminHeader }) => {
                         </td>
                         <td className="px-4 py-3 text-sm font-medium text-gray-900">{sub.name}</td>
                         {/* <td className="px-4 py-3 text-sm text-gray-500">{sub.code || "—"}</td> */}
+                        <td className="px-4 py-3 text-sm text-gray-500">
+                          {sub.stream ? String(sub.stream).replace(/^./, (ch) => ch.toUpperCase()) : "—"}
+                        </td>
                         <td className="px-4 py-3 text-sm text-gray-500">{classNameById[String(sub.classId || "")] || "—"}</td>
                         <td className="px-4 py-3 text-right">
                           <div className="flex items-center justify-end gap-1">
@@ -2098,6 +2368,38 @@ const AcademicSetup = ({ setShowAdminHeader }) => {
               <input type="number" min="0" value={editingClass?.order ?? ""} onChange={(e) => setEditingClass((p) => ({ ...p, order: e.target.value }))}
                 className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-amber-400 focus:outline-none focus:ring-2 focus:ring-amber-100" placeholder="0" />
             </div>
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+              <div>
+                <label className="mb-1 block text-xs font-medium text-gray-600">Standard</label>
+                <select
+                  value={editingClass?.standard ?? ""}
+                  onChange={(e) => setEditingClass((p) => ({ ...p, standard: e.target.value || undefined }))}
+                  className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-amber-400 focus:outline-none focus:ring-2 focus:ring-amber-100"
+                >
+                  <option value="">Optional</option>
+                  {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map((level) => (
+                    <option key={level} value={level}>
+                      Class {level}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="mb-1 block text-xs font-medium text-gray-600">Stream</label>
+                <select
+                  value={editingClass?.stream || ""}
+                  onChange={(e) => setEditingClass((p) => ({ ...p, stream: e.target.value || undefined }))}
+                  className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-amber-400 focus:outline-none focus:ring-2 focus:ring-amber-100"
+                >
+                  <option value="">No stream</option>
+                  {SENIOR_SECONDARY_STREAM_OPTIONS.map((stream) => (
+                    <option key={stream.value} value={stream.value}>
+                      {stream.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
           </div>
         </EditModal>
 
@@ -2140,6 +2442,21 @@ const AcademicSetup = ({ setShowAdminHeader }) => {
                 className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-amber-400 focus:outline-none focus:ring-2 focus:ring-amber-100">
                 <option value="">Optional</option>
                 {visibleClasses.map((c) => <option key={c._id} value={c._id}>{c.name}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-medium text-gray-600">Stream</label>
+              <select
+                value={editingSubject?.stream || ""}
+                onChange={(e) => setEditingSubject((p) => ({ ...p, stream: e.target.value || undefined }))}
+                className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-amber-400 focus:outline-none focus:ring-2 focus:ring-amber-100"
+              >
+                <option value="">No stream</option>
+                {SENIOR_SECONDARY_STREAM_OPTIONS.map((stream) => (
+                  <option key={stream.value} value={stream.value}>
+                    {stream.label}
+                  </option>
+                ))}
               </select>
             </div>
           </div>

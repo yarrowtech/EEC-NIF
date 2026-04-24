@@ -8,6 +8,7 @@ const AcademicYear = require('../models/AcademicYear');
 const LessonPlan = require('../models/LessonPlan');
 const LessonPlanCompletion = require('../models/LessonPlanCompletion');
 const Notification = require('../models/Notification');
+const { logger } = require('../utils/logger');
 const authStudent = require('../middleware/authStudent');
 const authTeacher = require('../middleware/authTeacher');
 const authParent = require('../middleware/authParent');
@@ -19,6 +20,7 @@ const SUBSTITUTE_SUBJECT_PREFIX = 'general::';
 const LOW_ATTENDANCE_THRESHOLD = 75;
 const LOW_ATTENDANCE_NOTIFICATION_TITLE = 'Low Attendance Alert';
 const LOW_ATTENDANCE_NOTIFICATION_WINDOW_DAYS = 7;
+const ATTENDANCE_UPDATE_TYPE_LABEL = 'attendance_marked';
 
 const normalizeStatus = (value) => String(value || '').trim().toLowerCase();
 
@@ -184,6 +186,212 @@ const resolveActiveAcademicSessionName = async (schoolId) => {
 const resolveStudentClass = (student) => normalizeText(student?.grade);
 
 const resolveStudentSection = (student) => normalizeText(student?.section);
+
+const toTitleCase = (value) => normalizeText(value)
+  .split(/\s+/)
+  .filter(Boolean)
+  .map((chunk) => chunk.charAt(0).toUpperCase() + chunk.slice(1))
+  .join(' ');
+
+const resolveAttendanceSubjectLabel = (value) => {
+  const subject = normalizeText(value);
+  if (!subject) return 'General';
+  if (isSubstituteSubjectEntry(subject)) {
+    const decoded = normalizeText(subject.slice(SUBSTITUTE_SUBJECT_PREFIX.length));
+    return toTitleCase(decoded || 'General');
+  }
+  return toTitleCase(subject);
+};
+
+const buildAttendanceNotificationMessage = ({
+  studentName,
+  status,
+  subject,
+  dateLabel,
+  teacherName,
+  forParent = false,
+}) => {
+  const statusLabel = normalizeStatus(status) === 'present' ? 'Present' : 'Absent';
+  const subjectLabel = resolveAttendanceSubjectLabel(subject);
+  if (forParent) {
+    return `${studentName || 'Student'} was marked ${statusLabel} in ${subjectLabel} on ${dateLabel} by ${teacherName}.`;
+  }
+  return `You were marked ${statusLabel} in ${subjectLabel} on ${dateLabel} by ${teacherName}.`;
+};
+
+const resolveParentIdsByStudent = async ({ schoolId, campusId, students = [] }) => {
+  const parentIdsByStudentId = new Map();
+  const studentIds = students.map((student) => String(student?._id || '')).filter(Boolean);
+  if (!studentIds.length) return parentIdsByStudentId;
+
+  students.forEach((student) => {
+    parentIdsByStudentId.set(String(student._id), new Set());
+  });
+
+  const parentFilter = { schoolId };
+  if (campusId) parentFilter.campusId = campusId;
+  const parents = await ParentUser.find(parentFilter)
+    .select('_id childrenIds children')
+    .lean();
+
+  parents.forEach((parent) => {
+    const parentId = String(parent?._id || '');
+    if (!parentId) return;
+    const linkedIds = Array.isArray(parent?.childrenIds) ? parent.childrenIds.map((id) => String(id)) : [];
+    linkedIds.forEach((studentId) => {
+      if (parentIdsByStudentId.has(studentId)) parentIdsByStudentId.get(studentId).add(parentId);
+    });
+  });
+
+  parents.forEach((parent) => {
+    const parentId = String(parent?._id || '');
+    if (!parentId) return;
+    const childNames = Array.isArray(parent?.children)
+      ? parent.children.map((name) => normalizeText(name).toLowerCase()).filter(Boolean)
+      : [];
+    if (!childNames.length) return;
+
+    students.forEach((student) => {
+      const studentName = normalizeText(student?.name).toLowerCase();
+      if (studentName && childNames.includes(studentName)) {
+        parentIdsByStudentId.get(String(student._id))?.add(parentId);
+      }
+    });
+  });
+
+  return parentIdsByStudentId;
+};
+
+const notifyStudentAndParentsForAttendance = async ({
+  schoolId,
+  campusId,
+  teacherId,
+  targetDate,
+  attendanceEntries = [],
+}) => {
+  const dedupedEntries = [];
+  const seenEntries = new Set();
+  (attendanceEntries || []).forEach((entry) => {
+    const studentId = String(entry?.studentId || '');
+    const status = normalizeStatus(entry?.status);
+    const subject = normalizeText(entry?.subject);
+    const key = `${studentId}::${status}::${normalizeSubject(subject)}`;
+    if (!studentId || !VALID_STATUSES.has(status) || seenEntries.has(key)) return;
+    seenEntries.add(key);
+    dedupedEntries.push({ studentId, status, subject });
+  });
+  if (!dedupedEntries.length) {
+    return { studentNotifications: 0, parentNotifications: 0 };
+  }
+
+  let teacher = await TeacherUser.findOne({
+    _id: teacherId,
+    schoolId,
+    ...(campusId ? { campusId } : {}),
+  }).select('name').lean();
+  if (!teacher && campusId) {
+    teacher = await TeacherUser.findOne({ _id: teacherId, schoolId }).select('name').lean();
+  }
+  const teacherName = normalizeText(teacher?.name) || 'Teacher';
+  const dateLabel = new Date(targetDate).toLocaleDateString('en-IN', {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+  });
+
+  const studentFilter = {
+    schoolId,
+    _id: { $in: dedupedEntries.map((entry) => entry.studentId) },
+  };
+  if (campusId) studentFilter.campusId = campusId;
+  let students = await StudentUser.find(studentFilter)
+    .select('_id name grade section')
+    .lean();
+  if (campusId && students.length < dedupedEntries.length) {
+    students = await StudentUser.find({
+      schoolId,
+      _id: { $in: dedupedEntries.map((entry) => entry.studentId) },
+    })
+      .select('_id name grade section')
+      .lean();
+  }
+
+  const studentById = new Map(students.map((student) => [String(student._id), student]));
+  const parentIdsByStudentId = await resolveParentIdsByStudent({ schoolId, campusId, students });
+  const notifications = [];
+  let studentNotifications = 0;
+  let parentNotifications = 0;
+
+  dedupedEntries.forEach((entry) => {
+    const student = studentById.get(String(entry.studentId));
+    if (!student) return;
+    const title = normalizeStatus(entry.status) === 'present'
+      ? 'Attendance Marked: Present'
+      : 'Attendance Marked: Absent';
+
+    notifications.push({
+      schoolId,
+      campusId: campusId || null,
+      title,
+      message: buildAttendanceNotificationMessage({
+        studentName: student.name,
+        status: entry.status,
+        subject: entry.subject,
+        dateLabel,
+        teacherName,
+        forParent: false,
+      }),
+      audience: 'Student',
+      targetUserIds: [student._id],
+      createdByType: 'teacher',
+      createdByTeacherId: teacherId,
+      createdByName: teacherName,
+      className: normalizeText(student?.grade),
+      sectionName: normalizeText(student?.section),
+      subjectName: resolveAttendanceSubjectLabel(entry.subject),
+      type: 'general',
+      typeLabel: ATTENDANCE_UPDATE_TYPE_LABEL,
+      priority: normalizeStatus(entry.status) === 'absent' ? 'high' : 'medium',
+      category: 'academic',
+    });
+    studentNotifications += 1;
+
+    const parentIds = [...(parentIdsByStudentId.get(String(student._id)) || new Set())];
+    if (!parentIds.length) return;
+    notifications.push({
+      schoolId,
+      campusId: campusId || null,
+      title,
+      message: buildAttendanceNotificationMessage({
+        studentName: student.name,
+        status: entry.status,
+        subject: entry.subject,
+        dateLabel,
+        teacherName,
+        forParent: true,
+      }),
+      audience: 'Parent',
+      targetUserIds: parentIds,
+      createdByType: 'teacher',
+      createdByTeacherId: teacherId,
+      createdByName: teacherName,
+      className: normalizeText(student?.grade),
+      sectionName: normalizeText(student?.section),
+      subjectName: resolveAttendanceSubjectLabel(entry.subject),
+      type: 'general',
+      typeLabel: ATTENDANCE_UPDATE_TYPE_LABEL,
+      priority: normalizeStatus(entry.status) === 'absent' ? 'high' : 'medium',
+      category: 'academic',
+    });
+    parentNotifications += 1;
+  });
+
+  if (notifications.length) {
+    await Notification.insertMany(notifications, { ordered: false });
+  }
+
+  return { studentNotifications, parentNotifications };
+};
 
 const normalizeClassKey = (value) => normalizeText(value)
   .toLowerCase()
@@ -883,6 +1091,7 @@ router.get('/teacher/students', authTeacher, async (req, res) => {
     res.json({
       month: monthRange.key,
       selectedDate: selectedDate.toISOString(),
+      activeSession: activeSessionName,
       filters: {
         session: normalizeText(session),
         className: requestedClass,
@@ -893,7 +1102,9 @@ router.get('/teacher/students', authTeacher, async (req, res) => {
         substitute: isSubstituteMode,
       },
       options: {
-        sessions: [...sessionSet].sort((a, b) => b.localeCompare(a, undefined, { numeric: true })),
+        sessions: activeSessionName
+          ? [activeSessionName]
+          : [...sessionSet].sort((a, b) => b.localeCompare(a, undefined, { numeric: true })),
         classes: [...classSet].sort((a, b) => a.localeCompare(b, undefined, { numeric: true })),
         sections: [...sectionSet].sort((a, b) => a.localeCompare(b, undefined, { numeric: true })),
         subjects: subjectOptions,
@@ -939,6 +1150,7 @@ router.post('/teacher/bulk-upsert', authTeacher, async (req, res) => {
     const activeSessionName = await resolveActiveAcademicSessionName(schoolId);
 
     const stats = { updated: 0, created: 0, skipped: 0 };
+    const attendanceNotificationEntries = [];
     const changedStudentIds = new Set();
     const lessonPlanMeta = {
       lessonPlansMatched: 0,
@@ -992,9 +1204,19 @@ router.post('/teacher/bulk-upsert', authTeacher, async (req, res) => {
 
       const index = findAttendanceIndexByDateAndSubject(student.attendance || [], targetDate, subject);
       if (index >= 0) {
+        const previousStatus = normalizeStatus(student.attendance[index]?.status);
+        const previousSubject = normalizeSubject(student.attendance[index]?.subject);
+        const hasChanged = previousStatus !== status || previousSubject !== normalizeSubject(subject);
         student.attendance[index].status = status;
         student.attendance[index].subject = subject;
         stats.updated += 1;
+        if (hasChanged) {
+          attendanceNotificationEntries.push({
+            studentId: student._id,
+            status,
+            subject,
+          });
+        }
       } else {
         student.attendance.push({
           date: targetDate,
@@ -1002,6 +1224,11 @@ router.post('/teacher/bulk-upsert', authTeacher, async (req, res) => {
           subject,
         });
         stats.created += 1;
+        attendanceNotificationEntries.push({
+          studentId: student._id,
+          status,
+          subject,
+        });
       }
       changedStudentIds.add(String(student._id));
       const normalizedSubjectText = normalizeSubject(subject);
@@ -1109,12 +1336,36 @@ router.post('/teacher/bulk-upsert', authTeacher, async (req, res) => {
       campusId,
       studentIds: [...changedStudentIds],
     });
+    let attendanceNotifications = { studentNotifications: 0, parentNotifications: 0 };
+    if (attendanceNotificationEntries.length) {
+      try {
+        attendanceNotifications = await notifyStudentAndParentsForAttendance({
+          schoolId,
+          campusId,
+          teacherId,
+          targetDate,
+          attendanceEntries: attendanceNotificationEntries,
+        });
+      } catch (notificationError) {
+        logger.error(
+          {
+            err: notificationError,
+            schoolId,
+            campusId,
+            teacherId,
+            attendanceEntries: attendanceNotificationEntries.length,
+          },
+          'Failed to create attendance notifications for student and parent'
+        );
+      }
+    }
 
     res.json({
       message: 'Attendance saved successfully',
       date: targetDate.toISOString(),
       substitute: isSubstituteMode,
       substituteNotificationsSent,
+      attendanceNotifications,
       ...stats,
       ...lessonPlanMeta,
     });
@@ -1157,11 +1408,45 @@ router.put('/teacher/student/:studentId/entry/:entryId', authTeacher, async (req
     const record = (student.attendance || []).id(entryId);
     if (!record) return res.status(404).json({ error: 'Attendance record not found' });
 
+    const previousStatus = normalizeStatus(record.status);
+    const previousSubject = normalizeSubject(record.subject);
+    const previousDate = parseDateValue(record.date);
     record.status = status;
     record.subject = subject;
     if (date) record.date = date;
 
     await student.save();
+    const updatedDate = parseDateValue(record.date);
+    const hasChanged = previousStatus !== status
+      || previousSubject !== normalizeSubject(subject)
+      || (date && (previousDate?.getTime() || null) !== (updatedDate?.getTime() || null));
+    if (hasChanged) {
+      try {
+        await notifyStudentAndParentsForAttendance({
+          schoolId,
+          campusId,
+          teacherId,
+          targetDate: parseDateValue(record.date) || new Date(),
+          attendanceEntries: [{
+            studentId: student._id,
+            status,
+            subject,
+          }],
+        });
+      } catch (notificationError) {
+        logger.error(
+          {
+            err: notificationError,
+            schoolId,
+            campusId,
+            teacherId,
+            studentId,
+            entryId,
+          },
+          'Failed to create attendance notifications on single-entry update'
+        );
+      }
+    }
     res.json({ message: 'Attendance updated', record });
   } catch (err) {
     res.status(500).json({ error: err.message });

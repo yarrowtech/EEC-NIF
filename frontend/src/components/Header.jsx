@@ -195,9 +195,17 @@ const Header = ({ sidebarOpen, setSidebarOpen, onOpenProfile }) => {
     // Navigate based on notification type
     const type = notification.type?.toLowerCase();
     const relatedEntity = notification.relatedEntity?.entityType?.toLowerCase();
+    const typeLabel = String(notification?.typeLabel || '').toLowerCase();
     const notificationText = `${notification?.title || ''} ${notification?.message || ''} ${notification?.typeLabel || ''}`.toLowerCase();
+    const isAttendanceNotification = typeLabel === 'attendance_marked'
+      || notificationText.includes('attendance')
+      || notificationText.includes('marked present')
+      || notificationText.includes('marked absent')
+      || notificationText.includes('you were marked');
 
-    if (notificationText.includes('achievement')) {
+    if (isAttendanceNotification) {
+      navigate('/student/attendance');
+    } else if (notificationText.includes('achievement')) {
       navigate('/student/achievements');
     } else if (relatedEntity === 'assignment' || type === 'assignment') {
       navigate('/student/assignments');

@@ -49,6 +49,48 @@ const buildCampusFilter = (schoolId, campusId) => {
 };
 
 const normalizeKey = (value) => String(value || '').trim().toLowerCase();
+const SENIOR_SECONDARY_STANDARDS = new Set([11, 12]);
+const ALLOWED_CLASS_STREAMS = new Set(['science', 'commerce', 'arts', 'mixed']);
+const parseStandard = (value) => {
+  if (value === null || value === undefined || String(value).trim() === '') return undefined;
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed < 1 || parsed > 12) return null;
+  return Math.floor(parsed);
+};
+const sanitizeStandard = (value) => {
+  const parsed = parseStandard(value);
+  return parsed === null ? undefined : parsed;
+};
+const normalizeStream = (value) => {
+  if (value === null || value === undefined) return undefined;
+  const normalized = String(value).trim().toLowerCase();
+  if (!normalized) return undefined;
+  return normalized;
+};
+
+const validateClassStandardAndStream = ({ name, standard, stream }) => {
+  let resolvedStandard = parseStandard(standard);
+  if (resolvedStandard === null) {
+    return { error: 'standard must be a number between 1 and 12' };
+  }
+  if (resolvedStandard === undefined) {
+    const inferred = Number(String(name || '').trim());
+    if (Number.isFinite(inferred) && inferred >= 1 && inferred <= 12) {
+      resolvedStandard = Math.floor(inferred);
+    }
+  }
+
+  const normalizedStream = normalizeStream(stream);
+  if (normalizedStream && !ALLOWED_CLASS_STREAMS.has(normalizedStream)) {
+    return { error: 'Invalid stream. Allowed values: science, commerce, arts, mixed' };
+  }
+  if (normalizedStream && !SENIOR_SECONDARY_STANDARDS.has(resolvedStandard)) {
+    return { error: 'Stream can only be assigned to Class 11 or Class 12' };
+  }
+
+  return { standard: resolvedStandard, stream: normalizedStream };
+};
+
 const findDuplicateSection = async ({ schoolId, campusId, classId, name, excludeId = null }) => {
   const normalizedName = normalizeKey(name);
   if (!normalizedName) return null;
@@ -169,6 +211,21 @@ router.get('/active-year', teacherAuth, async (req, res) => {
     const activeYear = await AcademicYear.findOne({ schoolId, isActive: true }).select('_id name startDate endDate').lean();
     if (!activeYear) return res.status(404).json({ error: 'No active academic year found' });
     res.json(activeYear);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// All academic years for teacher-facing dropdowns
+router.get('/teacher/years', teacherAuth, async (req, res) => {
+  try {
+    const schoolId = req.schoolId || req.user?.schoolId || null;
+    if (!schoolId) return res.status(400).json({ error: 'schoolId is required' });
+    const items = await AcademicYear.find({ schoolId })
+      .select('_id name startDate endDate isActive')
+      .sort({ createdAt: -1 })
+      .lean();
+    res.json(items);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -396,9 +453,17 @@ router.post('/years/:id/copy-setup', adminAuth, async (req, res) => {
     let classesSkipped = 0;
 
     for (const sourceClass of sourceClasses) {
+      const sourceStandard = sanitizeStandard(sourceClass.standard);
+      const sourceStream = normalizeStream(sourceClass.stream);
       const existingClass = targetClasses.find(
-        (item) =>
-          String(item.name || '').trim().toLowerCase() === String(sourceClass.name || '').trim().toLowerCase()
+        (item) => {
+          const targetStandard = sanitizeStandard(item.standard);
+          const targetStream = normalizeStream(item.stream);
+          if (sourceStandard && sourceStream) {
+            return targetStandard === sourceStandard && targetStream === sourceStream;
+          }
+          return String(item.name || '').trim().toLowerCase() === String(sourceClass.name || '').trim().toLowerCase();
+        }
       );
       if (existingClass) {
         classIdMap.set(String(sourceClass._id), existingClass._id);
@@ -412,6 +477,8 @@ router.post('/years/:id/copy-setup', adminAuth, async (req, res) => {
         academicYearId: targetYear._id,
         name: sourceClass.name,
         order: Number.isFinite(Number(sourceClass.order)) ? Number(sourceClass.order) : 0,
+        standard: sanitizeStandard(sourceClass.standard),
+        stream: normalizeStream(sourceClass.stream),
       });
       classIdMap.set(String(sourceClass._id), createdClass._id);
       targetClasses.push(createdClass.toObject ? createdClass.toObject() : createdClass);
@@ -481,11 +548,13 @@ router.post('/years/:id/copy-setup', adminAuth, async (req, res) => {
     for (const sourceSubject of sourceSubjects) {
       const mappedClassId = classIdMap.get(String(sourceSubject.classId));
       if (!mappedClassId) continue;
+      const sourceSubjectStream = normalizeStream(sourceSubject.stream);
 
       const existingSubject = targetSubjects.find(
         (item) =>
           String(item.classId) === String(mappedClassId) &&
-          String(item.name || '').trim().toLowerCase() === String(sourceSubject.name || '').trim().toLowerCase()
+          String(item.name || '').trim().toLowerCase() === String(sourceSubject.name || '').trim().toLowerCase() &&
+          normalizeStream(item.stream) === sourceSubjectStream
       );
 
       if (existingSubject) {
@@ -500,6 +569,7 @@ router.post('/years/:id/copy-setup', adminAuth, async (req, res) => {
         classId: mappedClassId,
         name: sourceSubject.name,
         code: sourceSubject.code || '',
+        stream: normalizeStream(sourceSubject.stream),
       });
       subjectIdMap.set(String(sourceSubject._id), createdSubject._id);
       targetSubjects.push(createdSubject.toObject ? createdSubject.toObject() : createdSubject);
@@ -582,18 +652,29 @@ router.post('/classes', adminAuth, async (req, res) => {
     const schoolId = resolveSchoolId(req, res);
     if (!schoolId) return;
     const campusId = resolveCampusId(req);
-    const { name, academicYearId, order } = req.body || {};
+    const { name, academicYearId, order, standard, stream } = req.body || {};
     if (!name || !String(name).trim()) {
       return res.status(400).json({ error: 'Class name is required' });
     }
     if (academicYearId && !mongoose.isValidObjectId(academicYearId)) {
       return res.status(400).json({ error: 'Invalid academicYearId' });
     }
+    const validatedClassMeta = validateClassStandardAndStream({ name, standard, stream });
+    if (validatedClassMeta.error) {
+      return res.status(400).json({ error: validatedClassMeta.error });
+    }
+    let yearExists = null;
     if (academicYearId) {
-      const yearExists = await AcademicYear.findOne({ _id: academicYearId, schoolId }).lean();
+      yearExists = await AcademicYear.findOne({ _id: academicYearId, schoolId }).lean();
       if (!yearExists) {
         return res.status(404).json({ error: 'Academic year not found for this school' });
       }
+    }
+    if (validatedClassMeta.stream && !academicYearId) {
+      return res.status(400).json({ error: 'academicYearId is required for Class 11/12 stream setup' });
+    }
+    if (validatedClassMeta.stream && yearExists && !yearExists.isActive) {
+      return res.status(400).json({ error: 'Class 11/12 stream setup is allowed only in the active academic year' });
     }
 
     const created = await ClassModel.create({
@@ -602,6 +683,8 @@ router.post('/classes', adminAuth, async (req, res) => {
       name: String(name).trim(),
       academicYearId: academicYearId || undefined,
       order: Number.isFinite(Number(order)) ? Number(order) : 0,
+      standard: validatedClassMeta.standard,
+      stream: validatedClassMeta.stream,
     });
     res.status(201).json(created);
   } catch (err) {
@@ -635,18 +718,29 @@ router.put('/classes/:id', adminAuth, async (req, res) => {
     if (!schoolId) return;
     const campusId = resolveCampusId(req);
 
-    const { name, academicYearId, order } = req.body || {};
+    const { name, academicYearId, order, standard, stream } = req.body || {};
     if (!name || !String(name).trim()) {
       return res.status(400).json({ error: 'Class name is required' });
     }
     if (academicYearId && !mongoose.isValidObjectId(academicYearId)) {
       return res.status(400).json({ error: 'Invalid academicYearId' });
     }
+    const validatedClassMeta = validateClassStandardAndStream({ name, standard, stream });
+    if (validatedClassMeta.error) {
+      return res.status(400).json({ error: validatedClassMeta.error });
+    }
+    let yearExists = null;
     if (academicYearId) {
-      const yearExists = await AcademicYear.findOne({ _id: academicYearId, schoolId }).lean();
+      yearExists = await AcademicYear.findOne({ _id: academicYearId, schoolId }).lean();
       if (!yearExists) {
         return res.status(404).json({ error: 'Academic year not found for this school' });
       }
+    }
+    if (validatedClassMeta.stream && !academicYearId) {
+      return res.status(400).json({ error: 'academicYearId is required for Class 11/12 stream setup' });
+    }
+    if (validatedClassMeta.stream && yearExists && !yearExists.isActive) {
+      return res.status(400).json({ error: 'Class 11/12 stream setup is allowed only in the active academic year' });
     }
 
     // Verify ownership
@@ -663,6 +757,8 @@ router.put('/classes/:id', adminAuth, async (req, res) => {
         name: String(name).trim(),
         academicYearId: academicYearId || undefined,
         order: Number.isFinite(Number(order)) ? Number(order) : 0,
+        standard: validatedClassMeta.standard,
+        stream: validatedClassMeta.stream,
         ...(campusId ? { campusId } : {}),
       },
       { new: true, runValidators: true }
@@ -890,19 +986,35 @@ router.post('/subjects', adminAuth, async (req, res) => {
     const schoolId = resolveSchoolId(req, res);
     if (!schoolId) return;
     const campusId = resolveCampusId(req);
-    const { name, code, classId } = req.body || {};
+    const { name, code, classId, stream } = req.body || {};
     if (!name || !String(name).trim()) {
       return res.status(400).json({ error: 'Subject name is required' });
     }
     if (classId && !mongoose.isValidObjectId(classId)) {
       return res.status(400).json({ error: 'Invalid classId' });
     }
+    const normalizedStream = normalizeStream(stream);
+    if (normalizedStream && !ALLOWED_CLASS_STREAMS.has(normalizedStream)) {
+      return res.status(400).json({ error: 'Invalid stream. Allowed values: science, commerce, arts, mixed' });
+    }
+    let resolvedSubjectStream = normalizedStream;
     if (classId) {
       const classDoc = await ClassModel.findOne(buildCampusFilter(schoolId, campusId))
         .where({ _id: classId })
         .lean();
       if (!classDoc) {
         return res.status(404).json({ error: 'Class not found for this school' });
+      }
+      const classStandard = parseStandard(classDoc.standard);
+      const classStream = normalizeStream(classDoc.stream);
+      if (classStream && resolvedSubjectStream && classStream !== resolvedSubjectStream) {
+        return res.status(400).json({ error: 'Subject stream must match class stream' });
+      }
+      if (resolvedSubjectStream && !SENIOR_SECONDARY_STANDARDS.has(classStandard)) {
+        return res.status(400).json({ error: 'Subject stream can only be used for Class 11 or Class 12' });
+      }
+      if (classStream) {
+        resolvedSubjectStream = classStream;
       }
     }
 
@@ -912,6 +1024,7 @@ router.post('/subjects', adminAuth, async (req, res) => {
       classId: classId || undefined,
       name: String(name).trim(),
       code: code ? String(code).trim() : undefined,
+      stream: resolvedSubjectStream,
     });
     res.status(201).json(created);
   } catch (err) {
@@ -947,19 +1060,35 @@ router.put('/subjects/:id', adminAuth, async (req, res) => {
     if (!schoolId) return;
     const campusId = resolveCampusId(req);
 
-    const { name, code, classId } = req.body || {};
+    const { name, code, classId, stream } = req.body || {};
     if (!name || !String(name).trim()) {
       return res.status(400).json({ error: 'Subject name is required' });
     }
     if (classId && !mongoose.isValidObjectId(classId)) {
       return res.status(400).json({ error: 'Invalid classId' });
     }
+    const normalizedStream = normalizeStream(stream);
+    if (normalizedStream && !ALLOWED_CLASS_STREAMS.has(normalizedStream)) {
+      return res.status(400).json({ error: 'Invalid stream. Allowed values: science, commerce, arts, mixed' });
+    }
+    let resolvedSubjectStream = normalizedStream;
     if (classId) {
       const classDoc = await ClassModel.findOne(buildCampusFilter(schoolId, campusId))
         .where({ _id: classId })
         .lean();
       if (!classDoc) {
         return res.status(404).json({ error: 'Class not found for this school' });
+      }
+      const classStandard = parseStandard(classDoc.standard);
+      const classStream = normalizeStream(classDoc.stream);
+      if (classStream && resolvedSubjectStream && classStream !== resolvedSubjectStream) {
+        return res.status(400).json({ error: 'Subject stream must match class stream' });
+      }
+      if (resolvedSubjectStream && !SENIOR_SECONDARY_STANDARDS.has(classStandard)) {
+        return res.status(400).json({ error: 'Subject stream can only be used for Class 11 or Class 12' });
+      }
+      if (classStream) {
+        resolvedSubjectStream = classStream;
       }
     }
 
@@ -977,6 +1106,7 @@ router.put('/subjects/:id', adminAuth, async (req, res) => {
         name: String(name).trim(),
         code: code ? String(code).trim() : undefined,
         classId: classId || undefined,
+        stream: resolvedSubjectStream,
         ...(campusId ? { campusId } : {}),
       },
       { new: true, runValidators: true }
