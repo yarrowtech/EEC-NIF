@@ -14,6 +14,8 @@ const assignmentSchema = new mongoose.Schema({
   section: { type: String, default: '' },
   classId: { type: mongoose.Schema.Types.ObjectId, ref: 'Class' },
   sectionId: { type: mongoose.Schema.Types.ObjectId, ref: 'Section' },
+  academicYearId: { type: mongoose.Schema.Types.ObjectId, ref: 'AcademicYear', default: null },
+  sessionName: { type: String, default: '' },
   marks: { type: Number, default: 100 },
   attachments: [{
     name: { type: String },

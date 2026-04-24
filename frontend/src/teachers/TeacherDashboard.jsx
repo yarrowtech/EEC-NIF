@@ -18,6 +18,9 @@ import {
   ThumbsUp,
 } from 'lucide-react';
 
+const getAcademicYearId = (item = {}) =>
+  String(item?.classId?.academicYearId?._id || item?.classId?.academicYearId || '').trim();
+
 const TeacherDashboard = () => {
   const [currentDateTime, setCurrentDateTime] = useState(new Date());
   const [dashboardData, setDashboardData] = useState(null);
@@ -53,9 +56,10 @@ const TeacherDashboard = () => {
           'Content-Type': 'application/json',
           authorization: `Bearer ${token}`,
         };
-        const [dashboardRes, allocationRes] = await Promise.all([
+        const [dashboardRes, allocationRes, activeYearRes] = await Promise.all([
           fetch(`${import.meta.env.VITE_API_URL}/api/teacher/dashboard`, { headers }),
           fetch(`${import.meta.env.VITE_API_URL}/api/teacher/dashboard/allocations`, { headers }),
+          fetch(`${import.meta.env.VITE_API_URL}/api/academic/active-year`, { headers }).catch(() => null),
         ]);
 
         const dashboardPayload = await dashboardRes.json().catch(() => ({}));
@@ -66,7 +70,20 @@ const TeacherDashboard = () => {
 
         const allocationPayload = await allocationRes.json().catch(() => []);
         if (allocationRes.ok && Array.isArray(allocationPayload)) {
-          const classTeacherOnly = allocationPayload.filter((item) => Boolean(item?.isClassTeacher));
+          const activeYearPayload = activeYearRes?.ok ? await activeYearRes.json().catch(() => null) : null;
+          const activeYearId = String(
+            activeYearPayload?._id ||
+            activeYearPayload?.id ||
+            activeYearPayload?.data?._id ||
+            activeYearPayload?.data?.id ||
+            ''
+          ).trim();
+          const classTeacherOnly = allocationPayload
+            .filter((item) => Boolean(item?.isClassTeacher))
+            .filter((item) => {
+              if (!activeYearId) return false;
+              return getAcademicYearId(item) === activeYearId;
+            });
           setClassTeacherAllocations(classTeacherOnly);
         } else {
           setClassTeacherAllocations([]);

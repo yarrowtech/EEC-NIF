@@ -7,13 +7,6 @@ import { formatStudentDisplay } from '../utils/studentDisplay';
 const API_BASE_URL = (import.meta.env.VITE_API_URL || 'http://localhost:5000').replace(/\/$/, '') + '/api';
 const inp = 'w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-800 focus:border-yellow-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-yellow-100 transition placeholder:text-slate-400';
 const norm = (value = '') => String(value || '').trim().toLowerCase();
-const dedupeSessions = (...sessionLists) => {
-  const items = sessionLists
-    .flatMap((list) => (Array.isArray(list) ? list : []))
-    .map((item) => String(item || '').trim())
-    .filter(Boolean);
-  return [...new Set(items)].sort((a, b) => b.localeCompare(a, undefined, { numeric: true }));
-};
 
 const Field = ({ label, children }) => (
   <div>
@@ -131,7 +124,6 @@ const TeacherAchievements = () => {
           return allowedPairs.has(`${norm(className)}__${norm(sectionName)}`);
         });
         setStudents(nextStudents);
-        setSessionOptions((prev) => dedupeSessions(prev, data?.options?.sessions));
         if (!selectedSession && data?.activeSession) {
           setSelectedSession(data.activeSession);
         }
@@ -147,31 +139,35 @@ const TeacherAchievements = () => {
   }, [headers, selectedSession, selectedClass, selectedSection, allowedPairs, loadingAllocations]);
 
   useEffect(() => {
-    const fetchSessionOptions = async () => {
+    const fetchActiveSession = async () => {
       if (loadingAllocations) return;
       try {
-        const [studentsRes, yearsRes] = await Promise.all([
+        const [activeYearRes, studentsRes] = await Promise.all([
+          axios.get(`${API_BASE_URL}/academic/active-year`, { headers }),
           axios.get(`${API_BASE_URL}/meeting/teacher/students`, { headers }),
-          axios.get(`${API_BASE_URL}/academic/teacher/years`, { headers }),
         ]);
-        const sessionsFromStudents = Array.isArray(studentsRes?.data?.options?.sessions)
-          ? studentsRes.data.options.sessions
-          : [];
-        const sessionsFromYears = Array.isArray(yearsRes?.data)
-          ? yearsRes.data.map((item) => item?.name).filter(Boolean)
-          : [];
-        const sessions = dedupeSessions(sessionsFromStudents, sessionsFromYears);
-        setSessionOptions(sessions);
-        if (!selectedSession) {
-          const defaultSession = studentsRes?.data?.activeSession || sessions[0] || '';
-          if (defaultSession) setSelectedSession(defaultSession);
+        const activeSessionName =
+          String(
+            activeYearRes?.data?.name ||
+            activeYearRes?.data?.academicYear ||
+            activeYearRes?.data?.activeYear ||
+            studentsRes?.data?.activeSession ||
+            ''
+          ).trim();
+        const nextOptions = activeSessionName ? [activeSessionName] : [];
+        setSessionOptions(nextOptions);
+        if (activeSessionName) {
+          setSelectedSession(activeSessionName);
+        } else {
+          setSelectedSession('');
         }
       } catch {
         setSessionOptions([]);
+        setSelectedSession('');
       }
     };
-    fetchSessionOptions();
-  }, [headers, loadingAllocations, selectedSession]);
+    fetchActiveSession();
+  }, [headers, loadingAllocations]);
 
   useEffect(() => {
     const fetchAchievements = async () => {
@@ -387,6 +383,7 @@ const TeacherAchievements = () => {
                   value={selectedSession}
                   onChange={(e) => { setSelectedSession(e.target.value); setSelectedClass(''); setSelectedSection(''); setSelectedStudentId(''); }}
                   className={inp}
+                  disabled
                 >
                   <option value="">Select session</option>
                   {sessionOptions.map((s) => <option key={s} value={s}>{s}</option>)}

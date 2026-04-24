@@ -10,6 +10,7 @@ const NotificationService = require('../utils/notificationService');
 const Timetable = require('../models/Timetable');
 const Class = require('../models/Class');
 const Section = require('../models/Section');
+const AcademicYear = require('../models/AcademicYear');
 const { logStudentPortalEvent, logStudentPortalError } = require('../utils/studentPortalLogger');
 
 const escapeRegex = (value = '') => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -37,6 +38,13 @@ const resolveSchoolId = (req, res) => {
         return null;
     }
     return schoolId;
+};
+
+const getActiveAcademicYear = async (schoolId) => {
+    if (!schoolId) return null;
+    return AcademicYear.findOne({ schoolId, isActive: true })
+        .select('_id name startDate endDate')
+        .lean();
 };
 
 router.get("/fetch", adminAuth, async (req, res) => {
@@ -120,7 +128,11 @@ router.get("/teacher/my-classes", authTeacher, async (req, res) => {
             schoolId,
             'entries.teacherId': teacherId
         })
-        .populate('classId', 'name')
+        .populate({
+            path: 'classId',
+            select: 'name academicYearId',
+            populate: { path: 'academicYearId', select: 'name' }
+        })
         .populate('sectionId', 'name')
         .populate('entries.subjectId', 'name code')
         .lean();
@@ -154,6 +166,8 @@ router.get("/teacher/my-classes", authTeacher, async (req, res) => {
                     className: timetable.classId.name,
                     sectionId: timetable.sectionId._id,
                     sectionName: timetable.sectionId.name,
+                    academicYearId: timetable.classId?.academicYearId?._id || timetable.classId?.academicYearId || null,
+                    sessionName: timetable.classId?.academicYearId?.name || '',
                     subjectMap
                 });
             } else {
@@ -166,6 +180,8 @@ router.get("/teacher/my-classes", authTeacher, async (req, res) => {
             className: item.className,
             sectionId: item.sectionId,
             sectionName: item.sectionName,
+            academicYearId: item.academicYearId || null,
+            sessionName: item.sessionName || '',
             subjects: Array.from(item.subjectMap.values())
         }));
 
@@ -178,7 +194,9 @@ router.get("/teacher/my-classes", authTeacher, async (req, res) => {
                 filter.campusId = campusId;
             }
 
-            const classes = await Class.find(filter).lean();
+            const classes = await Class.find(filter)
+                .populate('academicYearId', 'name')
+                .lean();
 
             for (const classDoc of classes) {
                 const sections = await Section.find({
@@ -193,6 +211,8 @@ router.get("/teacher/my-classes", authTeacher, async (req, res) => {
                         className: classDoc.name,
                         sectionId: section._id,
                         sectionName: section.name,
+                        academicYearId: classDoc.academicYearId?._id || classDoc.academicYearId || null,
+                        sessionName: classDoc.academicYearId?.name || '',
                         subjects: []
                     });
                 });
@@ -211,12 +231,34 @@ router.get("/teacher/my-classes", authTeacher, async (req, res) => {
 router.post("/teacher/create", authTeacher, async (req, res) => {
   // #swagger.tags = ['Assignments']
     try {
-        const { title, description, subject, classId, sectionId, marks, dueDate, status, attachments, submissionFormat, type, difficulty } = req.body;
+        const {
+            title,
+            description,
+            subject,
+            classId,
+            sectionId,
+            marks,
+            dueDate,
+            status,
+            attachments,
+            submissionFormat,
+            type,
+            difficulty,
+            academicYearId
+        } = req.body || {};
         const schoolId = req.schoolId || req.teacher?.schoolId || null;
         if (!schoolId) return res.status(400).json({ error: 'schoolId is required' });
 
         const teacherId = req.teacher?.id || req.user?.id;
         if (!teacherId) return res.status(400).json({ error: 'teacherId is required' });
+
+        const activeYear = await getActiveAcademicYear(schoolId);
+        if (!activeYear?._id) {
+            return res.status(400).json({ error: 'No active academic session found. Ask admin to activate a session first.' });
+        }
+        if (academicYearId && String(academicYearId) !== String(activeYear._id)) {
+            return res.status(400).json({ error: 'Assignments can only be created for the active academic session.' });
+        }
 
         // Validate that class and section exist and belong to the same school
         const classDoc = await Class.findOne({ _id: classId, schoolId });
@@ -242,6 +284,8 @@ router.post("/teacher/create", authTeacher, async (req, res) => {
             section: sectionDoc.name || '',
             classId,
             sectionId,
+            academicYearId: activeYear._id,
+            sessionName: activeYear.name || '',
             marks: marks || 100,
             attachments: attachments || [],
             submissionFormat: normalizeSubmissionFormat(submissionFormat),
@@ -283,6 +327,10 @@ router.get("/teacher/my-assignments", authTeacher, async (req, res) => {
         if (!teacherId) return res.status(400).json({ error: 'teacherId is required' });
 
         const filter = { schoolId, teacherId };
+        const activeYear = await getActiveAcademicYear(schoolId);
+        if (activeYear?._id) {
+            filter.academicYearId = activeYear._id;
+        }
         if (req.campusId) {
             filter.$or = [
                 { campusId: req.campusId },
@@ -294,6 +342,7 @@ router.get("/teacher/my-assignments", authTeacher, async (req, res) => {
         const assignments = await Assignment.find(filter)
             .populate('classId', 'name')
             .populate('sectionId', 'name')
+            .populate('academicYearId', 'name')
             .sort({ createdAt: -1 });
 
         const assignmentIds = assignments.map((assignment) => assignment._id);
@@ -366,6 +415,10 @@ router.put("/teacher/update/:id", authTeacher, async (req, res) => {
         const assignment = await Assignment.findOne({ _id: id, schoolId, teacherId });
         if (!assignment) {
             return res.status(404).json({ error: 'Assignment not found or unauthorized' });
+        }
+        const activeYear = await getActiveAcademicYear(schoolId);
+        if (activeYear?._id && assignment.academicYearId && String(assignment.academicYearId) !== String(activeYear._id)) {
+            return res.status(400).json({ error: 'Only assignments from the active academic session can be updated.' });
         }
 
         const { title, description, subject, marks, dueDate, status, attachments, submissionFormat, classId, sectionId, type, difficulty } = req.body;
@@ -441,9 +494,14 @@ router.post("/teacher/grade", authTeacher, async (req, res) => {
 
         const teacherId = req.teacher?.id || req.user?.id;
         if (!teacherId) return res.status(400).json({ error: 'teacherId is required' });
+        const activeYear = await getActiveAcademicYear(schoolId);
 
         // Verify assignment belongs to this teacher
-        const assignment = await Assignment.findOne({ _id: assignmentId, schoolId, teacherId });
+        const assignmentFilter = { _id: assignmentId, schoolId, teacherId };
+        if (activeYear?._id) {
+            assignmentFilter.academicYearId = activeYear._id;
+        }
+        const assignment = await Assignment.findOne(assignmentFilter);
         if (!assignment) {
             return res.status(404).json({ error: 'Assignment not found or unauthorized' });
         }
@@ -475,6 +533,119 @@ router.post("/teacher/grade", authTeacher, async (req, res) => {
     }
 });
 
+// Teachers grade multiple assignment submissions at once
+router.post("/teacher/grade-bulk", authTeacher, async (req, res) => {
+  // #swagger.tags = ['Assignments']
+    try {
+        const { grades } = req.body || {};
+        const schoolId = req.schoolId || req.teacher?.schoolId || null;
+        if (!schoolId) return res.status(400).json({ error: 'schoolId is required' });
+
+        const teacherId = req.teacher?.id || req.user?.id;
+        if (!teacherId) return res.status(400).json({ error: 'teacherId is required' });
+        const activeYear = await getActiveAcademicYear(schoolId);
+
+        if (!Array.isArray(grades) || grades.length === 0) {
+            return res.status(400).json({ error: 'grades array is required' });
+        }
+
+        const assignmentIds = Array.from(new Set(
+            grades.map((item) => String(item?.assignmentId || '')).filter(Boolean)
+        ));
+        const studentIds = Array.from(new Set(
+            grades.map((item) => String(item?.studentId || '')).filter(Boolean)
+        ));
+
+        const assignments = await Assignment.find({
+            _id: { $in: assignmentIds },
+            schoolId,
+            teacherId,
+            ...(activeYear?._id ? { academicYearId: activeYear._id } : {})
+        }).select('_id marks');
+        const assignmentMap = new Map(assignments.map((item) => [String(item._id), item]));
+
+        const progressDocs = await StudentProgress.find({
+            schoolId,
+            studentId: { $in: studentIds }
+        });
+        const progressMap = new Map(progressDocs.map((item) => [String(item.studentId), item]));
+
+        const touchedProgress = new Map();
+        const failed = [];
+        let updatedCount = 0;
+
+        grades.forEach((entry, index) => {
+            const studentId = String(entry?.studentId || '');
+            const assignmentId = String(entry?.assignmentId || '');
+            const scoreRaw = entry?.score;
+            const feedback = entry?.feedback || '';
+
+            if (!studentId || !assignmentId) {
+                failed.push({ index, reason: 'studentId and assignmentId are required' });
+                return;
+            }
+
+            const assignment = assignmentMap.get(assignmentId);
+            if (!assignment) {
+                failed.push({ index, assignmentId, reason: 'Assignment not found or unauthorized' });
+                return;
+            }
+
+            const score = Number(scoreRaw);
+            if (!Number.isFinite(score) || score < 0) {
+                failed.push({ index, studentId, assignmentId, reason: 'Invalid score' });
+                return;
+            }
+            if (score > Number(assignment.marks || 0)) {
+                failed.push({
+                    index,
+                    studentId,
+                    assignmentId,
+                    reason: `Score cannot exceed ${assignment.marks}`
+                });
+                return;
+            }
+
+            const progress = progressMap.get(studentId);
+            if (!progress) {
+                failed.push({ index, studentId, assignmentId, reason: 'Student progress not found' });
+                return;
+            }
+
+            const submissionIndex = progress.submissions.findIndex(
+                (sub) => String(sub.assignmentId) === assignmentId
+            );
+            if (submissionIndex === -1) {
+                failed.push({ index, studentId, assignmentId, reason: 'Submission not found' });
+                return;
+            }
+
+            progress.submissions[submissionIndex].score = score;
+            progress.submissions[submissionIndex].feedback = feedback;
+            progress.submissions[submissionIndex].status = 'graded';
+            progress.lastUpdated = new Date();
+
+            touchedProgress.set(studentId, progress);
+            updatedCount += 1;
+        });
+
+        if (touchedProgress.size > 0) {
+            await Promise.all(
+                Array.from(touchedProgress.values()).map((doc) => doc.save())
+            );
+        }
+
+        res.json({
+            message: 'Bulk grading completed',
+            updatedCount,
+            failedCount: failed.length,
+            failed
+        });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
 // ========== STUDENT ROUTES ==========
 
 // Students get assignments for their class/section
@@ -495,6 +666,7 @@ router.get("/student/assignments", authStudent, async (req, res) => {
         }
 
         const campusId = req.campusId || student.campusId || null;
+        const campusScope = buildCampusFilter(campusId);
         const gradeValue = String(student.grade || '').trim();
         const sectionValue = String(student.section || '').trim();
 
@@ -504,7 +676,7 @@ router.get("/student/assignments", authStudent, async (req, res) => {
             const classQuery = {
                 schoolId,
                 name: gradeValue,
-                ...buildCampusFilter(campusId)
+                ...campusScope
             };
             classDoc = await Class.findOne(classQuery);
             if (!classDoc) {
@@ -521,7 +693,7 @@ router.get("/student/assignments", authStudent, async (req, res) => {
             const sectionQuery = {
                 schoolId,
                 name: sectionValue,
-                ...buildCampusFilter(campusId)
+                ...campusScope
             };
             if (classDoc?._id) {
                 sectionQuery.classId = classDoc._id;
@@ -540,17 +712,23 @@ router.get("/student/assignments", authStudent, async (req, res) => {
         }
 
         // Get assignments for this class and section
-        const filter = {
-            schoolId,
-            status: 'active'
-        };
-
-        Object.assign(filter, buildCampusFilter(campusId));
+        const activeYear = await getActiveAcademicYear(schoolId);
+        const filter = { schoolId, status: 'active' };
+        const andConditions = [];
+        if (campusScope.$or) {
+            andConditions.push({ $or: campusScope.$or });
+        }
+        if (activeYear?._id) {
+            andConditions.push({ academicYearId: activeYear._id });
+        }
+        if (andConditions.length > 0) {
+            filter.$and = andConditions;
+        }
 
         if (classDoc?._id) {
             filter.classId = classDoc._id;
         } else if (gradeValue) {
-            filter.class = new RegExp(`^${escapeRegex(gradeValue)}$`, 'i');
+            filter.class = new RegExp(`\\b${escapeRegex(gradeValue)}\\b`, 'i');
         } else {
             return res.json([]);
         }
@@ -630,6 +808,10 @@ router.post("/submit", authStudent, async (req, res) => {
 
         const assignment = await Assignment.findOne({ _id: assignmentId, schoolId }).lean();
         if (!assignment) return res.status(404).json({ error: 'Assignment not found' });
+        const activeYear = await getActiveAcademicYear(schoolId);
+        if (activeYear?._id && String(assignment.academicYearId || '') !== String(activeYear._id)) {
+            return res.status(400).json({ error: 'This assignment does not belong to the active academic session.' });
+        }
         if (assignment.status !== 'active') {
             return res.status(400).json({ error: 'This assignment is not accepting submissions right now.' });
         }
@@ -715,8 +897,14 @@ router.get("/teacher/submissions", authTeacher, async (req, res) => {
         const teacherId = req.teacher?.id || req.user?.id;
         if (!teacherId) return res.status(400).json({ error: 'teacherId is required' });
 
+        const activeYear = await getActiveAcademicYear(schoolId);
+        const assignmentFilter = { schoolId, teacherId };
+        if (activeYear?._id) {
+            assignmentFilter.academicYearId = activeYear._id;
+        }
+
         // Find all assignments created by this teacher
-        const teacherAssignments = await Assignment.find({ schoolId, teacherId })
+        const teacherAssignments = await Assignment.find(assignmentFilter)
             .populate('classId', 'name')
             .populate('sectionId', 'name')
             .lean();

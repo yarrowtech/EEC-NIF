@@ -323,7 +323,7 @@ const Assignment = ({ assignmentType, filter, setFilter }) => {
   // Fetch assignments from API
   useEffect(() => {
     if (assignmentType === 'school') {
-      fetchAssignments();
+      fetchAssignments({ forceRefresh: true });
     }
   }, [assignmentType]);
 
