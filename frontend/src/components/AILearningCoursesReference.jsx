@@ -1,27 +1,45 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import {
   ArrowLeft,
   BookOpen,
-  Brain,
   CheckCircle2,
-  Clock,
-  FileText,
-  Flame,
-  GraduationCap,
-  Layers,
-  Lightbulb,
-  ListChecks,
-  Map,
+  Lock,
   Target,
-  Users,
-  Zap,
+  Layers,
+  Maximize2,
+  Minimize2,
+  Download,
 } from 'lucide-react';
 import { fetchCachedJson } from '../utils/studentApiCache';
 
 const API_BASE = (import.meta.env.VITE_API_URL || 'http://localhost:5000').replace(/\/$/, '');
 const DASHBOARD_ENDPOINT = `${API_BASE}/api/student/auth/dashboard`;
 const FEEDBACK_CONTEXT_ENDPOINT = `${API_BASE}/api/student/auth/teacher-feedback/context`;
+
+const LEARNING_STEPS = [
+  { id: 'step1', title: 'Introduction & Overview', duration: 10, type: 'The Hook' },
+  { id: 'step2', title: 'Core Concepts & Theory', duration: 25, type: 'Instruction' },
+  { id: 'step3', title: 'Practice & Application', duration: 30, type: 'Guided Practice' },
+  { id: 'step4', title: 'Review & Self-Assessment', duration: 15, type: 'Synthesis' },
+];
+
+const LEARNING_OBJECTIVES = [
+  'Master the fundamental concepts and principles of the topic with comprehensive understanding',
+  'Apply learned concepts to solve real-world problems and complex scenarios',
+  'Synthesize knowledge to create meaningful connections between related topics',
+];
+
+const MATERIALS = [
+  { title: 'Interactive Learning', description: 'Smart practice exercises' },
+  { title: 'Visual Aids', description: 'Mindmaps and diagrams' },
+  { title: 'Study Materials', description: 'Detailed notes and guides' },
+];
+
+const ASSESSMENT_ITEMS = [
+  { title: 'Practice Papers', description: 'Three difficulty levels with instant feedback' },
+  { title: 'Self-Assessment', description: 'Quick quizzes and flashcards for review' },
+];
 
 const AILearningCoursesReference = () => {
   const navigate = useNavigate();
@@ -30,6 +48,11 @@ const AILearningCoursesReference = () => {
   const [stats, setStats] = useState(null);
   const [profile, setProfile] = useState(null);
   const [contexts, setContexts] = useState([]);
+  const [activeStep, setActiveStep] = useState('step1');
+  const [completedSteps, setCompletedSteps] = useState([]);
+  const [overallProgress, setOverallProgress] = useState(0);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const moduleRef = useRef(null);
 
   // Extract topic from URL
   const urlMatch = location.pathname.match(/\/topic\/([^/]+)$/);
@@ -37,6 +60,37 @@ const AILearningCoursesReference = () => {
   const subjectMatch = location.pathname.match(/\/subject\/([^/]+)/);
   const subjectSlug = subjectMatch?.[1] ? decodeURIComponent(subjectMatch[1]) : 'Subject';
 
+  // Load progress from localStorage
+  useEffect(() => {
+    const storageKey = `learning-topic-progress-${topicSlug}`;
+    const saved = localStorage.getItem(storageKey);
+    if (saved) {
+      try {
+        const data = JSON.parse(saved);
+        setCompletedSteps(data.completedSteps || []);
+        setOverallProgress(data.percentage || 0);
+      } catch (err) {
+        console.error('Failed to load progress:', err);
+      }
+    }
+  }, [topicSlug]);
+
+  // Save progress to localStorage
+  useEffect(() => {
+    const storageKey = `learning-topic-progress-${topicSlug}`;
+    const percentage = LEARNING_STEPS.length > 0
+      ? Math.round((completedSteps.length / LEARNING_STEPS.length) * 100)
+      : 0;
+    const data = {
+      completedSteps,
+      percentage,
+      lastAccessed: new Date().toISOString(),
+    };
+    localStorage.setItem(storageKey, JSON.stringify(data));
+    setOverallProgress(percentage);
+  }, [completedSteps, topicSlug]);
+
+  // Fetch user data
   useEffect(() => {
     const load = async () => {
       try {
@@ -75,273 +129,512 @@ const AILearningCoursesReference = () => {
     return Array.from(teacherSet);
   }, [contexts]);
 
-  const attendancePct = Number(stats?.attendancePercentage || 0);
-  const present = Number(stats?.presentDays || 0);
-  const total = Number(stats?.totalClasses || 0);
+  // Helper functions
+  const toggleStepComplete = (stepId) => {
+    if (completedSteps.includes(stepId)) {
+      setCompletedSteps(completedSteps.filter(s => s !== stepId));
+    } else {
+      setCompletedSteps([...completedSteps, stepId]);
+    }
+  };
+
+  const isPracticeUnlocked = overallProgress >= 75;
+
+  const toggleFullscreen = async () => {
+    try {
+      if (!document.fullscreenElement && moduleRef.current) {
+        await moduleRef.current.requestFullscreen();
+      } else if (document.fullscreenElement) {
+        await document.exitFullscreen();
+      }
+    } catch (err) {
+      setError('Fullscreen mode is not available on this device/browser.');
+    }
+  };
+
+  useEffect(() => {
+    const onFullscreenChange = () => {
+      setIsFullscreen(document.fullscreenElement === moduleRef.current);
+    };
+
+    document.addEventListener('fullscreenchange', onFullscreenChange);
+    return () => document.removeEventListener('fullscreenchange', onFullscreenChange);
+  }, []);
 
   return (
-    <div className="w-full min-h-screen bg-[#f8f9fa] font-['Lexend',sans-serif]">
-      {/* Back Button */}
-      <div className="max-w-7xl mx-auto px-6 sm:px-12 pt-6">
-        <button
-          onClick={() => navigate(-1)}
-          className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 transition-colors shadow-sm"
-        >
-          <ArrowLeft size={16} /> Back
-        </button>
-      </div>
+    <div
+      ref={moduleRef}
+      className="min-h-screen w-full flex flex-col overflow-x-hidden"
+      style={{ backgroundColor: '#f8f9fa', fontFamily: 'Lexend, sans-serif' }}
+    >
+      {/* Header */}
+      <header className="h-14 border-b flex items-center justify-between px-4 sm:px-6 z-50 sticky top-0 flex-shrink-0" style={{ backgroundColor: 'rgba(255, 255, 255, 0.8)', backdropFilter: 'blur(12px)', borderColor: '#e7e8e9' }}>
+        <div className="flex items-center gap-2 sm:gap-6 flex-1 min-w-0">
+          <button
+            onClick={() => navigate(-1)}
+            className="inline-flex items-center gap-1 sm:gap-2 text-xs sm:text-sm font-bold hover:bg-slate-50 transition-colors rounded-lg px-2 py-1 sm:px-3"
+            style={{ color: '#004b71' }}
+          >
+            <ArrowLeft size={16} className="sm:w-[18px]" /> <span className="hidden sm:inline">Back</span>
+          </button>
+          <div className="h-4 w-px hidden sm:block" style={{ backgroundColor: '#cbd5e0' }}></div>
+          <p className="text-[10px] sm:text-xs uppercase tracking-widest font-bold whitespace-nowrap overflow-hidden text-ellipsis" style={{ color: '#707880' }}>
+            {subjectSlug} • {profile?.className || 'Class'}
+          </p>
+        </div>
+        <div className="flex items-center gap-1 sm:gap-3 flex-shrink-0">
+          <button
+            onClick={toggleFullscreen}
+            className="hidden sm:flex px-4 py-1.5 text-sm font-bold hover:bg-slate-50 transition-colors rounded-lg items-center gap-2"
+            style={{ color: '#004b71' }}
+          >
+            {isFullscreen ? <Minimize2 size={16} /> : <Maximize2 size={16} />}
+            {isFullscreen ? 'Exit Full Screen' : 'Full Screen'}
+          </button>
+          <button className="px-2 sm:px-4 py-1.5 text-xs sm:text-sm font-bold rounded-lg hover:brightness-110 transition-all flex items-center gap-1 sm:gap-2 text-white" style={{ backgroundColor: '#006494' }}>
+            <Download size={14} className="sm:w-4" /> <span className="hidden sm:inline">Download PDF</span>
+          </button>
+        </div>
+      </header>
 
-      <div className="max-w-7xl mx-auto px-6 sm:px-12 py-12 space-y-16">
-        {/* Hero / Document Header */}
-        <section className="space-y-6">
-          <div className="space-y-3">
-            <span className="inline-block px-4 py-1.5 rounded-full bg-[#aeeecb] text-[#0e5138] text-xs font-['Work_Sans',sans-serif] uppercase tracking-widest font-bold">
-              {subjectSlug} • {profile?.className || 'Your Class'}
-            </span>
-            <h1 className="text-5xl sm:text-6xl font-['Manrope',sans-serif] font-extrabold tracking-tight text-[#004b71] leading-tight">
-              {topicSlug}
-            </h1>
-            <p className="text-xl text-[#40484f] max-w-3xl leading-relaxed">
-              A comprehensive learning experience designed to help you master key concepts through structured practice, visual aids, and interactive materials.
-            </p>
-          </div>
-          <div className="h-1 w-32 bg-[#006494]"></div>
-        </section>
-
-
-        {/* SECTION 1: Description Module with Learning Objective */}
-        <section className="space-y-8 bg-white p-10 rounded-2xl shadow-sm border border-[#e1e3e4]">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-lg bg-[#cbe6ff] flex items-center justify-center">
-              <BookOpen className="text-[#004b71]" size={20} />
+      {/* Main Layout - Responsive Grid */}
+      <main className="flex-1 w-full overflow-auto" style={{ padding: '12px' }}>
+        {/* Desktop Grid Layout (lg and above) */}
+        <div className="hidden lg:grid gap-3 h-full" style={{ gridTemplateColumns: 'repeat(12, minmax(0, 1fr))', gridTemplateRows: 'repeat(6, minmax(0, 1fr))' }}>
+          {/* Learning Objectives - Top Left */}
+          <section className="col-span-3 row-span-3 rounded-2xl p-5 flex flex-col border shadow-sm overflow-hidden" style={{ backgroundColor: '#f3f4f5', borderColor: '#e7e8e9' }}>
+            <div className="flex items-center gap-2 mb-4">
+              <Target size={20} style={{ color: '#5f4200' }} />
+              <h2 className="text-lg font-black" style={{ fontFamily: 'Manrope, sans-serif', color: '#191c1d' }}>Learning Objectives</h2>
             </div>
-            <h2 className="text-3xl font-['Manrope',sans-serif] font-bold text-[#191c1d]">Learning Objective</h2>
-          </div>
-
-          {/* Instructional Flow Timeline */}
-          <div className="space-y-12">
-            {/* Step 1 */}
-            <div className="relative pl-10 border-l-2 border-[#8ecdff]/30 pb-8">
-              <div className="absolute -left-[11px] top-0 w-5 h-5 rounded-full bg-[#004b71] ring-4 ring-white"></div>
-              <div className="space-y-3">
-                <div className="flex justify-between items-center flex-wrap gap-2">
-                  <h3 className="text-xl font-bold text-[#004b71] font-['Manrope',sans-serif]">Introduction & Overview</h3>
-                  <span className="text-sm font-['Work_Sans',sans-serif] font-bold text-[#40484f]">10 MIN</span>
+            <div className="flex-1 overflow-y-auto space-y-4" style={{ scrollbarWidth: 'thin', scrollbarColor: '#cbd5e1 transparent' }}>
+              {LEARNING_OBJECTIVES.map((obj, idx) => (
+                <div key={idx} className="flex gap-3">
+                  <span className="flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold text-white" style={{ backgroundColor: '#7d5800' }}>
+                    {idx + 1}
+                  </span>
+                  <p className="text-sm leading-relaxed" style={{ color: '#40484f' }}>{obj}</p>
                 </div>
-                <p className="text-[#40484f] leading-relaxed">
-                  Begin with a brief overview of the topic. Understand the core concepts and how they connect to real-world applications. Review prerequisite knowledge to ensure a strong foundation.
-                </p>
-              </div>
+              ))}
             </div>
+          </section>
 
-            {/* Step 2 */}
-            <div className="relative pl-10 border-l-2 border-[#8ecdff]/30 pb-8">
-              <div className="absolute -left-[11px] top-0 w-5 h-5 rounded-full bg-[#004b71] ring-4 ring-white"></div>
-              <div className="space-y-3">
-                <div className="flex justify-between items-center flex-wrap gap-2">
-                  <h3 className="text-xl font-bold text-[#004b71] font-['Manrope',sans-serif]">Core Concepts & Theory</h3>
-                  <span className="text-sm font-['Work_Sans',sans-serif] font-bold text-[#40484f]">25 MIN</span>
+          {/* Instructional Flow - Middle Left */}
+          <section className="col-span-3 row-span-3 rounded-2xl p-5 border shadow-sm flex flex-col overflow-hidden" style={{ backgroundColor: '#ffffff', borderColor: '#e7e8e9' }}>
+            <div className="flex items-center gap-2 mb-4">
+              <BookOpen size={20} style={{ color: '#004b71' }} />
+              <h2 className="text-lg font-black" style={{ fontFamily: 'Manrope, sans-serif', color: '#191c1d' }}>Instructional Flow</h2>
+            </div>
+            <div className="flex-1 overflow-y-auto space-y-6" style={{ scrollbarWidth: 'thin', scrollbarColor: '#cbd5e1 transparent' }}>
+              {LEARNING_STEPS.map((step, idx) => (
+                <div key={step.id} className="relative pl-6" style={{ borderLeft: '1px solid rgba(0, 75, 113, 0.2)' }}>
+                  <div className="absolute -left-[5px] top-0 w-2.5 h-2.5 rounded-full" style={{ backgroundColor: '#004b71' }}></div>
+                  <div className="flex justify-between items-start mb-1">
+                    <h3 className="text-xs font-bold uppercase" style={{ color: '#004b71' }}>{step.type}</h3>
+                    <span className="text-[10px] font-bold" style={{ color: '#a0aec0' }}>{step.duration}m</span>
+                  </div>
+                  <p className="text-xs leading-snug" style={{ color: '#40484f' }}>{step.title}</p>
+                  {completedSteps.includes(step.id) && (
+                    <div className="mt-2 text-[10px] font-bold flex items-center gap-1" style={{ color: '#22c55e' }}>
+                      <CheckCircle2 size={12} /> Completed
+                    </div>
+                  )}
                 </div>
-                <p className="text-[#40484f] leading-relaxed">
-                  Dive deep into the fundamental principles. Learn key definitions, formulas, and theorems. Use visual aids and mindmaps to connect different concepts and build a comprehensive understanding.
+              ))}
+            </div>
+          </section>
+
+          {/* Large Featured Section - Center */}
+          <section className="col-span-6 row-span-6 relative rounded-3xl overflow-hidden shadow-2xl" style={{ border: '4px solid white' }}>
+            <img
+              alt="Featured learning visualization"
+              className="absolute inset-0 w-full h-full object-cover"
+              src="https://lh3.googleusercontent.com/aida-public/AB6AXuCjErJaMyDK5kjzTovLrASuyjKjQibbbK3m9j83ky5Y8NUw42gJ8rI2I2nvCTIMD9KarwXUrpyqZ3mOAtTehMrvrfM5zley6gduXzfL9s0lZtKH5TvmU1QxZQRQ1wUQAK9WMT7rZWr10yVa7fZAtEaFk1Eci3MupvnWlWRXxik3eIhP4eyhrZKKDf1u7wZOqKUuaCgcUyuFIQ3isA-SUievMVWvVKr1vYH5L9syrve9QLI6yCKDPzBpXuVusD2XRg-QobUMRlHoPDCZ"
+            />
+            <div className="absolute inset-0 flex flex-col justify-end p-8 sm:p-12" style={{ background: 'linear-gradient(to top, rgba(0, 75, 113, 0.95), rgba(0, 75, 113, 0.4), transparent)' }}>
+              <div className="max-w-2xl space-y-4">
+                <h1 className="text-4xl sm:text-6xl font-black text-white leading-[0.95] tracking-tighter" style={{ fontFamily: 'Manrope, sans-serif' }}>
+                  {topicSlug}
+                </h1>
+                <p className="text-base sm:text-xl leading-relaxed opacity-90" style={{ fontFamily: 'Lexend, sans-serif', color: '#cbe6ff' }}>
+                  A comprehensive learning experience designed to help you master key concepts through structured practice, visual aids, and interactive materials.
                 </p>
-                <div className="p-4 bg-[#cbe6ff]/20 rounded-lg border-l-4 border-[#004b71] mt-4">
-                  <p className="text-xs font-['Work_Sans',sans-serif] uppercase font-bold text-[#004b71] mb-1">Key Insight</p>
-                  <p className="text-sm italic text-[#40484f]">
-                    Understanding the 'why' behind each concept is just as important as knowing the 'how'.
+
+                {/* Metadata Cards */}
+                <div className="pt-6 flex gap-2 sm:gap-4 flex-wrap">
+                  <div className="px-3 sm:px-4 py-2 rounded-xl border text-sm sm:text-base" style={{ backgroundColor: 'rgba(255, 255, 255, 0.1)', backdropFilter: 'blur(12px)', borderColor: 'rgba(255, 255, 255, 0.2)' }}>
+                    <p className="text-[9px] sm:text-[10px] uppercase font-bold" style={{ fontFamily: 'Work Sans, sans-serif', color: 'rgba(255, 255, 255, 0.6)' }}>Total Duration</p>
+                    <p className="text-sm font-bold text-white">
+                      {LEARNING_STEPS.reduce((sum, step) => sum + step.duration, 0)} Min
+                    </p>
+                  </div>
+                  <div className="px-3 sm:px-4 py-2 rounded-xl border text-sm sm:text-base" style={{ backgroundColor: 'rgba(255, 255, 255, 0.1)', backdropFilter: 'blur(12px)', borderColor: 'rgba(255, 255, 255, 0.2)' }}>
+                    <p className="text-[9px] sm:text-[10px] uppercase font-bold" style={{ fontFamily: 'Work Sans, sans-serif', color: 'rgba(255, 255, 255, 0.6)' }}>Progress</p>
+                    <p className="text-sm font-bold text-white">{overallProgress}%</p>
+                  </div>
+                  <div className="px-3 sm:px-4 py-2 rounded-xl border text-sm sm:text-base" style={{ backgroundColor: 'rgba(255, 255, 255, 0.1)', backdropFilter: 'blur(12px)', borderColor: 'rgba(255, 255, 255, 0.2)' }}>
+                    <p className="text-[9px] sm:text-[10px] uppercase font-bold" style={{ fontFamily: 'Work Sans, sans-serif', color: 'rgba(255, 255, 255, 0.6)' }}>Steps Done</p>
+                    <p className="text-sm font-bold text-white">
+                      {completedSteps.length}/{LEARNING_STEPS.length}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Progress Bar */}
+                <div className="pt-6 space-y-2">
+                  <div className="w-full h-2 rounded-full overflow-hidden" style={{ backgroundColor: 'rgba(255, 255, 255, 0.2)' }}>
+                    <div
+                      className="h-full transition-all duration-500"
+                      style={{
+                        width: `${overallProgress}%`,
+                        background: 'linear-gradient(to right, #ffdea9, #ffba27, #ffd386)'
+                      }}
+                    ></div>
+                  </div>
+                  <p className="text-xs" style={{ color: 'rgba(255, 255, 255, 0.7)', fontFamily: 'Work Sans, sans-serif' }}>
+                    {completedSteps.length} of {LEARNING_STEPS.length} learning steps completed
                   </p>
                 </div>
               </div>
             </div>
+          </section>
 
-            {/* Step 3 */}
-            <div className="relative pl-10 border-l-2 border-[#8ecdff]/30 pb-8">
-              <div className="absolute -left-[11px] top-0 w-5 h-5 rounded-full bg-[#004b71] ring-4 ring-white"></div>
+          {/* Materials - Bottom Right Top */}
+          <section className="col-span-3 row-span-3 rounded-2xl p-5 flex flex-col border shadow-sm overflow-hidden" style={{ backgroundColor: 'rgba(171, 238, 203, 0.1)', borderColor: 'rgba(171, 238, 203, 0.2)' }}>
+            <div className="flex items-center gap-2 mb-4">
+              <Layers size={20} style={{ color: '#2c694e' }} />
+              <h2 className="text-lg font-black" style={{ fontFamily: 'Manrope, sans-serif', color: '#191c1d' }}>Materials</h2>
+            </div>
+            <div className="flex-1 space-y-3 overflow-y-auto" style={{ scrollbarWidth: 'thin', scrollbarColor: '#cbd5e1 transparent' }}>
+              {MATERIALS.map((material, idx) => (
+                <div key={idx} className="p-3 rounded-xl flex items-center gap-3" style={{ backgroundColor: '#ffffff', border: '1px solid #f3f4f5' }}>
+                  <span className="text-2xl flex-shrink-0">
+                    {idx === 0 ? '💻' : idx === 1 ? '📊' : '📚'}
+                  </span>
+                  <div className="min-w-0">
+                    <p className="text-xs font-bold truncate" style={{ color: '#191c1d' }}>{material.title}</p>
+                    <p className="text-[10px] truncate" style={{ fontFamily: 'Work Sans, sans-serif', color: '#40484f' }}>{material.description}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </section>
+
+          {/* Assessment & Practice - Bottom Right Bottom */}
+          <section className="col-span-3 row-span-3 rounded-2xl p-5 flex flex-col border shadow-sm overflow-hidden" style={{ backgroundColor: '#e7e8e9', borderColor: '#e1e3e4' }}>
+            <div className="flex items-center gap-2 mb-4">
+              <CheckCircle2 size={20} style={{ color: '#004b71' }} />
+              <h2 className="text-lg font-black" style={{ fontFamily: 'Manrope, sans-serif', color: '#191c1d' }}>Assessment</h2>
+            </div>
+            <div className="flex-1 space-y-3 overflow-y-auto" style={{ scrollbarWidth: 'thin', scrollbarColor: '#cbd5e1 transparent' }}>
+              <p className="text-xs italic leading-relaxed mb-4" style={{ color: '#40484f' }}>
+                Measure mastery through structured practice and self-assessment tools.
+              </p>
+              {ASSESSMENT_ITEMS.map((item, idx) => (
+                <div key={idx} className="p-3 rounded-xl border" style={{ backgroundColor: isPracticeUnlocked ? '#ffffff' : '#f3f4f5', borderColor: isPracticeUnlocked ? '#c0c7d0' : '#c0c7d0' }}>
+                  <div className="flex items-center gap-2 mb-1">
+                    {isPracticeUnlocked ? (
+                      <CheckCircle2 size={16} style={{ color: '#004b71' }} />
+                    ) : (
+                      <Lock size={16} style={{ color: '#40484f' }} />
+                    )}
+                    <h4 className="text-xs font-bold truncate" style={{ color: isPracticeUnlocked ? '#004b71' : '#40484f' }}>
+                      {item.title}
+                    </h4>
+                  </div>
+                  <p className="text-[10px]" style={{ color: '#40484f' }}>
+                    {item.description}
+                  </p>
+                  {!isPracticeUnlocked && idx === 0 && (
+                    <p className="text-[9px] font-bold mt-2" style={{ color: '#5f4200' }}>
+                      📌 Complete 75% to unlock
+                    </p>
+                  )}
+                </div>
+              ))}
+            </div>
+          </section>
+        </div>
+
+        {/* Tablet Layout (md-lg) */}
+        <div className="hidden md:grid lg:hidden gap-3 auto-rows-max" style={{ gridTemplateColumns: 'repeat(2, minmax(0, 1fr))' }}>
+          {/* Learning Objectives */}
+          <section className="rounded-2xl p-4 flex flex-col border shadow-sm overflow-hidden max-h-96" style={{ backgroundColor: '#f3f4f5', borderColor: '#e7e8e9' }}>
+            <div className="flex items-center gap-2 mb-3">
+              <Target size={18} style={{ color: '#5f4200' }} />
+              <h2 className="text-base font-black" style={{ fontFamily: 'Manrope, sans-serif', color: '#191c1d' }}>Learning Objectives</h2>
+            </div>
+            <div className="overflow-y-auto space-y-3 text-sm" style={{ scrollbarWidth: 'thin' }}>
+              {LEARNING_OBJECTIVES.map((obj, idx) => (
+                <div key={idx} className="flex gap-2">
+                  <span className="flex-shrink-0 w-5 h-5 rounded-full flex items-center justify-center text-[9px] font-bold text-white" style={{ backgroundColor: '#7d5800' }}>
+                    {idx + 1}
+                  </span>
+                  <p className="text-xs leading-relaxed" style={{ color: '#40484f' }}>{obj}</p>
+                </div>
+              ))}
+            </div>
+          </section>
+
+          {/* Instructional Flow */}
+          <section className="rounded-2xl p-4 border shadow-sm flex flex-col overflow-hidden max-h-96" style={{ backgroundColor: '#ffffff', borderColor: '#e7e8e9' }}>
+            <div className="flex items-center gap-2 mb-3">
+              <BookOpen size={18} style={{ color: '#004b71' }} />
+              <h2 className="text-base font-black" style={{ fontFamily: 'Manrope, sans-serif', color: '#191c1d' }}>Instructional Flow</h2>
+            </div>
+            <div className="overflow-y-auto space-y-4 text-xs" style={{ scrollbarWidth: 'thin' }}>
+              {LEARNING_STEPS.map((step, idx) => (
+                <div key={step.id} className="relative pl-5" style={{ borderLeft: '1px solid rgba(0, 75, 113, 0.2)' }}>
+                  <div className="absolute -left-[3px] top-1 w-2 h-2 rounded-full" style={{ backgroundColor: '#004b71' }}></div>
+                  <div className="flex justify-between items-start mb-0.5">
+                    <h3 className="font-bold uppercase" style={{ color: '#004b71', fontSize: '9px' }}>{step.type}</h3>
+                    <span className="font-bold" style={{ color: '#a0aec0', fontSize: '8px' }}>{step.duration}m</span>
+                  </div>
+                  <p className="leading-snug" style={{ color: '#40484f' }}>{step.title}</p>
+                  {completedSteps.includes(step.id) && (
+                    <div className="mt-1 text-[9px] font-bold flex items-center gap-1" style={{ color: '#22c55e' }}>
+                      <CheckCircle2 size={10} /> Done
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </section>
+
+          {/* Featured Section */}
+          <section className="col-span-2 relative rounded-2xl overflow-hidden shadow-lg h-[45vw] min-h-[280px] max-h-[420px]" style={{ border: '3px solid white' }}>
+            <img
+              alt="Featured learning visualization"
+              className="absolute inset-0 w-full h-full object-cover object-center"
+              src="https://lh3.googleusercontent.com/aida-public/AB6AXuCjErJaMyDK5kjzTovLrASuyjKjQibbbK3m9j83ky5Y8NUw42gJ8rI2I2nvCTIMD9KarwXUrpyqZ3mOAtTehMrvrfM5zley6gduXzfL9s0lZtKH5TvmU1QxZQRQ1wUQAK9WMT7rZWr10yVa7fZAtEaFk1Eci3MupvnWlWRXxik3eIhP4eyhrZKKDf1u7wZOqKUuaCgcUyuFIQ3isA-SUievMVWvVKr1vYH5L9syrve9QLI6yCKDPzBpXuVusD2XRg-QobUMRlHoPDCZ"
+            />
+            <div className="absolute inset-0 flex flex-col justify-end p-6" style={{ background: 'linear-gradient(to top, rgba(0, 75, 113, 0.95), rgba(0, 75, 113, 0.4), transparent)' }}>
               <div className="space-y-3">
-                <div className="flex justify-between items-center flex-wrap gap-2">
-                  <h3 className="text-xl font-bold text-[#004b71] font-['Manrope',sans-serif]">Practice & Application</h3>
-                  <span className="text-sm font-['Work_Sans',sans-serif] font-bold text-[#40484f]">30 MIN</span>
-                </div>
-                <p className="text-[#40484f] leading-relaxed">
-                  Work through example problems step-by-step. Apply the concepts you've learned to solve various exercises. Use worksheets and tryout quizzes to reinforce your understanding.
+                <h1 className="text-2xl sm:text-3xl font-black text-white leading-tight tracking-tight" style={{ fontFamily: 'Manrope, sans-serif' }}>
+                  {topicSlug}
+                </h1>
+                <p className="text-xs sm:text-sm opacity-90" style={{ fontFamily: 'Lexend, sans-serif', color: '#cbe6ff' }}>
+                  Master key concepts through structured practice and interactive materials.
                 </p>
+                <div className="flex gap-2 flex-wrap">
+                  <div className="px-2 py-1 rounded-lg border text-xs" style={{ backgroundColor: 'rgba(255, 255, 255, 0.1)', borderColor: 'rgba(255, 255, 255, 0.2)' }}>
+                    <p className="text-[8px] text-white/60" style={{ fontFamily: 'Work Sans, sans-serif' }}>Progress</p>
+                    <p className="text-xs font-bold text-white">{overallProgress}%</p>
+                  </div>
+                  <div className="px-2 py-1 rounded-lg border text-xs" style={{ backgroundColor: 'rgba(255, 255, 255, 0.1)', borderColor: 'rgba(255, 255, 255, 0.2)' }}>
+                    <p className="text-[8px] text-white/60" style={{ fontFamily: 'Work Sans, sans-serif' }}>Steps</p>
+                    <p className="text-xs font-bold text-white">{completedSteps.length}/{LEARNING_STEPS.length}</p>
+                  </div>
+                </div>
+                <div className="w-full h-1.5 rounded-full overflow-hidden mt-2" style={{ backgroundColor: 'rgba(255, 255, 255, 0.2)' }}>
+                  <div
+                    className="h-full transition-all duration-500"
+                    style={{
+                      width: `${overallProgress}%`,
+                      background: 'linear-gradient(to right, #ffdea9, #ffba27, #ffd386)'
+                    }}
+                  ></div>
+                </div>
               </div>
             </div>
+          </section>
 
-            {/* Step 4 */}
-            <div className="relative pl-10">
-              <div className="absolute -left-[11px] top-0 w-5 h-5 rounded-full bg-[#004b71] ring-4 ring-white"></div>
-              <div className="space-y-3">
-                <div className="flex justify-between items-center flex-wrap gap-2">
-                  <h3 className="text-xl font-bold text-[#004b71] font-['Manrope',sans-serif]">Review & Self-Assessment</h3>
-                  <span className="text-sm font-['Work_Sans',sans-serif] font-bold text-[#40484f]">15 MIN</span>
+          {/* Materials */}
+          <section className="rounded-2xl p-4 flex flex-col border shadow-sm overflow-hidden max-h-64" style={{ backgroundColor: 'rgba(171, 238, 203, 0.1)', borderColor: 'rgba(171, 238, 203, 0.2)' }}>
+            <div className="flex items-center gap-2 mb-3">
+              <Layers size={18} style={{ color: '#2c694e' }} />
+              <h2 className="text-base font-black" style={{ fontFamily: 'Manrope, sans-serif', color: '#191c1d' }}>Materials</h2>
+            </div>
+            <div className="overflow-y-auto space-y-2" style={{ scrollbarWidth: 'thin' }}>
+              {MATERIALS.map((material, idx) => (
+                <div key={idx} className="p-2 rounded-lg flex items-center gap-2" style={{ backgroundColor: '#ffffff', border: '1px solid #f3f4f5' }}>
+                  <span className="text-lg flex-shrink-0">
+                    {idx === 0 ? '💻' : idx === 1 ? '📊' : '📚'}
+                  </span>
+                  <div className="min-w-0">
+                    <p className="text-[11px] font-bold truncate" style={{ color: '#191c1d' }}>{material.title}</p>
+                    <p className="text-[9px] truncate" style={{ fontFamily: 'Work Sans, sans-serif', color: '#40484f' }}>{material.description}</p>
+                  </div>
                 </div>
-                <p className="text-[#40484f] leading-relaxed">
-                  Test your knowledge with flashcards and quick quizzes. Review any challenging areas and revisit study materials as needed. Track your progress and identify areas for improvement.
+              ))}
+            </div>
+          </section>
+
+          {/* Assessment */}
+          <section className="rounded-2xl p-4 flex flex-col border shadow-sm overflow-hidden max-h-64" style={{ backgroundColor: '#e7e8e9', borderColor: '#e1e3e4' }}>
+            <div className="flex items-center gap-2 mb-3">
+              <CheckCircle2 size={18} style={{ color: '#004b71' }} />
+              <h2 className="text-base font-black" style={{ fontFamily: 'Manrope, sans-serif', color: '#191c1d' }}>Assessment</h2>
+            </div>
+            <div className="overflow-y-auto space-y-2" style={{ scrollbarWidth: 'thin' }}>
+              {ASSESSMENT_ITEMS.map((item, idx) => (
+                <div key={idx} className="p-2 rounded-lg border text-xs" style={{ backgroundColor: isPracticeUnlocked ? '#ffffff' : '#f3f4f5', borderColor: '#c0c7d0' }}>
+                  <div className="flex items-center gap-1 mb-1">
+                    {isPracticeUnlocked ? (
+                      <CheckCircle2 size={14} style={{ color: '#004b71' }} />
+                    ) : (
+                      <Lock size={14} style={{ color: '#40484f' }} />
+                    )}
+                    <h4 className="font-bold text-[11px] truncate" style={{ color: isPracticeUnlocked ? '#004b71' : '#40484f' }}>
+                      {item.title}
+                    </h4>
+                  </div>
+                  <p className="text-[9px]" style={{ color: '#40484f' }}>
+                    {item.description}
+                  </p>
+                </div>
+              ))}
+            </div>
+          </section>
+        </div>
+
+        {/* Mobile Layout (below md) */}
+        <div className="md:hidden space-y-3">
+          {/* Featured Section First */}
+          <section className="relative rounded-2xl overflow-hidden shadow-lg h-[56vw] min-h-[220px] max-h-[360px]" style={{ border: '3px solid white' }}>
+            <img
+              alt="Featured learning visualization"
+              className="absolute inset-0 w-full h-full object-cover object-center"
+              src="https://lh3.googleusercontent.com/aida-public/AB6AXuCjErJaMyDK5kjzTovLrASuyjKjQibbbK3m9j83ky5Y8NUw42gJ8rI2I2nvCTIMD9KarwXUrpyqZ3mOAtTehMrvrfM5zley6gduXzfL9s0lZtKH5TvmU1QxZQRQ1wUQAK9WMT7rZWr10yVa7fZAtEaFk1Eci3MupvnWlWRXxik3eIhP4eyhrZKKDf1u7wZOqKUuaCgcUyuFIQ3isA-SUievMVWvVKr1vYH5L9syrve9QLI6yCKDPzBpXuVusD2XRg-QobUMRlHoPDCZ"
+            />
+            <div className="absolute inset-0 flex flex-col justify-end p-4" style={{ background: 'linear-gradient(to top, rgba(0, 75, 113, 0.95), rgba(0, 75, 113, 0.4), transparent)' }}>
+              <div className="space-y-2">
+                <h1 className="text-xl font-black text-white leading-tight tracking-tight" style={{ fontFamily: 'Manrope, sans-serif' }}>
+                  {topicSlug}
+                </h1>
+                <p className="text-xs opacity-90" style={{ fontFamily: 'Lexend, sans-serif', color: '#cbe6ff' }}>
+                  Master key concepts through structured practice.
                 </p>
-              </div>
-            </div>
-          </div>
-        </section>
-
-        {/* SECTION 2: Practice Papers */}
-        <section className="space-y-8 bg-white p-10 rounded-2xl shadow-sm border border-[#e1e3e4]">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-lg bg-[#ffd386] flex items-center justify-center">
-              <FileText className="text-[#5f4200]" size={20} />
-            </div>
-            <h2 className="text-3xl font-['Manrope',sans-serif] font-bold text-[#191c1d]">Practice Papers</h2>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {/* Practice Paper 1 */}
-            <div className="group relative overflow-hidden rounded-xl bg-white border-2 border-[#e1e3e4] p-6 cursor-pointer hover:border-rose-300 hover:shadow-lg transition-all duration-300 hover:-translate-y-1">
-              <div className="flex items-start justify-between mb-4">
-                <div className="w-12 h-12 rounded-lg bg-gradient-to-br from-rose-500 to-pink-600 flex items-center justify-center group-hover:scale-110 transition-transform">
-                  <FileText className="text-white" size={20} />
+                <div className="flex gap-2 flex-wrap">
+                  <div className="px-2 py-1 rounded-lg border text-xs" style={{ backgroundColor: 'rgba(255, 255, 255, 0.1)', borderColor: 'rgba(255, 255, 255, 0.2)' }}>
+                    <p className="text-[8px] text-white/60">Progress</p>
+                    <p className="text-xs font-bold text-white">{overallProgress}%</p>
+                  </div>
+                  <div className="px-2 py-1 rounded-lg border text-xs" style={{ backgroundColor: 'rgba(255, 255, 255, 0.1)', borderColor: 'rgba(255, 255, 255, 0.2)' }}>
+                    <p className="text-[8px] text-white/60">Steps</p>
+                    <p className="text-xs font-bold text-white">{completedSteps.length}/{LEARNING_STEPS.length}</p>
+                  </div>
                 </div>
-                <span className="text-xs px-2.5 py-1 rounded-full bg-[#fff3e0] text-[#e65100] font-bold font-['Work_Sans',sans-serif]">EASY</span>
               </div>
-              <h3 className="font-bold text-[#191c1d] font-['Manrope',sans-serif] mb-2 text-lg">Basic Concepts</h3>
-              <p className="text-sm text-[#40484f] font-['Work_Sans',sans-serif] leading-relaxed mb-4">10 questions • 20 minutes</p>
-              <button className="w-full py-2 px-3 rounded-lg bg-[#f3f4f5] text-[#004b71] font-semibold text-sm hover:bg-[#e8eaed] transition-colors">
-                Start Practice
-              </button>
             </div>
+          </section>
 
-            {/* Practice Paper 2 */}
-            <div className="group relative overflow-hidden rounded-xl bg-white border-2 border-[#e1e3e4] p-6 cursor-pointer hover:border-amber-300 hover:shadow-lg transition-all duration-300 hover:-translate-y-1">
-              <div className="flex items-start justify-between mb-4">
-                <div className="w-12 h-12 rounded-lg bg-gradient-to-br from-amber-500 to-orange-600 flex items-center justify-center group-hover:scale-110 transition-transform">
-                  <FileText className="text-white" size={20} />
+          {/* Learning Objectives */}
+          <section className="rounded-2xl p-4 flex flex-col border shadow-sm" style={{ backgroundColor: '#f3f4f5', borderColor: '#e7e8e9' }}>
+            <div className="flex items-center gap-2 mb-3">
+              <Target size={18} style={{ color: '#5f4200' }} />
+              <h2 className="text-base font-black" style={{ fontFamily: 'Manrope, sans-serif', color: '#191c1d' }}>Learning Objectives</h2>
+            </div>
+            <div className="space-y-3 text-sm">
+              {LEARNING_OBJECTIVES.map((obj, idx) => (
+                <div key={idx} className="flex gap-2">
+                  <span className="flex-shrink-0 w-5 h-5 rounded-full flex items-center justify-center text-[9px] font-bold text-white" style={{ backgroundColor: '#7d5800' }}>
+                    {idx + 1}
+                  </span>
+                  <p className="text-xs leading-relaxed" style={{ color: '#40484f' }}>{obj}</p>
                 </div>
-                <span className="text-xs px-2.5 py-1 rounded-full bg-[#e3f2fd] text-[#1565c0] font-bold font-['Work_Sans',sans-serif]">MEDIUM</span>
-              </div>
-              <h3 className="font-bold text-[#191c1d] font-['Manrope',sans-serif] mb-2 text-lg">Applied Problems</h3>
-              <p className="text-sm text-[#40484f] font-['Work_Sans',sans-serif] leading-relaxed mb-4">15 questions • 30 minutes</p>
-              <button className="w-full py-2 px-3 rounded-lg bg-[#f3f4f5] text-[#004b71] font-semibold text-sm hover:bg-[#e8eaed] transition-colors">
-                Start Practice
-              </button>
+              ))}
             </div>
+          </section>
 
-            {/* Practice Paper 3 */}
-            <div className="group relative overflow-hidden rounded-xl bg-white border-2 border-[#e1e3e4] p-6 cursor-pointer hover:border-red-300 hover:shadow-lg transition-all duration-300 hover:-translate-y-1">
-              <div className="flex items-start justify-between mb-4">
-                <div className="w-12 h-12 rounded-lg bg-gradient-to-br from-red-500 to-red-600 flex items-center justify-center group-hover:scale-110 transition-transform">
-                  <FileText className="text-white" size={20} />
+          {/* Instructional Flow */}
+          <section className="rounded-2xl p-4 border shadow-sm" style={{ backgroundColor: '#ffffff', borderColor: '#e7e8e9' }}>
+            <div className="flex items-center gap-2 mb-3">
+              <BookOpen size={18} style={{ color: '#004b71' }} />
+              <h2 className="text-base font-black" style={{ fontFamily: 'Manrope, sans-serif', color: '#191c1d' }}>Instructional Flow</h2>
+            </div>
+            <div className="space-y-4 text-xs">
+              {LEARNING_STEPS.map((step, idx) => (
+                <div key={step.id} className="relative pl-5" style={{ borderLeft: '1px solid rgba(0, 75, 113, 0.2)' }}>
+                  <div className="absolute -left-[3px] top-1 w-2 h-2 rounded-full" style={{ backgroundColor: '#004b71' }}></div>
+                  <div className="flex justify-between items-start mb-0.5">
+                    <h3 className="font-bold uppercase" style={{ color: '#004b71', fontSize: '9px' }}>{step.type}</h3>
+                    <span className="font-bold" style={{ color: '#a0aec0', fontSize: '8px' }}>{step.duration}m</span>
+                  </div>
+                  <p className="leading-snug" style={{ color: '#40484f' }}>{step.title}</p>
+                  {completedSteps.includes(step.id) && (
+                    <div className="mt-1 text-[9px] font-bold flex items-center gap-1" style={{ color: '#22c55e' }}>
+                      <CheckCircle2 size={10} /> Done
+                    </div>
+                  )}
                 </div>
-                <span className="text-xs px-2.5 py-1 rounded-full bg-[#fce4ec] text-[#c2185b] font-bold font-['Work_Sans',sans-serif]">HARD</span>
-              </div>
-              <h3 className="font-bold text-[#191c1d] font-['Manrope',sans-serif] mb-2 text-lg">Challenge Questions</h3>
-              <p className="text-sm text-[#40484f] font-['Work_Sans',sans-serif] leading-relaxed mb-4">20 questions • 45 minutes</p>
-              <button className="w-full py-2 px-3 rounded-lg bg-[#f3f4f5] text-[#004b71] font-semibold text-sm hover:bg-[#e8eaed] transition-colors">
-                Start Practice
-              </button>
+              ))}
             </div>
-          </div>
-        </section>
+          </section>
 
-        {/* SECTION 3: Learning Resources */}
-        <section className="space-y-8">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-lg bg-[#ffd386] flex items-center justify-center">
-              <Target className="text-[#5f4200]" size={20} />
+          {/* Materials */}
+          <section className="rounded-2xl p-4 flex flex-col border shadow-sm" style={{ backgroundColor: 'rgba(171, 238, 203, 0.1)', borderColor: 'rgba(171, 238, 203, 0.2)' }}>
+            <div className="flex items-center gap-2 mb-3">
+              <Layers size={18} style={{ color: '#2c694e' }} />
+              <h2 className="text-base font-black" style={{ fontFamily: 'Manrope, sans-serif', color: '#191c1d' }}>Materials</h2>
             </div>
-            <h2 className="text-3xl font-['Manrope',sans-serif] font-bold text-[#191c1d]">Learning Resources</h2>
-          </div>
-
-          {/* Grid Layout for Resources */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {/* Tryout - Featured Card */}
-            <div className="col-span-1 group relative overflow-hidden rounded-2xl bg-gradient-to-br from-purple-500 to-indigo-600 p-8 cursor-pointer hover:shadow-2xl transition-all duration-300 hover:scale-[1.02]">
-              <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full -mr-16 -mt-16"></div>
-              <div className="absolute bottom-0 left-0 w-24 h-24 bg-white/10 rounded-full -ml-12 -mb-12"></div>
-              <div className="relative z-10">
-                <div className="w-14 h-14 rounded-xl bg-white/20 backdrop-blur-sm flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
-                  <Flame className="text-white" size={28} />
+            <div className="space-y-2">
+              {MATERIALS.map((material, idx) => (
+                <div key={idx} className="p-2 rounded-lg flex items-center gap-2" style={{ backgroundColor: '#ffffff', border: '1px solid #f3f4f5' }}>
+                  <span className="text-lg flex-shrink-0">
+                    {idx === 0 ? '💻' : idx === 1 ? '📊' : '📚'}
+                  </span>
+                  <div className="min-w-0">
+                    <p className="text-[11px] font-bold truncate" style={{ color: '#191c1d' }}>{material.title}</p>
+                    <p className="text-[9px] truncate" style={{ fontFamily: 'Work Sans, sans-serif', color: '#40484f' }}>{material.description}</p>
+                  </div>
                 </div>
-                <h3 className="text-2xl font-bold text-white font-['Manrope',sans-serif] mb-2">Tryout</h3>
-                <p className="text-sm text-white/90 font-['Work_Sans',sans-serif] leading-relaxed">Test your knowledge with quick practice quizzes and challenges</p>
-              </div>
+              ))}
             </div>
+          </section>
 
-            {/* Flashcard */}
-            <div className="group relative overflow-hidden rounded-xl bg-[#aeeecb]/30 border-2 border-[#2c694e]/20 p-6 cursor-pointer hover:bg-[#aeeecb]/50 hover:border-[#2c694e]/40 hover:shadow-lg transition-all duration-300">
-              <div className="w-12 h-12 rounded-lg bg-gradient-to-br from-lime-500 to-green-600 flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
-                <Layers className="text-white" size={20} />
-              </div>
-              <h3 className="font-bold text-[#191c1d] font-['Manrope',sans-serif] mb-2 text-lg">Flashcard</h3>
-              <p className="text-sm text-[#40484f] font-['Work_Sans',sans-serif] leading-relaxed">Quick revision and memorization</p>
+          {/* Assessment */}
+          <section className="rounded-2xl p-4 flex flex-col border shadow-sm" style={{ backgroundColor: '#e7e8e9', borderColor: '#e1e3e4' }}>
+            <div className="flex items-center gap-2 mb-3">
+              <CheckCircle2 size={18} style={{ color: '#004b71' }} />
+              <h2 className="text-base font-black" style={{ fontFamily: 'Manrope, sans-serif', color: '#191c1d' }}>Assessment</h2>
             </div>
-
-            {/* Mindmap */}
-            <div className="group relative overflow-hidden rounded-xl bg-white border-2 border-[#e1e3e4] p-6 cursor-pointer hover:border-cyan-300 hover:shadow-lg transition-all duration-300 hover:-translate-y-1">
-              <div className="w-12 h-12 rounded-lg bg-gradient-to-br from-cyan-500 to-blue-600 flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
-                <Brain className="text-white" size={20} />
-              </div>
-              <h3 className="font-bold text-[#191c1d] font-['Manrope',sans-serif] mb-2 text-lg">Mindmap</h3>
-              <p className="text-sm text-[#40484f] font-['Work_Sans',sans-serif] leading-relaxed">Visual concepts and connections</p>
+            <div className="space-y-2">
+              {ASSESSMENT_ITEMS.map((item, idx) => (
+                <div key={idx} className="p-2 rounded-lg border text-xs" style={{ backgroundColor: isPracticeUnlocked ? '#ffffff' : '#f3f4f5', borderColor: '#c0c7d0' }}>
+                  <div className="flex items-center gap-1 mb-1">
+                    {isPracticeUnlocked ? (
+                      <CheckCircle2 size={14} style={{ color: '#004b71' }} />
+                    ) : (
+                      <Lock size={14} style={{ color: '#40484f' }} />
+                    )}
+                    <h4 className="font-bold text-[11px] truncate" style={{ color: isPracticeUnlocked ? '#004b71' : '#40484f' }}>
+                      {item.title}
+                    </h4>
+                  </div>
+                  <p className="text-[9px]" style={{ color: '#40484f' }}>
+                    {item.description}
+                  </p>
+                </div>
+              ))}
             </div>
+          </section>
+        </div>
+      </main>
 
-            {/* Study Material */}
-            <div className="group relative overflow-hidden rounded-xl bg-[#cbe6ff]/30 border-2 border-[#004b71]/20 p-6 cursor-pointer hover:bg-[#cbe6ff]/50 hover:border-[#004b71]/40 hover:shadow-lg transition-all duration-300">
-              <div className="w-12 h-12 rounded-lg bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
-                <BookOpen className="text-white" size={20} />
-              </div>
-              <h3 className="font-bold text-[#191c1d] font-['Manrope',sans-serif] mb-2 text-lg">Study Material</h3>
-              <p className="text-sm text-[#40484f] font-['Work_Sans',sans-serif] leading-relaxed">Detailed notes and explanations</p>
-            </div>
-
-            {/* Worksheet */}
-            <div className="group relative overflow-hidden rounded-xl bg-white border-2 border-[#e1e3e4] p-6 cursor-pointer hover:border-rose-300 hover:shadow-lg transition-all duration-300 hover:-translate-y-1">
-              <div className="w-12 h-12 rounded-lg bg-gradient-to-br from-rose-500 to-pink-600 flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
-                <FileText className="text-white" size={20} />
-              </div>
-              <h3 className="font-bold text-[#191c1d] font-['Manrope',sans-serif] mb-2 text-lg">Worksheet</h3>
-              <p className="text-sm text-[#40484f] font-['Work_Sans',sans-serif] leading-relaxed">Extra practice exercises</p>
-            </div>
-
-            {/* Additional Notes */}
-            <div className="group relative overflow-hidden rounded-xl bg-white border-2 border-[#e1e3e4] p-6 cursor-pointer hover:border-green-300 hover:shadow-lg transition-all duration-300 hover:-translate-y-1">
-              <div className="w-12 h-12 rounded-lg bg-gradient-to-br from-green-500 to-emerald-600 flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
-                <ListChecks className="text-white" size={20} />
-              </div>
-              <h3 className="font-bold text-[#191c1d] font-['Manrope',sans-serif] mb-2 text-lg">Summary Notes</h3>
-              <p className="text-sm text-[#40484f] font-['Work_Sans',sans-serif] leading-relaxed">Quick reference guide</p>
-            </div>
-          </div>
-
-          {/* Pro Tip Card */}
-          <div className="p-6 rounded-xl bg-[#f3f4f5] border-l-4 border-[#006494]">
-            <div className="flex items-start gap-3">
-              <Lightbulb className="text-[#5f4200] flex-shrink-0 mt-0.5" size={20} />
-              <div>
-                <p className="text-xs font-bold text-[#191c1d] font-['Work_Sans',sans-serif] uppercase tracking-wider mb-1">Pro Tip</p>
-                <p className="text-sm text-[#40484f] leading-relaxed">Start with the Learning Objective section to understand what you'll learn, then attempt the Practice Papers. Use other resources (Flashcards, Mindmaps) to reinforce areas where you need help.</p>
-              </div>
-            </div>
-          </div>
-        </section>
-
-        {/* Footer Meta 
-        <footer className="pt-8 border-t border-[#e7e8e9] flex flex-col md:flex-row justify-between items-center text-[#40484f] text-sm font-['Work_Sans',sans-serif]">
-          <div className="flex items-center gap-4 flex-wrap">
-            <span>Topic: {topicSlug}</span>
-            <span className="w-1 h-1 rounded-full bg-[#c0c7d0]"></span>
-            <span>Subject: {subjectSlug}</span>
-          </div>
-          <div className="mt-4 md:mt-0 flex gap-6">
-            <button className="hover:text-[#004b71] transition-colors font-semibold">Mark Complete</button>
-            <button className="hover:text-[#004b71] transition-colors font-semibold">Save for Later</button>
-          </div>
-        </footer> */}
-      </div>
-
+      {/* Error Notification */}
       {error && (
-        <div className="fixed bottom-4 right-4 bg-[#ffdad6] border border-[#ba1a1a] text-[#93000a] px-4 py-3 rounded-lg shadow-lg max-w-md">
+        <div className="fixed bottom-4 right-4 px-4 py-3 rounded-lg shadow-lg max-w-md border" style={{ backgroundColor: '#ffdad6', borderColor: '#ba1a1a', color: '#93000a' }}>
           <p className="text-sm font-semibold">{error}</p>
         </div>
       )}
+
+      <style>{`
+        * {
+          scrollbar-width: thin;
+          scrollbar-color: #cbd5e1 transparent;
+        }
+        *::-webkit-scrollbar {
+          width: 4px;
+        }
+        *::-webkit-scrollbar-track {
+          background: transparent;
+        }
+        *::-webkit-scrollbar-thumb {
+          background: #cbd5e1;
+          border-radius: 2px;
+        }
+      `}</style>
     </div>
   );
 };

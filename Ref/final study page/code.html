@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Dashboard - Introduction to Quantum Mechanics</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@200..800&amp;family=Lexend:wght@100..900&amp;family=Work+Sans:wght@100..900&amp;family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "on-tertiary-fixed": "#271900",
+                        "on-primary-container": "#b6ddff",
+                        "on-error": "#ffffff",
+                        "on-secondary-fixed": "#002114",
+                        "on-secondary": "#ffffff",
+                        "surface-container-high": "#e7e8e9",
+                        "on-primary": "#ffffff",
+                        "outline": "#707880",
+                        "primary-fixed": "#cbe6ff",
+                        "on-surface": "#191c1d",
+                        "secondary-fixed": "#b1f0ce",
+                        "error": "#ba1a1a",
+                        "surface-container-highest": "#e1e3e4",
+                        "on-background": "#191c1d",
+                        "on-tertiary-container": "#ffd386",
+                        "on-tertiary": "#ffffff",
+                        "surface-dim": "#d9dadb",
+                        "on-error-container": "#93000a",
+                        "error-container": "#ffdad6",
+                        "surface-container-lowest": "#ffffff",
+                        "tertiary-container": "#7d5800",
+                        "surface-tint": "#006494",
+                        "tertiary-fixed-dim": "#ffba27",
+                        "on-primary-fixed": "#001e30",
+                        "on-surface-variant": "#40484f",
+                        "secondary-container": "#aeeecb",
+                        "tertiary-fixed": "#ffdea9",
+                        "inverse-on-surface": "#f0f1f2",
+                        "background": "#f8f9fa",
+                        "on-tertiary-fixed-variant": "#5e4100",
+                        "on-secondary-container": "#316e52",
+                        "surface-container-low": "#f3f4f5",
+                        "tertiary": "#5f4200",
+                        "secondary-fixed-dim": "#95d4b3",
+                        "inverse-primary": "#8ecdff",
+                        "secondary": "#2c694e",
+                        "surface-container": "#edeeef",
+                        "surface-variant": "#e1e3e4",
+                        "primary-fixed-dim": "#8ecdff",
+                        "on-primary-fixed-variant": "#004b71",
+                        "surface-bright": "#f8f9fa",
+                        "inverse-surface": "#2e3132",
+                        "primary-container": "#006494",
+                        "outline-variant": "#c0c7d0",
+                        "on-secondary-fixed-variant": "#0e5138",
+                        "primary": "#004b71",
+                        "surface": "#f8f9fa"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.125rem",
+                        "lg": "0.25rem",
+                        "xl": "0.5rem",
+                        "full": "0.75rem"
+                    },
+                    "fontFamily": {
+                        "headline": ["Manrope", "sans-serif"],
+                        "body": ["Lexend", "sans-serif"],
+                        "label": ["Work Sans", "sans-serif"]
+                    }
+                },
+            },
+        }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        body { 
+            font-family: 'Lexend', sans-serif;
+            overflow: hidden;}.dense-scroll::-webkit-scrollbar {
+            width: 4px;
+        }
+        .dense-scroll::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        .dense-scroll::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 2px;
+        }
+    </style>
+</head>
+<body class="bg-background text-on-background h-screen w-screen selection:bg-primary-fixed selection:text-on-primary-fixed">
+<header class="h-14 border-b border-surface-container-high bg-white/80 backdrop-blur-md flex items-center justify-between px-6 z-50 sticky top-0">
+<div class="flex items-center gap-6">
+<span class="text-lg font-black tracking-tighter text-sky-900 font-headline">The Scholarly Curator</span>
+<div class="h-4 w-px bg-slate-300"></div>
+<p class="text-xs text-slate-500 font-label uppercase tracking-widest font-bold">Physics • Grade 12</p>
+</div>
+<div class="flex items-center gap-3">
+<button class="px-4 py-1.5 text-sm text-sky-700 font-bold hover:bg-slate-50 transition-colors rounded-lg">Live Preview</button>
+<button class="px-4 py-1.5 text-sm bg-primary-container text-on-primary-container font-bold rounded-lg hover:bg-primary transition-colors">Download PDF</button>
+</div>
+</header>
+<main class="h-[calc(100vh-3.5rem)] w-full grid grid-cols-12 grid-rows-6 gap-3 p-3">
+<section class="col-span-3 row-span-3 rounded-2xl bg-surface-container-low p-5 flex flex-col border border-surface-container-high shadow-sm overflow-hidden">
+<div class="flex items-center gap-2 mb-4">
+<span class="material-symbols-outlined text-tertiary text-xl">target</span>
+<h2 class="text-lg font-headline font-extrabold text-on-surface">Learning Objectives</h2>
+</div>
+<div class="flex-1 overflow-y-auto dense-scroll space-y-4">
+<div class="flex gap-3">
+<span class="flex-shrink-0 w-6 h-6 rounded-full bg-tertiary-container text-on-tertiary-container flex items-center justify-center text-[10px] font-bold">01</span>
+<p class="text-sm text-on-surface-variant leading-relaxed">Synthesize the experimental evidence for wave-particle duality, focusing on the double-slit experiment.</p>
+</div>
+<div class="flex gap-3">
+<span class="flex-shrink-0 w-6 h-6 rounded-full bg-tertiary-container text-on-tertiary-container flex items-center justify-center text-[10px] font-bold">02</span>
+<p class="text-sm text-on-surface-variant leading-relaxed">Calculate de Broglie wavelengths for various particles and interpret their physical significance.</p>
+</div>
+<div class="flex gap-3">
+<span class="flex-shrink-0 w-6 h-6 rounded-full bg-tertiary-container text-on-tertiary-container flex items-center justify-center text-[10px] font-bold">03</span>
+<p class="text-sm text-on-surface-variant leading-relaxed">Explain Heisenberg’s Uncertainty Principle and its implications for the measurement of momentum and position.</p>
+</div>
+</div>
+</section>
+<section class="col-span-3 row-span-3 rounded-2xl bg-surface-container-lowest p-5 border border-surface-container-high shadow-sm flex flex-col overflow-hidden">
+<div class="flex items-center gap-2 mb-4">
+<span class="material-symbols-outlined text-primary text-xl">reorder</span>
+<h2 class="text-lg font-headline font-extrabold text-on-surface">Instructional Flow</h2>
+</div>
+<div class="flex-1 overflow-y-auto dense-scroll space-y-6">
+<div class="relative pl-6 border-l border-primary/20">
+<div class="absolute -left-[5px] top-0 w-2.5 h-2.5 rounded-full bg-primary"></div>
+<div class="flex justify-between items-start mb-1">
+<h3 class="text-xs font-bold text-primary uppercase">The Hook</h3>
+<span class="text-[10px] font-bold text-slate-400">15m</span>
+</div>
+<p class="text-xs text-on-surface-variant leading-snug">Present the "Ultraviolet Catastrophe." Use HD simulation to visualize divergence from classical mechanics.</p>
+</div>
+<div class="relative pl-6 border-l border-primary/20">
+<div class="absolute -left-[5px] top-0 w-2.5 h-2.5 rounded-full bg-primary"></div>
+<div class="flex justify-between items-start mb-1">
+<h3 class="text-xs font-bold text-primary uppercase">Instruction</h3>
+<span class="text-[10px] font-bold text-slate-400">30m</span>
+</div>
+<p class="text-xs text-on-surface-variant leading-snug">Introduce Planck’s constant and Quanta. Derive E=hf and transition to the Photoelectric Effect.</p>
+</div>
+<div class="relative pl-6 border-l border-primary/20">
+<div class="absolute -left-[5px] top-0 w-2.5 h-2.5 rounded-full bg-primary"></div>
+<div class="flex justify-between items-start mb-1">
+<h3 class="text-xs font-bold text-primary uppercase">Guided Practice</h3>
+<span class="text-[10px] font-bold text-slate-400">20m</span>
+</div>
+<p class="text-xs text-on-surface-variant leading-snug">Calculate de Broglie wavelengths of electrons vs baseballs scale observation.</p>
+</div>
+<div class="relative pl-6 border-l border-primary/20">
+<div class="absolute -left-[5px] top-0 w-2.5 h-2.5 rounded-full bg-primary"></div>
+<div class="flex justify-between items-start mb-1">
+<h3 class="text-xs font-bold text-primary uppercase">Synthesis</h3>
+<span class="text-[10px] font-bold text-slate-400">25m</span>
+</div>
+<p class="text-xs text-on-surface-variant leading-snug">PhET 'Quantum Bound States' lab observing position/momentum tradeoffs.</p>
+</div>
+</div>
+</section>
+<section class="col-span-6 row-span-6 relative rounded-3xl overflow-hidden shadow-2xl border-4 border-white">
+<img alt="Abstract visualization of quantum entanglement" class="absolute inset-0 w-full h-full object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCjErJaMyDK5kjzTovLrASuyjKjQibbbK3m9j83ky5Y8NUw42gJ8rI2I2nvCTIMD9KarwXUrpyqZ3mOAtTehMrvrfM5zley6gduXzfL9s0lZtKH5TvmU1QxZQRQ1wUQAK9WMT7rZWr10yVa7fZAtEaFk1Eci3MupvnWlWRXxik3eIhP4eyhrZKKDf1u7wZOqKUuaCgcUyuFIQ3isA-SUievMVWvVKr1vYH5L9syrve9QLI6yCKDPzBpXuVusD2XRg-QobUMRlHoPDCZ"/>
+<div class="absolute inset-0 bg-gradient-to-t from-primary/95 via-primary/40 to-transparent flex flex-col justify-end p-12">
+<div class="max-w-2xl space-y-4">
+<h1 class="text-6xl font-headline font-black text-white leading-[0.95] tracking-tighter">Introduction to Quantum Mechanics</h1>
+<p class="text-xl text-primary-fixed font-body leading-relaxed opacity-90">A foundational exploration into the wave-particle duality, uncertainty principles, and the probabilistic nature of the microscopic universe.</p>
+<div class="pt-6 flex gap-4">
+<div class="bg-white/10 backdrop-blur-md px-4 py-2 rounded-xl border border-white/20">
+<p class="text-[10px] uppercase font-bold text-white/60">Lesson ID</p>
+<p class="text-sm font-bold text-white">#QM-102-PHY</p>
+</div>
+<div class="bg-white/10 backdrop-blur-md px-4 py-2 rounded-xl border border-white/20">
+<p class="text-[10px] uppercase font-bold text-white/60">Duration</p>
+<p class="text-sm font-bold text-white">90 Minutes</p>
+</div>
+</div>
+</div>
+</div>
+</section>
+<section class="col-span-3 row-span-3 rounded-2xl bg-secondary-container/10 p-5 flex flex-col border border-secondary-container/20 shadow-sm overflow-hidden">
+<div class="flex items-center gap-2 mb-4">
+<span class="material-symbols-outlined text-secondary text-xl">inventory_2</span>
+<h2 class="text-lg font-headline font-extrabold text-on-surface">Materials</h2>
+</div>
+<div class="flex-1 space-y-3 overflow-y-auto dense-scroll">
+<div class="p-3 bg-white rounded-xl flex items-center gap-3 border border-slate-100">
+<span class="material-symbols-outlined text-secondary text-lg">computer</span>
+<div>
+<p class="text-xs font-bold text-on-surface">PhET Simulations</p>
+<p class="text-[10px] text-on-surface-variant font-label">Interactive Lab</p>
+</div>
+</div>
+<div class="p-3 bg-white rounded-xl flex items-center gap-3 border border-slate-100">
+<span class="material-symbols-outlined text-secondary text-lg">light_mode</span>
+<div>
+<p class="text-xs font-bold text-on-surface">Diffraction Gratings</p>
+<p class="text-[10px] text-on-surface-variant font-label">Physical Set</p>
+</div>
+</div>
+<div class="p-3 bg-white rounded-xl flex items-center gap-3 border border-slate-100">
+<span class="material-symbols-outlined text-secondary text-lg">menu_book</span>
+<div>
+<p class="text-xs font-bold text-on-surface">Handout: Schrödinger's Cat</p>
+<p class="text-[10px] text-on-surface-variant font-label">Guide</p>
+</div>
+</div>
+</div>
+</section>
+<section class="col-span-3 row-span-3 rounded-2xl bg-surface-container-high p-5 flex flex-col border border-surface-container-highest shadow-sm overflow-hidden">
+<div class="flex items-center gap-2 mb-4">
+<span class="material-symbols-outlined text-primary text-xl">analytics</span>
+<h2 class="text-lg font-headline font-extrabold text-on-surface">Assessment</h2>
+</div>
+<div class="flex-1 space-y-3 overflow-y-auto dense-scroll">
+<p class="text-xs text-on-surface-variant italic mb-4 leading-relaxed">A holistic approach to measuring student mastery through conceptual reasoning.</p>
+<div class="p-3 bg-white rounded-xl border border-outline-variant/20">
+<div class="flex items-center gap-2 mb-1">
+<span class="material-symbols-outlined text-primary text-sm" style="font-variation-settings: 'FILL' 1;">fact_check</span>
+<h4 class="text-xs font-bold text-primary">Exit Ticket</h4>
+</div>
+<p class="text-[10px] text-on-surface-variant">3-sentence summary of electron vs optical microscopes.</p>
+</div>
+<div class="p-3 bg-white rounded-xl border border-outline-variant/20">
+<div class="flex items-center gap-2 mb-1">
+<span class="material-symbols-outlined text-primary text-sm" style="font-variation-settings: 'FILL' 1;">assignment</span>
+<h4 class="text-xs font-bold text-primary">Problem Set</h4>
+</div>
+<p class="text-[10px] text-on-surface-variant">Four quantitative problems on Planck-Einstein equation.</p>
+</div>
+</div>
+</section>
+</main>
+
+</body></html>
